@@ -35,7 +35,7 @@ describe('preparação para o Render', () => {
 
   it('health check não conta no rate limit (o Render chama de poucos IPs, sem parar)', async () => {
     const app = new FakeFastify();
-    configurePublicApp(app as unknown as FastifyInstance, deps, { ...DEFAULT_SETTINGS, rateLimit: { globalMax: 2, sensitiveMax: 1, windowMs: 60_000 } });
+    configurePublicApp(app as unknown as FastifyInstance, deps, { ...DEFAULT_SETTINGS, rateLimit: { globalMax: 2, sensitiveMax: 1, authMax: 1, windowMs: 60_000 } });
     for (let i = 0; i < 10; i++) assert.equal((await app.inject({ method: 'GET', url: HEALTH_PATH, remoteAddress: '10.0.0.1' })).statusCode, 200);
   });
 

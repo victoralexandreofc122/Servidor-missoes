@@ -25,10 +25,16 @@ describe('montagem das instâncias (sem Fastify instalado)', () => {
   it('(b) a instância pública não registra nada em /internal', async () => {
     const { pub } = build();
     assert.deepEqual(pub.routes.map((r) => `${r.method} ${r.url}`).sort(), [
-      'GET /health', 'POST /missions', 'POST /missions/:id/evaluate', 'POST /missions/:id/submit', 'POST /scrolls/:id/redeem',
+      'GET /health', 'POST /auth/login', 'POST /auth/register',
+      'POST /missions', 'POST /missions/:id/evaluate', 'POST /missions/:id/submit', 'POST /scrolls/:id/redeem',
     ]);
-    const gameRoutes = pub.routes.filter((r) => r.url !== '/health');   // /health é o único sem JWT, de propósito
+    // Sem JWT, de propósito: /health e /auth/* (quem faz login ainda não tem token).
+    const open = (url: string) => url === '/health' || url.startsWith('/auth/');
+    const gameRoutes = pub.routes.filter((r) => !open(r.url));
     assert.ok(gameRoutes.every((r) => r.preHandler.includes(deps.authenticate)), 'toda rota do jogo exige JWT');
+    const authRoutes = pub.routes.filter((r) => r.url.startsWith('/auth/'));
+    assert.ok(authRoutes.every((r) => !r.preHandler.includes(deps.authenticate)), '/auth não passa pelo authenticate');
+    assert.ok(authRoutes.every((r) => r.onRequest.length === 1), '/auth tem o limite de auth');
     await casePublicHasNoInternal(pub);
   });
 

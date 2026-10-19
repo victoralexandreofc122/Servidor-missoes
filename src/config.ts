@@ -48,6 +48,8 @@ const EnvSchema = z.object({
   TRUST_PROXY: TrustProxy,
   RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_SENSITIVE_MAX: z.coerce.number().int().positive().default(10),
+  /** Cadastro e login, por IP e por rota: 5 tentativas por janela (padrão 1 min). */
+  RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(5),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
 });
 

@@ -1,6 +1,8 @@
 import { buildInternalApp, buildPublicApp } from './app.js';
 import type { AppSettings } from './appSetup.js';
-import { makeAuthenticate } from './auth/authenticate.js';
+import { makeAuthenticate, type JwtOptions } from './auth/authenticate.js';
+import { makeTokenIssuer } from './auth/issueToken.js';
+import { AUTH_SQL } from './auth/sql.js';
 import { makeRequireServiceToken } from './auth/requireServiceToken.js';
 import { describeBootError } from './bootErrors.js';
 import { loadConfig, trustProxyWarning, type Config } from './config.js';
@@ -30,17 +32,22 @@ const settings: AppSettings = {
   rateLimit: {
     globalMax: config.RATE_LIMIT_GLOBAL_MAX,
     sensitiveMax: config.RATE_LIMIT_SENSITIVE_MAX,
+    authMax: config.RATE_LIMIT_AUTH_MAX,
     windowMs: config.RATE_LIMIT_WINDOW_MS,
   },
 };
 
+// Quem emite (login) e quem confere (authenticate) usam as MESMAS opções de JWT.
+const jwtOptions: JwtOptions = {
+  secret: config.JWT_SECRET,
+  ...(config.JWT_ISSUER ? { issuer: config.JWT_ISSUER } : {}),
+  ...(config.JWT_AUDIENCE ? { audience: config.JWT_AUDIENCE } : {}),
+};
+
 const publicApp = buildPublicApp({
   db,
-  authenticate: makeAuthenticate({
-    secret: config.JWT_SECRET,
-    ...(config.JWT_ISSUER ? { issuer: config.JWT_ISSUER } : {}),
-    ...(config.JWT_AUDIENCE ? { audience: config.JWT_AUDIENCE } : {}),
-  }),
+  authenticate: makeAuthenticate(jwtOptions),
+  issueToken: makeTokenIssuer(jwtOptions),
 }, settings);
 const internalApp = buildInternalApp({ db, requireServiceToken: makeRequireServiceToken(config.SERVICE_TOKEN) }, settings);
 
@@ -72,7 +79,8 @@ process.once('SIGTERM', () => void shutdown('SIGTERM'));
 try {
   // Falha cedo, com instrução no log: banco inacessível ou schema não aplicado
   // derrubam a subida (o Render mantém a versão anterior), não a 1ª requisição.
-  await db.query('SELECT 1 FROM game.ranks LIMIT 1');
+  await db.query('SELECT 1 FROM game.ranks LIMIT 1');   // schema v2
+  await db.query(AUTH_SQL.bootCheck);                    // migração v3 (login)
   await internalApp.listen({ host: config.INTERNAL_HOST, port: config.INTERNAL_PORT });
   await publicApp.listen({ host: config.PUBLIC_HOST, port: config.PORT });
 } catch (err) {

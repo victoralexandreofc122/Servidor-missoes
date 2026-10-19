@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { configureInternalApp, configurePublicApp, type AppSettings } from '../src/appSetup.js';
 import { loadConfig } from '../src/config.js';
 import { makeRateLimit } from '../src/plugins/rateLimit.js';
-import { casesRateLimitWiring, deps } from './support/appCases.js';
+import { casesAuthRateLimit, casesRateLimitWiring, deps } from './support/appCases.js';
 import { FakeFastify } from './support/fakeFastify.js';
 import { FakeReply, JWT_SECRET, SERVICE_TOKEN } from './support/harness.js';
 
@@ -86,6 +86,22 @@ describe('rate limit em memória (correção 11)', () => {
       configureInternalApp(internal as unknown as FastifyInstance, deps, settings);
       return { pub, internal };
     });
+  });
+
+  it('montagem: /auth/login e /auth/register limitados a 5 por minuto por IP, sem JWT', async () => {
+    await casesAuthRateLimit((settings: AppSettings) => {
+      const pub = new FakeFastify();
+      const internal = new FakeFastify();
+      configurePublicApp(pub as unknown as FastifyInstance, deps, settings);
+      configureInternalApp(internal as unknown as FastifyInstance, deps, settings);
+      return { pub, internal };
+    });
+  });
+
+  it('config: RATE_LIMIT_AUTH_MAX padrão 5, ajustável pelo ambiente', () => {
+    const base = { DATABASE_URL: 'postgres://x', JWT_SECRET, SERVICE_TOKEN };
+    assert.equal(loadConfig(base as NodeJS.ProcessEnv).RATE_LIMIT_AUTH_MAX, 5);
+    assert.equal(loadConfig({ ...base, RATE_LIMIT_AUTH_MAX: '3' } as NodeJS.ProcessEnv).RATE_LIMIT_AUTH_MAX, 3);
   });
 
   it('config: padrões 100 / 10 / 60000 e valores do ambiente', () => {

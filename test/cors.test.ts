@@ -30,14 +30,14 @@ describe('CORS nativo (correção 9)', () => {
   });
 
   it('lista vazia: zero hooks, nenhum header; lista: headers exatos, 403, preflight 204, interna também', async () => {
-    const empty = fakeBuild({ allowedOrigins: [], trustProxy: true, rateLimit: { globalMax: 100, sensitiveMax: 10, windowMs: 60_000 } });
+    const empty = fakeBuild({ allowedOrigins: [], trustProxy: true, rateLimit: { globalMax: 100, sensitiveMax: 10, authMax: 5, windowMs: 60_000 } });
     assert.ok(!empty.pub.hooks.some((h) => h.name === 'onSend'), 'sem lista não registra onSend');
     assert.deepEqual(empty.internal.hooks.map((h) => h.name), ['onRequest'], 'interna sem lista: só o token de serviço');
     await casesCors(fakeBuild);
   });
 
   it('no preflight o handler não é chamado', async () => {
-    const { pub } = fakeBuild({ allowedOrigins: ['https://app.exemplo.com'], trustProxy: true, rateLimit: { globalMax: 100, sensitiveMax: 10, windowMs: 60_000 } });
+    const { pub } = fakeBuild({ allowedOrigins: ['https://app.exemplo.com'], trustProxy: true, rateLimit: { globalMax: 100, sensitiveMax: 10, authMax: 5, windowMs: 60_000 } });
     const r = await pub.inject({ method: 'OPTIONS', url: '/missions', headers: { origin: 'https://app.exemplo.com' } });
     assert.equal(r.statusCode, 204);
     assert.equal(r.handlerCalled, false);

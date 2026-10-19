@@ -39,6 +39,11 @@ export const CONSTRAINT_ERRORS: Readonly<Record<string, PublicError>> = {
   // gerais
   rule_append_only: { status: 409, code: 'RECORD_LOCKED', message: 'Esse registro não pode ser alterado.' },
   ux_players_username: { status: 409, code: 'USERNAME_TAKEN', message: 'Esse nome já está em uso.' },
+
+  // cadastro (v3). O Zod barra antes; estas são a última linha de defesa no banco.
+  ux_players_email: { status: 409, code: 'EMAIL_TAKEN', message: 'Esse e-mail já está cadastrado.' },
+  ck_players_email: { status: 400, code: 'INVALID_INPUT', message: 'E-mail inválido.' },
+  ck_players_username: { status: 400, code: 'INVALID_INPUT', message: 'Nome de usuário inválido.' },
 };
 
 /** Regras do SERVIDOR (autorização e entrada), que o banco não cobre. */
@@ -47,6 +52,7 @@ export const SERVER_ERRORS = {
   mission_not_found: { status: 404, code: 'MISSION_NOT_FOUND', message: 'Missão não encontrada.' },
   scroll_not_found: { status: 404, code: 'SCROLL_NOT_FOUND', message: 'Pergaminho não encontrado.' },
   unauthenticated: { status: 401, code: 'UNAUTHENTICATED', message: 'Faça login novamente.' },
+  invalid_credentials: { status: 401, code: 'INVALID_CREDENTIALS', message: 'E-mail, usuário ou senha incorretos.' },
   service_unauthorized: { status: 401, code: 'SERVICE_UNAUTHORIZED', message: 'Acesso negado.' },
   invalid_input: { status: 400, code: 'INVALID_INPUT', message: 'Dados inválidos na requisição.' },
   route_not_found: { status: 404, code: 'NOT_FOUND', message: 'Rota não encontrada.' },

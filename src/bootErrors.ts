@@ -12,6 +12,10 @@ export function describeBootError(err: unknown): string {
     return 'O schema do jogo não existe neste banco. Abra o SQL Editor do Neon, rode o arquivo '
       + 'db/schema_ranks_missoes_sensei.sql inteiro e depois faça "Manual Deploy" no Render.';
   }
+  if (code === '42703' && /email|password_hash/.test(message)) {
+    return 'Falta a migração v3 (login) neste banco. Abra o SQL Editor do Neon, rode o arquivo '
+      + 'db/schema_v3_auth.sql inteiro e depois faça "Manual Deploy" no Render.';
+  }
   if (/unsupported startup parameter/i.test(message)) {
     return 'A DATABASE_URL aponta para o pooler do Neon (host com "-pooler"). No Neon, clique em Connect, '
       + 'desligue "Connection pooling", copie a connection string de novo e troque a DATABASE_URL no Render.';

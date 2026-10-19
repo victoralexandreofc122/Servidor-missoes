@@ -18,8 +18,8 @@ export interface AppSettings {
   allowedOrigins: readonly string[];
   /** TRUST_PROXY. Padrão true (atrás de proxy reverso / load balancer). */
   trustProxy: TrustProxySetting;
-  /** Limites por IP + rota, só na instância pública. */
-  rateLimit: { globalMax: number; sensitiveMax: number; windowMs: number; now?: () => number };
+  /** Limites por IP + rota, só na instância pública. authMax vale para /auth/register e /auth/login. */
+  rateLimit: { globalMax: number; sensitiveMax: number; authMax: number; windowMs: number; now?: () => number };
 }
 
 /** Rota do health check (configure a mesma em Settings → Health Check Path no Render). */
@@ -28,7 +28,7 @@ export const HEALTH_PATH = '/health';
 export const DEFAULT_SETTINGS: AppSettings = {
   allowedOrigins: [],
   trustProxy: true,
-  rateLimit: { globalMax: 100, sensitiveMax: 10, windowMs: 60_000 },
+  rateLimit: { globalMax: 100, sensitiveMax: 10, authMax: 5, windowMs: 60_000 },
 };
 
 /**
@@ -61,25 +61,27 @@ export function withErrorHandling(app: FastifyInstance): FastifyInstance {
 
 /**
  * Pública. Ordem dos hooks onRequest: CORS (responde o preflight) -> limite global ->
- * limite sensível da rota; depois o preHandler de JWT e o handler.
+ * limite da rota (sensível ou de auth); depois o preHandler de JWT (exceto /auth) e o handler.
  */
 export function configurePublicApp(app: FastifyInstance, deps: PublicRoutesDeps, settings: AppSettings = DEFAULT_SETTINGS): FastifyInstance {
   withErrorHandling(app);
   registerCors(app, settings.allowedOrigins);
 
-  const { globalMax, sensitiveMax, windowMs, now } = settings.rateLimit;
+  const { globalMax, sensitiveMax, authMax, windowMs, now } = settings.rateLimit;
   const globalLimit = makeRateLimit({ max: globalMax, timeWindowMs: windowMs, skipRoutes: [HEALTH_PATH], ...(now ? { now } : {}) });
   const sensitiveLimit = makeRateLimit({ max: sensitiveMax, timeWindowMs: windowMs, ...(now ? { now } : {}) });
+  const authLimit = makeRateLimit({ max: authMax, timeWindowMs: windowMs, ...(now ? { now } : {}) });
   app.addHook('onRequest', globalLimit);
   app.addHook('onClose', async () => {
     globalLimit.close();
     sensitiveLimit.close();
+    authLimit.close();
   });
 
   // Health check do Render: responde na hora, sem banco, sem JWT, fora do rate limit.
   app.get(HEALTH_PATH, async (_request, reply) => reply.code(200).send({ status: 'ok' }));
 
-  registerPublicRoutes(app, deps, sensitiveLimit);
+  registerPublicRoutes(app, deps, { sensitive: sensitiveLimit, auth: authLimit });
   return app;
 }
 

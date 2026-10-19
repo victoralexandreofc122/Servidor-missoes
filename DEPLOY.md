@@ -10,6 +10,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 3 | Render: criar o serviço | ~15 min (inclui ~5 min de build) |
 | 4 | Verificar | ~5 min |
 | 5 | Pós-deploy: o que fazer e o que não fazer | leitura |
+| 6 | Atualização v3: login (para quem já está no ar) | ~5 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -51,6 +52,8 @@ Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
 
    - Erro com **"already exists"**: o schema já tinha sido aplicado. Não rode de novo; siga em frente.
    - Qualquer outro erro: copie a mensagem e mande para o Claude antes de seguir.
+6. Rode também a migração do login: apague o editor, cole o arquivo `db/schema_v3_auth.sql` inteiro e toque em **Run**.
+   Esta pode rodar de novo sem erro.
 
 ---
 
@@ -153,6 +156,7 @@ Variáveis (**Environment** → **Add Environment Variable**, uma por uma):
 | No log aparece | O que fazer |
 |---|---|
 | `O schema do jogo não existe` | Faça o Passo 1.4 e depois **Manual Deploy → Deploy latest commit** |
+| `Falta a migração v3 (login)` | Faça o Passo 6.1 e depois **Manual Deploy → Deploy latest commit** |
 | `desligue "Connection pooling"` | Copie a string **sem** `-pooler` (Passo 1.3) e troque `DATABASE_URL` em **Environment** |
 | `usuário ou senha` | Copie a connection string de novo no Neon e troque `DATABASE_URL` |
 | `Não consegui alcançar o banco` | Confira o host na `DATABASE_URL`; se o Neon estava dormindo, o Render tenta de novo sozinho |
@@ -183,5 +187,38 @@ Trocou uma variável? Em **Environment**, use **Save, rebuild, and deploy**.
 
 **O que ainda não existe (próximas etapas):**
 
-- Login e emissão de JWT para os jogadores. Até lá, só o `/health` funciona sem token.
 - O servidor de jogo que chama a rota interna `/internal/...`. A porta interna fica em 127.0.0.1 de propósito e não é acessível pela internet.
+
+---
+
+## Passo 6 — Atualização v3: login
+
+Vale para quem já fez os passos 1 a 5. A v3 adiciona cadastro (`POST /auth/register`) e login
+(`POST /auth/login`, que devolve o JWT de 7 dias).
+
+1. **Primeiro o banco.** No Neon, abra o **SQL Editor**, cole o arquivo `db/schema_v3_auth.sql` inteiro e toque em **Run**.
+   Ele só adiciona as colunas `email` e `password_hash`; o servidor que está no ar continua funcionando.
+   Confira com:
+
+   ```
+   SELECT column_name FROM information_schema.columns WHERE table_schema = 'game' AND table_name = 'players' AND column_name IN ('email', 'password_hash');
+   ```
+
+   Tem que aparecer **2** linhas.
+2. **Depois o código.** O Render faz o deploy sozinho quando o código chega no GitHub.
+   Se o deploy rodou antes do passo 1, ele falha com `Falta a migração v3 (login)` e a versão anterior
+   continua no ar: faça o passo 1 e toque em **Manual Deploy → Deploy latest commit**.
+3. **Teste pelo navegador do celular não dá** (são POST). Use um app de requisições HTTP, ou peça ao
+   Claude um comando `curl` pronto. Cadastro:
+
+   ```
+   POST https://SEU-SERVICO.onrender.com/auth/register
+   Content-Type: application/json
+
+   {"username":"Kaito","email":"kaito@exemplo.com","password":"Shuriken-de-Prata-7"}
+   ```
+
+   Login: mesmo endereço com `/auth/login` e `{"email":"kaito@exemplo.com","password":"Shuriken-de-Prata-7"}`.
+   A resposta traz `token`; nas outras rotas, mande o header `Authorization: Bearer <token>`.
+
+Não precisa criar variável nova no Render. Opcional: `RATE_LIMIT_AUTH_MAX` (padrão 5 tentativas por minuto por IP).

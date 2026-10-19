@@ -39,20 +39,29 @@ export class FakeReply implements ReplyLike {
 type Hook = (request: PlayerRequest) => Promise<void>;
 type Handler = (request: PlayerRequest, reply: ReplyLike) => Promise<unknown>;
 
-const silentLog = { error() {}, info() {} };
+const silentLog: { error(obj: object, msg?: string): void; info(obj: object, msg?: string): void } = { error() {}, info() {} };
+
+/** Logger que guarda tudo o que seria escrito no log (para provar o que NÃO vai para lá). */
+export function captureLog() {
+  const lines: string[] = [];
+  const write = (obj: object, msg?: string) => {
+    lines.push(JSON.stringify(obj, (_k, v) => (v instanceof Error ? { ...v, message: v.message, stack: v.stack } : v)) + ' ' + (msg ?? ''));
+  };
+  return { log: { error: write, info: write }, lines };
+}
 
 /**
  * Executa como o Fastify faria: hooks (preHandler) -> handler; qualquer erro vai
  * para o mesmo sendError do setErrorHandler. Devolve { status, body } como o cliente veria.
  */
-export async function call(handler: Handler, request: Partial<PlayerRequest>, hooks: Hook[] = []) {
+export async function call(handler: Handler, request: Partial<PlayerRequest>, hooks: Hook[] = [], log = silentLog) {
   const req: PlayerRequest = { params: {}, body: {}, headers: {}, ...request };
   const reply = new FakeReply();
   try {
     for (const hook of hooks) await hook(req);
     await handler(req, reply);
   } catch (err) {
-    sendError(err, reply, silentLog);
+    sendError(err, reply, log);
   }
   return { status: reply.statusCode, body: reply.payload };
 }

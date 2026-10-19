@@ -12,6 +12,7 @@ o servidor valida **quem está chamando** e traduz os erros para português.
 npm install
 cp .env.example .env              # preencha os segredos
 psql "$DATABASE_URL" -f db/schema_ranks_missoes_sensei.sql
+psql "$DATABASE_URL" -f db/schema_v3_auth.sql      # migração v3: login
 npm run dev
 ```
 
@@ -24,6 +25,8 @@ npm run dev
 | Método e rota | Quem chama | Auth |
 |---|---|---|
 | `GET /health` | Render (health check) | nenhuma |
+| `POST /auth/register` | jogador novo | nenhuma (limite: 5/min por IP) |
+| `POST /auth/login` | jogador | nenhuma (limite: 5/min por IP) → devolve o JWT |
 | `POST /missions` | sensei | JWT (sensei = `sub`) |
 | `PATCH /internal/missions/:id/progress` | servidor de jogo | token de serviço |
 | `POST /missions/:id/submit` | aprendiz | JWT + `assertMissionTrainee` |
@@ -31,6 +34,25 @@ npm run dev
 | `POST /scrolls/:id/redeem` | aprendiz | JWT + checagem do aprendiz |
 
 Erros sempre no formato `{ "error": { "code": "TRAINEE_BUSY", "message": "..." } }`.
+
+### Cadastro e login
+
+```http
+POST /auth/register
+{ "username": "Kaito", "email": "kaito@exemplo.com", "password": "Shuriken-de-Prata-7" }
+-> 201 { "player": { "id", "username", "rank": { "code", "name" }, "total_xp", "created_at" } }
+
+POST /auth/login
+{ "email": "kaito@exemplo.com", "password": "..." }      (ou { "username": "Kaito", "password": "..." })
+-> 200 { "token": "<JWT>", "expires_at": "...", "player": { ... } }
+```
+
+- Senha: 10 a 128 caracteres, com minúscula, maiúscula e número, sem conter o nome de usuário.
+- Nome: 3 a 24 caracteres, letras sem acento, números ou `_`. E-mail e nome são únicos (sem diferenciar maiúsculas).
+- A senha vira hash scrypt (`node:crypto`, sem dependência nova). O JWT vale 7 dias e vai no header
+  `Authorization: Bearer <token>` das outras rotas.
+- Erros: `EMAIL_TAKEN` e `USERNAME_TAKEN` (409), `INVALID_INPUT` (400), `INVALID_CREDENTIALS` (401, a mesma
+  resposta para conta inexistente e senha errada), `RATE_LIMITED` (429).
 
 ## Scripts
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { DEFAULT_SETTINGS, type AppSettings } from '../src/appSetup.js';
 import {
-  caseErrorHandlerOnBoth, caseInternalHookIsGlobal, casePublicHasNoInternal, casesCors, casesRateLimitWiring, deps,
+  caseErrorHandlerOnBoth, caseInternalHookIsGlobal, casePublicHasNoInternal, casesAuthRateLimit, casesCors, casesRateLimitWiring, deps,
 } from './support/appCases.js';
 
 /*
@@ -61,6 +61,11 @@ describe('montagem das instâncias com Fastify real (inject)', { skip: unavailab
 
   it('rate limit (correção 11)', async () => {
     await casesRateLimitWiring(build);
+    await closeAll();
+  });
+
+  it('auth: 5 por minuto por IP em /auth/login e /auth/register, sem JWT', async () => {
+    await casesAuthRateLimit(build);
     await closeAll();
   });
 });

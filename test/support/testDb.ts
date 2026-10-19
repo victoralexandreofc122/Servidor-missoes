@@ -3,7 +3,7 @@ import pg from 'pg';
 import { createDb, type Db } from '../../src/db.js';
 
 /**
- * Cria um banco novo só para o teste, aplica db/schema_ranks_missoes_sensei.sql
+ * Cria um banco novo só para o teste, aplica db/schema_ranks_missoes_sensei.sql + db/schema_v3_auth.sql
  * e apaga tudo no final. TEST_DATABASE_URL precisa de um role com CREATEDB.
  */
 export async function createTestDatabase() {
@@ -18,7 +18,10 @@ export async function createTestDatabase() {
   const url = new URL(adminUrl);
   url.pathname = `/${name}`;
   const pool = new pg.Pool({ connectionString: url.toString(), max: 10 });
-  await pool.query(readFileSync(new URL('../../db/schema_ranks_missoes_sensei.sql', import.meta.url), 'utf8'));
+  // Mesma ordem do Neon: schema v2, depois a migração v3 (login).
+  for (const file of ['schema_ranks_missoes_sensei.sql', 'schema_v3_auth.sql']) {
+    await pool.query(readFileSync(new URL(`../../db/${file}`, import.meta.url), 'utf8'));
+  }
 
   const db: Db = createDb(pool);
 

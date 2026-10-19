@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { makeAuthenticate } from '../../src/auth/authenticate.js';
+import { makeTokenIssuer } from '../../src/auth/issueToken.js';
 import { makeRequireServiceToken, SERVICE_TOKEN_HEADER } from '../../src/auth/requireServiceToken.js';
 import type { Db } from '../../src/db.js';
 import { JWT_SECRET, playerToken, SERVICE_TOKEN } from './harness.js';
@@ -19,7 +20,7 @@ export type Builder = (settings: import('../../src/appSetup.js').AppSettings) =>
 
 const ALLOWED = 'https://app.exemplo.com';
 const corsHeaderNames = (h: Record<string, unknown>) => Object.keys(h).filter((k) => k.toLowerCase().startsWith('access-control-'));
-const settingsWith = (allowedOrigins: string[], rate = { globalMax: 100, sensitiveMax: 10, windowMs: 60_000 }) =>
+const settingsWith = (allowedOrigins: string[], rate = { globalMax: 100, sensitiveMax: 10, authMax: 5, windowMs: 60_000 }) =>
   ({ allowedOrigins, trustProxy: true, rateLimit: rate });
 
 /** Correção 9: sem ALLOWED_ORIGINS nada muda; com a lista, só a origem exata recebe CORS. */
@@ -77,7 +78,7 @@ export async function casesCors(build: Builder) {
 
 /** Correção 11: limite sensível em POST /missions bate antes do global; /internal não tem limite. */
 export async function casesRateLimitWiring(build: Builder) {
-  const { pub, internal } = build(settingsWith([], { globalMax: 100, sensitiveMax: 10, windowMs: 60_000 }));
+  const { pub, internal } = build(settingsWith([], { globalMax: 100, sensitiveMax: 10, authMax: 5, windowMs: 60_000 }));
 
   const statuses: number[] = [];
   for (let i = 0; i < 12; i++) statuses.push((await pub.inject({ method: 'POST', url: '/missions', payload: {}, remoteAddress: '10.0.0.1' })).statusCode);
@@ -115,6 +116,7 @@ export const fakeDb: Db = {
 export const deps = {
   db: fakeDb,
   authenticate: makeAuthenticate({ secret: JWT_SECRET }),
+  issueToken: makeTokenIssuer({ secret: JWT_SECRET }),
   requireServiceToken: makeRequireServiceToken(SERVICE_TOKEN),
 };
 
@@ -164,4 +166,24 @@ export async function caseErrorHandlerOnBoth(pub: Injectable, internal: Injectab
   const i = await internal.inject({ method: 'PATCH', url: progressUrl, payload: { amount: 0 }, headers: service });   // corpo inválido
   assert.equal(i.statusCode, 400);
   assert.equal(i.json().error.code, 'INVALID_INPUT');
+}
+
+/**
+ * Auth: 5 tentativas por minuto por IP em CADA rota de /auth; a 6ª é 429.
+ * Corpo vazio -> 400 (validação) antes de qualquer hash: o teste não gasta scrypt.
+ * Nenhuma rota de /auth pede JWT (sem token não vira 401).
+ */
+export async function casesAuthRateLimit(build: Builder) {
+  const { pub } = build(settingsWith([], { globalMax: 100, sensitiveMax: 10, authMax: 5, windowMs: 60_000 }));
+  for (const url of ['/auth/login', '/auth/register']) {
+    const statuses: number[] = [];
+    for (let i = 0; i < 6; i++) statuses.push((await pub.inject({ method: 'POST', url, payload: {}, remoteAddress: '10.0.0.9' })).statusCode);
+    assert.deepEqual(statuses, [400, 400, 400, 400, 400, 429], url);       // login e register contam separado
+    const limited = await pub.inject({ method: 'POST', url, payload: {}, remoteAddress: '10.0.0.9' });
+    assert.equal(limited.json().error.code, 'RATE_LIMITED');
+    assert.match(String(limited.headers['retry-after']), /^\d+$/);
+    assert.equal((await pub.inject({ method: 'POST', url, payload: {}, remoteAddress: '10.0.0.10' })).statusCode, 400, 'outro IP não é afetado');
+  }
+  // o limite de auth não vaza para as rotas do jogo do mesmo IP
+  assert.equal((await pub.inject({ method: 'POST', url: '/missions', payload: {}, remoteAddress: '10.0.0.9' })).statusCode, 401);
 }
