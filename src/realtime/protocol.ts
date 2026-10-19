@@ -5,7 +5,8 @@ import { z } from 'zod';
  *
  * Cliente -> servidor (o cliente só PEDE; dano, acerto, morte e XP são decididos no servidor)
  *   { "type": "move", "dx": 0.5, "dy": -0.5 }   direção do joystick, de -1 a 1 (0,0 = parar)
- *   { "type": "cast", "skill": "fire" }         usar habilidade
+ *   { "type": "cast", "skill": "fire", "targetId": "m12" }   habilidade; targetId (opcional) = alvo focado
+ *   { "type": "meditate", "active": true }      começar/parar de meditar (chakra 3x mais rápido)
  *   { "type": "respawn" }                       renascer (só depois de 5 s morto)
  *   { "type": "chat", "message": "Olá!" }
  *
@@ -16,6 +17,7 @@ import { z } from 'zod';
  *   player_hp         { playerId, hp, maxHp }              vida dos outros (barrinha sobre o boneco)
  *   cast              { playerId, skill, x, y, fx, fy }    habilidade aceita (todos veem a animação)
  *   cast_failed       { skill, reason }                    só para quem tentou
+ *   meditation        { playerId, active, reason? }        entrou/saiu da meditação (todos veem a aura)
  *   hit               { target, id, amount, kind, hp, maxHp, shielded? }   número flutuante
  *   monsters_moved    { m: [[id, x, y], ...] }
  *   monster_spawned   { monster }
@@ -35,9 +37,16 @@ const axis = z.number().finite().min(-1).max(1);
 export const SKILLS = ['fire', 'water', 'taijutsu', 'illusion', 'shadow', 'stone', 'heal'] as const;
 export type Skill = (typeof SKILLS)[number];
 
+/** Jutsus que podem mirar no alvo focado (Taijutsu é sempre no mais perto; Pedra e Cura são em si mesmo). */
+export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(['fire', 'water', 'illusion', 'shadow']);
+
+/** Id de monstro como o servidor cria ("m" + número). */
+const monsterId = z.string().regex(/^m\d{1,9}$/);
+
 export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move'), dx: axis, dy: axis }),
-  z.object({ type: z.literal('cast'), skill: z.enum(SKILLS) }),
+  z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: monsterId.optional() }),
+  z.object({ type: z.literal('meditate'), active: z.boolean() }),
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('chat'), message: z.string() }),
 ]);
@@ -56,6 +65,7 @@ export interface PlayerView {
   hp: number;
   maxHp: number;
   dead: boolean;
+  meditating: boolean;
 }
 
 export interface SelfView extends PlayerView {
@@ -83,11 +93,15 @@ export interface WorldInfo {
   tickMs: number;
   spawn: { x: number; y: number };
   respawnMs: number;
-  skills: Record<Skill, { cost: number; cooldownMs: number }>;
+  /** range = alcance máximo (Fogo: raio da área); ausente = habilidade em si mesmo. */
+  skills: Record<Skill, { cost: number; cooldownMs: number; range?: number }>;
+  meditationRegenMultiplier: number;
   promotion: { fromRank: string; toRank: string; xp: number };
 }
 
-export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD';
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD';
+/** Por que a meditação acabou. */
+export type MeditationEnd = 'manual' | 'moved' | 'cast' | 'damaged' | 'died';
 export type MonsterStatus = 'stunned' | 'rooted';
 
 export type ServerMessage =
@@ -100,6 +114,7 @@ export type ServerMessage =
   | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }
   | { type: 'cast'; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number }
   | { type: 'cast_failed'; skill: Skill; reason: CastFailReason }
+  | { type: 'meditation'; playerId: string; active: boolean; reason?: MeditationEnd }
   | { type: 'hit'; target: 'monster' | 'player'; id: string; amount: number; kind: 'damage' | 'heal'; hp: number; maxHp: number; shielded?: boolean }
   | { type: 'monsters_moved'; m: [string, number, number][] }
   | { type: 'monster_spawned'; monster: MonsterView }
@@ -112,8 +127,9 @@ export type ServerMessage =
   | { type: 'error'; code: RealtimeErrorCode; message: string };
 
 export const REALTIME_ERRORS = {
-  INVALID_MESSAGE: 'Mensagem inválida. Use {"type":"move","dx":..,"dy":..}, {"type":"cast","skill":".."}, {"type":"respawn"} ou {"type":"chat","message":".."}.',
+  INVALID_MESSAGE: 'Mensagem inválida. Use {"type":"move","dx":..,"dy":..}, {"type":"cast","skill":".."}, {"type":"meditate","active":true}, {"type":"respawn"} ou {"type":"chat","message":".."}.',
   RESPAWN_NOT_READY: 'Ainda não dá para renascer.',
+  CANNOT_MEDITATE: 'Não dá para meditar agora.',
   CHAT_RATE_LIMITED: 'Calma! Espere um pouco antes de mandar outra mensagem no chat.',
   CHAT_INVALID: 'Mensagem de chat vazia ou longa demais.',
 } as const;

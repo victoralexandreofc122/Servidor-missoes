@@ -30,9 +30,9 @@ describe('cliente web servido pelo Fastify', () => {
     assert.match(String(r.json()), /<canvas id="game"/);
   });
 
-  it('/game.js e /styles.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {
+  it('/game.js, /targeting.js e /styles.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {
     const pub = app();
-    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/styles.css', 'text/css; charset=utf-8']];
+    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/targeting.js', 'text/javascript; charset=utf-8'], ['/styles.css', 'text/css; charset=utf-8']];
     for (const [url, type] of cases) {
       const r = await pub.inject({ method: 'GET', url });
       assert.equal(r.statusCode, 200, url);
@@ -76,7 +76,9 @@ describe('garantias do cliente (public/)', () => {
 
   it('game.js: protocolo igual ao do servidor (move dx/dy, cast com as 7 habilidades, chat)', () => {
     assert.match(js, /send\(\{ type: 'move', dx: want\.x, dy: want\.y \}\)/);
-    assert.match(js, /send\(\{ type: 'cast', skill \}\)/);
+    assert.match(js, /send\(targetId \? \{ type: 'cast', skill, targetId \} : \{ type: 'cast', skill \}\)/);
+    assert.match(js, /send\(\{ type: 'meditate', active: !state\.me\.meditating \}\)/);
+    assert.match(js, /from '\.\/targeting\.js'/, 'foco e câmera vêm do módulo testado');
     assert.match(js, /send\(\{ type: 'chat', message \}\)/);
     for (const skill of SKILLS) assert.match(html, new RegExp(`data-skill="${skill}"`));
   });

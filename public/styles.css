@@ -397,3 +397,37 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
 .death { background: rgba(20, 17, 13, 0.72); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
 .death h2 { margin: 0; font-size: 24px; }
 .death .big { color: var(--danger); }
+
+/* ------------------------------------------------------------ foco e meditação */
+
+/* Logo acima do bloco de habilidades (2 linhas deitado, 3 em pé). */
+.actions {
+  position: fixed;
+  right: calc(var(--safe-right) + 12px);
+  bottom: calc(var(--safe-bottom) + 12px + 2 * 58px + 9px + 10px);
+  display: flex;
+  gap: 8px;
+}
+@media (orientation: portrait) {
+  .actions { bottom: calc(var(--safe-bottom) + 12px + 3 * 54px + 2 * 9px + 10px); }
+  .vitals { bottom: calc(var(--safe-bottom) + 12px + 3 * 54px + 2 * 9px + 10px + 46px + 12px); }
+}
+@media (max-height: 360px) and (orientation: landscape) {
+  .actions { bottom: calc(var(--safe-bottom) + 12px + 2 * 50px + 7px + 8px); }
+}
+.action-btn {
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 21px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  background: var(--panel);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.action-btn:active { transform: scale(0.95); }
+#target-btn.active { border-color: #ffb347; background: rgba(120, 70, 10, 0.75); box-shadow: 0 0 12px rgba(255, 179, 71, 0.55); }
+#meditate-btn.active { border-color: #6fc0ff; background: rgba(20, 60, 120, 0.8); box-shadow: 0 0 14px rgba(111, 192, 255, 0.7); }
+.bar-chakra.meditating { box-shadow: 0 0 0 2px #6fc0ff, 0 0 14px rgba(111, 192, 255, 0.8); animation: chakra-pulse 1.2s ease-in-out infinite; }
+@keyframes chakra-pulse { 50% { box-shadow: 0 0 0 2px #6fc0ff, 0 0 4px rgba(111, 192, 255, 0.3); } }

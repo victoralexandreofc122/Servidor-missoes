@@ -19,16 +19,16 @@ describe('GameWorld: entrar e sair', () => {
     assert.equal(a.conn.sent.length, 1);
     assert.deepEqual(
       { ...w.you },
-      { id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, chakra: 100, maxChakra: 100, shield: false, xp: 40, rank: { code: 'ACADEMY', name: 'Academia' } },
+      { id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false, chakra: 100, maxChakra: 100, shield: false, xp: 40, rank: { code: 'ACADEMY', name: 'Academia' } },
     );
     assert.deepEqual(w.players, []);
     assert.deepEqual(w.monsters, []);
     assert.equal(w.world.speed, REALTIME.speedTilesPerSecond);
     assert.deepEqual(w.world.spawn, S);
-    assert.deepEqual(w.world.skills.fire, { cost: 20, cooldownMs: 1500 });
+    assert.deepEqual(w.world.skills.fire, { cost: 20, cooldownMs: 1500, range: 3 });
 
     const b = connect('mei');
-    assert.deepEqual(b.conn.of('welcome')[0].players, [{ id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false }]);
+    assert.deepEqual(b.conn.of('welcome')[0].players, [{ id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false }]);
     assert.deepEqual(a.conn.of('player_joined').map((m) => m.player.username), ['mei']);
     assert.equal(b.conn.of('player_joined').length, 0, 'quem entrou não recebe aviso de si mesmo');
     assert.equal(world.online, 2);

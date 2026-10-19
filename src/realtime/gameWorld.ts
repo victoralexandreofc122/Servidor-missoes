@@ -1,8 +1,8 @@
 import { distance, inCone, nearest, randomInRing, shieldedDamage, STEPS, type Point } from './combat.js';
 import { REALTIME, type RealtimeConfig } from './config.js';
 import {
-  CLOSE, ClientMessage, REALTIME_ERRORS, sanitizeChat,
-  type CastFailReason, type MonsterView, type PlayerView, type RankView,
+  CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, sanitizeChat,
+  type CastFailReason, type MeditationEnd, type MonsterView, type PlayerView, type RankView,
   type RealtimeErrorCode, type SelfView, type ServerMessage, type Skill, type WorldInfo,
 } from './protocol.js';
 import { TokenBucket } from './tokenBucket.js';
@@ -69,6 +69,8 @@ interface Session {
   shield: number;
   dead: boolean;
   deadAt: number;
+  /** Meditando: parado, sem habilidades, chakra 3x mais rápido. Mover, atacar ou apanhar cancela. */
+  meditating: boolean;
   /** skill -> instante em que fica pronta de novo */
   cooldowns: Partial<Record<Skill, number>>;
   xp: number;
@@ -151,7 +153,7 @@ export class GameWorld {
   }
 
   private view(s: Session): PlayerView {
-    return { id: s.id, username: s.username, x: round2(s.x), y: round2(s.y), hp: shownHp(s.hp), maxHp: this.config.combat.player.maxHp, dead: s.dead };
+    return { id: s.id, username: s.username, x: round2(s.x), y: round2(s.y), hp: shownHp(s.hp), maxHp: this.config.combat.player.maxHp, dead: s.dead, meditating: s.meditating };
   }
 
   monsterList(): MonsterView[] {
@@ -161,11 +163,15 @@ export class GameWorld {
   private worldInfo(): WorldInfo {
     const { world, speedTilesPerSecond, tickMs, spawn, combat } = this.config;
     const skills = Object.fromEntries(
-      Object.entries(combat.skills).map(([k, v]) => [k, { cost: v.cost, cooldownMs: v.cooldownMs }]),
+      Object.entries(combat.skills).map(([k, v]) => {
+        const range = v.range ?? v.radius;
+        return [k, { cost: v.cost, cooldownMs: v.cooldownMs, ...(range !== undefined ? { range } : {}) }];
+      }),
     ) as WorldInfo['skills'];
     return {
       width: world.width, height: world.height, speed: speedTilesPerSecond, tickMs, spawn: { ...spawn },
       respawnMs: combat.player.respawnMs, skills, promotion: { ...combat.promotion },
+      meditationRegenMultiplier: combat.player.meditationRegenMultiplier,
     };
   }
 
@@ -194,6 +200,7 @@ export class GameWorld {
       chakra: previous?.chakra ?? p.maxChakra,
       shield: previous?.shield ?? 0,
       dead: previous?.dead ?? false,
+      meditating: false,
       deadAt: previous?.deadAt ?? 0,
       cooldowns: { ...(previous?.cooldowns ?? {}) },
       xp: player.xp ?? previous?.xp ?? 0,
@@ -213,6 +220,8 @@ export class GameWorld {
     session.sentHp = shownHp(session.hp);
 
     if (previous) {
+      // A conexão nova começa sem meditar; se a antiga meditava, todos param de ver a aura.
+      if (previous.meditating) this.broadcast({ type: 'meditation', playerId: previous.id, active: false, reason: 'manual' });
       previous.closed = true;
       this.sessions.set(player.id, session);
       safeClose(previous.conn, CLOSE.REPLACED);
@@ -273,7 +282,8 @@ export class GameWorld {
     }
     if (!parsed) this.sendError(session, 'INVALID_MESSAGE');
     else if (parsed.type === 'move') this.setDirection(session, parsed.dx, parsed.dy);
-    else if (parsed.type === 'cast') this.cast(session, parsed.skill, t);
+    else if (parsed.type === 'cast') this.cast(session, parsed.skill, t, parsed.targetId);
+    else if (parsed.type === 'meditate') this.meditate(session, parsed.active);
     else if (parsed.type === 'respawn') this.respawn(session, t);
     else this.chatMessage(session, parsed.message, t);
     this.flushKicks();
@@ -283,6 +293,8 @@ export class GameWorld {
   private setDirection(session: Session, dx: number, dy: number): void {
     if (session.dead) return;             // morto não anda
     const length = Math.hypot(dx, dy);
+    // Tentar andar cancela a meditação (soltar o joystick, que manda 0,0, não cancela).
+    if (length > 0) this.stopMeditation(session, 'moved');
     const scale = length > 1 ? 1 / length : 1;
     session.dx = dx * scale;
     session.dy = dy * scale;
@@ -312,16 +324,30 @@ export class GameWorld {
    * chakra, avisa todos (`cast`, para a animação) e aplica o efeito. Falhou antes de
    * cobrar: `cast_failed` só para quem tentou, sem gastar nada.
    */
-  private cast(session: Session, skill: Skill, t: number): void {
+  private cast(session: Session, skill: Skill, t: number, targetId?: string): void {
     const cfg = this.config.combat.skills[skill];
     const fail = (reason: CastFailReason) => this.sendTo(session, { type: 'cast_failed', skill, reason });
+    // Qualquer TENTATIVA de usar habilidade encerra a meditação (mesmo que a habilidade falhe).
+    this.stopMeditation(session, 'cast');
     if (session.dead) return fail('DEAD');
     if ((session.cooldowns[skill] ?? 0) > t) return fail('COOLDOWN');
     if (session.chakra < cfg.cost) return fail('NO_CHAKRA');
 
     const alive = (m: Monster) => m.hp > 0;
     let target: Monster | undefined;
-    if (skill === 'taijutsu' || skill === 'illusion' || skill === 'shadow') {
+    if (targetId !== undefined && DIRECTED_SKILLS.has(skill)) {
+      // Jutsu direcionado: o alvo é o focado, mas o ALCANCE continua sendo o da habilidade.
+      target = this.monsters.get(targetId);
+      if (!target || !alive(target)) return fail('NO_TARGET');
+      const reach = cfg.range ?? cfg.radius ?? 0;
+      const d = distance(session, target);
+      if (d > reach) return fail('OUT_OF_RANGE');
+      // Mira: o servidor vira o jogador para o alvo (mesmo que ele estivesse olhando para o outro lado).
+      if (d > 0.01) {
+        session.fx = (target.x - session.x) / d;
+        session.fy = (target.y - session.y) / d;
+      }
+    } else if (skill === 'taijutsu' || skill === 'illusion' || skill === 'shadow') {
       target = nearest(session, this.monsters.values(), cfg.range ?? 0, alive);
       if (!target) return fail('NO_TARGET');
     }
@@ -371,6 +397,29 @@ export class GameWorld {
     this.sendStats(session, t);
   }
 
+  /** Começar ou parar de meditar. Morto não medita; meditar para o jogador na hora. */
+  private meditate(session: Session, active: boolean): void {
+    if (!active) {
+      this.stopMeditation(session, 'manual');
+      return;
+    }
+    if (session.dead) {
+      this.sendError(session, 'CANNOT_MEDITATE');
+      return;
+    }
+    if (session.meditating) return;
+    session.meditating = true;
+    session.dx = 0;
+    session.dy = 0;
+    this.broadcast({ type: 'meditation', playerId: session.id, active: true });
+  }
+
+  private stopMeditation(session: Session, reason: MeditationEnd): void {
+    if (!session.meditating) return;
+    session.meditating = false;
+    this.broadcast({ type: 'meditation', playerId: session.id, active: false, reason });
+  }
+
   private damageMonster(m: Monster, amount: number, attacker: Session, t: number): void {
     m.hp = Math.max(0, m.hp - amount);
     this.broadcast({ type: 'hit', target: 'monster', id: m.id, amount, kind: 'damage', hp: m.hp, maxHp: m.maxHp });
@@ -408,6 +457,8 @@ export class GameWorld {
   }
 
   private damagePlayer(session: Session, amount: number, t: number): void {
+    // Apanhou: a meditação acaba ANTES do dano (não dá para meditar no meio da luta).
+    this.stopMeditation(session, 'damaged');
     let dmg = amount;
     let shielded = false;
     if (session.shield > 0) {
@@ -536,7 +587,7 @@ export class GameWorld {
     // 1. Jogadores: movimento e regeneração.
     for (const s of this.sessions.values()) {
       if (s.closed || s.dead) continue;
-      if (s.dx !== 0 || s.dy !== 0) {
+      if (!s.meditating && (s.dx !== 0 || s.dy !== 0)) {   // meditando não anda
         const x = clamp(s.x + s.dx * step, 0, width);
         const y = clamp(s.y + s.dy * step, 0, height);
         if (x !== s.x || y !== s.y) {
@@ -547,7 +598,8 @@ export class GameWorld {
         }
       }
       s.hp = Math.min(p.maxHp, s.hp + p.hpRegenPerSec * dt);
-      s.chakra = Math.min(p.maxChakra, s.chakra + p.chakraRegenPerSec * dt);
+      const regen = p.chakraRegenPerSec * (s.meditating ? p.meditationRegenMultiplier : 1);
+      s.chakra = Math.min(p.maxChakra, s.chakra + regen * dt);
     }
 
     // 2. Monstros: andar e atacar.

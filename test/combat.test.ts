@@ -357,3 +357,161 @@ describe('combate: morte, renascimento e autoridade do servidor', () => {
     assert.equal(world.online, 100);
   });
 });
+
+describe('jutsus direcionados (targetId)', () => {
+  it('Água com alvo: o servidor mira no alvo mesmo com o jogador virado para o outro lado', () => {
+    const { world, connect, run } = setupWorld(config());
+    const a = connect('kaito');
+    a.send({ type: 'move', dx: -1, dy: 0 });                 // olhando para a ESQUERDA
+    run(50);
+    a.send({ type: 'move', dx: 0, dy: 0 });
+    const ax = S.x - 0.25;
+    const right = world.spawnMonster({ x: Math.round(ax + 3), y: S.y });   // à DIREITA, a ~3,25
+    const left = world.spawnMonster({ x: Math.round(ax - 2), y: S.y });    // na frente de onde olhava
+    a.send({ type: 'cast', skill: 'water', targetId: right.id });
+    assert.equal(monsterHp(world, right.id), M.maxHp - SK.water.damage!, 'acertou o alvo atrás');
+    assert.equal(monsterHp(world, left.id), M.maxHp, 'o cone virou: quem estava na frente antiga não apanha');
+    const cast = a.conn.last('cast');
+    assert.equal(cast.fx, 1);
+    assert.equal(cast.fy, 0);
+  });
+
+  it('alcance continua valendo: alvo longe demais = OUT_OF_RANGE, sem gastar chakra nem recarga', () => {
+    const { world, connect } = setupWorld(config());
+    const a = connect('kaito');
+    const far = world.spawnMonster({ x: S.x + 6, y: S.y });  // Água 4, Ilusão/Sombra 5, Fogo 3
+    for (const skill of ['water', 'illusion', 'shadow', 'fire']) {
+      a.send({ type: 'cast', skill, targetId: far.id });
+      assert.deepEqual(a.conn.last('cast_failed'), { type: 'cast_failed', skill, reason: 'OUT_OF_RANGE' });
+    }
+    assert.equal(a.conn.of('stats').length, 0, 'nada cobrado');
+    assert.equal(monsterHp(world, far.id), M.maxHp);
+    const near = world.spawnMonster({ x: S.x + 4, y: S.y });
+    a.send({ type: 'cast', skill: 'water', targetId: near.id });   // exatamente 4: dentro
+    assert.equal(monsterHp(world, near.id), M.maxHp - SK.water.damage!);
+  });
+
+  it('Ilusão e Sombra com alvo: pegam O FOCADO, não o mais perto', () => {
+    const { world, connect } = setupWorld(config());
+    const a = connect('kaito');
+    const close = world.spawnMonster({ x: S.x + 1, y: S.y });
+    const focused = world.spawnMonster({ x: S.x - 4, y: S.y });
+    a.send({ type: 'cast', skill: 'illusion', targetId: focused.id });
+    assert.deepEqual(a.conn.last('monster_status'), { type: 'monster_status', id: focused.id, status: 'stunned', ms: 3000 });
+    a.send({ type: 'cast', skill: 'shadow' });                      // sem alvo: o mais perto
+    assert.equal(a.conn.last('monster_status').id, close.id);
+  });
+
+  it('Fogo com alvo: alvo precisa estar no raio (3); a área continua em volta do jogador', () => {
+    const { world, connect } = setupWorld(config());
+    const a = connect('kaito');
+    const t1 = world.spawnMonster({ x: S.x + 2, y: S.y });
+    const other = world.spawnMonster({ x: S.x - 2, y: S.y });
+    a.send({ type: 'cast', skill: 'fire', targetId: t1.id });
+    assert.equal(monsterHp(world, t1.id), M.maxHp - SK.fire.damage!);
+    assert.equal(monsterHp(world, other.id), M.maxHp - SK.fire.damage!, 'área em volta, não só o alvo');
+  });
+
+  it('alvo morto, inexistente ou com id inválido: NO_TARGET / INVALID_MESSAGE; Taijutsu ignora targetId', () => {
+    const { world, connect } = setupWorld(config());
+    const a = connect('kaito');
+    a.send({ type: 'cast', skill: 'water', targetId: 'm999' });
+    assert.equal(a.conn.last('cast_failed').reason, 'NO_TARGET');
+    a.send({ type: 'cast', skill: 'water', targetId: '../../etc' });
+    assert.equal(a.conn.last('error').code, 'INVALID_MESSAGE');
+    const close = world.spawnMonster({ x: S.x + 1, y: S.y });
+    const farOne = world.spawnMonster({ x: S.x + 1, y: S.y + 1 });
+    a.send({ type: 'cast', skill: 'taijutsu', targetId: farOne.id });
+    assert.equal(monsterHp(world, close.id), M.maxHp - SK.taijutsu.damage!, 'Taijutsu: sempre o mais perto');
+    assert.equal(monsterHp(world, farOne.id), M.maxHp);
+  });
+
+  it('welcome informa o alcance de cada habilidade (o cliente usa para o foco)', () => {
+    const { connect } = setupWorld(config());
+    const a = connect('kaito');
+    const skills = a.conn.of('welcome')[0].world.skills;
+    assert.deepEqual([skills.fire.range, skills.water.range, skills.illusion.range, skills.shadow.range, skills.taijutsu.range], [3, 4, 5, 5, 1.5]);
+    assert.equal(skills.heal.range, undefined);
+  });
+});
+
+describe('meditação', () => {
+  it('meditar: todos veem; parado; chakra 3x mais rápido (15/s)', () => {
+    const { world, connect, run, pos } = setupWorld(config());
+    const a = connect('kaito');
+    const b = connect('mei');
+    (world as any).sessions.get(a.id).chakra = 10;
+    a.send({ type: 'move', dx: 1, dy: 0 });
+    run(100);
+    a.send({ type: 'meditate', active: true });
+    assert.deepEqual(b.conn.last('meditation'), { type: 'meditation', playerId: a.id, active: true });
+    const where = pos(a.id);
+    run(2000);
+    assert.deepEqual(pos(a.id), where, 'meditando não anda (a direção foi zerada)');
+    const chakra = (world as any).sessions.get(a.id).chakra;
+    assert.ok(Math.abs(chakra - (10 + 5 * 0.1 + 15 * 2)) < 0.01, `chakra ${chakra}: 15/s meditando`);
+    assert.equal(b.conn.of('welcome').length, 1);
+    const c = connect('rin');
+    assert.equal(c.conn.of('welcome')[0].players.find((p: any) => p.id === a.id).meditating, true, 'quem chega vê a aura');
+  });
+
+  it('tentar andar cancela na hora (moved); soltar o joystick (0,0) não cancela', () => {
+    const { connect, run } = setupWorld(config());
+    const a = connect('kaito');
+    a.send({ type: 'meditate', active: true });
+    a.send({ type: 'move', dx: 0, dy: 0 });
+    assert.equal(a.conn.of('meditation').length, 1, '0,0 não cancela');
+    a.send({ type: 'move', dx: 0.5, dy: 0 });
+    assert.deepEqual(a.conn.last('meditation'), { type: 'meditation', playerId: a.id, active: false, reason: 'moved' });
+    run(200);
+    assert.ok(a.conn.of('player_moved').length > 0, 'depois de cancelar, anda normal');
+  });
+
+  it('tentar usar habilidade cancela (cast), mesmo que a habilidade falhe', () => {
+    const { connect } = setupWorld(config());
+    const a = connect('kaito');
+    a.send({ type: 'meditate', active: true });
+    a.send({ type: 'cast', skill: 'heal' });                 // vida cheia: falha
+    assert.equal(a.conn.last('cast_failed').reason, 'FULL_HP');
+    assert.deepEqual(a.conn.last('meditation'), { type: 'meditation', playerId: a.id, active: false, reason: 'cast' });
+  });
+
+  it('não dá para burlar: apanhou de monstro, a meditação acaba ANTES do dano e o chakra volta ao normal', () => {
+    const { world, connect, run } = setupWorld(config());
+    const a = connect('kaito');
+    (world as any).sessions.get(a.id).chakra = 0;
+    a.send({ type: 'meditate', active: true });
+    world.spawnMonster({ x: S.x + 1, y: S.y });
+    run(50);
+    const idxMed = a.conn.sent.findIndex((m) => m.type === 'meditation' && m.active === false);
+    const idxHit = a.conn.sent.findIndex((m) => m.type === 'hit' && m.target === 'player');
+    assert.ok(idxMed >= 0 && idxMed < idxHit, 'meditação termina antes do número de dano');
+    assert.equal(a.conn.sent[idxMed].reason, 'damaged');
+    a.send({ type: 'meditate', active: true });              // volta a meditar colado no monstro...
+    run(2000);                                                // ...e o próximo golpe derruba de novo
+    assert.equal(a.conn.of('meditation').filter((m) => m.reason === 'damaged').length, 2);
+    // depois de interrompida, a recuperação volta a 5/s (não fica "presa" em 3x)
+    const before = (world as any).sessions.get(a.id).chakra;
+    run(1000);
+    const after = (world as any).sessions.get(a.id).chakra;
+    assert.ok(Math.abs(after - before - 5) < 0.01, `ganhou ${(after - before).toFixed(2)} em 1 s`);
+  });
+
+  it('morto não medita; parar manualmente avisa todos; reconectar não mantém a meditação', () => {
+    const { world, connect } = setupWorld(config({ attackDamage: 100 }));
+    const a = connect('kaito');
+    const b = connect('mei');
+    a.send({ type: 'meditate', active: true });
+    a.send({ type: 'meditate', active: false });
+    assert.deepEqual(b.conn.last('meditation'), { type: 'meditation', playerId: a.id, active: false, reason: 'manual' });
+    a.send({ type: 'meditate', active: true });
+    const again = connect.length >= 0 ? new (a.conn.constructor as any)() : null;
+    world.join({ id: a.id, username: 'kaito' }, again);
+    assert.equal(again.of('welcome')[0].you.meditating, false);
+    assert.equal(b.conn.last('meditation').active, false, 'os outros param de ver a aura');
+    const dead = connect('morto');
+    (world as any).sessions.get(dead.id).dead = true;
+    dead.send({ type: 'meditate', active: true });
+    assert.equal(dead.conn.last('error').code, 'CANNOT_MEDITATE');
+  });
+});

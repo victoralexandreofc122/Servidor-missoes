@@ -84,7 +84,7 @@ export function configurePublicApp(app: FastifyInstance, deps: PublicRoutesDeps,
 
   registerPublicRoutes(app, deps, { sensitive: sensitiveLimit, auth: authLimit });
 
-  // Cliente web do jogo: GET / (index.html), /game.js e /styles.css, da mesma origem da API.
+  // Cliente web do jogo: GET / (index.html), /game.js, /targeting.js e /styles.css, da mesma origem da API.
   // Mesma origem = o navegador não precisa de CORS para /auth/login nem para o WebSocket.
   if (deps.publicFiles) registerStaticFiles(app, deps.publicFiles);
   return app;

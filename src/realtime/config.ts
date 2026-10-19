@@ -19,7 +19,11 @@ export interface SkillConfig {
 }
 
 export interface CombatConfig {
-  player: { maxHp: number; maxChakra: number; hpRegenPerSec: number; chakraRegenPerSec: number; respawnMs: number };
+  player: {
+    maxHp: number; maxChakra: number; hpRegenPerSec: number; chakraRegenPerSec: number; respawnMs: number;
+    /** Meditando: o chakra regenera N vezes mais rápido. */
+    meditationRegenMultiplier: number;
+  };
   monsters: {
     count: number; type: string; maxHp: number; xp: number; stepMs: number;
     attackRange: number; attackDamage: number; attackEveryMs: number;
@@ -99,7 +103,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
 
   /** Combate PvE. O servidor decide tudo: dano, acerto, morte e XP. */
   combat: {
-    player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 1, chakraRegenPerSec: 5, respawnMs: 5000 },
+    player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 1, chakraRegenPerSec: 5, respawnMs: 5000, meditationRegenMultiplier: 3 },
     monsters: {
       count: 5, type: 'slime', maxHp: 60, xp: 20, stepMs: 1000,
       attackRange: 1.2, attackDamage: 10, attackEveryMs: 2000,

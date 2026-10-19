@@ -57,7 +57,7 @@ POST /auth/login
 ## Cliente web (public/)
 
 `GET /` abre o jogo no navegador (celular ou computador), servido pela própria API: mesma origem,
-então não precisa de CORS. São três arquivos (`index.html`, `game.js`, `styles.css`), sem bibliotecas,
+então não precisa de CORS. São quatro arquivos (`index.html`, `game.js`, `targeting.js`, `styles.css`), sem bibliotecas,
 servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
 
 - **Tela:** login e cadastro.
@@ -66,7 +66,12 @@ servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
 - **Personagem:** círculo com a inicial do nome.
 - **Controles:** joystick flutuante à esquerda (nasce onde o polegar toca) e 7 habilidades à direita, cada uma com uma animação.
 - **Chat:** botão 💬 no topo abre a barra de digitação; as mensagens aparecem na tela e somem em ~6 s.
-- **No computador:** WASD ou setas para andar, 1 a 7 para as habilidades, Enter para o chat.
+- **🎯 Alvo (foco):** foca o monstro vivo mais perto (até 10 casas); tocar de novo passa para o próximo
+  (ciclo). A câmera desliza para o meio do caminho e afasta o zoom só o necessário para os dois caberem
+  (no máximo 5 casas de deslocamento e zoom 0,6). Andar para mais de 12 casas perde o foco.
+  A lógica fica em `public/targeting.js` (funções puras, testadas em `test/targeting.test.ts`).
+- **🧘 Meditar:** liga/desliga a meditação (aura azul).
+- **No computador:** WASD ou setas para andar, 1 a 7 para as habilidades, T para o foco, M para meditar, Enter para o chat.
 
 O token fica no `localStorage` e vai no subprotocolo do WebSocket, nunca na URL.
 
@@ -110,6 +115,11 @@ Mensagens de combate (o servidor decide tudo; o cliente só pede `cast` e `respa
   é área segura). Andam 1 casa por ~1 s e batem 10 em quem estiver a até 1,2 casa, a cada 2 s.
 - **Derrota:** com vida 0, o jogador não anda nem usa habilidade. Depois de 5 s pode pedir `respawn` e
   volta ao centro com vida e chakra cheios. Reconectar não cura.
+- **Jutsus direcionados:** com alvo focado, Fogo, Água, Ilusão e Sombra mandam `targetId`. O servidor
+  vira o jogador para o alvo (a Água sai na direção dele) e confere o alcance (Fogo 3, Água 4, Ilusão e
+  Sombra 5): longe demais = `OUT_OF_RANGE`, sem gastar chakra.
+- **Meditação** (`{"type":"meditate","active":true}`): parado, chakra 3x mais rápido (15/s). Tentar andar,
+  tentar usar habilidade ou apanhar de monstro encerra na hora (`meditation` com `reason`). Morto não medita.
 - **XP:** cada monstro dá 20 de XP para quem deu o último golpe. O XP é gravado em `game.players.total_xp`
   num SQL atômico (`src/realtime/progression.ts`). Aos 100 XP, Academia sobe para Genin no banco, com
   histórico em `player_rank_changes` e aviso para todos.

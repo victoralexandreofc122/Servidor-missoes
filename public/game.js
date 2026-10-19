@@ -9,6 +9,8 @@
 // servidor. O cliente prevê o próprio movimento para a resposta ser imediata e corrige
 // com a posição oficial que chega a cada tick.
 
+import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
+
 const TOKEN_KEY = 'nin.token';
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/game`;
 const SUBPROTOCOL = 'nin.v1';
@@ -28,6 +30,7 @@ const ui = {
   toggleMode: $('toggle-mode'), usernameField: $('username-field'), passwordHint: $('password-hint'),
   rotate: $('rotate'), rotateDismiss: $('rotate-dismiss'), safeProbe: $('safe-probe'),
   hpFill: $('hp-fill'), hpText: $('hp-text'), chakraFill: $('chakra-fill'), chakraText: $('chakra-text'),
+  targetBtn: $('target-btn'), meditateBtn: $('meditate-btn'),
   xpLine: $('xp-line'), hurt: $('hurt'), death: $('death'), deathTimer: $('death-timer'), respawn: $('respawn'),
 };
 
@@ -65,7 +68,9 @@ const state = {
   players: new Map(),
   world: { width: 100, height: 100, speed: 5, tickMs: 50, spawn: { x: 50, y: 50 }, respawnMs: 5000, skills: {}, promotion: { xp: 100 } },
   /** Barras do próprio jogador (vêm do servidor). */
-  me: { hp: 100, maxHp: 100, chakra: 100, maxChakra: 100, shield: false, xp: 0, rank: { code: 'ACADEMY', name: 'Academia' }, dead: false },
+  me: { hp: 100, maxHp: 100, chakra: 100, maxChakra: 100, shield: false, xp: 0, rank: { code: 'ACADEMY', name: 'Academia' }, dead: false, meditating: false },
+  /** Monstro focado pelo botão 🎯 (id) ou null. */
+  focusId: null,
   /** id -> { id, type, x, y, tx, ty, hp, maxHp, stunnedUntil, rootedUntil, bornAt, diedAt } */
   monsters: new Map(),
   /** números flutuantes: { x, y, text, color, start, size } */
@@ -221,6 +226,7 @@ function disconnect() {
   state.players.clear();
   state.monsters.clear();
   state.meId = null;
+  setFocus(null);
   hideDeath();
 }
 
@@ -243,13 +249,13 @@ function upsertPlayer(p, snap) {
   if (existing) {
     existing.tx = p.x; existing.ty = p.y;
     if (snap) { existing.x = p.x; existing.y = p.y; }
-    if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; }
+    if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; }
     return existing;
   }
   const color = colorFor(p.id);
   const player = {
     id: p.id, username: p.username, x: p.x, y: p.y, tx: p.x, ty: p.y, color, bubble: null,
-    hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead,
+    hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating,
     initial: ([...p.username][0] || '?').toUpperCase(),
     initialColor: LIGHT_COLORS.has(color) ? '#14110d' : '#ffffff',
   };
@@ -266,7 +272,7 @@ function upsertMonster(m, now) {
 
 const CAST_FAIL_TEXT = {
   NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum monstro perto',
-  FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado',
+  FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
 };
 
 function handleMessage(msg) {
@@ -287,8 +293,10 @@ function handleMessage(msg) {
       for (const m of msg.monsters || []) upsertMonster(m, now);
       Object.assign(state.me, {
         hp: msg.you.hp, maxHp: msg.you.maxHp, chakra: msg.you.chakra, maxChakra: msg.you.maxChakra,
-        shield: msg.you.shield, xp: msg.you.xp, rank: msg.you.rank, dead: msg.you.dead,
+        shield: msg.you.shield, xp: msg.you.xp, rank: msg.you.rank, dead: msg.you.dead, meditating: !!msg.you.meditating,
       });
+      setFocus(null);
+      renderActions();
       renderVitals();
       if (msg.you.dead) showDeath(state.world.respawnMs);
       else hideDeath();
@@ -375,6 +383,19 @@ function handleMessage(msg) {
     case 'monster_died': {
       const m = state.monsters.get(msg.id);
       if (m) { m.diedAt = now; m.hp = 0; }
+      if (state.focusId === msg.id) setFocus(null);
+      break;
+    }
+    case 'meditation': {
+      const p = state.players.get(msg.playerId);
+      if (p) p.meditating = msg.active;
+      if (msg.playerId === state.meId) {
+        state.me.meditating = msg.active;
+        renderActions();
+        const me = state.players.get(state.meId);
+        if (!msg.active && me && msg.reason === 'damaged') addFloater(me.x, me.y - 1.1, 'Meditação interrompida!', '#ff9a8a', 0.9);
+        else if (!msg.active && me && (msg.reason === 'moved' || msg.reason === 'cast')) addFloater(me.x, me.y - 1.1, 'Meditação encerrada', '#bcd6f0', 0.75);
+      }
       break;
     }
     case 'player_died': {
@@ -383,6 +404,9 @@ function handleMessage(msg) {
       if (msg.playerId === state.meId) {
         state.me.dead = true;
         state.me.hp = 0;
+        state.me.meditating = false;
+        setFocus(null);
+        renderActions();
         renderVitals();
         keys.clear();
         setDirection(0, 0);
@@ -644,6 +668,8 @@ window.addEventListener('keydown', (e) => {
   if (KEYMAP[e.code]) { keys.add(e.code); keyDirection(); e.preventDefault(); }
   if (e.key >= '1' && e.key <= '7') castSkill(SKILL_ORDER[Number(e.key) - 1]);
   if (e.key === 'Enter' && ui.chat.hidden && !ui.hud.hidden) { openChat(); e.preventDefault(); }
+  if (e.key === 't' || e.key === 'T' || e.key === 'Tab') { cycleFocus(); e.preventDefault(); }
+  if (e.key === 'm' || e.key === 'M') toggleMeditation();
 });
 window.addEventListener('keyup', (e) => {
   if (KEYMAP[e.code] && keys.delete(e.code)) keyDirection();
@@ -666,6 +692,45 @@ const SKILLS = {
   heal: { color: '#5fe07a', ms: 900 },
 };
 const GROUND_FX = new Set(['shadow', 'water']);
+/** Habilidades que miram no alvo focado (Taijutsu: sempre o mais perto; Pedra e Cura: em si mesmo). */
+const DIRECTED = new Set(['fire', 'water', 'illusion', 'shadow']);
+
+// ------------------------------------------------------------------ foco (🎯) e meditação (🧘)
+
+/** Botão 🎯: foca o mais perto; com foco, passa para o próximo mais perto (ciclo). */
+function cycleFocus() {
+  const me = state.players.get(state.meId);
+  if (!me || state.me.dead) return;
+  const id = nextTarget(me, state.monsters.values(), state.focusId, FOCUS_RANGE);
+  if (!id) {
+    setFocus(null);
+    addFloater(me.x, me.y - 1.1, 'Nenhum alvo perto', '#d8cdb8', 0.8);
+    return;
+  }
+  setFocus(id);
+}
+
+function setFocus(id) {
+  state.focusId = id;
+  ui.targetBtn.classList.toggle('active', !!id);
+  ui.targetBtn.setAttribute('aria-pressed', id ? 'true' : 'false');
+}
+
+/** Botão 🧘: pede para começar/parar. O estado só muda quando o servidor confirma ("meditation"). */
+function toggleMeditation() {
+  if (!state.connected || state.me.dead) return;
+  send({ type: 'meditate', active: !state.me.meditating });
+}
+
+function renderActions() {
+  const on = !!state.me.meditating;
+  ui.meditateBtn.classList.toggle('active', on);
+  ui.meditateBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  ui.chakraFill.parentElement.classList.toggle('meditating', on);
+}
+
+ui.targetBtn.addEventListener('click', cycleFocus);
+ui.meditateBtn.addEventListener('click', toggleMeditation);
 const SKILL_ORDER = ['fire', 'water', 'taijutsu', 'illusion', 'shadow', 'stone', 'heal'];
 const cooldownUntil = {};
 
@@ -679,7 +744,9 @@ function castSkill(skill) {
   const now = performance.now();
   if (now - (lastTap[skill] || 0) < 150) return;     // toque duplo acidental
   lastTap[skill] = now;
-  send({ type: 'cast', skill });
+  // Jutsu direcionado: com alvo focado, vai o targetId (o servidor mira e confere o alcance).
+  const targetId = DIRECTED.has(skill) && state.focusId ? state.focusId : undefined;
+  send(targetId ? { type: 'cast', skill, targetId } : { type: 'cast', skill });
 }
 
 ui.skills.addEventListener('pointerdown', (e) => {
@@ -955,8 +1022,12 @@ function update(dt) {
     m.x += (m.tx - m.x) * k;
     m.y += (m.ty - m.y) * k;
   }
+  // Foco perdido: alvo morreu/sumiu ou o jogador andou para longe (mais de 12 casas).
+  if (state.focusId && me && !keepFocus(me, state.monsters.get(state.focusId))) setFocus(null);
+  if (me) updateCamera(dt, me);
   if (me) {
-    const moving = (dir.x !== 0 || dir.y !== 0) && state.connected && !state.me.dead;
+    // Meditando o servidor não anda: sem previsão até ele confirmar o fim da meditação.
+    const moving = (dir.x !== 0 || dir.y !== 0) && state.connected && !state.me.dead && !state.me.meditating;
     if (moving) {
       // Previsão local: anda já, sem esperar a rede.
       me.x = Math.max(0, Math.min(width, me.x + dir.x * speed * dt));
@@ -973,15 +1044,26 @@ function update(dt) {
   }
 }
 
+// Câmera: segue o jogador. Com alvo focado, desliza (lerp) para o meio do caminho entre os dois
+// e afasta o zoom só o necessário para os dois caberem; sem alvo, volta suave para o jogador.
+const cam = { ox: 0, oy: 0, scale: 1 };
+function updateCamera(dt, me) {
+  const target = state.focusId ? state.monsters.get(state.focusId) : null;
+  const want = frameCamera(me, target, viewW, viewH, tile, CAMERA);
+  const k = smoothing(dt, CAMERA.followRate);
+  cam.ox += (want.ox - cam.ox) * k;
+  cam.oy += (want.oy - cam.oy) * k;
+  cam.scale += (want.scale - cam.scale) * k;
+}
+
 function draw(now) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = false;
   const me = state.players.get(state.meId);
   const { width, height } = state.world;
-  // Câmera: o jogador local fica no centro e o mundo anda em volta.
-  const camX = me ? me.x : width / 2;
-  const camY = me ? me.y : height / 2;
-  const T = tile;
+  const camX = me ? me.x + cam.ox : width / 2;
+  const camY = me ? me.y + cam.oy : height / 2;
+  const T = Math.max(8, Math.round(tile * cam.scale));   // inteiro: o chão em blocos não abre frestas
   const halfW = viewW / 2, halfH = viewH / 2;
   const toScreenX = (wx) => Math.round((wx - camX) * T + halfW);
   const toScreenY = (wy) => Math.round((wy - camY) * T + halfH);
@@ -1017,6 +1099,19 @@ function draw(now) {
   for (const fx of state.effects) if (now - fx.start < SKILLS[fx.skill].ms) state.effects[alive++] = fx;
   state.effects.length = alive;
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
+
+  // Linha pontilhada do jogador até o alvo focado.
+  const focused = state.focusId ? state.monsters.get(state.focusId) : null;
+  if (me && focused) {
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = '#ffb347';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.lineDashOffset = -now / 40;
+    ctx.beginPath(); ctx.moveTo(toScreenX(me.x), toScreenY(me.y)); ctx.lineTo(toScreenX(focused.x), toScreenY(focused.y)); ctx.stroke();
+    ctx.restore();
+  }
 
   // 5. Monstros e jogadores juntos, de cima para baixo (quem está mais embaixo fica na frente).
   drawList.length = 0;
@@ -1180,6 +1275,54 @@ function drawMonster(m, sx, sy, T, now) {
   }
   if (!dying) drawHpBar(sx, sy - r - Math.max(6, T * 0.16), T * 0.8, m.hp / m.maxHp, '#ff5a4a');
   ctx.restore();
+  if (m.id === state.focusId && !dying) drawFocusMarker(sx, sy, r, T, now);
+}
+
+/** Indicador do alvo focado: anel tracejado girando no chão + seta pulando em cima. */
+function drawFocusMarker(sx, sy, r, T, now) {
+  ctx.save();
+  ctx.strokeStyle = '#ffb347';
+  ctx.lineWidth = Math.max(2, T * 0.07);
+  ctx.setLineDash([T * 0.22, T * 0.12]);
+  ctx.lineDashOffset = -now / 30;
+  ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 1.55, r * 0.62, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  const bob = Math.sin(now / 160) * T * 0.08;
+  const ay = sy - r - T * 0.55 + bob;
+  const s = Math.max(6, T * 0.2);
+  ctx.fillStyle = '#ffb347';
+  ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(sx - s, ay - s); ctx.lineTo(sx + s, ay - s); ctx.lineTo(sx, ay); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+/** Aura azul de quem medita: brilho pulsando + partículas de chakra subindo. */
+function drawMeditationAura(sx, sy, r, T, now) {
+  ctx.save();
+  const pulse = 0.5 + 0.5 * Math.sin(now / 300);
+  const g = ctx.createRadialGradient(sx, sy, r * 0.4, sx, sy, r * (2.2 + pulse * 0.5));
+  g.addColorStop(0, 'rgba(70, 160, 255, 0.85)');
+  g.addColorStop(0.6, 'rgba(70, 160, 255, 0.35)');
+  g.addColorStop(1, 'rgba(70, 160, 255, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(sx, sy, r * (2.2 + pulse * 0.5), 0, Math.PI * 2); ctx.fill();
+  // anel no chão, pulsando
+  ctx.strokeStyle = `rgba(150, 210, 255, ${0.55 + 0.45 * pulse})`;
+  ctx.lineWidth = Math.max(2, T * 0.07);
+  ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * (1.3 + pulse * 0.25), r * (0.5 + pulse * 0.1), 0, 0, Math.PI * 2); ctx.stroke();
+  // partículas de chakra subindo
+  ctx.fillStyle = '#d6efff';
+  const ps = Math.max(3, Math.round(T * 0.1));
+  for (let k = 0; k < 8; k++) {
+    const t = ((now / 900) + k / 8) % 1;
+    const px = sx + Math.sin(k * 2.1 + now / 500) * r * 1.2;
+    const py = sy + r * 0.8 - t * T * 1.4;
+    ctx.globalAlpha = 1 - t;
+    ctx.fillRect(Math.round(px - ps / 2), Math.round(py - ps / 2), ps, ps);
+  }
+  ctx.restore();
 }
 
 function drawHpBar(cx, y, w, ratio, color) {
@@ -1217,6 +1360,7 @@ function drawFloaters(toScreenX, toScreenY, T, now) {
 function drawPlayer(p, sx, sy, T, isMe, now) {
   if (p.dead) ctx.globalAlpha = 0.45;
   const r = T * 0.38;
+  if (p.meditating && !p.dead) drawMeditationAura(sx, sy, r, T, now);
   // sombra no chão
   ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
   ctx.beginPath();
@@ -1300,10 +1444,18 @@ function drawJoystick() {
   ctx.arc(joy.baseX, joy.baseY, joy.radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = active ? '#f0a03c' : 'rgba(244, 234, 216, 0.85)';
+  const meditating = state.me.meditating;
+  ctx.fillStyle = meditating ? 'rgba(111, 192, 255, 0.6)' : active ? '#f0a03c' : 'rgba(244, 234, 216, 0.85)';
   ctx.beginPath();
   ctx.arc(joy.baseX + joy.knobX, joy.baseY + joy.knobY, joy.radius * 0.48, 0, Math.PI * 2);
   ctx.fill();
+  if (meditating) {                   // travado: mexer aqui encerra a meditação
+    ctx.globalAlpha = 1;
+    ctx.font = `${Math.round(joy.radius * 0.5)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🧘', joy.baseX, joy.baseY);
+  }
   ctx.globalAlpha = 1;
 }
 

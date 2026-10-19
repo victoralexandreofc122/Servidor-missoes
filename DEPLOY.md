@@ -14,6 +14,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 7 | Testar o tempo real (WebSocket) pelo Hoppscotch | ~10 min |
 | 8 | Jogar pelo navegador do celular | ~5 min |
 | 9 | Testar o combate | ~5 min |
+| 10 | Testar foco (🎯) e meditação (🧘) | ~5 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -315,3 +316,23 @@ Nada novo para configurar: o XP vai para a coluna `total_xp` que já existe no b
    ```
    SELECT p.username, p.total_xp, r.name FROM game.players p JOIN game.ranks r ON r.id = p.current_rank_id ORDER BY p.total_xp DESC LIMIT 10;
    ```
+
+---
+
+## Passo 10 — Testar foco (🎯) e meditação (🧘)
+
+Os dois botões ficam logo acima das habilidades.
+
+1. **Foco:** perto de 2 ou 3 monstros, toque em **🎯 Alvo**. O mais perto ganha um anel laranja tracejado e
+   uma seta em cima, e aparece uma linha pontilhada até ele. A câmera desliza para mostrar você e ele juntos.
+2. Toque **🎯** de novo: o foco passa para o próximo mais perto. Depois do último, volta ao primeiro.
+3. **Jutsu direcionado:** com foco, vire para o lado contrário (ande um pouco para longe) e solte **Água**:
+   o cone sai na direção do alvo. **Ilusão** e **Sombra** pegam o focado, não o mais perto.
+4. **Alcance:** foque um monstro longe (mais de 4 casas) e solte Água: aparece **"Alvo fora de alcance"**
+   e o chakra não cai.
+5. **Perder o foco:** ande para longe do alvo (mais de 12 casas). O botão 🎯 apaga e a câmera volta para você.
+6. **Meditar:** com pouco chakra, toque **🧘 Meditar**. Aparece a aura azul, a barra de chakra brilha e
+   enche 3x mais rápido. O joystick mostra 🧘.
+7. Mexer o joystick ou tocar numa habilidade encerra a meditação ("Meditação encerrada").
+8. **Sem trapaça:** medite colado num monstro. No primeiro golpe aparece **"Meditação interrompida!"** e o
+   chakra volta à velocidade normal.
