@@ -13,6 +13,7 @@ npm install
 cp .env.example .env              # preencha os segredos
 psql "$DATABASE_URL" -f db/schema_ranks_missoes_sensei.sql
 psql "$DATABASE_URL" -f db/schema_v3_auth.sql      # migração v3: login
+psql "$DATABASE_URL" -f db/schema_v4_npc_missions.sql   # migração v4: NPC Mestre
 npm run dev
 ```
 
@@ -71,7 +72,14 @@ servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
   (no máximo 5 casas de deslocamento e zoom 0,6). Andar para mais de 12 casas perde o foco.
   A lógica fica em `public/targeting.js` (funções puras, testadas em `test/targeting.test.ts`).
 - **🧘 Meditar:** liga/desliga a meditação (aura azul).
-- **No computador:** WASD ou setas para andar, 1 a 7 para as habilidades, T para o foco, M para meditar, Enter para o chat.
+- **📜 Missões (Sala de Missões):** botão no topo que mostra o progresso (ex.: `2/5`, depois `Pronta!`). Abre um
+  painel com o sensei, o objetivo, a barra de progresso, o que falta e a recompensa. Só exibe o que o
+  servidor manda.
+- **Mestre (NPC):** desenhado ao lado do renascimento com um marcador: `!` tem missão, `?` cinza em
+  andamento, `?` dourado pronta para entregar. Perto dele aparece **💬 Falar**. Com a missão pronta e o
+  Mestre fora da tela, uma seta na borda aponta para ele.
+- **No computador:** WASD ou setas para andar, 1 a 7 para as habilidades, T para o foco, M para meditar,
+  E para falar com o NPC, J para as missões e Enter para o chat.
 
 O token fica no `localStorage` e vai no subprotocolo do WebSocket, nunca na URL.
 
@@ -86,7 +94,7 @@ ausente, inválido ou vencido recebe HTTP 401 e não conecta. O token pode vir:
 
 | Direção | Mensagem |
 |---|---|
-| cliente → servidor | `{"type":"move","dx":0.5,"dy":-0.5}` (joystick, -1 a 1; `0,0` para) · `{"type":"cast","skill":"fire"}` · `{"type":"chat","message":"Olá!"}` |
+| cliente → servidor | `{"type":"move","dx":0.5,"dy":-0.5}` (joystick, -1 a 1; `0,0` para) · `{"type":"cast","skill":"fire"}` · `{"type":"talk","npcId":"sensei"}` · `{"type":"missions"}` · `{"type":"chat","message":"Olá!"}` |
 | ao conectar | `welcome {you, players (os outros), world {width,height,speed,tickMs}}` |
 | a cada tick (50 ms) | `player_moved {playerId,x,y}` para todos, inclusive quem andou |
 | entradas e saídas | `player_joined` · `player_left` |
@@ -134,6 +142,33 @@ Regras (em `src/realtime/config.ts`):
 - **Mesma conta:** conectando de novo, derruba a conexão antiga (4000).
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
+
+### NPC Mestre e Sala de Missões (`src/realtime/missions.ts`)
+
+O Mestre fica parado em (52, 49), ao lado do renascimento, na área segura. Ele é um jogador de verdade em
+`game.players` (id fixo, sem login, criado pela migração `db/schema_v4_npc_missions.sql`) e é o
+`sensei_id` das missões que passa. Tudo usa o ciclo do schema v2 e os mesmos comandos das rotas HTTP
+(`src/missions/sql.ts`):
+
+| Momento | O que acontece no banco |
+|---|---|
+| `{"type":"talk","npcId":"sensei"}` sem missão | `createMission`: DEFEAT_MONSTER, `slime` × 5, dificuldade NPC_TRAINING (50 XP + título) |
+| monstro morto pelo servidor | +1 só em missão `active`, DEFEAT_MONSTER, do monstro certo, no prazo e incompleta (o 6º de 5 não conta) |
+| `talk` com 5/5 | `submitMission` → `insertEvaluation` (o NPC aprova) → `insertRedemption` (XP + título pelo trigger), numa transação |
+| `talk` com pergaminho aprovado de um sensei jogador | entregue também: o Mestre é a Sala de Missões |
+| `{"type":"missions"}` | relê a missão atual (no máximo 1 pedido a cada 400 ms por jogador) |
+
+- **Autoridade:** a distância até o NPC é a do servidor (até 2,5 casas). Morto não conversa. O cliente
+  não tem mensagem de progresso nem de conclusão; o trigger do `submit` ainda confere a meta.
+- **Toques simultâneos** (duas abas): `FOR UPDATE` na missão e o índice `ux_sensei_missions_trainee_open`
+  garantem uma missão só e uma recompensa só.
+- **Mensagens:**
+  - `mission {mission, reason}`: `reason` é sync, assigned, progress, ready ou completed;
+  - `npc_say {npcId, text}`;
+  - `mission_reward {rewards, totalXp, rank, promoted}`;
+  - `xp`, para atualizar a barra.
+- **Sem a migração v4:** o jogo sobe igual. O Mestre aparece e responde que a Sala ainda não abriu, e o
+  boot avisa no log.
 
 ## Scripts
 

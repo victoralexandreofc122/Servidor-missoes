@@ -3,10 +3,13 @@ import pg from 'pg';
 import { createDb, type Db } from '../../src/db.js';
 
 /**
- * Cria um banco novo só para o teste, aplica db/schema_ranks_missoes_sensei.sql + db/schema_v3_auth.sql
+ * Cria um banco novo só para o teste, aplica as migrações (v2, v3 login, v4 NPC Mestre)
  * e apaga tudo no final. TEST_DATABASE_URL precisa de um role com CREATEDB.
+ * `files` permite subir um banco sem alguma migração (ex.: testar a v4 ausente).
  */
-export async function createTestDatabase() {
+export const MIGRATIONS = ['schema_ranks_missoes_sensei.sql', 'schema_v3_auth.sql', 'schema_v4_npc_missions.sql'] as const;
+
+export async function createTestDatabase(files: readonly string[] = MIGRATIONS) {
   const adminUrl = process.env.TEST_DATABASE_URL;
   if (!adminUrl) throw new Error('Defina TEST_DATABASE_URL (role com CREATEDB) para os testes de integração');
 
@@ -18,8 +21,8 @@ export async function createTestDatabase() {
   const url = new URL(adminUrl);
   url.pathname = `/${name}`;
   const pool = new pg.Pool({ connectionString: url.toString(), max: 10 });
-  // Mesma ordem do Neon: schema v2, depois a migração v3 (login).
-  for (const file of ['schema_ranks_missoes_sensei.sql', 'schema_v3_auth.sql']) {
+  // Mesma ordem do Neon: schema v2, migração v3 (login), migração v4 (NPC Mestre).
+  for (const file of files) {
     await pool.query(readFileSync(new URL(`../../db/${file}`, import.meta.url), 'utf8'));
   }
 

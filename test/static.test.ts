@@ -82,4 +82,17 @@ describe('garantias do cliente (public/)', () => {
     assert.match(js, /send\(\{ type: 'chat', message \}\)/);
     for (const skill of SKILLS) assert.match(html, new RegExp(`data-skill="${skill}"`));
   });
+
+  it('Sala de Missões: botão 📜, painel com barra de progresso e 💬 Falar; o cliente só PEDE (talk/missions)', () => {
+    for (const id of ['missions-toggle', 'missions-panel', 'mission-meter', 'mission-count', 'mission-status', 'mission-reward', 'talk-btn']) {
+      assert.match(html, new RegExp(`id="${id}"`), id);
+    }
+    assert.match(html, /id="mission-meter"[^>]*role="progressbar"/);
+    assert.match(js, /send\(\{ type: 'talk', npcId: npc\.id \}\)/);
+    assert.match(js, /send\(\{ type: 'missions' \}\)/);
+    // Nenhuma mensagem do cliente informa progresso ou conclusão: isso só vem do servidor.
+    assert.doesNotMatch(js, /type: '(mission_progress|complete|redeem|submit)/);
+    assert.match(js, /case 'mission':/);
+    assert.match(js, /case 'mission_reward':/);
+  });
 });

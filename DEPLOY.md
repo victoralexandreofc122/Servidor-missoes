@@ -15,6 +15,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 8 | Jogar pelo navegador do celular | ~5 min |
 | 9 | Testar o combate | ~5 min |
 | 10 | Testar foco (🎯) e meditação (🧘) | ~5 min |
+| 11 | Atualização v4: NPC Mestre e Sala de Missões (rodar 1 SQL no Neon e testar) | ~10 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -58,6 +59,8 @@ Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
    - Qualquer outro erro: copie a mensagem e mande para o Claude antes de seguir.
 6. Rode também a migração do login: apague o editor, cole o arquivo `db/schema_v3_auth.sql` inteiro e toque em **Run**.
    Esta pode rodar de novo sem erro.
+7. E a do NPC Mestre: apague o editor, cole o arquivo `db/schema_v4_npc_missions.sql` inteiro e toque em **Run**.
+   Também pode rodar de novo sem erro.
 
 ---
 
@@ -336,3 +339,58 @@ Os dois botões ficam logo acima das habilidades.
 7. Mexer o joystick ou tocar numa habilidade encerra a meditação ("Meditação encerrada").
 8. **Sem trapaça:** medite colado num monstro. No primeiro golpe aparece **"Meditação interrompida!"** e o
    chakra volta à velocidade normal.
+
+---
+
+## Passo 11 — Atualização v4: NPC Mestre e Sala de Missões
+
+A v4 coloca o **Mestre** (um sensei NPC) ao lado do ponto de renascimento. Ele passa missões que usam o
+mesmo ciclo do banco das missões entre jogadores (`game.sensei_missions`, avaliação, pergaminho, resgate).
+
+1. **Banco (uma vez).** No Neon, abra o **SQL Editor**, cole o arquivo `db/schema_v4_npc_missions.sql`
+   inteiro e toque em **Run**. Pode rodar de novo sem erro. Ele só INSERE catálogo e o jogador NPC:
+   - tipo `DEFEAT_MONSTER`;
+   - dificuldade `NPC_TRAINING` (50 XP + título);
+   - título "Discípulo do Mestre";
+   - o NPC "Sensei Mestre", sem e-mail nem senha, então ninguém entra com ele.
+2. **Servidor.** Não precisa reiniciar nem mexer no Render. Se o código subir antes do SQL, o jogo
+   funciona normal, o log mostra `[boot] NPC Mestre sem missões: rode db/schema_v4_npc_missions.sql`
+   e o Mestre responde "A Sala de Missões ainda não abriu" até o SQL rodar.
+3. **Conferir (opcional).** No Neon:
+
+   ```
+   SELECT username FROM game.players WHERE id = '00000000-0000-7000-8000-00000000a001';
+   ```
+
+   Tem que aparecer `Sensei Mestre`.
+
+### Testar no celular
+
+1. Entre no jogo. Ao lado do seu boneco está o **Mestre**: manto roxo com 師 e um **!** amarelo em cima.
+   Perto dele aparece o botão **💬 Falar**, acima das habilidades.
+2. Toque **💬 Falar**. O Mestre responde num balão ("derrote 5 slimes e volte aqui"), o botão do topo
+   vira **📜 0/5** e o **!** vira um **?** cinza.
+3. Toque **📜** para abrir a **Sala de Missões**. Ela mostra:
+   - "Missão do Sensei Mestre";
+   - "Derrotar 5 slimes";
+   - a barra 0 / 5;
+   - a recompensa: 50 XP e o título "Discípulo do Mestre".
+
+   Feche no ✕.
+4. **Tente trapacear:** fale com o Mestre antes de terminar. Ele diz quanto falta e nada é entregue.
+5. Mate slimes. A cada um aparece **📜 1/5, 2/5…** sobre você e no botão do topo.
+6. No 5º, o botão fica amarelo **📜 Pronta!**, aparece "Missão completa! Volte ao Mestre" e o celular
+   vibra. Se o Mestre estiver fora da tela, uma **seta com ?** na borda aponta para ele.
+7. Volte e toque **💬 Falar**:
+   - aparece "Pergaminho entregue! +50 XP · Título: Discípulo do Mestre";
+   - o XP sobe na linha de baixo;
+   - a Sala de Missões mostra "Última entrega".
+8. Fale de novo para pegar outro treino. O título não se repete; da segunda vez em diante vem só o XP.
+
+No Neon, a missão concluída aparece assim:
+
+```
+SELECT status, progress_quantity FROM game.sensei_missions ORDER BY created_at DESC LIMIT 1;
+```
+
+O resultado esperado é `completed | 5`.

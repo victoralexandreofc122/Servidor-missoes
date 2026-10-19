@@ -30,7 +30,12 @@ const ui = {
   toggleMode: $('toggle-mode'), usernameField: $('username-field'), passwordHint: $('password-hint'),
   rotate: $('rotate'), rotateDismiss: $('rotate-dismiss'), safeProbe: $('safe-probe'),
   hpFill: $('hp-fill'), hpText: $('hp-text'), chakraFill: $('chakra-fill'), chakraText: $('chakra-text'),
-  targetBtn: $('target-btn'), meditateBtn: $('meditate-btn'),
+  targetBtn: $('target-btn'), meditateBtn: $('meditate-btn'), talkBtn: $('talk-btn'),
+  missionsToggle: $('missions-toggle'), missionsBadge: $('missions-badge'), missionsPanel: $('missions-panel'),
+  missionsClose: $('missions-close'), missionCard: $('mission-card'), missionSensei: $('mission-sensei'),
+  missionTitle: $('mission-title'), missionMeter: $('mission-meter'), missionFill: $('mission-fill'),
+  missionCount: $('mission-count'), missionStatus: $('mission-status'), missionReward: $('mission-reward'),
+  missionEmpty: $('mission-empty'), missionLast: $('mission-last'),
   xpLine: $('xp-line'), hurt: $('hurt'), death: $('death'), deathTimer: $('death-timer'), respawn: $('respawn'),
 };
 
@@ -71,6 +76,13 @@ const state = {
   me: { hp: 100, maxHp: 100, chakra: 100, maxChakra: 100, shield: false, xp: 0, rank: { code: 'ACADEMY', name: 'Academia' }, dead: false, meditating: false },
   /** Monstro focado pelo botão 🎯 (id) ou null. */
   focusId: null,
+  /** NPCs parados (vêm no welcome): { id, name, x, y, range, npc: true, bubble } */
+  npcs: [],
+  /** NPC perto o bastante para conversar (mostra o botão 💬 Falar) ou null. */
+  nearNpc: null,
+  /** Missão atual (o servidor manda; null = nenhuma) e a última recompensa recebida. */
+  mission: null,
+  lastReward: null,
   /** id -> { id, type, x, y, tx, ty, hp, maxHp, stunnedUntil, rootedUntil, bornAt, diedAt } */
   monsters: new Map(),
   /** números flutuantes: { x, y, text, color, start, size } */
@@ -226,6 +238,10 @@ function disconnect() {
   state.players.clear();
   state.monsters.clear();
   state.meId = null;
+  state.mission = null;
+  state.lastReward = null;
+  renderMission();
+  closeMissions();
   setFocus(null);
   hideDeath();
 }
@@ -287,6 +303,9 @@ function handleMessage(msg) {
         if (w.width !== old.width || w.height !== old.height || w.spawn?.x !== old.spawn?.x || w.spawn?.y !== old.spawn?.y) chunkCache.clear();
         state.world = w;
         setupSkillButtons(w.skills || {});
+        state.npcs = (w.npcs || []).map((n) => ({ ...n, npc: true, bubble: null }));
+        state.nearNpc = null;
+        ui.talkBtn.hidden = true;
       }
       upsertPlayer(msg.you, true);
       for (const p of msg.players) upsertPlayer(p, true);
@@ -437,8 +456,46 @@ function handleMessage(msg) {
     case 'announce':
       addSystemLine(msg.message);
       break;
+
+    // ---- missões (o servidor conta os abates e decide a conclusão; aqui só se mostra)
+    case 'mission': {
+      state.mission = msg.mission;
+      if (msg.mission) state.lastReward = null;
+      renderMission();
+      const m = msg.mission;
+      const me = state.players.get(state.meId);
+      if (m && msg.reason === 'assigned') {
+        showToast(`📜 Nova missão: ${missionTitle(m)}`, 4000);
+        pulse(ui.missionsToggle);
+      } else if (m && (msg.reason === 'progress' || msg.reason === 'ready')) {
+        if (me) addFloater(me.x, me.y - 1.5, `📜 ${Math.min(m.progress, m.target.quantity)}/${m.target.quantity}`, '#ffd23f', 0.95);
+        pulse(ui.missionsToggle);
+        if (msg.reason === 'ready') {
+          showToast(m.fromNpc ? '📜 Missão completa! Volte ao Mestre para entregar.' : `📜 Missão completa! Procure o sensei ${m.senseiName}.`, 5000);
+          if (navigator.vibrate) try { navigator.vibrate([60, 60, 60]); } catch { /* sem vibração */ }
+        }
+      }
+      break;
+    }
+    case 'npc_say': {
+      const npc = state.npcs.find((n) => n.id === msg.npcId);
+      if (npc) npc.bubble = { text: msg.text, until: now + 4000 + msg.text.length * 45 };
+      addChatLine(npc ? npc.name : 'NPC', msg.text, false, 'npc');
+      break;
+    }
+    case 'mission_reward': {
+      const xp = msg.rewards.reduce((sum, r) => sum + r.xp, 0);
+      const titles = msg.rewards.filter((r) => r.title && r.titleNew).map((r) => r.title);
+      state.lastReward = { xp, titles };
+      renderMission();
+      showToast(`📜 Pergaminho entregue! +${xp} XP${titles.length ? ` · Título: ${titles.join(', ')}` : ''}`, 5000);
+      const me = state.players.get(state.meId);
+      if (me && titles.length) addFloater(me.x, me.y - 1.7, `🏅 ${titles[0]}`, '#ffd23f', 1);
+      break;
+    }
     case 'error':
       if (msg.code === 'CHAT_RATE_LIMITED' || msg.code === 'CHAT_INVALID') addSystemLine(msg.message);
+      else if (msg.code === 'NPC_TOO_FAR' || msg.code === 'CANNOT_TALK' || msg.code === 'UNKNOWN_NPC' || msg.code === 'MISSIONS_UNAVAILABLE') addSystemLine(msg.message);
       else if (msg.code === 'RESPAWN_NOT_READY') setTimeout(() => { ui.respawn.disabled = false; }, 800);
       else console.warn('[servidor]', msg.code, msg.message);
       break;
@@ -670,6 +727,8 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && ui.chat.hidden && !ui.hud.hidden) { openChat(); e.preventDefault(); }
   if (e.key === 't' || e.key === 'T' || e.key === 'Tab') { cycleFocus(); e.preventDefault(); }
   if (e.key === 'm' || e.key === 'M') toggleMeditation();
+  if (e.key === 'e' || e.key === 'E') talkToNpc();
+  if (e.key === 'j' || e.key === 'J') (ui.missionsPanel.hidden ? openMissions() : closeMissions());
 });
 window.addEventListener('keyup', (e) => {
   if (KEYMAP[e.code] && keys.delete(e.code)) keyDirection();
@@ -731,6 +790,111 @@ function renderActions() {
 
 ui.targetBtn.addEventListener('click', cycleFocus);
 ui.meditateBtn.addEventListener('click', toggleMeditation);
+
+// ------------------------------------------------------------------ missões (NPC Mestre e Sala de Missões)
+
+const TARGET_NAMES = { slime: ['slime', 'slimes'] };
+const targetName = (code, n) => (TARGET_NAMES[code] ? TARGET_NAMES[code][n === 1 ? 0 : 1] : code);
+
+function missionTitle(m) {
+  if (m.type.code === 'DEFEAT_MONSTER') return `Derrotar ${m.target.quantity} ${targetName(m.target.code, m.target.quantity)}`;
+  return `${m.type.name}: ${m.target.code} ×${m.target.quantity}`;
+}
+
+function missionStatusText(m) {
+  if (m.status === 'approved') return 'Pergaminho aprovado! Entregue ao Mestre para receber a recompensa.';
+  if (m.status === 'submitted') return `Entregue ao sensei ${m.senseiName}. Esperando a avaliação.`;
+  if (m.ready) return m.fromNpc ? 'Objetivo completo! Volte ao Mestre para entregar o pergaminho.' : `Objetivo completo! Procure o sensei ${m.senseiName}.`;
+  const left = m.target.quantity - m.progress;
+  const what = m.type.code === 'DEFEAT_MONSTER' ? `Derrote mais ${left} ${targetName(m.target.code, left)} em volta da vila.` : 'Em andamento.';
+  if (!m.expiresAt) return what;
+  const d = new Date(m.expiresAt);
+  return `${what} Prazo: ${d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.`;
+}
+
+/** Sala de Missões e o botão 📜 (que mostra o progresso, ex.: 2/5). Tudo com textContent. */
+function renderMission() {
+  const m = state.mission;
+  ui.missionCard.hidden = !m;
+  ui.missionEmpty.hidden = !!m;
+  ui.missionsToggle.classList.toggle('active', !!m && !m.ready);
+  ui.missionsToggle.classList.toggle('ready', !!m && m.ready);
+  const last = state.lastReward;
+  ui.missionLast.hidden = !!m || !last;
+  if (last && !m) {
+    ui.missionLast.textContent = `Última entrega: +${last.xp} XP${last.titles.length ? ` e o título “${last.titles.join('”, “')}”` : ''}. Fale com o Mestre para outro treino.`;
+  }
+  if (!m) {
+    ui.missionsBadge.textContent = 'Missões';
+    ui.missionsToggle.setAttribute('aria-label', 'Missões: nenhuma ativa');
+    return;
+  }
+  const done = Math.min(m.progress, m.target.quantity);
+  ui.missionsBadge.textContent = m.ready ? 'Pronta!' : `${done}/${m.target.quantity}`;
+  ui.missionsToggle.setAttribute('aria-label', `Missões: ${missionTitle(m)}, ${done} de ${m.target.quantity}`);
+  ui.missionSensei.textContent = `Missão do Sensei ${m.senseiName}`;
+  ui.missionTitle.textContent = missionTitle(m);
+  ui.missionFill.style.transform = `scaleX(${m.target.quantity ? done / m.target.quantity : 0})`;
+  ui.missionCount.textContent = `${done} / ${m.target.quantity}`;
+  ui.missionMeter.setAttribute('aria-valuemax', String(m.target.quantity));
+  ui.missionMeter.setAttribute('aria-valuenow', String(done));
+  ui.missionMeter.classList.toggle('ready', m.ready);
+  ui.missionStatus.textContent = missionStatusText(m);
+  ui.missionStatus.classList.toggle('ready', m.ready);
+  ui.missionReward.textContent = `Recompensa: ${m.reward.xp} XP${m.reward.title ? ` · título “${m.reward.title}”` : ''}`;
+}
+
+function openMissions() {
+  ui.missionsPanel.hidden = false;
+  ui.missionsToggle.setAttribute('aria-expanded', 'true');
+  renderMission();
+  send({ type: 'missions' });     // relê do servidor (missão criada por um sensei jogador, por exemplo)
+}
+function closeMissions() {
+  ui.missionsPanel.hidden = true;
+  ui.missionsToggle.setAttribute('aria-expanded', 'false');
+}
+ui.missionsToggle.addEventListener('click', () => (ui.missionsPanel.hidden ? openMissions() : closeMissions()));
+ui.missionsClose.addEventListener('click', closeMissions);
+
+/** Botão 💬 Falar (só aparece perto do NPC). O servidor confere a distância de novo. */
+let lastTalkAt = 0;
+function talkToNpc() {
+  const npc = state.nearNpc;
+  if (!npc || !state.connected || state.me.dead) return;
+  const now = performance.now();
+  if (now - lastTalkAt < 500) return;
+  lastTalkAt = now;
+  send({ type: 'talk', npcId: npc.id });
+}
+ui.talkBtn.addEventListener('click', talkToNpc);
+
+/** Mostra/esconde o 💬 Falar. Margem de 0,15 casa: a posição prevista pode estar à frente da do servidor. */
+function updateNpcProximity(me) {
+  let near = null;
+  if (me && !state.me.dead) {
+    for (const n of state.npcs) if (Math.hypot(me.x - n.x, me.y - n.y) <= n.range - 0.15) near = n;
+  }
+  if (near !== state.nearNpc) {
+    state.nearNpc = near;
+    ui.talkBtn.hidden = !near;
+  }
+}
+
+/** Marcador sobre o NPC: "!" tem missão para dar, "?" dourado = pronta para entregar, "?" cinza = em andamento. */
+function npcMarker() {
+  const m = state.mission;
+  if (!m) return { ch: '!', color: '#ffd23f', strong: true };
+  if (m.status === 'approved' || (m.ready && m.fromNpc)) return { ch: '?', color: '#ffd23f', strong: true };
+  if (m.fromNpc) return { ch: '?', color: '#b9b2a4', strong: false };
+  return null;   // missão de outro sensei: o Mestre não tem nada a dizer
+}
+
+function pulse(el) {
+  el.classList.remove('pulse');
+  void el.offsetWidth;
+  el.classList.add('pulse');
+}
 const SKILL_ORDER = ['fire', 'water', 'taijutsu', 'illusion', 'shadow', 'stone', 'heal'];
 const cooldownUntil = {};
 
@@ -789,9 +953,10 @@ ui.chat.addEventListener('submit', (e) => {
 });
 ui.chatInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeChat(); });
 
-function addChatLine(username, message, mine) {
+function addChatLine(username, message, mine, kind = '') {
   const li = document.createElement('li');
   if (mine) li.className = 'me';
+  else if (kind) li.className = kind;
   const who = document.createElement('span');
   who.className = 'who';
   who.textContent = `${username}: `;            // textContent: texto nunca vira HTML
@@ -1025,6 +1190,7 @@ function update(dt) {
   // Foco perdido: alvo morreu/sumiu ou o jogador andou para longe (mais de 12 casas).
   if (state.focusId && me && !keepFocus(me, state.monsters.get(state.focusId))) setFocus(null);
   if (me) updateCamera(dt, me);
+  updateNpcProximity(me);
   if (me) {
     // Meditando o servidor não anda: sem previsão até ele confirmar o fim da meditação.
     const moving = (dir.x !== 0 || dir.y !== 0) && state.connected && !state.me.dead && !state.me.meditating;
@@ -1120,17 +1286,26 @@ function draw(now) {
     drawList.push(m);
   }
   for (const p of state.players.values()) drawList.push(p);
+  for (const n of state.npcs) drawList.push(n);
   if (drawList.length > 1) drawList.sort((a, b) => a.y - b.y);
   ctx.textAlign = 'center';
   for (const e of drawList) {
-    if (e.type) drawMonster(e, toScreenX(e.x), toScreenY(e.y), T, now);
+    if (e.npc) drawNpc(e, toScreenX(e.x), toScreenY(e.y), T, now, me);
+    else if (e.type) drawMonster(e, toScreenX(e.x), toScreenY(e.y), T, now);
     else drawPlayer(e, toScreenX(e.x), toScreenY(e.y), T, e.id === state.meId, now);
   }
 
   for (const fx of state.effects) if (!GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
 
-  // 6. Números flutuantes (dano, cura, XP, avisos).
+  // 6. Números flutuantes (dano, cura, XP, avisos) e falas do NPC.
   drawFloaters(toScreenX, toScreenY, T, now);
+  for (const n of state.npcs) drawNpcBubble(n, toScreenX(n.x), toScreenY(n.y), T, now);
+
+  // 7. Missão pronta e o Mestre fora da tela: seta na borda apontando para ele.
+  const marker = npcMarker();
+  if (me && marker && marker.strong && state.mission) {
+    for (const n of state.npcs) drawOffscreenArrow(toScreenX(n.x), toScreenY(n.y), marker, now);
+  }
 
   drawJoystick();
 
@@ -1322,6 +1497,137 @@ function drawMeditationAura(sx, sy, r, T, now) {
     ctx.globalAlpha = 1 - t;
     ctx.fillRect(Math.round(px - ps / 2), Math.round(py - ps / 2), ps, ps);
   }
+  ctx.restore();
+}
+
+/** O Mestre: manto índigo com borda dourada, o kanji 師 (sensei) e o marcador de missão. */
+function drawNpc(n, sx, sy, T, now, me) {
+  const r = T * 0.44;
+  ctx.save();
+  // Perto o bastante para conversar: anel dourado no chão.
+  if (state.nearNpc === n) {
+    ctx.strokeStyle = 'rgba(255, 210, 63, 0.75)';
+    ctx.lineWidth = Math.max(2, T * 0.06);
+    ctx.setLineDash([T * 0.2, T * 0.12]);
+    ctx.lineDashOffset = -now / 50;
+    ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 1.7, r * 0.66, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.92, r * 1.05, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+  // manto (um pouco mais largo embaixo)
+  ctx.fillStyle = '#3b2f6e';
+  ctx.beginPath();
+  ctx.moveTo(sx - r * 0.95, sy + r * 0.75);
+  ctx.quadraticCurveTo(sx - r * 1.05, sy - r * 0.2, sx, sy - r * 1.02);
+  ctx.quadraticCurveTo(sx + r * 1.05, sy - r * 0.2, sx + r * 0.95, sy + r * 0.75);
+  ctx.quadraticCurveTo(sx, sy + r * 1.0, sx - r * 0.95, sy + r * 0.75);
+  ctx.fill();
+  ctx.lineWidth = Math.max(2, T * 0.07);
+  ctx.strokeStyle = '#e8c66a';
+  ctx.stroke();
+  ctx.fillStyle = '#ffe9a8';
+  ctx.font = `800 ${Math.round(r * 0.95)}px system-ui, -apple-system, sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.fillText('師', sx, sy + r * 0.05);
+  // nome
+  const fontSize = Math.max(11, Math.round(T * 0.32));
+  ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.textBaseline = 'bottom';
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
+  ctx.fillStyle = '#ffd23f';
+  const nameY = sy - r * 1.05 - 3;
+  ctx.strokeText(n.name, sx, nameY);
+  ctx.fillText(n.name, sx, nameY);
+  // marcador de missão, pulando
+  const marker = npcMarker();
+  if (marker) {
+    const size = Math.max(16, Math.round(T * 0.62));
+    const bob = Math.sin(now / 220) * T * 0.08;
+    const my = nameY - fontSize - size * 0.15 + bob;
+    ctx.font = `900 ${size}px system-ui, -apple-system, sans-serif`;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(20, 17, 13, 0.95)';
+    ctx.strokeText(marker.ch, sx, my);
+    ctx.fillStyle = marker.color;
+    ctx.fillText(marker.ch, sx, my);
+  }
+  ctx.restore();
+  n.labelTop = nameY - fontSize - Math.max(16, Math.round(T * 0.62));   // o balão fica acima do marcador
+}
+
+/** Fala do NPC: balão com quebra de linha, acima do marcador. */
+function drawNpcBubble(n, sx, sy, T, now) {
+  if (!n.bubble) return;
+  if (now >= n.bubble.until) { n.bubble = null; return; }
+  if (sx < -T || sx > viewW + T || sy < -T || sy > viewH + T) return;   // NPC fora da tela: a fala fica no chat
+  const fontSize = Math.max(13, Math.round(T * 0.36));
+  ctx.save();
+  ctx.font = `600 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  const maxW = Math.min(280, viewW * 0.7);
+  const lines = wrapText(n.bubble.text, maxW - 20);
+  const lineH = fontSize + 4;
+  const w = Math.min(maxW, Math.max(...lines.map((l) => ctx.measureText(l).width)) + 20);
+  const h = lines.length * lineH + 12;
+  const bottom = (n.labelTop ?? sy - T) - 6;
+  let x = Math.max(8, Math.min(viewW - w - 8, sx - w / 2));
+  let y = bottom - h;
+  // Sem espaço acima (celular deitado): o balão vai para o lado, sem cobrir nome e marcador.
+  if (y < 60) {
+    const side = sx + T * 0.7 + w + 8 <= viewW ? sx + T * 0.7 : sx - T * 0.7 - w;
+    x = Math.max(8, Math.min(viewW - w - 8, side));
+    y = Math.max(60, Math.min(viewH - h - 8, sy - h / 2));
+  }
+  ctx.fillStyle = 'rgba(255, 246, 220, 0.97)';
+  ctx.strokeStyle = '#e8c66a';
+  ctx.lineWidth = 2;
+  roundRect(x, y, w, h, 10);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#2a2140';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  lines.forEach((line, i) => ctx.fillText(line, x + w / 2, y + 6 + i * lineH));
+  ctx.restore();
+}
+
+function wrapText(text, maxW) {
+  const lines = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    const tryLine = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(tryLine).width > maxW) { lines.push(line); line = word; }
+    else line = tryLine;
+  }
+  if (line) lines.push(line);
+  return lines.slice(0, 5);
+}
+
+/** Seta na borda da tela apontando para o NPC fora de vista. */
+function drawOffscreenArrow(sx, sy, marker, now) {
+  const pad = 34;
+  if (sx >= pad && sx <= viewW - pad && sy >= pad + 50 && sy <= viewH - pad) return;
+  const cx = viewW / 2, cy = viewH / 2;
+  const ang = Math.atan2(sy - cy, sx - cx);
+  const ax = Math.max(pad, Math.min(viewW - pad, sx));
+  const ay = Math.max(pad + 56, Math.min(viewH - pad, sy));
+  const s = 13 + Math.sin(now / 200) * 2;
+  ctx.save();
+  ctx.translate(ax, ay);
+  ctx.fillStyle = 'rgba(20, 17, 13, 0.75)';
+  ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = marker.color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = marker.color;
+  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(marker.ch, 0, 1);
+  ctx.rotate(ang);
+  ctx.beginPath(); ctx.moveTo(20 + s, 0); ctx.lineTo(22, -8); ctx.lineTo(22, 8); ctx.closePath();
+  ctx.fill();
   ctx.restore();
 }
 

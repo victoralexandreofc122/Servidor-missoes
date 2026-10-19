@@ -431,3 +431,109 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
 #meditate-btn.active { border-color: #6fc0ff; background: rgba(20, 60, 120, 0.8); box-shadow: 0 0 14px rgba(111, 192, 255, 0.7); }
 .bar-chakra.meditating { box-shadow: 0 0 0 2px #6fc0ff, 0 0 14px rgba(111, 192, 255, 0.8); animation: chakra-pulse 1.2s ease-in-out infinite; }
 @keyframes chakra-pulse { 50% { box-shadow: 0 0 0 2px #6fc0ff, 0 0 4px rgba(111, 192, 255, 0.3); } }
+/* ------------------------------------------------------------ missões (NPC Mestre) */
+
+/* Botão 📜 na barra de cima: o rótulo vira o progresso (2/5) e brilha quando a missão fica pronta. */
+.mission-btn {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.mission-btn:active { transform: scale(0.94); }
+.mission-btn.active { color: #ffe2a8; border-color: rgba(255, 210, 63, 0.45); }
+.mission-btn.ready { color: var(--ink); background: #ffd23f; border-color: #ffd23f; animation: ready-glow 1.4s ease-in-out infinite; }
+.mission-btn.pulse { animation: badge-pop 0.45s ease-out; }
+.mission-btn.ready.pulse { animation: badge-pop 0.45s ease-out, ready-glow 1.4s ease-in-out 0.45s infinite; }
+@keyframes badge-pop { 40% { transform: scale(1.14); } }
+@keyframes ready-glow { 50% { box-shadow: 0 0 16px rgba(255, 210, 63, 0.85); } }
+
+/* Sala de Missões: cartão no alto, no meio (longe do joystick e dos botões de habilidade). */
+.mission-panel {
+  position: fixed;
+  top: calc(var(--safe-top) + 62px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(340px, calc(100vw - 20px - var(--safe-left) - var(--safe-right)));
+  padding: 12px 14px 14px;
+  border-radius: 16px;
+  background: var(--panel-solid);
+  border: 1px solid rgba(232, 198, 106, 0.45);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  animation: feed-in 0.18s ease-out;
+}
+.mission-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.mission-head h2 { margin: 0; font-size: 17px; color: #ffd23f; letter-spacing: 0.01em; }
+.icon-btn.small { width: 36px; height: 36px; font-size: 16px; border-radius: 10px; }
+.mission-card { display: flex; flex-direction: column; gap: 6px; }
+.mission-sensei { margin: 0; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.mission-title { margin: 0; font-size: 20px; line-height: 1.2; color: var(--text); }
+.mission-meter {
+  position: relative;
+  height: 24px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(244, 234, 216, 0.25);
+  margin: 2px 0;
+}
+.mission-meter .fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.35s ease-out;
+  background: linear-gradient(180deg, #f6c453, #c98a14);
+}
+.mission-meter.ready .fill { background: linear-gradient(180deg, #8fe07a, #3e9b3a); }
+.mission-meter b {
+  position: relative;
+  display: block;
+  text-align: center;
+  font-size: 15px;
+  line-height: 22px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+.mission-status { margin: 0; font-size: 14px; color: var(--text); }
+.mission-status.ready { color: #9be88a; font-weight: 700; }
+.mission-reward { margin: 0; font-size: 13px; color: #ffe2a8; }
+.mission-empty, .mission-last { margin: 0; font-size: 14px; color: var(--muted); }
+.mission-empty strong { color: #ffd23f; }
+.mission-last { margin-top: 6px; color: #9be88a; }
+
+/* Botão 💬 Falar: só aparece perto do NPC, dourado para chamar atenção. */
+.action-btn.talk { border-color: #ffd23f; background: rgba(110, 80, 10, 0.85); color: #fff3c4; animation: badge-pop 0.45s ease-out; }
+
+/* Fala do NPC no chat da tela. */
+.chat-feed .npc { background: rgba(59, 47, 110, 0.78); }
+.chat-feed .npc .who { color: #ffd23f; }
+
+@media (orientation: portrait) {
+  .mission-panel { top: calc(var(--safe-top) + 62px); }
+}
+
+/* Barra de cima em celular em pé: o status encolhe (com "…") para caber o botão 📜. */
+.topbar .pill { min-width: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar .mission-btn, .topbar .icon-btn, .topbar .text-btn { flex-shrink: 0; }
+
+/* Aviso nunca rouba toque; com a Sala de Missões aberta, ele desce para não cobrir o painel. */
+.toast { pointer-events: none; }
+/* Com a Sala de Missões aberta o aviso some: o próprio painel mostra o mesmo estado. */
+#missions-panel:not([hidden]) ~ .toast { display: none; }
+
+/* Deitado: painel um pouco à esquerda do meio e mais baixo, para não encostar em 💬/🎯/🧘. */
+@media (orientation: landscape) {
+  .mission-panel { left: 42%; width: min(310px, 40vw); padding: 10px 12px 12px; }
+  .mission-panel .mission-title { font-size: 18px; }
+  .mission-panel .mission-head { margin-bottom: 4px; }
+  .mission-panel .mission-meter { height: 22px; }
+  .mission-panel .mission-meter b { line-height: 20px; font-size: 14px; }
+  .mission-panel .mission-status { font-size: 13px; }
+}

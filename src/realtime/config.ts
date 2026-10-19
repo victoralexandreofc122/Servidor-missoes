@@ -56,6 +56,10 @@ export interface RealtimeConfig {
   maxPlayers: number;
   heartbeatMs: number;
   combat: CombatConfig;
+  /** NPCs parados no mapa. `range` = distância máxima para conversar (casas). */
+  npcs: readonly { id: string; name: string; x: number; y: number; range: number }[];
+  /** Pedidos ao banco de missões (falar com NPC, abrir a Sala): no máximo 1 a cada X ms por jogador. */
+  missionRequestEveryMs: number;
 }
 
 export const REALTIME: Readonly<RealtimeConfig> = {
@@ -121,4 +125,13 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       heal: { cost: 30, cooldownMs: 4000, heal: 30 },
     },
   },
+
+  /**
+   * O Mestre (sensei NPC) fica ao lado do renascimento (2,2 casas, na diagonal), dentro da área
+   * segura (monstros só andam a 5+ casas do centro). Quem renasce já pode falar com ele.
+   * Na diagonal e não 2 casas ao norte: com o celular deitado, o "!" sobre ele ficaria
+   * embaixo da barra de cima. Conversar: até 2,5 casas de distância.
+   */
+  npcs: [{ id: 'sensei', name: 'Mestre', x: 52, y: 49, range: 2.5 }],
+  missionRequestEveryMs: 400,
 };

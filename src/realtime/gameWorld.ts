@@ -2,9 +2,10 @@ import { distance, inCone, nearest, randomInRing, shieldedDamage, STEPS, type Po
 import { REALTIME, type RealtimeConfig } from './config.js';
 import {
   CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, sanitizeChat,
-  type CastFailReason, type MeditationEnd, type MonsterView, type PlayerView, type RankView,
+  type CastFailReason, type MeditationEnd, type MissionView, type MonsterView, type PlayerView, type RankView,
   type RealtimeErrorCode, type SelfView, type ServerMessage, type Skill, type WorldInfo,
 } from './protocol.js';
+import type { Missions, TalkOutcome } from './missions.js';
 import { TokenBucket } from './tokenBucket.js';
 
 /*
@@ -17,6 +18,10 @@ import { TokenBucket } from './tokenBucket.js';
  *
  * Game loop (tick de 50 ms): anda os jogadores, regenera HP/chakra, move e faz os
  * monstros atacarem, e envia só o que mudou.
+ *
+ * Missões (NPC Mestre): o banco é a fonte da verdade (missions.ts). O mundo só decide
+ * QUEM pode pedir (perto do NPC, vivo, sem pedido em andamento) e conta o abate quando
+ * o próprio servidor mata o monstro. Não existe mensagem do cliente que mexa no progresso.
  */
 
 /** O que o mundo precisa de uma conexão. O WebSocket do `ws` satisfaz isto. */
@@ -40,6 +45,8 @@ export interface WorldOptions {
   /** Sorteio (posições e passos dos monstros). Injetável para teste. */
   random?: () => number;
   progression?: Progression;
+  /** Missões de sensei no banco (NPC Mestre, abates). Sem isto, o NPC aparece mas não passa missão. */
+  missions?: Missions;
 }
 
 export interface JoiningPlayer {
@@ -84,6 +91,9 @@ interface Session {
   readonly chat: TokenBucket;
   dropWindowStart: number;
   dropped: number;
+  /** Pedido ao banco de missões em andamento (dois toques seguidos viram um). */
+  missionBusy: boolean;
+  lastMissionAt: number;
   /** Posição mudou desde o último envio. */
   dirty: boolean;
   closed: boolean;
@@ -122,6 +132,7 @@ export class GameWorld {
   private readonly pendingKicks: { session: Session; close: { code: number; reason: string } }[] = [];
   private readonly random: () => number;
   private readonly progression: Progression | undefined;
+  private readonly missions: Missions | undefined;
   private timer: NodeJS.Timeout | undefined;
   private lastTick: number;
   private monsterSeq = 0;
@@ -134,6 +145,7 @@ export class GameWorld {
   ) {
     this.random = options.random ?? Math.random;
     this.progression = options.progression;
+    this.missions = options.missions;
     this.lastTick = now();
     while (this.monsters.size < this.config.combat.monsters.count) this.spawnMonster();
   }
@@ -172,6 +184,7 @@ export class GameWorld {
       width: world.width, height: world.height, speed: speedTilesPerSecond, tickMs, spawn: { ...spawn },
       respawnMs: combat.player.respawnMs, skills, promotion: { ...combat.promotion },
       meditationRegenMultiplier: combat.player.meditationRegenMultiplier,
+      npcs: this.config.npcs.map((n) => ({ ...n })),
     };
   }
 
@@ -213,6 +226,8 @@ export class GameWorld {
       chat: new TokenBucket(this.config.chatBurst, this.config.chatPerSecond, t),
       dropWindowStart: t,
       dropped: 0,
+      missionBusy: false,
+      lastMissionAt: 0,
       dirty: false,
       closed: false,
     };
@@ -234,6 +249,7 @@ export class GameWorld {
 
     const others = [...this.sessions.values()].filter((s) => s !== session).map((s) => this.view(s));
     this.sendTo(session, { type: 'welcome', you: this.selfView(session), players: others, monsters: this.monsterList(), world: this.worldInfo() });
+    this.syncMission(session.id);
     this.flushKicks();
 
     return {
@@ -285,6 +301,8 @@ export class GameWorld {
     else if (parsed.type === 'cast') this.cast(session, parsed.skill, t, parsed.targetId);
     else if (parsed.type === 'meditate') this.meditate(session, parsed.active);
     else if (parsed.type === 'respawn') this.respawn(session, t);
+    else if (parsed.type === 'talk') this.talk(session, parsed.npcId, t);
+    else if (parsed.type === 'missions') this.missionRequest(session, t, (m) => m.current(session.id).then((mission) => this.sendMission(session.id, mission, 'sync')));
     else this.chatMessage(session, parsed.message, t);
     this.flushKicks();
   }
@@ -432,6 +450,112 @@ export class GameWorld {
     this.broadcast({ type: 'monster_died', id: m.id, killerId: killer.id });
     if (this.monsters.size < this.config.combat.monsters.count) this.spawnMonster(undefined, t);
     this.awardXp(killer, this.config.combat.monsters.xp);
+    this.trackKill(killer, m.type);
+  }
+
+  // ---------------------------------------------------------------- missões (NPC Mestre)
+
+  /**
+   * Abate conta para a missão DEFEAT_MONSTER do matador (o banco confere tipo, monstro,
+   * estado e meta). Fora do loop, como o XP. Chegou na meta: avisa para voltar ao Mestre.
+   */
+  private trackKill(killer: Session, monsterType: string): void {
+    if (!this.missions) return;
+    const { id } = killer;
+    this.missions.recordKill(id, monsterType).then((mission) => {
+      if (mission) this.sendMission(id, mission, mission.ready ? 'ready' : 'progress');
+    }).catch((err: unknown) => {
+      this.log.warn({ playerId: id, err }, 'falha ao contar abate na missão');
+    });
+  }
+
+  /** Ao conectar: a Sala de Missões já abre com a missão certa. */
+  private syncMission(playerId: string): void {
+    this.missions?.current(playerId).then((mission) => this.sendMission(playerId, mission, 'sync')).catch((err: unknown) => {
+      this.log.warn({ playerId, err }, 'falha ao ler a missão do jogador');
+    });
+  }
+
+  /** Conversar com um NPC: só vivo e perto dele (posição do SERVIDOR, não a do cliente). */
+  private talk(session: Session, npcId: string, t: number): void {
+    const npc = this.config.npcs.find((n) => n.id === npcId);
+    if (!npc) return this.sendError(session, 'UNKNOWN_NPC');
+    if (session.dead) return this.sendError(session, 'CANNOT_TALK');
+    if (distance(session, npc) > npc.range) return this.sendError(session, 'NPC_TOO_FAR');
+    const { id, username } = session;
+    this.missionRequest(session, t, (m) => m.talk(id).then((outcome) => this.applyTalk(id, username, npc.id, outcome)));
+  }
+
+  /**
+   * Um pedido ao banco de missões por vez, e no máximo 1 a cada `missionRequestEveryMs`.
+   * Toque repetido no meio do caminho é ignorado (não enfileira consultas).
+   */
+  private missionRequest(session: Session, t: number, run: (missions: Missions) => Promise<void>): void {
+    if (!this.missions) return this.sendError(session, 'MISSIONS_UNAVAILABLE');
+    if (session.missionBusy || t - session.lastMissionAt < this.config.missionRequestEveryMs) return;
+    session.missionBusy = true;
+    session.lastMissionAt = t;
+    const { id } = session;
+    run(this.missions).catch((err: unknown) => {
+      this.log.warn({ playerId: id, err }, 'falha no banco de missões');
+      const current = this.sessions.get(id);
+      if (current) this.sendError(current, 'MISSIONS_UNAVAILABLE');
+    }).finally(() => {
+      session.missionBusy = false;
+      this.flushKicks();
+    });
+  }
+
+  private sendMission(playerId: string, mission: MissionView | null, reason: 'sync' | 'assigned' | 'progress' | 'ready' | 'completed'): void {
+    const session = this.sessions.get(playerId);
+    if (session) this.sendTo(session, { type: 'mission', mission, reason });
+  }
+
+  /** Resultado da conversa (já gravado no banco) vira fala do NPC, missão e recompensa. */
+  private applyTalk(playerId: string, username: string, npcId: string, outcome: TalkOutcome): void {
+    const session = this.sessions.get(playerId);
+    const say = (text: string) => {
+      if (session) this.sendTo(session, { type: 'npc_say', npcId, text });
+    };
+    switch (outcome.kind) {
+      case 'assigned':
+        say(npcLine.assigned(outcome.mission));
+        this.sendMission(playerId, outcome.mission, 'assigned');
+        break;
+      case 'in_progress':
+      case 'other_sensei':
+        say(outcome.kind === 'in_progress' ? npcLine.inProgress(outcome.mission) : npcLine.otherSensei(outcome.mission));
+        this.sendMission(playerId, outcome.mission, 'sync');
+        break;
+      case 'rewarded': {
+        const gained = outcome.rewards.reduce((sum, r) => sum + r.xp, 0);
+        if (session) {
+          session.xp = outcome.totalXp;
+          session.rank = outcome.rank;
+          this.sendTo(session, {
+            type: 'mission_reward',
+            rewards: outcome.rewards.map(({ senseiName, xp, title, titleNew }) => ({ senseiName, xp, title, titleNew })),
+            totalXp: outcome.totalXp, rank: outcome.rank, promoted: outcome.promoted,
+          });
+          this.sendTo(session, { type: 'xp', gained, totalXp: outcome.totalXp, rank: outcome.rank, promoted: outcome.promoted });
+        }
+        say(npcLine.rewarded(outcome.rewards));
+        this.sendMission(playerId, outcome.mission, 'completed');
+        if (outcome.promoted) {
+          this.broadcast({ type: 'announce', message: `${username} subiu para ${outcome.rank.name}!` });
+          this.log.info({ playerId, rank: outcome.rank.code }, 'jogador subiu de rank');
+        }
+        this.log.info({ playerId, missions: outcome.rewards.length, xp: gained }, 'pergaminho entregue na Sala de Missões');
+        break;
+      }
+      case 'rank_too_high':
+        say('Seu rank já passou dos meus treinos. Procure um sensei à sua altura.');
+        break;
+      case 'unavailable':
+        this.log.warn({}, 'missões do NPC indisponíveis: rode db/schema_v4_npc_missions.sql no banco');
+        say('A Sala de Missões ainda não abriu. Volte mais tarde.');
+        break;
+    }
   }
 
   /** XP vai para o banco (fora do loop: o tick nunca espera o banco). O aviso só sai depois de gravado. */
@@ -701,6 +825,31 @@ export class GameWorld {
   }
 }
 
+
+/** Nome do alvo para as falas: "slime" -> "slimes". */
+const TARGET_NAMES: Record<string, [string, string]> = { slime: ['slime', 'slimes'] };
+export function targetLabel(code: string, quantity: number): string {
+  const names = TARGET_NAMES[code];
+  return names ? names[quantity === 1 ? 0 : 1] : code;
+}
+
+/** Falas do Mestre. */
+export const npcLine = {
+  assigned: (m: MissionView) => `Prove seu valor, jovem ninja: derrote ${m.target.quantity} ${targetLabel(m.target.code, m.target.quantity)} e volte aqui.`,
+  inProgress: (m: MissionView) => {
+    const left = m.target.quantity - m.progress;
+    return `Ainda ${left === 1 ? 'falta' : 'faltam'} ${left} ${targetLabel(m.target.code, left)}. Eles rondam em volta da vila.`;
+  },
+  otherSensei: (m: MissionView) => m.status === 'submitted'
+    ? `Sua missão está com o sensei ${m.senseiName}, esperando a avaliação.`
+    : `Você está treinando com o sensei ${m.senseiName}. Termine essa missão primeiro.`,
+  rewarded: (rewards: { xp: number; title: string | null; titleNew: boolean }[]) => {
+    const xp = rewards.reduce((sum, r) => sum + r.xp, 0);
+    const titles = rewards.filter((r) => r.title && r.titleNew).map((r) => `“${r.title}”`);
+    const prize = titles.length > 0 ? `+${xp} XP e o título ${titles.join(' e ')}` : `+${xp} XP`;
+    return `Excelente! Pergaminho entregue: ${prize}. Fale comigo de novo para outro treino.`;
+  },
+};
 
 function monsterView(m: Monster): MonsterView {
   return { id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp };

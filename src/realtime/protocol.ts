@@ -8,6 +8,8 @@ import { z } from 'zod';
  *   { "type": "cast", "skill": "fire", "targetId": "m12" }   habilidade; targetId (opcional) = alvo focado
  *   { "type": "meditate", "active": true }      começar/parar de meditar (chakra 3x mais rápido)
  *   { "type": "respawn" }                       renascer (só depois de 5 s morto)
+ *   { "type": "talk", "npcId": "sensei" }       falar com o NPC Mestre (precisa estar perto)
+ *   { "type": "missions" }                      pedir a missão atual (abrir a Sala de Missões)
  *   { "type": "chat", "message": "Olá!" }
  *
  * Servidor -> cliente
@@ -27,6 +29,9 @@ import { z } from 'zod';
  *   player_respawned  { playerId, x, y, hp, maxHp }
  *   xp                { gained, totalXp, rank, promoted }  só para quem matou (depois de gravar no banco)
  *   announce          { message }                          para todos (ex.: subiu para Genin)
+ *   mission           { mission, reason }                  missão atual (null = nenhuma), só para o dono
+ *   npc_say           { npcId, text }                      fala do NPC, só para quem conversou
+ *   mission_reward    { rewards, totalXp, rank, promoted } pergaminho entregue (já gravado no banco)
  *   chat / error                                           como antes
  */
 
@@ -48,6 +53,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: monsterId.optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
   z.object({ type: z.literal('respawn') }),
+  z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z]{1,16}$/) }),
+  z.object({ type: z.literal('missions') }),
   z.object({ type: z.literal('chat'), message: z.string() }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
@@ -85,6 +92,43 @@ export interface MonsterView {
   maxHp: number;
 }
 
+/** NPC parado no mapa. `range` = distância máxima para conversar (casas). */
+export interface NpcView {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  range: number;
+}
+
+/** Missão de sensei como o jogador vê (Sala de Missões). */
+export interface MissionView {
+  id: string;
+  /** active = em andamento; submitted = esperando o sensei avaliar; approved = pergaminho para entregar. */
+  status: 'active' | 'submitted' | 'approved';
+  senseiName: string;
+  /** Missão do NPC Mestre (e não de um sensei jogador). */
+  fromNpc: boolean;
+  type: { code: string; name: string };
+  /** code = tipo do monstro (DEFEAT_MONSTER) ou do conteúdo; quantity = meta. */
+  target: { code: string; quantity: number };
+  progress: number;
+  reward: { xp: number; title: string | null };
+  expiresAt: string | null;
+  /** Objetivo completo ou pergaminho aprovado: é só voltar ao Mestre. */
+  ready: boolean;
+}
+
+export interface MissionRewardView {
+  senseiName: string;
+  xp: number;
+  title: string | null;
+  titleNew: boolean;
+}
+
+/** Por que a missão foi (re)enviada: o cliente escolhe o aviso. */
+export type MissionReason = 'sync' | 'assigned' | 'progress' | 'ready' | 'completed';
+
 /** O que o cliente precisa saber do mundo para desenhar, prever o movimento e montar os botões. */
 export interface WorldInfo {
   width: number;
@@ -96,6 +140,7 @@ export interface WorldInfo {
   /** range = alcance máximo (Fogo: raio da área); ausente = habilidade em si mesmo. */
   skills: Record<Skill, { cost: number; cooldownMs: number; range?: number }>;
   meditationRegenMultiplier: number;
+  npcs: NpcView[];
   promotion: { fromRank: string; toRank: string; xp: number };
 }
 
@@ -124,12 +169,19 @@ export type ServerMessage =
   | { type: 'player_respawned'; playerId: string; x: number; y: number; hp: number; maxHp: number }
   | { type: 'xp'; gained: number; totalXp: number; rank: RankView; promoted: boolean }
   | { type: 'announce'; message: string }
+  | { type: 'mission'; mission: MissionView | null; reason: MissionReason }
+  | { type: 'npc_say'; npcId: string; text: string }
+  | { type: 'mission_reward'; rewards: MissionRewardView[]; totalXp: number; rank: RankView; promoted: boolean }
   | { type: 'error'; code: RealtimeErrorCode; message: string };
 
 export const REALTIME_ERRORS = {
-  INVALID_MESSAGE: 'Mensagem inválida. Use {"type":"move","dx":..,"dy":..}, {"type":"cast","skill":".."}, {"type":"meditate","active":true}, {"type":"respawn"} ou {"type":"chat","message":".."}.',
+  INVALID_MESSAGE: 'Mensagem inválida. Use {"type":"move","dx":..,"dy":..}, {"type":"cast","skill":".."}, {"type":"meditate","active":true}, {"type":"respawn"}, {"type":"talk","npcId":"sensei"}, {"type":"missions"} ou {"type":"chat","message":".."}.',
   RESPAWN_NOT_READY: 'Ainda não dá para renascer.',
   CANNOT_MEDITATE: 'Não dá para meditar agora.',
+  UNKNOWN_NPC: 'Esse NPC não existe.',
+  NPC_TOO_FAR: 'Chegue mais perto para conversar.',
+  CANNOT_TALK: 'Não dá para conversar agora.',
+  MISSIONS_UNAVAILABLE: 'A Sala de Missões não está disponível agora. Tente de novo.',
   CHAT_RATE_LIMITED: 'Calma! Espere um pouco antes de mandar outra mensagem no chat.',
   CHAT_INVALID: 'Mensagem de chat vazia ou longa demais.',
 } as const;

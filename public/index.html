@@ -25,6 +25,10 @@
     <div class="topbar">
       <span id="status" class="pill">conectando…</span>
       <span class="spacer"></span>
+      <!-- Sala de Missões: o rótulo vira o progresso (ex.: 2/5) quando há missão. -->
+      <button id="missions-toggle" class="mission-btn" type="button" aria-expanded="false" aria-controls="missions-panel">
+        <span aria-hidden="true">📜</span> <span id="missions-badge">Missões</span>
+      </button>
       <button id="chat-toggle" class="icon-btn" type="button" aria-label="Abrir chat" aria-expanded="false" aria-controls="chat">
         <span aria-hidden="true">💬</span>
       </button>
@@ -40,8 +44,28 @@
       <button type="submit">Enviar</button>
     </form>
 
-    <!-- Foco e meditação: logo acima das habilidades. -->
+    <!-- Sala de Missões: missão ativa, progresso e recompensa (o servidor manda; o cliente só mostra). -->
+    <section id="missions-panel" class="mission-panel" hidden role="dialog" aria-labelledby="missions-title">
+      <header class="mission-head">
+        <h2 id="missions-title"><span aria-hidden="true">📜</span> Sala de Missões</h2>
+        <button id="missions-close" class="icon-btn small" type="button" aria-label="Fechar a Sala de Missões"><span aria-hidden="true">✕</span></button>
+      </header>
+      <div id="mission-card" class="mission-card" hidden>
+        <p id="mission-sensei" class="mission-sensei">Missão do Sensei Mestre</p>
+        <h3 id="mission-title" class="mission-title">Derrotar 5 slimes</h3>
+        <div id="mission-meter" class="mission-meter" role="progressbar" aria-label="Progresso da missão" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0">
+          <span id="mission-fill" class="fill"></span><b id="mission-count">0 / 5</b>
+        </div>
+        <p id="mission-status" class="mission-status"></p>
+        <p id="mission-reward" class="mission-reward"></p>
+      </div>
+      <p id="mission-empty" class="mission-empty">Nenhuma missão ativa. Fale com o <strong>Mestre</strong>, ao lado do ponto de renascimento.</p>
+      <p id="mission-last" class="mission-last" hidden></p>
+    </section>
+
+    <!-- Falar (perto do NPC), foco e meditação: logo acima das habilidades. -->
     <div id="actions" class="actions" aria-label="Ações">
+      <button id="talk-btn" type="button" class="action-btn talk" hidden><span aria-hidden="true">💬</span> Falar</button>
       <button id="target-btn" type="button" class="action-btn" aria-pressed="false"><span aria-hidden="true">🎯</span> Alvo</button>
       <button id="meditate-btn" type="button" class="action-btn" aria-pressed="false"><span aria-hidden="true">🧘</span> Meditar</button>
     </div>
