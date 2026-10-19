@@ -5,6 +5,8 @@ import { makeTokenIssuer } from './auth/issueToken.js';
 import { AUTH_SQL } from './auth/sql.js';
 import { makeRequireServiceToken } from './auth/requireServiceToken.js';
 import { describeBootError } from './bootErrors.js';
+import { makeFindPlayer } from './realtime/findPlayer.js';
+import { attachGameGateway } from './realtime/gateway.js';
 import { loadConfig, trustProxyWarning, type Config } from './config.js';
 import { createDb, createPool } from './db.js';
 
@@ -44,17 +46,26 @@ const jwtOptions: JwtOptions = {
   ...(config.JWT_AUDIENCE ? { audience: config.JWT_AUDIENCE } : {}),
 };
 
+const authenticate = makeAuthenticate(jwtOptions);
 const publicApp = buildPublicApp({
   db,
-  authenticate: makeAuthenticate(jwtOptions),
+  authenticate,
   issueToken: makeTokenIssuer(jwtOptions),
 }, settings);
+
+// Tempo real: WebSocket em /game na MESMA porta pública, com o MESMO authenticate do HTTP.
+const gateway = attachGameGateway(publicApp.server, {
+  authenticate,
+  findPlayer: makeFindPlayer(db),
+  log: publicApp.log,
+});
 const internalApp = buildInternalApp({ db, requireServiceToken: makeRequireServiceToken(config.SERVICE_TOKEN) }, settings);
 
 const proxyWarning = trustProxyWarning(config);
 if (proxyWarning) publicApp.log.warn(proxyWarning);
 
 async function closeAll() {
+  gateway.close();   // avisa os jogadores (1001) antes de fechar o servidor
   await Promise.allSettled([publicApp.close(), internalApp.close()]);
   await pool.end().catch(() => undefined);
 }

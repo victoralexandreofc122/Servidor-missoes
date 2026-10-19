@@ -54,6 +54,30 @@ POST /auth/login
 - Erros: `EMAIL_TAKEN` e `USERNAME_TAKEN` (409), `INVALID_INPUT` (400), `INVALID_CREDENTIALS` (401, a mesma
   resposta para conta inexistente e senha errada), `RATE_LIMITED` (429).
 
+## Tempo real (WebSocket)
+
+`wss://<servidor>/game?token=<JWT do login>`, na mesma porta da API pública. O JWT é validado antes
+do upgrade: token ausente, inválido ou vencido recebe HTTP 401 e não conecta.
+
+| Direção | Mensagem |
+|---|---|
+| cliente → servidor | `{"type":"move","x":11,"y":10}` · `{"type":"chat","message":"Olá!"}` |
+| ao conectar | `{"type":"welcome","you":{id,username,x,y},"players":[...os outros online]}` |
+| para os outros | `player_joined` · `player_moved {playerId,x,y}` (a cada tick de 50 ms) · `player_left {playerId}` |
+| para todos | `chat {playerId,username,message}` |
+| só para quem enviou | `move_rejected {x,y,reason}` (`TOO_FAST`, `OUT_OF_BOUNDS`) · `error {code,message}` |
+
+Regras (em `src/realtime/config.ts`):
+
+- Mapa de 100 × 100 casas, nascimento em (10, 10).
+- Até 5 casas por segundo, com folga de 5.
+- Anti-flood: 20 mensagens/s, com rajada de 30. Mais de 100 descartadas em 1 s fecha a conexão (1008).
+- Chat: 1 mensagem/s (rajada de 3), até 200 caracteres.
+- Mensagem acima de 1 KiB fecha a conexão (1009).
+- O mesmo jogador conectando de novo derruba a conexão antiga (4000).
+
+O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
+
 ## Scripts
 
 | Script | O que faz |

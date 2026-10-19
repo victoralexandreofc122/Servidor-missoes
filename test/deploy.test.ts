@@ -67,8 +67,8 @@ describe('preparação para o Render', () => {
 
   it('package.json: runtime em dependencies, build em devDependencies, start aponta para dist/server.js', () => {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    assert.deepEqual(Object.keys(pkg.dependencies).sort(), ['fastify', 'jose', 'pg', 'zod']);
-    assert.deepEqual(Object.keys(pkg.devDependencies).sort(), ['@types/node', '@types/pg', 'tsx', 'typescript']);
+    assert.deepEqual(Object.keys(pkg.dependencies).sort(), ['fastify', 'jose', 'pg', 'ws', 'zod']);
+    assert.deepEqual(Object.keys(pkg.devDependencies).sort(), ['@types/node', '@types/pg', '@types/ws', 'tsx', 'typescript']);
     assert.equal(pkg.scripts.start, 'node dist/server.js');
     assert.equal(pkg.type, 'module');
     assert.equal(readFileSync(new URL('../.node-version', import.meta.url), 'utf8').trim(), '22');

@@ -11,6 +11,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 4 | Verificar | ~5 min |
 | 5 | Pós-deploy: o que fazer e o que não fazer | leitura |
 | 6 | Atualização v3: login (para quem já está no ar) | ~5 min |
+| 7 | Testar o tempo real (WebSocket) pelo Hoppscotch | ~10 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -222,3 +223,39 @@ Vale para quem já fez os passos 1 a 5. A v3 adiciona cadastro (`POST /auth/regi
    A resposta traz `token`; nas outras rotas, mande o header `Authorization: Bearer <token>`.
 
 Não precisa criar variável nova no Render. Opcional: `RATE_LIMIT_AUTH_MAX` (padrão 5 tentativas por minuto por IP).
+
+---
+
+## Passo 7 — Testar o tempo real (WebSocket)
+
+Não precisa de nada novo no Render nem no Neon: o WebSocket usa a mesma porta e o mesmo `JWT_SECRET`.
+Depois do deploy, use o **Hoppscotch** (hoppscotch.io) no navegador do celular.
+
+1. **Acorde o servidor**: abra `https://SEU-SERVICO.onrender.com/health` e espere o `{"status":"ok"}`.
+2. **Duas contas**: em Hoppscotch → **REST**, faça `POST /auth/register` duas vezes, com nomes e e-mails diferentes
+   (ex.: `Kaito` e `Mei`), e depois `POST /auth/login` de cada uma. Guarde os dois `token`.
+   Tem que ser duas contas: a mesma conta conectando de novo derruba a primeira conexão (código 4000).
+3. **Jogador 1**: Hoppscotch → **Realtime** → **WebSocket**. No endereço:
+
+   ```
+   wss://SEU-SERVICO.onrender.com/game?token=TOKEN_DO_KAITO
+   ```
+
+   Toque em **Connect**. Chega um `welcome` com `"x":10,"y":10` e `"players":[]`.
+4. **Jogador 2**: abra **outra aba** do navegador no Hoppscotch e conecte com o token da Mei.
+   A Mei recebe `welcome` com o Kaito na lista. Na aba do Kaito, aparece `player_joined`.
+5. Na aba do Kaito, envie (campo de mensagem → **Send**):
+
+   | Envie | O que aparece |
+   |---|---|
+   | `{"type":"move","x":11,"y":10}` | na aba da Mei: `player_moved` com x 11 |
+   | `{"type":"chat","message":"Olá!"}` | `chat` nas duas abas |
+   | `{"type":"move","x":90,"y":90}` | só na aba do Kaito: `move_rejected` com `"reason":"TOO_FAST"` (anti speed hack) |
+   | `{"type":"move","x":-1,"y":10}` | `move_rejected` com `"reason":"OUT_OF_BOUNDS"` |
+   | `oi` (texto que não é JSON) | `error` com `"code":"INVALID_MESSAGE"` |
+
+6. Toque em **Disconnect** na aba do Kaito: na aba da Mei aparece `player_left`.
+7. **Token inválido**: conecte com `?token=abc`. A conexão falha na hora (o servidor responde 401 e não abre o WebSocket).
+
+Se algo falhar, copie a mensagem do Hoppscotch e o trecho do log do Render e mande para o Claude.
+O log mostra entradas e saídas só com o `playerId`: nunca o token nem o texto do chat.
