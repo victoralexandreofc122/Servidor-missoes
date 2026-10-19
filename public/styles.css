@@ -13,6 +13,9 @@
   --taijutsu: #d9a441;
   --illusion: #9a6be0;
   --water: #3c9be0;
+  --shadow: #4a3f63;
+  --stone: #8a6a45;
+  --heal: #4fbf6a;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -112,63 +115,65 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
 }
 .text-btn:active { transform: scale(0.94); }
 
-.badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  border-radius: 10px;
-  background: var(--accent);
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 20px;
-}
-
-/* Chat no topo: o teclado do celular sobe por baixo e não esconde a conversa. */
-.chat {
+/* Mensagens do chat na tela, embaixo do status: aparecem e somem sozinhas (fade). */
+.chat-feed {
   position: fixed;
   top: calc(var(--safe-top) + 62px);
-  right: calc(var(--safe-right) + 10px);
-  width: min(360px, calc(100vw - 20px - var(--safe-left) - var(--safe-right)));
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  left: calc(var(--safe-left) + 10px);
+  width: min(380px, calc(100vw - 20px - var(--safe-left) - var(--safe-right)));
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
+  gap: 4px;
+  pointer-events: none;              /* nunca rouba o toque do joystick */
+}
+.chat-feed li {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgba(20, 17, 13, 0.62);
+  font-size: 14px;
+  word-break: break-word;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  animation: feed-in 0.18s ease-out, feed-out 0.8s ease-in 6s forwards;
+}
+.chat-feed .who { color: var(--accent); font-weight: 700; }
+.chat-feed .me .who { color: #7bd36a; }
+.chat-feed .system { color: var(--muted); font-style: italic; }
+@keyframes feed-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes feed-out { to { opacity: 0; } }
+
+/* Barra de digitação: no topo, o teclado do celular sobe por baixo e não a cobre. */
+.chat-bar {
+  position: fixed;
+  top: calc(var(--safe-top) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 140px - var(--safe-left) - var(--safe-right)));
+  min-width: 220px;
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 14px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
   user-select: text;
   -webkit-user-select: text;
 }
-.chat-log {
-  list-style: none;
-  margin: 0;
-  padding: 10px 12px;
-  max-height: min(34vh, 220px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  font-size: 14px;
-  word-break: break-word;
-}
-.chat-log li + li { margin-top: 4px; }
-.chat-log .who { color: var(--accent); font-weight: 600; }
-.chat-log .me .who { color: #7bd36a; }
-.chat-log .system { color: var(--muted); font-style: italic; }
-.chat-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
-.chat-form input {
+.chat-bar input {
   flex: 1;
   min-width: 0;
   font-size: 16px;                   /* 16px: o iPhone não dá zoom ao focar */
-  padding: 9px 10px;
+  padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.35);
   color: var(--text);
 }
-.chat-form button {
+.chat-bar button {
   border: 0;
   border-radius: 10px;
   padding: 0 14px;
@@ -176,16 +181,31 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
   color: var(--ink);
   font-weight: 700;
 }
+@media (orientation: portrait) {
+  .chat-bar { top: calc(var(--safe-top) + 62px); width: calc(100vw - 20px - var(--safe-left) - var(--safe-right)); }
+  .chat-feed { top: calc(var(--safe-top) + 118px); }
+}
 
-/* Habilidades: canto inferior direito, ao alcance do polegar. */
+/* Habilidades: canto inferior direito. A primeira (Fogo) fica no canto, sob o polegar;
+   as outras se espalham para a esquerda e para cima (4 por linha deitado, 3 em pé). */
 .skills {
+  --size: 58px;
+  --gap: 9px;
   position: fixed;
-  right: calc(var(--safe-right) + 14px);
-  bottom: calc(var(--safe-bottom) + 14px);
-  display: grid;
-  grid-template-columns: repeat(2, 64px);
-  grid-template-rows: repeat(2, 64px);
-  gap: 10px;
+  right: calc(var(--safe-right) + 12px);
+  bottom: calc(var(--safe-bottom) + 12px);
+  width: calc(4 * var(--size) + 3 * var(--gap));
+  display: flex;
+  flex-direction: row-reverse;
+  flex-wrap: wrap-reverse;
+  gap: var(--gap);
+}
+.skills .skill { width: var(--size); height: var(--size); }
+@media (orientation: portrait) {
+  .skills { --size: 54px; width: calc(3 * var(--size) + 2 * var(--gap)); }
+}
+@media (max-height: 360px) and (orientation: landscape) {
+  .skills { --size: 50px; --gap: 7px; }
 }
 .skill {
   position: relative;
@@ -197,7 +217,7 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
   display: grid;
   place-items: center;
   align-content: center;
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
 }
 .skill small { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; margin-top: 3px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
@@ -206,6 +226,9 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
 .skill-taijutsu { --c: var(--taijutsu); }
 .skill-illusion { --c: var(--illusion); }
 .skill-water { --c: var(--water); }
+.skill-shadow { --c: var(--shadow); }
+.skill-stone { --c: var(--stone); }
+.skill-heal { --c: var(--heal); }
 .skill.cooldown::after {
   content: "";
   position: absolute;

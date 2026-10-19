@@ -274,13 +274,16 @@ O próprio servidor entrega o jogo: não precisa instalar nada.
    minúscula e número) e toque em **Criar conta e entrar**. Nas próximas vezes, use **Entrar**.
 3. Deite o celular. No Android o jogo tenta abrir em tela cheia na horizontal; no iPhone aparece a dica
    (dá para tocar em **Jogar assim mesmo** e jogar em pé).
-4. **Andar**: arraste o polegar no círculo do canto inferior esquerdo. Quanto mais longe do centro, mais rápido.
-5. **Habilidades**: toque em Fogo, Taijutsu, Ilusão ou Água. Aparece um anel colorido e o botão escurece
-   por um instante. Funciona junto com o joystick (um dedo em cada).
-6. **Chat**: toque em 💬, escreva e toque em **Enviar**. A mensagem aparece no chat e num balão sobre o personagem.
+4. **Andar**: encoste o polegar em qualquer lugar da metade esquerda de baixo da tela e arraste. O joystick
+   nasce onde você tocou. Quanto mais longe do centro, mais rápido.
+5. **Habilidades**: 7 botões no canto inferior direito (Fogo, Água, Taijutsu, Ilusão, Sombra, Pedra, Cura).
+   Cada uma tem uma animação no mapa e o botão escurece por um instante. Funciona junto com o joystick (um dedo em cada).
+6. **Chat**: toque em 💬, escreva e toque em **Enviar**. A mensagem aparece na tela (some sozinha em ~6 s)
+   e num balão sobre o personagem.
 7. **Com outra pessoa**: abra o mesmo endereço em outro celular (ou numa aba anônima) com **outra conta**.
    Cada um vê o outro andar e falar. A mesma conta em dois lugares derruba o primeiro.
 8. **Sair** (canto superior direito) apaga o login deste aparelho.
 
-Ver o `console.log` das habilidades: no computador, abra o jogo, pressione F12 e veja a aba Console.
+Ver o `console.log` das habilidades: no computador, abra o jogo, pressione F12 e veja a aba Console
+(no computador: WASD ou setas andam, teclas 1 a 7 soltam as habilidades, Enter abre o chat).
 No celular não há console; o anel na tela confirma o toque.

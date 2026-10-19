@@ -28,7 +28,7 @@ export interface StaticFile {
 const FILES = [
   { route: '/', file: 'index.html', contentType: 'text/html; charset=utf-8' },
   { route: '/game.js', file: 'game.js', contentType: 'text/javascript; charset=utf-8' },
-  { route: '/style.css', file: 'style.css', contentType: 'text/css; charset=utf-8' },
+  { route: '/styles.css', file: 'styles.css', contentType: 'text/css; charset=utf-8' },
 ] as const;
 
 /** public/ fica na raiz do projeto: dois níveis acima de src/web/ (dev) e de dist/web/ (Render). */

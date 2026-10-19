@@ -20,7 +20,8 @@ import { z } from 'zod';
 /** Direção de -1 a 1 em cada eixo; vetor maior que 1 (diagonal) é normalizado pelo servidor. */
 const axis = z.number().finite().min(-1).max(1);
 
-export const SKILLS = ['fire', 'taijutsu', 'illusion', 'water'] as const;
+/** Fogo, Água, Taijutsu, Ilusão, Sombra, Pedra, Cura. */
+export const SKILLS = ['fire', 'water', 'taijutsu', 'illusion', 'shadow', 'stone', 'heal'] as const;
 export type Skill = (typeof SKILLS)[number];
 
 export const ClientMessage = z.discriminatedUnion('type', [

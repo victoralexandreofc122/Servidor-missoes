@@ -18,8 +18,8 @@ const canvas = $('game');
 const ctx = canvas.getContext('2d', { alpha: false });
 const ui = {
   hud: $('hud'), status: $('status'), toast: $('toast'),
-  chat: $('chat'), chatLog: $('chat-log'), chatForm: $('chat-form'), chatInput: $('chat-input'),
-  chatToggle: $('chat-toggle'), chatBadge: $('chat-badge'), logout: $('logout'),
+  chat: $('chat'), chatFeed: $('chat-feed'), chatInput: $('chat-input'),
+  chatToggle: $('chat-toggle'), logout: $('logout'),
   skills: $('skills'),
   login: $('login'), loginForm: $('login-form'), loginError: $('login-error'), loginSubmit: $('login-submit'),
   toggleMode: $('toggle-mode'), usernameField: $('username-field'), passwordHint: $('password-hint'),
@@ -64,7 +64,7 @@ const state = {
   everOpened: false,
   failures: 0,
   reconnectTimer: null,
-  effects: [],          // efeitos de habilidade: { x, y, color, start }
+  effects: [],          // efeitos de habilidade: { skill, x, y, start }
 };
 
 // ------------------------------------------------------------------ login / cadastro
@@ -218,6 +218,7 @@ function send(message) {
 
 // Cores que contrastam com a grama (nada de verde): cada jogador ganha uma, fixa pelo id.
 const PLAYER_COLORS = ['#e8572f', '#3c9be0', '#9a6be0', '#f2c230', '#e04f8a', '#f08a3c', '#47c6d1', '#d94848', '#7d8cf0', '#f5f0e1'];
+const LIGHT_COLORS = new Set(['#f2c230', '#47c6d1', '#f5f0e1']);   // nestas, a inicial vai em preto
 function colorFor(id) {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
@@ -231,7 +232,12 @@ function upsertPlayer(p, snap) {
     if (snap) { existing.x = p.x; existing.y = p.y; }
     return existing;
   }
-  const player = { id: p.id, username: p.username, x: p.x, y: p.y, tx: p.x, ty: p.y, color: colorFor(p.id), bubble: null };
+  const color = colorFor(p.id);
+  const player = {
+    id: p.id, username: p.username, x: p.x, y: p.y, tx: p.x, ty: p.y, color, bubble: null,
+    initial: ([...p.username][0] || '?').toUpperCase(),
+    initialColor: LIGHT_COLORS.has(color) ? '#14110d' : '#ffffff',
+  };
   state.players.set(p.id, player);
   return player;
 }
@@ -241,7 +247,10 @@ function handleMessage(msg) {
     case 'welcome':
       state.players.clear();
       state.meId = msg.you.id;
-      if (msg.world) state.world = msg.world;
+      if (msg.world) {
+        if (msg.world.width !== state.world.width || msg.world.height !== state.world.height) chunkCache.clear();
+        state.world = msg.world;
+      }
       upsertPlayer(msg.you, true);
       for (const p of msg.players) upsertPlayer(p, true);
       updateOnline();
@@ -325,20 +334,22 @@ function scheduleSend() {
   }
 }
 
-// Joystick: base fixa no canto inferior esquerdo; qualquer toque na metade esquerda de
-// baixo pega o joystick. Pointer Events = toque, mouse e caneta; multitoque funciona
-// (joystick com um dedo, habilidade com outro).
-const joy = { pointerId: null, baseX: 0, baseY: 0, radius: 60, knobX: 0, knobY: 0 };
+// Joystick FLUTUANTE: a base nasce onde o polegar encosta (na metade esquerda de baixo
+// da tela) e volta para o canto ao soltar. Ninguém precisa mirar num círculo pequeno.
+// Pointer Events = toque, mouse e caneta; multitoque funciona (joystick com um dedo,
+// habilidade com outro).
+const joy = { pointerId: null, restX: 0, restY: 0, baseX: 0, baseY: 0, radius: 64, knobX: 0, knobY: 0 };
 const safe = { top: 0, right: 0, bottom: 0, left: 0 };
 
 function layoutJoystick(w, h) {
-  joy.radius = Math.round(Math.max(48, Math.min(78, Math.min(w, h) * 0.13)));
-  joy.baseX = safe.left + 24 + joy.radius;
-  joy.baseY = h - safe.bottom - 24 - joy.radius;
+  joy.radius = Math.round(Math.max(52, Math.min(84, Math.min(w, h) * 0.15)));
+  joy.restX = safe.left + 22 + joy.radius;
+  joy.restY = h - safe.bottom - 22 - joy.radius;
+  if (joy.pointerId === null) { joy.baseX = joy.restX; joy.baseY = joy.restY; }
 }
 
 function inJoystickZone(x, y, w, h) {
-  return x < w * 0.5 && y > h * 0.35;
+  return x < w * 0.5 && y > h * 0.3;
 }
 
 canvas.addEventListener('pointerdown', (e) => {
@@ -347,6 +358,10 @@ canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   joy.pointerId = e.pointerId;
   canvas.setPointerCapture(e.pointerId);
+  // Base onde o dedo tocou, sem deixar o círculo sair da tela.
+  const r = joy.radius;
+  joy.baseX = Math.max(safe.left + r + 6, Math.min(w / 2 - 4, e.clientX));
+  joy.baseY = Math.max(h * 0.3 + r * 0.5, Math.min(h - safe.bottom - r - 6, e.clientY));
   moveKnob(e.clientX, e.clientY);
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -362,6 +377,8 @@ const releaseJoystick = (e) => {
   joy.pointerId = null;
   joy.knobX = 0;
   joy.knobY = 0;
+  joy.baseX = joy.restX;
+  joy.baseY = joy.restY;
   setDirection(0, 0);
 };
 canvas.addEventListener('pointerup', releaseJoystick);
@@ -392,8 +409,8 @@ function keyDirection() {
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
   if (KEYMAP[e.code]) { keys.add(e.code); keyDirection(); e.preventDefault(); }
-  if (e.key >= '1' && e.key <= '4') castSkill(['fire', 'taijutsu', 'illusion', 'water'][Number(e.key) - 1]);
-  if (e.key === 'Enter' && ui.chat.hidden && !ui.hud.hidden) { openChat(true); e.preventDefault(); }
+  if (e.key >= '1' && e.key <= '7') castSkill(SKILL_ORDER[Number(e.key) - 1]);
+  if (e.key === 'Enter' && ui.chat.hidden && !ui.hud.hidden) { openChat(); e.preventDefault(); }
 });
 window.addEventListener('keyup', (e) => {
   if (KEYMAP[e.code] && keys.delete(e.code)) keyDirection();
@@ -405,18 +422,28 @@ window.addEventListener('blur', () => { keys.clear(); if (joy.pointerId === null
 
 // ------------------------------------------------------------------ habilidades
 
-const SKILL_COLORS = { fire: '#e8572f', taijutsu: '#d9a441', illusion: '#9a6be0', water: '#3c9be0' };
+/** As 7 habilidades: cor e duração do efeito no canvas (só visual, o servidor só valida). */
+const SKILLS = {
+  fire: { color: '#ff2e1f', ms: 520 },
+  water: { color: '#3ca6ff', ms: 700 },
+  taijutsu: { color: '#f2b13a', ms: 380 },
+  illusion: { color: '#a072ff', ms: 800 },
+  shadow: { color: '#2a2140', ms: 900 },
+  stone: { color: '#9a7448', ms: 650 },
+  heal: { color: '#5fe07a', ms: 900 },
+};
+const SKILL_ORDER = ['fire', 'water', 'taijutsu', 'illusion', 'shadow', 'stone', 'heal'];
 const cooldownUntil = {};
 
 function castSkill(skill) {
-  if (!SKILL_COLORS[skill] || !state.connected) return;
+  if (!SKILLS[skill] || !state.connected) return;
   const now = performance.now();
   if (now < (cooldownUntil[skill] || 0)) return;
   cooldownUntil[skill] = now + 600;
   send({ type: 'cast', skill });
   console.log(`[habilidade] ${skill}`);
   const me = state.players.get(state.meId);
-  if (me) state.effects.push({ x: me.x, y: me.y, color: SKILL_COLORS[skill], start: now });
+  if (me) state.effects.push({ skill, x: me.x, y: me.y, start: now });
   const button = ui.skills.querySelector(`[data-skill="${skill}"]`);
   if (button) {
     button.classList.remove('cooldown');
@@ -439,27 +466,26 @@ ui.skills.addEventListener('click', (e) => {
 
 // ------------------------------------------------------------------ chat
 
-let unread = 0;
+// O botão 💬 abre a barra de digitação. As mensagens aparecem na tela (canto superior
+// esquerdo) e somem sozinhas depois de ~6 s (animação CSS); também viram balão sobre o boneco.
+const FEED_MAX = 6;
 
-function openChat(focus) {
+function openChat() {
   ui.chat.hidden = false;
   ui.chatToggle.setAttribute('aria-expanded', 'true');
-  unread = 0;
-  ui.chatBadge.hidden = true;
-  ui.chatLog.scrollTop = ui.chatLog.scrollHeight;
-  if (focus) ui.chatInput.focus();
+  ui.chatInput.focus();
 }
 function closeChat() {
   ui.chat.hidden = true;
   ui.chatToggle.setAttribute('aria-expanded', 'false');
   ui.chatInput.blur();
 }
-ui.chatToggle.addEventListener('click', () => (ui.chat.hidden ? openChat(true) : closeChat()));
+ui.chatToggle.addEventListener('click', () => (ui.chat.hidden ? openChat() : closeChat()));
 
-ui.chatForm.addEventListener('submit', (e) => {
+ui.chat.addEventListener('submit', (e) => {
   e.preventDefault();
   const message = ui.chatInput.value.trim();
-  if (!message) return;
+  if (!message) return closeChat();
   if (!state.connected) return addSystemLine('Sem conexão. Tentando reconectar…');
   send({ type: 'chat', message });
   ui.chatInput.value = '';
@@ -474,11 +500,6 @@ function addChatLine(username, message, mine) {
   who.textContent = `${username}: `;            // textContent: texto nunca vira HTML
   li.append(who, document.createTextNode(message));
   appendLine(li);
-  if (ui.chat.hidden && !mine) {
-    unread += 1;
-    ui.chatBadge.textContent = unread > 9 ? '9+' : String(unread);
-    ui.chatBadge.hidden = false;
-  }
 }
 function addSystemLine(text) {
   const li = document.createElement('li');
@@ -487,9 +508,10 @@ function addSystemLine(text) {
   appendLine(li);
 }
 function appendLine(li) {
-  ui.chatLog.append(li);
-  while (ui.chatLog.children.length > 60) ui.chatLog.firstElementChild.remove();
-  ui.chatLog.scrollTop = ui.chatLog.scrollHeight;
+  // Remove a linha quando o fade termina (sem timers por mensagem).
+  li.addEventListener('animationend', (e) => { if (e.animationName === 'feed-out') li.remove(); });
+  ui.chatFeed.append(li);
+  while (ui.chatFeed.children.length > FEED_MAX) ui.chatFeed.firstElementChild.remove();
 }
 
 // ------------------------------------------------------------------ orientação e tela
@@ -639,9 +661,43 @@ function isPath(x, y) {
   return (y === 10 || x === 10) && x >= 0 && y >= 0;
 }
 
-// ------------------------------------------------------------------ desenho
+function tileAt(x, y, width, height) {
+  const h = cellHash(x, y);
+  if (x < 0 || y < 0 || x >= width || y >= height) return TILES.water[h & 1];
+  if (isPath(x, y)) return TILES.path[h & 1];
+  return TILES.grass[h % 23 === 0 ? 3 : h % 3];
+}
+
+// Chão em BLOCOS de 16x16 casas, desenhados uma vez na resolução da pixel art (256x256 px)
+// e guardados. Cada quadro desenha só ~4 a 9 imagens em vez de ~300 casas.
+const CHUNK = 16;
+const CHUNK_CACHE_MAX = 64;          // ~64 x 256 KB = 16 MB no máximo
+const chunkCache = new Map();        // "cx,cy" -> canvas (ordem de uso = LRU)
+
+function chunkCanvas(cx, cy) {
+  const key = `${cx},${cy}`;
+  let c = chunkCache.get(key);
+  if (c) {
+    chunkCache.delete(key);          // marca como usado agora
+    chunkCache.set(key, c);
+    return c;
+  }
+  c = document.createElement('canvas');
+  c.width = c.height = CHUNK * PIX;
+  const g = c.getContext('2d');
+  const { width, height } = state.world;
+  for (let ty = 0; ty < CHUNK; ty++) {
+    for (let tx = 0; tx < CHUNK; tx++) g.drawImage(tileAt(cx * CHUNK + tx, cy * CHUNK + ty, width, height), tx * PIX, ty * PIX);
+  }
+  chunkCache.set(key, c);
+  if (chunkCache.size > CHUNK_CACHE_MAX) chunkCache.delete(chunkCache.keys().next().value);
+  return c;
+}
+
+// ------------------------------------------------------------------ loop de desenho
 
 let lastFrame = performance.now();
+const drawList = [];                 // reaproveitada a cada quadro (sem lixo para o coletor)
 
 function frame(now) {
   requestAnimationFrame(frame);       // agenda antes: um erro num quadro não congela o jogo
@@ -658,9 +714,9 @@ function frame(now) {
 function update(dt) {
   const me = state.players.get(state.meId);
   const { width, height, speed } = state.world;
+  const k = Math.min(1, dt * 12);     // interpolação suave dos outros até a posição do servidor
   for (const p of state.players.values()) {
     if (p === me) continue;
-    const k = Math.min(1, dt * 12);        // interpolação suave até a posição do servidor
     p.x += (p.tx - p.x) * k;
     p.y += (p.ty - p.y) * k;
   }
@@ -673,12 +729,11 @@ function update(dt) {
     }
     // Correção pela posição oficial: forte parado, leve andando (o servidor está ~1 tick atrás).
     const ex = me.tx - me.x, ey = me.ty - me.y;
-    const err = Math.hypot(ex, ey);
-    if (err > 2.5) { me.x = me.tx; me.y = me.ty; }
+    if (Math.hypot(ex, ey) > 2.5) { me.x = me.tx; me.y = me.ty; }
     else {
-      const k = Math.min(1, dt * (moving ? 1.5 : 10));
-      me.x += ex * k;
-      me.y += ey * k;
+      const c = Math.min(1, dt * (moving ? 1.5 : 10));
+      me.x += ex * c;
+      me.y += ey * c;
     }
   }
 }
@@ -687,52 +742,55 @@ function draw(now) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = false;
   const me = state.players.get(state.meId);
-  const camX = me ? me.x : state.world.width / 2;
-  const camY = me ? me.y : state.world.height / 2;
-  const T = tile;
-  const toScreenX = (wx) => Math.round((wx - camX) * T + viewW / 2);
-  const toScreenY = (wy) => Math.round((wy - camY) * T + viewH / 2);
-
-  // Chão: só as casas visíveis.
-  const x0 = Math.floor(camX - viewW / 2 / T) - 1;
-  const y0 = Math.floor(camY - viewH / 2 / T) - 1;
-  const x1 = Math.ceil(camX + viewW / 2 / T) + 1;
-  const y1 = Math.ceil(camY + viewH / 2 / T) + 1;
   const { width, height } = state.world;
-  for (let ty = y0; ty < y1; ty++) {
-    for (let tx = x0; tx < x1; tx++) {
-      const h = cellHash(tx, ty);
-      let img;
-      if (tx < 0 || ty < 0 || tx >= width || ty >= height) img = TILES.water[h & 1];
-      else if (isPath(tx, ty)) img = TILES.path[h & 1];
-      else img = TILES.grass[(h % 23 === 0) ? 3 : h % 3];
-      ctx.drawImage(img, toScreenX(tx), toScreenY(ty), T + 1, T + 1);
-    }
+  // Câmera: o jogador local fica no centro e o mundo anda em volta.
+  const camX = me ? me.x : width / 2;
+  const camY = me ? me.y : height / 2;
+  const T = tile;
+  const halfW = viewW / 2, halfH = viewH / 2;
+  const toScreenX = (wx) => Math.round((wx - camX) * T + halfW);
+  const toScreenY = (wy) => Math.round((wy - camY) * T + halfH);
+
+  // 1. Chão (blocos em cache).
+  const left = camX - halfW / T, right = camX + halfW / T, top = camY - halfH / T, bottom = camY + halfH / T;
+  const cx0 = Math.floor(left / CHUNK), cx1 = Math.floor(right / CHUNK);
+  const cy0 = Math.floor(top / CHUNK), cy1 = Math.floor(bottom / CHUNK);
+  const size = CHUNK * T;
+  for (let cy = cy0; cy <= cy1; cy++) {
+    for (let cx = cx0; cx <= cx1; cx++) ctx.drawImage(chunkCanvas(cx, cy), toScreenX(cx * CHUNK), toScreenY(cy * CHUNK), size, size);
   }
 
-  // Borda do mapa.
-  ctx.strokeStyle = 'rgba(20, 17, 13, 0.55)';
+  // 2. Grade do mapa (um único traço para todas as linhas visíveis).
+  const gx0 = Math.max(0, Math.ceil(left)), gx1 = Math.min(width, Math.floor(right));
+  const gy0 = Math.max(0, Math.ceil(top)), gy1 = Math.min(height, Math.floor(bottom));
+  const sTop = Math.max(0, toScreenY(0)), sBottom = Math.min(viewH, toScreenY(height));
+  const sLeft = Math.max(0, toScreenX(0)), sRight = Math.min(viewW, toScreenX(width));
+  ctx.beginPath();
+  for (let x = gx0; x <= gx1; x++) { const sx = toScreenX(x) + 0.5; ctx.moveTo(sx, sTop); ctx.lineTo(sx, sBottom); }
+  for (let y = gy0; y <= gy1; y++) { const sy = toScreenY(y) + 0.5; ctx.moveTo(sLeft, sy); ctx.lineTo(sRight, sy); }
+  ctx.strokeStyle = 'rgba(16, 48, 12, 0.22)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 3. Borda do mapa.
+  ctx.strokeStyle = 'rgba(20, 17, 13, 0.6)';
   ctx.lineWidth = Math.max(2, T / 10);
   ctx.strokeRect(toScreenX(0), toScreenY(0), width * T, height * T);
 
-  // Efeitos de habilidade (anel que se expande).
-  state.effects = state.effects.filter((fx) => now - fx.start < 450);
-  for (const fx of state.effects) {
-    const t = (now - fx.start) / 450;
-    ctx.globalAlpha = 1 - t;
-    ctx.strokeStyle = fx.color;
-    ctx.lineWidth = Math.max(3, T * 0.12);
-    ctx.beginPath();
-    ctx.arc(toScreenX(me ? me.x : fx.x), toScreenY(me ? me.y : fx.y), T * (0.5 + t * 1.3), 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
+  // 4. Efeitos de habilidade: os "de chão" (Sombra) por baixo dos bonecos, o resto por cima.
+  let alive = 0;
+  for (const fx of state.effects) if (now - fx.start < SKILLS[fx.skill].ms) state.effects[alive++] = fx;
+  state.effects.length = alive;
+  for (const fx of state.effects) if (fx.skill === 'shadow') drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
 
-  // Jogadores, de cima para baixo (quem está mais embaixo fica na frente).
-  const list = [...state.players.values()].sort((a, b) => a.y - b.y);
+  // 5. Jogadores, de cima para baixo (quem está mais embaixo fica na frente).
+  drawList.length = 0;
+  for (const p of state.players.values()) drawList.push(p);
+  if (drawList.length > 1) drawList.sort((a, b) => a.y - b.y);
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  for (const p of list) drawPlayer(p, toScreenX(p.x), toScreenY(p.y), T, p.id === state.meId, now);
+  for (const p of drawList) drawPlayer(p, toScreenX(p.x), toScreenY(p.y), T, p.id === state.meId, now);
+
+  for (const fx of state.effects) if (fx.skill !== 'shadow') drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
 
   drawJoystick();
 
@@ -742,14 +800,112 @@ function draw(now) {
   }
 }
 
+/** Animação de cada habilidade (só feedback visual; t vai de 0 a 1). */
+function drawEffect(fx, sx, sy, T, now) {
+  const { color, ms } = SKILLS[fx.skill];
+  const t = (now - fx.start) / ms;
+  const fade = 1 - t;
+  ctx.save();
+  switch (fx.skill) {
+    case 'fire': {                       // círculo vermelho que explode e some
+      const r = T * (0.4 + 1.5 * t);
+      ctx.globalAlpha = 0.55 * fade;
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = fade;
+      ctx.strokeStyle = '#ff7a3a';
+      ctx.lineWidth = Math.max(2, T * 0.1);
+      ctx.stroke();
+      break;
+    }
+    case 'water': {                      // duas ondas azuis
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2, T * 0.09);
+      for (const delay of [0, 0.3]) {
+        const tt = Math.max(0, (t - delay) / (1 - delay));
+        if (tt <= 0) continue;
+        ctx.globalAlpha = 1 - tt;
+        ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.2, T * (0.4 + 1.6 * tt), T * (0.2 + 0.8 * tt), 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      break;
+    }
+    case 'taijutsu': {                   // estouro de linhas (golpe)
+      ctx.globalAlpha = fade;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2, T * 0.1);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        const r1 = T * (0.5 + 0.6 * t), r2 = T * (0.8 + 1.1 * t);
+        ctx.moveTo(sx + Math.cos(a) * r1, sy + Math.sin(a) * r1);
+        ctx.lineTo(sx + Math.cos(a) * r2, sy + Math.sin(a) * r2);
+      }
+      ctx.stroke();
+      break;
+    }
+    case 'illusion': {                   // três arcos roxos girando
+      ctx.globalAlpha = fade;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2, T * 0.1);
+      ctx.lineCap = 'round';
+      const r = T * (0.6 + 0.7 * t);
+      for (let k = 0; k < 3; k++) {
+        const a = t * 7 + (k * Math.PI * 2) / 3;
+        ctx.beginPath(); ctx.arc(sx, sy, r, a, a + 1.3); ctx.stroke();
+      }
+      break;
+    }
+    case 'shadow': {                     // poça escura que se espalha no chão
+      ctx.globalAlpha = 0.65 * fade;
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.3, T * (0.5 + 1.4 * t), T * (0.22 + 0.6 * t), 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#7d5cc4';
+      ctx.lineWidth = Math.max(1.5, T * 0.05);
+      ctx.stroke();
+      break;
+    }
+    case 'stone': {                      // pedrinhas pulando para fora
+      const s = Math.max(4, Math.round(T * 0.2));
+      ctx.globalAlpha = fade;
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2 + 0.3;
+        const d = T * (0.4 + 1.3 * t);
+        const px = Math.round(sx + Math.cos(a) * d - s / 2);
+        const py = Math.round(sy + Math.sin(a) * d * 0.6 - Math.sin(Math.PI * t) * T * 0.7 - s / 2);
+        ctx.fillStyle = color; ctx.fillRect(px, py, s, s);
+        ctx.fillStyle = '#c9a678'; ctx.fillRect(px, py, s, Math.max(1, s / 3));
+      }
+      break;
+    }
+    case 'heal': {                       // brilho verde e cruzes subindo
+      ctx.globalAlpha = 0.28 * fade;
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(sx, sy, T * 0.9, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = fade;
+      const s = Math.max(3, Math.round(T * 0.08));
+      for (let k = 0; k < 5; k++) {
+        const px = Math.round(sx + (k - 2) * T * 0.3);
+        const py = Math.round(sy - T * (0.3 + 1.4 * t + (k % 2) * 0.25));
+        ctx.fillRect(px - s * 1.5, py - s / 2, s * 3, s);
+        ctx.fillRect(px - s / 2, py - s * 1.5, s, s * 3);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  ctx.restore();
+}
+
 function drawPlayer(p, sx, sy, T, isMe, now) {
-  const r = T * 0.36;
-  // sombra
+  const r = T * 0.38;
+  // sombra no chão
   ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
   ctx.beginPath();
-  ctx.ellipse(sx, sy + r * 0.9, r * 0.95, r * 0.38, 0, 0, Math.PI * 2);
+  ctx.ellipse(sx, sy + r * 0.92, r * 0.95, r * 0.36, 0, 0, Math.PI * 2);
   ctx.fill();
-  // corpo
+  // corpo: círculo com a inicial do nome (boneco provisório até termos sprites)
   ctx.fillStyle = p.color;
   ctx.beginPath();
   ctx.arc(sx, sy, r, 0, Math.PI * 2);
@@ -757,13 +913,15 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
   ctx.lineWidth = Math.max(2, T * 0.07);
   ctx.strokeStyle = isMe ? '#fff8e8' : 'rgba(20, 17, 13, 0.85)';
   ctx.stroke();
-  // faixa na testa (só um detalhe para dar cara de ninja)
-  ctx.fillStyle = 'rgba(20, 17, 13, 0.75)';
-  ctx.fillRect(sx - r * 0.85, sy - r * 0.45, r * 1.7, r * 0.28);
+  ctx.font = `800 ${Math.round(r * 1.15)}px system-ui, -apple-system, sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = p.initialColor;
+  ctx.fillText(p.initial, sx, sy + r * 0.06);
 
   // nome
   const fontSize = Math.max(11, Math.round(T * 0.32));
   ctx.font = `600 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.textBaseline = 'bottom';
   ctx.lineWidth = 3;
   ctx.lineJoin = 'round';            // contorno do texto sem "espinhos" nas quinas
   ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
@@ -788,7 +946,6 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
     ctx.fillStyle = '#14110d';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, sx, by - h / 2);
-    ctx.textBaseline = 'bottom';
   } else if (p.bubble) {
     p.bubble = null;
   }
@@ -807,9 +964,9 @@ function roundRect(x, y, w, h, r) {
 function drawJoystick() {
   if (ui.hud.hidden) return;
   const active = joy.pointerId !== null;
-  ctx.globalAlpha = active ? 0.9 : 0.55;
+  ctx.globalAlpha = active ? 0.9 : 0.5;
   ctx.fillStyle = 'rgba(20, 17, 13, 0.45)';
-  ctx.strokeStyle = 'rgba(244, 234, 216, 0.45)';
+  ctx.strokeStyle = 'rgba(244, 234, 216, 0.5)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.arc(joy.baseX, joy.baseY, joy.radius, 0, Math.PI * 2);
@@ -817,7 +974,7 @@ function drawJoystick() {
   ctx.stroke();
   ctx.fillStyle = active ? '#f0a03c' : 'rgba(244, 234, 216, 0.85)';
   ctx.beginPath();
-  ctx.arc(joy.baseX + joy.knobX, joy.baseY + joy.knobY, joy.radius * 0.45, 0, Math.PI * 2);
+  ctx.arc(joy.baseX + joy.knobX, joy.baseY + joy.knobY, joy.radius * 0.48, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
 }

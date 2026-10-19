@@ -11,7 +11,7 @@
   <meta name="referrer" content="no-referrer">
   <title>MMO Ninja · protótipo</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/game.js"></script>
 </head>
 <body>
@@ -25,25 +25,30 @@
     <div class="topbar">
       <span id="status" class="pill">conectando…</span>
       <span class="spacer"></span>
-      <button id="chat-toggle" class="icon-btn" type="button" aria-label="Abrir chat" aria-expanded="false">
-        <span aria-hidden="true">💬</span><span id="chat-badge" class="badge" hidden>0</span>
+      <button id="chat-toggle" class="icon-btn" type="button" aria-label="Abrir chat" aria-expanded="false" aria-controls="chat">
+        <span aria-hidden="true">💬</span>
       </button>
       <button id="logout" class="text-btn" type="button">Sair</button>
     </div>
 
-    <section id="chat" class="chat" hidden aria-label="Chat">
-      <ol id="chat-log" class="chat-log" aria-live="polite"></ol>
-      <form id="chat-form" class="chat-form" autocomplete="off">
-        <input id="chat-input" name="message" maxlength="200" placeholder="Mensagem…" enterkeyhint="send" aria-label="Mensagem do chat">
-        <button type="submit">Enviar</button>
-      </form>
-    </section>
+    <!-- Mensagens do chat na tela: somem sozinhas depois de alguns segundos. -->
+    <ol id="chat-feed" class="chat-feed" aria-live="polite" aria-label="Mensagens do chat"></ol>
 
+    <!-- O botão 💬 abre só esta barra de digitação. -->
+    <form id="chat" class="chat-bar" hidden autocomplete="off" aria-label="Chat">
+      <input id="chat-input" name="message" maxlength="200" placeholder="Mensagem…" enterkeyhint="send" aria-label="Mensagem do chat">
+      <button type="submit">Enviar</button>
+    </form>
+
+    <!-- 7 habilidades: a primeira fica no canto, embaixo do polegar. -->
     <div id="skills" class="skills" aria-label="Habilidades">
       <button type="button" class="skill skill-fire" data-skill="fire" aria-label="Fogo"><span aria-hidden="true">🔥</span><small>Fogo</small></button>
+      <button type="button" class="skill skill-water" data-skill="water" aria-label="Água"><span aria-hidden="true">💧</span><small>Água</small></button>
       <button type="button" class="skill skill-taijutsu" data-skill="taijutsu" aria-label="Taijutsu"><span aria-hidden="true">👊</span><small>Taijutsu</small></button>
       <button type="button" class="skill skill-illusion" data-skill="illusion" aria-label="Ilusão"><span aria-hidden="true">🌀</span><small>Ilusão</small></button>
-      <button type="button" class="skill skill-water" data-skill="water" aria-label="Água"><span aria-hidden="true">💧</span><small>Água</small></button>
+      <button type="button" class="skill skill-shadow" data-skill="shadow" aria-label="Sombra"><span aria-hidden="true">🌑</span><small>Sombra</small></button>
+      <button type="button" class="skill skill-stone" data-skill="stone" aria-label="Pedra"><span aria-hidden="true">⛰</span><small>Pedra</small></button>
+      <button type="button" class="skill skill-heal" data-skill="heal" aria-label="Cura"><span aria-hidden="true">✚</span><small>Cura</small></button>
     </div>
 
     <p id="toast" class="toast" role="status" hidden></p>

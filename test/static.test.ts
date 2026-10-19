@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { configurePublicApp, DEFAULT_SETTINGS } from '../src/appSetup.js';
 import { REALTIME } from '../src/realtime/config.js';
+import { SKILLS } from '../src/realtime/protocol.js';
 import { CONTENT_SECURITY_POLICY, loadPublicFiles } from '../src/web/staticFiles.js';
 import { deps } from './support/appCases.js';
 import { FakeFastify } from './support/fakeFastify.js';
@@ -29,9 +30,9 @@ describe('cliente web servido pelo Fastify', () => {
     assert.match(String(r.json()), /<canvas id="game"/);
   });
 
-  it('/game.js e /style.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {
+  it('/game.js e /styles.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {
     const pub = app();
-    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/style.css', 'text/css; charset=utf-8']];
+    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/styles.css', 'text/css; charset=utf-8']];
     for (const [url, type] of cases) {
       const r = await pub.inject({ method: 'GET', url });
       assert.equal(r.statusCode, 200, url);
@@ -73,10 +74,10 @@ describe('garantias do cliente (public/)', () => {
     assert.doesNotMatch(js, /console\.(log|info|warn|error)\([^)]*token/i, 'token nunca no console');
   });
 
-  it('game.js: protocolo igual ao do servidor (move dx/dy, cast com as 4 habilidades, chat)', () => {
+  it('game.js: protocolo igual ao do servidor (move dx/dy, cast com as 7 habilidades, chat)', () => {
     assert.match(js, /send\(\{ type: 'move', dx: want\.x, dy: want\.y \}\)/);
     assert.match(js, /send\(\{ type: 'cast', skill \}\)/);
     assert.match(js, /send\(\{ type: 'chat', message \}\)/);
-    for (const skill of ['fire', 'taijutsu', 'illusion', 'water']) assert.match(html, new RegExp(`data-skill="${skill}"`));
+    for (const skill of SKILLS) assert.match(html, new RegExp(`data-skill="${skill}"`));
   });
 });

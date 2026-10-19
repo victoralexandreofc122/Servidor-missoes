@@ -184,11 +184,11 @@ describe('GameWorld: movimento autoritativo (joystick) e game loop', () => {
     assert.deepEqual(world.players()[0], { id: a.id, username: 'kaito', x: 11.25, y: 10 });
   });
 
-  it('cast: habilidade conhecida é aceita sem resposta; desconhecida é INVALID_MESSAGE', () => {
+  it('cast: as 7 habilidades são aceitas sem resposta; desconhecida é INVALID_MESSAGE', () => {
     const { connect } = setup();
     const a = connect('kaito');
     a.conn.clear();
-    for (const skill of ['fire', 'taijutsu', 'illusion', 'water']) a.send({ type: 'cast', skill });
+    for (const skill of ['fire', 'water', 'taijutsu', 'illusion', 'shadow', 'stone', 'heal']) a.send({ type: 'cast', skill });
     assert.deepEqual(a.conn.sent, []);
     a.send({ type: 'cast', skill: 'meteoro' });
     assert.deepEqual(a.conn.of('error').map((e) => e.code), ['INVALID_MESSAGE']);

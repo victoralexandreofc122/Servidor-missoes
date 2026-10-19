@@ -57,14 +57,16 @@ POST /auth/login
 ## Cliente web (public/)
 
 `GET /` abre o jogo no navegador (celular ou computador), servido pela própria API: mesma origem,
-então não precisa de CORS. São três arquivos (`index.html`, `game.js`, `style.css`), sem bibliotecas,
+então não precisa de CORS. São três arquivos (`index.html`, `game.js`, `styles.css`), sem bibliotecas,
 servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
 
 - **Tela:** login e cadastro.
 - **Mapa:** canvas que se ajusta à tela, com a câmera seguindo o jogador.
-- **Controles:** joystick de toque à esquerda e 4 habilidades à direita.
-- **Chat:** botão 💬 no topo.
-- **No computador:** WASD ou setas para andar, 1 a 4 para as habilidades, Enter para o chat.
+- **Mapa:** grade sobre o chão verde, desenhado em blocos guardados em memória (poucas imagens por quadro).
+- **Personagem:** círculo com a inicial do nome.
+- **Controles:** joystick flutuante à esquerda (nasce onde o polegar toca) e 7 habilidades à direita, cada uma com uma animação.
+- **Chat:** botão 💬 no topo abre a barra de digitação; as mensagens aparecem na tela e somem em ~6 s.
+- **No computador:** WASD ou setas para andar, 1 a 7 para as habilidades, Enter para o chat.
 
 O token fica no `localStorage` e vai no subprotocolo do WebSocket, nunca na URL.
 
@@ -86,7 +88,8 @@ ausente, inválido ou vencido recebe HTTP 401 e não conecta. O token pode vir:
 | para todos | `chat {playerId,username,message}` |
 | só para quem enviou | `error {code,message}` |
 
-Habilidades: `fire`, `taijutsu`, `illusion`, `water`. Hoje só são validadas, sem efeito no jogo.
+Habilidades: `fire`, `water`, `taijutsu`, `illusion`, `shadow`, `stone`, `heal` (Fogo, Água, Taijutsu, Ilusão,
+Sombra, Pedra, Cura). Hoje só são validadas, sem efeito no jogo; a animação é só no cliente.
 
 Regras (em `src/realtime/config.ts`):
 
