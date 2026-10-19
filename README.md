@@ -54,27 +54,48 @@ POST /auth/login
 - Erros: `EMAIL_TAKEN` e `USERNAME_TAKEN` (409), `INVALID_INPUT` (400), `INVALID_CREDENTIALS` (401, a mesma
   resposta para conta inexistente e senha errada), `RATE_LIMITED` (429).
 
+## Cliente web (public/)
+
+`GET /` abre o jogo no navegador (celular ou computador), servido pela própria API: mesma origem,
+então não precisa de CORS. São três arquivos (`index.html`, `game.js`, `style.css`), sem bibliotecas,
+servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
+
+- **Tela:** login e cadastro.
+- **Mapa:** canvas que se ajusta à tela, com a câmera seguindo o jogador.
+- **Controles:** joystick de toque à esquerda e 4 habilidades à direita.
+- **Chat:** botão 💬 no topo.
+- **No computador:** WASD ou setas para andar, 1 a 4 para as habilidades, Enter para o chat.
+
+O token fica no `localStorage` e vai no subprotocolo do WebSocket, nunca na URL.
+
 ## Tempo real (WebSocket)
 
-`wss://<servidor>/game?token=<JWT do login>`, na mesma porta da API pública. O JWT é validado antes
-do upgrade: token ausente, inválido ou vencido recebe HTTP 401 e não conecta.
+`wss://<servidor>/game`, na mesma porta da API pública. O JWT é validado antes do upgrade: token
+ausente, inválido ou vencido recebe HTTP 401 e não conecta. O token pode vir:
+
+- pelo subprotocolo `nin.v1, jwt.<JWT>` (cliente web);
+- por `Authorization: Bearer` (apps nativos);
+- por `?token=` (só para teste manual).
 
 | Direção | Mensagem |
 |---|---|
-| cliente → servidor | `{"type":"move","x":11,"y":10}` · `{"type":"chat","message":"Olá!"}` |
-| ao conectar | `{"type":"welcome","you":{id,username,x,y},"players":[...os outros online]}` |
-| para os outros | `player_joined` · `player_moved {playerId,x,y}` (a cada tick de 50 ms) · `player_left {playerId}` |
+| cliente → servidor | `{"type":"move","dx":0.5,"dy":-0.5}` (joystick, -1 a 1; `0,0` para) · `{"type":"cast","skill":"fire"}` · `{"type":"chat","message":"Olá!"}` |
+| ao conectar | `welcome {you, players (os outros), world {width,height,speed,tickMs}}` |
+| a cada tick (50 ms) | `player_moved {playerId,x,y}` para todos, inclusive quem andou |
+| entradas e saídas | `player_joined` · `player_left` |
 | para todos | `chat {playerId,username,message}` |
-| só para quem enviou | `move_rejected {x,y,reason}` (`TOO_FAST`, `OUT_OF_BOUNDS`) · `error {code,message}` |
+| só para quem enviou | `error {code,message}` |
+
+Habilidades: `fire`, `taijutsu`, `illusion`, `water`. Hoje só são validadas, sem efeito no jogo.
 
 Regras (em `src/realtime/config.ts`):
 
-- Mapa de 100 × 100 casas, nascimento em (10, 10).
-- Até 5 casas por segundo, com folga de 5.
-- Anti-flood: 20 mensagens/s, com rajada de 30. Mais de 100 descartadas em 1 s fecha a conexão (1008).
-- Chat: 1 mensagem/s (rajada de 3), até 200 caracteres.
-- Mensagem acima de 1 KiB fecha a conexão (1009).
-- O mesmo jogador conectando de novo derruba a conexão antiga (4000).
+- **Movimento autoritativo:** o cliente manda só a direção e o servidor anda 5 casas/s. Speed hack não existe.
+- **Mapa:** 100 × 100 casas, nascimento em (10, 10).
+- **Anti-flood:** 20 mensagens/s, com rajada de 30. Mais de 100 descartadas em 1 s fecha a conexão (1008).
+- **Chat:** 1 mensagem/s (rajada de 3), até 200 caracteres.
+- **Tamanho:** mensagem acima de 1 KiB fecha a conexão (1009).
+- **Mesma conta:** conectando de novo, derruba a conexão antiga (4000).
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 

@@ -7,6 +7,7 @@ import { registerCors } from './plugins/cors.js';
 import { makeRateLimit } from './plugins/rateLimit.js';
 import { registerInternalRoutes, type InternalRoutesDeps } from './routes/internalRoutes.js';
 import { registerPublicRoutes, type PublicRoutesDeps } from './routes/publicRoutes.js';
+import { registerStaticFiles } from './web/staticFiles.js';
 
 /*
  * Configuração das duas instâncias, separada de app.ts (que cria o Fastify) para
@@ -82,6 +83,10 @@ export function configurePublicApp(app: FastifyInstance, deps: PublicRoutesDeps,
   app.get(HEALTH_PATH, async (_request, reply) => reply.code(200).send({ status: 'ok' }));
 
   registerPublicRoutes(app, deps, { sensitive: sensitiveLimit, auth: authLimit });
+
+  // Cliente web do jogo: GET / (index.html), /game.js e /style.css, da mesma origem da API.
+  // Mesma origem = o navegador não precisa de CORS para /auth/login nem para o WebSocket.
+  if (deps.publicFiles) registerStaticFiles(app, deps.publicFiles);
   return app;
 }
 

@@ -1,0 +1,287 @@
+/* MMO Ninja — cliente web. Pensado para celular: toque, áreas seguras e sem zoom. */
+
+:root {
+  --ink: #14110d;
+  --panel: rgba(20, 17, 13, 0.78);
+  --panel-solid: #1d1913;
+  --line: rgba(244, 234, 216, 0.14);
+  --text: #f4ead8;
+  --muted: #b7a98f;
+  --accent: #f0a03c;
+  --danger: #ff7a6b;
+  --fire: #e8572f;
+  --taijutsu: #d9a441;
+  --illusion: #9a6be0;
+  --water: #3c9be0;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--ink);
+  color: var(--text);
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+  overscroll-behavior: none;          /* sem "puxar para atualizar" */
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: block;
+  touch-action: none;                 /* o toque vai todo para o joystick, sem rolagem nem zoom */
+  image-rendering: pixelated;
+}
+
+#safe-probe {
+  position: fixed;
+  visibility: hidden;
+  pointer-events: none;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+
+[hidden] { display: none !important; }
+
+button { font: inherit; color: inherit; touch-action: manipulation; cursor: pointer; }
+
+/* ------------------------------------------------------------ HUD */
+
+.topbar {
+  position: fixed;
+  top: calc(var(--safe-top) + 10px);
+  left: calc(var(--safe-left) + 10px);
+  right: calc(var(--safe-right) + 10px);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+.topbar > * { pointer-events: auto; }
+.spacer { flex: 1; }
+
+.pill {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.pill.ok { color: var(--text); }
+.pill.ok::before { content: "● "; color: #7bd36a; }
+.pill.bad::before { content: "● "; color: var(--danger); }
+
+.icon-btn {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 20px;
+  display: grid;
+  place-items: center;
+}
+.icon-btn:active { transform: scale(0.94); }
+
+.text-btn {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+.text-btn:active { transform: scale(0.94); }
+
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+/* Chat no topo: o teclado do celular sobe por baixo e não esconde a conversa. */
+.chat {
+  position: fixed;
+  top: calc(var(--safe-top) + 62px);
+  right: calc(var(--safe-right) + 10px);
+  width: min(360px, calc(100vw - 20px - var(--safe-left) - var(--safe-right)));
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.chat-log {
+  list-style: none;
+  margin: 0;
+  padding: 10px 12px;
+  max-height: min(34vh, 220px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 14px;
+  word-break: break-word;
+}
+.chat-log li + li { margin-top: 4px; }
+.chat-log .who { color: var(--accent); font-weight: 600; }
+.chat-log .me .who { color: #7bd36a; }
+.chat-log .system { color: var(--muted); font-style: italic; }
+.chat-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
+.chat-form input {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;                   /* 16px: o iPhone não dá zoom ao focar */
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text);
+}
+.chat-form button {
+  border: 0;
+  border-radius: 10px;
+  padding: 0 14px;
+  background: var(--accent);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* Habilidades: canto inferior direito, ao alcance do polegar. */
+.skills {
+  position: fixed;
+  right: calc(var(--safe-right) + 14px);
+  bottom: calc(var(--safe-bottom) + 14px);
+  display: grid;
+  grid-template-columns: repeat(2, 64px);
+  grid-template-rows: repeat(2, 64px);
+  gap: 10px;
+}
+.skill {
+  position: relative;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.25), transparent 60%), var(--c);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  font-size: 24px;
+  line-height: 1;
+}
+.skill small { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; margin-top: 3px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
+.skill:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45); }
+.skill-fire { --c: var(--fire); }
+.skill-taijutsu { --c: var(--taijutsu); }
+.skill-illusion { --c: var(--illusion); }
+.skill-water { --c: var(--water); }
+.skill.cooldown::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  transform-origin: bottom;
+  animation: cooldown 0.6s linear forwards;
+}
+@keyframes cooldown { from { transform: scaleY(1); } to { transform: scaleY(0); } }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  top: calc(var(--safe-top) + 64px);
+  transform: translateX(-50%);
+  max-width: calc(100vw - 40px);
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------ telas */
+
+.screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--safe-top) + 16px) calc(var(--safe-right) + 16px) calc(var(--safe-bottom) + 16px) calc(var(--safe-left) + 16px);
+  background:
+    radial-gradient(ellipse at 50% 120%, rgba(240, 160, 60, 0.16), transparent 60%),
+    linear-gradient(180deg, #1b1712, var(--ink));
+  overflow-y: auto;
+}
+
+.card {
+  width: min(360px, 100%);
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.card.center { text-align: center; align-items: center; }
+.card h1 { margin: 0; font-size: 26px; letter-spacing: 0.02em; }
+.card .sub { margin: -8px 0 4px; color: var(--muted); font-size: 14px; }
+.card label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--muted); }
+.card input {
+  font-size: 16px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+}
+.card input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hint { margin: -4px 0 0; font-size: 12px; color: var(--muted); }
+.error { margin: 0; min-height: 1.2em; color: var(--danger); font-size: 14px; }
+.primary {
+  border: 0;
+  border-radius: 12px;
+  padding: 13px;
+  background: var(--accent);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 16px;
+}
+.primary:disabled { opacity: 0.6; }
+.link { border: 0; background: none; color: var(--accent); padding: 6px; font-size: 14px; }
+.big { font-size: 46px; margin: 0; }

@@ -9,11 +9,14 @@ import { makeEvaluateMission } from '../missions/handlers/evaluateMission.js';
 import { makeRedeemScroll } from '../missions/handlers/redeemScroll.js';
 import { makeSubmitMission } from '../missions/handlers/submitMission.js';
 import type { RateLimitHook } from '../plugins/rateLimit.js';
+import type { StaticFile } from '../web/staticFiles.js';
 
 export interface PublicRoutesDeps {
   db: Db;
   authenticate: (request: PlayerRequest) => Promise<void>;
   issueToken: TokenIssuer;
+  /** Cliente web (public/). Sem isto, a API sobe só com as rotas JSON. */
+  publicFiles?: readonly StaticFile[];
 }
 
 export interface RouteLimits {

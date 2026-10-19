@@ -6,14 +6,18 @@ import { REALTIME, type RealtimeConfig } from './config.js';
 import { GameWorld, type WorldLogger } from './gameWorld.js';
 
 /*
- * Endpoint WebSocket: wss://<servidor>/game?token=<JWT>
+ * Endpoint WebSocket: wss://<servidor>/game
  *
  * Fica no MESMO servidor HTTP da API pública (mesma porta do Render). O JWT é validado
  * ANTES do upgrade: token ausente, inválido ou vencido recebe HTTP 401 e o socket é
  * fechado, sem nunca virar WebSocket nem tocar no estado do jogo.
  *
- * Também aceita `Authorization: Bearer <JWT>` no handshake (clientes nativos podem
- * mandar header; navegadores não, por isso o ?token=).
+ * Onde o token pode vir (nesta ordem):
+ *  1. `Authorization: Bearer <JWT>`: clientes nativos (o navegador não deixa mandar).
+ *  2. `Sec-WebSocket-Protocol: nin.v1, jwt.<JWT>`: o cliente web do jogo. Vai num
+ *     cabeçalho, fora da URL; o servidor responde só "nin.v1", nunca devolve o token.
+ *  3. `?token=<JWT>`: só para teste manual (Hoppscotch). Fica na URL, então pode
+ *     aparecer em logs de proxy; o cliente do jogo não usa.
  *
  * Logs: nunca a URL (ela tem o token), nunca o token, nunca o texto do chat. Só playerId.
  */
@@ -43,10 +47,18 @@ function reject(socket: Duplex, status: 401 | 404 | 503) {
   socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
 }
 
-/** Token do handshake: ?token=... ou header Authorization. Nunca vai para log. */
+/** Prefixo do subprotocolo que carrega o token: "jwt.<token>" (JWT só tem caracteres válidos ali). */
+export const TOKEN_SUBPROTOCOL_PREFIX = 'jwt.';
+
+/** Token do handshake: header Authorization, subprotocolo "jwt.<token>" ou ?token=. Nunca vai para log. */
 export function handshakeAuthorization(req: IncomingMessage): string | undefined {
   const header = req.headers.authorization;
   if (typeof header === 'string' && header.trim() !== '') return header;
+  const protocols = req.headers['sec-websocket-protocol'];
+  if (typeof protocols === 'string') {
+    const entry = protocols.split(',').map((p) => p.trim()).find((p) => p.startsWith(TOKEN_SUBPROTOCOL_PREFIX));
+    if (entry && entry.length > TOKEN_SUBPROTOCOL_PREFIX.length) return `Bearer ${entry.slice(TOKEN_SUBPROTOCOL_PREFIX.length)}`;
+  }
   const token = new URL(req.url ?? '/', 'http://localhost').searchParams.get('token');
   return token ? `Bearer ${token}` : undefined;
 }
@@ -59,6 +71,8 @@ export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
     maxPayload: config.maxPayloadBytes,   // mensagem maior: o ws fecha com 1009
     perMessageDeflate: false,             // compressão custa CPU e memória; mensagens já são pequenas
     clientTracking: false,
+    // Responde só o nome do protocolo do jogo; o "jwt.<token>" oferecido nunca volta na resposta.
+    handleProtocols: (protocols: Set<string>) => (protocols.has(config.subprotocol) ? config.subprotocol : false),
   });
   const alive = new WeakMap<WebSocket, boolean>();
   const sockets = new Set<WebSocket>();

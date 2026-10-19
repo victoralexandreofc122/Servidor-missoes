@@ -1,14 +1,16 @@
 import { REALTIME, type RealtimeConfig } from './config.js';
-import { CLOSE, ClientMessage, REALTIME_ERRORS, sanitizeChat, type PlayerView, type RealtimeErrorCode, type ServerMessage } from './protocol.js';
+import { CLOSE, ClientMessage, REALTIME_ERRORS, sanitizeChat, type PlayerView, type RealtimeErrorCode, type ServerMessage, type WorldInfo } from './protocol.js';
 import { TokenBucket } from './tokenBucket.js';
 
 /*
  * Estado do jogo em memória e regras do tempo real. Não sabe nada de rede: recebe
  * texto, devolve texto por uma `Connection`. Por isso dá para testar sem socket.
  *
- * Game loop: movimentos aceitos só marcam o jogador como "mudou"; a cada tick (50 ms)
- * o servidor envia UMA posição por jogador que mudou. Quem manda 1000 passos por
- * segundo continua gerando no máximo 20 avisos por segundo para os outros.
+ * Movimento AUTORITATIVO: o cliente manda só a direção do joystick (`move {dx, dy}`).
+ * A cada tick (50 ms) o servidor anda cada jogador na velocidade do jogo e envia
+ * UMA posição por jogador que andou. O cliente nunca informa a própria posição, então
+ * não existe speed hack nem teleporte, e 1000 mensagens por segundo continuam gerando
+ * no máximo 20 avisos por segundo.
  */
 
 /** O que o mundo precisa de uma conexão. O WebSocket do `ws` satisfaz isto. */
@@ -30,16 +32,16 @@ interface Session {
   readonly conn: Connection;
   x: number;
   y: number;
-  /** Último movimento aceito (ms). */
+  /** Direção atual (joystick), já normalizada: |(dx, dy)| <= 1. */
+  dx: number;
+  dy: number;
+  /** Último tick em que a posição mudou (ms). */
   lastUpdate: number;
-  /** Casas que ainda pode andar agora (anti speed hack). */
-  moveBudget: number;
-  moveBudgetAt: number;
   readonly messages: TokenBucket;
   readonly chat: TokenBucket;
   dropWindowStart: number;
   dropped: number;
-  /** Posição mudou desde o último tick. */
+  /** Posição mudou desde o último envio. */
   dirty: boolean;
   closed: boolean;
 }
@@ -52,16 +54,22 @@ export interface SessionHandle {
 
 const silent: WorldLogger = { info() {}, warn() {} };
 
+/** Posição na rede com 2 casas decimais: mensagens curtas. */
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export class GameWorld {
   private readonly sessions = new Map<string, Session>();
   private readonly pendingKicks: { session: Session; close: { code: number; reason: string } }[] = [];
   private timer: NodeJS.Timeout | undefined;
+  private lastTick: number;
 
   constructor(
     private readonly config: RealtimeConfig = REALTIME,
     private readonly now: () => number = Date.now,
     private readonly log: WorldLogger = silent,
-  ) {}
+  ) {
+    this.lastTick = now();
+  }
 
   get online(): number {
     return this.sessions.size;
@@ -72,10 +80,15 @@ export class GameWorld {
     return [...this.sessions.values()].map(view);
   }
 
+  private worldInfo(): WorldInfo {
+    const { world, speedTilesPerSecond, tickMs } = this.config;
+    return { width: world.width, height: world.height, speed: speedTilesPerSecond, tickMs };
+  }
+
   /**
-   * Jogador conectou. Recebe `welcome` com a própria posição e os OUTROS online;
-   * os outros recebem `player_joined`. Se o mesmo jogador já estava conectado, a conexão
-   * antiga é fechada (4000) e a nova herda a posição: ninguém vê ele sair e entrar.
+   * Jogador conectou. Recebe `welcome` com a própria posição, os OUTROS online e os dados
+   * do mundo; os outros recebem `player_joined`. Se o mesmo jogador já estava conectado,
+   * a conexão antiga é fechada (4000) e a nova herda a posição: ninguém vê ele sair e entrar.
    */
   join(player: { id: string; username: string }, conn: Connection): SessionHandle {
     const t = this.now();
@@ -86,9 +99,9 @@ export class GameWorld {
       conn,
       x: previous?.x ?? this.config.spawn.x,
       y: previous?.y ?? this.config.spawn.y,
+      dx: 0,
+      dy: 0,
       lastUpdate: t,
-      moveBudget: this.config.maxMoveBurstTiles,
-      moveBudgetAt: t,
       messages: new TokenBucket(this.config.messageBurst, this.config.messagesPerSecond, t),
       chat: new TokenBucket(this.config.chatBurst, this.config.chatPerSecond, t),
       dropWindowStart: t,
@@ -109,7 +122,7 @@ export class GameWorld {
     }
 
     const others = [...this.sessions.values()].filter((s) => s !== session).map(view);
-    this.sendTo(session, { type: 'welcome', you: view(session), players: others });
+    this.sendTo(session, { type: 'welcome', you: view(session), players: others, world: this.worldInfo() });
     this.flushKicks();
 
     return {
@@ -159,35 +172,20 @@ export class GameWorld {
     if (!parsed) {
       this.sendError(session, 'INVALID_MESSAGE');
     } else if (parsed.type === 'move') {
-      this.move(session, parsed.x, parsed.y, t);
-    } else {
+      this.setDirection(session, parsed.dx, parsed.dy);
+    } else if (parsed.type === 'chat') {
       this.chatMessage(session, parsed.message, t);
     }
+    // 'cast': validado (habilidade existe) e aceito. Combate ainda não existe; quando existir, entra aqui.
     this.flushKicks();
   }
 
-  private move(session: Session, x: number, y: number, t: number): void {
-    const { width, height } = this.config.world;
-    if (x < 0 || y < 0 || x >= width || y >= height) {
-      this.sendTo(session, { type: 'move_rejected', x: session.x, y: session.y, reason: 'OUT_OF_BOUNDS' });
-      return;
-    }
-    // Orçamento de passos: recarrega pela velocidade máxima, até o teto de rajada.
-    const refill = ((t - session.moveBudgetAt) / 1000) * this.config.maxSpeedTilesPerSecond;
-    session.moveBudget = Math.min(this.config.maxMoveBurstTiles, session.moveBudget + Math.max(0, refill));
-    session.moveBudgetAt = t;
-
-    const distance = Math.hypot(x - session.x, y - session.y);
-    if (distance === 0) return;
-    if (distance > session.moveBudget + 1e-9) {
-      this.sendTo(session, { type: 'move_rejected', x: session.x, y: session.y, reason: 'TOO_FAST' });
-      return;
-    }
-    session.moveBudget -= distance;
-    session.x = x;
-    session.y = y;
-    session.lastUpdate = t;
-    session.dirty = true;
+  /** Só guarda a direção; quem anda é o tick. Diagonal (1, 1) vira (0,71; 0,71): mesma velocidade. */
+  private setDirection(session: Session, dx: number, dy: number): void {
+    const length = Math.hypot(dx, dy);
+    const scale = length > 1 ? 1 / length : 1;
+    session.dx = dx * scale;
+    session.dy = dy * scale;
   }
 
   private chatMessage(session: Session, raw: string, t: number): void {
@@ -203,14 +201,35 @@ export class GameWorld {
     this.broadcast({ type: 'chat', playerId: session.id, username: session.username, message });
   }
 
-  /** Um tick do game loop: envia a posição nova de quem andou. Devolve quantos andaram. */
+  /**
+   * Um tick do game loop: anda quem tem direção (velocidade × tempo desde o último tick,
+   * sem sair do mapa) e envia a posição nova de cada um que andou, para TODOS (quem andou
+   * também recebe, para corrigir a previsão do próprio cliente). Devolve quantos andaram.
+   */
   tick(): number {
+    const t = this.now();
+    const dt = Math.min(Math.max(0, t - this.lastTick), this.config.maxTickDtMs) / 1000;
+    this.lastTick = t;
+    const step = this.config.speedTilesPerSecond * dt;
+    const { width, height } = this.config.world;
+
     let moved = 0;
     for (const session of this.sessions.values()) {
-      if (!session.dirty || session.closed) continue;
+      if (session.closed) continue;
+      if (session.dx !== 0 || session.dy !== 0) {
+        const x = clamp(session.x + session.dx * step, 0, width);
+        const y = clamp(session.y + session.dy * step, 0, height);
+        if (x !== session.x || y !== session.y) {
+          session.x = x;
+          session.y = y;
+          session.lastUpdate = t;
+          session.dirty = true;
+        }
+      }
+      if (!session.dirty) continue;
       session.dirty = false;
       moved += 1;
-      this.broadcast({ type: 'player_moved', playerId: session.id, x: session.x, y: session.y }, session.id);
+      this.broadcast({ type: 'player_moved', playerId: session.id, x: round2(session.x), y: round2(session.y) });
     }
     this.flushKicks();
     return moved;
@@ -218,6 +237,7 @@ export class GameWorld {
 
   start(): void {
     if (this.timer) return;
+    this.lastTick = this.now();
     this.timer = setInterval(() => this.tick(), this.config.tickMs);
     this.timer.unref();
   }
@@ -286,7 +306,11 @@ export class GameWorld {
 }
 
 function view(s: Session): PlayerView {
-  return { id: s.id, username: s.username, x: s.x, y: s.y };
+  return { id: s.id, username: s.username, x: round2(s.x), y: round2(s.y) };
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return n < min ? min : n > max ? max : n;
 }
 
 function safeClose(conn: Connection, close: { code: number; reason: string }): void {

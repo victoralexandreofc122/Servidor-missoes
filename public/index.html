@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <!-- Sem zoom (pinça ou toque duplo) e usando a tela inteira, inclusive atrás do notch. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#14110d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="referrer" content="no-referrer">
+  <title>MMO Ninja · protótipo</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/game.js"></script>
+</head>
+<body>
+  <canvas id="game" aria-label="Mapa do jogo"></canvas>
+
+  <!-- Mede as áreas seguras (notch, barra do iPhone) para o joystick não ficar embaixo delas. -->
+  <div id="safe-probe" aria-hidden="true"></div>
+
+  <!-- HUD: aparece depois do login -->
+  <div id="hud" hidden>
+    <div class="topbar">
+      <span id="status" class="pill">conectando…</span>
+      <span class="spacer"></span>
+      <button id="chat-toggle" class="icon-btn" type="button" aria-label="Abrir chat" aria-expanded="false">
+        <span aria-hidden="true">💬</span><span id="chat-badge" class="badge" hidden>0</span>
+      </button>
+      <button id="logout" class="text-btn" type="button">Sair</button>
+    </div>
+
+    <section id="chat" class="chat" hidden aria-label="Chat">
+      <ol id="chat-log" class="chat-log" aria-live="polite"></ol>
+      <form id="chat-form" class="chat-form" autocomplete="off">
+        <input id="chat-input" name="message" maxlength="200" placeholder="Mensagem…" enterkeyhint="send" aria-label="Mensagem do chat">
+        <button type="submit">Enviar</button>
+      </form>
+    </section>
+
+    <div id="skills" class="skills" aria-label="Habilidades">
+      <button type="button" class="skill skill-fire" data-skill="fire" aria-label="Fogo"><span aria-hidden="true">🔥</span><small>Fogo</small></button>
+      <button type="button" class="skill skill-taijutsu" data-skill="taijutsu" aria-label="Taijutsu"><span aria-hidden="true">👊</span><small>Taijutsu</small></button>
+      <button type="button" class="skill skill-illusion" data-skill="illusion" aria-label="Ilusão"><span aria-hidden="true">🌀</span><small>Ilusão</small></button>
+      <button type="button" class="skill skill-water" data-skill="water" aria-label="Água"><span aria-hidden="true">💧</span><small>Água</small></button>
+    </div>
+
+    <p id="toast" class="toast" role="status" hidden></p>
+  </div>
+
+  <!-- Login / cadastro -->
+  <section id="login" class="screen">
+    <form id="login-form" class="card" novalidate>
+      <h1>MMO Ninja</h1>
+      <p class="sub">Protótipo de tempo real</p>
+
+      <label id="username-field" hidden>Nome de usuário
+        <input name="username" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]{3,24}">
+      </label>
+      <label>E-mail
+        <input name="email" type="email" autocomplete="email" inputmode="email" required>
+      </label>
+      <label>Senha
+        <input name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <p id="password-hint" class="hint" hidden>10+ caracteres, com maiúscula, minúscula e número.</p>
+
+      <p id="login-error" class="error" role="alert"></p>
+      <button id="login-submit" type="submit" class="primary">Entrar</button>
+      <button id="toggle-mode" type="button" class="link">Não tem conta? Criar conta</button>
+    </form>
+  </section>
+
+  <!-- Dica de orientação (celular em pé) -->
+  <section id="rotate" class="screen" hidden>
+    <div class="card center">
+      <p class="big" aria-hidden="true">↻</p>
+      <p>O jogo fica melhor com o celular <strong>deitado</strong>.</p>
+      <button id="rotate-dismiss" type="button" class="link">Jogar assim mesmo</button>
+    </div>
+  </section>
+</body>
+</html>

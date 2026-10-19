@@ -7,6 +7,7 @@ import { makeRequireServiceToken } from './auth/requireServiceToken.js';
 import { describeBootError } from './bootErrors.js';
 import { makeFindPlayer } from './realtime/findPlayer.js';
 import { attachGameGateway } from './realtime/gateway.js';
+import { loadPublicFiles, type StaticFile } from './web/staticFiles.js';
 import { loadConfig, trustProxyWarning, type Config } from './config.js';
 import { createDb, createPool } from './db.js';
 
@@ -46,11 +47,21 @@ const jwtOptions: JwtOptions = {
   ...(config.JWT_AUDIENCE ? { audience: config.JWT_AUDIENCE } : {}),
 };
 
+// Cliente web (public/): lido uma vez na subida. Faltando arquivo, para com mensagem clara.
+let publicFiles: StaticFile[];
+try {
+  publicFiles = loadPublicFiles();
+} catch (err) {
+  console.error(`[boot] ${(err as Error).message}`);
+  process.exit(1);
+}
+
 const authenticate = makeAuthenticate(jwtOptions);
 const publicApp = buildPublicApp({
   db,
   authenticate,
   issueToken: makeTokenIssuer(jwtOptions),
+  publicFiles,
 }, settings);
 
 // Tempo real: WebSocket em /game na MESMA porta pública, com o MESMO authenticate do HTTP.

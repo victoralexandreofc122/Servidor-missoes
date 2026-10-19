@@ -12,6 +12,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 5 | Pós-deploy: o que fazer e o que não fazer | leitura |
 | 6 | Atualização v3: login (para quem já está no ar) | ~5 min |
 | 7 | Testar o tempo real (WebSocket) pelo Hoppscotch | ~10 min |
+| 8 | Jogar pelo navegador do celular | ~5 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -241,17 +242,18 @@ Depois do deploy, use o **Hoppscotch** (hoppscotch.io) no navegador do celular.
    wss://SEU-SERVICO.onrender.com/game?token=TOKEN_DO_KAITO
    ```
 
-   Toque em **Connect**. Chega um `welcome` com `"x":10,"y":10` e `"players":[]`.
+   Toque em **Connect**. Chega um `welcome` com `"x":10,"y":10`, `"players":[]` e os dados do mapa.
 4. **Jogador 2**: abra **outra aba** do navegador no Hoppscotch e conecte com o token da Mei.
    A Mei recebe `welcome` com o Kaito na lista. Na aba do Kaito, aparece `player_joined`.
 5. Na aba do Kaito, envie (campo de mensagem → **Send**):
 
    | Envie | O que aparece |
    |---|---|
-   | `{"type":"move","x":11,"y":10}` | na aba da Mei: `player_moved` com x 11 |
+   | `{"type":"move","dx":1,"dy":0}` | nas duas abas: vários `player_moved` com x subindo (5 casas por segundo) |
+   | `{"type":"move","dx":0,"dy":0}` | o personagem para (os `player_moved` param) |
    | `{"type":"chat","message":"Olá!"}` | `chat` nas duas abas |
-   | `{"type":"move","x":90,"y":90}` | só na aba do Kaito: `move_rejected` com `"reason":"TOO_FAST"` (anti speed hack) |
-   | `{"type":"move","x":-1,"y":10}` | `move_rejected` com `"reason":"OUT_OF_BOUNDS"` |
+   | `{"type":"cast","skill":"fire"}` | nada: habilidade aceita (ainda sem efeito no jogo) |
+   | `{"type":"move","dx":9,"dy":0}` | `error` com `"code":"INVALID_MESSAGE"` (direção vai de -1 a 1: speed hack não existe) |
    | `oi` (texto que não é JSON) | `error` com `"code":"INVALID_MESSAGE"` |
 
 6. Toque em **Disconnect** na aba do Kaito: na aba da Mei aparece `player_left`.
@@ -259,3 +261,26 @@ Depois do deploy, use o **Hoppscotch** (hoppscotch.io) no navegador do celular.
 
 Se algo falhar, copie a mensagem do Hoppscotch e o trecho do log do Render e mande para o Claude.
 O log mostra entradas e saídas só com o `playerId`: nunca o token nem o texto do chat.
+
+---
+
+## Passo 8 — Jogar pelo navegador do celular
+
+O próprio servidor entrega o jogo: não precisa instalar nada.
+
+1. Abra `https://SEU-SERVICO.onrender.com/` no navegador do celular (Chrome no Android, Safari no iPhone).
+   Se demorar, o servidor estava dormindo: espere até 1 minuto.
+2. Toque em **Não tem conta? Criar conta**, preencha nome, e-mail e senha (10+ caracteres, com maiúscula,
+   minúscula e número) e toque em **Criar conta e entrar**. Nas próximas vezes, use **Entrar**.
+3. Deite o celular. No Android o jogo tenta abrir em tela cheia na horizontal; no iPhone aparece a dica
+   (dá para tocar em **Jogar assim mesmo** e jogar em pé).
+4. **Andar**: arraste o polegar no círculo do canto inferior esquerdo. Quanto mais longe do centro, mais rápido.
+5. **Habilidades**: toque em Fogo, Taijutsu, Ilusão ou Água. Aparece um anel colorido e o botão escurece
+   por um instante. Funciona junto com o joystick (um dedo em cada).
+6. **Chat**: toque em 💬, escreva e toque em **Enviar**. A mensagem aparece no chat e num balão sobre o personagem.
+7. **Com outra pessoa**: abra o mesmo endereço em outro celular (ou numa aba anônima) com **outra conta**.
+   Cada um vê o outro andar e falar. A mesma conta em dois lugares derruba o primeiro.
+8. **Sair** (canto superior direito) apaga o login deste aparelho.
+
+Ver o `console.log` das habilidades: no computador, abra o jogo, pressione F12 e veja a aba Console.
+No celular não há console; o anel na tela confirma o toque.

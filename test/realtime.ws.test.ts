@@ -20,8 +20,8 @@ try {
 }
 
 /** Cliente de teste: guarda as mensagens e espera por um tipo. */
-function client(url: string) {
-  const ws = new WebSocket(url);
+function client(url: string, protocols?: string[]) {
+  const ws = protocols ? new WebSocket(url, protocols) : new WebSocket(url);
   const messages: any[] = [];
   const waiters: { match: (m: any) => boolean; resolve: (m: any) => void }[] = [];
   ws.addEventListener('message', (ev) => {
@@ -123,6 +123,21 @@ describe('WebSocket /game (ws real + cliente nativo)', { skip: unavailable }, ()
     await c.closed;
   });
 
+  it('cliente do jogo: token no subprotocolo (fora da URL); o servidor responde só "nin.v1", nunca o token', async () => {
+    const hana = await newPlayer('hana');
+    const c = client(`${base}${REALTIME.path}`, [REALTIME.subprotocol, `jwt.${hana.token}`]);
+    opened.push(c);
+    assert.equal(await c.opened, true);
+    assert.equal(c.ws.protocol, REALTIME.subprotocol);
+    assert.equal((await c.waitFor('welcome')).you.username, 'hana');
+    c.ws.close();
+    await c.closed;
+
+    const bad = client(`${base}${REALTIME.path}`, [REALTIME.subprotocol, 'jwt.token-falso']);
+    opened.push(bad);
+    assert.equal(await bad.opened, false, 'token inválido no subprotocolo: recusado no handshake');
+  });
+
   it('também aceita Authorization: Bearer no handshake (cliente nativo com header)', async () => {
     const { WebSocket: WsClient } = await import('ws');
     const yuki = await newPlayer('yuki');
@@ -145,12 +160,15 @@ describe('WebSocket /game (ws real + cliente nativo)', { skip: unavailable }, ()
     assert.ok(welcomeB.players.some((p: any) => p.id === a.id && p.username === 'kaito_a'), 'B vê A na lista');
     await ca.waitFor('player_joined', (m) => m.player.id === b.id);
 
-    ca.send({ type: 'move', x: 11, y: 10 });
+    ca.send({ type: 'move', dx: 1, dy: 0 });                       // joystick para a direita
     const moved = await cb.waitFor('player_moved', (m) => m.playerId === a.id);
-    assert.deepEqual(moved, { type: 'player_moved', playerId: a.id, x: 11, y: 10 });
+    assert.ok(moved.x > REALTIME.spawn.x && moved.y === REALTIME.spawn.y, JSON.stringify(moved));
+    await ca.waitFor('player_moved', (m) => m.playerId === a.id);   // quem anda também recebe a posição oficial
+    ca.send({ type: 'move', dx: 0, dy: 0 });
 
-    ca.send({ type: 'move', x: 90, y: 90 });
-    assert.equal((await ca.waitFor('move_rejected')).reason, 'TOO_FAST');
+    ca.send({ type: 'move', dx: 9, dy: 0 });                       // speed hack: recusado
+    assert.equal((await ca.waitFor('error')).code, 'INVALID_MESSAGE');
+    ca.send({ type: 'cast', skill: 'fire' });                      // aceito, sem resposta
 
     cb.send({ type: 'chat', message: 'Olá!' });
     const expected = { type: 'chat', playerId: b.id, username: 'mei_b', message: 'Olá!' };
@@ -171,7 +189,7 @@ describe('WebSocket /game (ws real + cliente nativo)', { skip: unavailable }, ()
     const cAtk = connect(`${REALTIME.path}?token=${atk.token}`);
     await cAtk.waitFor('welcome');
 
-    const payload = JSON.stringify({ type: 'move', x: 11, y: 10 });
+    const payload = JSON.stringify({ type: 'move', dx: 1, dy: 0 });
     for (let i = 0; i < 1000; i++) {
       if (cAtk.ws.readyState !== WebSocket.OPEN) break;
       cAtk.ws.send(payload);
