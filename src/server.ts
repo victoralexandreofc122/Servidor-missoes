@@ -6,7 +6,9 @@ import { AUTH_SQL } from './auth/sql.js';
 import { makeRequireServiceToken } from './auth/requireServiceToken.js';
 import { describeBootError } from './bootErrors.js';
 import { makeFindPlayer } from './realtime/findPlayer.js';
+import { REALTIME } from './realtime/config.js';
 import { attachGameGateway } from './realtime/gateway.js';
+import { makeProgression } from './realtime/progression.js';
 import { loadPublicFiles, type StaticFile } from './web/staticFiles.js';
 import { loadConfig, trustProxyWarning, type Config } from './config.js';
 import { createDb, createPool } from './db.js';
@@ -68,6 +70,7 @@ const publicApp = buildPublicApp({
 const gateway = attachGameGateway(publicApp.server, {
   authenticate,
   findPlayer: makeFindPlayer(db),
+  progression: makeProgression(db, REALTIME.combat.promotion),   // XP do combate vai para game.players
   log: publicApp.log,
 });
 const internalApp = buildInternalApp({ db, requireServiceToken: makeRequireServiceToken(config.SERVICE_TOKEN) }, settings);

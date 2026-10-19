@@ -13,6 +13,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 6 | Atualização v3: login (para quem já está no ar) | ~5 min |
 | 7 | Testar o tempo real (WebSocket) pelo Hoppscotch | ~10 min |
 | 8 | Jogar pelo navegador do celular | ~5 min |
+| 9 | Testar o combate | ~5 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -242,7 +243,7 @@ Depois do deploy, use o **Hoppscotch** (hoppscotch.io) no navegador do celular.
    wss://SEU-SERVICO.onrender.com/game?token=TOKEN_DO_KAITO
    ```
 
-   Toque em **Connect**. Chega um `welcome` com `"x":10,"y":10`, `"players":[]` e os dados do mapa.
+   Toque em **Connect**. Chega um `welcome` com `"x":50,"y":50` (centro do mapa), `"players":[]`, os monstros e os dados do mapa.
 4. **Jogador 2**: abra **outra aba** do navegador no Hoppscotch e conecte com o token da Mei.
    A Mei recebe `welcome` com o Kaito na lista. Na aba do Kaito, aparece `player_joined`.
 5. Na aba do Kaito, envie (campo de mensagem → **Send**):
@@ -287,3 +288,30 @@ O próprio servidor entrega o jogo: não precisa instalar nada.
 Ver o `console.log` das habilidades: no computador, abra o jogo, pressione F12 e veja a aba Console
 (no computador: WASD ou setas andam, teclas 1 a 7 soltam as habilidades, Enter abre o chat).
 No celular não há console; o anel na tela confirma o toque.
+
+---
+
+## Passo 9 — Testar o combate
+
+Nada novo para configurar: o XP vai para a coluna `total_xp` que já existe no banco.
+
+1. Entre no jogo (Passo 8). Você nasce no **centro do mapa**, onde as estradas se cruzam. Ali é área segura.
+2. Ande alguns passos para qualquer lado: os **monstros** (círculos vermelhos com "M") ficam num anel em
+   volta do centro. São sempre 5.
+3. Embaixo da tela ficam a barra **vermelha** (vida), a **azul** (chakra) e a linha de rank/XP.
+   O número no topo de cada botão é o custo em chakra; sem chakra, o botão apaga.
+4. Chegue perto de um monstro e use:
+   - **Taijutsu** colado nele (dano alto, custa só 5);
+   - **Fogo** com ele a até 3 casas (pega todos em volta);
+   - **Água**: ande na direção dele e solte (cone para onde você olhou por último).
+   Os números de dano sobem sobre o monstro.
+5. **Ilusão** faz estrelinhas girarem sobre o monstro (3 s parado, sem atacar). **Sombra** prende ele no chão
+   (5 s, mas ainda ataca). **Pedra** põe um anel marrom em você (o próximo golpe tira metade). **Cura** devolve 30.
+6. Ficar colado num monstro tira vida a cada 2 s (números vermelhos sobre você e a tela pisca).
+   Com vida 0 aparece **"Você foi derrotado"**; depois de 5 s, toque em **Renascer** e você volta ao centro.
+7. Cada monstro derrotado dá **+20 XP** a quem deu o último golpe. Com **100 XP**, Academia vira **Genin**
+   (aviso para todos no chat). Para conferir no banco, no SQL Editor do Neon:
+
+   ```
+   SELECT p.username, p.total_xp, r.name FROM game.players p JOIN game.ranks r ON r.id = p.current_rank_id ORDER BY p.total_xp DESC LIMIT 10;
+   ```

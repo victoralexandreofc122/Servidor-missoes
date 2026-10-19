@@ -88,13 +88,36 @@ ausente, inválido ou vencido recebe HTTP 401 e não conecta. O token pode vir:
 | para todos | `chat {playerId,username,message}` |
 | só para quem enviou | `error {code,message}` |
 
-Habilidades: `fire`, `water`, `taijutsu`, `illusion`, `shadow`, `stone`, `heal` (Fogo, Água, Taijutsu, Ilusão,
-Sombra, Pedra, Cura). Hoje só são validadas, sem efeito no jogo; a animação é só no cliente.
+Mensagens de combate (o servidor decide tudo; o cliente só pede `cast` e `respawn`):
+`stats` (vida/chakra do dono), `player_hp`, `cast` / `cast_failed`, `hit` (número flutuante), `monsters_moved`,
+`monster_spawned`, `monster_status`, `monster_died`, `player_died`, `player_respawned`, `xp`, `announce`.
+
+### Combate PvE (valores em `src/realtime/config.ts` → `combat`)
+
+| Habilidade | Chakra | Recarga | Efeito |
+|---|---|---|---|
+| Fogo (`fire`) | 20 | 1,5 s | 25 de dano em todos a até 3 casas |
+| Água (`water`) | 15 | 1 s | 20 de dano num cone de 90° e 4 casas, para onde o jogador olhou por último |
+| Taijutsu (`taijutsu`) | 5 | 0,5 s | 35 de dano no monstro mais perto, a até 1,5 casa |
+| Ilusão (`illusion`) | 30 | 4 s | atordoa o mais perto (até 5 casas) por 3 s: não anda nem ataca |
+| Sombra (`shadow`) | 25 | 6 s | prende o mais perto (até 5 casas) por 5 s: não anda, mas ataca |
+| Pedra (`stone`) | 15 | 6 s | escudo: o próximo dano cai pela metade |
+| Cura (`heal`) | 30 | 4 s | +30 de vida (até 100) |
+
+- **Jogador:** 100 de vida (regenera 1/s) e 100 de chakra (regenera 5/s). Sem alvo, com vida cheia ou com
+  escudo ativo, a habilidade falha sem gastar chakra.
+- **Monstros:** 5 sempre vivos (`slime`, 60 de vida), num anel de 5 a 16 casas em volta do centro (o centro
+  é área segura). Andam 1 casa por ~1 s e batem 10 em quem estiver a até 1,2 casa, a cada 2 s.
+- **Derrota:** com vida 0, o jogador não anda nem usa habilidade. Depois de 5 s pode pedir `respawn` e
+  volta ao centro com vida e chakra cheios. Reconectar não cura.
+- **XP:** cada monstro dá 20 de XP para quem deu o último golpe. O XP é gravado em `game.players.total_xp`
+  num SQL atômico (`src/realtime/progression.ts`). Aos 100 XP, Academia sobe para Genin no banco, com
+  histórico em `player_rank_changes` e aviso para todos.
 
 Regras (em `src/realtime/config.ts`):
 
 - **Movimento autoritativo:** o cliente manda só a direção e o servidor anda 5 casas/s. Speed hack não existe.
-- **Mapa:** 100 × 100 casas, nascimento em (10, 10).
+- **Mapa:** 100 × 100 casas; nasce e renasce no centro (50, 50).
 - **Anti-flood:** 20 mensagens/s, com rajada de 30. Mais de 100 descartadas em 1 s fecha a conexão (1008).
 - **Chat:** 1 mensagem/s (rajada de 3), até 200 caracteres.
 - **Tamanho:** mensagem acima de 1 KiB fecha a conexão (1009).

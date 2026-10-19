@@ -3,7 +3,7 @@ import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { PlayerRequest } from '../http.js';
 import { REALTIME, type RealtimeConfig } from './config.js';
-import { GameWorld, type WorldLogger } from './gameWorld.js';
+import { GameWorld, type JoiningPlayer, type Progression, type WorldLogger } from './gameWorld.js';
 
 /*
  * Endpoint WebSocket: wss://<servidor>/game
@@ -25,8 +25,12 @@ import { GameWorld, type WorldLogger } from './gameWorld.js';
 export interface GatewayDeps {
   /** O mesmo `authenticate` das rotas HTTP: preenche request.player.id ou lança 401. */
   authenticate: (request: PlayerRequest) => Promise<void>;
-  /** Busca o nome do jogador (1 consulta por conexão, não por passo). undefined = não existe. */
-  findPlayer: (playerId: string) => Promise<{ id: string; username: string } | undefined>;
+  /** Busca nome, XP e rank do jogador (1 consulta por conexão, não por passo). undefined = não existe. */
+  findPlayer: (playerId: string) => Promise<JoiningPlayer | undefined>;
+  /** Grava XP no banco quando o jogador mata um monstro. */
+  progression?: Progression;
+  /** Sorteio dos monstros (testes). */
+  random?: () => number;
   log: WorldLogger & { error(obj: object, msg?: string): void };
   config?: RealtimeConfig;
   now?: () => number;
@@ -65,7 +69,10 @@ export function handshakeAuthorization(req: IncomingMessage): string | undefined
 
 export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
   const config = deps.config ?? REALTIME;
-  const world = new GameWorld(config, deps.now, deps.log);
+  const world = new GameWorld(config, deps.now, deps.log, {
+    ...(deps.random ? { random: deps.random } : {}),
+    ...(deps.progression ? { progression: deps.progression } : {}),
+  });
   const wss = new WebSocketServer({
     noServer: true,
     maxPayload: config.maxPayloadBytes,   // mensagem maior: o ws fecha com 1009
@@ -95,7 +102,7 @@ export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
         return reject(socket, 401);
       }
 
-      let player: { id: string; username: string } | undefined;
+      let player: JoiningPlayer | undefined;
       try {
         player = await deps.findPlayer(request.player!.id);
       } catch (err) {

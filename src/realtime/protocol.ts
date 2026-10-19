@@ -3,18 +3,29 @@ import { z } from 'zod';
 /*
  * Protocolo do WebSocket: JSON simples, um objeto por mensagem, sempre com `type`.
  *
- * Cliente -> servidor
+ * Cliente -> servidor (o cliente só PEDE; dano, acerto, morte e XP são decididos no servidor)
  *   { "type": "move", "dx": 0.5, "dy": -0.5 }   direção do joystick, de -1 a 1 (0,0 = parar)
- *   { "type": "cast", "skill": "fire" }         habilidade (por enquanto só validada, sem efeito)
+ *   { "type": "cast", "skill": "fire" }         usar habilidade
+ *   { "type": "respawn" }                       renascer (só depois de 5 s morto)
  *   { "type": "chat", "message": "Olá!" }
  *
  * Servidor -> cliente
- *   welcome        { type, you, players, world }   ao conectar (players = os OUTROS online)
- *   player_joined  { type, player }                outro jogador entrou
- *   player_moved   { type, playerId, x, y }        alguém andou (a cada tick; inclui você, para corrigir a previsão)
- *   player_left    { type, playerId }              outro jogador saiu
- *   chat           { type, playerId, username, message }   para todos, inclusive quem enviou
- *   error          { type, code, message }         só para quem enviou
+ *   welcome           { you, players, monsters, world }    ao conectar (players = os OUTROS)
+ *   player_joined / player_moved / player_left             como antes
+ *   stats             { hp, maxHp, chakra, maxChakra, shield }   só para o próprio jogador
+ *   player_hp         { playerId, hp, maxHp }              vida dos outros (barrinha sobre o boneco)
+ *   cast              { playerId, skill, x, y, fx, fy }    habilidade aceita (todos veem a animação)
+ *   cast_failed       { skill, reason }                    só para quem tentou
+ *   hit               { target, id, amount, kind, hp, maxHp, shielded? }   número flutuante
+ *   monsters_moved    { m: [[id, x, y], ...] }
+ *   monster_spawned   { monster }
+ *   monster_status    { id, status, ms }                   atordoado / preso
+ *   monster_died      { id, killerId }
+ *   player_died       { playerId, respawnInMs }
+ *   player_respawned  { playerId, x, y, hp, maxHp }
+ *   xp                { gained, totalXp, rank, promoted }  só para quem matou (depois de gravar no banco)
+ *   announce          { message }                          para todos (ex.: subiu para Genin)
+ *   chat / error                                           como antes
  */
 
 /** Direção de -1 a 1 em cada eixo; vetor maior que 1 (diagonal) é normalizado pelo servidor. */
@@ -27,35 +38,82 @@ export type Skill = (typeof SKILLS)[number];
 export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move'), dx: axis, dy: axis }),
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS) }),
+  z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('chat'), message: z.string() }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
+
+export interface RankView {
+  code: string;
+  name: string;
+}
 
 export interface PlayerView {
   id: string;
   username: string;
   x: number;
   y: number;
+  hp: number;
+  maxHp: number;
+  dead: boolean;
 }
 
-/** O que o cliente precisa saber do mundo para desenhar e prever o próprio movimento. */
+export interface SelfView extends PlayerView {
+  chakra: number;
+  maxChakra: number;
+  shield: boolean;
+  xp: number;
+  rank: RankView;
+}
+
+export interface MonsterView {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+}
+
+/** O que o cliente precisa saber do mundo para desenhar, prever o movimento e montar os botões. */
 export interface WorldInfo {
   width: number;
   height: number;
   speed: number;
   tickMs: number;
+  spawn: { x: number; y: number };
+  respawnMs: number;
+  skills: Record<Skill, { cost: number; cooldownMs: number }>;
+  promotion: { fromRank: string; toRank: string; xp: number };
 }
 
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD';
+export type MonsterStatus = 'stunned' | 'rooted';
+
 export type ServerMessage =
-  | { type: 'welcome'; you: PlayerView; players: PlayerView[]; world: WorldInfo }
+  | { type: 'welcome'; you: SelfView; players: PlayerView[]; monsters: MonsterView[]; world: WorldInfo }
   | { type: 'player_joined'; player: PlayerView }
   | { type: 'player_moved'; playerId: string; x: number; y: number }
   | { type: 'player_left'; playerId: string }
   | { type: 'chat'; playerId: string; username: string; message: string }
+  | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean }
+  | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }
+  | { type: 'cast'; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number }
+  | { type: 'cast_failed'; skill: Skill; reason: CastFailReason }
+  | { type: 'hit'; target: 'monster' | 'player'; id: string; amount: number; kind: 'damage' | 'heal'; hp: number; maxHp: number; shielded?: boolean }
+  | { type: 'monsters_moved'; m: [string, number, number][] }
+  | { type: 'monster_spawned'; monster: MonsterView }
+  | { type: 'monster_status'; id: string; status: MonsterStatus; ms: number }
+  | { type: 'monster_died'; id: string; killerId: string }
+  | { type: 'player_died'; playerId: string; respawnInMs: number }
+  | { type: 'player_respawned'; playerId: string; x: number; y: number; hp: number; maxHp: number }
+  | { type: 'xp'; gained: number; totalXp: number; rank: RankView; promoted: boolean }
+  | { type: 'announce'; message: string }
   | { type: 'error'; code: RealtimeErrorCode; message: string };
 
 export const REALTIME_ERRORS = {
-  INVALID_MESSAGE: 'Mensagem inválida. Use {"type":"move","dx":..,"dy":..}, {"type":"cast","skill":".."} ou {"type":"chat","message":".."}.',
+  INVALID_MESSAGE: 'Mensagem inválida. Use {"type":"move","dx":..,"dy":..}, {"type":"cast","skill":".."}, {"type":"respawn"} ou {"type":"chat","message":".."}.',
+  RESPAWN_NOT_READY: 'Ainda não dá para renascer.',
   CHAT_RATE_LIMITED: 'Calma! Espere um pouco antes de mandar outra mensagem no chat.',
   CHAT_INVALID: 'Mensagem de chat vazia ou longa demais.',
 } as const;

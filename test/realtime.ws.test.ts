@@ -118,7 +118,16 @@ describe('WebSocket /game (ws real + cliente nativo)', { skip: unavailable }, ()
     const c = connect(`${REALTIME.path}?token=${rin.token}`);
     assert.equal(await c.opened, true);
     const welcome = await c.waitFor('welcome');
-    assert.deepEqual(welcome.you, { id: rin.id, username: 'rin', ...REALTIME.spawn });
+    assert.deepEqual([welcome.you.id, welcome.you.username, welcome.you.x, welcome.you.y], [rin.id, 'rin', REALTIME.spawn.x, REALTIME.spawn.y]);
+    assert.deepEqual([welcome.you.hp, welcome.you.chakra], [100, 100]);
+    assert.equal(welcome.monsters.length, REALTIME.combat.monsters.count, 'monstros já no mapa');
+
+    // combate pela rede: Fogo é aceito (todos veem) e cobra o chakra; renascer vivo é recusado
+    c.send({ type: 'cast', skill: 'fire' });
+    assert.equal((await c.waitFor('cast')).skill, 'fire');
+    assert.equal((await c.waitFor('stats')).chakra, 100 - REALTIME.combat.skills.fire.cost);
+    c.send({ type: 'respawn' });
+    assert.equal((await c.waitFor('error')).code, 'RESPAWN_NOT_READY');
     c.ws.close();
     await c.closed;
   });

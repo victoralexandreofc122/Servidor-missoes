@@ -51,8 +51,30 @@
       <button type="button" class="skill skill-heal" data-skill="heal" aria-label="Cura"><span aria-hidden="true">✚</span><small>Cura</small></button>
     </div>
 
+    <!-- Vida e chakra (parte de baixo da tela) + rank e XP. Atualizados pelo servidor em tempo real. -->
+    <div id="vitals" class="vitals" aria-label="Vida e chakra">
+      <div class="bar bar-hp" role="meter" aria-label="Vida" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+        <span class="fill" id="hp-fill"></span><b id="hp-text">100 / 100</b>
+      </div>
+      <div class="bar bar-chakra" role="meter" aria-label="Chakra" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+        <span class="fill" id="chakra-fill"></span><b id="chakra-text">100 / 100</b>
+      </div>
+      <p id="xp-line" class="xp-line">Academia · 0 XP</p>
+    </div>
+
+    <div id="hurt" class="hurt" aria-hidden="true"></div>
     <p id="toast" class="toast" role="status" hidden></p>
   </div>
+
+  <!-- Derrota: aparece quando a vida chega a 0. "Renascer" libera depois de 5 s. -->
+  <section id="death" class="screen death" hidden>
+    <div class="card center">
+      <p class="big" aria-hidden="true">✖</p>
+      <h2>Você foi derrotado</h2>
+      <p id="death-timer" class="sub">Você poderá renascer em 5 s</p>
+      <button id="respawn" type="button" class="primary" disabled>Renascer</button>
+    </div>
+  </section>
 
   <!-- Login / cadastro -->
   <section id="login" class="screen">

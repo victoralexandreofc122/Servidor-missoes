@@ -308,3 +308,92 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
 .primary:disabled { opacity: 0.6; }
 .link { border: 0; background: none; color: var(--accent); padding: 6px; font-size: 14px; }
 .big { font-size: 46px; margin: 0; }
+
+/* ------------------------------------------------------------ combate */
+
+/* Vida e chakra: embaixo, no meio (entre o joystick e as habilidades). */
+.vitals {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 12px);
+  transform: translateX(-50%);
+  width: min(300px, calc(100vw - 2 * 260px));
+  min-width: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: none;
+}
+.bar {
+  position: relative;
+  height: 18px;
+  border-radius: 9px;
+  overflow: hidden;
+  background: rgba(20, 17, 13, 0.72);
+  border: 1px solid rgba(244, 234, 216, 0.25);
+}
+.bar .fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transition: transform 0.2s linear;            /* chakra sobe liso entre as atualizações */
+  will-change: transform;
+}
+.bar-hp .fill { background: linear-gradient(180deg, #ff6b5a, #c92a1f); }
+.bar-chakra .fill { background: linear-gradient(180deg, #6fc0ff, #1f6fc9); }
+.bar b {
+  position: relative;
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+.bar.shielded { box-shadow: 0 0 0 2px #c9a678; }
+.xp-line {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffe2a8;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+@media (orientation: portrait) {
+  /* Em pé não há espaço entre joystick e botões: as barras sobem para cima deles. */
+  .vitals { width: calc(100vw - 32px - var(--safe-left) - var(--safe-right)); bottom: calc(var(--safe-bottom) + 210px); }
+}
+
+/* Custo de chakra no botão; sem chakra suficiente, o botão apaga. */
+.skill .cost {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 4px;
+  border-radius: 6px;
+  background: rgba(20, 30, 60, 0.55);
+  line-height: 12px;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  color: #cfe6ff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+.skill.no-chakra { filter: grayscale(0.85) brightness(0.65); }
+.skill.cooldown::after { animation-duration: var(--cd, 0.6s); }
+
+/* Tela vermelha rápida quando o jogador toma dano. */
+.hurt {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 80px 20px rgba(220, 30, 20, 0.55);
+  opacity: 0;
+}
+.hurt.on { animation: hurt 0.35s ease-out; }
+@keyframes hurt { from { opacity: 1; } to { opacity: 0; } }
+
+.death { background: rgba(20, 17, 13, 0.72); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+.death h2 { margin: 0; font-size: 24px; }
+.death .big { color: var(--danger); }
