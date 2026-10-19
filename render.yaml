@@ -1,0 +1,26 @@
+# Blueprint do Render: cria o serviço com tudo configurado.
+# No Render: New -> Blueprint -> escolha este repositório.
+# Segredos NÃO ficam aqui: DATABASE_URL é pedida na criação (sync: false) e
+# JWT_SECRET / SERVICE_TOKEN são gerados pelo próprio Render (generateValue).
+services:
+  - type: web
+    name: servidor-missoes
+    runtime: node
+    plan: free
+    region: ohio                 # mesma região do Neon (AWS US East 2, Ohio)
+    # --include=dev: com NODE_ENV=production o npm pularia o TypeScript e o build quebraria.
+    # verify = typecheck + testes (inclui os 6 com o Fastify real) + build.
+    buildCommand: npm install --include=dev && npm run verify
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "true"
+      - key: DATABASE_URL
+        sync: false              # o Render pede na criação: cole a connection string DIRETA do Neon
+      - key: JWT_SECRET
+        generateValue: true      # 256 bits aleatórios (44 caracteres)
+      - key: SERVICE_TOKEN
+        generateValue: true
