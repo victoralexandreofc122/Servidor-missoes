@@ -18,10 +18,10 @@ export function placements(maps, mapId) {
   for (const e of cur.exits || []) {
     const dest = maps[e.map];
     if (!dest) continue;
-    if (e.edge === 'east') out.push({ map: dest, ox: cur.width, oy: -e.shift });
-    else if (e.edge === 'west') out.push({ map: dest, ox: -dest.width, oy: -e.shift });
-    else if (e.edge === 'south') out.push({ map: dest, ox: -e.shift, oy: cur.height });
-    else out.push({ map: dest, ox: -e.shift, oy: -dest.height });
+    if (e.edge === 'east') out.push({ map: dest, ox: cur.width, oy: (-e.shift || 0) });
+    else if (e.edge === 'west') out.push({ map: dest, ox: -dest.width, oy: (-e.shift || 0) });
+    else if (e.edge === 'south') out.push({ map: dest, ox: (-e.shift || 0), oy: cur.height });
+    else out.push({ map: dest, ox: (-e.shift || 0), oy: -dest.height });
   }
   return out;
 }
@@ -31,7 +31,8 @@ const inside = (b, x, y) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b
 /**
  * Chão da casa inteira (x, y), em coordenadas do mapa atual. As `areas` do layout pintam por
  * cima do chão padrão (a última da lista vale): 'stone' (pedra clara: ruas e praça), 'grass',
- * 'sand', 'water', 'bridge', 'path' (terra). Padrão: pedra na Vila, grama na Floresta.
+ * 'sand', 'water', 'bridge', 'path' (terra), 'wood' (assoalho). Padrão: pedra na Vila, grama
+ * escura ('darkgrass') na Floresta, assoalho nas lojas.
  * 'void' = fora do mundo (desenhado como mata fechada). `places` = placements(maps, mapId).
  */
 export function groundAt(places, x, y) {
@@ -40,7 +41,7 @@ export function groundAt(places, x, y) {
     if (lx < 0 || ly < 0 || lx >= p.map.width || ly >= p.map.height) continue;
     const areas = p.map.areas || [];
     for (let i = areas.length - 1; i >= 0; i--) if (inside(areas[i], lx, ly)) return areas[i].g;
-    return p.map.kind === 'village' ? 'stone' : 'grass';
+    return p.map.kind === 'village' ? 'stone' : p.map.kind === 'interior' ? 'wood' : 'darkgrass';
   }
   return 'void';
 }

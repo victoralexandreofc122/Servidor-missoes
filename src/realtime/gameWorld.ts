@@ -922,6 +922,12 @@ export class GameWorld {
     if (!npc) return this.sendError(session, 'UNKNOWN_NPC');
     if (session.dead) return this.sendError(session, 'CANNOT_TALK');
     if (npc.map !== session.map || distance(session, npc) > npc.range) return this.sendError(session, 'NPC_TOO_FAR');
+    if (npc.shop) {
+      // Lojista: abre a loja. Mesmo ritmo dos pedidos de missão (toque repetido não vira enxurrada).
+      if (t - session.lastMissionAt < this.config.missionRequestEveryMs) return;
+      session.lastMissionAt = t;
+      return this.sendTo(session, { type: 'shop_open', shop: npc.shop, npcId: npc.id });
+    }
     const { id, username } = session;
     this.missionRequest(session, t, (m) => m.talk(id).then((outcome) => this.applyTalk(id, username, npc.id, outcome)));
   }

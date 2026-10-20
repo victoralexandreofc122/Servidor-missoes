@@ -221,6 +221,126 @@ function drawDummy(g, x, y, w, h) {
   rect(g, '#a8803f', cx - 3, y + 3, 6, 1);
 }
 
+// ------------------------------------------------------------------ interiores (lojas)
+
+/**
+ * Parede de interior em 3/4: arremate escuro em cima, reboco bege e rodapé de madeira. As
+ * paredes finas (laterais e da frente) viram uma viga de madeira escura.
+ */
+function drawInteriorWall(g, x, y, w, h, tile) {
+  if (h >= tile * 2 && w > h) {                      // parede do fundo: dá para ver a face
+    rect(g, '#3b2414', x, y, w, h);
+    rect(g, '#d8c49a', x, y + 6, w, h - 16);
+    rect(g, '#c4ad80', x, y + 6, w, 2);
+    for (let bx = x + 20; bx < x + w - 4; bx += 40) rect(g, '#7a5230', bx, y + 6, 3, h - 16);   // pilares
+    rect(g, '#8b5a2b', x, y + h - 10, w, 10);         // rodapé
+    rect(g, '#5c3a1c', x, y + h - 10, w, 2);
+    return;
+  }
+  rect(g, '#2b1a0e', x, y, w, h);
+  rect(g, '#5c3a1c', x + 2, y + 2, w - 4, h - 4);
+  rect(g, '#7a5230', x + 2, y + 2, w - 4, 2);
+}
+
+/** Balcão de madeira: tampo claro com borda, frente em painéis; um caixinha de moedas no meio. */
+function drawCounter(g, x, y, w, h) {
+  rect(g, 'rgba(0,0,0,0.3)', x + 2, y + 4, w, h);
+  rect(g, '#4a2e17', x, y, w, h);
+  rect(g, '#b07a42', x + 1, y + 1, w - 2, Math.round(h * 0.45));          // tampo
+  rect(g, '#c99257', x + 1, y + 1, w - 2, 2);
+  rect(g, '#7a4c22', x + 1, y + Math.round(h * 0.45) + 1, w - 2, h - Math.round(h * 0.45) - 2);   // frente
+  g.fillStyle = '#5c3a1c';
+  for (let px = x + 10; px < x + w - 4; px += 16) g.fillRect(px, y + Math.round(h * 0.45) + 2, 1, h - Math.round(h * 0.45) - 4);
+  if (w > 64) {
+    rect(g, '#3b2414', x + w / 2 - 5, y + 2, 10, 5);                       // caixa de moedas
+    rect(g, '#e9c74a', x + w / 2 - 3, y + 3, 6, 2);
+  }
+}
+
+/** Prateleira de madeira (fundo) com o que estiver em cima, desenhado por `item(cx, cy)`. */
+function shelf(g, x, y, w, h, rows, cols, item) {
+  rect(g, 'rgba(0,0,0,0.25)', x + 2, y + 3, w, h);
+  rect(g, '#4a2e17', x, y, w, h);
+  rect(g, '#6b4423', x + 2, y + 2, w - 4, h - 4);
+  const rh = (h - 4) / rows, cw = (w - 4) / cols;
+  for (let r = 0; r < rows; r++) {
+    rect(g, '#3b2414', x + 2, y + 2 + rh * (r + 1) - 2, w - 4, 2);           // tábua
+    for (let c = 0; c < cols; c++) item(x + 2 + cw * (c + 0.5), y + 2 + rh * r + rh / 2, cw, rh, r * cols + c);
+  }
+}
+
+const CLOTH = ['#c94f7c', '#2f6fb5', '#3b6e4f', '#e8c66a', '#7a3b1e', '#e9dcbc'];
+
+/** Móveis das lojas: cada loja tem os seus (o servidor colide com eles). */
+function drawFurniture(g, x, y, w, h, kind, seed) {
+  const r = rng(seed);
+  switch (kind) {
+    case 'sword_rack':                                // painel com espadas penduradas
+      rect(g, '#4a2e17', x, y, w, h);
+      rect(g, '#7a5230', x + 2, y + 2, w - 4, h - 4);
+      for (let sx = x + 8; sx < x + w - 6; sx += 12) {
+        rect(g, '#b8c2cc', sx, y + 6, 3, h - 18);      // lâmina
+        rect(g, '#e6edf2', sx, y + 6, 1, h - 18);
+        rect(g, '#3b2414', sx - 3, y + h - 12, 9, 2);   // guarda
+        rect(g, '#7a2e1e', sx, y + h - 10, 3, 6);       // cabo
+      }
+      return;
+    case 'spear_rack':                                // lanças em pé
+      rect(g, '#4a2e17', x, y + h - 6, w, 6);
+      for (let i = 0; i < 3; i++) {
+        const sx = x + 3 + i * Math.max(3, (w - 8) / 2);
+        rect(g, '#7a5230', sx, y + 6, 2, h - 10);
+        rect(g, '#c9d2da', sx - 1, y, 4, 7);
+      }
+      return;
+    case 'shield_rack':                               // escudos redondos empilhados na parede
+      rect(g, '#4a2e17', x + w / 2 - 2, y, 4, h);
+      for (let sy = y + 8; sy < y + h - 4; sy += 16) {
+        g.fillStyle = '#3b2414'; g.beginPath(); g.arc(x + w / 2, sy, 7, 0, Math.PI * 2); g.fill();
+        g.fillStyle = r() < 0.5 ? '#9e2a22' : '#2f5d8a'; g.beginPath(); g.arc(x + w / 2, sy, 5, 0, Math.PI * 2); g.fill();
+        rect(g, '#c9d2da', x + w / 2 - 1, sy - 1, 2, 2);
+      }
+      return;
+    case 'barrel':
+      g.fillStyle = '#4a2e17'; g.beginPath(); g.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#8b5a2b'; g.beginPath(); g.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2 - 2, 0, Math.PI * 2); g.fill();
+      rect(g, '#5d5a55', x + 1, y + h / 2 - 1, w - 2, 2);
+      return;
+    case 'mannequin': {                               // manequim de roupa: suporte, corpo vestido, cabeça
+      const cx = x + w / 2, color = CLOTH[Math.floor(r() * CLOTH.length)];
+      rect(g, 'rgba(0,0,0,0.3)', cx - 6, y + h - 3, 13, 4);
+      rect(g, '#5c3a1c', cx - 1, y + h - 6, 2, 5);
+      rect(g, '#3b2414', cx - 7, y + 3, 14, h - 8);
+      rect(g, color, cx - 6, y + 4, 12, h - 10);
+      rect(g, '#2b2118', cx - 6, y + h / 2, 12, 2);   // faixa
+      g.fillStyle = '#e6d3b3'; g.beginPath(); g.arc(cx, y + 2, 4, 0, Math.PI * 2); g.fill();
+      return;
+    }
+    case 'cloth_shelf':                               // roupas dobradas, pilhas coloridas
+      return shelf(g, x, y, w, h, 2, Math.max(2, Math.round(w / 14)), (cx, cy, cw, rh, i) => {
+        for (let k = 0; k < 3; k++) rect(g, CLOTH[(i + k) % CLOTH.length], cx - cw * 0.35, cy + rh * 0.2 - k * 4, cw * 0.7, 3);
+      });
+    case 'scroll_shelf':                              // pergaminhos enrolados com fita vermelha
+      return shelf(g, x, y, w, h, Math.max(2, Math.round(h / 14)), Math.max(1, Math.round(w / 12)), (cx, cy, cw) => {
+        for (let k = -1; k <= 1; k++) {
+          rect(g, '#e9dcbc', cx + k * Math.min(5, cw / 3) - 2, cy - 4, 4, 9);
+          rect(g, '#9e2a22', cx + k * Math.min(5, cw / 3) - 2, cy, 4, 1);
+        }
+      });
+    case 'scroll_table':                              // mesa com um pergaminho aberto e pincel
+      rect(g, 'rgba(0,0,0,0.3)', x + 2, y + 3, w, h);
+      rect(g, '#4a2e17', x, y, w, h);
+      rect(g, '#8b5a2b', x + 1, y + 1, w - 2, h - 2);
+      rect(g, '#efe3c2', x + 4, y + 3, w - 8, h - 7);
+      rect(g, '#3b2414', x + 7, y + 5, w - 14, 1);
+      rect(g, '#3b2414', x + 7, y + 8, w - 18, 1);
+      rect(g, '#2b2118', x + w - 6, y + 2, 1, 8);
+      return;
+    default:
+      return undefined;
+  }
+}
+
 /** Desenha uma parede (colisão) conforme o tipo. Água fica só no chão (o tile já é o rio). */
 export function drawWall(g, wall, x, y, w, h, tile) {
   const seed = (wall.x * 73856093) ^ (wall.y * 19349663);
@@ -231,15 +351,32 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     case 'house': return drawBuilding(g, x, y, w, h, wall.s || 'home', seed);
     case 'tree': return drawTrees(g, x, y, w, h, Math.abs(seed) % 97, tile);
     case 'dummy': return drawDummy(g, x, y, w, h);
+    case 'iwall': return drawInteriorWall(g, x, y, w, h, tile);
+    case 'counter': return drawCounter(g, x, y, w, h);
+    case 'furniture': return drawFurniture(g, x, y, w, h, wall.s, Math.abs(seed));
     default: return undefined;
   }
 }
 
 // ------------------------------------------------------------------ enfeites (sem colisão)
 
-/** Bancos, rosa dos ventos no chão, lanternas de pedra e vasos. O telhado do portão é à parte. */
+/** Bancos, rosa dos ventos no chão, lanternas de pedra, vasos, tapete e capacho. O telhado do portão é à parte. */
 export function drawDeco(g, d, x, y, w, h) {
   switch (d.k) {
+    case 'rug': {                                     // tapete vermelho com barra dourada
+      rect(g, '#5e1712', x, y, w, h);
+      rect(g, '#9e2a22', x + 3, y + 3, w - 6, h - 6);
+      g.strokeStyle = '#d9a441';
+      g.lineWidth = 1;
+      g.strokeRect(x + 6.5, y + 6.5, w - 13, h - 13);
+      rect(g, '#d9a441', x + w / 2 - 3, y + h / 2 - 3, 6, 6);
+      return;
+    }
+    case 'mat':                                       // capacho na porta
+      rect(g, '#5c3a1c', x, y, w, h);
+      g.fillStyle = '#8b5a2b';
+      for (let i = x + 2; i < x + w - 1; i += 3) g.fillRect(i, y + 1, 1, h - 2);
+      return;
     case 'bench': {
       rect(g, 'rgba(0,0,0,0.25)', x + 2, y + 3, w, h);
       rect(g, '#5c3a1c', x + 1, y + 2, w - 2, h - 4);

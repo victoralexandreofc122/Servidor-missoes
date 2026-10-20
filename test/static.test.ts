@@ -87,6 +87,10 @@ describe('garantias do cliente (public/)', () => {
     assert.match(js, /send\(\{ type: 'meditate', active: !state\.me\.meditating \}\)/);
     assert.match(js, /from '\.\/targeting\.js'/, 'foco e câmera vêm do módulo testado');
     assert.match(js, /send\(\{ type: 'chat', message \}\)/);
+    // Loja: o cliente só PEDE (talk); o painel abre quando o servidor manda shop_open.
+    assert.match(js, /send\(\{ type: 'talk', npcId: npc\.id \}\)/);
+    assert.match(js, /case 'shop_open':\s+openShop\(msg\.shop, msg\.npcId\)/);
+    assert.match(html, /id="shop-panel"[^>]*role="dialog"/);
     for (const skill of SKILLS) assert.match(html, new RegExp(`data-skill="${skill}"`));
   });
 

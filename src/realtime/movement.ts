@@ -55,7 +55,29 @@ export interface MoveMap {
   width: number;
   height: number;
   walls: readonly Box[];
-  exits: readonly { edge: 'east' | 'west' | 'north' | 'south'; from: number; to: number; map: string; shift: number }[];
+  exits: readonly { edge: 'east' | 'west' | 'north' | 'south'; from: number; to: number; map: string; shift: number; arrive?: number }[];
+  doors?: readonly (Box & { dir: 'east' | 'west' | 'north' | 'south'; map: string; at: { x: number; y: number } })[];
+}
+
+/**
+ * Porta (loja): quem está no retângulo da porta e anda PARA DENTRO dela (dir) vai para o mapa
+ * da porta, na posição `at` (se lá estiver livre). Quem sai chega fora da porta do outro lado
+ * e continua andando para longe dela: não volta sozinho.
+ */
+export function useDoor(
+  maps: Readonly<Record<string, MoveMap>>, mapId: string, x: number, y: number, dx: number, dy: number,
+): [string, number, number] | null {
+  const m = maps[mapId];
+  if (!m || !m.doors) return null;
+  for (const d of m.doors) {
+    if (x < d.x || x > d.x + d.w || y < d.y || y > d.y + d.h) continue;
+    const inward = d.dir === 'north' ? dy < 0 : d.dir === 'south' ? dy > 0 : d.dir === 'east' ? dx > 0 : dx < 0;
+    if (!inward) continue;
+    const dest = maps[d.map];
+    if (!dest || blocked(d.at.x, d.at.y, dest.walls)) continue;
+    return [d.map, d.at.x, d.at.y];
+  }
+  return null;
 }
 
 /**
@@ -80,19 +102,20 @@ export function crossExit(
     const dest = maps[e.map];
     if (!dest) continue;
     const a = q3(along + e.shift);
-    const [nx, ny] = e.edge === 'east' ? [0, a] : e.edge === 'west' ? [dest.width, a] : e.edge === 'south' ? [a, 0] : [a, dest.height];
+    const far = e.arrive;                 // chegada mais para dentro (ex.: y 75 na Vila), se o mapa pedir
+    const [nx, ny] = e.edge === 'east' ? [far ?? 0, a] : e.edge === 'west' ? [far ?? dest.width, a] : e.edge === 'south' ? [a, far ?? 0] : [a, far ?? dest.height];
     if (blocked(nx, ny, dest.walls)) continue;
     return [e.map, nx, ny];
   }
   return null;
 }
 
-/** Um passo num mundo de vários mapas: anda no mapa atual e, se for o caso, atravessa a borda. */
+/** Um passo num mundo de vários mapas: anda no mapa atual e, se for o caso, atravessa a borda ou entra pela porta. */
 export function moveStep(
   maps: Readonly<Record<string, MoveMap>>, mapId: string, x: number, y: number, dx: number, dy: number, dist: number,
 ): [string, number, number] {
   const m = maps[mapId];
   if (!m) return [mapId, x, y];
   const [nx, ny] = stepMove(x, y, dx, dy, dist, m.width, m.height, m.walls);
-  return crossExit(maps, mapId, nx, ny, dx, dy) ?? [mapId, nx, ny];
+  return crossExit(maps, mapId, nx, ny, dx, dy) ?? useDoor(maps, mapId, nx, ny, dx, dy) ?? [mapId, nx, ny];
 }

@@ -50,6 +50,8 @@ const ui = {
   rotate: $('rotate'), rotateDismiss: $('rotate-dismiss'), safeProbe: $('safe-probe'),
   hpFill: $('hp-fill'), hpText: $('hp-text'), chakraFill: $('chakra-fill'), chakraText: $('chakra-text'),
   targetBtn: $('target-btn'), meditateBtn: $('meditate-btn'), talkBtn: $('talk-btn'),
+  shopPanel: $('shop-panel'), shopClose: $('shop-close'), shopIcon: $('shop-icon'), shopName: $('shop-name'),
+  shopGreet: $('shop-greet'), shopItems: $('shop-items'),
   missionsToggle: $('missions-toggle'), missionsBadge: $('missions-badge'), missionsPanel: $('missions-panel'),
   missionsClose: $('missions-close'), missionCard: $('mission-card'), missionSensei: $('mission-sensei'),
   missionTitle: $('mission-title'), missionMeter: $('mission-meter'), missionFill: $('mission-fill'),
@@ -101,6 +103,8 @@ const state = {
   /** Enfeites visíveis (bancos, lanternas...) e os que passam POR CIMA dos jogadores (telhado do portão). */
   deco: [],
   overhead: [],
+  /** Loja aberta ({ kind, npcId }) ou null. */
+  shop: null,
   /** O próprio jogador está numa zona segura (praça): botões de combate apagados. */
   inSafeZone: false,
   /** Barras do próprio jogador (vêm do servidor). */
@@ -395,6 +399,9 @@ function handleMessage(msg) {
     case 'player_joined':
       upsertPlayer(msg.player, true);
       updateOnline();
+      break;
+    case 'shop_open':
+      openShop(msg.shop, msg.npcId);
       break;
     case 'map_changed': {
       // O SERVIDOR confirmou a troca de mapa (andou até o portão ou renasceu na Vila). O mapa
@@ -758,6 +765,7 @@ function enterMap(id, announce) {
   const me = state.players.get(state.meId);
   if (me) me.map = id;
   if (changed) {
+    closeShop();
     state.effects.length = 0;
     state.floaters.length = 0;
     if (state.focusId) setFocus(null);
@@ -767,6 +775,15 @@ function enterMap(id, announce) {
   updateOnline();
 }
 const mapFx = { at: -1e9, name: '' };
+
+/**
+ * Troca de mapa com FADE: escurece em 0,14 s (o boneco fica parado na borda/porta), troca o
+ * mapa desenhado já no escuro e clareia em 0,26 s. A predição e o servidor trocam na hora:
+ * só o desenho espera os 0,14 s. Total 0,4 s, sem tela de carregamento.
+ */
+const FADE_OUT_MS = 140;
+const FADE_IN_MS = 260;
+const mapFade = { to: null, outAt: 0, alpha: 0 };
 
 function setStatus(text, kind) {
   ui.status.textContent = text;
@@ -915,6 +932,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') toggleMeditation();
   if (e.key === 'e' || e.key === 'E') talkToNpc();
   if (e.key === 'j' || e.key === 'J') (ui.missionsPanel.hidden ? openMissions() : closeMissions());
+  if (e.key === 'Escape') closeShop();
 });
 window.addEventListener('keyup', (e) => {
   if (KEYMAP[e.code] && keys.delete(e.code)) keyDirection();
@@ -1087,8 +1105,66 @@ function updateNpcProximity(me) {
   if (near !== state.nearNpc) {
     state.nearNpc = near;
     ui.talkBtn.hidden = !near;
+    // Lojista: o botão vira 🛒 (abre a loja); o Mestre continua 💬 (conversa e missões).
+    ui.talkBtn.querySelector('.ico').textContent = near && near.shop ? '🛒' : '💬';
+    ui.talkBtn.setAttribute('aria-label', near && near.shop ? 'Abrir a loja' : 'Falar');
+  }
+  // Loja aberta e o jogador se afastou do balcão: fecha.
+  if (state.shop) {
+    const npc = state.npcs.find((n) => n.id === state.shop.npcId);
+    if (!me || !npc || Math.hypot(me.x - npc.x, me.y - npc.y) > npc.range + 0.6) closeShop();
   }
 }
+
+// ------------------------------------------------------------------ lojas (painel)
+
+/** Vitrine de cada loja (placeholder: compra chega numa próxima versão). */
+const SHOP_INFO = {
+  weapons: { icon: '⚔️', name: 'Armaria', greet: '“Lâminas afiadas para ninjas de verdade.”', items: [['🗡️', 'Kunai'], ['✴️', 'Shuriken'], ['⚔️', 'Katana de treino']] },
+  clothes: { icon: '👘', name: 'Alfaiataria', greet: '“Um ninja bem vestido assusta antes da luta.”', items: [['🥋', 'Colete ninja'], ['🎀', 'Bandana'], ['👡', 'Sandálias']] },
+  scrolls: { icon: '📜', name: 'Casa dos Pergaminhos', greet: '“Cada pergaminho guarda um jutsu.”', items: [['📜', 'Pergaminho de Fogo'], ['📜', 'Pergaminho de Água'], ['📘', 'Manual de Taijutsu']] },
+};
+/** Cores dos lojistas (paperdoll). */
+const SHOPKEEPER_LOOK = {
+  weapons: { skin: '#c68642', hair: '#2b2118', shirt: '#4a4a52', pants: '#2a2a33', cape: '#7a3b1e' },
+  clothes: { skin: '#f1c9a0', hair: '#7a2e5a', shirt: '#c94f7c', pants: '#3b2f6e', cape: '#e8c66a' },
+  scrolls: { skin: '#e0ac69', hair: '#d9d4c7', shirt: '#2f5d8a', pants: '#1f2a44', cape: '#3b6e4f' },
+};
+
+/** O servidor confirmou (shop_open): mostra o painel da loja. Itens montados com createElement + textContent (nada vira HTML). */
+function openShop(kind, npcId) {
+  const info = SHOP_INFO[kind];
+  if (!info) return;
+  state.shop = { kind, npcId };
+  closeMissions();
+  ui.shopIcon.textContent = info.icon;
+  ui.shopName.textContent = info.name;
+  ui.shopGreet.textContent = info.greet;
+  ui.shopItems.replaceChildren(...info.items.map(([icon, name]) => {
+    const li = document.createElement('li');
+    const i = document.createElement('span');
+    i.className = 'ico';
+    i.textContent = icon;
+    const n = document.createElement('span');
+    n.className = 'name';
+    n.textContent = name;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'icon-btn small';
+    b.disabled = true;
+    b.textContent = 'Em breve';
+    li.append(i, n, b);
+    return li;
+  }));
+  ui.shopPanel.hidden = false;
+}
+
+function closeShop() {
+  if (!state.shop && ui.shopPanel.hidden) return;
+  state.shop = null;
+  ui.shopPanel.hidden = true;
+}
+ui.shopClose.addEventListener('click', closeShop);
 
 /** Marcador sobre o NPC: "!" tem missão para dar, "?" dourado = pronta para entregar, "?" cinza = em andamento. */
 function npcMarker() {
@@ -1848,6 +1924,43 @@ function waterTile(seed) {
   });
 }
 
+/** Grama escura da Floresta (mais fechada que os gramados da Vila). */
+function darkGrassTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#2f6b28';
+    g.fillRect(0, 0, PIX, PIX);
+    for (let i = 0; i < 28; i++) {
+      g.fillStyle = r() < 0.5 ? '#285f22' : '#3a7d31';
+      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+    }
+    for (let i = 0; i < 4; i++) {
+      const x = Math.floor(r() * (PIX - 2)), y = Math.floor(r() * (PIX - 3)) + 2;
+      g.fillStyle = '#21521c';
+      g.fillRect(x, y, 1, 2);
+      g.fillRect(x + 2, y, 1, 2);
+      g.fillStyle = '#4a8f3d';
+      g.fillRect(x + 1, y - 1, 1, 3);
+    }
+  });
+}
+
+/** Assoalho de madeira: tábuas na horizontal, emendas desencontradas e veios. */
+function woodTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#9a6a3a';
+    g.fillRect(0, 0, PIX, PIX);
+    for (let y = 0; y < PIX; y += 4) {
+      g.fillStyle = '#7a4f28';
+      g.fillRect(0, y + 3, PIX, 1);                                   // junta das tábuas
+      g.fillRect((y / 4) % 2 ? 5 : 11, y, 1, 3);                       // emenda
+      g.fillStyle = r() < 0.5 ? '#a8763f' : '#8d6034';
+      g.fillRect(Math.floor(r() * 10), y + 1, 4 + Math.floor(r() * 4), 1);   // veio
+    }
+  });
+}
+
 /** Calçamento claro (ruas e praça da Vila): blocos cinza-claro com juntas. */
 function lightStoneTile(seed) {
   return makeTile((g) => {
@@ -1947,6 +2060,9 @@ const TILES = {
   path: [pathTile(7), pathTile(8)],
   water: [waterTile(11), waterTile(12)],
   canopy: [canopyTile(31), canopyTile(32), canopyTile(33)],
+  darkGrass: [darkGrassTile(71), darkGrassTile(72), darkGrassTile(73), darkGrassTile(74)],   // Floresta
+  wood: [woodTile(81), woodTile(82)],                                                       // assoalho das lojas
+  black: [makeTile((g) => { g.fillStyle = '#100c09'; g.fillRect(0, 0, PIX, PIX); })],         // fora da sala
 };
 
 /** Hash estável por casa: o mesmo chão aparece sempre no mesmo lugar. */
@@ -1965,8 +2081,10 @@ function tileAt(x, y) {
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
     case 'water': return TILES.river[h & 1];                       // rio e canais
     case 'bridge': return TILES.bridge[0];                         // pontes
+    case 'darkgrass': return TILES.darkGrass[h % 31 === 0 ? 3 : h % 3];   // Floresta: grama escura
+    case 'wood': return TILES.wood[h & 1];                         // assoalho das lojas
     case 'grass': return TILES.grass[h % 23 === 0 ? 3 : h % 3];    // Floresta
-    default: return TILES.canopy[h % 3];                           // fora do mundo: mata fechada
+    default: return state.maps[state.mapId]?.kind === 'interior' ? TILES.black[0] : TILES.canopy[h % 3];   // fora: escuro (sala) ou mata
   }
 }
 
@@ -2050,15 +2168,25 @@ function update(dt) {
     const s = speed * debugSpeedFactor;
     for (const msg of pred.advance(dt * 1000, dx, dy, s, predWorld, canMove)) send(msg);
     const [vx, vy] = pred.view(dt * 1000, dx, dy, s, predWorld, canMove);
-    if (pred.map !== state.mapId) enterMap(pred.map, true);   // atravessou a borda (previsto): desenha o mapa novo já
-    me.x = vx;
-    me.y = vy;
-    // Praça (zona segura): o servidor recusa combate; aqui só apaga os botões e avisa no topo.
-    const safe = inSafeZone(state.maps[state.mapId], vx, vy);
-    if (safe !== state.inSafeZone) {
-      state.inSafeZone = safe;
-      document.body.classList.toggle('safe-zone', safe);
-      updateOnline();
+    // Atravessou a borda ou entrou pela porta (previsto): fade out, troca o mapa no escuro, fade in.
+    if (pred.map !== state.mapId && !mapFade.to) {
+      mapFade.to = pred.map;
+      mapFade.outAt = now;
+    }
+    if (mapFade.to && now - mapFade.outAt >= FADE_OUT_MS) {
+      mapFade.to = null;
+      if (pred.map !== state.mapId) enterMap(pred.map, true);
+    }
+    if (!mapFade.to) {                    // escurecendo: o boneco espera na borda/porta do mapa antigo
+      me.x = vx;
+      me.y = vy;
+      // Praça e lojas (zona segura): o servidor recusa combate; aqui só apaga os botões e avisa no topo.
+      const safe = inSafeZone(state.maps[state.mapId], vx, vy);
+      if (safe !== state.inSafeZone) {
+        state.inSafeZone = safe;
+        document.body.classList.toggle('safe-zone', safe);
+        updateOnline();
+      }
     }
   }
   for (const p of state.players.values()) {
@@ -2087,7 +2215,12 @@ try {
       predicted: () => [pred.x, pred.y],
       official: () => { const me = state.players.get(state.meId); return me ? [me.tx, me.ty] : null; },
       drawn: (id) => { const p = state.players.get(id || state.meId); return p ? [p.x, p.y] : null; },
+      /** Onde o jogador está NA TELA (px), com a câmera de verdade (foco, zoom, suavização). */
+      screenOf: (id) => { const p = state.players.get(id); return p && lastView ? [lastView.toScreenX(p.x), lastView.toScreenY(p.y)] : null; },
       map: () => ({ predicted: pred.map, drawn: state.mapId, server: state.serverMap }),
+      fade: () => ({ alpha: mapFade.alpha, fading: !!mapFade.to }),
+      npcs: () => state.npcs.map((n) => n.id),
+      shop: () => (state.shop ? { ...state.shop } : null),
       /** O mapa inteiro numa imagem (16 px por casa), montado com os mesmos blocos do jogo. */
       mapPicture: () => {
         const c = document.createElement('canvas');
@@ -2247,7 +2380,7 @@ function draw(now) {
   // 7. Missão pronta e o Mestre fora da tela: seta na borda apontando para ele.
   const marker = npcMarker();
   if (me && marker && marker.strong && state.mission) {
-    for (const n of state.npcs) drawOffscreenArrow(toScreenX(n.x), toScreenY(n.y), marker, now);
+    for (const n of state.npcs) if (!n.shop) drawOffscreenArrow(toScreenX(n.x), toScreenY(n.y), marker, now);
   }
 
   drawJoystick();
@@ -2260,13 +2393,16 @@ function draw(now) {
 }
 
 /**
- * Troca de mapa: um "piscar" escuro rápido (0,35 s) e o nome do mapa no alto por ~2 s.
- * O boneco não sai do lugar na tela: a câmera segue ele e o vizinho já estava desenhado.
+ * Troca de mapa: fade out (0,14 s) + fade in (0,26 s) e o nome do mapa no alto por ~2 s.
  */
 function drawMapChange(now) {
   const t = now - mapFx.at;
-  if (t < 350) {
-    ctx.fillStyle = `rgba(8, 10, 8, ${0.35 * (1 - t / 350)})`;
+  // fade out (escurecendo antes da troca) e fade in (clareando depois)
+  const raw = mapFade.to ? (now - mapFade.outAt) / FADE_OUT_MS : t < FADE_IN_MS ? 1 - t / FADE_IN_MS : 0;
+  const a = Math.max(0, Math.min(1, raw));   // o relógio do quadro pode estar uns ms atrás do da troca
+  mapFade.alpha = a;
+  if (a > 0) {
+    ctx.fillStyle = `rgba(6, 5, 4, ${a.toFixed(3)})`;
     ctx.fillRect(0, 0, viewW, viewH);
   }
   if (mapFx.name && t < 2200) {
@@ -2483,6 +2619,7 @@ function drawMeditationAura(sx, sy, r, T, now) {
 
 /** O Mestre: manto índigo com borda dourada, o kanji 師 (sensei) e o marcador de missão. */
 function drawNpc(n, sx, sy, T, now, me) {
+  if (n.shop) return drawShopkeeper(n, sx, sy, T, now);
   const r = T * 0.44;
   ctx.save();
   // Perto o bastante para conversar: anel dourado no chão.
@@ -2537,6 +2674,34 @@ function drawNpc(n, sx, sy, T, now, me) {
   }
   ctx.restore();
   n.labelTop = nameY - fontSize - Math.max(16, Math.round(T * 0.62));   // o balão fica acima do marcador
+}
+
+/** Lojista (só existe dentro da loja): boneco de frente, nome com o ícone da loja e anel quando perto. */
+function drawShopkeeper(n, sx, sy, T, now) {
+  ctx.save();
+  if (state.nearNpc === n) {
+    const r = T * 0.44;
+    ctx.strokeStyle = 'rgba(255, 210, 63, 0.75)';
+    ctx.lineWidth = Math.max(2, T * 0.06);
+    ctx.setLineDash([T * 0.2, T * 0.12]);
+    ctx.lineDashOffset = -now / 50;
+    ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 1.7, r * 0.66, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  const top = drawCharacter(ctx, sx, sy, T, SHOPKEEPER_LOOK[n.shop] || DEFAULT_LOOK, 0, 0, false);
+  const fontSize = Math.max(11, Math.round(T * 0.3));
+  ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
+  ctx.fillStyle = '#ffd23f';
+  const label = `${SHOP_INFO[n.shop]?.icon || '🛒'} ${n.name}`;
+  ctx.strokeText(label, sx, top - 3);
+  ctx.fillText(label, sx, top - 3);
+  ctx.restore();
+  n.labelTop = top - 3 - fontSize;
 }
 
 /** Fala do NPC: balão com quebra de linha, acima do marcador. */

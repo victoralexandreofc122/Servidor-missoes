@@ -70,7 +70,8 @@ describe('NPC Mestre: no mapa e conversa', () => {
     const { connect, state, calls } = setup();
     state.current = mission(2);
     const a = connect('kaito');
-    assert.deepEqual(a.conn.of('welcome')[0].world.npcs, [{ id: 'sensei', name: 'Mestre', map: 'map_1', x: 42, y: 33, range: 2.5 }]);
+    assert.deepEqual(a.conn.of('welcome')[0].world.npcs[0], { id: 'sensei', name: 'Mestre', map: 'map_1', x: 42, y: 33, range: 2.5 });
+    assert.ok(a.conn.of('welcome')[0].world.npcs.slice(1).every((n: any) => n.shop && n.map.startsWith('interior_')), 'os outros são lojistas, dentro das lojas');
     await flush();
     assert.deepEqual(calls.current, [a.id]);
     assert.deepEqual(a.conn.last('mission'), { type: 'mission', mission: mission(2), reason: 'sync' });

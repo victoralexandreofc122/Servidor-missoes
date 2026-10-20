@@ -4,7 +4,7 @@
  */
 import type { Skill } from './protocol.js';
 import type { AttributeRules } from './stats.js';
-import { WORLD_MAPS, type MapId, type MapLayout } from './maps.js';
+import { ROOM, SHOPS, WORLD_MAPS, type MapId, type MapLayout, type ShopKind } from './maps.js';
 
 /** Números de cada habilidade. Só os campos que a habilidade usa vêm preenchidos. */
 export interface SkillConfig {
@@ -76,7 +76,7 @@ export interface RealtimeConfig {
   heartbeatMs: number;
   combat: CombatConfig;
   /** NPCs parados no mapa. `range` = distância máxima para conversar (casas). */
-  npcs: readonly { id: string; name: string; map: MapId; x: number; y: number; range: number }[];
+  npcs: readonly { id: string; name: string; map: MapId; x: number; y: number; range: number; shop?: ShopKind }[];
   /** Pedidos ao banco de missões (falar com NPC, abrir a Sala): no máximo 1 a cada X ms por jogador. */
   missionRequestEveryMs: number;
   /**
@@ -180,7 +180,12 @@ export const REALTIME: Readonly<RealtimeConfig> = {
    * Na diagonal e não 2 casas ao norte: com o celular deitado, o "!" sobre ele ficaria
    * embaixo da barra de cima. Conversar: até 2,5 casas de distância.
    */
-  npcs: [{ id: 'sensei', name: 'Mestre', map: 'map_1', x: 42, y: 33, range: 2.5 }],
+  npcs: [
+    { id: 'sensei', name: 'Mestre', map: 'map_1', x: 42, y: 33, range: 2.5 },
+    // Lojistas: cada um atrás do balcão da sua loja (só existem dentro do interior). Alcance 3,3
+    // casas: dá para falar com ele da frente do balcão, sem passar para trás.
+    ...SHOPS.map((sh) => ({ id: `shop_${sh.shop}`, name: sh.keeper, map: sh.map, x: ROOM.npc.x, y: ROOM.npc.y, range: 3.3, shop: sh.shop })),
+  ],
   missionRequestEveryMs: 400,
 
   inputBufferMs: 250,

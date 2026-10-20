@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
-import type { MapId, MapLayout } from './maps.js';
+import type { MapId, MapLayout, ShopKind } from './maps.js';
 
 /*
  * Protocolo do WebSocket: JSON simples, um objeto por mensagem, sempre com `type`.
@@ -31,6 +31,7 @@ import type { MapId, MapLayout } from './maps.js';
  *   map_changed       { map, x, y, a, players, monsters, reason }   o próprio jogador trocou de mapa
  *                                                          (borda ou renascer): só o que há no mapa novo
  *   player_joined / player_left                            alguém entrou/saiu DESTE mapa (ou do jogo)
+ *   shop_open         { shop, npcId }                      falou com o lojista (perto dele, dentro da loja)
  *
  * Tudo que é de posição, combate e chat vai só para quem está no MESMO mapa (economiza banda e
  * ninguém vê monstro do outro lado do mundo). `announce` vai para todos.
@@ -97,7 +98,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: monsterId.optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
   z.object({ type: z.literal('respawn') }),
-  z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z]{1,16}$/) }),
+  z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z][a-z_]{0,23}$/) }),
   z.object({ type: z.literal('missions') }),
   z.object({ type: z.literal('attack'), targetId: monsterId.optional() }),
   z.object({ type: z.literal('run'), active: z.boolean() }),
@@ -176,8 +177,10 @@ export interface MonsterView {
 export interface NpcView {
   id: string;
   name: string;
-  /** Mapa onde ele fica (o cliente só desenha os do mapa atual). */
+  /** Mapa onde ele fica (o cliente só desenha os do mapa atual: lojista só dentro da loja). */
   map: MapId;
+  /** Lojista: falar com ele abre a loja (shop_open). */
+  shop?: ShopKind;
   x: number;
   y: number;
   range: number;
@@ -242,6 +245,7 @@ export type MonsterStatus = 'stunned' | 'rooted';
 export type ServerMessage =
   | { type: 'welcome'; you: SelfView; players: PlayerView[]; monsters: MonsterView[]; world: WorldInfo; progress: ProgressView; kit: KitView }
   | { type: 'player_joined'; player: PlayerView }
+  | { type: 'shop_open'; shop: ShopKind; npcId: string }
   | { type: 'map_changed'; map: MapId; x: number; y: number; a: number; players: PlayerView[]; monsters: MonsterView[]; reason: 'walk' | 'respawn' }
   | { type: 'player_moved'; playerId: string; x: number; y: number; d: Dir; a: number }
   | { type: 'player_appearance'; playerId: string; appearance: Appearance }

@@ -46,19 +46,35 @@ export function crossExit(maps, mapId, x, y, dx, dy) {
     const dest = maps[e.map];
     if (!dest) continue;
     const a = q3(along + e.shift);
-    const [nx, ny] = e.edge === 'east' ? [0, a] : e.edge === 'west' ? [dest.width, a] : e.edge === 'south' ? [a, 0] : [a, dest.height];
+    const far = e.arrive;                 // chegada mais para dentro (ex.: y 75 na Vila), se o mapa pedir
+    const [nx, ny] = e.edge === 'east' ? [far ?? 0, a] : e.edge === 'west' ? [far ?? dest.width, a] : e.edge === 'south' ? [a, far ?? 0] : [a, far ?? dest.height];
     if (blocked(nx, ny, dest.walls)) continue;
     return [e.map, nx, ny];
   }
   return null;
 }
 
-/** Um passo num mundo de vários mapas: anda no mapa atual e, se for o caso, atravessa a borda. */
+/** Porta (loja): cópia de useDoor do servidor. Dentro do retângulo, andando para dentro: outro mapa. */
+export function useDoor(maps, mapId, x, y, dx, dy) {
+  const m = maps[mapId];
+  if (!m || !m.doors) return null;
+  for (const d of m.doors) {
+    if (x < d.x || x > d.x + d.w || y < d.y || y > d.y + d.h) continue;
+    const inward = d.dir === 'north' ? dy < 0 : d.dir === 'south' ? dy > 0 : d.dir === 'east' ? dx > 0 : dx < 0;
+    if (!inward) continue;
+    const dest = maps[d.map];
+    if (!dest || blocked(d.at.x, d.at.y, dest.walls)) continue;
+    return [d.map, d.at.x, d.at.y];
+  }
+  return null;
+}
+
+/** Um passo num mundo de vários mapas: anda no mapa atual e, se for o caso, atravessa a borda ou entra pela porta. */
 export function moveStep(maps, mapId, x, y, dx, dy, dist) {
   const m = maps[mapId];
   if (!m) return [mapId, x, y];
   const [nx, ny] = stepMove(x, y, dx, dy, dist, m.width, m.height, m.walls);
-  return crossExit(maps, mapId, nx, ny, dx, dy) ?? [mapId, nx, ny];
+  return crossExit(maps, mapId, nx, ny, dx, dy) ?? useDoor(maps, mapId, nx, ny, dx, dy) ?? [mapId, nx, ny];
 }
 
 /**

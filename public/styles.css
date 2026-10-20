@@ -767,3 +767,15 @@ body.safe-zone #attack-btn {
   filter: grayscale(0.85);
   opacity: 0.5;
 }
+
+/* Loja (painel placeholder) */
+.shop-panel .shop-greet { margin: 0 0 10px; color: #e9dcbc; font-style: italic; }
+.shop-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.shop-items li {
+  display: grid; grid-template-columns: 2.2em 1fr auto; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.06);
+}
+.shop-items .ico { font-size: 1.5em; text-align: center; }
+.shop-items .name { font-weight: 700; }
+.shop-items button { opacity: 0.6; cursor: not-allowed; white-space: nowrap; font-size: 0.8em; padding: 4px 10px; width: auto; min-width: 0; }
+.shop-soon { margin: 10px 0 0; font-size: 0.85em; color: #b9b2a4; }

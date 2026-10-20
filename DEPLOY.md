@@ -21,6 +21,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 14 | Atualização v7: movimento sem atraso (predição no cliente + correção pelo servidor), sem SQL | ~5 min |
 | 15 | Atualização v8: mapas Vila e Floresta com passagem pelas bordas, sem SQL | ~5 min |
 | 16 | Atualização v9: Vila 80x80 com muralha, portão sul e praça segura, sem SQL | ~5 min |
+| 17 | Atualização v10: lojas com interior, fade entre mapas e Floresta escura, sem SQL | ~5 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -581,3 +582,26 @@ então para essa conta ele responde "Seu rank já passou dos meus treinos".
 5. **Campo de treino:** à direita da praça fica a área de areia, com o boneco de madeira.
 6. **Portão:** continue descendo pelo portão (no centro, embaixo). O telhado do portão passa por cima
    do boneco e você entra na Floresta sem parar. Para voltar, suba pela trilha até a borda de cima.
+
+## Passo 17 — Atualização v10: lojas com interior
+
+**Banco:** nada a rodar (sem SQL nesta versão). **Render:** o push na `main` já faz o deploy.
+
+### Testar no celular
+
+1. **Floresta:** desça pelo portão da Vila.
+   - A tela escurece e clareia rapidinho (fade) e você chega na Floresta, de grama escura, no alto do mapa.
+   - Suba de volta pela borda de cima: você reaparece dentro da praça da Vila.
+2. **Entrar numa loja:** as 3 lojas ficam no meio da Vila, com canais na frente.
+   - Vá até a frente de uma loja, no capacho embaixo da porta, e empurre o joystick para cima.
+   - Fade, e você está dentro da sala, com assoalho, balcão e o lojista atrás dele.
+   - O topo mostra o nome da loja e "zona segura".
+3. **Decoração:**
+   - Armaria: espadas na parede, lanças e escudos;
+   - Alfaiataria: manequins e roupas dobradas;
+   - Casa dos Pergaminhos: estantes de pergaminhos e uma mesa.
+4. **Falar com o lojista:** suba até o balcão. O botão vira 🛒. Toque nele e o painel da loja abre,
+   com a vitrine dos itens ("Em breve"). Afastando-se do balcão, o painel fecha sozinho.
+5. **Sair:** desça até a porta, embaixo no meio, e continue descendo. Você volta para a Vila, na
+   frente da loja, andando para longe da porta.
+6. **Lojista só dentro da loja:** na Vila ele não aparece, e falar com ele de fora não funciona.

@@ -124,6 +124,7 @@ ausente, inválido ou vencido recebe HTTP 401 e não conecta. O token pode vir:
 | cliente → servidor | `{"type":"input","seq":41,"inputs":[[1,0],[0.7,-0.7]]}` (entradas numeradas, 1 por tick de 50 ms, eixos -1 a 1; 1 a 10 por mensagem) · `{"type":"move","dx":0.5,"dy":-0.5}` (direção segurada, antiga: só para teste manual) · `{"type":"cast","skill":"fire"}` · `{"type":"talk","npcId":"sensei"}` · `{"type":"missions"}` · `{"type":"chat","message":"Olá!"}` |
 | ao conectar | `welcome {you, players (os outros), world {width,height,speed,tickMs}}` |
 | troca de mapa | `map_changed {map,x,y,a,players,monsters,reason}` só para quem trocou (`walk` ou `respawn`) |
+| falou com o lojista | `shop_open {shop,npcId}` só para quem falou (perto do balcão, dentro da loja) |
 | a cada tick (50 ms) | `player_moved {playerId,x,y,d,a}` para quem está no MESMO mapa, inclusive quem andou (`d` = direção do boneco; `a` = última entrada aplicada, para a reconciliação) |
 | entradas e saídas | `player_joined` · `player_left` |
 | para todos | `chat {playerId,username,message}` |
@@ -172,6 +173,41 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v10: lojas com interior, fade entre mapas e Floresta escura
+
+- **Coordenadas da passagem:**
+  - portão da Vila (y 79/80) → Floresta em (x, 0); no centro do portão, (40, 0);
+  - borda de cima da Floresta → Vila em (x, 75), dentro da praça;
+  - `Exit.arrive` em `maps.ts` diz a que profundidade se chega.
+- **Fade:** ao trocar de mapa, a tela escurece em 0,14 s, troca o mapa no escuro e clareia em 0,26 s.
+  A predição e o servidor trocam na hora; só o desenho espera os 0,14 s (medido: troca ~0,15 s
+  depois de atravessar, antes de o servidor confirmar).
+- **Lojas com interior** (`interior_weapons`, `interior_clothes`, `interior_scrolls`, 15x15):
+  - **Portas:** `Door` em `maps.ts`, com a regra `useDoor` em `movement.ts`/`movement.js`, a mesma no
+    cliente e no servidor.
+    - Na Vila, a porta é a faixa de 3 casas logo abaixo da fachada de cada loja (o capacho):
+      empurrando para cima, entra.
+    - Na sala, o vão da porta tem 3 casas e a saída é o capacho inteiro (x 5,5 a 9,5): empurrando
+      para baixo ali, até encostado na parede ao lado do vão, volta para a frente da loja.
+    - As chegadas ficam fora da porta do outro lado, então ninguém entra e sai sozinho.
+  - **Sala:**
+    - assoalho, paredes e balcão no meio, com divisórias: ninguém passa para trás;
+    - o **lojista** fica atrás do balcão, e dá para falar com ele da frente do balcão (alcance 3,3 casas);
+    - cada loja tem a sua decoração: espadas, lanças e escudos na Armaria; manequins e roupas
+      dobradas na Alfaiataria; estantes e mesa de pergaminhos na Casa dos Pergaminhos.
+  - **Lojistas** (NPCs `shop_weapons`, `shop_clothes`, `shop_scrolls`) só existem no mapa da loja:
+    - o cliente só desenha NPCs do mapa atual;
+    - o servidor recusa `talk` de outro mapa (`NPC_TOO_FAR`).
+  - **Abrir a loja:** perto do lojista, o botão vira 🛒. O cliente pede `talk` e o servidor confere
+    mapa e distância e responde `{"type":"shop_open","shop":"weapons","npcId":"shop_weapons"}`. O painel
+    é um placeholder (vitrine com 3 itens "Em breve") e fecha ao se afastar do balcão, ao trocar de
+    mapa, no ✕ ou com Esc.
+  - **Ninguém fica preso:**
+    - o teste confere que, de qualquer ponto alcançável da sala, se chega à porta de saída;
+    - no E2E, quatro cantos diferentes saem;
+    - renascer leva sempre à Vila.
+  - **Dentro da loja não há combate:** a sala inteira é zona segura.
+
 ### v9: a Vila 80x80 (planta baixa da arte conceitual)
 
 O `map_1` foi refeito a partir da arte de referência (`village()` em `src/realtime/maps.ts`):
@@ -219,11 +255,11 @@ O mundo deixou de ser um mapa só de 100x100. Agora são salas, como no Nin Onli
 | Mapa | Tamanho | Chão e paredes | Monstros | Saída |
 |---|---|---|---|---|
 | `map_1` Vila | 80 x 80 (v9) | muralha de pedra; sede, hospital, academia, lojas, rio, praça segura e campo de treino | nenhum | portão sul (x 35 a 45) |
-| `map_2` Floresta | 100 x 100 | grama; mata fechada nas bordas e árvores espalhadas (obstáculos) | 10 slimes | entrada norte (x 45 a 55) |
+| `map_2` Floresta | 100 x 100 | grama escura (v10); mata fechada nas bordas e árvores espalhadas (obstáculos) | 10 slimes | entrada norte (x 35 a 45) |
 
-- **Transição** (desde a v9): quem chega na borda sul da Vila (y = 80), dentro do portão e empurrando
-  para o sul, vai para a Floresta em y = 0, x + 10. O caminho de volta é o mesmo: borda norte da
-  Floresta → y = 80 da Vila. (Na v8 o portão ficava a leste.)
+- **Transição** (desde a v10): quem chega na borda sul da Vila (y = 80), dentro do portão (x 35 a 45)
+  e empurrando para o sul, vai para a Floresta em (x, 0). Pela borda norte da Floresta volta para a
+  Vila em (x, 75), dentro da praça. (Na v8 o portão ficava a leste; na v9 a Floresta usava x + 10.)
   - Chegando na Floresta ainda indo para o sul, não volta (sem pingue-pongue).
   - Morreu na Floresta: renasce na Vila.
 - **O servidor valida a passagem:**

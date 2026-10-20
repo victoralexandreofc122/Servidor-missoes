@@ -91,21 +91,21 @@ describe('mapas: layout', () => {
     assert.ok(!inSafeZone(VILA, S.x, S.y) && !inSafeZone(VILA, 40, 53) && !inSafeZone(FLORESTA, 50, 50));
   });
 
-  it('Floresta: mata em todas as bordas, entrada norte (x 45..55) com clareira e trilha; monstros longe dela', () => {
-    for (let x = 1; x < 99; x += 0.5) assert.equal(blocked(x, 0.5, FLORESTA.walls), !(x > 45.3 && x < 54.7), `borda norte em x=${x}`);
+  it('Floresta: mata em todas as bordas, entrada norte (x 35..45) com clareira e trilha; monstros longe dela', () => {
+    for (let x = 1; x < 99; x += 0.5) assert.equal(blocked(x, 0.5, FLORESTA.walls), !(x > 35.3 && x < 44.7), `borda norte em x=${x}`);
     for (let y = 2.5; y < 99; y += 0.5) assert.ok(blocked(0.5, y, FLORESTA.walls) && blocked(99.5, y, FLORESTA.walls));
-    for (let x = 38; x <= 62; x += 0.5) for (let y = 2.5; y <= 13.5; y += 0.5) assert.ok(!blocked(x, y, FLORESTA.walls), `árvore na clareira em ${x},${y}`);
-    for (let y = 0; y <= 35; y += 0.5) assert.ok(!blocked(50.5, y, FLORESTA.walls), `trilha bloqueada em y=${y}`);
+    for (let x = 28; x <= 52; x += 0.5) for (let y = 2.5; y <= 13.5; y += 0.5) assert.ok(!blocked(x, y, FLORESTA.walls), `árvore na clareira em ${x},${y}`);
+    for (let y = 0; y <= 35; y += 0.5) assert.ok(!blocked(40.5, y, FLORESTA.walls), `trilha bloqueada em y=${y}`);
     assert.ok(FLORESTA.hunt!.y >= 18, 'monstros não nascem na clareira de quem chega');
   });
 });
 
 describe('mapas: atravessar a borda (mesma regra no cliente e no servidor)', () => {
   const maps = WORLD_MAPS;
-  it('portão sul da Vila, empurrando para o sul: Floresta, borda norte (y=0), x + 10', () => {
-    assert.deepEqual(crossExit(maps, 'map_1', 40, 80, 0, 1), ['map_2', 50, 0]);
-    assert.deepEqual(crossExit(maps, 'map_1', 36, 80, 0.7, 0.7), ['map_2', 46, 0]);
-    assert.deepEqual(crossExit(maps, 'map_2', 50, 0, 0, -1), ['map_1', 40, 80], 'e volta: borda norte da Floresta -> portão da Vila');
+  it('portão da Vila (y 80), empurrando para o sul: Floresta em (x, 0); borda norte da Floresta: Vila em (x, 75)', () => {
+    assert.deepEqual(crossExit(maps, 'map_1', 40, 80, 0, 1), ['map_2', 40, 0]);
+    assert.deepEqual(crossExit(maps, 'map_1', 36, 80, 0.7, 0.7), ['map_2', 36, 0]);
+    assert.deepEqual(crossExit(maps, 'map_2', 40, 0, 0, -1), ['map_1', 40, 75], 'e volta: dentro da praça, longe do portão');
   });
 
   it('não atravessa: fora do portão, sem estar na borda ou sem empurrar para fora', () => {
@@ -113,11 +113,11 @@ describe('mapas: atravessar a borda (mesma regra no cliente e no servidor)', () 
     assert.equal(crossExit(maps, 'map_1', 40, 79.9, 0, 1), null, 'ainda não chegou na borda');
     assert.equal(crossExit(maps, 'map_1', 40, 80, 1, 0), null, 'na borda, mas andando para o lado');
     assert.equal(crossExit(maps, 'map_1', 80, 40, 1, 0), null, 'leste da Vila não tem saída');
-    assert.equal(crossExit(maps, 'map_2', 50, 0, 0, 1), null, 'recém-chegado, ainda indo para o sul: NÃO volta (sem pingue-pongue)');
+    assert.equal(crossExit(maps, 'map_2', 40, 0, 0, 1), null, 'recém-chegado, ainda indo para o sul: NÃO volta (sem pingue-pongue)');
   });
 
   it('chegada bloqueada: não atravessa', () => {
-    const fechada = { ...maps, map_2: { ...maps.map_2, walls: [...maps.map_2.walls, { x: 49, y: 0, w: 2, h: 2 }] } };
+    const fechada = { ...maps, map_2: { ...maps.map_2, walls: [...maps.map_2.walls, { x: 39, y: 0, w: 2, h: 2 }] } };
     assert.equal(crossExit(fechada, 'map_1', 40, 80, 0, 1), null);
   });
 
@@ -134,7 +134,7 @@ describe('mapas: atravessar a borda (mesma regra no cliente e no servidor)', () 
     for (let i = 0; i < 20_000; i++) {
       // puxado para o portão quase sempre (atravessa bastante), com trechos aleatórios
       const toGate = i % 500 < 420;
-      const target = state[0] === 'map_1' ? [40, 80] : [50, 0];
+      const target = state[0] === 'map_1' ? [40, 80] : [40, 0];
       const dx = toGate ? Math.max(-1, Math.min(1, Math.round((target[0]! - state[1]) * 4) / 20)) : Math.round((rnd() * 2 - 1) * 20) / 20;
       const dy = toGate ? (state[0] === 'map_1' ? 1 : -1) : Math.round((rnd() * 2 - 1) * 20) / 20;
       const s = moveStep(maps, state[0], state[1], state[2], dx, dy, 0.25 + (i % 3) * 0.15);
@@ -149,7 +149,7 @@ describe('mapas: atravessar a borda (mesma regra no cliente e no servidor)', () 
 });
 
 const quiet: RealtimeConfig = withMonsters(0);
-const TRILHA = { x: 50.5, y: 20 };   // ponto livre da Floresta (trilha que desce da entrada)
+const TRILHA = { x: 40.5, y: 20 };   // ponto livre da Floresta (trilha que desce da entrada)
 
 describe('mapas: servidor (salas)', () => {
   it('andando do renascimento até o portão: vai para a Floresta; o dono recebe map_changed só com o que há lá', () => {
@@ -166,7 +166,7 @@ describe('mapas: servidor (salas)', () => {
     const changed = a.conn.last('map_changed');
     assert.equal(changed.map, 'map_2');
     assert.equal(changed.reason, 'walk');
-    assert.deepEqual([changed.x, changed.y], [50, 0], 'borda norte da Floresta');
+    assert.deepEqual([changed.x, changed.y], [40, 0], 'borda norte da Floresta (x 40, y 0)');
     assert.deepEqual(changed.players.map((p: any) => p.id), [c.id], 'só quem está na Floresta');
     assert.equal(changed.monsters.length, 3, 'os monstros da Floresta');
     assert.deepEqual(b.conn.last('player_left'), { type: 'player_left', playerId: a.id }, 'quem ficou na Vila vê ele sair');
@@ -175,7 +175,7 @@ describe('mapas: servidor (salas)', () => {
     assert.ok(posAfter.y <= 80, 'a Vila não recebe as posições dele na Floresta');
     assert.ok(c.conn.of('player_moved').some((m: any) => m.playerId === a.id && m.y > 1), 'a Floresta recebe');
     const v = sess(world, a.id);
-    assert.ok(v.y > 0 && v.y < 10 && v.x === 50, `continuou andando na Floresta (${v.x}, ${v.y})`);
+    assert.ok(v.y > 0 && v.y < 10 && v.x === 40, `continuou andando na Floresta (${v.x}, ${v.y})`);
   });
 
   it('chegando na Floresta ainda indo para o sul: não volta (sem pingue-pongue); para o norte na borda: volta à Vila', () => {
@@ -288,7 +288,7 @@ describe('mapas: servidor (salas)', () => {
     const w = b.conn.last('welcome');
     assert.equal(w.world.map, 'map_1');
     assert.deepEqual([w.world.width, w.world.height], [80, 80]);
-    assert.deepEqual(Object.keys(w.world.maps), ['map_1', 'map_2']);
+    assert.deepEqual(Object.keys(w.world.maps), ['map_1', 'map_2', 'interior_weapons', 'interior_clothes', 'interior_scrolls']);
     assert.equal(w.world.maps.map_2.walls.length, FLORESTA.walls.length);
     assert.deepEqual(w.world.maps.map_1.safeZones, VILA.safeZones);
     assert.deepEqual(w.players, [], 'kaito está na Floresta: não aparece na Vila');
@@ -302,12 +302,12 @@ describe('mapas: desenho no cliente (world.js)', async () => {
 
   it('costura: além do portão sul da Vila aparece a Floresta (e vice-versa), no lugar certo', () => {
     const fromVila = W.placements(maps, 'map_1');
-    assert.deepEqual(fromVila.map((p: any) => [p.map.id, p.ox, p.oy]), [['map_1', 0, 0], ['map_2', -10, 80]]);
+    assert.deepEqual(fromVila.map((p: any) => [p.map.id, p.ox, p.oy]), [['map_1', 0, 0], ['map_2', 0, 80]]);
     const fromFloresta = W.placements(maps, 'map_2');
-    assert.deepEqual(fromFloresta.map((p: any) => [p.map.id, p.ox, p.oy]), [['map_2', 0, 0], ['map_1', 10, -80]]);
+    assert.deepEqual(fromFloresta.map((p: any) => [p.map.id, p.ox, p.oy]), [['map_2', 0, 0], ['map_1', 0, -80]]);
     // a mesma casa do mundo vista dos dois lados: a praça da Vila
     assert.equal(W.groundAt(fromVila, 40, 70), 'stone');
-    assert.equal(W.groundAt(fromFloresta, 40 + 10, 70 - 80), 'stone');
+    assert.equal(W.groundAt(fromFloresta, 40, 70 - 80), 'stone');
     // e a trilha da Floresta logo depois do portão, vista da Vila
     assert.equal(W.groundAt(fromVila, 40, 83), 'path');
   });
@@ -321,7 +321,8 @@ describe('mapas: desenho no cliente (world.js)', async () => {
     assert.equal(W.groundAt(v, 7, 43), 'bridge', 'ponte');
     assert.equal(W.groundAt(v, 65, 60), 'sand', 'campo de treino');
     assert.equal(W.groundAt(v, -3, 10), 'void');
-    assert.equal(W.groundAt(W.placements(maps, 'map_2'), 60, 30), 'grass');
+    assert.equal(W.groundAt(W.placements(maps, 'map_2'), 60, 30), 'darkgrass', 'Floresta: grama escura');
+    assert.equal(W.groundAt(W.placements(maps, 'interior_weapons'), 7, 9), 'wood', 'loja: assoalho');
   });
 
   it('paredes e enfeites visíveis (com o vizinho deslocado); zona segura; nome do mapa', () => {
