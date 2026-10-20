@@ -13,7 +13,7 @@ import {
   type Attribute, type Attributes, type DerivedStats,
 } from './stats.js';
 import { blocked, moveStep } from './movement.js';
-import type { MapId, MapLayout } from './maps.js';
+import { inSafeZone, type MapId, type MapLayout } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
 
 /*
@@ -238,6 +238,11 @@ export class GameWorld {
     for (const layout of this.huntingMaps()) {
       while (this.monstersIn(layout.id).length < this.config.combat.monsters.count) this.spawnMonster(undefined, this.lastTick, layout.id);
     }
+  }
+
+  /** Está numa zona segura (sem combate)? Posição e mapa do servidor. */
+  private inSafeZone(s: Session): boolean {
+    return inSafeZone(this.layout(s.map), s.x, s.y);
   }
 
   /** Mapas com zona de caça (onde nascem monstros). */
@@ -648,6 +653,8 @@ export class GameWorld {
     // Qualquer TENTATIVA de usar habilidade encerra a meditação (mesmo que a habilidade falhe).
     this.stopMeditation(session, 'cast');
     if (session.dead) return fail('DEAD');
+    // Zona segura (praça da Vila): nenhuma habilidade, nem cura. Vale a posição do SERVIDOR.
+    if (this.inSafeZone(session)) return fail('SAFE_ZONE');
     // Só as 4 habilidades do kit ATIVO (o kit ativo é o que o servidor confirmou).
     if (!session.kits[session.activeKit].includes(skill)) return fail('NOT_EQUIPPED');
     if ((session.cooldowns[skill] ?? 0) > t) return fail('COOLDOWN');
@@ -749,9 +756,10 @@ export class GameWorld {
    */
   private basicAttack(session: Session, t: number, targetId?: string): void {
     const cfg = this.config.combat.basicAttack;
-    const fail = (reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD') => this.sendTo(session, { type: 'attack_failed', reason });
+    const fail = (reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE') => this.sendTo(session, { type: 'attack_failed', reason });
     this.stopMeditation(session, 'cast');
     if (session.dead) return fail('DEAD');
+    if (this.inSafeZone(session)) return fail('SAFE_ZONE');
     if ((session.cooldowns.attack ?? 0) > t) return fail('COOLDOWN');
     const alive = (m: Monster) => m.hp > 0 && m.map === session.map;
     let target: Monster | undefined;
@@ -1243,7 +1251,7 @@ export class GameWorld {
   private monsterAttack(m: Monster, t: number): void {
     const cfg = this.config.combat.monsters;
     if (t < m.nextAttackAt || t < m.stunnedUntil) return;
-    const target = nearest(m, this.mapPlayers.get(m.map) ?? [], cfg.attackRange, (s) => !s.dead && !s.closed);
+    const target = nearest(m, this.mapPlayers.get(m.map) ?? [], cfg.attackRange, (s) => !s.dead && !s.closed && !this.inSafeZone(s));
     if (!target) return;
     m.nextAttackAt = t + cfg.attackEveryMs;
     this.damagePlayer(target, cfg.attackDamage, t);

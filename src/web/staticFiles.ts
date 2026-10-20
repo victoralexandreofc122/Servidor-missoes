@@ -30,6 +30,7 @@ const FILES = [
   { route: '/game.js', file: 'game.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/targeting.js', file: 'targeting.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/world.js', file: 'world.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/mapArt.js', file: 'mapArt.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/character.js', file: 'character.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/movement.js', file: 'movement.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/prediction.js', file: 'prediction.js', contentType: 'text/javascript; charset=utf-8' },

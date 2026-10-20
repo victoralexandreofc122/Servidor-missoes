@@ -151,7 +151,7 @@ Mensagens de combate (o servidor decide tudo; o cliente só pede `cast` e `respa
   entrada; a Vila é área segura. Andam 1 casa por ~1 s e batem 10 em quem estiver a até 1,2 casa, a cada 2 s.
   Num mapa sem ninguém, os monstros esperam (nada a calcular nem a enviar).
 - **Derrota:** com vida 0, o jogador não anda nem usa habilidade. Depois de 5 s pode pedir `respawn` e
-  volta à praça da Vila com vida e chakra cheios (de qualquer mapa). Reconectar não cura.
+  volta à avenida da Vila, em frente à sede, com vida e chakra cheios (de qualquer mapa). Reconectar não cura.
 - **Jutsus direcionados:** com alvo focado, Fogo, Água, Ilusão e Sombra mandam `targetId`. O servidor
   vira o jogador para o alvo (a Água sai na direção dele) e confere o alcance (Fogo 3, Água 4, Ilusão e
   Sombra 5): longe demais = `OUT_OF_RANGE`, sem gastar chakra.
@@ -172,6 +172,45 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v9: a Vila 80x80 (planta baixa da arte conceitual)
+
+O `map_1` foi refeito a partir da arte de referência (`village()` em `src/realtime/maps.ts`):
+
+- **Muralha:** perímetro sólido de 2 casas de espessura. A única abertura é o **portão principal** no
+  sul, centralizado (x 35 a 45, y 78 a 80), sem colisão nenhuma: os pilares vermelhos ficam fora do vão.
+  O portão leva à Floresta, que agora tem a entrada no **norte** (x 45 a 55, a mesma faixa + 10).
+- **Prédios (colisão no servidor):**
+  - sede da vila no topo, no eixo da avenida;
+  - hospital à esquerda e academia à direita;
+  - três lojas no meio (armas, roupas, pergaminhos), com canais na frente;
+  - casas e cabanas nos cantos;
+  - um paredão de rocha no topo (montanha).
+- **Ruas e becos:** de 2 a 4 casas de largura entre as colisões. O teste mede: do renascimento, um
+  corpo de 2 casas chega ao portão, à praça, à frente de cada prédio, ao campo de treino, ao beco
+  atrás da sede e ao outro lado do rio. Os becos de 1 casa (atrás das cabanas, ao lado da muralha)
+  servem de esconderijo.
+- **Rio** à esquerda com duas pontes de madeira; **campo de treino** de areia no canto inferior
+  direito, com um boneco de madeira (colisão).
+- **Praça social (zona segura)** logo acima do portão (x 28 a 52, y 55 a 78):
+  - `safeZones` no layout; nenhuma habilidade nem ataque (nem cura) sai ali;
+  - o servidor responde `cast_failed`/`attack_failed` com `SAFE_ZONE`, sem cobrar chakra;
+  - monstro não bate em quem está na zona;
+  - o cliente apaga os botões e o topo mostra "zona segura";
+  - bancos, vasos e a rosa dos ventos são só desenho.
+- **Desenho** (`public/mapArt.js` + `public/game.js`):
+  - pedra cinza-clara nas ruas e na praça;
+  - telhados vermelho-escuros e fachadas bege (madeira nas cabanas); a sede em vermelho vivo, com 2 andares;
+  - montanha cinza-escura com manchas e rachaduras;
+  - rio azul com pontes marrons e areia no campo de treino;
+  - o telhado do portão é desenhado por cima de quem passa.
+- **Desempenho:**
+  - tudo é pré-desenhado em blocos de 16x16 casas (chunks, cerca de 3 ms cada); por quadro só se copiam os blocos visíveis;
+  - no máximo 2 blocos novos por quadro: entrar no mapa não trava;
+  - com folga, os blocos em volta da tela são montados antes de o jogador chegar lá;
+  - no teste andando pela Vila, quadro p95 de ~21 ms e o pior de ~25 ms no Chromium sem GPU do servidor de testes.
+- O renascimento fica na avenida, em frente à sede (40, 34), com o Mestre ao lado. Fica fora da praça
+  porque lá não se luta.
+
 ### v8: mapas (Vila e Floresta) e transição pelas bordas
 
 O mundo deixou de ser um mapa só de 100x100. Agora são salas, como no Nin Online
@@ -179,13 +218,14 @@ O mundo deixou de ser um mapa só de 100x100. Agora são salas, como no Nin Onli
 
 | Mapa | Tamanho | Chão e paredes | Monstros | Saída |
 |---|---|---|---|---|
-| `map_1` Vila | 50 x 50 | pedra cinza; casas marrons em todas as bordas (vila fechada) e em volta da praça | nenhum (área segura) | portão leste (y 22 a 28) |
-| `map_2` Floresta | 100 x 100 | grama; mata fechada nas bordas e árvores espalhadas (obstáculos) | 10 slimes | trilha oeste (y 47 a 53) |
+| `map_1` Vila | 80 x 80 (v9) | muralha de pedra; sede, hospital, academia, lojas, rio, praça segura e campo de treino | nenhum | portão sul (x 35 a 45) |
+| `map_2` Floresta | 100 x 100 | grama; mata fechada nas bordas e árvores espalhadas (obstáculos) | 10 slimes | entrada norte (x 45 a 55) |
 
-- **Transição:** quem chega na borda leste da Vila (x = 50), dentro do portão e empurrando para leste,
-  vai para a Floresta em x = 0, y + 25. O caminho de volta é o mesmo: borda oeste da Floresta → x = 50 da Vila.
-  - Chegando na Floresta ainda indo para leste, não volta (sem pingue-pongue).
-  - Morreu na Floresta: renasce na praça da Vila.
+- **Transição** (desde a v9): quem chega na borda sul da Vila (y = 80), dentro do portão e empurrando
+  para o sul, vai para a Floresta em y = 0, x + 10. O caminho de volta é o mesmo: borda norte da
+  Floresta → y = 80 da Vila. (Na v8 o portão ficava a leste.)
+  - Chegando na Floresta ainda indo para o sul, não volta (sem pingue-pongue).
+  - Morreu na Floresta: renasce na Vila.
 - **O servidor valida a passagem:**
   - a regra é `crossExit`/`moveStep` em `movement.ts`, com a mesma cópia no cliente;
   - só passa quem está de fato na borda (posição do servidor, depois da colisão) e empurrando para fora;
@@ -207,7 +247,7 @@ O mundo deixou de ser um mapa só de 100x100. Agora são salas, como no Nin Onli
   - a tela troca de mapa (somem os jogadores, monstros e efeitos do mapa antigo), escurece de leve por
     0,35 s e mostra o nome do mapa;
   - quando o servidor confirma, chegam os que estão lá.
-- **Banco:** nada muda (a posição e o mapa não são gravados; conectar sempre começa na praça da Vila).
+- **Banco:** nada muda (a posição e o mapa não são gravados; conectar sempre começa na Vila).
 
 ### v7: movimento com predição no cliente e reconciliação
 

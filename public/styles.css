@@ -760,3 +760,10 @@ body.editing .vitals { pointer-events: auto; outline: 2px dashed #ffd23f; outlin
   .creator-colors .presets { grid-column: 1 / -1; }
   #creator-canvas { width: 120px; height: 142px; }
 }
+
+/* Praça da Vila (zona segura): o servidor recusa combate; os botões ficam apagados. */
+body.safe-zone .cbtn.skill,
+body.safe-zone #attack-btn {
+  filter: grayscale(0.85);
+  opacity: 0.5;
+}

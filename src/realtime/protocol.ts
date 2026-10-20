@@ -40,7 +40,7 @@ import type { MapId, MapLayout } from './maps.js';
  *   stats             { hp, maxHp, chakra, maxChakra, shield }   só para o próprio jogador
  *   player_hp         { playerId, hp, maxHp }              vida dos outros (barrinha sobre o boneco)
  *   cast              { playerId, skill, x, y, fx, fy }    habilidade aceita (todos veem a animação)
- *   cast_failed       { skill, reason }                    só para quem tentou
+ *   cast_failed       { skill, reason }                    só para quem tentou (SAFE_ZONE = na praça segura)
  *   meditation        { playerId, active, reason? }        entrou/saiu da meditação (todos veem a aura)
  *   hit               { target, id, amount, kind, hp, maxHp, shielded? }   número flutuante
  *   monsters_moved    { m: [[id, x, y], ...] }
@@ -234,7 +234,7 @@ export interface WorldInfo {
   promotion: { fromRank: string; toRank: string; xp: number };
 }
 
-export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED';
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE';
 /** Por que a meditação acabou. */
 export type MeditationEnd = 'manual' | 'moved' | 'cast' | 'damaged' | 'died';
 export type MonsterStatus = 'stunned' | 'rooted';
@@ -267,7 +267,7 @@ export type ServerMessage =
   | { type: 'progress' } & ProgressView
   | { type: 'kit' } & KitView
   | { type: 'attack'; playerId: string; x: number; y: number; fx: number; fy: number }
-  | { type: 'attack_failed'; reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' }
+  | { type: 'attack_failed'; reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE' }
   | { type: 'player_rank'; playerId: string; rank: RankView; level: number }
   | { type: 'evaluation_request'; missionId: string; trainee: { id: string; username: string }; mission: MissionView }
   | { type: 'sensei_options'; difficulties: SenseiDifficulty[]; quantities: number[] }

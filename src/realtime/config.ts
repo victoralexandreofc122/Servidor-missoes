@@ -99,13 +99,13 @@ export const REALTIME: Readonly<RealtimeConfig> = {
   subprotocol: 'nin.v1',
 
   /**
-   * Dois mapas: Vila (map_1, 50x50, segura) e Floresta (map_2, 100x100, caça). Posição em
+   * Dois mapas: Vila (map_1, 80x80, sem monstros) e Floresta (map_2, 100x100, caça). Posição em
    * casas, contínua (3 casas decimais), de 0 a width / height do mapa onde o jogador está.
    */
   maps: WORLD_MAPS,
-  /** Praça da Vila: onde o jogador aparece ao conectar e renasce (a posição ainda não é salva). */
+  /** Avenida da Vila, em frente à sede: onde o jogador aparece ao conectar e renasce (a posição ainda não é salva). */
   startMap: 'map_1',
-  spawn: { x: 25, y: 25 },
+  spawn: { x: 40, y: 34 },
 
   /**
    * Movimento autoritativo: o cliente manda só a DIREÇÃO (joystick, de -1 a 1) e o servidor
@@ -175,12 +175,12 @@ export const REALTIME: Readonly<RealtimeConfig> = {
   },
 
   /**
-   * O Mestre (sensei NPC) fica na praça da Vila, ao lado do renascimento (2,2 casas, na
-   * diagonal). A Vila é área segura (sem monstros). Quem renasce já pode falar com ele.
+   * O Mestre (sensei NPC) fica na avenida da Vila, em frente à sede, ao lado do renascimento
+   * (2,2 casas, na diagonal). A Vila não tem monstros. Quem renasce já pode falar com ele.
    * Na diagonal e não 2 casas ao norte: com o celular deitado, o "!" sobre ele ficaria
    * embaixo da barra de cima. Conversar: até 2,5 casas de distância.
    */
-  npcs: [{ id: 'sensei', name: 'Mestre', map: 'map_1', x: 27, y: 24, range: 2.5 }],
+  npcs: [{ id: 'sensei', name: 'Mestre', map: 'map_1', x: 42, y: 33, range: 2.5 }],
   missionRequestEveryMs: 400,
 
   inputBufferMs: 250,

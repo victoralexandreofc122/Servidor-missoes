@@ -10,7 +10,8 @@
 // com a posição oficial que chega a cada tick.
 
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
-import { groundAt, mapName, placements, visibleWalls } from './world.js';
+import { groundAt, inSafeZone, mapName, placements, visibleDeco, visibleWalls } from './world.js';
+import { drawDeco, drawGateRoof, drawWall } from './mapArt.js';
 import { DEFAULT_LOOK, dirFrom, drawCharacter, PARTS, PRESETS, safeLook } from './character.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 
@@ -97,6 +98,11 @@ const state = {
   /** Mapa atual + vizinhos costurados nas saídas (world.js) e as paredes visíveis (casas e árvores). */
   places: [],
   walls: [],
+  /** Enfeites visíveis (bancos, lanternas...) e os que passam POR CIMA dos jogadores (telhado do portão). */
+  deco: [],
+  overhead: [],
+  /** O próprio jogador está numa zona segura (praça): botões de combate apagados. */
+  inSafeZone: false,
   /** Barras do próprio jogador (vêm do servidor). */
   me: {
     hp: 100, maxHp: 100, chakra: 100, maxChakra: 100, shield: false, xp: 0, rank: { code: 'ACADEMY', name: 'Academia' },
@@ -335,7 +341,7 @@ function upsertMonster(m, now) {
 const CAST_FAIL_TEXT = {
   NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum monstro perto',
   FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
-  NOT_EQUIPPED: 'Fora do kit ativo',
+  NOT_EQUIPPED: 'Fora do kit ativo', SAFE_ZONE: 'Zona segura: sem combate',
 };
 
 function handleMessage(msg) {
@@ -723,7 +729,8 @@ function updateOnline() {
   let n = 0;
   for (const p of state.players.values()) if (p.map === state.mapId || p.id === state.meId) n += 1;
   const where = mapName(state.maps, state.mapId);
-  setStatus(`online · ${where ? `${where} · ` : ''}${n} ${n === 1 ? 'jogador' : 'jogadores'}`, 'ok');
+  const zone = state.inSafeZone ? 'zona segura · ' : '';
+  setStatus(`online · ${where ? `${where} · ` : ''}${zone}${n} ${n === 1 ? 'jogador' : 'jogadores'}`, 'ok');
 }
 
 /**
@@ -740,7 +747,11 @@ function enterMap(id, announce) {
   state.world.width = layout.width;
   state.world.height = layout.height;
   state.places = placements(state.maps, id);
-  state.walls = visibleWalls(state.places);
+  // Paredes de cima para baixo: o que está mais embaixo é desenhado por cima (3/4).
+  state.walls = visibleWalls(state.places).sort((a, b) => a.y + a.h - (b.y + b.h));
+  const deco = visibleDeco(state.places);
+  state.deco = deco.filter((d) => d.k !== 'gate_roof');
+  state.overhead = deco.filter((d) => d.k === 'gate_roof');
   state.npcs = state.allNpcs.filter((n) => n.map === id);
   state.nearNpc = null;
   ui.talkBtn.hidden = true;
@@ -1837,6 +1848,64 @@ function waterTile(seed) {
   });
 }
 
+/** Calçamento claro (ruas e praça da Vila): blocos cinza-claro com juntas. */
+function lightStoneTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#a7a39a';
+    g.fillRect(0, 0, PIX, PIX);
+    const blocks = seed % 2 ? [[0, 0, 8, 7], [8, 0, 8, 7], [0, 8, 5, 8], [5, 8, 11, 8]] : [[0, 0, 6, 8], [6, 0, 10, 8], [0, 8, 9, 8], [9, 8, 7, 8]];
+    for (const [x, y, w, h] of blocks) {
+      g.fillStyle = r() < 0.5 ? '#cfcbc1' : '#c4c0b6';
+      g.fillRect(x, y, w - 1, h - 1);
+      g.fillStyle = '#dbd7cd';
+      g.fillRect(x, y, w - 1, 1);
+    }
+    for (let i = 0; i < 6; i++) {
+      g.fillStyle = r() < 0.5 ? '#b8b4aa' : '#d8d4ca';
+      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+    }
+  });
+}
+
+/** Areia do campo de treino. */
+function sandTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#e2cd96';
+    g.fillRect(0, 0, PIX, PIX);
+    for (let i = 0; i < 22; i++) {
+      g.fillStyle = r() < 0.5 ? '#d3bb80' : '#eedcab';
+      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+    }
+  });
+}
+
+/** Ponte de madeira: tábuas atravessadas e corrimão nas pontas. */
+function bridgeTile() {
+  return makeTile((g) => {
+    g.fillStyle = '#8b5a2b';
+    g.fillRect(0, 0, PIX, PIX);
+    g.fillStyle = '#5d3a1a';
+    for (let x = 3; x < PIX; x += 4) g.fillRect(x, 0, 1, PIX);
+    g.fillStyle = '#a8713a';
+    for (let x = 0; x < PIX; x += 4) g.fillRect(x, 0, 1, PIX);
+  });
+}
+
+/** Rio azul (mais claro que a água de fora do mundo), com reflexos. */
+function riverTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#3a78c4';
+    g.fillRect(0, 0, PIX, PIX);
+    for (let i = 0; i < 5; i++) {
+      g.fillStyle = r() < 0.5 ? '#5a96de' : '#2f66a9';
+      g.fillRect(Math.floor(r() * (PIX - 4)), Math.floor(r() * PIX), 3 + Math.floor(r() * 3), 1);
+    }
+  });
+}
+
 /** Mata fechada vista de cima (fora do mundo): copas escuras emendadas. */
 function canopyTile(seed) {
   return makeTile((g) => {
@@ -1871,7 +1940,10 @@ function stoneTile(seed) {
 
 const TILES = {
   grass: [grassTile(1, false), grassTile(2, false), grassTile(3, false), grassTile(4, true)],
-  stone: [stoneTile(21), stoneTile(22), stoneTile(23)],
+  stone: [lightStoneTile(21), lightStoneTile(22), lightStoneTile(23)],   // ruas e praça: pedra cinza clara
+  sand: [sandTile(41), sandTile(42)],
+  bridge: [bridgeTile(51)],
+  river: [riverTile(61), riverTile(62)],
   path: [pathTile(7), pathTile(8)],
   water: [waterTile(11), waterTile(12)],
   canopy: [canopyTile(31), canopyTile(32), canopyTile(33)],
@@ -1888,8 +1960,11 @@ function cellHash(x, y) {
 function tileAt(x, y) {
   const h = cellHash(x, y);
   switch (groundAt(state.places, x, y)) {
-    case 'stone': return TILES.stone[h % 3];                       // Vila: calçamento de pedra cinza
+    case 'stone': return TILES.stone[h % 3];                       // Vila: calçamento de pedra cinza clara
     case 'path': return TILES.path[h & 1];                         // estradas de terra
+    case 'sand': return TILES.sand[h & 1];                         // campo de treino
+    case 'water': return TILES.river[h & 1];                       // rio e canais
+    case 'bridge': return TILES.bridge[0];                         // pontes
     case 'grass': return TILES.grass[h % 23 === 0 ? 3 : h % 3];    // Floresta
     default: return TILES.canopy[h % 3];                           // fora do mundo: mata fechada
   }
@@ -1901,6 +1976,14 @@ const CHUNK = 16;
 const CHUNK_CACHE_MAX = 64;          // ~64 x 256 KB = 16 MB no máximo
 const chunkCache = new Map();        // "mapa:cx,cy" -> canvas (ordem de uso = LRU; voltar a um mapa é instantâneo)
 
+/**
+ * No máximo 2 blocos novos por quadro: entrar num mapa grande não trava o celular (os blocos
+ * que faltam aparecem nos quadros seguintes, por baixo do "piscar" da troca de mapa), e com
+ * folga o jogo já monta os vizinhos da tela antes de o jogador chegar lá.
+ */
+const CHUNK_BUILDS_PER_FRAME = 2;
+let chunkBuilds = 0;
+
 function chunkCanvas(cx, cy) {
   const key = `${state.mapId}:${cx},${cy}`;
   let c = chunkCache.get(key);
@@ -1909,69 +1992,33 @@ function chunkCanvas(cx, cy) {
     chunkCache.set(key, c);
     return c;
   }
+  if (chunkBuilds >= CHUNK_BUILDS_PER_FRAME) return null;
+  chunkBuilds += 1;
   c = document.createElement('canvas');
   c.width = c.height = CHUNK * PIX;
   const g = c.getContext('2d');
   for (let ty = 0; ty < CHUNK; ty++) {
     for (let tx = 0; tx < CHUNK; tx++) g.drawImage(tileAt(cx * CHUNK + tx, cy * CHUNK + ty), tx * PIX, ty * PIX);
   }
-  // Paredes (casas marrons na Vila, árvores verde-escuras na Floresta, vistas de cima),
-  // inclusive as do mapa vizinho além da borda: desenhadas no bloco de chão que tocam.
+  // Enfeites no chão (bancos, rosa dos ventos, lanternas, vasos) e depois as paredes (muralha,
+  // prédios, montanha, árvores, boneco), inclusive as do mapa vizinho além da borda. Cada uma
+  // é desenhada só nos blocos que toca (margem de 8 px para as sombras).
+  const size = CHUNK * PIX, M = 8;
+  for (const d of state.deco) {
+    const x = (d.x - cx * CHUNK) * PIX, y = (d.y - cy * CHUNK) * PIX, w = d.w * PIX, h = d.h * PIX;
+    if (x + w < -M || y + h < -M || x > size + M || y > size + M) continue;
+    drawDeco(g, d, x, y, w, h);
+  }
   for (const w of state.walls) {
-    const x = (w.x - cx * CHUNK) * PIX, y = (w.y - cy * CHUNK) * PIX;
-    if (w.k === 'tree') drawTrees(g, x, y, w.w * PIX, w.h * PIX, cellHash(w.x, w.y));
-    else drawHouse(g, x, y, w.w * PIX, w.h * PIX);
+    const x = (w.x - cx * CHUNK) * PIX, y = (w.y - cy * CHUNK) * PIX, pw = w.w * PIX, ph = w.h * PIX;
+    if (x + pw < -M || y + ph < -M || x > size + M || y > size + M) continue;
+    drawWall(g, w, x, y, pw, ph, PIX);
   }
   chunkCache.set(key, c);
   if (chunkCache.size > CHUNK_CACHE_MAX) chunkCache.delete(chunkCache.keys().next().value);
   return c;
 }
 
-/**
- * Árvores (obstáculos da Floresta) vistas de cima: uma copa verde-escura a cada ~2 casas do
- * bloco, com sombra, contorno e brilho. Um bloco comprido (a mata da borda) vira uma fileira.
- */
-function drawTrees(g, x, y, w, h, seed) {
-  if (x + w < 0 || y + h < 0 || x > CHUNK * PIX || y > CHUNK * PIX) return;
-  const nx = Math.max(1, Math.round(w / (2 * PIX))), ny = Math.max(1, Math.round(h / (2 * PIX)));
-  const cw = w / nx, ch = h / ny;
-  for (let j = 0; j < ny; j++) {
-    for (let i = 0; i < nx; i++) {
-      const cx = x + cw * (i + 0.5), cy = y + ch * (j + 0.5);
-      const r = Math.min(cw, ch) / 2;
-      const k = (seed + i * 7 + j * 13) % 3;
-      g.fillStyle = 'rgba(0, 0, 0, 0.28)';
-      g.beginPath(); g.arc(cx + 2, cy + 3, r - 1, 0, Math.PI * 2); g.fill();      // sombra
-      g.fillStyle = '#123312';
-      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();                  // contorno
-      g.fillStyle = k === 0 ? '#1f5a1f' : k === 1 ? '#226322' : '#1c531c';
-      g.beginPath(); g.arc(cx, cy, r - 2, 0, Math.PI * 2); g.fill();              // copa
-      g.fillStyle = '#2f7d2c';
-      g.beginPath(); g.arc(cx - r * 0.3, cy - r * 0.3, r * 0.45, 0, Math.PI * 2); g.fill();   // luz
-      g.fillStyle = '#3d9637';
-      g.fillRect(Math.round(cx - r * 0.45), Math.round(cy - r * 0.5), 2, 2);      // brilho
-    }
-  }
-}
-
-/** Telhado marrom com tábuas, cumeeira, beiral escuro e a frente com porta (pixel art). */
-function drawHouse(g, x, y, w, h) {
-  if (x + w < 0 || y + h < 0 || x > CHUNK * PIX || y > CHUNK * PIX) return;
-  g.fillStyle = 'rgba(0, 0, 0, 0.25)';
-  g.fillRect(x + 3, y + 4, w, h);                      // sombra
-  g.fillStyle = '#4a2c14';
-  g.fillRect(x, y, w, h);                              // contorno
-  g.fillStyle = '#8b5a2b';
-  g.fillRect(x + 2, y + 2, w - 4, h - 10);             // telhado
-  g.fillStyle = '#7a4c22';
-  for (let ly = y + 5; ly < y + h - 10; ly += 4) g.fillRect(x + 2, ly, w - 4, 1);   // tábuas
-  g.fillStyle = '#a8713a';
-  g.fillRect(x + 2, y + Math.floor((h - 10) / 2), w - 4, 2);                        // cumeeira
-  g.fillStyle = '#5d3a1d';
-  g.fillRect(x + 2, y + h - 8, w - 4, 6);              // frente
-  g.fillStyle = '#2c1a0c';
-  g.fillRect(x + Math.floor(w / 2) - 3, y + h - 8, 6, 6);                           // porta
-}
 
 // ------------------------------------------------------------------ loop de desenho
 
@@ -2006,6 +2053,13 @@ function update(dt) {
     if (pred.map !== state.mapId) enterMap(pred.map, true);   // atravessou a borda (previsto): desenha o mapa novo já
     me.x = vx;
     me.y = vy;
+    // Praça (zona segura): o servidor recusa combate; aqui só apaga os botões e avisa no topo.
+    const safe = inSafeZone(state.maps[state.mapId], vx, vy);
+    if (safe !== state.inSafeZone) {
+      state.inSafeZone = safe;
+      document.body.classList.toggle('safe-zone', safe);
+      updateOnline();
+    }
   }
   for (const p of state.players.values()) {
     if (p === me || p.map !== state.mapId) continue;
@@ -2034,6 +2088,21 @@ try {
       official: () => { const me = state.players.get(state.meId); return me ? [me.tx, me.ty] : null; },
       drawn: (id) => { const p = state.players.get(id || state.meId); return p ? [p.x, p.y] : null; },
       map: () => ({ predicted: pred.map, drawn: state.mapId, server: state.serverMap }),
+      /** O mapa inteiro numa imagem (16 px por casa), montado com os mesmos blocos do jogo. */
+      mapPicture: () => {
+        const c = document.createElement('canvas');
+        c.width = state.world.width * PIX;
+        c.height = state.world.height * PIX;
+        const g = c.getContext('2d');
+        for (let cy = 0; cy * CHUNK < state.world.height; cy++) {
+          for (let cx = 0; cx * CHUNK < state.world.width; cx++) {
+            chunkBuilds = 0;
+            g.drawImage(chunkCanvas(cx, cy), cx * CHUNK * PIX, cy * CHUNK * PIX);
+          }
+        }
+        for (const o of state.overhead) drawGateRoof(g, o.x * PIX, o.y * PIX, o.w * PIX, o.h * PIX);
+        return c.toDataURL('image/png');
+      },
       visible: () => ({
         players: [...state.players.values()].filter((p) => p.map === state.mapId).length,
         monsters: [...state.monsters.values()].filter((m) => m.map === state.mapId).length,
@@ -2094,8 +2163,22 @@ function draw(now) {
   const cx0 = Math.floor(left / CHUNK), cx1 = Math.floor(right / CHUNK);
   const cy0 = Math.floor(top / CHUNK), cy1 = Math.floor(bottom / CHUNK);
   const size = CHUNK * T;
+  chunkBuilds = 0;
   for (let cy = cy0; cy <= cy1; cy++) {
-    for (let cx = cx0; cx <= cx1; cx++) ctx.drawImage(chunkCanvas(cx, cy), toScreenX(cx * CHUNK), toScreenY(cy * CHUNK), size, size);
+    for (let cx = cx0; cx <= cx1; cx++) {
+      const c = chunkCanvas(cx, cy);
+      if (c) ctx.drawImage(c, toScreenX(cx * CHUNK), toScreenY(cy * CHUNK), size, size);
+      else {                           // ainda não montado: cor do chão por 1 ou 2 quadros
+        ctx.fillStyle = state.maps[state.mapId]?.kind === 'village' ? '#c4c0b6' : '#4f9a3a';
+        ctx.fillRect(toScreenX(cx * CHUNK), toScreenY(cy * CHUNK), size, size);
+      }
+    }
+  }
+  // Sobrou orçamento: monta já os blocos em volta da tela (andando, nada precisa ser montado na hora).
+  for (let cy = cy0 - 1; cy <= cy1 + 1 && chunkBuilds < CHUNK_BUILDS_PER_FRAME; cy++) {
+    for (let cx = cx0 - 1; cx <= cx1 + 1 && chunkBuilds < CHUNK_BUILDS_PER_FRAME; cx++) {
+      if (!chunkCache.has(`${state.mapId}:${cx},${cy}`)) chunkCanvas(cx, cy);
+    }
   }
 
   // 2. Grade (um único traço para todas as linhas visíveis), também sobre o vizinho costurado.
@@ -2150,6 +2233,12 @@ function draw(now) {
   }
 
   for (const fx of state.effects) if (!GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
+
+  // Por cima de todos: o telhado do portão (quem passa por baixo fica escondido por ele).
+  for (const o of state.overhead) {
+    const x = toScreenX(o.x), y = toScreenY(o.y), w = o.w * T, h = o.h * T;
+    if (x + w >= 0 && x <= viewW && y + h >= 0 && y <= viewH) drawGateRoof(ctx, x, y, w, h);
+  }
 
   // 6. Números flutuantes (dano, cura, XP, avisos) e falas do NPC.
   drawFloaters(toScreenX, toScreenY, T, now);

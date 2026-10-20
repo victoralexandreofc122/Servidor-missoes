@@ -105,9 +105,9 @@ describe('predição + reconciliação (cliente real x servidor real, 200 ms de 
   });
 
   it('parede (casa da vila): o cliente prevê a batida igual ao servidor, sem correção', () => {
-    const { pred, s, results } = simulate({ ms: 2500, start: [26, 29.5], joystick: (t) => (t < 2000 ? [1, 0] : [0, 0]) });
+    const { pred, s, results } = simulate({ ms: 2500, start: [28.5, 20], joystick: (t) => (t < 2000 ? [1, 0] : [0, 0]) });
     assert.equal(results.snaps + results.smooth, 0, 'nenhuma correção: a previsão já parou na parede');
-    assert.ok(s.x < 29 && pred.x === s.x, `parou em ${s.x} (casa da praça começa em x=29)`);
+    assert.ok(s.x < 31 && pred.x === s.x, `parou em ${s.x} (a sede começa em x=31)`);
   });
 
   it('cliente trapaceiro (velocidade 15 em vez de 5): o servidor só aplica a velocidade real e o cliente é puxado de volta', () => {
@@ -128,13 +128,13 @@ describe('predição + reconciliação (cliente real x servidor real, 200 ms de 
     assert.ok(s.x - REALTIME.spawn.x <= 5 + 1.25, `o servidor ignorou o teleporte (${s.x - REALTIME.spawn.x})`);
   });
 
-  it('troca de mapa: andando da praça até o portão leste, entra na Floresta SEM esperar o servidor e sem correção', () => {
-    const { pred, s, results } = simulate({ ms: 6000, joystick: (t) => (t < 5200 ? [1, 0] : [0, 0]) });
+  it('troca de mapa: andando do renascimento até o portão sul, entra na Floresta SEM esperar o servidor e sem correção', () => {
+    const { pred, s, results } = simulate({ ms: 11_000, joystick: (t) => (t < 10_200 ? [0, 1] : [0, 0]) });
     assert.equal(s.map, 'map_2', 'o servidor levou para a Floresta');
     assert.equal(pred.map, 'map_2');
     assert.equal(results.snaps + results.smooth, 0, 'a previsão da passagem bateu com o servidor');
     assert.deepEqual([pred.x, pred.y], [s.x, s.y]);
-    assert.ok(s.x > 0 && Math.abs(s.y - 50) < 1e-9, `entrou pela trilha oeste (${s.x}, ${s.y})`);
+    assert.ok(s.y > 0 && Math.abs(s.x - 50) < 1e-9, `entrou pela trilha norte (${s.x}, ${s.y})`);
     assert.ok(results.mapSwitchAt > 0 && results.maxView < 0.2, `sem pulo na tela fora da costura (maior passo ${results.maxView})`);
   });
 

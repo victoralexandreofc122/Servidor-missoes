@@ -20,6 +20,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 13 | Atualização v6: Criador de Personagem, boneco modular, ⚙️ layout da HUD e conta Hokage de teste | ~10 min |
 | 14 | Atualização v7: movimento sem atraso (predição no cliente + correção pelo servidor), sem SQL | ~5 min |
 | 15 | Atualização v8: mapas Vila e Floresta com passagem pelas bordas, sem SQL | ~5 min |
+| 16 | Atualização v9: Vila 80x80 com muralha, portão sul e praça segura, sem SQL | ~5 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -253,7 +254,7 @@ Depois do deploy, use o **Hoppscotch** (hoppscotch.io) no navegador do celular.
    wss://SEU-SERVICO.onrender.com/game?token=TOKEN_DO_KAITO
    ```
 
-   Toque em **Connect**. Chega um `welcome` com `"x":25,"y":25` (praça da Vila), `"players":[]`, `"monsters":[]` (a Vila é segura) e os dados dos mapas.
+   Toque em **Connect**. Chega um `welcome` com `"x":40,"y":34` (avenida da Vila), `"players":[]`, `"monsters":[]` (a Vila não tem monstros) e os dados dos mapas.
 4. **Jogador 2**: abra **outra aba** do navegador no Hoppscotch e conecte com o token da Mei.
    A Mei recebe `welcome` com o Kaito na lista. Na aba do Kaito, aparece `player_joined`.
 5. Na aba do Kaito, envie (campo de mensagem → **Send**):
@@ -305,8 +306,8 @@ No celular não há console; o anel na tela confirma o toque.
 
 Nada novo para configurar: o XP vai para a coluna `total_xp` que já existe no banco.
 
-1. Entre no jogo (Passo 8). Você nasce na **praça da Vila**, que é área segura.
-2. Siga a rua de terra para leste até o portão e entre na **Floresta**. Os **monstros** (slimes) ficam
+1. Entre no jogo (Passo 8). Você nasce na avenida da **Vila**, em frente à sede.
+2. Desça pela avenida até o portão (embaixo, no centro) e entre na **Floresta**. Os **monstros** (slimes) ficam
    lá. São sempre 10.
 3. Embaixo da tela ficam a barra **vermelha** (vida), a **azul** (chakra) e a linha de rank/XP.
    O número no topo de cada botão é o custo em chakra; sem chakra, o botão apaga.
@@ -455,7 +456,7 @@ Depois saia e entre de novo com essa conta, porque o rank é lido ao conectar.
    - mate 5 slimes (100 XP): aparece "Nível 2! +1 ponto" e o botão 📊 do topo fica verde (**Nv 2 +1**);
    - toque 📊 e depois o **+** de Vitalidade: a vida máxima vira 110;
    - na aba **Kits**, monte os seus 2 kits (até 4 cada) e toque **Salvar kits**.
-8. **Vila:** chão de pedra com casas marrons. Os slimes ficam na Floresta, depois do portão leste (v8).
+8. **Vila:** chão de pedra com prédios. Os slimes ficam na Floresta, depois do portão (v8/v9).
 
 ### 4. Missão entre jogadores (2 celulares, um deles Chunin)
 
@@ -555,4 +556,28 @@ então para essa conta ele responde "Seu rank já passou dos meus treinos".
 7. **Dois celulares:** um fica na Vila e o outro vai para a Floresta.
    - Quem ficou deixa de ver quem foi (e os monstros de lá).
    - O chat também é por mapa.
-8. **Morrer na Floresta:** depois do **Renascer**, você volta para a praça da Vila.
+8. **Morrer na Floresta:** depois do **Renascer**, você volta para a Vila.
+
+> Na v9 a Vila cresceu (80x80) e o portão passou para o sul: veja o Passo 16.
+
+## Passo 16 — Atualização v9: a Vila nova (80x80)
+
+**Banco:** nada a rodar (sem SQL nesta versão). **Render:** o push na `main` já faz o deploy.
+
+### Testar no celular
+
+1. **Chegada:** você aparece na avenida, em frente à sede (o prédio grande de telhado vermelho
+   vivo, no topo), com o Mestre ao lado. Atrás da sede fica a montanha de rocha.
+2. **Muralha:** ande até qualquer borda da Vila. A muralha de pedra não deixa passar.
+3. **Prédios e ruas:**
+   - hospital à esquerda (placa com cruz verde) e academia à direita (placa azul);
+   - as três lojas no meio, com canais na frente;
+   - entre os prédios há ruas largas e becos estreitos, e um beco atrás da sede;
+   - à esquerda, o rio com duas pontes de madeira.
+4. **Praça (zona segura):** desça pela avenida até a praça, logo acima do portão.
+   - O topo mostra `Vila · zona segura`.
+   - Os botões de combate apagam; tocar em Ataque ou numa habilidade mostra "Zona segura: sem combate".
+   - Os bancos e vasos são enfeites.
+5. **Campo de treino:** à direita da praça fica a área de areia, com o boneco de madeira.
+6. **Portão:** continue descendo pelo portão (no centro, embaixo). O telhado do portão passa por cima
+   do boneco e você entra na Floresta sem parar. Para voltar, suba pela trilha até a borda de cima.
