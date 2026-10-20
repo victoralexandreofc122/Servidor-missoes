@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { REALTIME, type RealtimeConfig } from '../../src/realtime/config.js';
 import { GameWorld, type Connection, type Progression } from '../../src/realtime/gameWorld.js';
 import type { Missions } from '../../src/realtime/missions.js';
+import type { Profile } from '../../src/realtime/profile.js';
 
 /** Conexão falsa: guarda o que o servidor mandou e como fechou. */
 export class FakeConn implements Connection {
@@ -36,13 +37,14 @@ export function seededRandom(seed = 42) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 
-export function setupWorld(config: RealtimeConfig = withMonsters(0), progression?: Progression, missions?: Missions) {
+export function setupWorld(config: RealtimeConfig = withMonsters(0), progression?: Progression, missions?: Missions, profile?: Profile) {
   let t = 1_000_000;
   const clock = { now: () => t, advance: (ms: number) => (t += ms) };
   const world = new GameWorld(config, clock.now, undefined, {
     random: seededRandom(),
     ...(progression ? { progression } : {}),
     ...(missions ? { missions } : {}),
+    ...(profile ? { profile } : {}),
   });
   const connect = (username: string, extra: { xp?: number } = {}) => {
     const conn = new FakeConn();

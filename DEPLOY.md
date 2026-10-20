@@ -16,6 +16,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 9 | Testar o combate | ~5 min |
 | 10 | Testar foco (🎯) e meditação (🧘) | ~5 min |
 | 11 | Atualização v4: NPC Mestre e Sala de Missões (rodar 1 SQL no Neon e testar) | ~10 min |
+| 12 | Atualização v5: nível, atributos, corrida, kits, layout MOBA e missão entre jogadores | ~15 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -61,6 +62,7 @@ Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
    Esta pode rodar de novo sem erro.
 7. E a do NPC Mestre: apague o editor, cole o arquivo `db/schema_v4_npc_missions.sql` inteiro e toque em **Run**.
    Também pode rodar de novo sem erro.
+8. E a de nível e atributos: cole o arquivo `db/schema_v5_atributos.sql` inteiro e toque em **Run** (pode repetir).
 
 ---
 
@@ -394,3 +396,70 @@ SELECT status, progress_quantity FROM game.sensei_missions ORDER BY created_at D
 ```
 
 O resultado esperado é `completed | 5`.
+
+---
+
+## Passo 12 — Atualização v5: nível, atributos, corrida, kits e layout MOBA
+
+### 1. Banco primeiro (obrigatório)
+
+No Neon, abra o **SQL Editor**, cole o arquivo `db/schema_v5_atributos.sql` inteiro e toque em **Run**.
+Pode rodar de novo sem erro. Ele:
+
+- adiciona em `game.players`: `level`, `stat_points`, os 6 atributos e os 2 kits;
+- dá o nível e os pontos certos para quem já tinha XP;
+- cria o trigger que sobe o nível sozinho quando o XP muda.
+
+O servidor novo **não sobe sem a v5**: o log do Render mostra `Falta a migração v5`, e a versão
+anterior continua no ar. Se o deploy falhou antes do SQL, rode o SQL e depois toque em
+**Manual Deploy → Deploy latest commit**.
+
+Conferência (opcional):
+
+```
+SELECT username, total_xp, level, stat_points, kit_a FROM game.players ORDER BY total_xp DESC LIMIT 5;
+```
+
+### 2. Para testar a missão entre jogadores: um sensei
+
+Só Chunin ou acima cria missão. No jogo ninguém chega a Chunin ainda, então promova uma conta de teste:
+
+```
+UPDATE game.players SET current_rank_id = (SELECT id FROM game.ranks WHERE code = 'CHUNIN')
+ WHERE username = 'SEU_NOME_DE_TESTE';
+```
+
+Depois saia e entre de novo com essa conta, porque o rank é lido ao conectar.
+
+### 3. Testar no celular (deitado)
+
+1. **Botões novos, no canto de baixo à direita:**
+   - 🗡️ grande: Ataque Básico, sem gastar chakra;
+   - em volta dele, as 4 habilidades do kit;
+   - 🧘 acima e 🏃 abaixo;
+   - 🔄 embaixo à esquerda (letra do kit);
+   - 🎯 no alto.
+2. **Ataque Básico:** perto de um slime, toque 🗡️. Sai o número de dano, o chakra não cai e o
+   botão mostra a recarga girando.
+3. **Chakra:** use o 🔥 Fogo e repare que o chakra **não volta sozinho**. Toque 🧘 para encher (15/s).
+   A vida só volta com o chakra cheio.
+4. **Correr:** toque 🏃, que fica verde, e ande: você vai mais rápido (8 em vez de 5). Toque de novo para voltar a andar.
+5. **Foco andando:** segure o joystick com o polegar esquerdo e toque 🎯 com o direito. O alvo
+   troca e você não para.
+6. **Kits:** toque 🔄. A letra vira B e os botões viram Ilusão, Sombra, Pedra e Cura.
+7. **Nível e atributos:**
+   - mate 5 slimes (100 XP): aparece "Nível 2! +1 ponto" e o botão 📊 do topo fica verde (**Nv 2 +1**);
+   - toque 📊 e depois o **+** de Vitalidade: a vida máxima vira 110;
+   - na aba **Kits**, monte os seus 2 kits (até 4 cada) e toque **Salvar kits**.
+8. **Vila:** o centro do mapa agora é de pedra, com casas marrons. Os slimes ficam fora dela.
+
+### 4. Missão entre jogadores (2 celulares, um deles Chunin)
+
+1. **Criar:** com o sensei, toque no boneco do outro jogador (até 3 casas de distância). No menu, toque
+   **📜 Criar Missão**, escolha 3, 5 ou 10 slimes e a dificuldade, e toque **Criar missão**.
+2. O aprendiz recebe o aviso e o 📜 dele vira **0/3**.
+3. **Entregar:** o aprendiz mata os slimes (**Pronta!**), chega perto do sensei, toca nele e toca
+   **📜 Entregar missão**.
+4. **Avaliar:** no celular do sensei aparece **Avaliar missão**. Escolha a nota e toque **Aprovar**.
+   Se tocar **Reprovar**, o progresso do aprendiz volta a zero.
+5. **Resgatar:** o aprendiz fala com o **Mestre** (Sala de Missões) e recebe o XP do pergaminho.

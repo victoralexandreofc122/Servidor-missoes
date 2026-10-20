@@ -157,6 +157,7 @@ describe('combate: habilidades', () => {
     const { world, connect, run } = setupWorld(config({ stepMs: 200 }, { hpRegenPerSec: 0 }));
     const a = connect('kaito');
     const m = world.spawnMonster({ x: S.x + 1, y: S.y });
+    a.send({ type: 'switch_kit', kit: 'B' });                // Ilusão está no kit B (padrão)
     a.send({ type: 'cast', skill: 'illusion' });
     assert.deepEqual(a.conn.last('monster_status'), { type: 'monster_status', id: m.id, status: 'stunned', ms: 3000 });
     run(2900);
@@ -173,6 +174,7 @@ describe('combate: habilidades', () => {
     const { world, connect, run } = setupWorld(config({ stepMs: 200 }, { hpRegenPerSec: 0 }));
     const a = connect('kaito');
     const m = world.spawnMonster({ x: S.x + 1, y: S.y });
+    a.send({ type: 'switch_kit', kit: 'B' });
     a.send({ type: 'cast', skill: 'shadow' });
     assert.equal(a.conn.last('monster_status').status, 'rooted');
     assert.equal(a.conn.last('monster_status').ms, 5000);
@@ -185,6 +187,7 @@ describe('combate: habilidades', () => {
   it('Pedra (15 chakra): o próximo dano cai pela metade; o seguinte é normal', () => {
     const { world, connect, run } = setupWorld(config({}, { hpRegenPerSec: 0 }));
     const a = connect('kaito');
+    a.send({ type: 'switch_kit', kit: 'B' });
     a.send({ type: 'cast', skill: 'stone' });
     assert.equal(a.conn.last('stats').shield, true);
     a.send({ type: 'cast', skill: 'stone' });
@@ -213,27 +216,20 @@ describe('combate: habilidades', () => {
     assert.equal(a.conn.last('stats').chakra < 100, true);
   });
 
-  it('chakra: sem chakra suficiente falha (NO_CHAKRA); regenera 5 por segundo', () => {
+  it('chakra: NÃO regenera sozinho (só meditando); sem chakra suficiente falha (NO_CHAKRA)', () => {
     const { connect, run } = setupWorld(config());
     const a = connect('kaito');
-    a.send({ type: 'cast', skill: 'fire' });                  // 80
+    for (let i = 0; i < 4; i++) {
+      a.send({ type: 'cast', skill: 'fire' });                // 100 -> 80 -> 60 -> 40 -> 20
+      run(1500);
+    }
+    assert.equal(a.conn.last('stats').chakra, 20, 'nada voltou em 6 s andando/parado');
+    a.send({ type: 'cast', skill: 'fire' });                  // custa 20, tem 20: ainda dá
     run(1500);
-    a.send({ type: 'cast', skill: 'fire' });                  // ~67 (80 + 7,5 - 20)
-    run(1500);
-    a.send({ type: 'cast', skill: 'fire' });
-    run(1500);
-    a.send({ type: 'cast', skill: 'fire' });
-    run(1500);
-    a.send({ type: 'cast', skill: 'illusion' });              // sem monstro: NO_TARGET (não cobra)
-    const chakra = a.conn.last('stats').chakra;
-    assert.ok(chakra >= 40 && chakra <= 60, String(chakra));
-    run(2000);
-    assert.equal(a.conn.last('stats').chakra, chakra + 10, 'regenerou 5/s');
-    const { world: w2, connect: c2 } = setupWorld(config({}, { maxChakra: 25, chakraRegenPerSec: 0 }));
-    const p = c2('pobre');
-    w2.spawnMonster({ x: S.x + 1, y: S.y });
-    p.send({ type: 'cast', skill: 'illusion' });              // custa 30, tem 25
-    assert.deepEqual(p.conn.last('cast_failed'), { type: 'cast_failed', skill: 'illusion', reason: 'NO_CHAKRA' });
+    a.send({ type: 'cast', skill: 'fire' });                  // 0
+    assert.deepEqual(a.conn.last('cast_failed'), { type: 'cast_failed', skill: 'fire', reason: 'NO_CHAKRA' });
+    run(5000);
+    assert.equal(a.conn.last('stats').chakra, 0, 'continua 0 sem meditar');
   });
 
   it('recarga: Fogo duas vezes seguidas: a segunda falha (COOLDOWN) e só cobra uma vez', () => {
@@ -381,12 +377,14 @@ describe('jutsus direcionados (targetId)', () => {
     const a = connect('kaito');
     const far = world.spawnMonster({ x: S.x + 6, y: S.y });  // Água 4, Ilusão/Sombra 5, Fogo 3
     for (const skill of ['water', 'illusion', 'shadow', 'fire']) {
+      a.send({ type: 'switch_kit', kit: skill === 'water' || skill === 'fire' ? 'A' : 'B' });
       a.send({ type: 'cast', skill, targetId: far.id });
       assert.deepEqual(a.conn.last('cast_failed'), { type: 'cast_failed', skill, reason: 'OUT_OF_RANGE' });
     }
     assert.equal(a.conn.of('stats').length, 0, 'nada cobrado');
     assert.equal(monsterHp(world, far.id), M.maxHp);
     const near = world.spawnMonster({ x: S.x + 4, y: S.y });
+    a.send({ type: 'switch_kit', kit: 'A' });
     a.send({ type: 'cast', skill: 'water', targetId: near.id });   // exatamente 4: dentro
     assert.equal(monsterHp(world, near.id), M.maxHp - SK.water.damage!);
   });
@@ -396,6 +394,7 @@ describe('jutsus direcionados (targetId)', () => {
     const a = connect('kaito');
     const close = world.spawnMonster({ x: S.x + 1, y: S.y });
     const focused = world.spawnMonster({ x: S.x - 4, y: S.y });
+    a.send({ type: 'switch_kit', kit: 'B' });
     a.send({ type: 'cast', skill: 'illusion', targetId: focused.id });
     assert.deepEqual(a.conn.last('monster_status'), { type: 'monster_status', id: focused.id, status: 'stunned', ms: 3000 });
     a.send({ type: 'cast', skill: 'shadow' });                      // sem alvo: o mais perto
@@ -449,7 +448,7 @@ describe('meditação', () => {
     run(2000);
     assert.deepEqual(pos(a.id), where, 'meditando não anda (a direção foi zerada)');
     const chakra = (world as any).sessions.get(a.id).chakra;
-    assert.ok(Math.abs(chakra - (10 + 5 * 0.1 + 15 * 2)) < 0.01, `chakra ${chakra}: 15/s meditando`);
+    assert.ok(Math.abs(chakra - (10 + 15 * 2)) < 0.01, `chakra ${chakra}: 15/s meditando (andando: 0)`);
     assert.equal(b.conn.of('welcome').length, 1);
     const c = connect('rin');
     assert.equal(c.conn.of('welcome')[0].players.find((p: any) => p.id === a.id).meditating, true, 'quem chega vê a aura');
@@ -490,11 +489,11 @@ describe('meditação', () => {
     a.send({ type: 'meditate', active: true });              // volta a meditar colado no monstro...
     run(2000);                                                // ...e o próximo golpe derruba de novo
     assert.equal(a.conn.of('meditation').filter((m) => m.reason === 'damaged').length, 2);
-    // depois de interrompida, a recuperação volta a 5/s (não fica "presa" em 3x)
+    // depois de interrompida, o chakra PARA de subir (só medita quem não apanha)
     const before = (world as any).sessions.get(a.id).chakra;
     run(1000);
     const after = (world as any).sessions.get(a.id).chakra;
-    assert.ok(Math.abs(after - before - 5) < 0.01, `ganhou ${(after - before).toFixed(2)} em 1 s`);
+    assert.equal(after, before, `ganhou ${(after - before).toFixed(2)} em 1 s sem meditar`);
   });
 
   it('morto não medita; parar manualmente avisa todos; reconectar não mantém a meditação', () => {

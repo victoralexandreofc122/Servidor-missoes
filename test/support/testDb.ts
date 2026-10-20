@@ -3,11 +3,11 @@ import pg from 'pg';
 import { createDb, type Db } from '../../src/db.js';
 
 /**
- * Cria um banco novo só para o teste, aplica as migrações (v2, v3 login, v4 NPC Mestre)
+ * Cria um banco novo só para o teste, aplica as migrações (v2, v3 login, v4 NPC Mestre, v5 atributos)
  * e apaga tudo no final. TEST_DATABASE_URL precisa de um role com CREATEDB.
  * `files` permite subir um banco sem alguma migração (ex.: testar a v4 ausente).
  */
-export const MIGRATIONS = ['schema_ranks_missoes_sensei.sql', 'schema_v3_auth.sql', 'schema_v4_npc_missions.sql'] as const;
+export const MIGRATIONS = ['schema_ranks_missoes_sensei.sql', 'schema_v3_auth.sql', 'schema_v4_npc_missions.sql', 'schema_v5_atributos.sql'] as const;
 
 export async function createTestDatabase(files: readonly string[] = MIGRATIONS) {
   const adminUrl = process.env.TEST_DATABASE_URL;

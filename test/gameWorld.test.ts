@@ -19,8 +19,13 @@ describe('GameWorld: entrar e sair', () => {
     assert.equal(a.conn.sent.length, 1);
     assert.deepEqual(
       { ...w.you },
-      { id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false, chakra: 100, maxChakra: 100, shield: false, xp: 40, rank: { code: 'ACADEMY', name: 'Academia' } },
+      {
+        id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false, chakra: 100, maxChakra: 100,
+        shield: false, xp: 40, rank: { code: 'ACADEMY', name: 'Academia' }, level: 1, speed: 5, running: false, canBeSensei: false,
+      },
     );
+    assert.deepEqual(w.kit, { active: 'A', kits: { A: ['fire', 'water', 'taijutsu', 'heal'], B: ['illusion', 'shadow', 'stone', 'heal'] } });
+    assert.deepEqual([w.progress.level, w.progress.xpInLevel, w.progress.xpToNext, w.progress.statPoints], [1, 40, 100, 0]);
     assert.deepEqual(w.players, []);
     assert.deepEqual(w.monsters, []);
     assert.equal(w.world.speed, REALTIME.speedTilesPerSecond);
@@ -28,7 +33,7 @@ describe('GameWorld: entrar e sair', () => {
     assert.deepEqual(w.world.skills.fire, { cost: 20, cooldownMs: 1500, range: 3 });
 
     const b = connect('mei');
-    assert.deepEqual(b.conn.of('welcome')[0].players, [{ id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false }]);
+    assert.deepEqual(b.conn.of('welcome')[0].players, [{ id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false, rank: { code: 'ACADEMY', name: 'Academia' }, level: 1 }]);
     assert.deepEqual(a.conn.of('player_joined').map((m) => m.player.username), ['mei']);
     assert.equal(b.conn.of('player_joined').length, 0, 'quem entrou não recebe aviso de si mesmo');
     assert.equal(world.online, 2);
@@ -50,6 +55,7 @@ describe('GameWorld: entrar e sair', () => {
     const b = connect('mei');
     b.send({ type: 'move', dx: 1, dy: 0 });
     run(200);                                            // 200 ms a 5 casas/s = 1 casa
+    b.send({ type: 'switch_kit', kit: 'B' });
     b.send({ type: 'cast', skill: 'stone' });            // gasta 15 de chakra e ganha escudo
     a.conn.clear();
 

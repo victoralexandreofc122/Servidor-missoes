@@ -48,7 +48,7 @@ describe('Missões do NPC Mestre no banco (PostgreSQL real)', { skip: noDatabase
     assert.deepEqual(
       { ...mission, id: 'x' },
       {
-        id: 'x', status: 'active', senseiName: 'Mestre', fromNpc: true,
+        id: 'x', status: 'active', senseiName: 'Mestre', senseiId: NPC_SENSEI_ID, fromNpc: true,
         type: { code: 'DEFEAT_MONSTER', name: 'Derrotar monstros' }, target: { code: 'slime', quantity: 5 },
         progress: 0, reward: { xp: 50, title: 'Discípulo do Mestre' }, expiresAt: null, ready: false,
       },
@@ -171,7 +171,7 @@ describe('Missões do NPC Mestre no banco (PostgreSQL real)', { skip: noDatabase
 
 describe('Banco SEM a migração v4', { skip: noDatabase }, () => {
   let t: Awaited<ReturnType<typeof createTestDatabase>>;
-  before(async () => { t = await createTestDatabase(MIGRATIONS.slice(0, 2)); });
+  before(async () => { t = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v4_npc_missions.sql')); });
   after(async () => { await t?.drop(); });
 
   it('o Mestre responde "indisponível" (o jogo segue) e o boot check acusa', async () => {

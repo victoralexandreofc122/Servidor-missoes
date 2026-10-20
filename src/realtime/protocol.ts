@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 
 /*
  * Protocolo do WebSocket: JSON simples, um objeto por mensagem, sempre com `type`.
@@ -10,6 +11,14 @@ import { z } from 'zod';
  *   { "type": "respawn" }                       renascer (só depois de 5 s morto)
  *   { "type": "talk", "npcId": "sensei" }       falar com o NPC Mestre (precisa estar perto)
  *   { "type": "missions" }                      pedir a missão atual (abrir a Sala de Missões)
+ *   { "type": "attack", "targetId": "m12" }     ataque básico (sem chakra); targetId opcional
+ *   { "type": "run", "active": true }           correr (8) ou andar (5); o servidor aplica
+ *   { "type": "switch_kit", "kit": "B" }        trocar de kit (só vale depois que o servidor confirma)
+ *   { "type": "set_loadout", "kitA": [..], "kitB": [..] }   até 4 habilidades por kit
+ *   { "type": "spend_point", "attribute": "vitality" }      gastar 1 ponto de atributo
+ *   { "type": "create_mission", "traineeId", "difficulty", "quantity" }   sensei (Chunin+) cria missão
+ *   { "type": "deliver_mission", "senseiId" }   aprendiz entrega a missão ao sensei (perto dele)
+ *   { "type": "evaluate_mission", "missionId", "approved", "score" }      sensei avalia
  *   { "type": "chat", "message": "Olá!" }
  *
  * Servidor -> cliente
@@ -32,6 +41,12 @@ import { z } from 'zod';
  *   mission           { mission, reason }                  missão atual (null = nenhuma), só para o dono
  *   npc_say           { npcId, text }                      fala do NPC, só para quem conversou
  *   mission_reward    { rewards, totalXp, rank, promoted } pergaminho entregue (já gravado no banco)
+ *   progress          { level, xpInLevel, xpToNext, statPoints, attributes, derived }   ficha (só o dono)
+ *   kit               { active, kits }                     kit ativo e loadout (só o dono)
+ *   attack / attack_failed                                 ataque básico (todos veem a animação)
+ *   evaluation_request { missionId, trainee, mission }     para o sensei: aprendiz entregou
+ *   sensei_options    { difficulties, quantities }         opções de missão (só para Chunin+)
+ *   notice            { text, tone }                       aviso curto na tela (só para um jogador)
  *   chat / error                                           como antes
  */
 
@@ -47,6 +62,11 @@ export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(['fire', 'wate
 
 /** Id de monstro como o servidor cria ("m" + número). */
 const monsterId = z.string().regex(/^m\d{1,9}$/);
+const uuid = z.string().uuid();
+const skillList = z.array(z.enum(SKILLS)).max(4).refine((l) => new Set(l).size === l.length, 'habilidade repetida no kit');
+
+export type KitName = 'A' | 'B';
+export type Kits = Record<KitName, Skill[]>;
 
 export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move'), dx: axis, dy: axis }),
@@ -55,6 +75,14 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z]{1,16}$/) }),
   z.object({ type: z.literal('missions') }),
+  z.object({ type: z.literal('attack'), targetId: monsterId.optional() }),
+  z.object({ type: z.literal('run'), active: z.boolean() }),
+  z.object({ type: z.literal('switch_kit'), kit: z.enum(['A', 'B']) }),
+  z.object({ type: z.literal('set_loadout'), kitA: skillList, kitB: skillList }),
+  z.object({ type: z.literal('spend_point'), attribute: z.enum(ATTRIBUTES) }),
+  z.object({ type: z.literal('create_mission'), traineeId: uuid, difficulty: z.string().regex(/^[A-Z][A-Z0-9_]{0,31}$/), quantity: z.number().int() }),
+  z.object({ type: z.literal('deliver_mission'), senseiId: uuid }),
+  z.object({ type: z.literal('evaluate_mission'), missionId: uuid, approved: z.boolean(), score: z.number().int().min(1).max(5) }),
   z.object({ type: z.literal('chat'), message: z.string() }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
@@ -73,6 +101,8 @@ export interface PlayerView {
   maxHp: number;
   dead: boolean;
   meditating: boolean;
+  rank: RankView;
+  level: number;
 }
 
 export interface SelfView extends PlayerView {
@@ -80,7 +110,27 @@ export interface SelfView extends PlayerView {
   maxChakra: number;
   shield: boolean;
   xp: number;
-  rank: RankView;
+  speed: number;
+  running: boolean;
+  /** Rank permite ser sensei (Chunin+): o cliente mostra "Criar Missão". O banco confere de novo. */
+  canBeSensei: boolean;
+}
+
+/** Ficha do jogador: nível, XP do nível (zera a cada nível), pontos e o que os atributos dão. */
+export interface ProgressView {
+  level: number;
+  xpInLevel: number;
+  xpToNext: number;
+  totalXp: number;
+  statPoints: number;
+  attributes: Attributes;
+  maxPoints: number;
+  derived: DerivedStats;
+}
+
+export interface KitView {
+  active: KitName;
+  kits: Kits;
 }
 
 export interface MonsterView {
@@ -107,6 +157,8 @@ export interface MissionView {
   /** active = em andamento; submitted = esperando o sensei avaliar; approved = pergaminho para entregar. */
   status: 'active' | 'submitted' | 'approved';
   senseiName: string;
+  /** Id do sensei: o aprendiz entrega tocando NESTE jogador. */
+  senseiId: string;
   /** Missão do NPC Mestre (e não de um sensei jogador). */
   fromNpc: boolean;
   type: { code: string; name: string };
@@ -134,6 +186,7 @@ export interface WorldInfo {
   width: number;
   height: number;
   speed: number;
+  runSpeed: number;
   tickMs: number;
   spawn: { x: number; y: number };
   respawnMs: number;
@@ -141,21 +194,25 @@ export interface WorldInfo {
   skills: Record<Skill, { cost: number; cooldownMs: number; range?: number }>;
   meditationRegenMultiplier: number;
   npcs: NpcView[];
+  basicAttack: { range: number; cooldownMs: number };
+  /** Vila: chão de pedra em volta do centro (área segura, sem monstros). */
+  village: { x: number; y: number; radius: number };
+  attributePerPoint: Attributes;
   promotion: { fromRank: string; toRank: string; xp: number };
 }
 
-export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD';
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED';
 /** Por que a meditação acabou. */
 export type MeditationEnd = 'manual' | 'moved' | 'cast' | 'damaged' | 'died';
 export type MonsterStatus = 'stunned' | 'rooted';
 
 export type ServerMessage =
-  | { type: 'welcome'; you: SelfView; players: PlayerView[]; monsters: MonsterView[]; world: WorldInfo }
+  | { type: 'welcome'; you: SelfView; players: PlayerView[]; monsters: MonsterView[]; world: WorldInfo; progress: ProgressView; kit: KitView }
   | { type: 'player_joined'; player: PlayerView }
   | { type: 'player_moved'; playerId: string; x: number; y: number }
   | { type: 'player_left'; playerId: string }
   | { type: 'chat'; playerId: string; username: string; message: string }
-  | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean }
+  | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean; speed: number; running: boolean }
   | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }
   | { type: 'cast'; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number }
   | { type: 'cast_failed'; skill: Skill; reason: CastFailReason }
@@ -172,16 +229,37 @@ export type ServerMessage =
   | { type: 'mission'; mission: MissionView | null; reason: MissionReason }
   | { type: 'npc_say'; npcId: string; text: string }
   | { type: 'mission_reward'; rewards: MissionRewardView[]; totalXp: number; rank: RankView; promoted: boolean }
+  | { type: 'progress' } & ProgressView
+  | { type: 'kit' } & KitView
+  | { type: 'attack'; playerId: string; x: number; y: number; fx: number; fy: number }
+  | { type: 'attack_failed'; reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' }
+  | { type: 'player_rank'; playerId: string; rank: RankView; level: number }
+  | { type: 'evaluation_request'; missionId: string; trainee: { id: string; username: string }; mission: MissionView }
+  | { type: 'sensei_options'; difficulties: SenseiDifficulty[]; quantities: number[] }
+  | { type: 'notice'; text: string; tone: 'info' | 'good' | 'bad' }
   | { type: 'error'; code: RealtimeErrorCode; message: string };
 
+export interface SenseiDifficulty {
+  code: string;
+  name: string;
+  xp: number;
+  title: string | null;
+}
+
 export const REALTIME_ERRORS = {
-  INVALID_MESSAGE: 'Mensagem inválida. Use {"type":"move","dx":..,"dy":..}, {"type":"cast","skill":".."}, {"type":"meditate","active":true}, {"type":"respawn"}, {"type":"talk","npcId":"sensei"}, {"type":"missions"} ou {"type":"chat","message":".."}.',
+  INVALID_MESSAGE: 'Mensagem inválida. Use {"type":"move","dx":..,"dy":..}, {"type":"cast","skill":".."}, {"type":"meditate","active":true}, {"type":"respawn"}, {"type":"talk","npcId":"sensei"}, {"type":"missions"}, {"type":"attack"}, {"type":"run","active":true}, {"type":"switch_kit","kit":"B"}, {"type":"spend_point","attribute":".."} ou {"type":"chat","message":".."}.',
   RESPAWN_NOT_READY: 'Ainda não dá para renascer.',
   CANNOT_MEDITATE: 'Não dá para meditar agora.',
   UNKNOWN_NPC: 'Esse NPC não existe.',
   NPC_TOO_FAR: 'Chegue mais perto para conversar.',
   CANNOT_TALK: 'Não dá para conversar agora.',
   MISSIONS_UNAVAILABLE: 'A Sala de Missões não está disponível agora. Tente de novo.',
+  NO_POINTS: 'Você não tem pontos de atributo. Suba de nível para ganhar mais.',
+  ATTRIBUTE_MAXED: 'Esse atributo já está no máximo.',
+  PROFILE_UNAVAILABLE: 'Não foi possível salvar agora. Tente de novo.',
+  PLAYER_NOT_FOUND: 'Esse jogador não está mais online.',
+  PLAYER_TOO_FAR: 'Chegue mais perto desse jogador.',
+  INVALID_MISSION_OPTION: 'Opção de missão inválida.',
   CHAT_RATE_LIMITED: 'Calma! Espere um pouco antes de mandar outra mensagem no chat.',
   CHAT_INVALID: 'Mensagem de chat vazia ou longa demais.',
 } as const;

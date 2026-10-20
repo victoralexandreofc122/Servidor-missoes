@@ -16,7 +16,7 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 function mission(progress: number, extra: Partial<MissionView> = {}): MissionView {
   return {
-    id: '0199a000-0000-7000-8000-000000000001', status: 'active', senseiName: 'Mestre', fromNpc: true,
+    id: '0199a000-0000-7000-8000-000000000001', status: 'active', senseiName: 'Mestre', senseiId: '00000000-0000-7000-8000-00000000a001', fromNpc: true,
     type: { code: 'DEFEAT_MONSTER', name: 'Derrotar monstros' }, target: { code: 'slime', quantity: 5 },
     progress, reward: { xp: 50, title: 'Discípulo do Mestre' }, expiresAt: null, ready: progress >= 5, ...extra,
   };
@@ -48,6 +48,11 @@ function fakeMissions() {
       calls.kills.push([id, type]);
       return state.kill;
     },
+    async create() { return { kind: 'refused', text: 'não usado aqui' }; },
+    async deliver() { return { kind: 'no_mission' }; },
+    async evaluate() { return { kind: 'refused', text: 'não usado aqui' }; },
+    async pendingEvaluations() { return []; },
+    async senseiOptions() { return []; },
   };
   return { missions, calls, state };
 }

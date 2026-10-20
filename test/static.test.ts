@@ -30,9 +30,9 @@ describe('cliente web servido pelo Fastify', () => {
     assert.match(String(r.json()), /<canvas id="game"/);
   });
 
-  it('/game.js, /targeting.js e /styles.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {
+  it('/game.js, /targeting.js, /village.js e /styles.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {
     const pub = app();
-    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/targeting.js', 'text/javascript; charset=utf-8'], ['/styles.css', 'text/css; charset=utf-8']];
+    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/targeting.js', 'text/javascript; charset=utf-8'], ['/village.js', 'text/javascript; charset=utf-8'], ['/styles.css', 'text/css; charset=utf-8']];
     for (const [url, type] of cases) {
       const r = await pub.inject({ method: 'GET', url });
       assert.equal(r.statusCode, 200, url);
@@ -81,6 +81,23 @@ describe('garantias do cliente (public/)', () => {
     assert.match(js, /from '\.\/targeting\.js'/, 'foco e câmera vêm do módulo testado');
     assert.match(js, /send\(\{ type: 'chat', message \}\)/);
     for (const skill of SKILLS) assert.match(html, new RegExp(`data-skill="${skill}"`));
+  });
+
+  it('combate MOBA: ataque, 4 espaços de habilidade, 🧘, 🏃, 🔄, 🎯; o cliente só PEDE (attack/run/switch_kit/spend_point)', () => {
+    for (const id of ['attack-btn', 'meditate-btn', 'run-btn', 'kit-btn', 'target-btn', 'talk-btn', 'status-toggle', 'status-panel', 'player-menu', 'eval-panel']) {
+      assert.match(html, new RegExp(`id="${id}"`), id);
+    }
+    assert.equal(html.match(/class="cbtn skill" data-slot="\d"/g)?.length, 4);
+    assert.match(js, /send\(state\.focusId \? \{ type: 'attack', targetId: state\.focusId \} : \{ type: 'attack' \}\)/);
+    assert.match(js, /send\(\{ type: 'run', active: !state\.me\.running \}\)/);
+    assert.match(js, /send\(\{ type: 'switch_kit', kit: state\.kit\.active === 'A' \? 'B' : 'A' \}\)/);
+    assert.match(js, /send\(\{ type: 'spend_point', attribute: li\.dataset\.attr \}\)/);
+    // O kit na tela só muda com a mensagem do servidor (welcome ou "kit"), nunca no toque.
+    assert.equal(js.match(/state\.kit = /g)?.length, 2);
+    assert.match(js, /case 'kit':\s+state\.kit = \{ active: msg\.active, kits: msg\.kits \};/);
+    // Velocidade da previsão: a que o servidor mandou.
+    assert.match(js, /const speed = state\.me\.speed \|\| state\.world\.speed;/);
+    assert.match(js, /from '\.\/village\.js'/);
   });
 
   it('Sala de Missões: botão 📜, painel com barra de progresso e 💬 Falar; o cliente só PEDE (talk/missions)', () => {

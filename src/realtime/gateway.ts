@@ -5,6 +5,7 @@ import type { PlayerRequest } from '../http.js';
 import { REALTIME, type RealtimeConfig } from './config.js';
 import { GameWorld, type JoiningPlayer, type Progression, type WorldLogger } from './gameWorld.js';
 import type { Missions } from './missions.js';
+import type { Profile } from './profile.js';
 
 /*
  * Endpoint WebSocket: wss://<servidor>/game
@@ -32,6 +33,8 @@ export interface GatewayDeps {
   progression?: Progression;
   /** Missões de sensei (NPC Mestre e abates) no banco. */
   missions?: Missions;
+  /** Ficha no banco (gastar pontos, salvar kits). */
+  profile?: Profile;
   /** Sorteio dos monstros (testes). */
   random?: () => number;
   log: WorldLogger & { error(obj: object, msg?: string): void };
@@ -76,6 +79,7 @@ export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
     ...(deps.random ? { random: deps.random } : {}),
     ...(deps.progression ? { progression: deps.progression } : {}),
     ...(deps.missions ? { missions: deps.missions } : {}),
+    ...(deps.profile ? { profile: deps.profile } : {}),
   });
   const wss = new WebSocketServer({
     noServer: true,

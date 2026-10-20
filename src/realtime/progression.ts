@@ -11,6 +11,9 @@ import type { Progression } from './gameWorld.js';
  * Duas mortes de monstro ao mesmo tempo não se perdem: o UPDATE trava a linha.
  *
  * Ranks acima de Genin continuam vindo de outros sistemas (missões de sensei etc.).
+ *
+ * Nível (v5): o trigger trg_players_level_from_xp recalcula o nível e dá +1 ponto de atributo
+ * por nível na mesma linha, quando total_xp muda. Este SQL só devolve o resultado.
  */
 export const GRANT_XP_SQL = `
   WITH ranks AS (
@@ -19,7 +22,7 @@ export const GRANT_XP_SQL = `
   ), old AS (
     -- FOR UPDATE: trava a linha ANTES de ler o rank antigo. Com duas mortes simultâneas,
     -- a segunda espera e lê o rank já promovido: só UMA vê "promoted" (um aviso só).
-    SELECT id, current_rank_id FROM game.players WHERE id = $1 FOR UPDATE
+    SELECT id, current_rank_id, level FROM game.players WHERE id = $1 FOR UPDATE
   ), updated AS (
     UPDATE game.players p
        SET total_xp = p.total_xp + $2,
@@ -29,18 +32,34 @@ export const GRANT_XP_SQL = `
            END
       FROM old, ranks r
      WHERE p.id = old.id
-     RETURNING p.total_xp, p.current_rank_id, old.current_rank_id AS old_rank_id
+     RETURNING p.total_xp, p.current_rank_id, old.current_rank_id AS old_rank_id,
+               p.level, p.stat_points, old.level AS old_level
   )
   SELECT u.total_xp, k.code AS rank_code, k.name AS rank_name,
-         (u.current_rank_id IS DISTINCT FROM u.old_rank_id) AS promoted
+         (u.current_rank_id IS DISTINCT FROM u.old_rank_id) AS promoted,
+         u.level, u.stat_points, (u.level - u.old_level) AS levels_gained
     FROM updated u
     JOIN game.ranks k ON k.id = u.current_rank_id`;
 
-interface GrantRow {
+export interface GrantRow {
   total_xp: string;
   rank_code: string;
   rank_name: string;
   promoted: boolean;
+  level: number;
+  stat_points: number;
+  levels_gained: number;
+}
+
+export function grantResult(row: GrantRow) {
+  return {
+    totalXp: Number(row.total_xp),
+    rank: { code: row.rank_code, name: row.rank_name },
+    promoted: row.promoted,
+    level: row.level,
+    statPoints: row.stat_points,
+    levelsGained: row.levels_gained,
+  };
 }
 
 export function makeProgression(db: Queryable, promotion: CombatConfig['promotion']): Progression {
@@ -49,7 +68,7 @@ export function makeProgression(db: Queryable, promotion: CombatConfig['promotio
       const { rows } = await db.query<GrantRow>(GRANT_XP_SQL, [playerId, amount, promotion.fromRank, promotion.toRank, promotion.xp]);
       const row = rows[0];
       if (!row) return undefined;   // jogador não existe mais
-      return { totalXp: Number(row.total_xp), rank: { code: row.rank_code, name: row.rank_name }, promoted: row.promoted };
+      return grantResult(row);
     },
   };
 }

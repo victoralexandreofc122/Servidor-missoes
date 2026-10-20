@@ -139,4 +139,10 @@ describe('validação do cadastro e do login (Zod)', () => {
     assert.match(msg, /db\/schema_v3_auth\.sql/);
     assert.match(msg, /Manual Deploy/);
   });
+
+  it('boot sem a migração v5: aponta o arquivo certo (nível, atributos e kits)', () => {
+    const msg = describeBootError({ code: '42703', message: 'column "level" does not exist' });
+    assert.match(msg, /db\/schema_v5_atributos\.sql/);
+    assert.match(msg, /Manual Deploy/);
+  });
 });

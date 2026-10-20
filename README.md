@@ -14,6 +14,7 @@ cp .env.example .env              # preencha os segredos
 psql "$DATABASE_URL" -f db/schema_ranks_missoes_sensei.sql
 psql "$DATABASE_URL" -f db/schema_v3_auth.sql      # migração v3: login
 psql "$DATABASE_URL" -f db/schema_v4_npc_missions.sql   # migração v4: NPC Mestre
+psql "$DATABASE_URL" -f db/schema_v5_atributos.sql      # migração v5: nível, atributos, kits
 npm run dev
 ```
 
@@ -58,7 +59,7 @@ POST /auth/login
 ## Cliente web (public/)
 
 `GET /` abre o jogo no navegador (celular ou computador), servido pela própria API: mesma origem,
-então não precisa de CORS. São quatro arquivos (`index.html`, `game.js`, `targeting.js`, `styles.css`), sem bibliotecas,
+então não precisa de CORS. São cinco arquivos (`index.html`, `game.js`, `targeting.js`, `village.js`, `styles.css`), sem bibliotecas,
 servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
 
 - **Tela:** login e cadastro.
@@ -78,8 +79,30 @@ servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
 - **Mestre (NPC):** desenhado ao lado do renascimento com um marcador: `!` tem missão, `?` cinza em
   andamento, `?` dourado pronta para entregar. Perto dele aparece **💬 Falar**. Com a missão pronta e o
   Mestre fora da tela, uma seta na borda aponta para ele.
-- **No computador:** WASD ou setas para andar, 1 a 7 para as habilidades, T para o foco, M para meditar,
-  E para falar com o NPC, J para as missões e Enter para o chat.
+- **Combate estilo MOBA** (canto de baixo à direita), com a recarga em sombra girando + segundos:
+  - 🗡️ Ataque Básico, o maior botão;
+  - as 4 habilidades do kit ativo em semicírculo;
+  - 🧘 acima, 🏃 abaixo, 🔄 trocar de kit e 🎯 foco acima das habilidades;
+  - 💬 aparece perto do NPC.
+
+  Os botões respondem no toque (`pointerdown`), então dá para focar e atacar segurando o joystick.
+- **📊 Ficha:** nível, XP do nível, pontos e "+" nos 6 atributos; a aba Kits monta os 2 kits.
+- **Tocar em outro jogador:** abre o menu dele (Criar Missão para Chunin+, Entregar missão para o aprendiz).
+- **No computador:**
+
+  | Ação | Tecla |
+  |---|---|
+  | Andar | WASD ou setas |
+  | Ataque Básico | Espaço |
+  | Habilidades | 1 a 4 |
+  | Trocar de kit | Q |
+  | Correr | R |
+  | Meditar | M |
+  | Foco | T |
+  | Ficha | C |
+  | Falar com o NPC | E |
+  | Missões | J |
+  | Chat | Enter |
 
 O token fica no `localStorage` e vai no subprotocolo do WebSocket, nunca na URL.
 
@@ -142,6 +165,53 @@ Regras (em `src/realtime/config.ts`):
 - **Mesma conta:** conectando de novo, derruba a conexão antiga (4000).
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
+
+### v5: energia, atributos, corrida, kits e missão entre jogadores
+
+As contas ficam em `src/realtime/stats.ts` (funções puras). O cliente só mostra o que o servidor manda.
+
+- **Energia:**
+  - o chakra **não** regenera sozinho, só meditando (15/s, mais o atributo Regen Chakra);
+  - a vida regenera 1/s **só** com o chakra no máximo.
+- **Ataque Básico** (`{"type":"attack","targetId?"}`):
+  - não gasta chakra; 12 de dano, alcance 1,6, recarga 0,6 s;
+  - acerta o alvo focado (se estiver no alcance) ou o mais perto;
+  - dano **físico**: usa o multiplicador de Taijutsu.
+- **Jutsus** (as 7 habilidades): dano de **jutsu**, com o multiplicador de Ninjutsu.
+- **Corrida** (`{"type":"run","active":true}`):
+  - andar 5 e correr 8 casas/s, mais 0,5 por ponto de Agilidade;
+  - o cliente só manda direção e liga/desliga: velocidade e posição são do servidor.
+- **Nível:**
+  - do nível N para o N+1 são N × 100 XP (nível 2 aos 100, 3 aos 300, 4 aos 600…);
+  - na tela o XP "zera" a cada nível; no banco o `total_xp` continua somando;
+  - o trigger `trg_players_level_from_xp` sobe o nível e dá +1 ponto por nível, para XP de monstro ou de missão;
+  - o banco garante `pontos livres + gastos = nível − 1`.
+- **Atributos** (`{"type":"spend_point","attribute":".."}`): máximo de 10 pontos cada.
+
+  | Atributo | Cada ponto dá |
+  |---|---|
+  | Vitalidade | +10 de vida |
+  | Chakra Máximo | +10 de chakra |
+  | Regen Chakra | +1/s meditando |
+  | Agilidade | +0,5 de velocidade |
+  | Taijutsu | +5% no Ataque Básico |
+  | Ninjutsu | +5% nos jutsus |
+- **Kits:**
+  - 2 kits de até 4 habilidades, gravados em `kit_a` / `kit_b` com `{"type":"set_loadout"}`;
+  - só valem as habilidades do kit **ativo** (`NOT_EQUIPPED`);
+  - a troca é `{"type":"switch_kit","kit":"B"}`, e o cliente só muda os botões quando o servidor confirma.
+- **Missão entre jogadores:** valida a distância (até 3 casas) e o resto fica com o banco (rank do sensei, rank do aprendiz, uma missão aberta, quem avalia).
+
+  | Passo | Quem | Mensagem |
+  |---|---|---|
+  | Criar | Chunin+ toca no outro jogador | `{"type":"create_mission","traineeId","difficulty","quantity"}` |
+  | Entregar | Aprendiz toca no sensei que criou | `{"type":"deliver_mission","senseiId"}` |
+  | Avaliar | Sensei | `{"type":"evaluate_mission","missionId","approved","score"}` |
+
+  Aprovar emite o pergaminho, que o aprendiz resgata no Mestre.
+- **Vila:**
+  - chão de pedra num raio de 10 casas, com casas marrons (`public/village.js`, só visual);
+  - os monstros ficam no anel de 11 a 20 casas.
 
 ### NPC Mestre e Sala de Missões (`src/realtime/missions.ts`)
 

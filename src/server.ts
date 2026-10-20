@@ -9,6 +9,7 @@ import { makeFindPlayer } from './realtime/findPlayer.js';
 import { REALTIME } from './realtime/config.js';
 import { attachGameGateway } from './realtime/gateway.js';
 import { makeMissions, MISSIONS_SQL, NPC_MISSION, NPC_SENSEI_ID } from './realtime/missions.js';
+import { makeProfile, PROFILE_SQL } from './realtime/profile.js';
 import { makeProgression } from './realtime/progression.js';
 import { loadPublicFiles, type StaticFile } from './web/staticFiles.js';
 import { loadConfig, trustProxyWarning, type Config } from './config.js';
@@ -73,6 +74,7 @@ const gateway = attachGameGateway(publicApp.server, {
   findPlayer: makeFindPlayer(db),
   progression: makeProgression(db, REALTIME.combat.promotion),   // XP do combate vai para game.players
   missions: makeMissions(db, REALTIME.combat.promotion),         // NPC Mestre + abates em game.sensei_missions
+  profile: makeProfile(db, REALTIME.combat.attributes.maxPoints), // pontos de atributo e kits (v5)
   log: publicApp.log,
 });
 const internalApp = buildInternalApp({ db, requireServiceToken: makeRequireServiceToken(config.SERVICE_TOKEN) }, settings);
@@ -108,6 +110,7 @@ try {
   // derrubam a subida (o Render mantém a versão anterior), não a 1ª requisição.
   await db.query('SELECT 1 FROM game.ranks LIMIT 1');   // schema v2
   await db.query(AUTH_SQL.bootCheck);                    // migração v3 (login)
+  await db.query(PROFILE_SQL.bootCheck);                 // migração v5 (nível, atributos, kits)
   // Migração v4 (NPC Mestre): sem ela o jogo sobe igual, só o Mestre não passa missões.
   const v4 = await db.query(MISSIONS_SQL.bootCheck, [NPC_SENSEI_ID, NPC_MISSION.missionType, NPC_MISSION.difficulty]);
   if (v4.rows.length === 0) publicApp.log.warn('[boot] NPC Mestre sem missões: rode db/schema_v4_npc_missions.sql no SQL Editor do Neon (não precisa reiniciar).');

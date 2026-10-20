@@ -26,7 +26,13 @@ describe('XP do combate no banco (PostgreSQL real)', { skip: noDatabase }, () =>
     const history = await t.pool.query(
       `SELECT r.code FROM game.player_rank_changes c JOIN game.ranks r ON r.id = c.rank_id WHERE c.player_id = $1 ORDER BY c.changed_at, c.id`, [id]);
     assert.deepEqual(history.rows.map((r) => r.code), ['ACADEMY', 'GENIN'], 'trigger do schema registrou a promoção');
-    assert.deepEqual(await makeFindPlayer(t.db)(id), { id, username: 'kaito', xp: 120, rank: { code: 'GENIN', name: 'Genin' } });
+    const found = await makeFindPlayer(t.db)(id);
+    assert.deepEqual({ ...found, attributes: undefined, kits: undefined }, {
+      id, username: 'kaito', xp: 120, rank: { code: 'GENIN', name: 'Genin' }, canBeSensei: false, level: 2, statPoints: 1,
+      attributes: undefined, kits: undefined,
+    });
+    assert.deepEqual(found!.kits, { A: ['fire', 'water', 'taijutsu', 'heal'], B: ['illusion', 'shadow', 'stone', 'heal'] });
+    assert.equal(results[4]!.levelsGained, 1, 'os 100 XP também subiram o nível (trigger da v5)');
   });
 
   it('10 mortes ao mesmo tempo: nenhum XP perdido e UM aviso de promoção', async () => {
@@ -41,7 +47,9 @@ describe('XP do combate no banco (PostgreSQL real)', { skip: noDatabase }, () =>
   it('Chunin não é rebaixado nem promovido pelo combate; jogador inexistente: undefined', async () => {
     const id = await t.createPlayer('sensei', 'CHUNIN');
     const prog = makeProgression(t.db, REALTIME.combat.promotion);
-    assert.deepEqual(await prog.grantXp(id, 500), { totalXp: 500, rank: { code: 'CHUNIN', name: 'Chunin' }, promoted: false });
+    assert.deepEqual(await prog.grantXp(id, 500), {
+      totalXp: 500, rank: { code: 'CHUNIN', name: 'Chunin' }, promoted: false, level: 3, statPoints: 2, levelsGained: 2,
+    });
     assert.equal(await prog.grantXp('00000000-0000-7000-8000-000000000000', 20), undefined);
   });
 });

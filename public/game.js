@@ -10,6 +10,7 @@
 // com a posição oficial que chega a cada tick.
 
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
+import { houseAt, housesOf, isVillage } from './village.js';
 
 const TOKEN_KEY = 'nin.token';
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/game`;
@@ -25,7 +26,16 @@ const ui = {
   hud: $('hud'), status: $('status'), toast: $('toast'),
   chat: $('chat'), chatFeed: $('chat-feed'), chatInput: $('chat-input'),
   chatToggle: $('chat-toggle'), logout: $('logout'),
-  skills: $('skills'),
+  combat: $('combat'), attackBtn: $('attack-btn'), runBtn: $('run-btn'), kitBtn: $('kit-btn'), kitLabel: $('kit-label'),
+  slots: [...document.querySelectorAll('#combat .skill')],
+  statusToggle: $('status-toggle'), statusBadge: $('status-badge'), statusPanel: $('status-panel'), statusClose: $('status-close'),
+  statusLevel: $('status-level'), tabAttrs: $('tab-attrs'), tabKits: $('tab-kits'), paneAttrs: $('pane-attrs'), paneKits: $('pane-kits'),
+  xpMeter: $('xp-meter'), xpFill: $('xp-fill'), xpCount: $('xp-count'), pointsLine: $('points-line'),
+  attrRows: [...document.querySelectorAll('.attr-list li')], kitRows: [...document.querySelectorAll('.kit-list li')],
+  kitCount: $('kit-count'), kitSave: $('kit-save'),
+  playerMenu: $('player-menu'), pmName: $('pm-name'), pmRank: $('pm-rank'), pmClose: $('pm-close'), pmDeliver: $('pm-deliver'),
+  pmCreate: $('pm-create'), pmForm: $('pm-form'), pmQty: $('pm-qty'), pmDiff: $('pm-diff'), pmSend: $('pm-send'), pmNote: $('pm-note'),
+  evalPanel: $('eval-panel'), evalText: $('eval-text'), evalStars: $('eval-stars'), evalApprove: $('eval-approve'), evalReject: $('eval-reject'),
   login: $('login'), loginForm: $('login-form'), loginError: $('login-error'), loginSubmit: $('login-submit'),
   toggleMode: $('toggle-mode'), usernameField: $('username-field'), passwordHint: $('password-hint'),
   rotate: $('rotate'), rotateDismiss: $('rotate-dismiss'), safeProbe: $('safe-probe'),
@@ -73,7 +83,20 @@ const state = {
   players: new Map(),
   world: { width: 100, height: 100, speed: 5, tickMs: 50, spawn: { x: 50, y: 50 }, respawnMs: 5000, skills: {}, promotion: { xp: 100 } },
   /** Barras do próprio jogador (vêm do servidor). */
-  me: { hp: 100, maxHp: 100, chakra: 100, maxChakra: 100, shield: false, xp: 0, rank: { code: 'ACADEMY', name: 'Academia' }, dead: false, meditating: false },
+  me: {
+    hp: 100, maxHp: 100, chakra: 100, maxChakra: 100, shield: false, xp: 0, rank: { code: 'ACADEMY', name: 'Academia' },
+    dead: false, meditating: false, speed: 5, running: false, canBeSensei: false,
+  },
+  /** Ficha (nível, XP do nível, pontos, atributos e o que eles dão): SEMPRE a do servidor. */
+  progress: null,
+  /** Kit ativo e os 2 kits: só mudam quando o servidor confirma. */
+  kit: { active: 'A', kits: { A: [], B: [] } },
+  /** Sensei: dificuldades do catálogo (vêm do servidor) e quantidades aceitas. */
+  senseiOptions: null,
+  /** Pedidos de avaliação esperando o sensei (um por vez na tela). */
+  evalQueue: [],
+  /** Casas da vila (só visual). */
+  houses: [],
   /** Monstro focado pelo botão 🎯 (id) ou null. */
   focusId: null,
   /** NPCs parados (vêm no welcome): { id, name, x, y, range, npc: true, bubble } */
@@ -266,12 +289,14 @@ function upsertPlayer(p, snap) {
     existing.tx = p.x; existing.ty = p.y;
     if (snap) { existing.x = p.x; existing.y = p.y; }
     if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; }
+    if (p.rank) { existing.rank = p.rank; existing.level = p.level; }
     return existing;
   }
   const color = colorFor(p.id);
   const player = {
     id: p.id, username: p.username, x: p.x, y: p.y, tx: p.x, ty: p.y, color, bubble: null,
     hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating,
+    rank: p.rank || null, level: p.level || 1,
     initial: ([...p.username][0] || '?').toUpperCase(),
     initialColor: LIGHT_COLORS.has(color) ? '#14110d' : '#ffffff',
   };
@@ -289,6 +314,7 @@ function upsertMonster(m, now) {
 const CAST_FAIL_TEXT = {
   NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum monstro perto',
   FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
+  NOT_EQUIPPED: 'Fora do kit ativo',
 };
 
 function handleMessage(msg) {
@@ -302,7 +328,8 @@ function handleMessage(msg) {
         const w = msg.world, old = state.world;
         if (w.width !== old.width || w.height !== old.height || w.spawn?.x !== old.spawn?.x || w.spawn?.y !== old.spawn?.y) chunkCache.clear();
         state.world = w;
-        setupSkillButtons(w.skills || {});
+        state.houses = housesOf(w.village);
+        chunkCache.clear();
         state.npcs = (w.npcs || []).map((n) => ({ ...n, npc: true, bubble: null }));
         state.nearNpc = null;
         ui.talkBtn.hidden = true;
@@ -313,7 +340,15 @@ function handleMessage(msg) {
       Object.assign(state.me, {
         hp: msg.you.hp, maxHp: msg.you.maxHp, chakra: msg.you.chakra, maxChakra: msg.you.maxChakra,
         shield: msg.you.shield, xp: msg.you.xp, rank: msg.you.rank, dead: msg.you.dead, meditating: !!msg.you.meditating,
+        speed: msg.you.speed ?? state.world.speed, running: !!msg.you.running, canBeSensei: !!msg.you.canBeSensei,
       });
+      if (msg.progress) state.progress = msg.progress;
+      if (msg.kit) state.kit = msg.kit;
+      state.evalQueue = [];
+      renderEval();
+      closePlayerMenu();
+      renderKit();
+      renderStatus();
       setFocus(null);
       renderActions();
       renderVitals();
@@ -345,7 +380,49 @@ function handleMessage(msg) {
     // ---- combate (tudo decidido pelo servidor)
     case 'stats':
       Object.assign(state.me, { hp: msg.hp, maxHp: msg.maxHp, chakra: msg.chakra, maxChakra: msg.maxChakra, shield: msg.shield });
+      if (msg.speed !== undefined) { state.me.speed = msg.speed; state.me.running = !!msg.running; }
       renderVitals();
+      renderActions();
+      break;
+    case 'progress': {
+      const before = state.progress;
+      state.progress = msg;
+      renderStatus();
+      renderVitals();
+      if (before && msg.statPoints > before.statPoints) pulse(ui.statusToggle);
+      break;
+    }
+    case 'kit':
+      state.kit = { active: msg.active, kits: msg.kits };
+      renderKit();
+      renderStatus();
+      break;
+    case 'attack': {
+      state.effects.push({ skill: 'attack', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
+      if (msg.playerId === state.meId) startCooldown('attack');
+      break;
+    }
+    case 'attack_failed': {
+      const me = state.players.get(state.meId);
+      if (me && msg.reason !== 'COOLDOWN') addFloater(me.x, me.y - 0.9, CAST_FAIL_TEXT[msg.reason] || 'Não deu', '#d8cdb8', 0.75);
+      break;
+    }
+    case 'player_rank': {
+      const p = state.players.get(msg.playerId);
+      if (p) { p.rank = msg.rank; p.level = msg.level; }
+      break;
+    }
+    case 'sensei_options':
+      state.senseiOptions = { difficulties: msg.difficulties, quantities: msg.quantities };
+      break;
+    case 'evaluation_request':
+      if (!state.evalQueue.some((e) => e.missionId === msg.missionId)) state.evalQueue.push(msg);
+      renderEval();
+      if (navigator.vibrate) try { navigator.vibrate([40, 40, 40]); } catch { /* sem vibração */ }
+      break;
+    case 'notice':
+      showToast(msg.text, 4500);
+      addSystemLine(msg.text);
       break;
     case 'player_hp': {
       const p = state.players.get(msg.playerId);
@@ -495,7 +572,11 @@ function handleMessage(msg) {
     }
     case 'error':
       if (msg.code === 'CHAT_RATE_LIMITED' || msg.code === 'CHAT_INVALID') addSystemLine(msg.message);
-      else if (msg.code === 'NPC_TOO_FAR' || msg.code === 'CANNOT_TALK' || msg.code === 'UNKNOWN_NPC' || msg.code === 'MISSIONS_UNAVAILABLE') addSystemLine(msg.message);
+      else if (['NPC_TOO_FAR', 'CANNOT_TALK', 'UNKNOWN_NPC', 'MISSIONS_UNAVAILABLE', 'NO_POINTS', 'ATTRIBUTE_MAXED',
+        'PROFILE_UNAVAILABLE', 'PLAYER_NOT_FOUND', 'PLAYER_TOO_FAR', 'INVALID_MISSION_OPTION'].includes(msg.code)) {
+        showToast(msg.message, 3500);
+        addSystemLine(msg.message);
+      }
       else if (msg.code === 'RESPAWN_NOT_READY') setTimeout(() => { ui.respawn.disabled = false; }, 800);
       else console.warn('[servidor]', msg.code, msg.message);
       break;
@@ -517,40 +598,11 @@ function renderVitals() {
   ui.hpFill.parentElement.setAttribute('aria-valuenow', String(m.hp));
   ui.chakraFill.parentElement.setAttribute('aria-valuenow', String(m.chakra));
   ui.hpFill.parentElement.classList.toggle('shielded', !!m.shield);
-  const goal = state.world.promotion && m.rank && m.rank.code === state.world.promotion.fromRank ? ` / ${state.world.promotion.xp}` : '';
-  ui.xpLine.textContent = `${m.rank ? m.rank.name : ''} · ${m.xp}${goal} XP`;
-  for (const button of ui.skills.querySelectorAll('.skill')) {
-    const cost = Number(button.dataset.cost || 0);
-    button.classList.toggle('no-chakra', m.chakra < cost || m.dead);
-  }
-}
-
-/** Custo de chakra em cada botão (vem do servidor no welcome). */
-function setupSkillButtons(skills) {
-  for (const button of ui.skills.querySelectorAll('.skill')) {
-    const info = skills[button.dataset.skill];
-    if (!info) continue;
-    button.dataset.cost = String(info.cost);
-    button.dataset.cooldown = String(info.cooldownMs);
-    let badge = button.querySelector('.cost');
-    if (!badge) {
-      badge = document.createElement('i');
-      badge.className = 'cost';
-      badge.setAttribute('aria-hidden', 'true');
-      button.append(badge);
-    }
-    badge.textContent = String(info.cost);
-    button.setAttribute('aria-label', `${button.querySelector('small').textContent} (${info.cost} de chakra)`);
-  }
-}
-
-function startCooldown(skill) {
-  const button = ui.skills.querySelector(`[data-skill="${skill}"]`);
-  if (!button) return;
-  button.style.setProperty('--cd', `${Number(button.dataset.cooldown || 600) / 1000}s`);
-  button.classList.remove('cooldown');
-  void button.offsetWidth;   // reinicia a animação
-  button.classList.add('cooldown');
+  const pr = state.progress;
+  ui.xpLine.textContent = pr
+    ? `${m.rank ? m.rank.name : ''} · Nv ${pr.level} · ${pr.xpInLevel} / ${pr.xpToNext} XP`
+    : `${m.rank ? m.rank.name : ''} · ${m.xp} XP`;
+  renderSlots();
 }
 
 function addFloater(x, y, text, color, size = 1) {
@@ -668,6 +720,13 @@ function inJoystickZone(x, y, w, h) {
 
 canvas.addEventListener('pointerdown', (e) => {
   const w = canvas.clientWidth, h = canvas.clientHeight;
+  // Tocou em outro jogador: menu dele (nome, rank, Criar/Entregar missão), não o joystick.
+  const other = playerAtScreen(e.clientX, e.clientY);
+  if (other) {
+    e.preventDefault();
+    openPlayerMenu(other);
+    return;
+  }
   if (joy.pointerId !== null || !inJoystickZone(e.clientX, e.clientY, w, h)) return;
   e.preventDefault();
   joy.pointerId = e.pointerId;
@@ -723,7 +782,11 @@ function keyDirection() {
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
   if (KEYMAP[e.code]) { keys.add(e.code); keyDirection(); e.preventDefault(); }
-  if (e.key >= '1' && e.key <= '7') castSkill(SKILL_ORDER[Number(e.key) - 1]);
+  if (e.key >= '1' && e.key <= '4') castSlot(Number(e.key) - 1);
+  if (e.key === ' ' && ui.chat.hidden) { basicAttack(); e.preventDefault(); }
+  if (e.key === 'q' || e.key === 'Q') switchKit();
+  if (e.key === 'r' || e.key === 'R') toggleRun();
+  if (e.key === 'c' || e.key === 'C') (ui.statusPanel.hidden ? openStatus() : closeStatus());
   if (e.key === 'Enter' && ui.chat.hidden && !ui.hud.hidden) { openChat(); e.preventDefault(); }
   if (e.key === 't' || e.key === 'T' || e.key === 'Tab') { cycleFocus(); e.preventDefault(); }
   if (e.key === 'm' || e.key === 'M') toggleMeditation();
@@ -749,6 +812,7 @@ const SKILLS = {
   shadow: { color: '#2a2140', ms: 900 },
   stone: { color: '#9a7448', ms: 650 },
   heal: { color: '#5fe07a', ms: 900 },
+  attack: { color: '#fff3c4', ms: 260 },   // Ataque Básico: corte rápido na direção do golpe
 };
 const GROUND_FX = new Set(['shadow', 'water']);
 /** Habilidades que miram no alvo focado (Taijutsu: sempre o mais perto; Pedra e Cura: em si mesmo). */
@@ -786,10 +850,27 @@ function renderActions() {
   ui.meditateBtn.classList.toggle('active', on);
   ui.meditateBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
   ui.chakraFill.parentElement.classList.toggle('meditating', on);
+  const running = !!state.me.running;
+  ui.runBtn.classList.toggle('active', running);
+  ui.runBtn.setAttribute('aria-pressed', running ? 'true' : 'false');
+  ui.runBtn.setAttribute('aria-label', running ? 'Correndo (toque para andar)' : 'Correr');
 }
 
-ui.targetBtn.addEventListener('click', cycleFocus);
-ui.meditateBtn.addEventListener('click', toggleMeditation);
+/**
+ * Botões do combate respondem no TOQUE (pointerdown), não no "click": com o polegar
+ * esquerdo segurando o joystick, o navegador não gera "click" para o outro dedo.
+ * Assim dá para focar, atacar e trocar de alvo ANDANDO. Teclado/leitor de tela: "click".
+ */
+function onTap(el, fn) {
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button > 0) return;
+    e.preventDefault();
+    fn(e);
+  });
+  el.addEventListener('click', (e) => { if (e.detail === 0) fn(e); });
+}
+onTap(ui.targetBtn, cycleFocus);
+onTap(ui.meditateBtn, toggleMeditation);
 
 // ------------------------------------------------------------------ missões (NPC Mestre e Sala de Missões)
 
@@ -845,6 +926,8 @@ function renderMission() {
 }
 
 function openMissions() {
+  closeStatus();
+  closePlayerMenu();
   ui.missionsPanel.hidden = false;
   ui.missionsToggle.setAttribute('aria-expanded', 'true');
   renderMission();
@@ -867,7 +950,7 @@ function talkToNpc() {
   lastTalkAt = now;
   send({ type: 'talk', npcId: npc.id });
 }
-ui.talkBtn.addEventListener('click', talkToNpc);
+onTap(ui.talkBtn, talkToNpc);
 
 /** Mostra/esconde o 💬 Falar. Margem de 0,15 casa: a posição prevista pode estar à frente da do servidor. */
 function updateNpcProximity(me) {
@@ -895,35 +978,329 @@ function pulse(el) {
   void el.offsetWidth;
   el.classList.add('pulse');
 }
-const SKILL_ORDER = ['fire', 'water', 'taijutsu', 'illusion', 'shadow', 'stone', 'heal'];
-const cooldownUntil = {};
+// ------------------------------------------------------------------ combate MOBA (ataque, 4 habilidades, kits)
+
+/** Ícone e cor de cada habilidade (só visual). */
+const SKILL_UI = {
+  fire: { icon: '🔥', name: 'Fogo', color: '#e8572f' },
+  water: { icon: '💧', name: 'Água', color: '#3c9be0' },
+  taijutsu: { icon: '👊', name: 'Taijutsu', color: '#d9a441' },
+  illusion: { icon: '🌀', name: 'Ilusão', color: '#9a6be0' },
+  shadow: { icon: '🌑', name: 'Sombra', color: '#4a3f63' },
+  stone: { icon: '⛰', name: 'Pedra', color: '#8a6a45' },
+  heal: { icon: '✚', name: 'Cura', color: '#4fbf6a' },
+};
+
+/** skill (ou "attack") -> { until, ms }: quando a recarga acaba. Começa quando o SERVIDOR confirma. */
+const cooldowns = {};
+
+function startCooldown(skill) {
+  const ms = skill === 'attack' ? (state.world.basicAttack?.cooldownMs ?? 600) : (state.world.skills?.[skill]?.cooldownMs ?? 600);
+  cooldowns[skill] = { until: performance.now() + ms, ms };
+}
+
+/** As 4 habilidades do kit ATIVO nos botões em volta do ataque (o kit vem do servidor). */
+function renderKit() {
+  const list = state.kit.kits[state.kit.active] || [];
+  ui.slots.forEach((button, i) => {
+    const skill = list[i] || '';
+    button.dataset.skill = skill;
+    const info = SKILL_UI[skill];
+    button.querySelector('.ico').textContent = info ? info.icon : '';
+    const cost = state.world.skills?.[skill]?.cost;
+    button.querySelector('.cost').textContent = cost !== undefined ? String(cost) : '';
+    button.style.setProperty('--c', info ? info.color : 'transparent');
+    button.classList.toggle('empty', !info);
+    button.disabled = !info;
+    button.setAttribute('aria-label', info ? `${info.name} (${cost} de chakra) — tecla ${i + 1}` : `Espaço ${i + 1} vazio (monte na ficha 📊 → Kits)`);
+  });
+  ui.kitLabel.textContent = state.kit.active;
+  ui.kitBtn.setAttribute('aria-label', `Trocar de kit (ativo: ${state.kit.active})`);
+  renderSlots();
+}
+
+/** Botão apagado sem chakra; recarga desenhada no quadro (frame). */
+function renderSlots() {
+  for (const button of ui.slots) {
+    const cost = state.world.skills?.[button.dataset.skill]?.cost ?? 0;
+    button.classList.toggle('no-chakra', !!button.dataset.skill && (state.me.chakra < cost || state.me.dead));
+  }
+}
+
+/** Sombra girando por cima de cada botão em recarga + segundos (só aparência). */
+function drawCooldowns(now) {
+  const paint = (button, skill) => {
+    const cd = cooldowns[skill];
+    const left = cd ? cd.until - now : 0;
+    const label = button.querySelector('.cd');
+    if (left > 0) {
+      button.style.setProperty('--p', `${Math.round((left / cd.ms) * 360)}deg`);
+      button.classList.add('cooling');
+      const secs = left >= 1000 ? Math.ceil(left / 1000) : (left / 1000).toFixed(1).replace('0.', ',');
+      if (label.textContent !== String(secs)) label.textContent = String(secs);
+    } else if (button.classList.contains('cooling')) {
+      button.classList.remove('cooling');
+      label.textContent = '';
+    }
+  };
+  paint(ui.attackBtn, 'attack');
+  for (const button of ui.slots) if (button.dataset.skill) paint(button, button.dataset.skill);
+}
 
 /**
- * Só PEDE a habilidade. Animação, recarga, custo e dano só acontecem quando o servidor
- * confirma (mensagem "cast" / "hit"); se ele recusar, aparece o motivo sobre o personagem.
+ * Só PEDE. Dano, alvo, custo e recarga são do servidor; a animação e a recarga na tela só
+ * começam quando ele confirma ("cast" / "attack"). Recusou: o motivo aparece sobre o boneco.
  */
 const lastTap = {};
-function castSkill(skill) {
-  if (!SKILLS[skill] || !state.connected || state.me.dead) return;
+function tapGuard(key) {
   const now = performance.now();
-  if (now - (lastTap[skill] || 0) < 150) return;     // toque duplo acidental
-  lastTap[skill] = now;
+  if (now - (lastTap[key] || 0) < 120) return false;      // toque duplo acidental
+  lastTap[key] = now;
+  return true;
+}
+
+function castSlot(i) {
+  const skill = ui.slots[i]?.dataset.skill;
+  if (skill) castSkill(skill);
+}
+function castSkill(skill) {
+  if (!SKILLS[skill] || !state.connected || state.me.dead || !tapGuard(skill)) return;
   // Jutsu direcionado: com alvo focado, vai o targetId (o servidor mira e confere o alcance).
   const targetId = DIRECTED.has(skill) && state.focusId ? state.focusId : undefined;
   send(targetId ? { type: 'cast', skill, targetId } : { type: 'cast', skill });
 }
 
-ui.skills.addEventListener('pointerdown', (e) => {
-  const button = e.target.closest('.skill');
-  if (!button) return;
-  e.preventDefault();          // resposta imediata, sem esperar o "click"
-  castSkill(button.dataset.skill);
+/** Ataque Básico: sem chakra; vai no focado (se estiver perto) ou no mais perto. */
+function basicAttack() {
+  if (!state.connected || state.me.dead || !tapGuard('attack')) return;
+  send(state.focusId ? { type: 'attack', targetId: state.focusId } : { type: 'attack' });
+}
+
+/** 🏃 Correr: pede; a velocidade nova chega no "stats" do servidor. */
+function toggleRun() {
+  if (!state.connected) return;
+  send({ type: 'run', active: !state.me.running });
+}
+
+/** 🔄 Trocar de kit: pede; os botões só mudam quando o servidor confirma ("kit"). */
+function switchKit() {
+  if (!state.connected || !tapGuard('kit')) return;
+  send({ type: 'switch_kit', kit: state.kit.active === 'A' ? 'B' : 'A' });
+}
+
+onTap(ui.attackBtn, basicAttack);
+onTap(ui.runBtn, toggleRun);
+onTap(ui.kitBtn, switchKit);
+ui.slots.forEach((button, i) => onTap(button, () => castSlot(i)));
+
+// ------------------------------------------------------------------ ficha (📊): atributos e kits
+
+const ATTR_EFFECT = {
+  vitality: (pp) => `+${pp.vitality} vida`,
+  chakraMax: (pp) => `+${pp.chakraMax} chakra`,
+  chakraRegen: (pp) => `+${pp.chakraRegen}/s meditando`,
+  agility: (pp) => `+${String(pp.agility).replace('.', ',')} velocidade`,
+  taijutsu: (pp) => `+${Math.round(pp.taijutsu * 100)}% Ataque Básico`,
+  ninjutsu: (pp) => `+${Math.round(pp.ninjutsu * 100)}% jutsus`,
+};
+/** O que o atributo dá hoje (números do SERVIDOR, em progress.derived). */
+const ATTR_NOW = {
+  vitality: (d) => `vida ${d.maxHp}`,
+  chakraMax: (d) => `chakra ${d.maxChakra}`,
+  chakraRegen: (d) => `${d.meditationChakraPerSec}/s`,
+  agility: (d) => `${String(d.walkSpeed).replace('.', ',')} / ${String(d.runSpeed).replace('.', ',')}`,
+  taijutsu: (d) => `×${String(d.physicalMultiplier).replace('.', ',')}`,
+  ninjutsu: (d) => `×${String(d.jutsuMultiplier).replace('.', ',')}`,
+};
+
+let draftKits = null;   // kits sendo montados na aba Kits (só valem depois de salvos no servidor)
+
+function renderStatus() {
+  const pr = state.progress;
+  if (!pr) return;
+  ui.statusBadge.textContent = pr.statPoints > 0 ? `Nv ${pr.level} +${pr.statPoints}` : `Nv ${pr.level}`;
+  ui.statusToggle.classList.toggle('ready', pr.statPoints > 0);
+  ui.statusLevel.textContent = `Nível ${pr.level}`;
+  const ratio = pr.xpToNext ? Math.min(1, pr.xpInLevel / pr.xpToNext) : 1;
+  ui.xpFill.style.transform = `scaleX(${ratio})`;
+  ui.xpCount.textContent = pr.xpToNext ? `${pr.xpInLevel} / ${pr.xpToNext} XP` : 'Nível máximo';
+  ui.xpMeter.setAttribute('aria-valuemax', String(pr.xpToNext || 1));
+  ui.xpMeter.setAttribute('aria-valuenow', String(pr.xpInLevel));
+  ui.pointsLine.textContent = `Pontos disponíveis: ${pr.statPoints}`;
+  ui.pointsLine.classList.toggle('ready', pr.statPoints > 0);
+  const pp = state.world.attributePerPoint || {};
+  for (const li of ui.attrRows) {
+    const key = li.dataset.attr;
+    const val = pr.attributes[key] ?? 0;
+    li.querySelector('.attr-val').textContent = `${val}/${pr.maxPoints}`;
+    li.querySelector('.attr-eff').textContent = `${ATTR_EFFECT[key](pp)} · agora ${ATTR_NOW[key](pr.derived)}`;
+    const plus = li.querySelector('.plus');
+    plus.disabled = pr.statPoints <= 0 || val >= pr.maxPoints;
+  }
+  if (!draftKits || ui.statusPanel.hidden) draftKits = { A: [...state.kit.kits.A], B: [...state.kit.kits.B] };
+  renderDraftKits();
+}
+
+function renderDraftKits() {
+  if (!draftKits) return;
+  for (const li of ui.kitRows) {
+    const skill = li.dataset.skill;
+    for (const chip of li.querySelectorAll('.chip')) {
+      const on = draftKits[chip.dataset.kit].includes(skill);
+      chip.classList.toggle('on', on);
+      chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+      chip.disabled = !on && draftKits[chip.dataset.kit].length >= 4;
+    }
+  }
+  ui.kitCount.textContent = `Kit A: ${draftKits.A.length}/4 · Kit B: ${draftKits.B.length}/4`;
+}
+
+function openStatus() {
+  closeMissions();
+  closePlayerMenu();
+  draftKits = null;
+  ui.statusPanel.hidden = false;
+  ui.statusToggle.setAttribute('aria-expanded', 'true');
+  renderStatus();
+}
+function closeStatus() {
+  ui.statusPanel.hidden = true;
+  ui.statusToggle.setAttribute('aria-expanded', 'false');
+}
+function showTab(kits) {
+  ui.paneAttrs.hidden = kits;
+  ui.paneKits.hidden = !kits;
+  ui.tabAttrs.classList.toggle('active', !kits);
+  ui.tabKits.classList.toggle('active', kits);
+  ui.tabAttrs.setAttribute('aria-selected', kits ? 'false' : 'true');
+  ui.tabKits.setAttribute('aria-selected', kits ? 'true' : 'false');
+}
+ui.statusToggle.addEventListener('click', () => (ui.statusPanel.hidden ? openStatus() : closeStatus()));
+ui.statusClose.addEventListener('click', closeStatus);
+ui.tabAttrs.addEventListener('click', () => showTab(false));
+ui.tabKits.addEventListener('click', () => showTab(true));
+for (const li of ui.attrRows) {
+  // "+": só pede. Ponto, atributo e vida nova só mudam quando o servidor responde ("progress").
+  li.querySelector('.plus').addEventListener('click', () => send({ type: 'spend_point', attribute: li.dataset.attr }));
+}
+for (const li of ui.kitRows) {
+  for (const chip of li.querySelectorAll('.chip')) {
+    chip.addEventListener('click', () => {
+      const list = draftKits[chip.dataset.kit];
+      const i = list.indexOf(li.dataset.skill);
+      if (i >= 0) list.splice(i, 1);
+      else if (list.length < 4) list.push(li.dataset.skill);
+      renderDraftKits();
+    });
+  }
+}
+ui.kitSave.addEventListener('click', () => send({ type: 'set_loadout', kitA: draftKits.A, kitB: draftKits.B }));
+
+// ------------------------------------------------------------------ outro jogador: menu e missão de sensei
+
+let menuPlayerId = null;
+let menuChoice = { quantity: 3, difficulty: 'BASIC' };
+
+function openPlayerMenu(p) {
+  closeMissions();
+  closeStatus();
+  menuPlayerId = p.id;
+  ui.pmName.textContent = p.username;
+  ui.pmRank.textContent = `${p.rank ? p.rank.name : ''}${p.level ? ` · Nível ${p.level}` : ''}`;
+  const m = state.mission;
+  // Entregar: minha missão é DESTE sensei. O servidor confere tudo (meta, sensei, distância).
+  const mySensei = m && !m.fromNpc && m.senseiId === p.id && m.status === 'active';
+  ui.pmDeliver.hidden = !mySensei;
+  ui.pmDeliver.textContent = m && m.ready ? '📜 Entregar missão' : `📜 Entregar missão (${Math.min(m?.progress ?? 0, m?.target.quantity ?? 0)}/${m?.target.quantity ?? 0})`;
+  ui.pmCreate.hidden = !state.me.canBeSensei;
+  ui.pmForm.hidden = true;
+  ui.pmNote.textContent = !state.me.canBeSensei && !mySensei ? 'Chunin ou acima pode criar missões para jogadores de rank menor.' : '';
+  ui.playerMenu.hidden = false;
+}
+function closePlayerMenu() {
+  ui.playerMenu.hidden = true;
+  menuPlayerId = null;
+}
+
+/** Monta as opções do formulário com o catálogo que o servidor mandou (sem números inventados aqui). */
+function renderMissionForm() {
+  const opts = state.senseiOptions || { difficulties: [], quantities: [3, 5, 10] };
+  if (!opts.difficulties.some((d) => d.code === menuChoice.difficulty) && opts.difficulties[0]) menuChoice.difficulty = opts.difficulties[0].code;
+  const chip = (text, on, onClick) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `chip${on ? ' on' : ''}`;
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+    b.textContent = text;
+    b.addEventListener('click', onClick);
+    return b;
+  };
+  ui.pmQty.replaceChildren(...opts.quantities.map((q) => chip(`${q} slimes`, q === menuChoice.quantity, () => { menuChoice.quantity = q; renderMissionForm(); })));
+  ui.pmDiff.replaceChildren(...opts.difficulties.map((d) => chip(
+    `${d.name} · ${d.xp} XP${d.title ? ` + título` : ''}`, d.code === menuChoice.difficulty,
+    () => { menuChoice.difficulty = d.code; renderMissionForm(); },
+  )));
+}
+
+ui.pmClose.addEventListener('click', closePlayerMenu);
+ui.pmCreate.addEventListener('click', () => {
+  ui.pmForm.hidden = !ui.pmForm.hidden;
+  if (!ui.pmForm.hidden) renderMissionForm();
 });
-ui.skills.addEventListener('click', (e) => {
-  // Teclado/leitor de tela (Enter/Espaço): o pointerdown não acontece.
-  const button = e.target.closest('.skill');
-  if (button && e.detail === 0) castSkill(button.dataset.skill);
+ui.pmSend.addEventListener('click', () => {
+  if (!menuPlayerId) return;
+  send({ type: 'create_mission', traineeId: menuPlayerId, difficulty: menuChoice.difficulty, quantity: menuChoice.quantity });
+  closePlayerMenu();
 });
+ui.pmDeliver.addEventListener('click', () => {
+  if (!menuPlayerId) return;
+  send({ type: 'deliver_mission', senseiId: menuPlayerId });
+  closePlayerMenu();
+});
+
+/** Toque no mapa: acertou outro jogador (círculo de ~0,6 casa)? Abre o menu dele. */
+function playerAtScreen(px, py) {
+  const me = state.players.get(state.meId);
+  if (!me || !lastView) return null;
+  let best = null, bestD = Infinity;
+  for (const p of state.players.values()) {
+    if (p.id === state.meId || p.dead) continue;
+    const sx = lastView.toScreenX(p.x), sy = lastView.toScreenY(p.y);
+    const d = Math.hypot(px - sx, py - sy);
+    if (d <= Math.max(26, lastView.T * 0.6) && d < bestD) { best = p; bestD = d; }
+  }
+  return best;
+}
+
+// ---- avaliação (sensei)
+
+let evalScore = 5;
+function renderEval() {
+  const req = state.evalQueue[0];
+  ui.evalPanel.hidden = !req;
+  if (!req) return;
+  ui.evalText.textContent = `${req.trainee.username} entregou: ${missionTitle(req.mission)} (${req.mission.progress}/${req.mission.target.quantity}).`;
+  ui.evalStars.replaceChildren(...[1, 2, 3, 4, 5].map((n) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `star${n <= evalScore ? ' on' : ''}`;
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', n === evalScore ? 'true' : 'false');
+    b.setAttribute('aria-label', `Nota ${n}`);
+    b.textContent = '★';
+    b.addEventListener('click', () => { evalScore = n; renderEval(); });
+    return b;
+  }));
+}
+function answerEval(approved) {
+  const req = state.evalQueue.shift();
+  if (req) send({ type: 'evaluate_mission', missionId: req.missionId, approved, score: evalScore });
+  evalScore = 5;
+  renderEval();
+}
+ui.evalApprove.addEventListener('click', () => answerEval(true));
+ui.evalReject.addEventListener('click', () => answerEval(false));
 
 // ------------------------------------------------------------------ chat
 
@@ -1105,8 +1482,27 @@ function waterTile(seed) {
   });
 }
 
+function stoneTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#8d8a84';
+    g.fillRect(0, 0, PIX, PIX);
+    // pedras de calçamento: 4 blocos com junta escura e brilho em cima
+    const blocks = seed % 2 ? [[0, 0, 8, 7], [8, 0, 8, 7], [0, 8, 5, 8], [5, 8, 11, 8]] : [[0, 0, 6, 8], [6, 0, 10, 8], [0, 8, 9, 8], [9, 8, 7, 8]];
+    for (const [x, y, w, h] of blocks) {
+      g.fillStyle = r() < 0.5 ? '#97948d' : '#85827b';
+      g.fillRect(x + 1, y + 1, w - 1, h - 1);
+      g.fillStyle = '#a9a69e';
+      g.fillRect(x + 1, y + 1, w - 2, 1);
+    }
+    g.fillStyle = '#6d6a64';
+    for (let i = 0; i < 6; i++) g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+  });
+}
+
 const TILES = {
   grass: [grassTile(1, false), grassTile(2, false), grassTile(3, false), grassTile(4, true)],
+  stone: [stoneTile(21), stoneTile(22), stoneTile(23)],
   path: [pathTile(7), pathTile(8)],
   water: [waterTile(11), waterTile(12)],
 };
@@ -1127,6 +1523,7 @@ function isPath(x, y) {
 function tileAt(x, y, width, height) {
   const h = cellHash(x, y);
   if (x < 0 || y < 0 || x >= width || y >= height) return TILES.water[h & 1];
+  if (isVillage(x, y, state.world.village)) return TILES.stone[h % 3];   // vila: chão de pedra
   if (isPath(x, y)) return TILES.path[h & 1];
   return TILES.grass[h % 23 === 0 ? 3 : h % 3];
 }
@@ -1152,14 +1549,37 @@ function chunkCanvas(cx, cy) {
   for (let ty = 0; ty < CHUNK; ty++) {
     for (let tx = 0; tx < CHUNK; tx++) g.drawImage(tileAt(cx * CHUNK + tx, cy * CHUNK + ty, width, height), tx * PIX, ty * PIX);
   }
+  // Casas da vila (blocos marrons, vistos de cima): desenhadas no bloco de chão que tocam.
+  for (const house of state.houses) drawHouse(g, (house.x - cx * CHUNK) * PIX, (house.y - cy * CHUNK) * PIX, house.w * PIX, house.h * PIX);
   chunkCache.set(key, c);
   if (chunkCache.size > CHUNK_CACHE_MAX) chunkCache.delete(chunkCache.keys().next().value);
   return c;
 }
 
+/** Telhado marrom com tábuas, cumeeira, beiral escuro e a frente com porta (pixel art). */
+function drawHouse(g, x, y, w, h) {
+  if (x + w < 0 || y + h < 0 || x > CHUNK * PIX || y > CHUNK * PIX) return;
+  g.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  g.fillRect(x + 3, y + 4, w, h);                      // sombra
+  g.fillStyle = '#4a2c14';
+  g.fillRect(x, y, w, h);                              // contorno
+  g.fillStyle = '#8b5a2b';
+  g.fillRect(x + 2, y + 2, w - 4, h - 10);             // telhado
+  g.fillStyle = '#7a4c22';
+  for (let ly = y + 5; ly < y + h - 10; ly += 4) g.fillRect(x + 2, ly, w - 4, 1);   // tábuas
+  g.fillStyle = '#a8713a';
+  g.fillRect(x + 2, y + Math.floor((h - 10) / 2), w - 4, 2);                        // cumeeira
+  g.fillStyle = '#5d3a1d';
+  g.fillRect(x + 2, y + h - 8, w - 4, 6);              // frente
+  g.fillStyle = '#2c1a0c';
+  g.fillRect(x + Math.floor(w / 2) - 3, y + h - 8, 6, 6);                           // porta
+}
+
 // ------------------------------------------------------------------ loop de desenho
 
 let lastFrame = performance.now();
+/** Última câmera desenhada: para achar em quem o dedo tocou. */
+let lastView = null;
 const drawList = [];                 // reaproveitada a cada quadro (sem lixo para o coletor)
 
 function frame(now) {
@@ -1176,7 +1596,8 @@ function frame(now) {
 
 function update(dt) {
   const me = state.players.get(state.meId);
-  const { width, height, speed } = state.world;
+  const { width, height } = state.world;
+  const speed = state.me.speed || state.world.speed;   // velocidade que o SERVIDOR mandou (andar/correr + agilidade)
   const k = Math.min(1, dt * 12);     // interpolação suave dos outros até a posição do servidor
   for (const p of state.players.values()) {
     if (p === me) continue;
@@ -1233,6 +1654,8 @@ function draw(now) {
   const halfW = viewW / 2, halfH = viewH / 2;
   const toScreenX = (wx) => Math.round((wx - camX) * T + halfW);
   const toScreenY = (wy) => Math.round((wy - camY) * T + halfH);
+  lastView = { toScreenX, toScreenY, T };
+  drawCooldowns(now);
 
   // 1. Chão (blocos em cache).
   const left = camX - halfW / T, right = camX + halfW / T, top = camY - halfH / T, bottom = camY + halfH / T;
@@ -1344,6 +1767,17 @@ function drawEffect(fx, sx, sy, T, now) {
       ctx.strokeStyle = '#bfe3ff';
       ctx.lineWidth = Math.max(2, T * 0.08);
       ctx.beginPath(); ctx.arc(sx, sy, r, a - Math.PI / 4, a + Math.PI / 4); ctx.stroke();
+      break;
+    }
+    case 'attack': {                     // corte em arco na direção do alvo (alcance 1,6)
+      const ang = Math.atan2(fx.fy, fx.fx);
+      ctx.globalAlpha = fade;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(3, T * 0.14 * (1 - t * 0.6));
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(sx, sy, T * (0.9 + 0.5 * t), ang - 0.9 + t * 0.6, ang + 0.5 + t * 0.6);
+      ctx.stroke();
       break;
     }
     case 'taijutsu': {                   // estouro de linhas (golpe)

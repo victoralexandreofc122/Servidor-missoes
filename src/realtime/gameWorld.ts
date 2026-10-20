@@ -1,11 +1,17 @@
 import { distance, inCone, nearest, randomInRing, shieldedDamage, STEPS, type Point } from './combat.js';
 import { REALTIME, type RealtimeConfig } from './config.js';
 import {
-  CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, sanitizeChat,
-  type CastFailReason, type MeditationEnd, type MissionView, type MonsterView, type PlayerView, type RankView,
-  type RealtimeErrorCode, type SelfView, type ServerMessage, type Skill, type WorldInfo,
+  CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, SKILLS, sanitizeChat,
+  type CastFailReason, type KitName, type KitView, type Kits, type MeditationEnd, type MissionView, type MonsterView,
+  type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
+  type Skill, type WorldInfo,
 } from './protocol.js';
 import type { Missions, TalkOutcome } from './missions.js';
+import type { Profile } from './profile.js';
+import {
+  derivedStats, levelProgress, NO_ATTRIBUTES, scaledDamage,
+  type Attribute, type Attributes, type DerivedStats,
+} from './stats.js';
 import { TokenBucket } from './tokenBucket.js';
 
 /*
@@ -36,9 +42,27 @@ export interface WorldLogger {
   warn(obj: object, msg?: string): void;
 }
 
+/** Resultado de gravar XP: total, rank (promoção) e nível (o trigger da v5 dá os pontos). */
+export interface XpResult {
+  totalXp: number;
+  rank: RankView;
+  promoted: boolean;
+  level?: number;
+  statPoints?: number;
+  levelsGained?: number;
+}
+
 /** Grava XP no banco (e promove de rank quando atingir o limite). Ver progression.ts. */
 export interface Progression {
-  grantXp(playerId: string, amount: number): Promise<{ totalXp: number; rank: RankView; promoted: boolean } | undefined>;
+  grantXp(playerId: string, amount: number): Promise<XpResult | undefined>;
+}
+
+/** Kits padrão (os mesmos DEFAULTs da migração v5). */
+export const DEFAULT_KITS: Readonly<Kits> = { A: ['fire', 'water', 'taijutsu', 'heal'], B: ['illusion', 'shadow', 'stone', 'heal'] };
+
+const SKILL_SET: ReadonlySet<string> = new Set(SKILLS);
+export function isSkillList(list: unknown): list is Skill[] {
+  return Array.isArray(list) && list.length <= 4 && list.every((x) => SKILL_SET.has(x)) && new Set(list).size === list.length;
 }
 
 export interface WorldOptions {
@@ -47,6 +71,8 @@ export interface WorldOptions {
   progression?: Progression;
   /** Missões de sensei no banco (NPC Mestre, abates). Sem isto, o NPC aparece mas não passa missão. */
   missions?: Missions;
+  /** Ficha no banco: gastar pontos e salvar kits. Sem isto, gastar/salvar dá PROFILE_UNAVAILABLE. */
+  profile?: Profile;
 }
 
 export interface JoiningPlayer {
@@ -54,6 +80,11 @@ export interface JoiningPlayer {
   username: string;
   xp?: number;
   rank?: RankView;
+  canBeSensei?: boolean;
+  level?: number;
+  statPoints?: number;
+  attributes?: Attributes;
+  kits?: Kits;
 }
 
 /** Estado de um jogador online. É o valor do Map playerId -> estado. */
@@ -78,10 +109,23 @@ interface Session {
   deadAt: number;
   /** Meditando: parado, sem habilidades, chakra 3x mais rápido. Mover, atacar ou apanhar cancela. */
   meditating: boolean;
+  /** Botão 🏃: corre (8) em vez de andar (5). */
+  running: boolean;
   /** skill -> instante em que fica pronta de novo */
-  cooldowns: Partial<Record<Skill, number>>;
+  cooldowns: Partial<Record<Skill | 'attack', number>>;
   xp: number;
   rank: RankView;
+  canBeSensei: boolean;
+  level: number;
+  statPoints: number;
+  attributes: Attributes;
+  /** Vida/chakra máximos, velocidades e dano: sempre calculados aqui, dos atributos. */
+  stats: DerivedStats;
+  kits: Kits;
+  activeKit: KitName;
+  /** Gravação de ficha (ponto/kit) em andamento: uma por vez. */
+  profileBusy: boolean;
+  lastProfileAt: number;
   /** Últimos valores enviados (para mandar só quando muda). */
   sentStats: string;
   lastStatsAt: number;
@@ -133,6 +177,7 @@ export class GameWorld {
   private readonly random: () => number;
   private readonly progression: Progression | undefined;
   private readonly missions: Missions | undefined;
+  private readonly profile: Profile | undefined;
   private timer: NodeJS.Timeout | undefined;
   private lastTick: number;
   private monsterSeq = 0;
@@ -146,6 +191,7 @@ export class GameWorld {
     this.random = options.random ?? Math.random;
     this.progression = options.progression;
     this.missions = options.missions;
+    this.profile = options.profile;
     this.lastTick = now();
     while (this.monsters.size < this.config.combat.monsters.count) this.spawnMonster();
   }
@@ -160,12 +206,46 @@ export class GameWorld {
   }
 
   private selfView(s: Session): SelfView {
-    const p = this.config.combat.player;
-    return { ...this.view(s), chakra: Math.floor(s.chakra), maxChakra: p.maxChakra, shield: s.shield > 0, xp: s.xp, rank: s.rank };
+    return {
+      ...this.view(s), chakra: Math.floor(s.chakra), maxChakra: s.stats.maxChakra, shield: s.shield > 0, xp: s.xp,
+      speed: this.speedOf(s), running: s.running, canBeSensei: s.canBeSensei,
+    };
   }
 
   private view(s: Session): PlayerView {
-    return { id: s.id, username: s.username, x: round2(s.x), y: round2(s.y), hp: shownHp(s.hp), maxHp: this.config.combat.player.maxHp, dead: s.dead, meditating: s.meditating };
+    return {
+      id: s.id, username: s.username, x: round2(s.x), y: round2(s.y), hp: shownHp(s.hp), maxHp: s.stats.maxHp,
+      dead: s.dead, meditating: s.meditating, rank: s.rank, level: s.level,
+    };
+  }
+
+  /** Ficha: nível, XP do nível (zera a cada nível), pontos e o que os atributos dão. */
+  private progressView(s: Session): ProgressView {
+    const { xpInLevel, xpToNext } = levelProgress(s.xp, s.level);
+    return {
+      level: s.level, xpInLevel, xpToNext, totalXp: s.xp, statPoints: s.statPoints,
+      attributes: { ...s.attributes }, maxPoints: this.config.combat.attributes.maxPoints, derived: { ...s.stats },
+    };
+  }
+
+  private kitView(s: Session): KitView {
+    return { active: s.activeKit, kits: { A: [...s.kits.A], B: [...s.kits.B] } };
+  }
+
+  private computeStats(attributes: Attributes): DerivedStats {
+    const p = this.config.combat.player;
+    return derivedStats(
+      {
+        maxHp: p.maxHp, maxChakra: p.maxChakra, meditationChakraPerSec: p.chakraRegenPerSec * p.meditationRegenMultiplier,
+        walkSpeed: this.config.speedTilesPerSecond, runSpeed: this.config.runSpeedTilesPerSecond,
+      },
+      this.config.combat.attributes, attributes,
+    );
+  }
+
+  /** Velocidade atual (casas/s): andar ou correr, mais a agilidade. */
+  private speedOf(s: Session): number {
+    return s.running ? s.stats.runSpeed : s.stats.walkSpeed;
   }
 
   monsterList(): MonsterView[] {
@@ -181,10 +261,13 @@ export class GameWorld {
       }),
     ) as WorldInfo['skills'];
     return {
-      width: world.width, height: world.height, speed: speedTilesPerSecond, tickMs, spawn: { ...spawn },
-      respawnMs: combat.player.respawnMs, skills, promotion: { ...combat.promotion },
+      width: world.width, height: world.height, speed: speedTilesPerSecond, runSpeed: this.config.runSpeedTilesPerSecond,
+      tickMs, spawn: { ...spawn }, respawnMs: combat.player.respawnMs, skills, promotion: { ...combat.promotion },
       meditationRegenMultiplier: combat.player.meditationRegenMultiplier,
       npcs: this.config.npcs.map((n) => ({ ...n })),
+      basicAttack: { range: combat.basicAttack.range, cooldownMs: combat.basicAttack.cooldownMs },
+      village: { x: spawn.x, y: spawn.y, radius: this.config.village.radius },
+      attributePerPoint: { ...combat.attributes.perPoint },
     };
   }
 
@@ -196,8 +279,10 @@ export class GameWorld {
    */
   join(player: JoiningPlayer, conn: Connection): SessionHandle {
     const t = this.now();
-    const p = this.config.combat.player;
     const previous = this.sessions.get(player.id);
+    const attributes = { ...(player.attributes ?? previous?.attributes ?? NO_ATTRIBUTES) };
+    const stats = this.computeStats(attributes);
+    const kits: Kits = player.kits ?? previous?.kits ?? DEFAULT_KITS;
     const session: Session = {
       id: player.id,
       username: player.username,
@@ -209,15 +294,25 @@ export class GameWorld {
       fx: previous?.fx ?? 0,
       fy: previous?.fy ?? 1,
       lastUpdate: t,
-      hp: previous?.hp ?? p.maxHp,
-      chakra: previous?.chakra ?? p.maxChakra,
+      hp: Math.min(previous?.hp ?? stats.maxHp, stats.maxHp),
+      chakra: Math.min(previous?.chakra ?? stats.maxChakra, stats.maxChakra),
       shield: previous?.shield ?? 0,
       dead: previous?.dead ?? false,
       meditating: false,
+      running: previous?.running ?? false,
       deadAt: previous?.deadAt ?? 0,
       cooldowns: { ...(previous?.cooldowns ?? {}) },
       xp: player.xp ?? previous?.xp ?? 0,
       rank: player.rank ?? previous?.rank ?? DEFAULT_RANK,
+      canBeSensei: player.canBeSensei ?? previous?.canBeSensei ?? false,
+      level: player.level ?? previous?.level ?? 1,
+      statPoints: player.statPoints ?? previous?.statPoints ?? 0,
+      attributes,
+      stats,
+      kits: { A: [...kits.A], B: [...kits.B] },
+      activeKit: previous?.activeKit ?? 'A',
+      profileBusy: false,
+      lastProfileAt: 0,
       sentStats: '',
       lastStatsAt: t,
       sentHp: 0,
@@ -248,8 +343,12 @@ export class GameWorld {
     }
 
     const others = [...this.sessions.values()].filter((s) => s !== session).map((s) => this.view(s));
-    this.sendTo(session, { type: 'welcome', you: this.selfView(session), players: others, monsters: this.monsterList(), world: this.worldInfo() });
+    this.sendTo(session, {
+      type: 'welcome', you: this.selfView(session), players: others, monsters: this.monsterList(), world: this.worldInfo(),
+      progress: this.progressView(session), kit: this.kitView(session),
+    });
     this.syncMission(session.id);
+    if (session.canBeSensei) this.syncSensei(session.id);
     this.flushKicks();
 
     return {
@@ -303,6 +402,14 @@ export class GameWorld {
     else if (parsed.type === 'respawn') this.respawn(session, t);
     else if (parsed.type === 'talk') this.talk(session, parsed.npcId, t);
     else if (parsed.type === 'missions') this.missionRequest(session, t, (m) => m.current(session.id).then((mission) => this.sendMission(session.id, mission, 'sync')));
+    else if (parsed.type === 'attack') this.basicAttack(session, t, parsed.targetId);
+    else if (parsed.type === 'run') this.setRunning(session, parsed.active, t);
+    else if (parsed.type === 'switch_kit') this.switchKit(session, parsed.kit);
+    else if (parsed.type === 'set_loadout') this.setLoadout(session, { A: parsed.kitA, B: parsed.kitB }, t);
+    else if (parsed.type === 'spend_point') this.spendPoint(session, parsed.attribute, t);
+    else if (parsed.type === 'create_mission') this.createPlayerMission(session, parsed.traineeId, parsed.difficulty, parsed.quantity, t);
+    else if (parsed.type === 'deliver_mission') this.deliverPlayerMission(session, parsed.senseiId, t);
+    else if (parsed.type === 'evaluate_mission') this.evaluatePlayerMission(session, parsed.missionId, parsed.approved, parsed.score, t);
     else this.chatMessage(session, parsed.message, t);
     this.flushKicks();
   }
@@ -348,10 +455,14 @@ export class GameWorld {
     // Qualquer TENTATIVA de usar habilidade encerra a meditação (mesmo que a habilidade falhe).
     this.stopMeditation(session, 'cast');
     if (session.dead) return fail('DEAD');
+    // Só as 4 habilidades do kit ATIVO (o kit ativo é o que o servidor confirmou).
+    if (!session.kits[session.activeKit].includes(skill)) return fail('NOT_EQUIPPED');
     if ((session.cooldowns[skill] ?? 0) > t) return fail('COOLDOWN');
     if (session.chakra < cfg.cost) return fail('NO_CHAKRA');
 
     const alive = (m: Monster) => m.hp > 0;
+    // Dano de JUTSU: multiplicador de Ninjutsu (o Ataque Básico usa o de Taijutsu).
+    const dmg = scaledDamage(cfg.damage ?? 0, session.stats.jutsuMultiplier);
     let target: Monster | undefined;
     if (targetId !== undefined && DIRECTED_SKILLS.has(skill)) {
       // Jutsu direcionado: o alvo é o focado, mas o ALCANCE continua sendo o da habilidade.
@@ -369,7 +480,7 @@ export class GameWorld {
       target = nearest(session, this.monsters.values(), cfg.range ?? 0, alive);
       if (!target) return fail('NO_TARGET');
     }
-    if (skill === 'heal' && session.hp >= this.config.combat.player.maxHp) return fail('FULL_HP');
+    if (skill === 'heal' && session.hp >= session.stats.maxHp) return fail('FULL_HP');
     if (skill === 'stone' && session.shield > 0) return fail('ALREADY_ACTIVE');
 
     session.chakra -= cfg.cost;
@@ -379,16 +490,16 @@ export class GameWorld {
     switch (skill) {
       case 'fire':
         for (const m of [...this.monsters.values()]) {
-          if (alive(m) && distance(session, m) <= (cfg.radius ?? 0)) this.damageMonster(m, cfg.damage ?? 0, session, t);
+          if (alive(m) && distance(session, m) <= (cfg.radius ?? 0)) this.damageMonster(m, dmg, session, t);
         }
         break;
       case 'water':
         for (const m of [...this.monsters.values()]) {
-          if (alive(m) && inCone(session, session.fx, session.fy, m, cfg.range ?? 0, cfg.coneDeg ?? 90)) this.damageMonster(m, cfg.damage ?? 0, session, t);
+          if (alive(m) && inCone(session, session.fx, session.fy, m, cfg.range ?? 0, cfg.coneDeg ?? 90)) this.damageMonster(m, dmg, session, t);
         }
         break;
       case 'taijutsu':
-        this.damageMonster(target!, cfg.damage ?? 0, session, t);
+        this.damageMonster(target!, dmg, session, t);
         break;
       case 'illusion':
         target!.stunnedUntil = t + (cfg.stunMs ?? 0);
@@ -403,9 +514,9 @@ export class GameWorld {
         break;
       case 'heal': {
         const before = session.hp;
-        session.hp = Math.min(this.config.combat.player.maxHp, session.hp + (cfg.heal ?? 0));
+        session.hp = Math.min(session.stats.maxHp, session.hp + (cfg.heal ?? 0));
         const amount = shownHp(session.hp) - shownHp(before);
-        this.broadcast({ type: 'hit', target: 'player', id: session.id, amount, kind: 'heal', hp: shownHp(session.hp), maxHp: this.config.combat.player.maxHp });
+        this.broadcast({ type: 'hit', target: 'player', id: session.id, amount, kind: 'heal', hp: shownHp(session.hp), maxHp: session.stats.maxHp });
         session.sentHp = shownHp(session.hp);
         break;
       }
@@ -436,6 +547,109 @@ export class GameWorld {
     if (!session.meditating) return;
     session.meditating = false;
     this.broadcast({ type: 'meditation', playerId: session.id, active: false, reason });
+  }
+
+  /**
+   * Ataque Básico: NÃO gasta chakra (o chakra só volta meditando, então sempre dá para lutar).
+   * Dano FÍSICO: multiplicador de Taijutsu. Alvo focado se estiver no alcance; senão, o mais
+   * perto no alcance. Tentar atacar encerra a meditação, como as habilidades.
+   */
+  private basicAttack(session: Session, t: number, targetId?: string): void {
+    const cfg = this.config.combat.basicAttack;
+    const fail = (reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD') => this.sendTo(session, { type: 'attack_failed', reason });
+    this.stopMeditation(session, 'cast');
+    if (session.dead) return fail('DEAD');
+    if ((session.cooldowns.attack ?? 0) > t) return fail('COOLDOWN');
+    const alive = (m: Monster) => m.hp > 0;
+    let target: Monster | undefined;
+    if (targetId !== undefined) {
+      const focused = this.monsters.get(targetId);
+      if (focused && alive(focused) && distance(session, focused) <= cfg.range) target = focused;
+    }
+    target ??= nearest(session, this.monsters.values(), cfg.range, alive);
+    if (!target) return fail(targetId !== undefined && this.monsters.has(targetId) ? 'OUT_OF_RANGE' : 'NO_TARGET');
+    const d = distance(session, target);
+    if (d > 0.01) {
+      session.fx = (target.x - session.x) / d;
+      session.fy = (target.y - session.y) / d;
+    }
+    session.cooldowns.attack = t + cfg.cooldownMs;
+    this.broadcast({ type: 'attack', playerId: session.id, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy) });
+    this.damageMonster(target, scaledDamage(cfg.damage, session.stats.physicalMultiplier), session, t);   // FÍSICO: Taijutsu
+  }
+
+  /** Correr liga/desliga. A velocidade vem SEMPRE daqui (5 ou 8, mais agilidade); o cliente só pede. */
+  private setRunning(session: Session, active: boolean, t: number): void {
+    if (session.running === active) return;
+    session.running = active;
+    this.sendStats(session, t);
+  }
+
+  /** Troca de kit: o cliente só mostra o kit novo quando recebe esta confirmação. */
+  private switchKit(session: Session, kit: KitName): void {
+    session.activeKit = kit;
+    this.sendTo(session, { type: 'kit', ...this.kitView(session) });
+  }
+
+  /** Salvar kits (até 4 por kit, sem repetir: o Zod e o banco conferem). Vale na hora; grava no banco. */
+  private setLoadout(session: Session, kits: Kits, t: number): void {
+    if (!this.profileRequest(session, t)) return;
+    const { id } = session;
+    const save = this.profile ? this.profile.saveLoadout(id, kits.A, kits.B) : Promise.reject(new Error('sem banco'));
+    save.then(() => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      current.kits = { A: [...kits.A], B: [...kits.B] };
+      this.sendTo(current, { type: 'kit', ...this.kitView(current) });
+      this.sendTo(current, { type: 'notice', text: 'Kits salvos.', tone: 'good' });
+    }).catch((err: unknown) => this.profileFailed(id, err)).finally(() => this.profileDone(session));
+  }
+
+  /** Gastar 1 ponto: o banco confere se tem ponto e se o atributo não passou do máximo. */
+  private spendPoint(session: Session, attribute: Attribute, t: number): void {
+    if (session.statPoints <= 0) return this.sendError(session, 'NO_POINTS');
+    if (!this.profileRequest(session, t)) return;
+    const { id } = session;
+    const spend = this.profile ? this.profile.spendPoint(id, attribute) : Promise.reject(new Error('sem banco'));
+    spend.then((result) => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      if (!result.ok) return this.sendError(current, result.reason === 'NO_POINTS' ? 'NO_POINTS' : 'ATTRIBUTE_MAXED');
+      const before = current.stats;
+      current.statPoints = result.statPoints;
+      current.attributes = result.attributes;
+      current.stats = this.computeStats(result.attributes);
+      // Vida/chakra máximos subiram: o valor atual sobe junto (não começa "faltando").
+      current.hp += current.stats.maxHp - before.maxHp;
+      current.chakra += current.stats.maxChakra - before.maxChakra;
+      this.sendTo(current, { type: 'progress', ...this.progressView(current) });
+      this.sendStats(current, this.now());
+      if (current.stats.maxHp !== before.maxHp) {
+        this.broadcast({ type: 'player_hp', playerId: id, hp: shownHp(current.hp), maxHp: current.stats.maxHp }, id);
+      }
+    }).catch((err: unknown) => this.profileFailed(id, err)).finally(() => this.profileDone(session));
+  }
+
+  private profileRequest(session: Session, t: number): boolean {
+    if (!this.profile) {
+      this.sendError(session, 'PROFILE_UNAVAILABLE');
+      return false;
+    }
+    if (session.profileBusy || t - session.lastProfileAt < this.config.profileRequestEveryMs) return false;
+    session.profileBusy = true;
+    session.lastProfileAt = t;
+    return true;
+  }
+
+  private profileDone(session: Session): void {
+    session.profileBusy = false;
+    this.flushKicks();
+  }
+
+  private profileFailed(playerId: string, err: unknown): void {
+    this.log.warn({ playerId, err }, 'falha ao gravar a ficha do jogador');
+    const current = this.sessions.get(playerId);
+    if (current) this.sendError(current, 'PROFILE_UNAVAILABLE');
   }
 
   private damageMonster(m: Monster, amount: number, attacker: Session, t: number): void {
@@ -511,6 +725,105 @@ export class GameWorld {
     if (session) this.sendTo(session, { type: 'mission', mission, reason });
   }
 
+  // ---------------------------------------------------------------- missões entre jogadores
+
+  /** Sensei (Chunin+) conectou: opções de missão e entregas esperando a avaliação dele. */
+  private syncSensei(senseiId: string): void {
+    const missions = this.missions;
+    if (!missions) return;
+    Promise.all([missions.senseiOptions(), missions.pendingEvaluations(senseiId)]).then(([difficulties, pending]) => {
+      const s = this.sessions.get(senseiId);
+      if (!s) return;
+      this.sendTo(s, { type: 'sensei_options', difficulties, quantities: [...this.config.playerMissions.quantities] });
+      for (const p of pending) this.sendTo(s, { type: 'evaluation_request', ...p });
+    }).catch((err: unknown) => this.log.warn({ playerId: senseiId, err }, 'falha ao ler opções de sensei'));
+  }
+
+  /** Outro jogador online e perto (posições do SERVIDOR). Devolve a sessão dele ou avisa o erro. */
+  private nearbyPlayer(session: Session, otherId: string): Session | undefined {
+    const other = this.sessions.get(otherId);
+    if (!other || other.closed || other === session) {
+      this.sendError(session, 'PLAYER_NOT_FOUND');
+      return undefined;
+    }
+    if (session.dead || distance(session, other) > this.config.playerMissions.range) {
+      this.sendError(session, 'PLAYER_TOO_FAR');
+      return undefined;
+    }
+    return other;
+  }
+
+  private notice(playerId: string, text: string, tone: 'info' | 'good' | 'bad' = 'info'): void {
+    const s = this.sessions.get(playerId);
+    if (s) this.sendTo(s, { type: 'notice', text, tone });
+  }
+
+  /**
+   * "Criar Missão": sensei toca no aprendiz. Abate de slime (o que o jogo sabe contar), na
+   * quantidade e dificuldade escolhidas. Rank do sensei (Chunin+), aprendiz abaixo e uma
+   * missão aberta por aprendiz: quem decide é o banco (triggers + índice único).
+   */
+  private createPlayerMission(session: Session, traineeId: string, difficulty: string, quantity: number, t: number): void {
+    if (!this.config.playerMissions.quantities.includes(quantity)) return this.sendError(session, 'INVALID_MISSION_OPTION');
+    const trainee = this.nearbyPlayer(session, traineeId);
+    if (!trainee) return;
+    const { id: senseiId, username: senseiName } = session;
+    const traineeName = trainee.username;
+    this.missionRequest(session, t, (m) => m.create(senseiId, traineeId, difficulty, quantity).then((outcome) => {
+      if (outcome.kind === 'refused') return this.notice(senseiId, outcome.text, 'bad');
+      const what = `${npcTitle(outcome.mission)}`;
+      this.notice(senseiId, `Missão criada para ${traineeName}: ${what}.`, 'good');
+      this.sendMission(traineeId, outcome.mission, 'assigned');
+      this.notice(traineeId, `O sensei ${senseiName} te passou uma missão: ${what}.`, 'good');
+      this.log.info({ senseiId, traineeId }, 'missão de sensei criada');
+    }));
+  }
+
+  /** Aprendiz entrega a missão tocando no sensei que a criou (perto dele). */
+  private deliverPlayerMission(session: Session, senseiId: string, t: number): void {
+    const sensei = this.nearbyPlayer(session, senseiId);
+    if (!sensei) return;
+    const { id: traineeId, username: traineeName } = session;
+    const senseiName = sensei.username;
+    this.missionRequest(session, t, (m) => m.deliver(traineeId, senseiId).then((outcome) => {
+      switch (outcome.kind) {
+        case 'refused':
+          return this.notice(traineeId, outcome.text, 'bad');
+        case 'no_mission':
+          return this.notice(traineeId, `Você não tem missão do sensei ${senseiName}.`, 'bad');
+        case 'already_submitted':
+          return this.notice(traineeId, `Missão já entregue. Esperando a avaliação de ${senseiName}.`);
+        case 'incomplete': {
+          const left = outcome.mission.target.quantity - outcome.mission.progress;
+          return this.notice(traineeId, `Ainda ${left === 1 ? 'falta' : 'faltam'} ${left} ${targetLabel(outcome.mission.target.code, left)}.`, 'bad');
+        }
+        case 'submitted': {
+          this.sendMission(traineeId, outcome.mission, 'sync');
+          this.notice(traineeId, `Missão entregue ao sensei ${senseiName}. Aguarde a avaliação.`, 'good');
+          const s = this.sessions.get(senseiId);
+          if (s) this.sendTo(s, { type: 'evaluation_request', missionId: outcome.mission.id, trainee: { id: traineeId, username: traineeName }, mission: outcome.mission });
+          this.log.info({ senseiId, traineeId }, 'missão entregue ao sensei');
+          return undefined;
+        }
+      }
+    }));
+  }
+
+  /** Sensei avalia (aprovar emite o pergaminho; reprovar zera o progresso). O banco confere quem pode. */
+  private evaluatePlayerMission(session: Session, missionId: string, approved: boolean, score: number, t: number): void {
+    const { id: senseiId, username: senseiName } = session;
+    this.missionRequest(session, t, (m) => m.evaluate(senseiId, missionId, approved, score).then((outcome) => {
+      if (outcome.kind === 'refused') return this.notice(senseiId, outcome.text, 'bad');
+      this.notice(senseiId, approved ? 'Missão aprovada: o pergaminho foi para o aprendiz.' : 'Missão reprovada: o aprendiz refaz do zero.', 'good');
+      this.sendMission(outcome.traineeId, outcome.mission, 'sync');
+      this.notice(outcome.traineeId, approved
+        ? `O sensei ${senseiName} aprovou! Entregue o pergaminho ao Mestre (Sala de Missões).`
+        : `O sensei ${senseiName} reprovou a missão. O progresso voltou a zero.`, approved ? 'good' : 'bad');
+      this.log.info({ senseiId, traineeId: outcome.traineeId, approved }, 'missão avaliada');
+      return undefined;
+    }));
+  }
+
   /** Resultado da conversa (já gravado no banco) vira fala do NPC, missão e recompensa. */
   private applyTalk(playerId: string, username: string, npcId: string, outcome: TalkOutcome): void {
     const session = this.sessions.get(playerId);
@@ -530,21 +843,15 @@ export class GameWorld {
       case 'rewarded': {
         const gained = outcome.rewards.reduce((sum, r) => sum + r.xp, 0);
         if (session) {
-          session.xp = outcome.totalXp;
-          session.rank = outcome.rank;
           this.sendTo(session, {
             type: 'mission_reward',
             rewards: outcome.rewards.map(({ senseiName, xp, title, titleNew }) => ({ senseiName, xp, title, titleNew })),
             totalXp: outcome.totalXp, rank: outcome.rank, promoted: outcome.promoted,
           });
-          this.sendTo(session, { type: 'xp', gained, totalXp: outcome.totalXp, rank: outcome.rank, promoted: outcome.promoted });
         }
+        this.applyXp(playerId, username, gained, outcome);   // xp, nível, pontos e anúncio
         say(npcLine.rewarded(outcome.rewards));
         this.sendMission(playerId, outcome.mission, 'completed');
-        if (outcome.promoted) {
-          this.broadcast({ type: 'announce', message: `${username} subiu para ${outcome.rank.name}!` });
-          this.log.info({ playerId, rank: outcome.rank.code }, 'jogador subiu de rank');
-        }
         this.log.info({ playerId, missions: outcome.rewards.length, xp: gained }, 'pergaminho entregue na Sala de Missões');
         break;
       }
@@ -564,20 +871,38 @@ export class GameWorld {
     const { id, username } = killer;
     this.progression.grantXp(id, amount).then((result) => {
       if (!result) return;
-      const session = this.sessions.get(id);
-      if (session) {
-        session.xp = result.totalXp;
-        session.rank = result.rank;
-        this.sendTo(session, { type: 'xp', gained: amount, totalXp: result.totalXp, rank: result.rank, promoted: result.promoted });
-      }
-      if (result.promoted) {
-        this.broadcast({ type: 'announce', message: `${username} subiu para ${result.rank.name}!` });
-        this.log.info({ playerId: id, rank: result.rank.code }, 'jogador subiu de rank');
-      }
+      this.applyXp(id, username, amount, result);
       this.flushKicks();
     }).catch((err: unknown) => {
       this.log.warn({ playerId: id, err }, 'falha ao gravar XP no banco');
     });
+  }
+
+  /**
+   * XP gravado no banco: atualiza a ficha, avisa o dono (xp + progress) e, se subiu de rank
+   * ou de nível, todos veem (anúncio e o nível sobre o boneco).
+   */
+  private applyXp(playerId: string, username: string, gained: number, result: XpResult): void {
+    const session = this.sessions.get(playerId);
+    const levelsGained = result.levelsGained ?? 0;
+    if (session) {
+      session.xp = result.totalXp;
+      session.rank = result.rank;
+      if (result.level !== undefined) session.level = result.level;
+      if (result.statPoints !== undefined) session.statPoints = result.statPoints;
+      this.sendTo(session, { type: 'xp', gained, totalXp: result.totalXp, rank: result.rank, promoted: result.promoted });
+      this.sendTo(session, { type: 'progress', ...this.progressView(session) });
+      if (levelsGained > 0) {
+        this.sendTo(session, { type: 'notice', text: `Nível ${session.level}! +${levelsGained} ${levelsGained === 1 ? 'ponto' : 'pontos'} de atributo.`, tone: 'good' });
+      }
+      if (levelsGained > 0 || result.promoted) {
+        this.broadcast({ type: 'player_rank', playerId, rank: session.rank, level: session.level }, playerId);
+      }
+    }
+    if (result.promoted) {
+      this.broadcast({ type: 'announce', message: `${username} subiu para ${result.rank.name}!` });
+      this.log.info({ playerId, rank: result.rank.code }, 'jogador subiu de rank');
+    }
   }
 
   private damagePlayer(session: Session, amount: number, t: number): void {
@@ -591,7 +916,7 @@ export class GameWorld {
       shielded = true;
     }
     session.hp = Math.max(0, session.hp - dmg);
-    const maxHp = this.config.combat.player.maxHp;
+    const maxHp = session.stats.maxHp;
     this.broadcast({ type: 'hit', target: 'player', id: session.id, amount: dmg, kind: 'damage', hp: shownHp(session.hp), maxHp, ...(shielded ? { shielded: true } : {}) });
     session.sentHp = shownHp(session.hp);
     if (session.hp <= 0) {
@@ -608,29 +933,32 @@ export class GameWorld {
   /** Renascer: só morto e só depois do tempo. Volta ao centro com vida e chakra cheios. */
   private respawn(session: Session, t: number): void {
     const p = this.config.combat.player;
+    const { maxHp, maxChakra } = session.stats;
     if (!session.dead || t - session.deadAt < p.respawnMs) {
       this.sendError(session, 'RESPAWN_NOT_READY');
       return;
     }
     session.dead = false;
-    session.hp = p.maxHp;
-    session.chakra = p.maxChakra;
+    session.hp = maxHp;
+    session.chakra = maxChakra;
     session.shield = 0;
     session.cooldowns = {};
     session.x = this.config.spawn.x;
     session.y = this.config.spawn.y;
     session.dx = 0;
     session.dy = 0;
-    session.sentHp = p.maxHp;
-    this.broadcast({ type: 'player_respawned', playerId: session.id, x: session.x, y: session.y, hp: p.maxHp, maxHp: p.maxHp });
+    session.sentHp = maxHp;
+    this.broadcast({ type: 'player_respawned', playerId: session.id, x: session.x, y: session.y, hp: maxHp, maxHp });
     this.sendStats(session, t);
   }
 
   private sendStats(session: Session, t: number): void {
-    const p = this.config.combat.player;
     session.sentStats = statsKey(session);
     session.lastStatsAt = t;
-    this.sendTo(session, { type: 'stats', hp: shownHp(session.hp), maxHp: p.maxHp, chakra: Math.floor(session.chakra), maxChakra: p.maxChakra, shield: session.shield > 0 });
+    this.sendTo(session, {
+      type: 'stats', hp: shownHp(session.hp), maxHp: session.stats.maxHp, chakra: Math.floor(session.chakra),
+      maxChakra: session.stats.maxChakra, shield: session.shield > 0, speed: this.speedOf(session), running: session.running,
+    });
   }
 
   /** Cria um monstro numa casa livre da zona de caça (longe dos jogadores). Exposto para testes. */
@@ -704,14 +1032,14 @@ export class GameWorld {
     const dtMs = Math.min(Math.max(0, t - this.lastTick), this.config.maxTickDtMs);
     const dt = dtMs / 1000;
     this.lastTick = t;
-    const step = this.config.speedTilesPerSecond * dt;
     const { width, height } = this.config.world;
     const p = this.config.combat.player;
 
-    // 1. Jogadores: movimento e regeneração.
+    // 1. Jogadores: movimento (andando 5, correndo 8, + agilidade) e energia.
     for (const s of this.sessions.values()) {
       if (s.closed || s.dead) continue;
       if (!s.meditating && (s.dx !== 0 || s.dy !== 0)) {   // meditando não anda
+        const step = this.speedOf(s) * dt;
         const x = clamp(s.x + s.dx * step, 0, width);
         const y = clamp(s.y + s.dy * step, 0, height);
         if (x !== s.x || y !== s.y) {
@@ -721,9 +1049,9 @@ export class GameWorld {
           s.dirty = true;
         }
       }
-      s.hp = Math.min(p.maxHp, s.hp + p.hpRegenPerSec * dt);
-      const regen = p.chakraRegenPerSec * (s.meditating ? p.meditationRegenMultiplier : 1);
-      s.chakra = Math.min(p.maxChakra, s.chakra + regen * dt);
+      // Chakra: SÓ meditando (15/s + atributo). Vida: SÓ com o chakra no máximo.
+      if (s.meditating) s.chakra = Math.min(s.stats.maxChakra, s.chakra + s.stats.meditationChakraPerSec * dt);
+      if (s.chakra >= s.stats.maxChakra) s.hp = Math.min(s.stats.maxHp, s.hp + p.hpRegenPerSec * dt);
     }
 
     // 2. Monstros: andar e atacar.
@@ -748,7 +1076,7 @@ export class GameWorld {
       if (hp !== s.sentHp && t - s.lastHpAt >= 1000) {
         s.sentHp = hp;
         s.lastHpAt = t;
-        this.broadcast({ type: 'player_hp', playerId: s.id, hp, maxHp: p.maxHp }, s.id);
+        this.broadcast({ type: 'player_hp', playerId: s.id, hp, maxHp: s.stats.maxHp }, s.id);
       }
     }
     this.flushKicks();
@@ -833,6 +1161,11 @@ export function targetLabel(code: string, quantity: number): string {
   return names ? names[quantity === 1 ? 0 : 1] : code;
 }
 
+/** "Derrotar 5 slimes" (texto curto da missão para os avisos). */
+export function npcTitle(m: MissionView): string {
+  return m.type.code === 'DEFEAT_MONSTER' ? `Derrotar ${m.target.quantity} ${targetLabel(m.target.code, m.target.quantity)}` : `${m.type.name} (${m.target.quantity})`;
+}
+
 /** Falas do Mestre. */
 export const npcLine = {
   assigned: (m: MissionView) => `Prove seu valor, jovem ninja: derrote ${m.target.quantity} ${targetLabel(m.target.code, m.target.quantity)} e volte aqui.`,
@@ -857,7 +1190,7 @@ function monsterView(m: Monster): MonsterView {
 
 /** O que o dono vê nas barras (muda = manda `stats`). */
 function statsKey(s: Session): string {
-  return `${shownHp(s.hp)}|${Math.floor(s.chakra)}|${s.shield > 0 ? 1 : 0}`;
+  return `${shownHp(s.hp)}|${Math.floor(s.chakra)}|${s.shield > 0 ? 1 : 0}|${s.running ? 1 : 0}|${s.stats.maxHp}|${s.stats.maxChakra}`;
 }
 
 function clamp(n: number, min: number, max: number): number {

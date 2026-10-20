@@ -29,6 +29,10 @@
       <button id="missions-toggle" class="mission-btn" type="button" aria-expanded="false" aria-controls="missions-panel">
         <span aria-hidden="true">📜</span> <span id="missions-badge">Missões</span>
       </button>
+      <!-- Ficha: nível e pontos de atributo; o "+" aparece quando há ponto para gastar. -->
+      <button id="status-toggle" class="mission-btn" type="button" aria-expanded="false" aria-controls="status-panel">
+        <span aria-hidden="true">📊</span> <span id="status-badge">Nv 1</span>
+      </button>
       <button id="chat-toggle" class="icon-btn" type="button" aria-label="Abrir chat" aria-expanded="false" aria-controls="chat">
         <span aria-hidden="true">💬</span>
       </button>
@@ -63,23 +67,92 @@
       <p id="mission-last" class="mission-last" hidden></p>
     </section>
 
-    <!-- Falar (perto do NPC), foco e meditação: logo acima das habilidades. -->
-    <div id="actions" class="actions" aria-label="Ações">
-      <button id="talk-btn" type="button" class="action-btn talk" hidden><span aria-hidden="true">💬</span> Falar</button>
-      <button id="target-btn" type="button" class="action-btn" aria-pressed="false"><span aria-hidden="true">🎯</span> Alvo</button>
-      <button id="meditate-btn" type="button" class="action-btn" aria-pressed="false"><span aria-hidden="true">🧘</span> Meditar</button>
+    <!--
+      Combate estilo MOBA: tudo em volta do Ataque Básico, no canto de baixo à direita.
+      As 4 habilidades são as do kit ATIVO (o servidor confirma a troca). Cada botão tem
+      a recarga desenhada por cima (sombra girando + segundos).
+    -->
+    <div id="combat" class="combat" aria-label="Combate">
+      <button id="attack-btn" type="button" class="cbtn attack" aria-label="Ataque básico (não gasta chakra)"><span class="ico" aria-hidden="true">🗡️</span><i class="cd" aria-hidden="true"></i></button>
+      <button type="button" class="cbtn skill" data-slot="0"><span class="ico" aria-hidden="true"></span><b class="cost" aria-hidden="true"></b><i class="cd" aria-hidden="true"></i></button>
+      <button type="button" class="cbtn skill" data-slot="1"><span class="ico" aria-hidden="true"></span><b class="cost" aria-hidden="true"></b><i class="cd" aria-hidden="true"></i></button>
+      <button type="button" class="cbtn skill" data-slot="2"><span class="ico" aria-hidden="true"></span><b class="cost" aria-hidden="true"></b><i class="cd" aria-hidden="true"></i></button>
+      <button type="button" class="cbtn skill" data-slot="3"><span class="ico" aria-hidden="true"></span><b class="cost" aria-hidden="true"></b><i class="cd" aria-hidden="true"></i></button>
+      <button id="meditate-btn" type="button" class="cbtn small meditate" aria-pressed="false" aria-label="Meditar"><span class="ico" aria-hidden="true">🧘</span></button>
+      <button id="run-btn" type="button" class="cbtn small run" aria-pressed="false" aria-label="Correr"><span class="ico" aria-hidden="true">🏃</span></button>
+      <button id="kit-btn" type="button" class="cbtn small kit" aria-label="Trocar de kit (ativo: A)"><span class="ico" aria-hidden="true">🔄</span><b id="kit-label" class="kit-label">A</b></button>
+      <button id="target-btn" type="button" class="cbtn small target" aria-pressed="false" aria-label="Focar alvo"><span class="ico" aria-hidden="true">🎯</span></button>
+      <button id="talk-btn" type="button" class="cbtn small talk" hidden aria-label="Falar"><span class="ico" aria-hidden="true">💬</span></button>
     </div>
 
-    <!-- 7 habilidades: a primeira fica no canto, embaixo do polegar. -->
-    <div id="skills" class="skills" aria-label="Habilidades">
-      <button type="button" class="skill skill-fire" data-skill="fire" aria-label="Fogo"><span aria-hidden="true">🔥</span><small>Fogo</small></button>
-      <button type="button" class="skill skill-water" data-skill="water" aria-label="Água"><span aria-hidden="true">💧</span><small>Água</small></button>
-      <button type="button" class="skill skill-taijutsu" data-skill="taijutsu" aria-label="Taijutsu"><span aria-hidden="true">👊</span><small>Taijutsu</small></button>
-      <button type="button" class="skill skill-illusion" data-skill="illusion" aria-label="Ilusão"><span aria-hidden="true">🌀</span><small>Ilusão</small></button>
-      <button type="button" class="skill skill-shadow" data-skill="shadow" aria-label="Sombra"><span aria-hidden="true">🌑</span><small>Sombra</small></button>
-      <button type="button" class="skill skill-stone" data-skill="stone" aria-label="Pedra"><span aria-hidden="true">⛰</span><small>Pedra</small></button>
-      <button type="button" class="skill skill-heal" data-skill="heal" aria-label="Cura"><span aria-hidden="true">✚</span><small>Cura</small></button>
-    </div>
+    <!-- Ficha: atributos (gastar pontos) e kits (montar os 2 kits de 4 habilidades). -->
+    <section id="status-panel" class="mission-panel status-panel" hidden role="dialog" aria-labelledby="status-title">
+      <header class="mission-head">
+        <h2 id="status-title"><span aria-hidden="true">📊</span> <span id="status-level">Nível 1</span></h2>
+        <button id="status-close" class="icon-btn small" type="button" aria-label="Fechar a ficha"><span aria-hidden="true">✕</span></button>
+      </header>
+      <div class="tabs" role="tablist">
+        <button id="tab-attrs" type="button" class="tab active" role="tab" aria-selected="true">Atributos</button>
+        <button id="tab-kits" type="button" class="tab" role="tab" aria-selected="false">Kits</button>
+      </div>
+      <div id="pane-attrs" class="pane">
+        <div id="xp-meter" class="mission-meter xp" role="progressbar" aria-label="XP do nível" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <span id="xp-fill" class="fill"></span><b id="xp-count">0 / 100 XP</b>
+        </div>
+        <p id="points-line" class="points-line">Pontos disponíveis: 0</p>
+        <ul class="attr-list">
+          <li data-attr="vitality"><span class="attr-name">❤️ Vitalidade</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Vitalidade">+</button></li>
+          <li data-attr="chakraMax"><span class="attr-name">🔷 Chakra Máximo</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Chakra Máximo">+</button></li>
+          <li data-attr="chakraRegen"><span class="attr-name">🧘 Regen Chakra</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Regen Chakra">+</button></li>
+          <li data-attr="agility"><span class="attr-name">💨 Agilidade</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Agilidade">+</button></li>
+          <li data-attr="taijutsu"><span class="attr-name">👊 Taijutsu</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Taijutsu">+</button></li>
+          <li data-attr="ninjutsu"><span class="attr-name">🌀 Ninjutsu</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Ninjutsu">+</button></li>
+        </ul>
+      </div>
+      <div id="pane-kits" class="pane" hidden>
+        <p class="kits-help">Até 4 habilidades em cada kit. O <strong>🔄</strong> troca entre eles na luta.</p>
+        <ul class="kit-list">
+          <li data-skill="fire"><span>🔥 Fogo</span><button type="button" class="chip" data-kit="A">A</button><button type="button" class="chip" data-kit="B">B</button></li>
+          <li data-skill="water"><span>💧 Água</span><button type="button" class="chip" data-kit="A">A</button><button type="button" class="chip" data-kit="B">B</button></li>
+          <li data-skill="taijutsu"><span>👊 Taijutsu</span><button type="button" class="chip" data-kit="A">A</button><button type="button" class="chip" data-kit="B">B</button></li>
+          <li data-skill="illusion"><span>🌀 Ilusão</span><button type="button" class="chip" data-kit="A">A</button><button type="button" class="chip" data-kit="B">B</button></li>
+          <li data-skill="shadow"><span>🌑 Sombra</span><button type="button" class="chip" data-kit="A">A</button><button type="button" class="chip" data-kit="B">B</button></li>
+          <li data-skill="stone"><span>⛰ Pedra</span><button type="button" class="chip" data-kit="A">A</button><button type="button" class="chip" data-kit="B">B</button></li>
+          <li data-skill="heal"><span>✚ Cura</span><button type="button" class="chip" data-kit="A">A</button><button type="button" class="chip" data-kit="B">B</button></li>
+        </ul>
+        <p id="kit-count" class="points-line">Kit A: 4/4 · Kit B: 4/4</p>
+        <button id="kit-save" type="button" class="primary">Salvar kits</button>
+      </div>
+    </section>
+
+    <!-- Toque em outro jogador: nome, rank e (sensei) Criar Missão / (aprendiz) Entregar missão. -->
+    <section id="player-menu" class="mission-panel player-menu" hidden role="dialog" aria-labelledby="pm-name">
+      <header class="mission-head">
+        <h2 id="pm-name">Jogador</h2>
+        <button id="pm-close" class="icon-btn small" type="button" aria-label="Fechar"><span aria-hidden="true">✕</span></button>
+      </header>
+      <p id="pm-rank" class="mission-sensei"></p>
+      <button id="pm-deliver" type="button" class="primary" hidden>📜 Entregar missão</button>
+      <button id="pm-create" type="button" class="primary" hidden>📜 Criar Missão</button>
+      <div id="pm-form" class="pm-form" hidden>
+        <p class="mission-sensei">Objetivo: derrotar slimes</p>
+        <div id="pm-qty" class="chips" role="radiogroup" aria-label="Quantidade"></div>
+        <div id="pm-diff" class="chips col" role="radiogroup" aria-label="Dificuldade"></div>
+        <button id="pm-send" type="button" class="primary">Criar missão</button>
+      </div>
+      <p id="pm-note" class="mission-empty"></p>
+    </section>
+
+    <!-- Sensei: o aprendiz entregou. Nota de 1 a 5, aprovar ou reprovar. -->
+    <section id="eval-panel" class="mission-panel eval-panel" hidden role="dialog" aria-labelledby="eval-title">
+      <h2 id="eval-title" class="eval-title">📜 Avaliar missão</h2>
+      <p id="eval-text" class="mission-status"></p>
+      <div id="eval-stars" class="stars" role="radiogroup" aria-label="Nota"></div>
+      <div class="eval-actions">
+        <button id="eval-reject" type="button" class="secondary">Reprovar</button>
+        <button id="eval-approve" type="button" class="primary">Aprovar</button>
+      </div>
+    </section>
 
     <!-- Vida e chakra (parte de baixo da tela) + rank e XP. Atualizados pelo servidor em tempo real. -->
     <div id="vitals" class="vitals" aria-label="Vida e chakra">

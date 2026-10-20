@@ -3,6 +3,7 @@
  * mudam aqui, num lugar só.
  */
 import type { Skill } from './protocol.js';
+import type { AttributeRules } from './stats.js';
 
 /** Números de cada habilidade. Só os campos que a habilidade usa vêm preenchidos. */
 export interface SkillConfig {
@@ -20,10 +21,19 @@ export interface SkillConfig {
 
 export interface CombatConfig {
   player: {
-    maxHp: number; maxChakra: number; hpRegenPerSec: number; chakraRegenPerSec: number; respawnMs: number;
-    /** Meditando: o chakra regenera N vezes mais rápido. */
+    /** Vida e chakra BASE (sem atributos). */
+    maxHp: number; maxChakra: number;
+    /** Vida por segundo, SÓ com o chakra no máximo. */
+    hpRegenPerSec: number;
+    /** Base do chakra. O chakra NÃO regenera sozinho: só meditando, a base x o multiplicador. */
+    chakraRegenPerSec: number;
+    respawnMs: number;
     meditationRegenMultiplier: number;
   };
+  /** Ataque básico: não gasta chakra. Acerta o alvo focado (se no alcance) ou o mais perto. */
+  basicAttack: { damage: number; range: number; cooldownMs: number };
+  /** Quanto cada ponto de atributo vale e o máximo por atributo. */
+  attributes: AttributeRules;
   monsters: {
     count: number; type: string; maxHp: number; xp: number; stepMs: number;
     attackRange: number; attackDamage: number; attackEveryMs: number;
@@ -42,7 +52,10 @@ export interface RealtimeConfig {
   subprotocol: string;
   world: { width: number; height: number };
   spawn: { x: number; y: number };
+  /** Andando (sem atributo). */
   speedTilesPerSecond: number;
+  /** Correndo (botão 🏃 ligado). */
+  runSpeedTilesPerSecond: number;
   tickMs: number;
   maxTickDtMs: number;
   messageBurst: number;
@@ -60,6 +73,12 @@ export interface RealtimeConfig {
   npcs: readonly { id: string; name: string; x: number; y: number; range: number }[];
   /** Pedidos ao banco de missões (falar com NPC, abrir a Sala): no máximo 1 a cada X ms por jogador. */
   missionRequestEveryMs: number;
+  /** Vila de pedra no centro (só visual e área segura: os monstros ficam fora). */
+  village: { radius: number };
+  /** Missões entre jogadores: distância para criar/entregar e quantidades aceitas. */
+  playerMissions: { range: number; quantities: readonly number[]; targetCode: string; missionType: string };
+  /** Salvar kits / gastar ponto: no máximo 1 gravação a cada X ms por jogador. */
+  profileRequestEveryMs: number;
 }
 
 export const REALTIME: Readonly<RealtimeConfig> = {
@@ -78,6 +97,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
    * speed hack e teleporte não existem.
    */
   speedTilesPerSecond: 5,
+  runSpeedTilesPerSecond: 8,
 
   /** Game loop: a cada 50 ms (20 vezes por segundo) move quem está andando e envia as posições. */
   tickMs: 50,
@@ -107,11 +127,20 @@ export const REALTIME: Readonly<RealtimeConfig> = {
 
   /** Combate PvE. O servidor decide tudo: dano, acerto, morte e XP. */
   combat: {
+    // Chakra só volta meditando: 5 x 3 = 15/s. Vida volta 1/s só com o chakra cheio.
     player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 1, chakraRegenPerSec: 5, respawnMs: 5000, meditationRegenMultiplier: 3 },
+    basicAttack: { damage: 12, range: 1.6, cooldownMs: 600 },
+    attributes: {
+      maxPoints: 10,
+      // vitalidade +10 vida · chakra máximo +10 · regen +1/s meditando · agilidade +0,5 velocidade
+      // taijutsu +5% no Ataque Básico (físico) · ninjutsu +5% nos jutsus (as habilidades)
+      perPoint: { vitality: 10, chakraMax: 10, chakraRegen: 1, agility: 0.5, taijutsu: 0.05, ninjutsu: 0.05 },
+    },
     monsters: {
       count: 5, type: 'slime', maxHp: 60, xp: 20, stepMs: 1000,
       attackRange: 1.2, attackDamage: 10, attackEveryMs: 2000,
-      zoneRadius: 16, safeRadius: 5, minPlayerDistance: 3,
+      // A vila (raio 10) é área segura: os monstros andam no anel de 11 a 20 casas.
+      zoneRadius: 20, safeRadius: 11, minPlayerDistance: 3,
     },
     promotion: { fromRank: 'ACADEMY', toRank: 'GENIN', xp: 100 },
     statsEveryMs: 200,
@@ -134,4 +163,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
    */
   npcs: [{ id: 'sensei', name: 'Mestre', x: 52, y: 49, range: 2.5 }],
   missionRequestEveryMs: 400,
+  village: { radius: 10 },
+  playerMissions: { range: 3, quantities: [3, 5, 10], targetCode: 'slime', missionType: 'DEFEAT_MONSTER' },
+  profileRequestEveryMs: 250,
 };
