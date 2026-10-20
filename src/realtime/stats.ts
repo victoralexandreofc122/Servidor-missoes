@@ -26,6 +26,10 @@ export interface AttributeRules {
   maxPoints: number;
   /** Quanto cada ponto vale. */
   perPoint: Attributes;
+  /** Agilidade também acelera o Ataque Básico: cada ponto corta esta fração da recarga (0,04 = 4%). */
+  agilityAttackSpeed: number;
+  /** A recarga do ataque nunca fica abaixo desta fração da base (0,6 = 60%). */
+  minAttackCooldownFactor: number;
 }
 
 export interface BaseStats {
@@ -35,6 +39,8 @@ export interface BaseStats {
   meditationChakraPerSec: number;
   walkSpeed: number;
   runSpeed: number;
+  /** Recarga do Ataque Básico sem Agilidade (ms). */
+  attackCooldownMs: number;
 }
 
 /** O que o servidor usa no jogo (e o cliente mostra na tela de status). */
@@ -44,10 +50,12 @@ export interface DerivedStats {
   meditationChakraPerSec: number;
   walkSpeed: number;
   runSpeed: number;
-  /** Dano FÍSICO (Ataque Básico): 1 + Taijutsu (1,15 = +15%). */
+  /** Dano de TAIJUTSU (corpo a corpo: Ataque Básico e a habilidade Taijutsu 👊): 1 + Taijutsu (1,15 = +15%). */
   physicalMultiplier: number;
-  /** Dano de JUTSU (as 7 habilidades): 1 + Ninjutsu. */
+  /** Dano de NINJUTSU (jutsus elementais: Fogo, Água...): 1 + Ninjutsu. */
   jutsuMultiplier: number;
+  /** Recarga do Ataque Básico já com a Agilidade (ms). */
+  attackCooldownMs: number;
 }
 
 export function derivedStats(base: BaseStats, rules: AttributeRules, a: Attributes): DerivedStats {
@@ -60,7 +68,14 @@ export function derivedStats(base: BaseStats, rules: AttributeRules, a: Attribut
     runSpeed: base.runSpeed + a.agility * p.agility,
     physicalMultiplier: Math.round((1 + a.taijutsu * p.taijutsu) * 1000) / 1000,
     jutsuMultiplier: Math.round((1 + a.ninjutsu * p.ninjutsu) * 1000) / 1000,
+    attackCooldownMs: Math.round(base.attackCooldownMs * Math.max(rules.minAttackCooldownFactor, 1 - a.agility * rules.agilityAttackSpeed)),
   };
+}
+
+/** Qual atributo escala o dano de uma habilidade: corpo a corpo = Taijutsu; elemental = Ninjutsu. */
+export type DamageScaling = 'taijutsu' | 'ninjutsu';
+export function damageMultiplier(stats: DerivedStats, scaling: DamageScaling): number {
+  return scaling === 'taijutsu' ? stats.physicalMultiplier : stats.jutsuMultiplier;
 }
 
 /** Dano final: arredondado para inteiro (número flutuante limpo na tela). */

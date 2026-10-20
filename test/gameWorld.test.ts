@@ -22,6 +22,7 @@ describe('GameWorld: entrar e sair', () => {
       {
         id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false, chakra: 100, maxChakra: 100,
         shield: false, xp: 40, rank: { code: 'ACADEMY', name: 'Academia' }, level: 1, speed: 5, running: false, canBeSensei: false,
+        appearance: { skin: '#f1c9a0', hair: '#2b2118', shirt: '#2f5d8a', pants: '#2a2a33', cape: '#8a2b2b' }, dir: 0, appearanceSet: false,
       },
     );
     assert.deepEqual(w.kit, { active: 'A', kits: { A: ['fire', 'water', 'taijutsu', 'heal'], B: ['illusion', 'shadow', 'stone', 'heal'] } });
@@ -33,7 +34,7 @@ describe('GameWorld: entrar e sair', () => {
     assert.deepEqual(w.world.skills.fire, { cost: 20, cooldownMs: 1500, range: 3 });
 
     const b = connect('mei');
-    assert.deepEqual(b.conn.of('welcome')[0].players, [{ id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false, rank: { code: 'ACADEMY', name: 'Academia' }, level: 1 }]);
+    assert.deepEqual(b.conn.of('welcome')[0].players, [{ id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false, rank: { code: 'ACADEMY', name: 'Academia' }, level: 1, appearance: { skin: '#f1c9a0', hair: '#2b2118', shirt: '#2f5d8a', pants: '#2a2a33', cape: '#8a2b2b' }, dir: 0 }]);
     assert.deepEqual(a.conn.of('player_joined').map((m) => m.player.username), ['mei']);
     assert.equal(b.conn.of('player_joined').length, 0, 'quem entrou não recebe aviso de si mesmo');
     assert.equal(world.online, 2);
@@ -95,7 +96,7 @@ describe('GameWorld: movimento autoritativo (joystick) e game loop', () => {
     assert.equal(b.conn.sent.length + a.conn.sent.length, 0, 'nada sai antes do tick');
     clock.advance(50);
     assert.equal(world.tick(), 1);
-    const expected = { type: 'player_moved', playerId: a.id, x: S.x + 0.25, y: S.y };   // 5 casas/s × 50 ms
+    const expected = { type: 'player_moved', playerId: a.id, x: S.x + 0.25, y: S.y, d: 2 };   // 5 casas/s × 50 ms, olhando para a direita
     assert.deepEqual(b.conn.of('player_moved'), [expected]);
     assert.deepEqual(a.conn.of('player_moved'), [expected], 'quem andou recebe a posição oficial (corrige a previsão do cliente)');
   });

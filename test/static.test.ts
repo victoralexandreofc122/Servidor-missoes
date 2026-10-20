@@ -32,7 +32,7 @@ describe('cliente web servido pelo Fastify', () => {
 
   it('/game.js, /targeting.js, /village.js e /styles.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {
     const pub = app();
-    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/targeting.js', 'text/javascript; charset=utf-8'], ['/village.js', 'text/javascript; charset=utf-8'], ['/styles.css', 'text/css; charset=utf-8']];
+    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/targeting.js', 'text/javascript; charset=utf-8'], ['/village.js', 'text/javascript; charset=utf-8'], ['/character.js', 'text/javascript; charset=utf-8'], ['/styles.css', 'text/css; charset=utf-8']];
     for (const [url, type] of cases) {
       const r = await pub.inject({ method: 'GET', url });
       assert.equal(r.statusCode, 200, url);
@@ -81,6 +81,19 @@ describe('garantias do cliente (public/)', () => {
     assert.match(js, /from '\.\/targeting\.js'/, 'foco e câmera vêm do módulo testado');
     assert.match(js, /send\(\{ type: 'chat', message \}\)/);
     for (const skill of SKILLS) assert.match(html, new RegExp(`data-skill="${skill}"`));
+  });
+
+  it('v6: Criador (5 cores), ⚙️ com sliders, modo "Editar layout" que trava o combate, visual só muda pelo servidor', () => {
+    for (const id of ['creator', 'creator-save', 'settings-toggle', 'settings-panel', 'edit-layout', 'edit-banner', 'edit-done', 'btn-scale', 'btn-opacity', 'bar-scale', 'bar-opacity']) {
+      assert.match(html, new RegExp(`id="${id}"`), id);
+    }
+    for (const part of ['skin', 'hair', 'shirt', 'pants', 'cape']) assert.match(html, new RegExp(`type="color" data-part="${part}"`));
+    assert.match(js, /send\(\{ type: 'set_appearance', appearance: \{ \.\.\.creatorLook \} \}\)/);
+    // Toque nos botões não faz nada no modo edição (não dá para mexer no layout sem querer, nem atacar arrastando).
+    assert.match(js, /if \(hud\.editing\) return;\s+\/\/ modo "Editar layout"/);
+    // Layout guardado só no aparelho, com try/catch (modo privado não quebra o jogo).
+    assert.match(js, /localStorage\.setItem\(HUD_KEY/);
+    assert.match(js, /from '\.\/character\.js'/);
   });
 
   it('combate MOBA: ataque, 4 espaços de habilidade, 🧘, 🏃, 🔄, 🎯; o cliente só PEDE (attack/run/switch_kit/spend_point)', () => {

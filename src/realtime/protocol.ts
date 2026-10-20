@@ -16,6 +16,7 @@ import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
  *   { "type": "switch_kit", "kit": "B" }        trocar de kit (só vale depois que o servidor confirma)
  *   { "type": "set_loadout", "kitA": [..], "kitB": [..] }   até 4 habilidades por kit
  *   { "type": "spend_point", "attribute": "vitality" }      gastar 1 ponto de atributo
+ *   { "type": "set_appearance", "appearance": { skin, hair, shirt, pants, cape } }   cores "#rrggbb"
  *   { "type": "create_mission", "traineeId", "difficulty", "quantity" }   sensei (Chunin+) cria missão
  *   { "type": "deliver_mission", "senseiId" }   aprendiz entrega a missão ao sensei (perto dele)
  *   { "type": "evaluate_mission", "missionId", "approved", "score" }      sensei avalia
@@ -23,7 +24,9 @@ import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
  *
  * Servidor -> cliente
  *   welcome           { you, players, monsters, world }    ao conectar (players = os OUTROS)
- *   player_joined / player_moved / player_left             como antes
+ *   player_joined / player_left                            como antes
+ *   player_moved      { playerId, x, y, d }                d = direção do boneco (0 baixo, 1 esquerda, 2 direita, 3 cima)
+ *   player_appearance { playerId, appearance }             visual novo (cores do paperdoll)
  *   stats             { hp, maxHp, chakra, maxChakra, shield }   só para o próprio jogador
  *   player_hp         { playerId, hp, maxHp }              vida dos outros (barrinha sobre o boneco)
  *   cast              { playerId, skill, x, y, fx, fy }    habilidade aceita (todos veem a animação)
@@ -63,6 +66,16 @@ export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(['fire', 'wate
 /** Id de monstro como o servidor cria ("m" + número). */
 const monsterId = z.string().regex(/^m\d{1,9}$/);
 const uuid = z.string().uuid();
+/** Cor "#rrggbb" (o <input type="color"> manda assim); gravada sempre em minúsculas. */
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/).transform((c) => c.toLowerCase());
+
+/** Visual do personagem (paperdoll): só cores, 5 partes. Nada além disso entra no banco. */
+export const AppearanceSchema = z.object({ skin: hexColor, hair: hexColor, shirt: hexColor, pants: hexColor, cape: hexColor }).strict();
+export type Appearance = z.infer<typeof AppearanceSchema>;
+export const APPEARANCE_PARTS = ['skin', 'hair', 'shirt', 'pants', 'cape'] as const;
+
+/** Direção do boneco: 0 baixo, 1 esquerda, 2 direita, 3 cima. */
+export type Dir = 0 | 1 | 2 | 3;
 const skillList = z.array(z.enum(SKILLS)).max(4).refine((l) => new Set(l).size === l.length, 'habilidade repetida no kit');
 
 export type KitName = 'A' | 'B';
@@ -80,6 +93,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('switch_kit'), kit: z.enum(['A', 'B']) }),
   z.object({ type: z.literal('set_loadout'), kitA: skillList, kitB: skillList }),
   z.object({ type: z.literal('spend_point'), attribute: z.enum(ATTRIBUTES) }),
+  z.object({ type: z.literal('set_appearance'), appearance: AppearanceSchema }),
   z.object({ type: z.literal('create_mission'), traineeId: uuid, difficulty: z.string().regex(/^[A-Z][A-Z0-9_]{0,31}$/), quantity: z.number().int() }),
   z.object({ type: z.literal('deliver_mission'), senseiId: uuid }),
   z.object({ type: z.literal('evaluate_mission'), missionId: uuid, approved: z.boolean(), score: z.number().int().min(1).max(5) }),
@@ -103,6 +117,9 @@ export interface PlayerView {
   meditating: boolean;
   rank: RankView;
   level: number;
+  /** Cores do boneco (padrão se o jogador ainda não criou o personagem). */
+  appearance: Appearance;
+  dir: Dir;
 }
 
 export interface SelfView extends PlayerView {
@@ -114,6 +131,8 @@ export interface SelfView extends PlayerView {
   running: boolean;
   /** Rank permite ser sensei (Chunin+): o cliente mostra "Criar Missão". O banco confere de novo. */
   canBeSensei: boolean;
+  /** false = ainda não passou pelo Criador de Personagem (o cliente abre a tela de criação). */
+  appearanceSet: boolean;
 }
 
 /** Ficha do jogador: nível, XP do nível (zera a cada nível), pontos e o que os atributos dão. */
@@ -209,7 +228,8 @@ export type MonsterStatus = 'stunned' | 'rooted';
 export type ServerMessage =
   | { type: 'welcome'; you: SelfView; players: PlayerView[]; monsters: MonsterView[]; world: WorldInfo; progress: ProgressView; kit: KitView }
   | { type: 'player_joined'; player: PlayerView }
-  | { type: 'player_moved'; playerId: string; x: number; y: number }
+  | { type: 'player_moved'; playerId: string; x: number; y: number; d: Dir }
+  | { type: 'player_appearance'; playerId: string; appearance: Appearance }
   | { type: 'player_left'; playerId: string }
   | { type: 'chat'; playerId: string; username: string; message: string }
   | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean; speed: number; running: boolean }
@@ -257,6 +277,7 @@ export const REALTIME_ERRORS = {
   NO_POINTS: 'Você não tem pontos de atributo. Suba de nível para ganhar mais.',
   ATTRIBUTE_MAXED: 'Esse atributo já está no máximo.',
   PROFILE_UNAVAILABLE: 'Não foi possível salvar agora. Tente de novo.',
+  PROFILE_BUSY: 'Calma! Ainda salvando os pedidos anteriores.',
   PLAYER_NOT_FOUND: 'Esse jogador não está mais online.',
   PLAYER_TOO_FAR: 'Chegue mais perto desse jogador.',
   INVALID_MISSION_OPTION: 'Opção de missão inválida.',

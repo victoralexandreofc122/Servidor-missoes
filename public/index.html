@@ -36,6 +36,9 @@
       <button id="chat-toggle" class="icon-btn" type="button" aria-label="Abrir chat" aria-expanded="false" aria-controls="chat">
         <span aria-hidden="true">💬</span>
       </button>
+      <button id="settings-toggle" class="icon-btn" type="button" aria-label="Configurações" aria-expanded="false" aria-controls="settings-panel">
+        <span aria-hidden="true">⚙️</span>
+      </button>
       <button id="logout" class="text-btn" type="button">Sair</button>
     </div>
 
@@ -83,6 +86,36 @@
       <button id="kit-btn" type="button" class="cbtn small kit" aria-label="Trocar de kit (ativo: A)"><span class="ico" aria-hidden="true">🔄</span><b id="kit-label" class="kit-label">A</b></button>
       <button id="target-btn" type="button" class="cbtn small target" aria-pressed="false" aria-label="Focar alvo"><span class="ico" aria-hidden="true">🎯</span></button>
       <button id="talk-btn" type="button" class="cbtn small talk" hidden aria-label="Falar"><span class="ico" aria-hidden="true">💬</span></button>
+    </div>
+
+    <!-- Configurações: layout da HUD (só muda no modo "Editar layout", nunca sem querer), tamanho e transparência. -->
+    <section id="settings-panel" class="mission-panel settings-panel" hidden role="dialog" aria-labelledby="settings-title">
+      <header class="mission-head">
+        <h2 id="settings-title"><span aria-hidden="true">⚙️</span> Configurações</h2>
+        <button id="settings-close" class="icon-btn small" type="button" aria-label="Fechar as configurações"><span aria-hidden="true">✕</span></button>
+      </header>
+      <button id="edit-layout" type="button" class="primary">✏️ Editar layout (arrastar botões)</button>
+      <label class="slider">Tamanho dos botões <output id="btn-scale-out">100%</output>
+        <input id="btn-scale" type="range" min="70" max="130" step="5" value="100">
+      </label>
+      <label class="slider">Opacidade dos botões <output id="btn-opacity-out">100%</output>
+        <input id="btn-opacity" type="range" min="30" max="100" step="5" value="100">
+      </label>
+      <label class="slider">Tamanho das barras <output id="bar-scale-out">100%</output>
+        <input id="bar-scale" type="range" min="70" max="130" step="5" value="100">
+      </label>
+      <label class="slider">Opacidade das barras <output id="bar-opacity-out">100%</output>
+        <input id="bar-opacity" type="range" min="30" max="100" step="5" value="100">
+      </label>
+      <button id="open-creator" type="button" class="secondary">🎨 Mudar visual do personagem</button>
+      <button id="reset-layout" type="button" class="link">Restaurar layout padrão</button>
+    </section>
+
+    <!-- Modo edição: aparece só depois de tocar em "Editar layout". O combate fica parado. -->
+    <div id="edit-banner" class="edit-banner" hidden role="status">
+      <span>✏️ Arraste os botões, o joystick e as barras</span>
+      <button id="edit-reset" type="button" class="secondary">Restaurar</button>
+      <button id="edit-done" type="button" class="primary">Concluir</button>
     </div>
 
     <!-- Ficha: atributos (gastar pontos) e kits (montar os 2 kits de 4 habilidades). -->
@@ -168,6 +201,33 @@
     <div id="hurt" class="hurt" aria-hidden="true"></div>
     <p id="toast" class="toast" role="status" hidden></p>
   </div>
+
+  <!-- Criador de Personagem: depois do cadastro (e pelo ⚙️ a qualquer hora). Só cores, salvas no servidor. -->
+  <section id="creator" class="screen creator" hidden aria-labelledby="creator-title">
+    <div class="card creator-card">
+      <h2 id="creator-title">Crie seu ninja</h2>
+      <div class="creator-body">
+        <div class="creator-preview">
+          <canvas id="creator-canvas" width="160" height="190" aria-label="Prévia do personagem"></canvas>
+          <button id="creator-turn" type="button" class="secondary small-btn">↻ Girar</button>
+        </div>
+        <div class="creator-colors">
+          <div id="creator-presets" class="presets" aria-label="Combinações prontas"></div>
+          <label class="color-row">Pele <input type="color" data-part="skin"></label>
+          <label class="color-row">Cabelo <input type="color" data-part="hair"></label>
+          <label class="color-row">Camisa <input type="color" data-part="shirt"></label>
+          <label class="color-row">Calça <input type="color" data-part="pants"></label>
+          <label class="color-row">Capa <input type="color" data-part="cape"></label>
+        </div>
+      </div>
+      <p id="creator-error" class="error" role="alert"></p>
+      <div class="creator-actions">
+        <button id="creator-random" type="button" class="secondary">🎲 Aleatório</button>
+        <button id="creator-cancel" type="button" class="secondary" hidden>Cancelar</button>
+        <button id="creator-save" type="button" class="primary">Começar a jogar</button>
+      </div>
+    </div>
+  </section>
 
   <!-- Derrota: aparece quando a vida chega a 0. "Renascer" libera depois de 5 s. -->
   <section id="death" class="screen death" hidden>

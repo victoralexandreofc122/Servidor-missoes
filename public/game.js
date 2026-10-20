@@ -11,6 +11,7 @@
 
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
 import { houseAt, housesOf, isVillage } from './village.js';
+import { DEFAULT_LOOK, dirFrom, drawCharacter, PARTS, PRESETS, safeLook } from './character.js';
 
 const TOKEN_KEY = 'nin.token';
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/game`;
@@ -35,6 +36,13 @@ const ui = {
   kitCount: $('kit-count'), kitSave: $('kit-save'),
   playerMenu: $('player-menu'), pmName: $('pm-name'), pmRank: $('pm-rank'), pmClose: $('pm-close'), pmDeliver: $('pm-deliver'),
   pmCreate: $('pm-create'), pmForm: $('pm-form'), pmQty: $('pm-qty'), pmDiff: $('pm-diff'), pmSend: $('pm-send'), pmNote: $('pm-note'),
+  settingsToggle: $('settings-toggle'), settingsPanel: $('settings-panel'), settingsClose: $('settings-close'),
+  editLayout: $('edit-layout'), editBanner: $('edit-banner'), editDone: $('edit-done'), editReset: $('edit-reset'),
+  resetLayout: $('reset-layout'), openCreator: $('open-creator'), vitals: $('vitals'),
+  sliders: { btnScale: $('btn-scale'), btnOpacity: $('btn-opacity'), barScale: $('bar-scale'), barOpacity: $('bar-opacity') },
+  creator: $('creator'), creatorCanvas: $('creator-canvas'), creatorTurn: $('creator-turn'), creatorPresets: $('creator-presets'),
+  creatorInputs: [...document.querySelectorAll('#creator input[type=color]')], creatorError: $('creator-error'),
+  creatorRandom: $('creator-random'), creatorCancel: $('creator-cancel'), creatorSave: $('creator-save'),
   evalPanel: $('eval-panel'), evalText: $('eval-text'), evalStars: $('eval-stars'), evalApprove: $('eval-approve'), evalReject: $('eval-reject'),
   login: $('login'), loginForm: $('login-form'), loginError: $('login-error'), loginSubmit: $('login-submit'),
   toggleMode: $('toggle-mode'), usernameField: $('username-field'), passwordHint: $('password-hint'),
@@ -290,6 +298,8 @@ function upsertPlayer(p, snap) {
     if (snap) { existing.x = p.x; existing.y = p.y; }
     if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; }
     if (p.rank) { existing.rank = p.rank; existing.level = p.level; }
+    if (p.appearance) existing.look = safeLook(p.appearance);
+    if (p.dir !== undefined) existing.dir = p.dir;
     return existing;
   }
   const color = colorFor(p.id);
@@ -297,6 +307,8 @@ function upsertPlayer(p, snap) {
     id: p.id, username: p.username, x: p.x, y: p.y, tx: p.x, ty: p.y, color, bubble: null,
     hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating,
     rank: p.rank || null, level: p.level || 1,
+    // Paperdoll: cores (do servidor), direção (0 baixo, 1 esq, 2 dir, 3 cima) e fase da caminhada.
+    look: safeLook(p.appearance || DEFAULT_LOOK), dir: p.dir ?? 0, walk: 0, moving: false, lastX: p.x, lastY: p.y,
     initial: ([...p.username][0] || '?').toUpperCase(),
     initialColor: LIGHT_COLORS.has(color) ? '#14110d' : '#ffffff',
   };
@@ -341,7 +353,10 @@ function handleMessage(msg) {
         hp: msg.you.hp, maxHp: msg.you.maxHp, chakra: msg.you.chakra, maxChakra: msg.you.maxChakra,
         shield: msg.you.shield, xp: msg.you.xp, rank: msg.you.rank, dead: msg.you.dead, meditating: !!msg.you.meditating,
         speed: msg.you.speed ?? state.world.speed, running: !!msg.you.running, canBeSensei: !!msg.you.canBeSensei,
+        appearanceSet: msg.you.appearanceSet !== false, look: safeLook(msg.you.appearance || DEFAULT_LOOK),
       });
+      // Primeira vez (conta nova ou antes da v6): Criador de Personagem.
+      if (!state.me.appearanceSet) openCreator(true);
       if (msg.progress) state.progress = msg.progress;
       if (msg.kit) state.kit = msg.kit;
       state.evalQueue = [];
@@ -363,7 +378,21 @@ function handleMessage(msg) {
       break;
     case 'player_moved': {
       const p = state.players.get(msg.playerId);
-      if (p) { p.tx = msg.x; p.ty = msg.y; }
+      if (p) {
+        p.tx = msg.x; p.ty = msg.y;
+        // Direção do servidor (o próprio jogador usa a do joystick enquanto anda: resposta imediata).
+        if (msg.d !== undefined && !(msg.playerId === state.meId && (dir.x !== 0 || dir.y !== 0))) p.dir = msg.d;
+      }
+      break;
+    }
+    case 'player_appearance': {
+      const p = state.players.get(msg.playerId);
+      if (p) p.look = safeLook(msg.appearance);
+      if (msg.playerId === state.meId) {
+        state.me.appearanceSet = true;
+        state.me.look = safeLook(msg.appearance);
+        closeCreator();
+      }
       break;
     }
     case 'player_left':
@@ -399,6 +428,7 @@ function handleMessage(msg) {
       break;
     case 'attack': {
       state.effects.push({ skill: 'attack', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
+      faceTo(msg.playerId, msg.fx, msg.fy);
       if (msg.playerId === state.meId) startCooldown('attack');
       break;
     }
@@ -431,6 +461,7 @@ function handleMessage(msg) {
     }
     case 'cast': {
       state.effects.push({ skill: msg.skill, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
+      faceTo(msg.playerId, msg.fx, msg.fy);
       if (msg.playerId === state.meId) {
         console.log(`[habilidade] ${msg.skill}`);
         startCooldown(msg.skill);
@@ -573,7 +604,7 @@ function handleMessage(msg) {
     case 'error':
       if (msg.code === 'CHAT_RATE_LIMITED' || msg.code === 'CHAT_INVALID') addSystemLine(msg.message);
       else if (['NPC_TOO_FAR', 'CANNOT_TALK', 'UNKNOWN_NPC', 'MISSIONS_UNAVAILABLE', 'NO_POINTS', 'ATTRIBUTE_MAXED',
-        'PROFILE_UNAVAILABLE', 'PLAYER_NOT_FOUND', 'PLAYER_TOO_FAR', 'INVALID_MISSION_OPTION'].includes(msg.code)) {
+        'PROFILE_UNAVAILABLE', 'PROFILE_BUSY', 'PLAYER_NOT_FOUND', 'PLAYER_TOO_FAR', 'INVALID_MISSION_OPTION'].includes(msg.code)) {
         showToast(msg.message, 3500);
         addSystemLine(msg.message);
       }
@@ -708,18 +739,29 @@ const joy = { pointerId: null, restX: 0, restY: 0, baseX: 0, baseY: 0, radius: 6
 const safe = { top: 0, right: 0, bottom: 0, left: 0 };
 
 function layoutJoystick(w, h) {
-  joy.radius = Math.round(Math.max(52, Math.min(84, Math.min(w, h) * 0.15)));
-  joy.restX = safe.left + 22 + joy.radius;
-  joy.restY = h - safe.bottom - 22 - joy.radius;
+  joy.radius = Math.round(Math.max(52, Math.min(84, Math.min(w, h) * 0.15)) * hud.btnScale);
+  const off = hudLayout().joy || [0, 0];
+  joy.restX = Math.max(safe.left + joy.radius + 4, Math.min(w - joy.radius - 4, safe.left + 22 + joy.radius + off[0]));
+  joy.restY = Math.max(joy.radius + 60, Math.min(h - safe.bottom - joy.radius - 4, h - safe.bottom - 22 - joy.radius + off[1]));
   if (joy.pointerId === null) { joy.baseX = joy.restX; joy.baseY = joy.restY; }
 }
 
+/** Onde o polegar pode nascer o joystick: metade esquerda de baixo, ou perto de onde ele foi posto. */
 function inJoystickZone(x, y, w, h) {
-  return x < w * 0.5 && y > h * 0.3;
+  return (x < w * 0.5 && y > h * 0.3) || Math.hypot(x - joy.restX, y - joy.restY) < joy.radius * 1.6;
 }
 
 canvas.addEventListener('pointerdown', (e) => {
   const w = canvas.clientWidth, h = canvas.clientHeight;
+  // Modo "Editar layout": o joystick é arrastado para o lugar novo (não anda).
+  if (hud.editing) {
+    if (Math.hypot(e.clientX - joy.restX, e.clientY - joy.restY) <= joy.radius * 1.3) {
+      e.preventDefault();
+      joyDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, start: [...(hudLayout().joy || [0, 0])] };
+      canvas.setPointerCapture(e.pointerId);
+    }
+    return;
+  }
   // Tocou em outro jogador: menu dele (nome, rank, Criar/Entregar missão), não o joystick.
   const other = playerAtScreen(e.clientX, e.clientY);
   if (other) {
@@ -738,6 +780,11 @@ canvas.addEventListener('pointerdown', (e) => {
   moveKnob(e.clientX, e.clientY);
 });
 canvas.addEventListener('pointermove', (e) => {
+  if (joyDrag && e.pointerId === joyDrag.id) {
+    hudLayout().joy = [joyDrag.start[0] + e.clientX - joyDrag.x, joyDrag.start[1] + e.clientY - joyDrag.y];
+    layoutJoystick(viewW, viewH);
+    return;
+  }
   if (e.pointerId !== joy.pointerId) return;
   e.preventDefault();
   // Eventos agrupados do mesmo quadro: usa o mais recente (movimento mais suave).
@@ -745,7 +792,15 @@ canvas.addEventListener('pointermove', (e) => {
   const last = list.length ? list[list.length - 1] : e;
   moveKnob(last.clientX, last.clientY);
 });
+let joyDrag = null;
 const releaseJoystick = (e) => {
+  if (joyDrag && e.pointerId === joyDrag.id) {
+    joyDrag = null;
+    // Guarda onde ficou de verdade (já dentro da tela).
+    hudLayout().joy = [joy.restX - (safe.left + 22 + joy.radius), joy.restY - (viewH - safe.bottom - 22 - joy.radius)];
+    saveHud();
+    return;
+  }
   if (e.pointerId !== joy.pointerId) return;
   joy.pointerId = null;
   joy.knobX = 0;
@@ -781,6 +836,7 @@ function keyDirection() {
 }
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
+  if (hud.editing || !ui.creator.hidden) return;   // editando o layout ou criando o personagem: sem combate
   if (KEYMAP[e.code]) { keys.add(e.code); keyDirection(); e.preventDefault(); }
   if (e.key >= '1' && e.key <= '4') castSlot(Number(e.key) - 1);
   if (e.key === ' ' && ui.chat.hidden) { basicAttack(); e.preventDefault(); }
@@ -865,9 +921,10 @@ function onTap(el, fn) {
   el.addEventListener('pointerdown', (e) => {
     if (e.button !== undefined && e.button > 0) return;
     e.preventDefault();
+    if (hud.editing) return;          // modo "Editar layout": o toque arrasta, não ataca
     fn(e);
   });
-  el.addEventListener('click', (e) => { if (e.detail === 0) fn(e); });
+  el.addEventListener('click', (e) => { if (e.detail === 0 && !hud.editing) fn(e); });
 }
 onTap(ui.targetBtn, cycleFocus);
 onTap(ui.meditateBtn, toggleMeditation);
@@ -906,7 +963,7 @@ function renderMission() {
     ui.missionLast.textContent = `Última entrega: +${last.xp} XP${last.titles.length ? ` e o título “${last.titles.join('”, “')}”` : ''}. Fale com o Mestre para outro treino.`;
   }
   if (!m) {
-    ui.missionsBadge.textContent = 'Missões';
+    ui.missionsBadge.textContent = '';          // vazio: o CSS mostra "Missões" deitado e só 📜 em pé
     ui.missionsToggle.setAttribute('aria-label', 'Missões: nenhuma ativa');
     return;
   }
@@ -926,6 +983,7 @@ function renderMission() {
 }
 
 function openMissions() {
+  closeSettings();
   closeStatus();
   closePlayerMenu();
   ui.missionsPanel.hidden = false;
@@ -994,8 +1052,17 @@ const SKILL_UI = {
 /** skill (ou "attack") -> { until, ms }: quando a recarga acaba. Começa quando o SERVIDOR confirma. */
 const cooldowns = {};
 
+/** Jogador virou para atacar/lançar (a direção vem do servidor, na mensagem do golpe). */
+function faceTo(playerId, fx, fy) {
+  const p = state.players.get(playerId);
+  if (p && (fx || fy)) p.dir = dirFrom(fx, fy);
+}
+
 function startCooldown(skill) {
-  const ms = skill === 'attack' ? (state.world.basicAttack?.cooldownMs ?? 600) : (state.world.skills?.[skill]?.cooldownMs ?? 600);
+  // Ataque: a recarga já vem com a Agilidade (o servidor calcula, em progress.derived).
+  const ms = skill === 'attack'
+    ? (state.progress?.derived?.attackCooldownMs ?? state.world.basicAttack?.cooldownMs ?? 600)
+    : (state.world.skills?.[skill]?.cooldownMs ?? 600);
   cooldowns[skill] = { until: performance.now() + ms, ms };
 }
 
@@ -1156,6 +1223,7 @@ function renderDraftKits() {
 }
 
 function openStatus() {
+  closeSettings();
   closeMissions();
   closePlayerMenu();
   draftKits = null;
@@ -1301,6 +1369,236 @@ function answerEval(approved) {
 }
 ui.evalApprove.addEventListener('click', () => answerEval(true));
 ui.evalReject.addEventListener('click', () => answerEval(false));
+
+// ------------------------------------------------------------------ Criador de Personagem
+
+let creatorLook = { ...DEFAULT_LOOK };
+let creatorDir = 0;
+let creatorFirst = false;
+let creatorTimer = null;
+
+function openCreator(first = false) {
+  creatorFirst = first;
+  creatorLook = { ...(state.me.look || DEFAULT_LOOK) };
+  creatorDir = 0;
+  for (const input of ui.creatorInputs) input.value = creatorLook[input.dataset.part];
+  ui.creatorCancel.hidden = first;           // na 1ª vez é obrigatório escolher
+  ui.creatorSave.textContent = first ? 'Começar a jogar' : 'Salvar visual';
+  ui.creatorError.textContent = '';
+  ui.creator.hidden = false;
+  closeSettings();
+  clearInterval(creatorTimer);
+  let phase = 0;
+  creatorTimer = setInterval(() => { phase += 0.35; drawCreatorPreview(phase); }, 60);   // prévia andando
+  drawCreatorPreview(0);
+}
+function closeCreator() {
+  ui.creator.hidden = true;
+  clearInterval(creatorTimer);
+  creatorTimer = null;
+}
+function drawCreatorPreview(phase) {
+  const c = ui.creatorCanvas;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, c.width, c.height);
+  g.fillStyle = '#8d8a84';
+  g.fillRect(0, c.height - 40, c.width, 40);
+  drawCharacter(g, c.width / 2, c.height - 78, 128, creatorLook, creatorDir, phase, true);
+}
+function renderPresets() {
+  ui.creatorPresets.replaceChildren(...PRESETS.map((look, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'preset';
+    b.setAttribute('aria-label', `Combinação ${i + 1}`);
+    for (const part of ['hair', 'shirt', 'cape']) {
+      const dot = document.createElement('i');
+      dot.style.background = look[part];
+      b.append(dot);
+    }
+    b.addEventListener('click', () => {
+      creatorLook = { ...look };
+      for (const input of ui.creatorInputs) input.value = creatorLook[input.dataset.part];
+    });
+    return b;
+  }));
+}
+renderPresets();
+for (const input of ui.creatorInputs) {
+  input.addEventListener('input', () => { creatorLook[input.dataset.part] = input.value.toLowerCase(); });
+}
+ui.creatorTurn.addEventListener('click', () => { creatorDir = [0, 1, 3, 2][(([0, 1, 3, 2].indexOf(creatorDir)) + 1) % 4]; });
+ui.creatorRandom.addEventListener('click', () => {
+  const rnd = () => `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')}`;
+  const skins = ['#ffdbac', '#f1c9a0', '#e0ac69', '#c68642', '#8d5524', '#5c3a1e'];
+  creatorLook = { skin: skins[Math.floor(Math.random() * skins.length)], hair: rnd(), shirt: rnd(), pants: rnd(), cape: rnd() };
+  for (const input of ui.creatorInputs) input.value = creatorLook[input.dataset.part];
+});
+ui.creatorCancel.addEventListener('click', closeCreator);
+ui.creatorSave.addEventListener('click', () => {
+  if (!state.connected) { ui.creatorError.textContent = 'Sem conexão. Tentando reconectar…'; return; }
+  // Só PEDE: o visual só muda quando o servidor grava e avisa todos ("player_appearance").
+  send({ type: 'set_appearance', appearance: { ...creatorLook } });
+});
+
+// ------------------------------------------------------------------ HUD: configurações e modo "Editar layout"
+
+/*
+ * Preferências do aparelho (localStorage, só deste celular): tamanho e transparência dos botões
+ * e das barras, e onde cada botão, o joystick e as barras ficam — guardado SEPARADO para
+ * celular deitado e em pé. Arrastar só funciona no modo "Editar layout" (botão no ⚙️), com
+ * o combate parado: não dá para mover nada sem querer no meio da luta.
+ */
+const HUD_KEY = 'nin.hud.v1';
+const HUD_DEFAULT = { btnScale: 1, btnOpacity: 1, barScale: 1, barOpacity: 1, layouts: { landscape: {}, portrait: {} } };
+const hud = loadHud();
+hud.editing = false;
+
+function loadHud() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(HUD_KEY) || 'null');
+    if (raw && typeof raw === 'object') {
+      const num = (v, min, max, d) => (typeof v === 'number' && v >= min && v <= max ? v : d);
+      return {
+        btnScale: num(raw.btnScale, 0.7, 1.3, 1), btnOpacity: num(raw.btnOpacity, 0.3, 1, 1),
+        barScale: num(raw.barScale, 0.7, 1.3, 1), barOpacity: num(raw.barOpacity, 0.3, 1, 1),
+        layouts: { landscape: raw.layouts?.landscape || {}, portrait: raw.layouts?.portrait || {} },
+      };
+    }
+  } catch { /* modo privado ou dado estragado: padrão */ }
+  return structuredClone(HUD_DEFAULT);
+}
+function saveHud() {
+  try {
+    localStorage.setItem(HUD_KEY, JSON.stringify({
+      btnScale: hud.btnScale, btnOpacity: hud.btnOpacity, barScale: hud.barScale, barOpacity: hud.barOpacity, layouts: hud.layouts,
+    }));
+  } catch { /* sem armazenamento: vale só até fechar */ }
+}
+const isPortrait = () => matchMedia('(orientation: portrait)').matches;
+/** Layout da orientação atual: { joy: [dx, dy], vitals: [dx, dy], buttons: { id: [dx, dy] } }. */
+function hudLayout() {
+  const key = isPortrait() ? 'portrait' : 'landscape';
+  hud.layouts[key] ||= {};
+  hud.layouts[key].buttons ||= {};
+  return hud.layouts[key];
+}
+
+/** Itens arrastáveis: cada botão do combate e as barras. A chave é estável (id ou espaço). */
+const dragKey = (el) => el.id || `slot${el.dataset.slot}`;
+const draggables = () => [...ui.combat.querySelectorAll('.cbtn'), ui.vitals];
+
+function applyHud() {
+  const lay = hudLayout();
+  ui.combat.style.setProperty('--u', String(hud.btnScale));
+  ui.combat.style.opacity = hud.editing ? '1' : String(hud.btnOpacity);
+  ui.vitals.style.scale = String(hud.barScale);
+  ui.vitals.style.opacity = hud.editing ? '1' : String(hud.barOpacity);
+  for (const el of draggables()) {
+    const off = el === ui.vitals ? lay.vitals : lay.buttons[dragKey(el)];
+    el.style.translate = off ? `${off[0]}px ${off[1]}px` : '';
+    el.classList.toggle('moved', !!off);    // botão que o jogador moveu fica por cima dos outros
+  }
+  document.body.classList.toggle('editing', hud.editing);
+  for (const [key, input] of Object.entries(ui.sliders)) {
+    input.value = String(Math.round(hud[key] * 100));
+    $(`${input.id}-out`).textContent = `${input.value}%`;
+  }
+  layoutJoystick(viewW || innerWidth, viewH || innerHeight);
+}
+
+/** Depois de arrastar: não deixa nada sair da tela (nem ficar embaixo do notch). */
+function clampIntoView(el, off) {
+  el.style.translate = `${off[0]}px ${off[1]}px`;
+  const r = el.getBoundingClientRect();
+  const minX = safe.left + 4, maxX = innerWidth - safe.right - 4, minY = safe.top + 56, maxY = innerHeight - safe.bottom - 4;
+  if (r.left < minX) off[0] += minX - r.left;
+  if (r.right > maxX) off[0] -= r.right - maxX;
+  if (r.top < minY) off[1] += minY - r.top;
+  if (r.bottom > maxY) off[1] -= r.bottom - maxY;
+  el.style.translate = `${Math.round(off[0])}px ${Math.round(off[1])}px`;
+  return [Math.round(off[0]), Math.round(off[1])];
+}
+
+let drag = null;
+for (const el of draggables()) {
+  el.addEventListener('pointerdown', (e) => {
+    if (!hud.editing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const lay = hudLayout();
+    const start = el === ui.vitals ? (lay.vitals || [0, 0]) : (lay.buttons[dragKey(el)] || [0, 0]);
+    drag = { el, id: e.pointerId, x: e.clientX, y: e.clientY, start: [...start] };
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('dragging');
+  }, { capture: true });
+  el.addEventListener('pointermove', (e) => {
+    if (!drag || drag.el !== el || e.pointerId !== drag.id) return;
+    el.style.translate = `${drag.start[0] + e.clientX - drag.x}px ${drag.start[1] + e.clientY - drag.y}px`;
+  });
+  const end = (e) => {
+    if (!drag || drag.el !== el || e.pointerId !== drag.id) return;
+    const off = clampIntoView(el, [drag.start[0] + e.clientX - drag.x, drag.start[1] + e.clientY - drag.y]);
+    const lay = hudLayout();
+    if (el === ui.vitals) lay.vitals = off; else lay.buttons[dragKey(el)] = off;
+    el.classList.remove('dragging');
+    el.classList.add('moved');
+    drag = null;
+    saveHud();
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+}
+
+function openSettings() {
+  closeMissions();
+  closeStatus();
+  closePlayerMenu();
+  ui.settingsPanel.hidden = false;
+  ui.settingsToggle.setAttribute('aria-expanded', 'true');
+  applyHud();
+}
+function closeSettings() {
+  ui.settingsPanel.hidden = true;
+  ui.settingsToggle.setAttribute('aria-expanded', 'false');
+}
+function startEditing() {
+  closeSettings();
+  keys.clear();
+  setDirection(0, 0);                // para de andar: no modo edição o combate fica parado
+  hud.editing = true;
+  ui.editBanner.hidden = false;
+  applyHud();
+}
+function stopEditing() {
+  hud.editing = false;
+  ui.editBanner.hidden = true;
+  saveHud();
+  applyHud();
+}
+function resetLayout() {
+  hud.layouts[isPortrait() ? 'portrait' : 'landscape'] = {};
+  saveHud();
+  applyHud();
+}
+ui.settingsToggle.addEventListener('click', () => (ui.settingsPanel.hidden ? openSettings() : closeSettings()));
+ui.settingsClose.addEventListener('click', closeSettings);
+ui.editLayout.addEventListener('click', startEditing);
+ui.editDone.addEventListener('click', stopEditing);
+ui.editReset.addEventListener('click', resetLayout);
+ui.resetLayout.addEventListener('click', () => {
+  Object.assign(hud, { btnScale: 1, btnOpacity: 1, barScale: 1, barOpacity: 1 });
+  resetLayout();
+});
+ui.openCreator.addEventListener('click', () => openCreator(false));
+for (const [key, input] of Object.entries(ui.sliders)) {
+  input.addEventListener('input', () => {
+    hud[key] = Number(input.value) / 100;
+    applyHud();
+  });
+  input.addEventListener('change', saveHud);
+}
+matchMedia('(orientation: portrait)').addEventListener?.('change', () => setTimeout(applyHud, 100));
 
 // ------------------------------------------------------------------ chat
 
@@ -1604,6 +1902,7 @@ function update(dt) {
     p.x += (p.tx - p.x) * k;
     p.y += (p.ty - p.y) * k;
   }
+  animateWalk(dt, me);
   for (const m of state.monsters.values()) {
     m.x += (m.tx - m.x) * k;
     m.y += (m.ty - m.y) * k;
@@ -1629,6 +1928,22 @@ function update(dt) {
       me.y += ey * c;
     }
   }
+}
+
+/**
+ * Caminhada do paperdoll: a fase anda junto com a distância percorrida na tela (passo
+ * proporcional à velocidade: correndo, as pernas balançam mais rápido). Barato: 1 hypot por jogador.
+ */
+function animateWalk(dt, me) {
+  for (const p of state.players.values()) {
+    const d = Math.hypot(p.x - p.lastX, p.y - p.lastY);
+    p.lastX = p.x;
+    p.lastY = p.y;
+    p.moving = dt > 0 && d / dt > 0.6;
+    if (p.moving) p.walk = (p.walk + d * 4.2) % (Math.PI * 4);
+  }
+  // O próprio boneco vira na hora para onde o joystick aponta.
+  if (me && (dir.x !== 0 || dir.y !== 0) && !state.me.meditating) me.dir = dirFrom(dir.x, dir.y);
 }
 
 // Câmera: segue o jogador. Com alvo focado, desliza (lerp) para o meio do caminho entre os dois
@@ -2100,6 +2415,7 @@ function drawFloaters(toScreenX, toScreenY, T, now) {
 function drawPlayer(p, sx, sy, T, isMe, now) {
   if (p.dead) ctx.globalAlpha = 0.45;
   const r = T * 0.38;
+  const look = isMe && state.me.look ? state.me.look : p.look;
   if (p.meditating && !p.dead) drawMeditationAura(sx, sy, r, T, now);
   // sombra no chão
   ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
@@ -2114,18 +2430,14 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
     ctx.beginPath(); ctx.arc(sx, sy, r * 1.45, now / 600, now / 600 + Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
   }
-  // corpo: círculo com a inicial do nome (boneco provisório até termos sprites)
-  ctx.fillStyle = p.dead ? '#6d665b' : p.color;
-  ctx.beginPath();
-  ctx.arc(sx, sy, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.lineWidth = Math.max(2, T * 0.07);
-  ctx.strokeStyle = isMe ? '#fff8e8' : 'rgba(20, 17, 13, 0.85)';
-  ctx.stroke();
-  ctx.font = `800 ${Math.round(r * 1.15)}px system-ui, -apple-system, sans-serif`;
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = p.initialColor;
-  ctx.fillText(p.initial, sx, sy + r * 0.06);
+  // Boneco modular: cabeça, cabelo, tronco, braços, pernas e capa nas cores do jogador.
+  const headTop = drawCharacter(ctx, sx, sy, T, look, p.dead ? 0 : p.dir, p.walk, p.moving && !p.dead);
+  if (isMe) {                         // marquinha para achar o próprio boneco no meio dos outros
+    ctx.fillStyle = '#ffe2a8';
+    ctx.beginPath();
+    ctx.moveTo(sx - 4, headTop - 3); ctx.lineTo(sx + 4, headTop - 3); ctx.lineTo(sx, headTop + 1);
+    ctx.fill();
+  }
 
   // nome
   const fontSize = Math.max(11, Math.round(T * 0.32));
@@ -2135,11 +2447,11 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
   ctx.lineJoin = 'round';            // contorno do texto sem "espinhos" nas quinas
   ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
   ctx.fillStyle = isMe ? '#ffe2a8' : '#f4ead8';
-  const nameY = sy - r - 4 - (isMe ? 0 : 7);
+  const nameY = headTop - 5 - (isMe ? 2 : 7);
   ctx.strokeText(p.username, sx, nameY);
   ctx.fillText(p.username, sx, nameY);
   // vida dos outros jogadores (a nossa fica nas barras de baixo)
-  if (!isMe && !p.dead) drawHpBar(sx, sy - r - 9, T * 0.8, p.hp / p.maxHp, '#7bd36a');
+  if (!isMe && !p.dead) drawHpBar(sx, headTop - 9, T * 0.8, p.hp / p.maxHp, '#7bd36a');
   ctx.globalAlpha = 1;
 
   // balão de chat
@@ -2176,7 +2488,16 @@ function roundRect(x, y, w, h, r) {
 function drawJoystick() {
   if (ui.hud.hidden) return;
   const active = joy.pointerId !== null;
-  ctx.globalAlpha = active ? 0.9 : 0.5;
+  ctx.globalAlpha = (active ? 0.9 : 0.5) * (hud.editing ? 1 : hud.btnOpacity);
+  if (hud.editing) {                  // modo edição: contorno tracejado mostra que dá para arrastar
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#ffd23f';
+    ctx.setLineDash([8, 6]);
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(joy.baseX, joy.baseY, joy.radius + 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
   ctx.fillStyle = 'rgba(20, 17, 13, 0.45)';
   ctx.strokeStyle = 'rgba(244, 234, 216, 0.5)';
   ctx.lineWidth = 2;
@@ -2202,6 +2523,7 @@ function drawJoystick() {
 // ------------------------------------------------------------------ início
 
 resize();
+applyHud();
 requestAnimationFrame(frame);
 if (readToken()) startGame();
 else showLogin();

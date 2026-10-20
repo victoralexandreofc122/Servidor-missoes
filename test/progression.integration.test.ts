@@ -28,7 +28,7 @@ describe('XP do combate no banco (PostgreSQL real)', { skip: noDatabase }, () =>
     assert.deepEqual(history.rows.map((r) => r.code), ['ACADEMY', 'GENIN'], 'trigger do schema registrou a promoção');
     const found = await makeFindPlayer(t.db)(id);
     assert.deepEqual({ ...found, attributes: undefined, kits: undefined }, {
-      id, username: 'kaito', xp: 120, rank: { code: 'GENIN', name: 'Genin' }, canBeSensei: false, level: 2, statPoints: 1,
+      id, username: 'kaito', xp: 120, rank: { code: 'GENIN', name: 'Genin' }, canBeSensei: false, level: 2, statPoints: 1, appearance: null,
       attributes: undefined, kits: undefined,
     });
     assert.deepEqual(found!.kits, { A: ['fire', 'water', 'taijutsu', 'heal'], B: ['illusion', 'shadow', 'stone', 'heal'] });

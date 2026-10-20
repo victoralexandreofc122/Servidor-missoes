@@ -4,12 +4,12 @@ import {
   CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, SKILLS, sanitizeChat,
   type CastFailReason, type KitName, type KitView, type Kits, type MeditationEnd, type MissionView, type MonsterView,
   type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
-  type Skill, type WorldInfo,
+  type Skill, type WorldInfo, type Appearance, type Dir,
 } from './protocol.js';
 import type { Missions, TalkOutcome } from './missions.js';
 import type { Profile } from './profile.js';
 import {
-  derivedStats, levelProgress, NO_ATTRIBUTES, scaledDamage,
+  damageMultiplier, derivedStats, levelProgress, NO_ATTRIBUTES, scaledDamage,
   type Attribute, type Attributes, type DerivedStats,
 } from './stats.js';
 import { TokenBucket } from './tokenBucket.js';
@@ -60,6 +60,15 @@ export interface Progression {
 /** Kits padrão (os mesmos DEFAULTs da migração v5). */
 export const DEFAULT_KITS: Readonly<Kits> = { A: ['fire', 'water', 'taijutsu', 'heal'], B: ['illusion', 'shadow', 'stone', 'heal'] };
 
+/** Visual de quem ainda não criou o personagem (os outros veem este boneco). */
+export const DEFAULT_APPEARANCE: Readonly<Appearance> = { skin: '#f1c9a0', hair: '#2b2118', shirt: '#2f5d8a', pants: '#2a2a33', cape: '#8a2b2b' };
+
+/** Direção do boneco a partir de para onde ele olha: 0 baixo, 1 esquerda, 2 direita, 3 cima. */
+export function dirOf(fx: number, fy: number): Dir {
+  if (Math.abs(fx) > Math.abs(fy)) return fx < 0 ? 1 : 2;
+  return fy < 0 ? 3 : 0;
+}
+
 const SKILL_SET: ReadonlySet<string> = new Set(SKILLS);
 export function isSkillList(list: unknown): list is Skill[] {
   return Array.isArray(list) && list.length <= 4 && list.every((x) => SKILL_SET.has(x)) && new Set(list).size === list.length;
@@ -85,6 +94,8 @@ export interface JoiningPlayer {
   statPoints?: number;
   attributes?: Attributes;
   kits?: Kits;
+  /** null = ainda não criou o personagem. */
+  appearance?: Appearance | null;
 }
 
 /** Estado de um jogador online. É o valor do Map playerId -> estado. */
@@ -123,9 +134,16 @@ interface Session {
   stats: DerivedStats;
   kits: Kits;
   activeKit: KitName;
-  /** Gravação de ficha (ponto/kit) em andamento: uma por vez. */
+  /** Visual (null = ainda não passou pelo Criador de Personagem). */
+  appearance: Appearance | null;
+  /**
+   * Gravações de ficha (ponto, kit, visual) em FILA: uma por vez e no máximo 1 a cada
+   * profileRequestEveryMs. Nada se perde se o jogador tocar "+" e "Salvar" em seguida;
+   * acima de 5 na fila, recusa (PROFILE_BUSY) em vez de enfileirar sem fim.
+   */
   profileBusy: boolean;
   lastProfileAt: number;
+  profileQueue: ((profile: Profile) => Promise<void>)[];
   /** Últimos valores enviados (para mandar só quando muda). */
   sentStats: string;
   lastStatsAt: number;
@@ -208,7 +226,7 @@ export class GameWorld {
   private selfView(s: Session): SelfView {
     return {
       ...this.view(s), chakra: Math.floor(s.chakra), maxChakra: s.stats.maxChakra, shield: s.shield > 0, xp: s.xp,
-      speed: this.speedOf(s), running: s.running, canBeSensei: s.canBeSensei,
+      speed: this.speedOf(s), running: s.running, canBeSensei: s.canBeSensei, appearanceSet: s.appearance !== null,
     };
   }
 
@@ -216,6 +234,7 @@ export class GameWorld {
     return {
       id: s.id, username: s.username, x: round2(s.x), y: round2(s.y), hp: shownHp(s.hp), maxHp: s.stats.maxHp,
       dead: s.dead, meditating: s.meditating, rank: s.rank, level: s.level,
+      appearance: { ...(s.appearance ?? DEFAULT_APPEARANCE) }, dir: dirOf(s.fx, s.fy),
     };
   }
 
@@ -238,6 +257,7 @@ export class GameWorld {
       {
         maxHp: p.maxHp, maxChakra: p.maxChakra, meditationChakraPerSec: p.chakraRegenPerSec * p.meditationRegenMultiplier,
         walkSpeed: this.config.speedTilesPerSecond, runSpeed: this.config.runSpeedTilesPerSecond,
+        attackCooldownMs: this.config.combat.basicAttack.cooldownMs,
       },
       this.config.combat.attributes, attributes,
     );
@@ -311,8 +331,10 @@ export class GameWorld {
       stats,
       kits: { A: [...kits.A], B: [...kits.B] },
       activeKit: previous?.activeKit ?? 'A',
+      appearance: player.appearance !== undefined ? player.appearance : (previous?.appearance ?? null),
       profileBusy: false,
       lastProfileAt: 0,
+      profileQueue: [],
       sentStats: '',
       lastStatsAt: t,
       sentHp: 0,
@@ -405,8 +427,9 @@ export class GameWorld {
     else if (parsed.type === 'attack') this.basicAttack(session, t, parsed.targetId);
     else if (parsed.type === 'run') this.setRunning(session, parsed.active, t);
     else if (parsed.type === 'switch_kit') this.switchKit(session, parsed.kit);
-    else if (parsed.type === 'set_loadout') this.setLoadout(session, { A: parsed.kitA, B: parsed.kitB }, t);
-    else if (parsed.type === 'spend_point') this.spendPoint(session, parsed.attribute, t);
+    else if (parsed.type === 'set_loadout') this.setLoadout(session, { A: parsed.kitA, B: parsed.kitB });
+    else if (parsed.type === 'spend_point') this.spendPoint(session, parsed.attribute);
+    else if (parsed.type === 'set_appearance') this.setAppearance(session, parsed.appearance);
     else if (parsed.type === 'create_mission') this.createPlayerMission(session, parsed.traineeId, parsed.difficulty, parsed.quantity, t);
     else if (parsed.type === 'deliver_mission') this.deliverPlayerMission(session, parsed.senseiId, t);
     else if (parsed.type === 'evaluate_mission') this.evaluatePlayerMission(session, parsed.missionId, parsed.approved, parsed.score, t);
@@ -461,8 +484,8 @@ export class GameWorld {
     if (session.chakra < cfg.cost) return fail('NO_CHAKRA');
 
     const alive = (m: Monster) => m.hp > 0;
-    // Dano de JUTSU: multiplicador de Ninjutsu (o Ataque Básico usa o de Taijutsu).
-    const dmg = scaledDamage(cfg.damage ?? 0, session.stats.jutsuMultiplier);
+    // Soco (Taijutsu 👊) escala com o atributo Taijutsu; jutsus elementais (Fogo, Água) com Ninjutsu.
+    const dmg = scaledDamage(cfg.damage ?? 0, damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu'));
     let target: Monster | undefined;
     if (targetId !== undefined && DIRECTED_SKILLS.has(skill)) {
       // Jutsu direcionado: o alvo é o focado, mas o ALCANCE continua sendo o da habilidade.
@@ -573,7 +596,7 @@ export class GameWorld {
       session.fx = (target.x - session.x) / d;
       session.fy = (target.y - session.y) / d;
     }
-    session.cooldowns.attack = t + cfg.cooldownMs;
+    session.cooldowns.attack = t + session.stats.attackCooldownMs;   // Agilidade deixa o ataque mais rápido
     this.broadcast({ type: 'attack', playerId: session.id, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy) });
     this.damageMonster(target, scaledDamage(cfg.damage, session.stats.physicalMultiplier), session, t);   // FÍSICO: Taijutsu
   }
@@ -592,26 +615,35 @@ export class GameWorld {
   }
 
   /** Salvar kits (até 4 por kit, sem repetir: o Zod e o banco conferem). Vale na hora; grava no banco. */
-  private setLoadout(session: Session, kits: Kits, t: number): void {
-    if (!this.profileRequest(session, t)) return;
+  private setLoadout(session: Session, kits: Kits): void {
     const { id } = session;
-    const save = this.profile ? this.profile.saveLoadout(id, kits.A, kits.B) : Promise.reject(new Error('sem banco'));
-    save.then(() => {
+    this.profileTask(session, (profile) => profile.saveLoadout(id, kits.A, kits.B).then(() => {
       const current = this.sessions.get(id);
       if (!current) return;
       current.kits = { A: [...kits.A], B: [...kits.B] };
       this.sendTo(current, { type: 'kit', ...this.kitView(current) });
       this.sendTo(current, { type: 'notice', text: 'Kits salvos.', tone: 'good' });
-    }).catch((err: unknown) => this.profileFailed(id, err)).finally(() => this.profileDone(session));
+    }));
+  }
+
+  /**
+   * Criador de Personagem: grava as 5 cores e TODOS passam a ver o boneco novo.
+   * O visual só muda depois de gravado (o próprio jogador recebe a confirmação também).
+   */
+  private setAppearance(session: Session, appearance: Appearance): void {
+    const { id } = session;
+    this.profileTask(session, (profile) => profile.saveAppearance(id, appearance).then(() => {
+      const current = this.sessions.get(id);
+      if (current) current.appearance = { ...appearance };
+      this.broadcast({ type: 'player_appearance', playerId: id, appearance: { ...appearance } });
+    }));
   }
 
   /** Gastar 1 ponto: o banco confere se tem ponto e se o atributo não passou do máximo. */
-  private spendPoint(session: Session, attribute: Attribute, t: number): void {
+  private spendPoint(session: Session, attribute: Attribute): void {
     if (session.statPoints <= 0) return this.sendError(session, 'NO_POINTS');
-    if (!this.profileRequest(session, t)) return;
     const { id } = session;
-    const spend = this.profile ? this.profile.spendPoint(id, attribute) : Promise.reject(new Error('sem banco'));
-    spend.then((result) => {
+    this.profileTask(session, (profile) => profile.spendPoint(id, attribute).then((result) => {
       const current = this.sessions.get(id);
       if (!current) return;
       if (!result.ok) return this.sendError(current, result.reason === 'NO_POINTS' ? 'NO_POINTS' : 'ATTRIBUTE_MAXED');
@@ -627,23 +659,37 @@ export class GameWorld {
       if (current.stats.maxHp !== before.maxHp) {
         this.broadcast({ type: 'player_hp', playerId: id, hp: shownHp(current.hp), maxHp: current.stats.maxHp }, id);
       }
-    }).catch((err: unknown) => this.profileFailed(id, err)).finally(() => this.profileDone(session));
+      return undefined;
+    }));
   }
 
-  private profileRequest(session: Session, t: number): boolean {
-    if (!this.profile) {
-      this.sendError(session, 'PROFILE_UNAVAILABLE');
-      return false;
-    }
-    if (session.profileBusy || t - session.lastProfileAt < this.config.profileRequestEveryMs) return false;
+  /** Põe uma gravação de ficha na fila do jogador (ver profileQueue). */
+  private profileTask(session: Session, run: (profile: Profile) => Promise<void>): void {
+    if (!this.profile) return this.sendError(session, 'PROFILE_UNAVAILABLE');
+    if (session.profileQueue.length >= 5) return this.sendError(session, 'PROFILE_BUSY');
+    session.profileQueue.push(run);
+    this.pumpProfile(session);
+  }
+
+  private pumpProfile(session: Session): void {
+    const profile = this.profile;
+    if (session.profileBusy || !profile) return;
+    const next = session.profileQueue.shift();
+    if (!next) return;
     session.profileBusy = true;
-    session.lastProfileAt = t;
-    return true;
-  }
-
-  private profileDone(session: Session): void {
-    session.profileBusy = false;
-    this.flushKicks();
+    const go = () => {
+      session.lastProfileAt = this.now();
+      next(profile)
+        .catch((err: unknown) => this.profileFailed(session.id, err))
+        .finally(() => {
+          session.profileBusy = false;
+          this.flushKicks();
+          this.pumpProfile(session);
+        });
+    };
+    const wait = session.lastProfileAt + this.config.profileRequestEveryMs - this.now();
+    if (wait > 0) setTimeout(go, wait).unref();
+    else go();
   }
 
   private profileFailed(playerId: string, err: unknown): void {
@@ -1069,7 +1115,7 @@ export class GameWorld {
       if (s.dirty) {
         s.dirty = false;
         movedPlayers += 1;
-        this.broadcast({ type: 'player_moved', playerId: s.id, x: round2(s.x), y: round2(s.y) });
+        this.broadcast({ type: 'player_moved', playerId: s.id, x: round2(s.x), y: round2(s.y), d: dirOf(s.fx, s.fy) });
       }
       if (statsKey(s) !== s.sentStats && t - s.lastStatsAt >= this.config.combat.statsEveryMs) this.sendStats(s, t);
       const hp = shownHp(s.hp);

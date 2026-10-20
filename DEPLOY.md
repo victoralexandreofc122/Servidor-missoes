@@ -17,6 +17,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 10 | Testar foco (🎯) e meditação (🧘) | ~5 min |
 | 11 | Atualização v4: NPC Mestre e Sala de Missões (rodar 1 SQL no Neon e testar) | ~10 min |
 | 12 | Atualização v5: nível, atributos, corrida, kits, layout MOBA e missão entre jogadores | ~15 min |
+| 13 | Atualização v6: Criador de Personagem, boneco modular, ⚙️ layout da HUD e conta Hokage de teste | ~10 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -63,6 +64,7 @@ Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
 7. E a do NPC Mestre: apague o editor, cole o arquivo `db/schema_v4_npc_missions.sql` inteiro e toque em **Run**.
    Também pode rodar de novo sem erro.
 8. E a de nível e atributos: cole o arquivo `db/schema_v5_atributos.sql` inteiro e toque em **Run** (pode repetir).
+9. E a do visual do personagem: cole o arquivo `db/schema_v6_aparencia.sql` inteiro e toque em **Run** (pode repetir).
 
 ---
 
@@ -463,3 +465,49 @@ Depois saia e entre de novo com essa conta, porque o rank é lido ao conectar.
 4. **Avaliar:** no celular do sensei aparece **Avaliar missão**. Escolha a nota e toque **Aprovar**.
    Se tocar **Reprovar**, o progresso do aprendiz volta a zero.
 5. **Resgatar:** o aprendiz fala com o **Mestre** (Sala de Missões) e recebe o XP do pergaminho.
+
+---
+
+## Passo 13 — Atualização v6: Criador de Personagem, boneco modular e layout da HUD
+
+### 1. Banco primeiro (obrigatório)
+
+No Neon, abra o **SQL Editor**, cole o arquivo `db/schema_v6_aparencia.sql` inteiro e toque em **Run**.
+Pode rodar de novo sem erro. Ele:
+
+- adiciona a coluna `appearance` em `game.players`, com as cores das partes do boneco;
+- faz o banco recusar qualquer valor fora do formato `#rrggbb`.
+
+O servidor novo **não sobe sem a v6**: o log mostra `Falta a migração v6`, e a versão anterior continua no ar.
+Se o deploy falhou antes do SQL, rode o SQL e depois toque em **Manual Deploy → Deploy latest commit**.
+
+### 2. Conta Hokage para testes (opcional)
+
+1. Crie no jogo uma conta com o nome **Victor**.
+2. No SQL Editor do Neon, cole o arquivo `db/promote_victor.sql` inteiro e toque em **Run**.
+   Ele cria o rank **HOKAGE** (o mais alto, com permissão de sensei) e promove essa conta.
+   Pode rodar de novo sem erro.
+3. Saia do jogo e entre de novo, porque o rank é lido ao conectar.
+
+Com o Hokage você cria missões para qualquer jogador de rank menor. O NPC Mestre fica abaixo dele,
+então para essa conta ele responde "Seu rank já passou dos meus treinos".
+
+### 3. Testar no celular
+
+1. **Criador:** entre com uma conta e a tela **Crie seu ninja** abre sozinha. Isso vale na primeira
+   vez, inclusive para contas antigas.
+   - escolha as 5 cores (pele, cabelo, camisa, calça, capa) ou uma das combinações prontas;
+   - **↻ Girar** mostra o boneco de lado e de costas;
+   - toque **Começar a jogar**.
+2. **Boneco:** ande e repare que ele vira para a direção do joystick e mexe pernas e braços.
+   Num segundo celular, o seu boneco aparece com as suas cores.
+3. **Em pé:** as barras de vida e chakra ficam no topo, logo abaixo dos botões, e o chat aparece embaixo delas.
+4. **⚙️ Configurações:**
+   - mexa nos sliders de tamanho e transparência dos botões e das barras;
+   - toque **✏️ Editar layout**: aparece a faixa amarela e os botões ganham contorno tracejado;
+   - arraste o Ataque, as habilidades, o joystick e as barras para onde quiser;
+   - toque **Concluir**.
+
+   Durante a edição o combate fica parado: tocar num botão não ataca. Fora da edição, nada se
+   arrasta. O layout fica salvo no celular, separado para deitado e em pé. **Restaurar** volta ao padrão.
+5. **🎨 Mudar visual** (dentro do ⚙️) reabre o Criador a qualquer hora.

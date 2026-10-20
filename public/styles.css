@@ -446,7 +446,8 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
  * 🎯 acima das habilidades, 💬 (perto de NPC) à esquerda do 🎯.
  */
 .combat {
-  --s: 1;
+  --s0: 1;                            /* escala da tela (abaixo: telas baixas e em pé) */
+  --s: calc(var(--s0) * var(--u, 1)); /* x o "Tamanho dos botões" do ⚙️ */
   --ax: 62;   /* centro do ataque: px da borda direita */
   --ay: 120;  /* centro do ataque: px da borda de baixo */
   position: fixed;
@@ -545,15 +546,25 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
 .cbtn.target.active { --c: rgba(120, 70, 10, 0.85); border-color: #ffb347; box-shadow: 0 0 12px rgba(255, 179, 71, 0.7); }
 
 /* Telas baixas (deitado) e celular em pé: o conjunto encolhe (botões continuam >= 44 px). */
-@media (orientation: landscape) and (max-height: 380px) { .combat { --s: 0.88; } }
-@media (orientation: landscape) and (max-height: 330px) { .combat { --s: 0.8; } }
+@media (orientation: landscape) and (max-height: 380px) { .combat { --s0: 0.88; } }
+@media (orientation: landscape) and (max-height: 330px) { .combat { --s0: 0.8; } }
 @media (orientation: portrait) {
-  .combat { --s: 0.92; }
+  .combat { --s0: 0.92; }
+  /* Em pé: barras no TOPO, logo abaixo da barra de cima, finas; o chat desce para baixo delas. */
   .vitals {
-    left: calc(var(--safe-left) + 16px);
-    right: calc(var(--safe-right) + 16px);
-    bottom: calc(var(--safe-bottom) + 330px * 0.92 + 8px);
+    top: calc(var(--safe-top) + 60px);
+    bottom: auto;
+    left: calc(var(--safe-left) + 12px);
+    right: calc(var(--safe-right) + 12px);
+    max-width: none;
+    gap: 3px;
+    transform-origin: top center;
   }
+  .vitals .bar { height: 14px; border-radius: 7px; }
+  .vitals .bar b { font-size: 10px; line-height: 12px; }
+  .vitals .xp-line { font-size: 11px; }
+  .chat-feed { top: calc(var(--safe-top) + 118px); }
+  .chat-bar { top: calc(var(--safe-top) + 118px); }
 }
 
 /* ------------------------------------------------------------ ficha (📊) */
@@ -654,3 +665,98 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
 /* Painéis (missões, ficha, menu de jogador, avaliação) ficam POR CIMA das barras e dos botões. */
 .mission-panel { z-index: 5; }
 .toast { z-index: 6; }
+
+/* ------------------------------------------------------------ v6: Criador de Personagem */
+
+.creator { z-index: 20; background: rgba(20, 17, 13, 0.92); }
+.creator-card { width: min(520px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.creator-card h2 { margin: 0; font-size: 22px; color: #ffd23f; }
+.creator-body { display: flex; gap: 14px; align-items: center; }
+.creator-preview { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+#creator-canvas { width: 140px; height: 166px; border-radius: 14px; background: #4f9a3a; image-rendering: pixelated; }
+.creator-colors { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.color-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 15px; color: var(--text); }
+.color-row input {
+  width: 64px;
+  height: 40px;
+  padding: 2px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.3);
+}
+.presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.preset {
+  display: flex;
+  gap: 2px;
+  min-width: 48px;
+  min-height: 44px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.3);
+  align-items: center;
+  justify-content: center;
+}
+.preset i { width: 10px; height: 22px; border-radius: 3px; }
+.creator-actions { display: flex; gap: 8px; }
+.creator-actions > * { flex: 1; min-height: 46px; }
+.small-btn { min-height: 40px; padding: 0 12px; font-size: 14px; }
+@media (max-width: 420px) {
+  .creator-body { flex-direction: column; }
+  .creator-colors { width: 100%; }
+}
+
+/* ------------------------------------------------------------ v6: configurações e modo "Editar layout" */
+
+.settings-panel { display: flex; flex-direction: column; gap: 10px; }
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; font-size: 14px; color: var(--text); }
+.slider output { color: #ffe2a8; font-variant-numeric: tabular-nums; }
+.slider input { grid-column: 1 / -1; width: 100%; height: 32px; accent-color: var(--accent); }
+
+.edit-banner {
+  position: fixed;
+  z-index: 15;
+  top: calc(var(--safe-top) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 14px;
+  background: var(--panel-solid);
+  border: 2px solid #ffd23f;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  font-size: 14px;
+  font-weight: 700;
+  max-width: calc(100vw - 16px);
+}
+.edit-banner button { min-height: 44px; padding: 0 14px; }
+/* No modo edição: tudo que dá para arrastar ganha contorno tracejado; o topo some para não atrapalhar. */
+body.editing .topbar { visibility: hidden; }
+body.editing .cbtn { outline: 2px dashed #ffd23f; outline-offset: 3px; cursor: grab; }
+body.editing .cbtn[hidden] { display: grid !important; opacity: 0.5; }
+body.editing .vitals { pointer-events: auto; outline: 2px dashed #ffd23f; outline-offset: 4px; border-radius: 10px; cursor: grab; }
+.cbtn.dragging, .vitals.dragging { outline-color: #8fe07a !important; z-index: 2; }
+@media (orientation: portrait) {
+  .edit-banner { flex-wrap: wrap; justify-content: center; width: calc(100vw - 16px); }
+}
+.cbtn.moved { z-index: 1; }
+
+/* Botão 📜 sem missão: "Missões" deitado; em pé só o ícone (a barra de cima tem que caber). */
+#missions-badge:empty::after { content: "Missões"; }
+@media (orientation: portrait) {
+  .topbar { gap: 6px; }
+  #missions-badge:empty { display: none; }
+  .topbar .mission-btn { padding: 0 9px; }
+  .topbar .text-btn { padding: 0 10px; }
+}
+
+/* Criador: cada cor numa linha (rótulo à esquerda, cor à direita); deitado, em 2 colunas. */
+.creator .color-row { flex-direction: row; align-items: center; color: var(--text); font-size: 15px; }
+@media (orientation: landscape) {
+  .creator-card { width: min(640px, 100%); padding: 14px 16px; gap: 8px; }
+  .creator-colors { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+  .creator-colors .presets { grid-column: 1 / -1; }
+  #creator-canvas { width: 120px; height: 142px; }
+}

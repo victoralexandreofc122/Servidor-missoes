@@ -35,6 +35,7 @@ function fakeProfile(points = 0) {
     async saveLoadout(_id, kitA, kitB) {
       calls.save.push([kitA, kitB]);
     },
+    async saveAppearance() {},
   };
   return { profile, calls };
 }
@@ -47,9 +48,9 @@ describe('v5: atributos e nível (funções puras)', () => {
   });
 
   it('cada ponto: +10 vida, +10 chakra, +1/s meditando, +0,5 velocidade, +5% físico (Taijutsu), +5% jutsu (Ninjutsu)', () => {
-    const base = { maxHp: 100, maxChakra: 100, meditationChakraPerSec: 15, walkSpeed: 5, runSpeed: 8 };
+    const base = { maxHp: 100, maxChakra: 100, meditationChakraPerSec: 15, walkSpeed: 5, runSpeed: 8, attackCooldownMs: 600 };
     const d = derivedStats(base, REALTIME.combat.attributes, { vitality: 2, chakraMax: 3, chakraRegen: 4, agility: 2, taijutsu: 2, ninjutsu: 4 });
-    assert.deepEqual(d, { maxHp: 120, maxChakra: 130, meditationChakraPerSec: 19, walkSpeed: 6, runSpeed: 9, physicalMultiplier: 1.1, jutsuMultiplier: 1.2 });
+    assert.deepEqual(d, { maxHp: 120, maxChakra: 130, meditationChakraPerSec: 19, walkSpeed: 6, runSpeed: 9, physicalMultiplier: 1.1, jutsuMultiplier: 1.2, attackCooldownMs: 552 });
     assert.equal(scaledDamage(12, 1.1), 13);
     assert.equal(scaledDamage(25, 1.2), 30);
   });

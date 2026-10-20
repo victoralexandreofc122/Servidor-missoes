@@ -17,6 +17,8 @@ export interface SkillConfig {
   rootMs?: number;
   reduction?: number;      // escudo: fração do dano que some (0.5 = metade)
   heal?: number;
+  /** Qual atributo escala o dano: 'taijutsu' (corpo a corpo) ou 'ninjutsu' (elemental). Padrão: ninjutsu. */
+  scaling?: 'taijutsu' | 'ninjutsu';
 }
 
 export interface CombatConfig {
@@ -133,8 +135,11 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     attributes: {
       maxPoints: 10,
       // vitalidade +10 vida · chakra máximo +10 · regen +1/s meditando · agilidade +0,5 velocidade
-      // taijutsu +5% no Ataque Básico (físico) · ninjutsu +5% nos jutsus (as habilidades)
+      // taijutsu +5% no corpo a corpo (Ataque Básico e o soco 👊) · ninjutsu +5% nos jutsus elementais
       perPoint: { vitality: 10, chakraMax: 10, chakraRegen: 1, agility: 0.5, taijutsu: 0.05, ninjutsu: 0.05 },
+      // Agilidade também acelera o Ataque Básico: -4% de recarga por ponto (10 pontos: 600 -> 360 ms).
+      agilityAttackSpeed: 0.04,
+      minAttackCooldownFactor: 0.6,
     },
     monsters: {
       count: 5, type: 'slime', maxHp: 60, xp: 20, stepMs: 1000,
@@ -147,7 +152,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     skills: {
       fire: { cost: 20, cooldownMs: 1500, damage: 25, radius: 3 },               // área em volta
       water: { cost: 15, cooldownMs: 1000, damage: 20, range: 4, coneDeg: 90 },  // cone na frente
-      taijutsu: { cost: 5, cooldownMs: 500, damage: 35, range: 1.5 },            // corpo a corpo, 1 alvo
+      taijutsu: { cost: 5, cooldownMs: 500, damage: 35, range: 1.5, scaling: 'taijutsu' },   // soco: escala com Taijutsu
       illusion: { cost: 30, cooldownMs: 4000, range: 5, stunMs: 3000 },          // atordoa: não anda nem ataca
       shadow: { cost: 25, cooldownMs: 6000, range: 5, rootMs: 5000 },            // prende: não anda (ainda ataca)
       stone: { cost: 15, cooldownMs: 6000, reduction: 0.5 },                     // escudo: próximo dano pela metade

@@ -15,6 +15,9 @@ psql "$DATABASE_URL" -f db/schema_ranks_missoes_sensei.sql
 psql "$DATABASE_URL" -f db/schema_v3_auth.sql      # migração v3: login
 psql "$DATABASE_URL" -f db/schema_v4_npc_missions.sql   # migração v4: NPC Mestre
 psql "$DATABASE_URL" -f db/schema_v5_atributos.sql      # migração v5: nível, atributos, kits
+psql "$DATABASE_URL" -f db/schema_v6_aparencia.sql      # migração v6: visual do personagem
+# opcional, só para testes: deixa a conta "Victor" como Hokage
+psql "$DATABASE_URL" -f db/promote_victor.sql
 npm run dev
 ```
 
@@ -59,7 +62,7 @@ POST /auth/login
 ## Cliente web (public/)
 
 `GET /` abre o jogo no navegador (celular ou computador), servido pela própria API: mesma origem,
-então não precisa de CORS. São cinco arquivos (`index.html`, `game.js`, `targeting.js`, `village.js`, `styles.css`), sem bibliotecas,
+então não precisa de CORS. São seis arquivos (`index.html`, `game.js`, `targeting.js`, `village.js`, `character.js`, `styles.css`), sem bibliotecas,
 servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
 
 - **Tela:** login e cadastro.
@@ -100,6 +103,7 @@ servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
   | Meditar | M |
   | Foco | T |
   | Ficha | C |
+  | Configurações / editar layout | botão ⚙️ |
   | Falar com o NPC | E |
   | Missões | J |
   | Chat | Enter |
@@ -165,6 +169,35 @@ Regras (em `src/realtime/config.ts`):
 - **Mesma conta:** conectando de novo, derruba a conexão antiga (4000).
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
+
+### v6: paperdoll, dano por tipo e Agilidade no ataque
+
+- **Dano por tipo:**
+
+  | O que bate | Atributo que escala |
+  |---|---|
+  | Corpo a corpo: Ataque Básico e a habilidade Taijutsu 👊 | Taijutsu |
+  | Jutsus elementais: Fogo, Água | Ninjutsu |
+
+  O tipo de cada habilidade fica em `config.skills.*.scaling`.
+- **Agilidade:** além da velocidade, cada ponto corta 4% da recarga do Ataque Básico (de 600 ms até
+  no mínimo 360 ms). O valor vai pronto para o cliente em `progress.derived.attackCooldownMs`.
+- **Visual:**
+  - `{"type":"set_appearance","appearance":{skin,hair,shirt,pants,cape}}` grava em
+    `game.players.appearance` (só cores `#rrggbb`, conferidas pelo Zod e pelo banco);
+  - todos recebem `player_appearance`;
+  - `appearance` NULL = o cliente abre o Criador de Personagem.
+- **Direção:** `player_moved` leva `d` (0 baixo, 1 esquerda, 2 direita, 3 cima).
+- **Boneco** (`public/character.js`):
+  - cabeça, cabelo, tronco, braços, pernas e capa em retângulos e 1 círculo, sem gradiente;
+  - até ~20 operações de desenho por boneco;
+  - a caminhada balança pernas e braços com `Math.sin`.
+- **HUD** (só neste aparelho, `localStorage` `nin.hud.v1`):
+  - tamanho e opacidade dos botões e das barras;
+  - posição de cada botão, do joystick e das barras, separada para deitado e em pé;
+  - arrastar só no modo **Editar layout** do ⚙️, com o combate travado.
+- **Fila de gravações:** gravações da ficha (ponto, kits, visual) entram numa fila por jogador, 1 a cada 250 ms.
+  Nada se perde, e acima de 5 pedidos o servidor responde `PROFILE_BUSY`.
 
 ### v5: energia, atributos, corrida, kits e missão entre jogadores
 

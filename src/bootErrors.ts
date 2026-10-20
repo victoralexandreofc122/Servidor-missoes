@@ -16,6 +16,10 @@ export function describeBootError(err: unknown): string {
     return 'Falta a migração v3 (login) neste banco. Abra o SQL Editor do Neon, rode o arquivo '
       + 'db/schema_v3_auth.sql inteiro e depois faça "Manual Deploy" no Render.';
   }
+  if (code === '42703' && /appearance/.test(message)) {
+    return 'Falta a migração v6 (visual do personagem) neste banco. Abra o SQL Editor do Neon, rode o arquivo '
+      + 'db/schema_v6_aparencia.sql inteiro e depois faça "Manual Deploy" no Render.';
+  }
   if (code === '42703' && /level|stat_points|attr_|kit_/.test(message)) {
     return 'Falta a migração v5 (nível, atributos e kits) neste banco. Abra o SQL Editor do Neon, rode o arquivo '
       + 'db/schema_v5_atributos.sql inteiro e depois faça "Manual Deploy" no Render.';

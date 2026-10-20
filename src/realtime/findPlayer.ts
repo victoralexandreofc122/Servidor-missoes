@@ -1,11 +1,12 @@
 import type { Queryable } from '../db.js';
 import { isSkillList, type JoiningPlayer } from './gameWorld.js';
+import { AppearanceSchema } from './protocol.js';
 
 /** Tudo que o jogo precisa do jogador. Uma consulta por conexão, nunca por passo. */
 export const FIND_PLAYER_SQL = `
   SELECT p.id, p.username, p.total_xp, r.code AS rank_code, r.name AS rank_name, r.can_be_sensei,
          p.level, p.stat_points, p.attr_vitality, p.attr_chakra_max, p.attr_chakra_regen,
-         p.attr_agility, p.attr_taijutsu, p.attr_ninjutsu, p.kit_a, p.kit_b
+         p.attr_agility, p.attr_taijutsu, p.attr_ninjutsu, p.kit_a, p.kit_b, p.appearance
     FROM game.players p
     JOIN game.ranks r ON r.id = p.current_rank_id
    WHERE p.id = $1`;
@@ -27,6 +28,7 @@ interface Row {
   attr_ninjutsu: number;
   kit_a: string[];
   kit_b: string[];
+  appearance: unknown;
 }
 
 export function makeFindPlayer(db: Queryable) {
@@ -52,6 +54,8 @@ export function makeFindPlayer(db: Queryable) {
       },
       // O banco já garante (ck_players_kits); a checagem aqui só protege o tipo.
       kits: { A: isSkillList(row.kit_a) ? row.kit_a : [], B: isSkillList(row.kit_b) ? row.kit_b : [] },
+      // NULL = ainda não criou o personagem (o cliente abre o Criador).
+      appearance: row.appearance == null ? null : (AppearanceSchema.safeParse(row.appearance).data ?? null),
     };
   };
 }

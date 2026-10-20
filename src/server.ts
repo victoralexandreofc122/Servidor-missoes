@@ -111,6 +111,7 @@ try {
   await db.query('SELECT 1 FROM game.ranks LIMIT 1');   // schema v2
   await db.query(AUTH_SQL.bootCheck);                    // migração v3 (login)
   await db.query(PROFILE_SQL.bootCheck);                 // migração v5 (nível, atributos, kits)
+  await db.query(PROFILE_SQL.bootCheckV6);               // migração v6 (visual do personagem)
   // Migração v4 (NPC Mestre): sem ela o jogo sobe igual, só o Mestre não passa missões.
   const v4 = await db.query(MISSIONS_SQL.bootCheck, [NPC_SENSEI_ID, NPC_MISSION.missionType, NPC_MISSION.difficulty]);
   if (v4.rows.length === 0) publicApp.log.warn('[boot] NPC Mestre sem missões: rode db/schema_v4_npc_missions.sql no SQL Editor do Neon (não precisa reiniciar).');

@@ -1,5 +1,5 @@
 import type { Queryable } from '../db.js';
-import type { Skill } from './protocol.js';
+import type { Appearance, Skill } from './protocol.js';
 import { ATTRIBUTE_COLUMNS, type Attribute, type Attributes } from './stats.js';
 
 /*
@@ -44,6 +44,9 @@ export function spendPointSql(attribute: Attribute): string {
 export const PROFILE_SQL = {
   attributes: `SELECT ${ATTRS_RETURNING} FROM game.players WHERE id = $1`,
   saveLoadout: `UPDATE game.players SET kit_a = $2::text[], kit_b = $3::text[] WHERE id = $1`,
+  saveAppearance: `UPDATE game.players SET appearance = $2::jsonb WHERE id = $1`,
+  /** Checagem de boot: a migração v6 foi aplicada? */
+  bootCheckV6: `SELECT appearance FROM game.players LIMIT 0`,
   /** Checagem de boot: a migração v5 foi aplicada? (LIMIT 0: não lê linha.) */
   bootCheck: `SELECT level, stat_points, attr_taijutsu, attr_ninjutsu, kit_a, kit_b FROM game.players LIMIT 0`,
 } as const;
@@ -55,6 +58,7 @@ export type SpendResult =
 export interface Profile {
   spendPoint(playerId: string, attribute: Attribute): Promise<SpendResult>;
   saveLoadout(playerId: string, kitA: readonly Skill[], kitB: readonly Skill[]): Promise<void>;
+  saveAppearance(playerId: string, appearance: Appearance): Promise<void>;
 }
 
 export function makeProfile(db: Queryable, maxPoints: number): Profile {
@@ -67,6 +71,10 @@ export function makeProfile(db: Queryable, maxPoints: number): Profile {
     },
     async saveLoadout(playerId, kitA, kitB) {
       await db.query(PROFILE_SQL.saveLoadout, [playerId, kitA, kitB]);
+    },
+    async saveAppearance(playerId, appearance) {
+      // Só as 5 cores, já validadas pelo Zod; o banco confere de novo (ck_players_appearance).
+      await db.query(PROFILE_SQL.saveAppearance, [playerId, JSON.stringify(appearance)]);
     },
   };
 }
