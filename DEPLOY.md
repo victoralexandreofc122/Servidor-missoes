@@ -18,6 +18,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 11 | Atualização v4: NPC Mestre e Sala de Missões (rodar 1 SQL no Neon e testar) | ~10 min |
 | 12 | Atualização v5: nível, atributos, corrida, kits, layout MOBA e missão entre jogadores | ~15 min |
 | 13 | Atualização v6: Criador de Personagem, boneco modular, ⚙️ layout da HUD e conta Hokage de teste | ~10 min |
+| 14 | Atualização v7: movimento sem atraso (predição no cliente + correção pelo servidor), sem SQL | ~5 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
