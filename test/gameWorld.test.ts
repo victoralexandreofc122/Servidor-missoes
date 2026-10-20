@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { REALTIME } from '../src/realtime/config.js';
+import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { sanitizeChat } from '../src/realtime/protocol.js';
-import { FakeConn, setupWorld } from './support/world.js';
+import { FakeConn, setupWorld, withMonsters } from './support/world.js';
 
 /*
  * Movimento, entrada/saída, chat e flood, num mundo SEM monstros (os monstros têm
@@ -10,6 +10,8 @@ import { FakeConn, setupWorld } from './support/world.js';
  */
 const S = REALTIME.spawn;
 const setup = () => setupWorld();
+/** Vila sem casas nem saídas: para testar só a regra da borda e o ritmo do joystick. */
+const open = (): RealtimeConfig => ({ ...withMonsters(0), maps: { ...REALTIME.maps, map_1: { ...REALTIME.maps.map_1, walls: [], exits: [] } } });
 
 describe('GameWorld: entrar e sair', () => {
   it('quem entra recebe welcome (estado próprio + OUTROS online + monstros + mundo); os outros recebem player_joined', () => {
@@ -147,8 +149,8 @@ describe('GameWorld: movimento autoritativo (joystick) e game loop', () => {
     assert.deepEqual(pos(a.id), S);
   });
 
-  it('borda do mapa: o jogador para em 0 e em width/height', () => {
-    const { world, clock, connect, run, pos } = setup();
+  it('borda do mapa (sem saída): o jogador para em 0 e em width/height', () => {
+    const { world, clock, connect, run, pos } = setupWorld(open());
     const a = connect('kaito');
     a.send({ type: 'move', dx: -1, dy: -1 });
     run(20_000);
@@ -260,16 +262,16 @@ describe('GameWorld: proteção contra flood', () => {
   });
 
   it('ritmo do joystick (20 mensagens/s por 2 minutos) nunca é cortado e anda exatamente 5 casas/s', () => {
-    const { world, clock, connect, pos } = setup();
+    const { world, clock, connect, pos } = setupWorld(open());
     const a = connect('kaito');
     for (let i = 0; i < 20 * 120; i++) {
-      a.send({ type: 'move', dx: i < 120 ? 1 : 0, dy: 0 });   // 6 s andando, depois parado
+      a.send({ type: 'move', dx: i < 80 ? 1 : 0, dy: 0 });    // 4 s andando, depois parado
       clock.advance(50);
       world.tick();
     }
     assert.equal(a.conn.closed, undefined);
     assert.equal(a.conn.of('error').length, 0);
-    assert.deepEqual(pos(a.id), { x: S.x + 30, y: S.y });
+    assert.deepEqual(pos(a.id), { x: S.x + 20, y: S.y });
   });
 
   it('cliente que não lê (fila > 1 MiB) é desconectado (4001) sem atrapalhar os outros', () => {

@@ -3,7 +3,8 @@ import { describe, it } from 'node:test';
 import { distance, inCone, nearest, randomInRing, shieldedDamage } from '../src/realtime/combat.js';
 import { REALTIME, type CombatConfig, type RealtimeConfig } from '../src/realtime/config.js';
 import type { Progression } from '../src/realtime/gameWorld.js';
-import { seededRandom, setupWorld } from './support/world.js';
+import { blocked } from '../src/realtime/movement.js';
+import { placeIn, seededRandom, setupWorld } from './support/world.js';
 
 const S = REALTIME.spawn;
 const M = REALTIME.combat.monsters;
@@ -72,22 +73,26 @@ describe('combate: geometria', () => {
 });
 
 describe('combate: monstros', () => {
-  it('o mundo mantém 5 monstros na zona de caça (fora da área segura do centro), andando ~1 casa por segundo', () => {
+  it('Floresta com 10 monstros na zona de caça (fora das árvores e da clareira); a Vila não tem nenhum', () => {
     const { world, connect, run } = setupWorld(REALTIME);
     const a = connect('kaito');
-    assert.equal(a.conn.of('welcome')[0].monsters.length, 5);
+    assert.equal(a.conn.of('welcome')[0].monsters.length, 0, 'na Vila (área segura) não há monstros');
+    const forest = REALTIME.maps.map_2;
+    const zone = forest.hunt!;
+    placeIn(world, a.id, 'map_2', 30, 50);
+    assert.equal(a.conn.last('map_changed').monsters.length, M.count, 'chegando na Floresta, recebe os 10');
     const before = world.monsterList();
     run(30_000);
     const after = world.monsterList();
-    assert.equal(after.length, 5);
+    assert.equal(after.length, M.count);
     for (const m of after) {
-      const d = distance(m, S);
-      assert.ok(d >= M.safeRadius && d <= M.zoneRadius, `monstro fora da zona: ${d}`);
+      assert.ok(m.x >= zone.x && m.y >= zone.y && m.x < zone.x + zone.w && m.y < zone.y + zone.h, `monstro fora da zona: ${m.x},${m.y}`);
+      assert.ok(!blocked(m.x, m.y, forest.walls), `monstro dentro de árvore: ${m.x},${m.y}`);
       assert.ok(Number.isInteger(m.x) && Number.isInteger(m.y));
     }
     assert.ok(after.some((m, i) => m.x !== before[i]!.x || m.y !== before[i]!.y), 'monstros andaram');
     const batches = a.conn.of('monsters_moved');
-    assert.ok(batches.length > 10 && batches.length <= 30 * 5, `${batches.length} lotes em 30 s`);
+    assert.ok(batches.length > 10 && batches.length <= 30 * 20, `${batches.length} lotes em 30 s`);
     for (const batch of batches) for (const [, x, y] of batch.m) assert.ok(Number.isInteger(x) && Number.isInteger(y));
   });
 
@@ -284,9 +289,12 @@ describe('combate: morte, renascimento e autoridade do servidor', () => {
     const { world, connect } = setupWorld({ ...config(), combat: { ...config().combat, monsters: { ...config().combat.monsters, count: 1 } } }, fake.progression);
     const a = connect('kaito');
     const b = connect('mei');
+    const F = { x: 10, y: 50 };                                // clareira da Floresta (onde nascem os monstros)
+    placeIn(world, a.id, 'map_2', F.x, F.y);
+    placeIn(world, b.id, 'map_2', F.x, F.y);
     for (let kill = 1; kill <= 5; kill++) {
       const target = world.monsterList()[0]!;
-      place(world, target.id, S.x + 1, S.y, 10);
+      place(world, target.id, F.x + 1, F.y, 10);
       const who = kill === 5 ? b : a;
       ready(world, who.id);
       who.send({ type: 'cast', skill: 'taijutsu' });

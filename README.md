@@ -62,7 +62,7 @@ POST /auth/login
 ## Cliente web (public/)
 
 `GET /` abre o jogo no navegador (celular ou computador), servido pela própria API: mesma origem,
-então não precisa de CORS. São seis arquivos (`index.html`, `game.js`, `targeting.js`, `village.js`, `character.js`, `styles.css`), sem bibliotecas,
+então não precisa de CORS. São estes arquivos (`index.html`, `game.js`, `targeting.js`, `world.js`, `movement.js`, `prediction.js`, `character.js`, `styles.css`), sem bibliotecas,
 servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
 
 - **Tela:** login e cadastro.
@@ -123,7 +123,8 @@ ausente, inválido ou vencido recebe HTTP 401 e não conecta. O token pode vir:
 |---|---|
 | cliente → servidor | `{"type":"input","seq":41,"inputs":[[1,0],[0.7,-0.7]]}` (entradas numeradas, 1 por tick de 50 ms, eixos -1 a 1; 1 a 10 por mensagem) · `{"type":"move","dx":0.5,"dy":-0.5}` (direção segurada, antiga: só para teste manual) · `{"type":"cast","skill":"fire"}` · `{"type":"talk","npcId":"sensei"}` · `{"type":"missions"}` · `{"type":"chat","message":"Olá!"}` |
 | ao conectar | `welcome {you, players (os outros), world {width,height,speed,tickMs}}` |
-| a cada tick (50 ms) | `player_moved {playerId,x,y,d,a}` para todos, inclusive quem andou (`d` = direção do boneco; `a` = última entrada aplicada, para a reconciliação) |
+| troca de mapa | `map_changed {map,x,y,a,players,monsters,reason}` só para quem trocou (`walk` ou `respawn`) |
+| a cada tick (50 ms) | `player_moved {playerId,x,y,d,a}` para quem está no MESMO mapa, inclusive quem andou (`d` = direção do boneco; `a` = última entrada aplicada, para a reconciliação) |
 | entradas e saídas | `player_joined` · `player_left` |
 | para todos | `chat {playerId,username,message}` |
 | só para quem enviou | `error {code,message}` |
@@ -146,10 +147,11 @@ Mensagens de combate (o servidor decide tudo; o cliente só pede `cast` e `respa
 
 - **Jogador:** 100 de vida (regenera 1/s) e 100 de chakra (regenera 5/s). Sem alvo, com vida cheia ou com
   escudo ativo, a habilidade falha sem gastar chakra.
-- **Monstros:** 5 sempre vivos (`slime`, 60 de vida), num anel de 5 a 16 casas em volta do centro (o centro
-  é área segura). Andam 1 casa por ~1 s e batem 10 em quem estiver a até 1,2 casa, a cada 2 s.
+- **Monstros:** 10 sempre vivos na Floresta (`slime`, 60 de vida), fora das árvores e da clareira de
+  entrada; a Vila é área segura. Andam 1 casa por ~1 s e batem 10 em quem estiver a até 1,2 casa, a cada 2 s.
+  Num mapa sem ninguém, os monstros esperam (nada a calcular nem a enviar).
 - **Derrota:** com vida 0, o jogador não anda nem usa habilidade. Depois de 5 s pode pedir `respawn` e
-  volta ao centro com vida e chakra cheios. Reconectar não cura.
+  volta à praça da Vila com vida e chakra cheios (de qualquer mapa). Reconectar não cura.
 - **Jutsus direcionados:** com alvo focado, Fogo, Água, Ilusão e Sombra mandam `targetId`. O servidor
   vira o jogador para o alvo (a Água sai na direção dele) e confere o alcance (Fogo 3, Água 4, Ilusão e
   Sombra 5): longe demais = `OUT_OF_RANGE`, sem gastar chakra.
@@ -170,6 +172,43 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v8: mapas (Vila e Floresta) e transição pelas bordas
+
+O mundo deixou de ser um mapa só de 100x100. Agora são salas, como no Nin Online
+(`src/realtime/maps.ts`):
+
+| Mapa | Tamanho | Chão e paredes | Monstros | Saída |
+|---|---|---|---|---|
+| `map_1` Vila | 50 x 50 | pedra cinza; casas marrons em todas as bordas (vila fechada) e em volta da praça | nenhum (área segura) | portão leste (y 22 a 28) |
+| `map_2` Floresta | 100 x 100 | grama; mata fechada nas bordas e árvores espalhadas (obstáculos) | 10 slimes | trilha oeste (y 47 a 53) |
+
+- **Transição:** quem chega na borda leste da Vila (x = 50), dentro do portão e empurrando para leste,
+  vai para a Floresta em x = 0, y + 25. O caminho de volta é o mesmo: borda oeste da Floresta → x = 50 da Vila.
+  - Chegando na Floresta ainda indo para leste, não volta (sem pingue-pongue).
+  - Morreu na Floresta: renasce na praça da Vila.
+- **O servidor valida a passagem:**
+  - a regra é `crossExit`/`moveStep` em `movement.ts`, com a mesma cópia no cliente;
+  - só passa quem está de fato na borda (posição do servidor, depois da colisão) e empurrando para fora;
+  - só dentro do trecho do portão, e com a chegada livre;
+  - como as casas fecham a borda, ninguém atravessa parede para mudar de mapa: nem forçando a posição
+    em x = 50 fora do portão.
+- **Envio só para o mesmo mapa:** posição, monstros, combate, chat (fala local) e entradas/saídas vão só
+  para quem está no mapa.
+  - Trocou de mapa: o dono recebe `map_changed` com os jogadores e monstros de lá; quem ficou recebe
+    `player_left`; quem está no mapa novo recebe `player_joined`.
+  - `announce` (promoção) vai para todos.
+  - O `welcome` traz o mapa atual e o layout de todos os mapas (cerca de 7 KB: 47 casas e 132 árvores).
+- **No cliente** (`public/world.js`):
+  - o chão e as paredes vêm do layout do servidor: pedra e casas na Vila, grama e copas de árvore na
+    Floresta, mata fechada fora do mundo;
+  - além de cada saída, o cliente desenha o pedaço do mapa vizinho no lugar certo: no portão já se vê a
+    trilha da Floresta e, depois de atravessar, a Vila continua visível atrás;
+  - a predição atravessa na hora, sem esperar o servidor; o boneco não para nem salta;
+  - a tela troca de mapa (somem os jogadores, monstros e efeitos do mapa antigo), escurece de leve por
+    0,35 s e mostra o nome do mapa;
+  - quando o servidor confirma, chegam os que estão lá.
+- **Banco:** nada muda (a posição e o mapa não são gravados; conectar sempre começa na praça da Vila).
+
 ### v7: movimento com predição no cliente e reconciliação
 
 Com ~200 ms de ida e volta, esperar o servidor para andar dá atraso no joystick. Agora:
@@ -177,7 +216,7 @@ Com ~200 ms de ida e volta, esperar o servidor para andar dá atraso no joystick
 - **Predição (`public/prediction.js`):** a cada tick de 50 ms com o joystick inclinado, o cliente
   cria uma entrada numerada `{seq, dx, dy}` e anda na hora. Ele usa a **mesma função** do servidor
   (`public/movement.js` = `src/realtime/movement.ts`, com o mesmo arredondamento e as mesmas paredes,
-  as casas da vila). Um teste compara as duas em 10 mil passos aleatórios.
+  as casas e as árvores do mapa). Um teste compara as duas em 10 mil passos aleatórios.
 - **Envio leve:** as entradas vão em lotes de 2 (cerca de 10 mensagens/s andando; nada parado).
 - **Reconciliação:** cada `player_moved` traz `a`, a última entrada aplicada. O cliente:
   - descarta as entradas confirmadas;
@@ -269,9 +308,7 @@ As contas ficam em `src/realtime/stats.ts` (funções puras). O cliente só most
   | Avaliar | Sensei | `{"type":"evaluate_mission","missionId","approved","score"}` |
 
   Aprovar emite o pergaminho, que o aprendiz resgata no Mestre.
-- **Vila:**
-  - chão de pedra num raio de 10 casas, com casas marrons (`public/village.js`, só visual);
-  - os monstros ficam no anel de 11 a 20 casas.
+- **Vila:** é o mapa `map_1` (ver a seção v8, mapas).
 
 ### NPC Mestre e Sala de Missões (`src/realtime/missions.ts`)
 

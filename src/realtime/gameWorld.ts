@@ -1,4 +1,4 @@
-import { distance, inCone, nearest, randomInRing, shieldedDamage, STEPS, type Point } from './combat.js';
+import { distance, inCone, nearest, shieldedDamage, STEPS, type Point } from './combat.js';
 import { REALTIME, type RealtimeConfig } from './config.js';
 import {
   CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, SKILLS, sanitizeChat,
@@ -12,7 +12,8 @@ import {
   damageMultiplier, derivedStats, levelProgress, NO_ATTRIBUTES, scaledDamage,
   type Attribute, type Attributes, type DerivedStats,
 } from './stats.js';
-import { stepMove, type Box } from './movement.js';
+import { blocked, moveStep } from './movement.js';
+import type { MapId, MapLayout } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
 
 /*
@@ -25,6 +26,10 @@ import { TokenBucket } from './tokenBucket.js';
  *
  * Game loop (tick de 50 ms): anda os jogadores, regenera HP/chakra, move e faz os
  * monstros atacarem, e envia só o que mudou.
+ *
+ * Mapas (salas): cada jogador e cada monstro está em UM mapa (Vila, Floresta). Posição,
+ * combate e chat só vão para quem está no mesmo mapa. Andar até a saída de uma borda troca
+ * de mapa (moveStep/crossExit, a mesma conta do cliente): só pelo portão, nunca por parede.
  *
  * Missões (NPC Mestre): o banco é a fonte da verdade (missions.ts). O mundo só decide
  * QUEM pode pedir (perto do NPC, vivo, sem pedido em andamento) e conta o abate quando
@@ -104,6 +109,8 @@ interface Session {
   readonly id: string;
   readonly username: string;
   readonly conn: Connection;
+  /** Mapa onde está (posição x, y é dentro dele). */
+  map: MapId;
   x: number;
   y: number;
   /** Direção "segurada" (mensagem move, sem predição), já normalizada: |(dx, dy)| <= 1. */
@@ -175,6 +182,7 @@ interface Session {
 interface Monster {
   readonly id: string;
   readonly type: string;
+  readonly map: MapId;
   x: number;
   y: number;
   hp: number;
@@ -209,8 +217,8 @@ export class GameWorld {
   private readonly progression: Progression | undefined;
   private readonly missions: Missions | undefined;
   private readonly profile: Profile | undefined;
-  /** Paredes (casas da vila) em casas do mapa: o servidor colide; o cliente prevê igual. */
-  private readonly walls: Box[];
+  /** Quem está em cada mapa (envio só para o mesmo mapa sem percorrer todo mundo). */
+  private readonly mapPlayers = new Map<MapId, Set<Session>>();
   private timer: NodeJS.Timeout | undefined;
   private lastTick: number;
   private monsterSeq = 0;
@@ -225,10 +233,34 @@ export class GameWorld {
     this.progression = options.progression;
     this.missions = options.missions;
     this.profile = options.profile;
-    const cx = Math.floor(this.config.spawn.x), cy = Math.floor(this.config.spawn.y);
-    this.walls = this.config.village.houses.map((h) => ({ x: cx + h.dx, y: cy + h.dy, w: h.w, h: h.h }));
+    for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
     this.lastTick = now();
-    while (this.monsters.size < this.config.combat.monsters.count) this.spawnMonster();
+    for (const layout of this.huntingMaps()) {
+      while (this.monstersIn(layout.id).length < this.config.combat.monsters.count) this.spawnMonster(undefined, this.lastTick, layout.id);
+    }
+  }
+
+  /** Mapas com zona de caça (onde nascem monstros). */
+  private huntingMaps(): MapLayout[] {
+    return Object.values(this.config.maps).filter((m) => !m.safe && m.hunt);
+  }
+
+  private layout(id: MapId): MapLayout {
+    return this.config.maps[id];
+  }
+
+  /** Monstros de um mapa (o que um jogador desse mapa vê). */
+  private monstersIn(map: MapId): MonsterView[] {
+    const out: MonsterView[] = [];
+    for (const m of this.monsters.values()) if (m.map === map) out.push(monsterView(m));
+    return out;
+  }
+
+  /** Os OUTROS jogadores no mesmo mapa. */
+  private othersIn(session: Session): PlayerView[] {
+    const out: PlayerView[] = [];
+    for (const s of this.mapPlayers.get(session.map) ?? []) if (s !== session) out.push(this.view(s));
+    return out;
   }
 
   get online(): number {
@@ -289,8 +321,9 @@ export class GameWorld {
     return [...this.monsters.values()].map(monsterView);
   }
 
-  private worldInfo(): WorldInfo {
-    const { world, speedTilesPerSecond, tickMs, spawn, combat } = this.config;
+  private worldInfo(map: MapId): WorldInfo {
+    const { speedTilesPerSecond, tickMs, spawn, combat } = this.config;
+    const here = this.layout(map);
     const skills = Object.fromEntries(
       Object.entries(combat.skills).map(([k, v]) => {
         const range = v.range ?? v.radius;
@@ -298,12 +331,13 @@ export class GameWorld {
       }),
     ) as WorldInfo['skills'];
     return {
-      width: world.width, height: world.height, speed: speedTilesPerSecond, runSpeed: this.config.runSpeedTilesPerSecond,
+      width: here.width, height: here.height, speed: speedTilesPerSecond, runSpeed: this.config.runSpeedTilesPerSecond,
       tickMs, spawn: { ...spawn }, respawnMs: combat.player.respawnMs, skills, promotion: { ...combat.promotion },
       meditationRegenMultiplier: combat.player.meditationRegenMultiplier,
       npcs: this.config.npcs.map((n) => ({ ...n })),
       basicAttack: { range: combat.basicAttack.range, cooldownMs: combat.basicAttack.cooldownMs },
-      village: { x: spawn.x, y: spawn.y, radius: this.config.village.radius, houses: this.walls.map((w) => ({ ...w })) },
+      map,
+      maps: this.config.maps as Record<MapId, MapLayout>,
       attributePerPoint: { ...combat.attributes.perPoint },
     };
   }
@@ -324,6 +358,7 @@ export class GameWorld {
       id: player.id,
       username: player.username,
       conn,
+      map: previous?.map ?? this.config.startMap,
       x: previous?.x ?? this.config.spawn.x,
       y: previous?.y ?? this.config.spawn.y,
       dx: 0,
@@ -375,20 +410,22 @@ export class GameWorld {
 
     if (previous) {
       // A conexão nova começa sem meditar; se a antiga meditava, todos param de ver a aura.
-      if (previous.meditating) this.broadcast({ type: 'meditation', playerId: previous.id, active: false, reason: 'manual' });
+      if (previous.meditating) this.broadcastMap(previous.map, { type: 'meditation', playerId: previous.id, active: false, reason: 'manual' });
       previous.closed = true;
+      this.mapPlayers.get(previous.map)?.delete(previous);
+      this.mapPlayers.get(session.map)!.add(session);
       this.sessions.set(player.id, session);
       safeClose(previous.conn, CLOSE.REPLACED);
       this.log.info({ playerId: player.id }, 'jogador reconectou; conexão antiga fechada');
     } else {
       this.sessions.set(player.id, session);
-      this.broadcast({ type: 'player_joined', player: this.view(session) }, session.id);
+      this.mapPlayers.get(session.map)!.add(session);
+      this.broadcastMap(session.map, { type: 'player_joined', player: this.view(session) }, session.id);
       this.log.info({ playerId: player.id, online: this.sessions.size }, 'jogador entrou');
     }
 
-    const others = [...this.sessions.values()].filter((s) => s !== session).map((s) => this.view(s));
     this.sendTo(session, {
-      type: 'welcome', you: this.selfView(session), players: others, monsters: this.monsterList(), world: this.worldInfo(),
+      type: 'welcome', you: this.selfView(session), players: this.othersIn(session), monsters: this.monstersIn(session.map), world: this.worldInfo(session.map),
       progress: this.progressView(session), kit: this.kitView(session),
     });
     this.syncMission(session.id);
@@ -406,7 +443,8 @@ export class GameWorld {
     session.closed = true;
     if (this.sessions.get(session.id) !== session) return;
     this.sessions.delete(session.id);
-    this.broadcast({ type: 'player_left', playerId: session.id });
+    this.mapPlayers.get(session.map)?.delete(session);
+    this.broadcastMap(session.map, { type: 'player_left', playerId: session.id });
     this.log.info({ playerId: session.id, online: this.sessions.size }, 'jogador saiu');
     this.flushKicks();
   }
@@ -520,9 +558,8 @@ export class GameWorld {
    */
   private moveSession(s: Session, dtMs: number, t: number): void {
     const tickMs = this.config.tickMs;
-    const { width, height } = this.config.world;
     s.moveBudgetMs = Math.min(this.config.inputBufferMs, s.moveBudgetMs + dtMs);
-    const before = [s.x, s.y];
+    const before = [s.x, s.y, s.map];
     if (s.inputQueue.length > 0) {
       while (s.inputQueue.length > 0 && s.moveBudgetMs >= tickMs) {
         const input = s.inputQueue.shift()!;
@@ -533,20 +570,56 @@ export class GameWorld {
         const len = Math.sqrt(input.dx * input.dx + input.dy * input.dy);
         s.fx = input.dx / len;
         s.fy = input.dy / len;
-        [s.x, s.y] = stepMove(s.x, s.y, input.dx, input.dy, (this.speedOf(s) * tickMs) / 1000, width, height, this.walls);
+        this.step(s, input.dx, input.dy, (this.speedOf(s) * tickMs) / 1000);
       }
     } else if (!s.meditating && (s.dx !== 0 || s.dy !== 0)) {
-      [s.x, s.y] = stepMove(s.x, s.y, s.dx, s.dy, (this.speedOf(s) * dtMs) / 1000, width, height, this.walls);
+      this.step(s, s.dx, s.dy, (this.speedOf(s) * dtMs) / 1000);
       s.moveBudgetMs = Math.max(0, s.moveBudgetMs - dtMs);
     }
     if (s.inputQueue.length === 0 && s.droppedUpTo > s.ackSeq) {
       s.ackSeq = s.droppedUpTo;
       s.dirty = true;
     }
-    if (s.x !== before[0] || s.y !== before[1]) {
+    if (s.x !== before[0] || s.y !== before[1] || s.map !== before[2]) {
       s.lastUpdate = t;
       s.dirty = true;
     }
+  }
+
+  /**
+   * Um passo: colide com as paredes do mapa atual e, encostado na borda empurrando para fora
+   * dentro do portão, passa para o mapa vizinho (crossExit). A posição é sempre a do SERVIDOR.
+   */
+  private step(s: Session, dx: number, dy: number, dist: number): void {
+    const [map, x, y] = moveStep(this.config.maps, s.map, s.x, s.y, dx, dy, dist);
+    if (map === s.map) {
+      s.x = x;
+      s.y = y;
+      return;
+    }
+    this.transfer(s, map as MapId, x, y, 'walk');
+  }
+
+  /**
+   * Troca de mapa: some para quem ficou (player_left), aparece para quem está no mapa novo
+   * (player_joined) e o próprio jogador recebe `map_changed` só com o que existe lá.
+   */
+  private transfer(s: Session, to: MapId, x: number, y: number, reason: 'walk' | 'respawn'): void {
+    const from = s.map;
+    s.x = x;
+    s.y = y;
+    if (from !== to) {
+      this.mapPlayers.get(from)?.delete(s);
+      this.broadcastMap(from, { type: 'player_left', playerId: s.id });
+      s.map = to;
+      this.mapPlayers.get(to)!.add(s);
+      this.broadcastMap(to, { type: 'player_joined', player: this.view(s) }, s.id);
+      this.log.info({ playerId: s.id, from, to }, 'jogador trocou de mapa');
+    }
+    this.sendTo(s, {
+      type: 'map_changed', map: to, x: round3(x), y: round3(y), a: s.ackSeq,
+      players: this.othersIn(s), monsters: this.monstersIn(to), reason,
+    });
   }
 
   private chatMessage(session: Session, raw: string, t: number): void {
@@ -559,7 +632,7 @@ export class GameWorld {
       this.sendError(session, 'CHAT_INVALID');
       return;
     }
-    this.broadcast({ type: 'chat', playerId: session.id, username: session.username, message });
+    this.broadcastMap(session.map, { type: 'chat', playerId: session.id, username: session.username, message });
   }
 
   // ---------------------------------------------------------------- combate
@@ -580,7 +653,7 @@ export class GameWorld {
     if ((session.cooldowns[skill] ?? 0) > t) return fail('COOLDOWN');
     if (session.chakra < cfg.cost) return fail('NO_CHAKRA');
 
-    const alive = (m: Monster) => m.hp > 0;
+    const alive = (m: Monster) => m.hp > 0 && m.map === session.map;   // só monstros do MESMO mapa
     // Soco (Taijutsu 👊) escala com o atributo Taijutsu; jutsus elementais (Fogo, Água) com Ninjutsu.
     const dmg = scaledDamage(cfg.damage ?? 0, damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu'));
     let target: Monster | undefined;
@@ -605,7 +678,7 @@ export class GameWorld {
 
     session.chakra -= cfg.cost;
     session.cooldowns[skill] = t + cfg.cooldownMs;
-    this.broadcast({ type: 'cast', playerId: session.id, skill, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy) });
+    this.broadcastMap(session.map, { type: 'cast', playerId: session.id, skill, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy) });
 
     switch (skill) {
       case 'fire':
@@ -623,11 +696,11 @@ export class GameWorld {
         break;
       case 'illusion':
         target!.stunnedUntil = t + (cfg.stunMs ?? 0);
-        this.broadcast({ type: 'monster_status', id: target!.id, status: 'stunned', ms: cfg.stunMs ?? 0 });
+        this.broadcastMap(session.map, { type: 'monster_status', id: target!.id, status: 'stunned', ms: cfg.stunMs ?? 0 });
         break;
       case 'shadow':
         target!.rootedUntil = t + (cfg.rootMs ?? 0);
-        this.broadcast({ type: 'monster_status', id: target!.id, status: 'rooted', ms: cfg.rootMs ?? 0 });
+        this.broadcastMap(session.map, { type: 'monster_status', id: target!.id, status: 'rooted', ms: cfg.rootMs ?? 0 });
         break;
       case 'stone':
         session.shield = cfg.reduction ?? 0.5;
@@ -636,7 +709,7 @@ export class GameWorld {
         const before = session.hp;
         session.hp = Math.min(session.stats.maxHp, session.hp + (cfg.heal ?? 0));
         const amount = shownHp(session.hp) - shownHp(before);
-        this.broadcast({ type: 'hit', target: 'player', id: session.id, amount, kind: 'heal', hp: shownHp(session.hp), maxHp: session.stats.maxHp });
+        this.broadcastMap(session.map, { type: 'hit', target: 'player', id: session.id, amount, kind: 'heal', hp: shownHp(session.hp), maxHp: session.stats.maxHp });
         session.sentHp = shownHp(session.hp);
         break;
       }
@@ -660,13 +733,13 @@ export class GameWorld {
     session.meditating = true;
     session.dx = 0;
     session.dy = 0;
-    this.broadcast({ type: 'meditation', playerId: session.id, active: true });
+    this.broadcastMap(session.map, { type: 'meditation', playerId: session.id, active: true });
   }
 
   private stopMeditation(session: Session, reason: MeditationEnd): void {
     if (!session.meditating) return;
     session.meditating = false;
-    this.broadcast({ type: 'meditation', playerId: session.id, active: false, reason });
+    this.broadcastMap(session.map, { type: 'meditation', playerId: session.id, active: false, reason });
   }
 
   /**
@@ -680,21 +753,21 @@ export class GameWorld {
     this.stopMeditation(session, 'cast');
     if (session.dead) return fail('DEAD');
     if ((session.cooldowns.attack ?? 0) > t) return fail('COOLDOWN');
-    const alive = (m: Monster) => m.hp > 0;
+    const alive = (m: Monster) => m.hp > 0 && m.map === session.map;
     let target: Monster | undefined;
     if (targetId !== undefined) {
       const focused = this.monsters.get(targetId);
       if (focused && alive(focused) && distance(session, focused) <= cfg.range) target = focused;
     }
     target ??= nearest(session, this.monsters.values(), cfg.range, alive);
-    if (!target) return fail(targetId !== undefined && this.monsters.has(targetId) ? 'OUT_OF_RANGE' : 'NO_TARGET');
+    if (!target) return fail(targetId !== undefined && this.monsters.get(targetId)?.map === session.map ? 'OUT_OF_RANGE' : 'NO_TARGET');
     const d = distance(session, target);
     if (d > 0.01) {
       session.fx = (target.x - session.x) / d;
       session.fy = (target.y - session.y) / d;
     }
     session.cooldowns.attack = t + session.stats.attackCooldownMs;   // Agilidade deixa o ataque mais rápido
-    this.broadcast({ type: 'attack', playerId: session.id, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy) });
+    this.broadcastMap(session.map, { type: 'attack', playerId: session.id, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy) });
     this.damageMonster(target, scaledDamage(cfg.damage, session.stats.physicalMultiplier), session, t);   // FÍSICO: Taijutsu
   }
 
@@ -731,8 +804,9 @@ export class GameWorld {
     const { id } = session;
     this.profileTask(session, (profile) => profile.saveAppearance(id, appearance).then(() => {
       const current = this.sessions.get(id);
-      if (current) current.appearance = { ...appearance };
-      this.broadcast({ type: 'player_appearance', playerId: id, appearance: { ...appearance } });
+      if (!current) return;
+      current.appearance = { ...appearance };
+      this.broadcastMap(current.map, { type: 'player_appearance', playerId: id, appearance: { ...appearance } });
     }));
   }
 
@@ -754,7 +828,7 @@ export class GameWorld {
       this.sendTo(current, { type: 'progress', ...this.progressView(current) });
       this.sendStats(current, this.now());
       if (current.stats.maxHp !== before.maxHp) {
-        this.broadcast({ type: 'player_hp', playerId: id, hp: shownHp(current.hp), maxHp: current.stats.maxHp }, id);
+        this.broadcastMap(current.map, { type: 'player_hp', playerId: id, hp: shownHp(current.hp), maxHp: current.stats.maxHp }, id);
       }
       return undefined;
     }));
@@ -797,15 +871,16 @@ export class GameWorld {
 
   private damageMonster(m: Monster, amount: number, attacker: Session, t: number): void {
     m.hp = Math.max(0, m.hp - amount);
-    this.broadcast({ type: 'hit', target: 'monster', id: m.id, amount, kind: 'damage', hp: m.hp, maxHp: m.maxHp });
+    this.broadcastMap(m.map, { type: 'hit', target: 'monster', id: m.id, amount, kind: 'damage', hp: m.hp, maxHp: m.maxHp });
     if (m.hp === 0) this.killMonster(m, attacker, t);
   }
 
-  /** Último golpe ganha o XP. Um monstro novo nasce na hora: sempre 5 vivos. */
+  /** Último golpe ganha o XP. Um monstro novo nasce na hora no mesmo mapa (mapa de caça: sempre cheio). */
   private killMonster(m: Monster, killer: Session, t: number): void {
     this.monsters.delete(m.id);
-    this.broadcast({ type: 'monster_died', id: m.id, killerId: killer.id });
-    if (this.monsters.size < this.config.combat.monsters.count) this.spawnMonster(undefined, t);
+    this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: killer.id });
+    const layout = this.layout(m.map);
+    if (!layout.safe && layout.hunt && this.monstersIn(m.map).length < this.config.combat.monsters.count) this.spawnMonster(undefined, t, m.map);
     this.awardXp(killer, this.config.combat.monsters.xp);
     this.trackKill(killer, m.type);
   }
@@ -838,7 +913,7 @@ export class GameWorld {
     const npc = this.config.npcs.find((n) => n.id === npcId);
     if (!npc) return this.sendError(session, 'UNKNOWN_NPC');
     if (session.dead) return this.sendError(session, 'CANNOT_TALK');
-    if (distance(session, npc) > npc.range) return this.sendError(session, 'NPC_TOO_FAR');
+    if (npc.map !== session.map || distance(session, npc) > npc.range) return this.sendError(session, 'NPC_TOO_FAR');
     const { id, username } = session;
     this.missionRequest(session, t, (m) => m.talk(id).then((outcome) => this.applyTalk(id, username, npc.id, outcome)));
   }
@@ -889,7 +964,7 @@ export class GameWorld {
       this.sendError(session, 'PLAYER_NOT_FOUND');
       return undefined;
     }
-    if (session.dead || distance(session, other) > this.config.playerMissions.range) {
+    if (session.dead || other.map !== session.map || distance(session, other) > this.config.playerMissions.range) {
       this.sendError(session, 'PLAYER_TOO_FAR');
       return undefined;
     }
@@ -1039,7 +1114,7 @@ export class GameWorld {
         this.sendTo(session, { type: 'notice', text: `Nível ${session.level}! +${levelsGained} ${levelsGained === 1 ? 'ponto' : 'pontos'} de atributo.`, tone: 'good' });
       }
       if (levelsGained > 0 || result.promoted) {
-        this.broadcast({ type: 'player_rank', playerId, rank: session.rank, level: session.level }, playerId);
+        this.broadcastMap(session.map, { type: 'player_rank', playerId, rank: session.rank, level: session.level }, playerId);
       }
     }
     if (result.promoted) {
@@ -1060,7 +1135,7 @@ export class GameWorld {
     }
     session.hp = Math.max(0, session.hp - dmg);
     const maxHp = session.stats.maxHp;
-    this.broadcast({ type: 'hit', target: 'player', id: session.id, amount: dmg, kind: 'damage', hp: shownHp(session.hp), maxHp, ...(shielded ? { shielded: true } : {}) });
+    this.broadcastMap(session.map, { type: 'hit', target: 'player', id: session.id, amount: dmg, kind: 'damage', hp: shownHp(session.hp), maxHp, ...(shielded ? { shielded: true } : {}) });
     session.sentHp = shownHp(session.hp);
     if (session.hp <= 0) {
       session.dead = true;
@@ -1069,12 +1144,12 @@ export class GameWorld {
       session.dy = 0;
       this.dropInputs(session);           // morto não anda: entradas na fila só são confirmadas
       session.shield = 0;
-      this.broadcast({ type: 'player_died', playerId: session.id, respawnInMs: this.config.combat.player.respawnMs });
+      this.broadcastMap(session.map, { type: 'player_died', playerId: session.id, respawnInMs: this.config.combat.player.respawnMs });
     }
     this.sendStats(session, t);
   }
 
-  /** Renascer: só morto e só depois do tempo. Volta ao centro com vida e chakra cheios. */
+  /** Renascer: só morto e só depois do tempo. Volta à praça da Vila com vida e chakra cheios. */
   private respawn(session: Session, t: number): void {
     const p = this.config.combat.player;
     const { maxHp, maxChakra } = session.stats;
@@ -1087,13 +1162,15 @@ export class GameWorld {
     session.chakra = maxChakra;
     session.shield = 0;
     session.cooldowns = {};
-    session.x = this.config.spawn.x;
-    session.y = this.config.spawn.y;
     session.dx = 0;
     session.dy = 0;
-    this.dropInputs(session);             // teleporte para o centro: o cliente recomeça daqui
+    this.dropInputs(session);             // teleporte para a praça: o cliente recomeça daqui
+    const { startMap, spawn } = this.config;
+    if (session.map !== startMap) this.transfer(session, startMap, spawn.x, spawn.y, 'respawn');   // morreu na Floresta
+    session.x = spawn.x;
+    session.y = spawn.y;
     session.sentHp = maxHp;
-    this.broadcast({ type: 'player_respawned', playerId: session.id, x: session.x, y: session.y, hp: maxHp, maxHp });
+    this.broadcastMap(session.map, { type: 'player_respawned', playerId: session.id, x: session.x, y: session.y, hp: maxHp, maxHp });
     this.sendStats(session, t);
   }
 
@@ -1106,18 +1183,27 @@ export class GameWorld {
     });
   }
 
-  /** Cria um monstro numa casa livre da zona de caça (longe dos jogadores). Exposto para testes. */
-  spawnMonster(at?: Point, t: number = this.now()): MonsterView {
+  /**
+   * Cria um monstro. Sem posição: numa casa livre (fora das árvores) da zona de caça do mapa,
+   * longe dos jogadores. Com posição (testes): no mapa pedido ou, sem mapa, no de entrada.
+   */
+  spawnMonster(at?: Point, t: number = this.now(), map?: MapId): MonsterView {
     const cfg = this.config.combat.monsters;
+    const mapId: MapId = map ?? (at ? this.config.startMap : (this.huntingMaps()[0]?.id ?? this.config.startMap));
+    const layout = this.layout(mapId);
+    const zone = layout.hunt ?? { x: 0, y: 0, w: layout.width, h: layout.height };
+    const players = [...(this.mapPlayers.get(mapId) ?? [])];
     let pos = at;
-    for (let i = 0; !pos && i < 20; i++) {
-      const candidate = this.clampToWorld(randomInRing(this.config.spawn, cfg.safeRadius, cfg.zoneRadius, this.random));
-      const tooClose = [...this.sessions.values()].some((s) => !s.dead && distance(s, candidate) < cfg.minPlayerDistance);
-      if (!tooClose || i === 19) pos = candidate;
+    for (let i = 0; !pos && i < 30; i++) {
+      const candidate = { x: Math.floor(zone.x + this.random() * zone.w), y: Math.floor(zone.y + this.random() * zone.h) };
+      if (blocked(candidate.x, candidate.y, layout.walls) && i < 29) continue;
+      const tooClose = players.some((s) => !s.dead && distance(s, candidate) < cfg.minPlayerDistance);
+      if (!tooClose || i === 29) pos = candidate;
     }
     const m: Monster = {
       id: `m${++this.monsterSeq}`,
       type: cfg.type,
+      map: mapId,
       x: pos!.x,
       y: pos!.y,
       hp: cfg.maxHp,
@@ -1128,25 +1214,23 @@ export class GameWorld {
       rootedUntil: 0,
     };
     this.monsters.set(m.id, m);
-    if (this.sessions.size > 0) this.broadcast({ type: 'monster_spawned', monster: monsterView(m) });
+    this.broadcastMap(mapId, { type: 'monster_spawned', monster: monsterView(m) });
     return monsterView(m);
   }
 
-  private clampToWorld(p: Point): Point {
-    return { x: Math.min(this.config.world.width - 1, Math.max(0, p.x)), y: Math.min(this.config.world.height - 1, Math.max(0, p.y)) };
-  }
-
-  /** Andar aleatório: 1 casa (ou parado) a cada ~1 s, sem sair da zona de caça. */
+  /** Andar aleatório: 1 casa (ou parado) a cada ~1 s, sem sair da zona de caça e sem entrar nas árvores. */
   private stepMonster(m: Monster, t: number): boolean {
     const cfg = this.config.combat.monsters;
     m.nextStepAt = t + cfg.stepMs * (0.8 + this.random() * 0.4);
     if (t < m.stunnedUntil || t < m.rootedUntil) return false;   // atordoado ou preso: não anda
     if (this.random() < 0.2) return false;                         // às vezes fica parado
+    const layout = this.layout(m.map);
+    if (!layout.hunt) return false;                                // fora de mapa de caça (teste): parado
+    const z = layout.hunt;
     for (let attempt = 0; attempt < 4; attempt++) {
       const [sx, sy] = STEPS[Math.floor(this.random() * STEPS.length)]!;
       const next = { x: m.x + sx, y: m.y + sy };
-      const d = distance(next, this.config.spawn);
-      if (d >= cfg.safeRadius && d <= cfg.zoneRadius && next.x >= 0 && next.y >= 0 && next.x < this.config.world.width && next.y < this.config.world.height) {
+      if (next.x >= z.x && next.y >= z.y && next.x < z.x + z.w && next.y < z.y + z.h && !blocked(next.x, next.y, layout.walls)) {
         m.x = next.x;
         m.y = next.y;
         return true;
@@ -1159,7 +1243,7 @@ export class GameWorld {
   private monsterAttack(m: Monster, t: number): void {
     const cfg = this.config.combat.monsters;
     if (t < m.nextAttackAt || t < m.stunnedUntil) return;
-    const target = nearest(m, this.sessions.values(), cfg.attackRange, (s) => !s.dead && !s.closed);
+    const target = nearest(m, this.mapPlayers.get(m.map) ?? [], cfg.attackRange, (s) => !s.dead && !s.closed);
     if (!target) return;
     m.nextAttackAt = t + cfg.attackEveryMs;
     this.damagePlayer(target, cfg.attackDamage, t);
@@ -1188,13 +1272,18 @@ export class GameWorld {
       if (s.chakra >= s.stats.maxChakra) s.hp = Math.min(s.stats.maxHp, s.hp + p.hpRegenPerSec * dt);
     }
 
-    // 2. Monstros: andar e atacar.
-    const moved: [string, number, number][] = [];
+    // 2. Monstros: andar e atacar. Mapa sem ninguém: os monstros esperam (nada a enviar).
+    const moved = new Map<MapId, [string, number, number][]>();
     for (const m of this.monsters.values()) {
-      if (t >= m.nextStepAt && this.stepMonster(m, t)) moved.push([m.id, m.x, m.y]);
+      if ((this.mapPlayers.get(m.map)?.size ?? 0) === 0) continue;
+      if (t >= m.nextStepAt && this.stepMonster(m, t)) {
+        let list = moved.get(m.map);
+        if (!list) moved.set(m.map, (list = []));
+        list.push([m.id, m.x, m.y]);
+      }
       this.monsterAttack(m, t);
     }
-    if (moved.length > 0) this.broadcast({ type: 'monsters_moved', m: moved });
+    for (const [map, list] of moved) this.broadcastMap(map, { type: 'monsters_moved', m: list });
 
     // 3. Envios.
     let movedPlayers = 0;
@@ -1203,14 +1292,14 @@ export class GameWorld {
       if (s.dirty) {
         s.dirty = false;
         movedPlayers += 1;
-        this.broadcast({ type: 'player_moved', playerId: s.id, x: round3(s.x), y: round3(s.y), d: dirOf(s.fx, s.fy), a: s.ackSeq });
+        this.broadcastMap(s.map, { type: 'player_moved', playerId: s.id, x: round3(s.x), y: round3(s.y), d: dirOf(s.fx, s.fy), a: s.ackSeq });
       }
       if (statsKey(s) !== s.sentStats && t - s.lastStatsAt >= this.config.combat.statsEveryMs) this.sendStats(s, t);
       const hp = shownHp(s.hp);
       if (hp !== s.sentHp && t - s.lastHpAt >= 1000) {
         s.sentHp = hp;
         s.lastHpAt = t;
-        this.broadcast({ type: 'player_hp', playerId: s.id, hp, maxHp: s.stats.maxHp }, s.id);
+        this.broadcastMap(s.map, { type: 'player_hp', playerId: s.id, hp, maxHp: s.stats.maxHp }, s.id);
       }
     }
     this.flushKicks();
@@ -1233,11 +1322,22 @@ export class GameWorld {
       safeClose(session.conn, CLOSE.SHUTDOWN);
     }
     this.sessions.clear();
+    for (const set of this.mapPlayers.values()) set.clear();
   }
 
   // ---------------------------------------------------------------- envio
 
-  /** Serializa UMA vez e manda para todos (menos `exceptId`). */
+  /** Serializa UMA vez e manda para quem está no mapa (menos `exceptId`). */
+  private broadcastMap(map: MapId, message: ServerMessage, exceptId?: string): void {
+    const players = this.mapPlayers.get(map);
+    if (!players || players.size === 0) return;
+    const data = JSON.stringify(message);
+    for (const session of players) {
+      if (session.id !== exceptId) this.sendRaw(session, data);
+    }
+  }
+
+  /** Serializa UMA vez e manda para TODOS os mapas (menos `exceptId`): só avisos gerais. */
   private broadcast(message: ServerMessage, exceptId?: string): void {
     const data = JSON.stringify(message);
     for (const session of this.sessions.values()) {
@@ -1280,7 +1380,8 @@ export class GameWorld {
       safeClose(session.conn, close);
       if (this.sessions.get(session.id) === session) {
         this.sessions.delete(session.id);
-        this.broadcast({ type: 'player_left', playerId: session.id });
+        this.mapPlayers.get(session.map)?.delete(session);
+        this.broadcastMap(session.map, { type: 'player_left', playerId: session.id });
         this.log.info({ playerId: session.id, code: close.code }, 'jogador desconectado pelo servidor');
       }
     }

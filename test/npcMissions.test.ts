@@ -70,7 +70,7 @@ describe('NPC Mestre: no mapa e conversa', () => {
     const { connect, state, calls } = setup();
     state.current = mission(2);
     const a = connect('kaito');
-    assert.deepEqual(a.conn.of('welcome')[0].world.npcs, [{ id: 'sensei', name: 'Mestre', x: 52, y: 49, range: 2.5 }]);
+    assert.deepEqual(a.conn.of('welcome')[0].world.npcs, [{ id: 'sensei', name: 'Mestre', map: 'map_1', x: 27, y: 24, range: 2.5 }]);
     await flush();
     assert.deepEqual(calls.current, [a.id]);
     assert.deepEqual(a.conn.last('mission'), { type: 'mission', mission: mission(2), reason: 'sync' });
@@ -165,7 +165,7 @@ describe('NPC Mestre: rastreamento e conclusão', () => {
     const b = connect('mei');
     await flush();
     for (let i = 1; i <= 5; i++) {
-      const m = world.spawnMonster({ x: 50.5, y: 50 });
+      const m = world.spawnMonster({ x: REALTIME.spawn.x + 0.5, y: REALTIME.spawn.y });
       (world as any).monsters.get(m.id).hp = 1;
       state.kill = mission(i);
       session(world, a.id).cooldowns = {};
@@ -183,7 +183,7 @@ describe('NPC Mestre: rastreamento e conclusão', () => {
     const a = connect('kaito');
     await flush();
     a.conn.clear();
-    const m = world.spawnMonster({ x: 50.5, y: 50 });
+    const m = world.spawnMonster({ x: REALTIME.spawn.x + 0.5, y: REALTIME.spawn.y });
     (world as any).monsters.get(m.id).hp = 1;
     state.kill = null;
     a.send({ type: 'cast', skill: 'taijutsu' });

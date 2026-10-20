@@ -6,7 +6,6 @@ import { seededRandom, setupWorld } from './support/world.js';
 
 // Cliente (JavaScript puro), importado direto de public/.
 const client = await import(new URL('../public/movement.js', import.meta.url).href);
-const village = await import(new URL('../public/village.js', import.meta.url).href);
 
 const S = REALTIME.spawn;
 const STEP = (REALTIME.speedTilesPerSecond * REALTIME.tickMs) / 1000;   // 0,25 casa por entrada
@@ -39,11 +38,8 @@ describe('movimento: a MESMA função no cliente e no servidor', () => {
 
   it('reconciliação: posição do servidor + entradas ainda não confirmadas = posição prevista', () => {
     const pending = [{ seq: 5, dx: 1, dy: 0 }, { seq: 6, dx: 1, dy: 0 }, { seq: 7, dx: 0, dy: 1 }];
-    assert.deepEqual(client.replay(50, 50, pending, () => 0.25, 100, 100, []), [50.5, 50.25]);
-  });
-
-  it('as paredes do servidor são as casas desenhadas no cliente (mesma lista)', () => {
-    assert.deepEqual(REALTIME.village.houses, village.HOUSES);
+    const maps = { m: { width: 100, height: 100, walls: [], exits: [] } };
+    assert.deepEqual(client.replay(maps, 'm', 50, 50, pending, () => 0.25), ['m', 50.5, 50.25]);
   });
 });
 
@@ -115,7 +111,7 @@ describe('servidor: entradas com predição (autoridade)', () => {
   it('paredes valem no servidor: andar contra uma casa da vila não atravessa', () => {
     const { connect, run, pos, world } = setupWorld(config);
     const a = connect('kaito');
-    const house = (world as any).walls[0];                 // casa em (42..46, 43..46)
+    const house = REALTIME.maps.map_1.walls.find((w) => w.x === 29 && w.y === 28)!;   // casa da praça (29..32, 28..31)
     Object.assign(sess(world, a.id), { x: house.x - 1, y: house.y + 1 });
     a.send({ type: 'input', seq: 1, inputs: right(10) });
     a.send({ type: 'input', seq: 11, inputs: right(10) });

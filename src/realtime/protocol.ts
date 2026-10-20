@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
+import type { MapId, MapLayout } from './maps.js';
 
 /*
  * Protocolo do WebSocket: JSON simples, um objeto por mensagem, sempre com `type`.
@@ -25,8 +26,14 @@ import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
  *   { "type": "chat", "message": "Olá!" }
  *
  * Servidor -> cliente
- *   welcome           { you, players, monsters, world }    ao conectar (players = os OUTROS)
- *   player_joined / player_left                            como antes
+ *   welcome           { you, players, monsters, world }    ao conectar (players = os OUTROS do MESMO mapa;
+ *                                                          world.map = mapa atual, world.maps = todos os layouts)
+ *   map_changed       { map, x, y, a, players, monsters, reason }   o próprio jogador trocou de mapa
+ *                                                          (borda ou renascer): só o que há no mapa novo
+ *   player_joined / player_left                            alguém entrou/saiu DESTE mapa (ou do jogo)
+ *
+ * Tudo que é de posição, combate e chat vai só para quem está no MESMO mapa (economiza banda e
+ * ninguém vê monstro do outro lado do mundo). `announce` vai para todos.
  *   player_moved      { playerId, x, y, d, a }             d = direção (0 baixo, 1 esquerda, 2 direita, 3 cima);
  *                                                          a = última entrada aplicada (o dono reconcilia)
  *   player_appearance { playerId, appearance }             visual novo (cores do paperdoll)
@@ -169,6 +176,8 @@ export interface MonsterView {
 export interface NpcView {
   id: string;
   name: string;
+  /** Mapa onde ele fica (o cliente só desenha os do mapa atual). */
+  map: MapId;
   x: number;
   y: number;
   range: number;
@@ -218,8 +227,9 @@ export interface WorldInfo {
   meditationRegenMultiplier: number;
   npcs: NpcView[];
   basicAttack: { range: number; cooldownMs: number };
-  /** Vila: chão de pedra em volta do centro (área segura, sem monstros); casas = paredes (casas inteiras). */
-  village: { x: number; y: number; radius: number; houses: { x: number; y: number; w: number; h: number }[] };
+  /** Mapa onde o jogador está agora e o layout de TODOS os mapas (paredes, saídas, chão). */
+  map: MapId;
+  maps: Record<MapId, MapLayout>;
   attributePerPoint: Attributes;
   promotion: { fromRank: string; toRank: string; xp: number };
 }
@@ -232,6 +242,7 @@ export type MonsterStatus = 'stunned' | 'rooted';
 export type ServerMessage =
   | { type: 'welcome'; you: SelfView; players: PlayerView[]; monsters: MonsterView[]; world: WorldInfo; progress: ProgressView; kit: KitView }
   | { type: 'player_joined'; player: PlayerView }
+  | { type: 'map_changed'; map: MapId; x: number; y: number; a: number; players: PlayerView[]; monsters: MonsterView[]; reason: 'walk' | 'respawn' }
   | { type: 'player_moved'; playerId: string; x: number; y: number; d: Dir; a: number }
   | { type: 'player_appearance'; playerId: string; appearance: Appearance }
   | { type: 'player_left'; playerId: string }

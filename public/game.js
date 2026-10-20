@@ -10,7 +10,7 @@
 // com a posição oficial que chega a cada tick.
 
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
-import { houseAt, housesOf, isVillage } from './village.js';
+import { groundAt, mapName, placements, visibleWalls } from './world.js';
 import { DEFAULT_LOOK, dirFrom, drawCharacter, PARTS, PRESETS, safeLook } from './character.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 
@@ -89,7 +89,14 @@ const state = {
   meId: null,
   /** id -> { id, username, x, y (desenho), tx, ty (servidor), color, bubble } */
   players: new Map(),
-  world: { width: 100, height: 100, speed: 5, tickMs: 50, spawn: { x: 50, y: 50 }, respawnMs: 5000, skills: {}, promotion: { xp: 100 } },
+  world: { width: 50, height: 50, speed: 5, tickMs: 50, spawn: { x: 25, y: 25 }, respawnMs: 5000, skills: {}, promotion: { xp: 100 } },
+  /** Layouts de todos os mapas (welcome), o mapa DESENHADO agora (o previsto) e o da última posição oficial. */
+  maps: {},
+  mapId: null,
+  serverMap: null,
+  /** Mapa atual + vizinhos costurados nas saídas (world.js) e as paredes visíveis (casas e árvores). */
+  places: [],
+  walls: [],
   /** Barras do próprio jogador (vêm do servidor). */
   me: {
     hp: 100, maxHp: 100, chakra: 100, maxChakra: 100, shield: false, xp: 0, rank: { code: 'ACADEMY', name: 'Academia' },
@@ -103,11 +110,10 @@ const state = {
   senseiOptions: null,
   /** Pedidos de avaliação esperando o sensei (um por vez na tela). */
   evalQueue: [],
-  /** Casas da vila (só visual). */
-  houses: [],
   /** Monstro focado pelo botão 🎯 (id) ou null. */
   focusId: null,
-  /** NPCs parados (vêm no welcome): { id, name, x, y, range, npc: true, bubble } */
+  /** NPCs (welcome): todos e só os do mapa atual. { id, name, map, x, y, range, npc: true, bubble } */
+  allNpcs: [],
   npcs: [],
   /** NPC perto o bastante para conversar (mostra o botão 💬 Falar) ou null. */
   nearNpc: null,
@@ -294,6 +300,7 @@ function upsertPlayer(p, snap) {
   const existing = state.players.get(p.id);
   if (existing) {
     existing.tx = p.x; existing.ty = p.y;
+    existing.map = state.serverMap;
     if (snap) { existing.x = p.x; existing.y = p.y; existing.snaps = [{ t: performance.now(), x: p.x, y: p.y }]; }
     else pushSnapshot(existing.snaps, performance.now(), p.x, p.y, state.world.tickMs || 50);
     if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; }
@@ -304,7 +311,7 @@ function upsertPlayer(p, snap) {
   }
   const color = colorFor(p.id);
   const player = {
-    id: p.id, username: p.username, x: p.x, y: p.y, tx: p.x, ty: p.y, color, bubble: null,
+    id: p.id, username: p.username, map: state.serverMap, x: p.x, y: p.y, tx: p.x, ty: p.y, color, bubble: null,
     // Posições que chegaram do servidor (interpolação: desenha ~100 ms no passado, sem pulos).
     snaps: [{ t: performance.now(), x: p.x, y: p.y }],
     hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating,
@@ -320,7 +327,7 @@ function upsertPlayer(p, snap) {
 
 function upsertMonster(m, now) {
   state.monsters.set(m.id, {
-    id: m.id, type: m.type, x: m.x, y: m.y, tx: m.x, ty: m.y, hp: m.hp, maxHp: m.maxHp,
+    id: m.id, type: m.type, map: state.serverMap, x: m.x, y: m.y, tx: m.x, ty: m.y, hp: m.hp, maxHp: m.maxHp,
     stunnedUntil: 0, rootedUntil: 0, bornAt: now, diedAt: 0,
   });
 }
@@ -339,21 +346,22 @@ function handleMessage(msg) {
       state.monsters.clear();
       state.meId = msg.you.id;
       if (msg.world) {
-        const w = msg.world, old = state.world;
-        if (w.width !== old.width || w.height !== old.height || w.spawn?.x !== old.spawn?.x || w.spawn?.y !== old.spawn?.y) chunkCache.clear();
+        const w = msg.world;
         state.world = w;
-        // Casas = paredes. A lista vem do servidor (a mesma que ele usa para colidir).
-        state.houses = w.village && Array.isArray(w.village.houses) ? w.village.houses : housesOf(w.village);
+        // Layouts de todos os mapas: paredes (casas e árvores), saídas e chão. São os MESMOS
+        // que o servidor usa para colidir e trocar de mapa.
+        state.maps = w.maps || {};
+        state.serverMap = w.map;
         chunkCache.clear();
-        state.npcs = (w.npcs || []).map((n) => ({ ...n, npc: true, bubble: null }));
-        state.nearNpc = null;
-        ui.talkBtn.hidden = true;
+        state.allNpcs = (w.npcs || []).map((n) => ({ ...n, npc: true, bubble: null }));
       }
+      state.mapId = null;
       upsertPlayer(msg.you, true);
       for (const p of msg.players) upsertPlayer(p, true);
       // Conexão nova = sessão nova no servidor: predição recomeça do zero na posição oficial.
-      predWorld = { width: state.world.width, height: state.world.height, walls: state.houses, tickMs: state.world.tickMs || 50 };
-      pred.reset(msg.you.x, msg.you.y);
+      predWorld = { maps: state.maps, tickMs: state.world.tickMs || 50 };
+      pred.reset(state.serverMap, msg.you.x, msg.you.y);
+      enterMap(state.serverMap, true);
       for (const m of msg.monsters || []) upsertMonster(m, now);
       Object.assign(state.me, {
         hp: msg.you.hp, maxHp: msg.you.maxHp, chakra: msg.you.chakra, maxChakra: msg.you.maxChakra,
@@ -382,13 +390,30 @@ function handleMessage(msg) {
       upsertPlayer(msg.player, true);
       updateOnline();
       break;
+    case 'map_changed': {
+      // O SERVIDOR confirmou a troca de mapa (andou até o portão ou renasceu na Vila). O mapa
+      // novo em si já pode estar na tela (a predição atravessa na hora); aqui chegam os
+      // jogadores e monstros de lá. Os do mapa antigo somem.
+      state.serverMap = msg.map;
+      for (const id of [...state.players.keys()]) if (id !== state.meId) state.players.delete(id);
+      state.monsters.clear();
+      for (const p of msg.players) upsertPlayer(p, true);
+      for (const m of msg.monsters) upsertMonster(m, now);
+      const me = state.players.get(state.meId);
+      if (me) { me.map = msg.map; me.tx = msg.x; me.ty = msg.y; }
+      if (!predWorld) break;
+      if (msg.reason === 'respawn') pred.teleport(msg.map, msg.x, msg.y);
+      else pred.reconcile(msg.map, msg.x, msg.y, msg.a, predWorld);
+      updateOnline();
+      break;
+    }
     case 'player_moved': {
       const p = state.players.get(msg.playerId);
       if (p) {
         p.tx = msg.x; p.ty = msg.y;
         if (msg.playerId === state.meId) {
           // Reconciliação: posição oficial + entradas ainda não confirmadas (prediction.js).
-          if (predWorld && Number.isInteger(msg.a)) pred.reconcile(msg.x, msg.y, msg.a, predWorld);
+          if (predWorld && Number.isInteger(msg.a)) pred.reconcile(state.serverMap, msg.x, msg.y, msg.a, predWorld);
         } else {
           pushSnapshot(p.snaps, now, msg.x, msg.y, state.world.tickMs || 50);
         }
@@ -560,7 +585,7 @@ function handleMessage(msg) {
         p.snaps = [{ t: now, x: msg.x, y: msg.y }];
       }
       if (msg.playerId === state.meId) {
-        pred.teleport(msg.x, msg.y);
+        pred.teleport(state.serverMap, msg.x, msg.y);
         state.me.dead = false;
         hideDeath();
       }
@@ -693,10 +718,44 @@ ui.respawn.addEventListener('click', () => {
   send({ type: 'respawn' });
 });
 
+/** Status: mapa atual e quantos jogadores há nele (o servidor só manda os do mesmo mapa). */
 function updateOnline() {
-  const n = state.players.size;
-  setStatus(`online · ${n} ${n === 1 ? 'jogador' : 'jogadores'}`, 'ok');
+  let n = 0;
+  for (const p of state.players.values()) if (p.map === state.mapId || p.id === state.meId) n += 1;
+  const where = mapName(state.maps, state.mapId);
+  setStatus(`online · ${where ? `${where} · ` : ''}${n} ${n === 1 ? 'jogador' : 'jogadores'}`, 'ok');
 }
+
+/**
+ * Passa a DESENHAR outro mapa (o previsto pela predição ou o do welcome): chão, paredes,
+ * NPCs e entidades daquele mapa. Efeitos e números do mapa antigo somem, o foco é solto
+ * e aparece o nome do mapa. O boneco continua no mesmo lugar da tela (a câmera segue ele)
+ * e o mapa vizinho já estava desenhado além da borda: sem "teleporte" visual.
+ */
+function enterMap(id, announce) {
+  const layout = state.maps[id];
+  if (!layout) return;
+  const changed = state.mapId !== id;
+  state.mapId = id;
+  state.world.width = layout.width;
+  state.world.height = layout.height;
+  state.places = placements(state.maps, id);
+  state.walls = visibleWalls(state.places);
+  state.npcs = state.allNpcs.filter((n) => n.map === id);
+  state.nearNpc = null;
+  ui.talkBtn.hidden = true;
+  const me = state.players.get(state.meId);
+  if (me) me.map = id;
+  if (changed) {
+    state.effects.length = 0;
+    state.floaters.length = 0;
+    if (state.focusId) setFocus(null);
+    mapFx.at = performance.now();
+    mapFx.name = announce ? layout.name : '';
+  }
+  updateOnline();
+}
+const mapFx = { at: -1e9, name: '' };
 
 function setStatus(text, kind) {
   ui.status.textContent = text;
@@ -718,7 +777,7 @@ let dir = { x: 0, y: 0 };
 // Predição no cliente (prediction.js): o boneco anda NA HORA com a mesma função do servidor
 // (movement.js); as entradas vão numeradas e o servidor confirma ou corrige.
 const pred = new Predictor();
-let predWorld = null;                  // { width, height, walls, tickMs } do welcome
+let predWorld = null;                  // { maps, tickMs } do welcome (layouts de todos os mapas)
 let debugSpeedFactor = 1;              // só no modo de teste (ninDebug.cheatSpeed): simula cliente adulterado
 
 function setDirection(x, y) {
@@ -877,7 +936,8 @@ const DIRECTED = new Set(['fire', 'water', 'illusion', 'shadow']);
 function cycleFocus() {
   const me = state.players.get(state.meId);
   if (!me || state.me.dead) return;
-  const id = nextTarget(me, state.monsters.values(), state.focusId, FOCUS_RANGE);
+  const here = [...state.monsters.values()].filter((m) => m.map === state.mapId);
+  const id = nextTarget(me, here, state.focusId, FOCUS_RANGE);
   if (!id) {
     setFocus(null);
     addFloater(me.x, me.y - 1.1, 'Nenhum alvo perto', '#d8cdb8', 0.8);
@@ -1330,7 +1390,7 @@ function playerAtScreen(px, py) {
   if (!me || !lastView) return null;
   let best = null, bestD = Infinity;
   for (const p of state.players.values()) {
-    if (p.id === state.meId || p.dead) continue;
+    if (p.id === state.meId || p.dead || p.map !== state.mapId) continue;
     const sx = lastView.toScreenX(p.x), sy = lastView.toScreenY(p.y);
     const d = Math.hypot(px - sx, py - sy);
     if (d <= Math.max(26, lastView.T * 0.6) && d < bestD) { best = p; bestD = d; }
@@ -1777,6 +1837,20 @@ function waterTile(seed) {
   });
 }
 
+/** Mata fechada vista de cima (fora do mundo): copas escuras emendadas. */
+function canopyTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#173f17';
+    g.fillRect(0, 0, PIX, PIX);
+    for (let i = 0; i < 7; i++) {
+      const x = Math.floor(r() * PIX), y = Math.floor(r() * PIX), rad = 2 + Math.floor(r() * 3);
+      g.fillStyle = r() < 0.5 ? '#1f5220' : '#122f12';
+      g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+    }
+  });
+}
+
 function stoneTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
@@ -1800,6 +1874,7 @@ const TILES = {
   stone: [stoneTile(21), stoneTile(22), stoneTile(23)],
   path: [pathTile(7), pathTile(8)],
   water: [waterTile(11), waterTile(12)],
+  canopy: [canopyTile(31), canopyTile(32), canopyTile(33)],
 };
 
 /** Hash estável por casa: o mesmo chão aparece sempre no mesmo lugar. */
@@ -1809,28 +1884,25 @@ function cellHash(x, y) {
   return (h ^ (h >>> 16)) >>> 0;      // >>> 0: sempre positivo (índice de tile válido)
 }
 
-/** Estrada de terra cruzando o centro (onde se nasce e renasce): dá referência de movimento. */
-function isPath(x, y) {
-  const { spawn } = state.world;
-  return (y === spawn.y || x === spawn.x) && x >= 0 && y >= 0;
-}
-
-function tileAt(x, y, width, height) {
+/** Chão de uma casa (coordenadas do mapa desenhado; além da saída, o chão do mapa vizinho). */
+function tileAt(x, y) {
   const h = cellHash(x, y);
-  if (x < 0 || y < 0 || x >= width || y >= height) return TILES.water[h & 1];
-  if (isVillage(x, y, state.world.village)) return TILES.stone[h % 3];   // vila: chão de pedra
-  if (isPath(x, y)) return TILES.path[h & 1];
-  return TILES.grass[h % 23 === 0 ? 3 : h % 3];
+  switch (groundAt(state.places, x, y)) {
+    case 'stone': return TILES.stone[h % 3];                       // Vila: calçamento de pedra cinza
+    case 'path': return TILES.path[h & 1];                         // estradas de terra
+    case 'grass': return TILES.grass[h % 23 === 0 ? 3 : h % 3];    // Floresta
+    default: return TILES.canopy[h % 3];                           // fora do mundo: mata fechada
+  }
 }
 
 // Chão em BLOCOS de 16x16 casas, desenhados uma vez na resolução da pixel art (256x256 px)
 // e guardados. Cada quadro desenha só ~4 a 9 imagens em vez de ~300 casas.
 const CHUNK = 16;
 const CHUNK_CACHE_MAX = 64;          // ~64 x 256 KB = 16 MB no máximo
-const chunkCache = new Map();        // "cx,cy" -> canvas (ordem de uso = LRU)
+const chunkCache = new Map();        // "mapa:cx,cy" -> canvas (ordem de uso = LRU; voltar a um mapa é instantâneo)
 
 function chunkCanvas(cx, cy) {
-  const key = `${cx},${cy}`;
+  const key = `${state.mapId}:${cx},${cy}`;
   let c = chunkCache.get(key);
   if (c) {
     chunkCache.delete(key);          // marca como usado agora
@@ -1840,15 +1912,46 @@ function chunkCanvas(cx, cy) {
   c = document.createElement('canvas');
   c.width = c.height = CHUNK * PIX;
   const g = c.getContext('2d');
-  const { width, height } = state.world;
   for (let ty = 0; ty < CHUNK; ty++) {
-    for (let tx = 0; tx < CHUNK; tx++) g.drawImage(tileAt(cx * CHUNK + tx, cy * CHUNK + ty, width, height), tx * PIX, ty * PIX);
+    for (let tx = 0; tx < CHUNK; tx++) g.drawImage(tileAt(cx * CHUNK + tx, cy * CHUNK + ty), tx * PIX, ty * PIX);
   }
-  // Casas da vila (blocos marrons, vistos de cima): desenhadas no bloco de chão que tocam.
-  for (const house of state.houses) drawHouse(g, (house.x - cx * CHUNK) * PIX, (house.y - cy * CHUNK) * PIX, house.w * PIX, house.h * PIX);
+  // Paredes (casas marrons na Vila, árvores verde-escuras na Floresta, vistas de cima),
+  // inclusive as do mapa vizinho além da borda: desenhadas no bloco de chão que tocam.
+  for (const w of state.walls) {
+    const x = (w.x - cx * CHUNK) * PIX, y = (w.y - cy * CHUNK) * PIX;
+    if (w.k === 'tree') drawTrees(g, x, y, w.w * PIX, w.h * PIX, cellHash(w.x, w.y));
+    else drawHouse(g, x, y, w.w * PIX, w.h * PIX);
+  }
   chunkCache.set(key, c);
   if (chunkCache.size > CHUNK_CACHE_MAX) chunkCache.delete(chunkCache.keys().next().value);
   return c;
+}
+
+/**
+ * Árvores (obstáculos da Floresta) vistas de cima: uma copa verde-escura a cada ~2 casas do
+ * bloco, com sombra, contorno e brilho. Um bloco comprido (a mata da borda) vira uma fileira.
+ */
+function drawTrees(g, x, y, w, h, seed) {
+  if (x + w < 0 || y + h < 0 || x > CHUNK * PIX || y > CHUNK * PIX) return;
+  const nx = Math.max(1, Math.round(w / (2 * PIX))), ny = Math.max(1, Math.round(h / (2 * PIX)));
+  const cw = w / nx, ch = h / ny;
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const cx = x + cw * (i + 0.5), cy = y + ch * (j + 0.5);
+      const r = Math.min(cw, ch) / 2;
+      const k = (seed + i * 7 + j * 13) % 3;
+      g.fillStyle = 'rgba(0, 0, 0, 0.28)';
+      g.beginPath(); g.arc(cx + 2, cy + 3, r - 1, 0, Math.PI * 2); g.fill();      // sombra
+      g.fillStyle = '#123312';
+      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();                  // contorno
+      g.fillStyle = k === 0 ? '#1f5a1f' : k === 1 ? '#226322' : '#1c531c';
+      g.beginPath(); g.arc(cx, cy, r - 2, 0, Math.PI * 2); g.fill();              // copa
+      g.fillStyle = '#2f7d2c';
+      g.beginPath(); g.arc(cx - r * 0.3, cy - r * 0.3, r * 0.45, 0, Math.PI * 2); g.fill();   // luz
+      g.fillStyle = '#3d9637';
+      g.fillRect(Math.round(cx - r * 0.45), Math.round(cy - r * 0.5), 2, 2);      // brilho
+    }
+  }
 }
 
 /** Telhado marrom com tábuas, cumeeira, beiral escuro e a frente com porta (pixel art). */
@@ -1900,17 +2003,19 @@ function update(dt) {
     const s = speed * debugSpeedFactor;
     for (const msg of pred.advance(dt * 1000, dx, dy, s, predWorld, canMove)) send(msg);
     const [vx, vy] = pred.view(dt * 1000, dx, dy, s, predWorld, canMove);
+    if (pred.map !== state.mapId) enterMap(pred.map, true);   // atravessou a borda (previsto): desenha o mapa novo já
     me.x = vx;
     me.y = vy;
   }
   for (const p of state.players.values()) {
-    if (p === me) continue;
+    if (p === me || p.map !== state.mapId) continue;
     const at = sampleSnapshots(p.snaps, now);   // outros: entre duas posições do servidor, ~100 ms atrás
     if (at) { p.x = at[0]; p.y = at[1]; }
   }
   animateWalk(dt, me);
   const k = Math.min(1, dt * 12);     // monstros: suavização exponencial até a posição do servidor
   for (const m of state.monsters.values()) {
+    if (m.map !== state.mapId) continue;
     m.x += (m.tx - m.x) * k;
     m.y += (m.ty - m.y) * k;
   }
@@ -1928,6 +2033,11 @@ try {
       predicted: () => [pred.x, pred.y],
       official: () => { const me = state.players.get(state.meId); return me ? [me.tx, me.ty] : null; },
       drawn: (id) => { const p = state.players.get(id || state.meId); return p ? [p.x, p.y] : null; },
+      map: () => ({ predicted: pred.map, drawn: state.mapId, server: state.serverMap }),
+      visible: () => ({
+        players: [...state.players.values()].filter((p) => p.map === state.mapId).length,
+        monsters: [...state.monsters.values()].filter((m) => m.map === state.mapId).length,
+      }),
       pending: () => pred.pending.length,
       stats: () => ({ ...pred.stats }),
       cheatSpeed: (factor) => { debugSpeedFactor = Number(factor) > 0 ? Number(factor) : 1; },
@@ -1942,9 +2052,10 @@ try {
  */
 function animateWalk(dt, me) {
   for (const p of state.players.values()) {
-    const d = Math.hypot(p.x - p.lastX, p.y - p.lastY);
+    let d = Math.hypot(p.x - p.lastX, p.y - p.lastY);
     p.lastX = p.x;
     p.lastY = p.y;
+    if (d > 2) d = 0;                     // troca de mapa / renascer: não é passo
     p.moving = dt > 0 && d / dt > 0.6;
     if (p.moving) p.walk = (p.walk + d * 4.2) % (Math.PI * 4);
   }
@@ -1987,11 +2098,10 @@ function draw(now) {
     for (let cx = cx0; cx <= cx1; cx++) ctx.drawImage(chunkCanvas(cx, cy), toScreenX(cx * CHUNK), toScreenY(cy * CHUNK), size, size);
   }
 
-  // 2. Grade do mapa (um único traço para todas as linhas visíveis).
-  const gx0 = Math.max(0, Math.ceil(left)), gx1 = Math.min(width, Math.floor(right));
-  const gy0 = Math.max(0, Math.ceil(top)), gy1 = Math.min(height, Math.floor(bottom));
-  const sTop = Math.max(0, toScreenY(0)), sBottom = Math.min(viewH, toScreenY(height));
-  const sLeft = Math.max(0, toScreenX(0)), sRight = Math.min(viewW, toScreenX(width));
+  // 2. Grade (um único traço para todas as linhas visíveis), também sobre o vizinho costurado.
+  const gx0 = Math.ceil(left), gx1 = Math.floor(right);
+  const gy0 = Math.ceil(top), gy1 = Math.floor(bottom);
+  const sTop = 0, sBottom = viewH, sLeft = 0, sRight = viewW;
   ctx.beginPath();
   for (let x = gx0; x <= gx1; x++) { const sx = toScreenX(x) + 0.5; ctx.moveTo(sx, sTop); ctx.lineTo(sx, sBottom); }
   for (let y = gy0; y <= gy1; y++) { const sy = toScreenY(y) + 0.5; ctx.moveTo(sLeft, sy); ctx.lineTo(sRight, sy); }
@@ -2027,9 +2137,9 @@ function draw(now) {
   drawList.length = 0;
   for (const m of state.monsters.values()) {
     if (m.diedAt && now - m.diedAt > 450) { state.monsters.delete(m.id); continue; }   // terminou de sumir
-    drawList.push(m);
+    if (m.map === state.mapId) drawList.push(m);
   }
-  for (const p of state.players.values()) drawList.push(p);
+  for (const p of state.players.values()) if (p.map === state.mapId) drawList.push(p);
   for (const n of state.npcs) drawList.push(n);
   if (drawList.length > 1) drawList.sort((a, b) => a.y - b.y);
   ctx.textAlign = 'center';
@@ -2052,10 +2162,37 @@ function draw(now) {
   }
 
   drawJoystick();
+  drawMapChange(now);
 
   if (!me) {
     ctx.fillStyle = 'rgba(20, 17, 13, 0.55)';
     ctx.fillRect(0, 0, viewW, viewH);
+  }
+}
+
+/**
+ * Troca de mapa: um "piscar" escuro rápido (0,35 s) e o nome do mapa no alto por ~2 s.
+ * O boneco não sai do lugar na tela: a câmera segue ele e o vizinho já estava desenhado.
+ */
+function drawMapChange(now) {
+  const t = now - mapFx.at;
+  if (t < 350) {
+    ctx.fillStyle = `rgba(8, 10, 8, ${0.35 * (1 - t / 350)})`;
+    ctx.fillRect(0, 0, viewW, viewH);
+  }
+  if (mapFx.name && t < 2200) {
+    const a = t < 250 ? t / 250 : t > 1700 ? (2200 - t) / 500 : 1;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, a);
+    ctx.textAlign = 'center';
+    ctx.font = '700 22px system-ui, sans-serif';
+    const y = Math.max(78, viewH * 0.2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(10, 8, 6, 0.85)';
+    ctx.strokeText(mapFx.name, viewW / 2, y);
+    ctx.fillStyle = '#f4e6c4';
+    ctx.fillText(mapFx.name, viewW / 2, y);
+    ctx.restore();
   }
 }
 

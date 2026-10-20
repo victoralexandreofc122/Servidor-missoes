@@ -29,16 +29,17 @@ function simulate(opts: {
   const handle = world.join({ id: 'p1', username: 'kaito' }, conn);
   const s = (world as any).sessions.get('p1');
   if (opts.start) [s.x, s.y] = opts.start;
-  const walls = (world as any).walls;
-  const W = { width: config.world.width, height: config.world.height, walls, tickMs: config.tickMs };
+  const W = { maps: config.maps, tickMs: config.tickMs };
   const pred = new Predictor();
-  pred.reset(s.x, s.y);
+  pred.reset(s.map, s.x, s.y);
+  let serverMap = s.map;   // mapa da última posição oficial (welcome / map_changed)
   pred_ = pred;
   const oneWay = opts.oneWay ?? (() => 100);
   const toServer: { at: number; msg: unknown }[] = [];
   const toClient: { at: number; msg: any }[] = [];
   let seen = conn.sent.length;
-  const results = { snaps: 0, smooth: 0, firstMoveMs: -1, maxView: 0 };
+  const results = { snaps: 0, smooth: 0, firstMoveMs: -1, maxView: 0, mapSwitchAt: -1 };
+  let viewMap = pred.map;
   let lastView: number[] | null = null;
   let prevView: number[] | null = null;
   const t0 = now;
@@ -48,8 +49,9 @@ function simulate(opts: {
     while (toServer.length && toServer[0]!.at <= now) handle.receive(JSON.stringify(toServer.shift()!.msg));
     while (toClient.length && toClient[0]!.at <= now) {
       const msg = toClient.shift()!.msg;
-      if (msg.type === 'player_moved' && msg.playerId === 'p1') {
-        const r = pred.reconcile(msg.x, msg.y, msg.a, W);
+      if (msg.type === 'map_changed') serverMap = msg.map;
+      if ((msg.type === 'player_moved' && msg.playerId === 'p1') || msg.type === 'map_changed') {
+        const r = pred.reconcile(serverMap, msg.x, msg.y, msg.a, W);
         if (r === 'snap') results.snaps += 1;
         if (r === 'smooth') results.smooth += 1;
       }
@@ -66,7 +68,10 @@ function simulate(opts: {
       if (results.firstMoveMs < 0 && (jx !== 0 || jy !== 0) && lastView && (v[0] !== lastView[0] || v[1] !== lastView[1])) {
         results.firstMoveMs = t;
       }
-      if (prevView && lastView) results.maxView = Math.max(results.maxView, Math.hypot(v[0] - lastView[0]!, v[1] - lastView[1]!));
+      if (pred.map !== viewMap) {            // trocou de mapa na tela: o salto 50 -> 0 é a costura, não conta
+        viewMap = pred.map;
+        if (results.mapSwitchAt < 0) results.mapSwitchAt = t;
+      } else if (prevView && lastView) results.maxView = Math.max(results.maxView, Math.hypot(v[0] - lastView[0]!, v[1] - lastView[1]!));
       prevView = lastView;
       lastView = v;
     }
@@ -100,9 +105,9 @@ describe('predição + reconciliação (cliente real x servidor real, 200 ms de 
   });
 
   it('parede (casa da vila): o cliente prevê a batida igual ao servidor, sem correção', () => {
-    const { pred, s, results } = simulate({ ms: 2500, start: [40, 44], joystick: (t) => (t < 2000 ? [1, 0] : [0, 0]) });
+    const { pred, s, results } = simulate({ ms: 2500, start: [26, 29.5], joystick: (t) => (t < 2000 ? [1, 0] : [0, 0]) });
     assert.equal(results.snaps + results.smooth, 0, 'nenhuma correção: a previsão já parou na parede');
-    assert.ok(s.x < 42 && pred.x === s.x, `parou em ${s.x}`);
+    assert.ok(s.x < 29 && pred.x === s.x, `parou em ${s.x} (casa da praça começa em x=29)`);
   });
 
   it('cliente trapaceiro (velocidade 15 em vez de 5): o servidor só aplica a velocidade real e o cliente é puxado de volta', () => {
@@ -123,11 +128,21 @@ describe('predição + reconciliação (cliente real x servidor real, 200 ms de 
     assert.ok(s.x - REALTIME.spawn.x <= 5 + 1.25, `o servidor ignorou o teleporte (${s.x - REALTIME.spawn.x})`);
   });
 
+  it('troca de mapa: andando da praça até o portão leste, entra na Floresta SEM esperar o servidor e sem correção', () => {
+    const { pred, s, results } = simulate({ ms: 6000, joystick: (t) => (t < 5200 ? [1, 0] : [0, 0]) });
+    assert.equal(s.map, 'map_2', 'o servidor levou para a Floresta');
+    assert.equal(pred.map, 'map_2');
+    assert.equal(results.snaps + results.smooth, 0, 'a previsão da passagem bateu com o servidor');
+    assert.deepEqual([pred.x, pred.y], [s.x, s.y]);
+    assert.ok(s.x > 0 && Math.abs(s.y - 50) < 1e-9, `entrou pela trilha oeste (${s.x}, ${s.y})`);
+    assert.ok(results.mapSwitchAt > 0 && results.maxView < 0.2, `sem pulo na tela fora da costura (maior passo ${results.maxView})`);
+  });
+
   it('leve: andando, manda no máximo 10 mensagens/s e guarda poucas entradas pendentes', () => {
     let maxPending = 0, msgs = 0;
     const pred = new Predictor();
-    pred.reset(50, 50);
-    const W = { width: 100, height: 100, walls: [], tickMs: 50 };
+    pred.reset('m', 50, 50);
+    const W = { maps: { m: { width: 100, height: 100, walls: [], exits: [] } }, tickMs: 50 };
     for (let t = 0; t < 1000; t += 16) {
       msgs += pred.advance(16, 1, 0, 5, W, true).length;
       maxPending = Math.max(maxPending, pred.pending.length);

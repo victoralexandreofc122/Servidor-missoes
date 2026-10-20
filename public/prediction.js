@@ -12,9 +12,12 @@
 //   4. diferença pequena (atraso de rede, arredondamento): some suave em ~0,1 s;
 //      diferença grande (servidor recusou: parede, trapaça, teleporte): pula na hora.
 //
+// Mapas: a posição prevista é (mapa, x, y). Andar até o portão de uma borda troca de mapa NA
+// HORA no cliente (moveStep, a mesma regra do servidor); o servidor confirma com map_changed.
+//
 // Sem DOM: o jogo usa no navegador e os testes ligam isto a um servidor de verdade.
 
-import { replay, stepMove } from './movement.js';
+import { moveStep, replay, stepMove } from './movement.js';
 
 /** Acima disto (casas) a correção é imediata; abaixo, suave. */
 export const SNAP_DISTANCE = 1.5;
@@ -30,11 +33,12 @@ export const quantize = (v) => Math.round(v * 20) / 20 || 0;
 
 export class Predictor {
   constructor() {
-    this.reset(0, 0);
+    this.reset('', 0, 0);
   }
 
-  /** Posição oficial nova sem histórico (entrou, reconectou, renasceu). */
-  reset(x, y) {
+  /** Posição oficial nova sem histórico (entrou, reconectou). */
+  reset(map, x, y) {
+    this.map = map;
     this.x = x;
     this.y = y;
     this.seq = 0;
@@ -47,7 +51,8 @@ export class Predictor {
   }
 
   /** Recomeça só a posição (renascer), mantendo a numeração (o servidor confirma as antigas). */
-  teleport(x, y) {
+  teleport(map, x, y) {
+    this.map = map;
     this.x = x;
     this.y = y;
     this.pending = [];
@@ -59,7 +64,7 @@ export class Predictor {
   /**
    * Avança o relógio do cliente. A cada tick completo com direção: cria a entrada, ANDA
    * (predição) e põe no lote. Devolve as mensagens para mandar ao servidor (pode ser []).
-   * world = { width, height, walls, tickMs }; speed = a velocidade que o servidor mandou.
+   * world = { maps, tickMs } (maps = layouts do welcome); speed = a velocidade que o servidor mandou.
    */
   advance(dtMs, dx, dy, speed, world, canMove) {
     const out = [];
@@ -69,7 +74,7 @@ export class Predictor {
       this.acc -= world.tickMs;
       if (!moving) continue;
       const input = { seq: ++this.seq, dx, dy, dist: (speed * world.tickMs) / 1000 };
-      [this.x, this.y] = stepMove(this.x, this.y, dx, dy, input.dist, world.width, world.height, world.walls);
+      [this.map, this.x, this.y] = moveStep(world.maps, this.map, this.x, this.y, dx, dy, input.dist);
       this.pending.push(input);
       this.outbox.push(input);
       if (this.outbox.length >= BATCH) out.push(this.flush());
@@ -86,21 +91,23 @@ export class Predictor {
   }
 
   /**
-   * Reconciliação. (sx, sy) = posição OFICIAL depois da entrada `ack`.
+   * Reconciliação. (map, sx, sy) = posição OFICIAL depois da entrada `ack`.
    * Devolve 'none' (previsão certa), 'smooth' (corrigiu suave) ou 'snap' (pulou).
    */
-  reconcile(sx, sy, ack, world) {
+  reconcile(map, sx, sy, ack, world) {
     let i = 0;
     while (i < this.pending.length && this.pending[i].seq <= ack) i++;
     if (i > 0) this.pending.splice(0, i);
-    const [rx, ry] = replay(sx, sy, this.pending, (p) => p.dist, world.width, world.height, world.walls);
-    const ex = this.x - rx, ey = this.y - ry;
-    const err = Math.sqrt(ex * ex + ey * ey);
-    this.stats.lastError = err;
-    if (err > this.stats.maxError) this.stats.maxError = err;
+    const [rm, rx, ry] = replay(world.maps, map, sx, sy, this.pending, (p) => p.dist);
+    const sameMap = rm === this.map;
+    const ex = sameMap ? this.x - rx : 0, ey = sameMap ? this.y - ry : 0;
+    const err = sameMap ? Math.sqrt(ex * ex + ey * ey) : Infinity;
+    this.stats.lastError = sameMap ? err : -1;
+    if (sameMap && err > this.stats.maxError) this.stats.maxError = err;
+    this.map = rm;
     this.x = rx;
     this.y = ry;
-    if (err > SNAP_DISTANCE) {               // servidor recusou de verdade: vai direto para lá
+    if (err > SNAP_DISTANCE) {               // ou outro mapa (o servidor recusou a passagem)               // servidor recusou de verdade: vai direto para lá
       this.offX = 0;
       this.offY = 0;
       this.stats.snap += 1;
@@ -127,7 +134,8 @@ export class Predictor {
     if (Math.abs(this.offY) < 0.0005) this.offY = 0;
     let vx = this.x, vy = this.y;
     if (canMove && (dx !== 0 || dy !== 0) && this.acc > 0) {
-      [vx, vy] = stepMove(this.x, this.y, dx, dy, (speed * this.acc) / 1000, world.width, world.height, world.walls);
+      const m = world.maps[this.map];
+      if (m) [vx, vy] = stepMove(this.x, this.y, dx, dy, (speed * this.acc) / 1000, m.width, m.height, m.walls);
     }
     return [vx + this.offX, vy + this.offY];
   }

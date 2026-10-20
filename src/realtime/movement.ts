@@ -7,6 +7,7 @@
  *  - direção (dx, dy) do joystick; vetor maior que 1 (diagonal) é normalizado;
  *  - anda `dist` casas, sem sair do mapa;
  *  - paredes (casas da vila) bloqueiam: eixo X e depois Y, então o jogador "desliza" na parede;
+ *  - borda com saída (crossExit): empurrando para fora, dentro do portão, passa para o mapa vizinho;
  *  - posição sempre com 3 casas decimais (milésimo de casa): o cliente refaz a conta a partir da posição que o
  *    servidor manda (também com 3 casas) e chega no mesmo número.
  * Math.sqrt e não Math.hypot: o hypot pode variar no último dígito entre navegadores.
@@ -47,4 +48,51 @@ export function stepMove(
   let ny = q3(clamp(y + dy * k, 0, height));
   if (!stuck && blocked(nx, ny, walls)) ny = y;
   return [nx, ny];
+}
+
+/** O mínimo de um mapa que a movimentação precisa (o layout completo está em maps.ts). */
+export interface MoveMap {
+  width: number;
+  height: number;
+  walls: readonly Box[];
+  exits: readonly { edge: 'east' | 'west' | 'north' | 'south'; from: number; to: number; map: string; shift: number }[];
+}
+
+/**
+ * Atravessar a borda. Só vale para quem ESTÁ na borda (posição já calculada, encostada no
+ * limite do mapa) e empurra PARA FORA, dentro do trecho da saída. Chega na borda oposta do
+ * mapa vizinho; se lá estiver bloqueado, não atravessa. Paredes não se atravessam: para
+ * encostar na borda o jogador já passou pela colisão (stepMove), então só passa pelo portão.
+ */
+export function crossExit(
+  maps: Readonly<Record<string, MoveMap>>, mapId: string, x: number, y: number, dx: number, dy: number,
+): [string, number, number] | null {
+  const m = maps[mapId];
+  if (!m) return null;
+  for (const e of m.exits) {
+    let along: number;
+    if (e.edge === 'east' && dx > 0 && x >= m.width) along = y;
+    else if (e.edge === 'west' && dx < 0 && x <= 0) along = y;
+    else if (e.edge === 'south' && dy > 0 && y >= m.height) along = x;
+    else if (e.edge === 'north' && dy < 0 && y <= 0) along = x;
+    else continue;
+    if (along < e.from || along > e.to) continue;
+    const dest = maps[e.map];
+    if (!dest) continue;
+    const a = q3(along + e.shift);
+    const [nx, ny] = e.edge === 'east' ? [0, a] : e.edge === 'west' ? [dest.width, a] : e.edge === 'south' ? [a, 0] : [a, dest.height];
+    if (blocked(nx, ny, dest.walls)) continue;
+    return [e.map, nx, ny];
+  }
+  return null;
+}
+
+/** Um passo num mundo de vários mapas: anda no mapa atual e, se for o caso, atravessa a borda. */
+export function moveStep(
+  maps: Readonly<Record<string, MoveMap>>, mapId: string, x: number, y: number, dx: number, dy: number, dist: number,
+): [string, number, number] {
+  const m = maps[mapId];
+  if (!m) return [mapId, x, y];
+  const [nx, ny] = stepMove(x, y, dx, dy, dist, m.width, m.height, m.walls);
+  return crossExit(maps, mapId, nx, ny, dx, dy) ?? [mapId, nx, ny];
 }

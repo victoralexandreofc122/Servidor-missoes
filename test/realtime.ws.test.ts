@@ -120,7 +120,8 @@ describe('WebSocket /game (ws real + cliente nativo)', { skip: unavailable }, ()
     const welcome = await c.waitFor('welcome');
     assert.deepEqual([welcome.you.id, welcome.you.username, welcome.you.x, welcome.you.y], [rin.id, 'rin', REALTIME.spawn.x, REALTIME.spawn.y]);
     assert.deepEqual([welcome.you.hp, welcome.you.chakra], [100, 100]);
-    assert.equal(welcome.monsters.length, REALTIME.combat.monsters.count, 'monstros já no mapa');
+    assert.equal(welcome.world.map, 'map_1', 'entra na Vila');
+    assert.equal(welcome.monsters.length, 0, 'Vila: área segura, os monstros ficam na Floresta');
 
     // combate pela rede: Fogo é aceito (todos veem) e cobra o chakra; renascer vivo é recusado
     c.send({ type: 'cast', skill: 'fire' });

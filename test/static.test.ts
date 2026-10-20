@@ -31,9 +31,9 @@ describe('cliente web servido pelo Fastify', () => {
     assert.match(String(r.json()), /<canvas id="game"/);
   });
 
-  it('/game.js, /targeting.js, /village.js e /styles.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {
+  it('/game.js, /targeting.js, /world.js e /styles.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {
     const pub = app();
-    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/targeting.js', 'text/javascript; charset=utf-8'], ['/village.js', 'text/javascript; charset=utf-8'], ['/character.js', 'text/javascript; charset=utf-8'], ['/movement.js', 'text/javascript; charset=utf-8'], ['/prediction.js', 'text/javascript; charset=utf-8'], ['/styles.css', 'text/css; charset=utf-8']];
+    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/targeting.js', 'text/javascript; charset=utf-8'], ['/world.js', 'text/javascript; charset=utf-8'], ['/character.js', 'text/javascript; charset=utf-8'], ['/movement.js', 'text/javascript; charset=utf-8'], ['/prediction.js', 'text/javascript; charset=utf-8'], ['/styles.css', 'text/css; charset=utf-8']];
     for (const [url, type] of cases) {
       const r = await pub.inject({ method: 'GET', url });
       assert.equal(r.statusCode, 200, url);
@@ -78,7 +78,8 @@ describe('garantias do cliente (public/)', () => {
   it('game.js: protocolo igual ao do servidor (entradas numeradas, cast com as 7 habilidades, chat)', () => {
     assert.match(js, /from '\.\/prediction\.js'/, 'movimento pela predição testada');
     assert.match(js, /for \(const msg of pred\.advance\([^)]*\)\) send\(msg\)/);
-    assert.match(js, /pred\.reconcile\(msg\.x, msg\.y, msg\.a, predWorld\)/);
+    assert.match(js, /pred\.reconcile\(state\.serverMap, msg\.x, msg\.y, msg\.a, predWorld\)/);
+    assert.match(js, /pred\.reconcile\(msg\.map, msg\.x, msg\.y, msg\.a, predWorld\)/, 'map_changed também reconcilia');
     assert.doesNotMatch(js, /type: 'move'/, 'sem a direção segurada antiga');
     const p = readFileSync(new URL('../public/prediction.js', import.meta.url), 'utf8');
     assert.match(p, /type: 'input', seq: this\.outbox\[0\]\.seq, inputs:/);
@@ -116,7 +117,7 @@ describe('garantias do cliente (public/)', () => {
     assert.match(js, /case 'kit':\s+state\.kit = \{ active: msg\.active, kits: msg\.kits \};/);
     // Velocidade da previsão: a que o servidor mandou.
     assert.match(js, /const speed = state\.me\.speed \|\| state\.world\.speed;/);
-    assert.match(js, /from '\.\/village\.js'/);
+    assert.match(js, /from '\.\/world\.js'/, 'chão e paredes vêm dos layouts do servidor');
   });
 
   it('Sala de Missões: botão 📜, painel com barra de progresso e 💬 Falar; o cliente só PEDE (talk/missions)', () => {

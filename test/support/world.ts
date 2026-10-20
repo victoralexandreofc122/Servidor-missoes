@@ -66,3 +66,15 @@ export function setupWorld(config: RealtimeConfig = withMonsters(0), progression
   };
   return { world, clock, connect, run, pos, config };
 }
+
+/** Leva o jogador para outro mapa como o servidor faria (mesma rotina da borda; só para testes). */
+export function placeIn(world: GameWorld, id: string, map: string, x: number, y: number) {
+  const s = (world as any).sessions.get(id);
+  (world as any).transfer(s, map, x, y, 'walk');
+  s.dirty = true;
+}
+
+/** Mapa onde o jogador está (servidor). */
+export function mapOf(world: GameWorld, id: string): string {
+  return (world as any).sessions.get(id).map;
+}

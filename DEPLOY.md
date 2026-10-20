@@ -19,6 +19,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 12 | Atualização v5: nível, atributos, corrida, kits, layout MOBA e missão entre jogadores | ~15 min |
 | 13 | Atualização v6: Criador de Personagem, boneco modular, ⚙️ layout da HUD e conta Hokage de teste | ~10 min |
 | 14 | Atualização v7: movimento sem atraso (predição no cliente + correção pelo servidor), sem SQL | ~5 min |
+| 15 | Atualização v8: mapas Vila e Floresta com passagem pelas bordas, sem SQL | ~5 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -252,7 +253,7 @@ Depois do deploy, use o **Hoppscotch** (hoppscotch.io) no navegador do celular.
    wss://SEU-SERVICO.onrender.com/game?token=TOKEN_DO_KAITO
    ```
 
-   Toque em **Connect**. Chega um `welcome` com `"x":50,"y":50` (centro do mapa), `"players":[]`, os monstros e os dados do mapa.
+   Toque em **Connect**. Chega um `welcome` com `"x":25,"y":25` (praça da Vila), `"players":[]`, `"monsters":[]` (a Vila é segura) e os dados dos mapas.
 4. **Jogador 2**: abra **outra aba** do navegador no Hoppscotch e conecte com o token da Mei.
    A Mei recebe `welcome` com o Kaito na lista. Na aba do Kaito, aparece `player_joined`.
 5. Na aba do Kaito, envie (campo de mensagem → **Send**):
@@ -304,9 +305,9 @@ No celular não há console; o anel na tela confirma o toque.
 
 Nada novo para configurar: o XP vai para a coluna `total_xp` que já existe no banco.
 
-1. Entre no jogo (Passo 8). Você nasce no **centro do mapa**, onde as estradas se cruzam. Ali é área segura.
-2. Ande alguns passos para qualquer lado: os **monstros** (círculos vermelhos com "M") ficam num anel em
-   volta do centro. São sempre 5.
+1. Entre no jogo (Passo 8). Você nasce na **praça da Vila**, que é área segura.
+2. Siga a rua de terra para leste até o portão e entre na **Floresta**. Os **monstros** (slimes) ficam
+   lá. São sempre 10.
 3. Embaixo da tela ficam a barra **vermelha** (vida), a **azul** (chakra) e a linha de rank/XP.
    O número no topo de cada botão é o custo em chakra; sem chakra, o botão apaga.
 4. Chegue perto de um monstro e use:
@@ -454,7 +455,7 @@ Depois saia e entre de novo com essa conta, porque o rank é lido ao conectar.
    - mate 5 slimes (100 XP): aparece "Nível 2! +1 ponto" e o botão 📊 do topo fica verde (**Nv 2 +1**);
    - toque 📊 e depois o **+** de Vitalidade: a vida máxima vira 110;
    - na aba **Kits**, monte os seus 2 kits (até 4 cada) e toque **Salvar kits**.
-8. **Vila:** o centro do mapa agora é de pedra, com casas marrons. Os slimes ficam fora dela.
+8. **Vila:** chão de pedra com casas marrons. Os slimes ficam na Floresta, depois do portão leste (v8).
 
 ### 4. Missão entre jogadores (2 celulares, um deles Chunin)
 
@@ -530,3 +531,28 @@ então para essa conta ele responde "Seu rank já passou dos meus treinos".
    - `ninDebug.stats()` mostra as correções;
    - `ninDebug.cheatSpeed(1)` volta ao normal;
    - para desligar: `localStorage.removeItem('nin.debug')`.
+
+## Passo 15 — Atualização v8: mapas Vila e Floresta
+
+**Banco:** nada a rodar (sem SQL nesta versão). **Render:** o push na `main` já faz o deploy.
+
+### Testar no celular
+
+1. **Vila:** entre no jogo.
+   - Você nasce na praça, com chão de pedra cinza e casas marrons em volta, fechando a vila.
+   - O topo mostra `online · Vila · N jogadores`.
+   - Não há monstros na Vila.
+2. **Portão leste:** siga a rua de terra para a direita. No fim dela, entre as casas, fica o portão, e
+   já dá para ver a trilha e as árvores da Floresta do outro lado.
+3. **Passagem:** continue andando. O boneco entra na Floresta sem parar e sem saltar:
+   - a tela escurece de leve e aparece **Floresta**;
+   - a Vila fica visível atrás;
+   - logo aparecem os slimes (10) e quem estiver por lá.
+4. **Árvores:** ande contra uma árvore. Ela bloqueia como as casas.
+5. **Volta:** ande para a esquerda pela trilha até a borda. Você volta para a Vila pelo portão.
+6. **Parede:** na Vila, encoste nas casas da borda direita, longe do portão, e empurre. Nada acontece:
+   só o portão leva à Floresta.
+7. **Dois celulares:** um fica na Vila e o outro vai para a Floresta.
+   - Quem ficou deixa de ver quem foi (e os monstros de lá).
+   - O chat também é por mapa.
+8. **Morrer na Floresta:** depois do **Renascer**, você volta para a praça da Vila.

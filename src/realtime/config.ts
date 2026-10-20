@@ -4,6 +4,7 @@
  */
 import type { Skill } from './protocol.js';
 import type { AttributeRules } from './stats.js';
+import { WORLD_MAPS, type MapId, type MapLayout } from './maps.js';
 
 /** Números de cada habilidade. Só os campos que a habilidade usa vêm preenchidos. */
 export interface SkillConfig {
@@ -39,8 +40,8 @@ export interface CombatConfig {
   monsters: {
     count: number; type: string; maxHp: number; xp: number; stepMs: number;
     attackRange: number; attackDamage: number; attackEveryMs: number;
-    /** Zona de caça: anel em volta do centro do mapa (fora da área segura do renascimento). */
-    zoneRadius: number; safeRadius: number; minPlayerDistance: number;
+    /** `count` = monstros em CADA mapa de caça (os que têm `hunt`); nascem longe dos jogadores. */
+    minPlayerDistance: number;
   };
   promotion: { fromRank: string; toRank: string; xp: number };
   /** HP e chakra do próprio jogador: no máximo 1 atualização a cada X ms (regeneração). */
@@ -52,7 +53,10 @@ export interface RealtimeConfig {
   path: string;
   /** Subprotocolo que o servidor escolhe quando o cliente manda o token pelo cabeçalho. */
   subprotocol: string;
-  world: { width: number; height: number };
+  /** Mapas (salas): layout, paredes e saídas. Ver maps.ts. */
+  maps: Readonly<Record<MapId, MapLayout>>;
+  /** Onde se entra e se renasce: mapa e posição. */
+  startMap: MapId;
   spawn: { x: number; y: number };
   /** Andando (sem atributo). */
   speedTilesPerSecond: number;
@@ -72,15 +76,9 @@ export interface RealtimeConfig {
   heartbeatMs: number;
   combat: CombatConfig;
   /** NPCs parados no mapa. `range` = distância máxima para conversar (casas). */
-  npcs: readonly { id: string; name: string; x: number; y: number; range: number }[];
+  npcs: readonly { id: string; name: string; map: MapId; x: number; y: number; range: number }[];
   /** Pedidos ao banco de missões (falar com NPC, abrir a Sala): no máximo 1 a cada X ms por jogador. */
   missionRequestEveryMs: number;
-  /**
-   * Vila de pedra no centro (área segura: os monstros ficam fora). As casas são PAREDES:
-   * canto (dx, dy) a partir do centro, largura w e altura h, em casas. Mesma lista de
-   * public/village.js (o teste confere).
-   */
-  village: { radius: number; houses: readonly { dx: number; dy: number; w: number; h: number }[] };
   /**
    * Movimento com predição: o cliente manda ENTRADAS numeradas, cada uma vale 1 tick (50 ms).
    * O servidor aplica cada entrada uma vez só, e no máximo o tempo real que passou: um
@@ -100,10 +98,14 @@ export const REALTIME: Readonly<RealtimeConfig> = {
   path: '/game',
   subprotocol: 'nin.v1',
 
-  /** Mapa em casas (tiles). Posição é contínua (com 2 casas decimais), de 0 a width / height. */
-  world: { width: 100, height: 100 },
-  /** Centro do mapa: onde o jogador aparece ao conectar e renasce (a posição ainda não é salva). */
-  spawn: { x: 50, y: 50 },
+  /**
+   * Dois mapas: Vila (map_1, 50x50, segura) e Floresta (map_2, 100x100, caça). Posição em
+   * casas, contínua (3 casas decimais), de 0 a width / height do mapa onde o jogador está.
+   */
+  maps: WORLD_MAPS,
+  /** Praça da Vila: onde o jogador aparece ao conectar e renasce (a posição ainda não é salva). */
+  startMap: 'map_1',
+  spawn: { x: 25, y: 25 },
 
   /**
    * Movimento autoritativo: o cliente manda só a DIREÇÃO (joystick, de -1 a 1) e o servidor
@@ -154,10 +156,10 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       minAttackCooldownFactor: 0.6,
     },
     monsters: {
-      count: 5, type: 'slime', maxHp: 60, xp: 20, stepMs: 1000,
+      // 10 slimes na Floresta; a Vila é área segura (nenhum monstro).
+      count: 10, type: 'slime', maxHp: 60, xp: 20, stepMs: 1000,
       attackRange: 1.2, attackDamage: 10, attackEveryMs: 2000,
-      // A vila (raio 10) é área segura: os monstros andam no anel de 11 a 20 casas.
-      zoneRadius: 20, safeRadius: 11, minPlayerDistance: 3,
+      minPlayerDistance: 3,
     },
     promotion: { fromRank: 'ACADEMY', toRank: 'GENIN', xp: 100 },
     statsEveryMs: 200,
@@ -173,24 +175,14 @@ export const REALTIME: Readonly<RealtimeConfig> = {
   },
 
   /**
-   * O Mestre (sensei NPC) fica ao lado do renascimento (2,2 casas, na diagonal), dentro da área
-   * segura (monstros só andam a 5+ casas do centro). Quem renasce já pode falar com ele.
+   * O Mestre (sensei NPC) fica na praça da Vila, ao lado do renascimento (2,2 casas, na
+   * diagonal). A Vila é área segura (sem monstros). Quem renasce já pode falar com ele.
    * Na diagonal e não 2 casas ao norte: com o celular deitado, o "!" sobre ele ficaria
    * embaixo da barra de cima. Conversar: até 2,5 casas de distância.
    */
-  npcs: [{ id: 'sensei', name: 'Mestre', x: 52, y: 49, range: 2.5 }],
+  npcs: [{ id: 'sensei', name: 'Mestre', map: 'map_1', x: 27, y: 24, range: 2.5 }],
   missionRequestEveryMs: 400,
-  village: {
-    radius: 10,
-    houses: [
-      { dx: -8, dy: -7, w: 4, h: 3 },
-      { dx: 3, dy: -8, w: 4, h: 3 },
-      { dx: -8, dy: 3, w: 4, h: 3 },
-      { dx: 4, dy: 3, w: 3, h: 3 },
-      { dx: -4, dy: -4, w: 2, h: 2 },
-      { dx: 5, dy: -3, w: 3, h: 2 },
-    ],
-  },
+
   inputBufferMs: 250,
   maxQueuedInputs: 20,
   playerMissions: { range: 3, quantities: [3, 5, 10], targetCode: 'slime', missionType: 'DEFEAT_MONSTER' },
