@@ -12,11 +12,11 @@
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
 import { houseAt, housesOf, isVillage } from './village.js';
 import { DEFAULT_LOOK, dirFrom, drawCharacter, PARTS, PRESETS, safeLook } from './character.js';
+import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 
 const TOKEN_KEY = 'nin.token';
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/game`;
 const SUBPROTOCOL = 'nin.v1';
-const SEND_INTERVAL_MS = 70;   // joystick: no máximo ~14 mensagens/s (o servidor aceita 20/s)
 
 // ------------------------------------------------------------------ elementos
 
@@ -222,7 +222,6 @@ function connect() {
     state.everOpened = true;
     state.connected = true;
     state.failures = 0;
-    lastSent = { x: 0, y: 0 };
   });
 
   ws.addEventListener('message', (event) => {
@@ -235,7 +234,7 @@ function connect() {
     if (state.ws !== ws) return;     // conexão antiga
     state.ws = null;
     state.connected = false;
-    setDirection(0, 0, false);
+    setDirection(0, 0);
     const code = event && event.code;
     if (code === 4000) {
       // Mesma conta entrou em outro aparelho/aba: não reconecta (senão as duas ficam se derrubando).
@@ -295,7 +294,8 @@ function upsertPlayer(p, snap) {
   const existing = state.players.get(p.id);
   if (existing) {
     existing.tx = p.x; existing.ty = p.y;
-    if (snap) { existing.x = p.x; existing.y = p.y; }
+    if (snap) { existing.x = p.x; existing.y = p.y; existing.snaps = [{ t: performance.now(), x: p.x, y: p.y }]; }
+    else pushSnapshot(existing.snaps, performance.now(), p.x, p.y, state.world.tickMs || 50);
     if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; }
     if (p.rank) { existing.rank = p.rank; existing.level = p.level; }
     if (p.appearance) existing.look = safeLook(p.appearance);
@@ -305,6 +305,8 @@ function upsertPlayer(p, snap) {
   const color = colorFor(p.id);
   const player = {
     id: p.id, username: p.username, x: p.x, y: p.y, tx: p.x, ty: p.y, color, bubble: null,
+    // Posições que chegaram do servidor (interpolação: desenha ~100 ms no passado, sem pulos).
+    snaps: [{ t: performance.now(), x: p.x, y: p.y }],
     hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating,
     rank: p.rank || null, level: p.level || 1,
     // Paperdoll: cores (do servidor), direção (0 baixo, 1 esq, 2 dir, 3 cima) e fase da caminhada.
@@ -340,7 +342,8 @@ function handleMessage(msg) {
         const w = msg.world, old = state.world;
         if (w.width !== old.width || w.height !== old.height || w.spawn?.x !== old.spawn?.x || w.spawn?.y !== old.spawn?.y) chunkCache.clear();
         state.world = w;
-        state.houses = housesOf(w.village);
+        // Casas = paredes. A lista vem do servidor (a mesma que ele usa para colidir).
+        state.houses = w.village && Array.isArray(w.village.houses) ? w.village.houses : housesOf(w.village);
         chunkCache.clear();
         state.npcs = (w.npcs || []).map((n) => ({ ...n, npc: true, bubble: null }));
         state.nearNpc = null;
@@ -348,6 +351,9 @@ function handleMessage(msg) {
       }
       upsertPlayer(msg.you, true);
       for (const p of msg.players) upsertPlayer(p, true);
+      // Conexão nova = sessão nova no servidor: predição recomeça do zero na posição oficial.
+      predWorld = { width: state.world.width, height: state.world.height, walls: state.houses, tickMs: state.world.tickMs || 50 };
+      pred.reset(msg.you.x, msg.you.y);
       for (const m of msg.monsters || []) upsertMonster(m, now);
       Object.assign(state.me, {
         hp: msg.you.hp, maxHp: msg.you.maxHp, chakra: msg.you.chakra, maxChakra: msg.you.maxChakra,
@@ -380,6 +386,12 @@ function handleMessage(msg) {
       const p = state.players.get(msg.playerId);
       if (p) {
         p.tx = msg.x; p.ty = msg.y;
+        if (msg.playerId === state.meId) {
+          // Reconciliação: posição oficial + entradas ainda não confirmadas (prediction.js).
+          if (predWorld && Number.isInteger(msg.a)) pred.reconcile(msg.x, msg.y, msg.a, predWorld);
+        } else {
+          pushSnapshot(p.snaps, now, msg.x, msg.y, state.world.tickMs || 50);
+        }
         // Direção do servidor (o próprio jogador usa a do joystick enquanto anda: resposta imediata).
         if (msg.d !== undefined && !(msg.playerId === state.meId && (dir.x !== 0 || dir.y !== 0))) p.dir = msg.d;
       }
@@ -545,8 +557,10 @@ function handleMessage(msg) {
       const p = state.players.get(msg.playerId);
       if (p) {
         Object.assign(p, { dead: false, hp: msg.hp, maxHp: msg.maxHp, x: msg.x, y: msg.y, tx: msg.x, ty: msg.y });
+        p.snaps = [{ t: now, x: msg.x, y: msg.y }];
       }
       if (msg.playerId === state.meId) {
+        pred.teleport(msg.x, msg.y);
         state.me.dead = false;
         hideDeath();
       }
@@ -700,35 +714,18 @@ function showToast(text, ms = 3500) {
 // ------------------------------------------------------------------ movimento (joystick + teclado)
 
 let dir = { x: 0, y: 0 };
-let lastSent = { x: 0, y: 0 };
-let lastSendAt = 0;
-let sendTimer = null;
 
-const quantize = (v) => Math.round(v * 20) / 20 || 0;   // passos de 0,05 (e sem "-0")
+// Predição no cliente (prediction.js): o boneco anda NA HORA com a mesma função do servidor
+// (movement.js); as entradas vão numeradas e o servidor confirma ou corrige.
+const pred = new Predictor();
+let predWorld = null;                  // { width, height, walls, tickMs } do welcome
+let debugSpeedFactor = 1;              // só no modo de teste (ninDebug.cheatSpeed): simula cliente adulterado
 
-function setDirection(x, y, transmit = true) {
+function setDirection(x, y) {
   if (state.me.dead) { x = 0; y = 0; }     // derrotado não anda (o servidor também ignora)
   const len = Math.hypot(x, y);
   if (len > 1) { x /= len; y /= len; }
   dir = { x, y };
-  if (transmit) scheduleSend();
-}
-
-/** Manda a direção quando muda, no máximo a cada 70 ms; "parar" sai na hora. */
-function scheduleSend() {
-  const want = { x: quantize(dir.x), y: quantize(dir.y) };
-  if (want.x === lastSent.x && want.y === lastSent.y) return;
-  const stopping = want.x === 0 && want.y === 0;
-  const wait = SEND_INTERVAL_MS - (performance.now() - lastSendAt);
-  if (stopping || wait <= 0) {
-    clearTimeout(sendTimer);
-    sendTimer = null;
-    lastSent = want;
-    lastSendAt = performance.now();
-    send({ type: 'move', dx: want.x, dy: want.y });
-  } else if (!sendTimer) {
-    sendTimer = setTimeout(() => { sendTimer = null; scheduleSend(); }, wait);
-  }
 }
 
 // Joystick FLUTUANTE: a base nasce onde o polegar encosta (na metade esquerda de baixo
@@ -1894,15 +1891,25 @@ function frame(now) {
 
 function update(dt) {
   const me = state.players.get(state.meId);
-  const { width, height } = state.world;
   const speed = state.me.speed || state.world.speed;   // velocidade que o SERVIDOR mandou (andar/correr + agilidade)
-  const k = Math.min(1, dt * 12);     // interpolação suave dos outros até a posição do servidor
+  const now = performance.now();
+  if (me && predWorld) {
+    // Próprio jogador: predição (anda já) + envio das entradas em lote + correção suave.
+    const canMove = state.connected && !state.me.dead;
+    const dx = quantize(dir.x), dy = quantize(dir.y);
+    const s = speed * debugSpeedFactor;
+    for (const msg of pred.advance(dt * 1000, dx, dy, s, predWorld, canMove)) send(msg);
+    const [vx, vy] = pred.view(dt * 1000, dx, dy, s, predWorld, canMove);
+    me.x = vx;
+    me.y = vy;
+  }
   for (const p of state.players.values()) {
     if (p === me) continue;
-    p.x += (p.tx - p.x) * k;
-    p.y += (p.ty - p.y) * k;
+    const at = sampleSnapshots(p.snaps, now);   // outros: entre duas posições do servidor, ~100 ms atrás
+    if (at) { p.x = at[0]; p.y = at[1]; }
   }
   animateWalk(dt, me);
+  const k = Math.min(1, dt * 12);     // monstros: suavização exponencial até a posição do servidor
   for (const m of state.monsters.values()) {
     m.x += (m.tx - m.x) * k;
     m.y += (m.ty - m.y) * k;
@@ -1911,24 +1918,23 @@ function update(dt) {
   if (state.focusId && me && !keepFocus(me, state.monsters.get(state.focusId))) setFocus(null);
   if (me) updateCamera(dt, me);
   updateNpcProximity(me);
-  if (me) {
-    // Meditando o servidor não anda: sem previsão até ele confirmar o fim da meditação.
-    const moving = (dir.x !== 0 || dir.y !== 0) && state.connected && !state.me.dead && !state.me.meditating;
-    if (moving) {
-      // Previsão local: anda já, sem esperar a rede.
-      me.x = Math.max(0, Math.min(width, me.x + dir.x * speed * dt));
-      me.y = Math.max(0, Math.min(height, me.y + dir.y * speed * dt));
-    }
-    // Correção pela posição oficial: forte parado, leve andando (o servidor está ~1 tick atrás).
-    const ex = me.tx - me.x, ey = me.ty - me.y;
-    if (Math.hypot(ex, ey) > 2.5) { me.x = me.tx; me.y = me.ty; }
-    else {
-      const c = Math.min(1, dt * (moving ? 1.5 : 10));
-      me.x += ex * c;
-      me.y += ey * c;
-    }
-  }
 }
+
+// Modo de teste (só com localStorage nin.debug = "1", ligado à mão no aparelho): números da
+// predição e uma "trapaça" de velocidade para ver o servidor corrigindo. Nada de token/sessão aqui.
+try {
+  if (localStorage.getItem('nin.debug') === '1') {
+    window.ninDebug = Object.freeze({
+      predicted: () => [pred.x, pred.y],
+      official: () => { const me = state.players.get(state.meId); return me ? [me.tx, me.ty] : null; },
+      drawn: (id) => { const p = state.players.get(id || state.meId); return p ? [p.x, p.y] : null; },
+      pending: () => pred.pending.length,
+      stats: () => ({ ...pred.stats }),
+      cheatSpeed: (factor) => { debugSpeedFactor = Number(factor) > 0 ? Number(factor) : 1; },
+      cheatTeleport: (dx, dy) => { pred.x += Number(dx) || 0; pred.y += Number(dy) || 0; },
+    });
+  }
+} catch { /* modo privado */ }
 
 /**
  * Caminhada do paperdoll: a fase anda junto com a distância percorrida na tela (passo

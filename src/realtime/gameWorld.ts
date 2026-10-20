@@ -12,6 +12,7 @@ import {
   damageMultiplier, derivedStats, levelProgress, NO_ATTRIBUTES, scaledDamage,
   type Attribute, type Attributes, type DerivedStats,
 } from './stats.js';
+import { stepMove, type Box } from './movement.js';
 import { TokenBucket } from './tokenBucket.js';
 
 /*
@@ -105,9 +106,19 @@ interface Session {
   readonly conn: Connection;
   x: number;
   y: number;
-  /** Direção atual (joystick), já normalizada: |(dx, dy)| <= 1. */
+  /** Direção "segurada" (mensagem move, sem predição), já normalizada: |(dx, dy)| <= 1. */
   dx: number;
   dy: number;
+  /** Entradas do joystick com predição, na ordem, esperando o tick (1 entrada = 1 tick). */
+  inputQueue: { seq: number; dx: number; dy: number }[];
+  /** Maior número de entrada já recebido (repetidas são ignoradas). */
+  lastQueuedSeq: number;
+  /** Última entrada APLICADA: vai no player_moved (a) para o dono reconciliar. */
+  ackSeq: number;
+  /** Entradas descartadas (fila cheia) até este número: confirmadas quando a fila esvaziar. */
+  droppedUpTo: number;
+  /** Tempo real disponível para andar (ms). Cada passo gasta o seu tempo: ninguém anda mais rápido que o relógio. */
+  moveBudgetMs: number;
   /** Para onde está virado (última direção usada): mira o cone da Água. */
   fx: number;
   fy: number;
@@ -185,6 +196,8 @@ const DEFAULT_RANK: RankView = { code: 'ACADEMY', name: 'Academia' };
 
 /** Posição na rede com 2 casas decimais: mensagens curtas. */
 const round2 = (n: number) => Math.round(n * 100) / 100;
+/** Posição de JOGADOR com 3 casas: a mesma precisão da função de movimento (o cliente refaz a conta igual). */
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
 /** Vida mostrada: arredonda para cima (0,4 de vida ainda é "vivo com 1"). */
 const shownHp = (hp: number) => Math.ceil(hp);
 
@@ -196,6 +209,8 @@ export class GameWorld {
   private readonly progression: Progression | undefined;
   private readonly missions: Missions | undefined;
   private readonly profile: Profile | undefined;
+  /** Paredes (casas da vila) em casas do mapa: o servidor colide; o cliente prevê igual. */
+  private readonly walls: Box[];
   private timer: NodeJS.Timeout | undefined;
   private lastTick: number;
   private monsterSeq = 0;
@@ -210,6 +225,8 @@ export class GameWorld {
     this.progression = options.progression;
     this.missions = options.missions;
     this.profile = options.profile;
+    const cx = Math.floor(this.config.spawn.x), cy = Math.floor(this.config.spawn.y);
+    this.walls = this.config.village.houses.map((h) => ({ x: cx + h.dx, y: cy + h.dy, w: h.w, h: h.h }));
     this.lastTick = now();
     while (this.monsters.size < this.config.combat.monsters.count) this.spawnMonster();
   }
@@ -232,7 +249,7 @@ export class GameWorld {
 
   private view(s: Session): PlayerView {
     return {
-      id: s.id, username: s.username, x: round2(s.x), y: round2(s.y), hp: shownHp(s.hp), maxHp: s.stats.maxHp,
+      id: s.id, username: s.username, x: round3(s.x), y: round3(s.y), hp: shownHp(s.hp), maxHp: s.stats.maxHp,
       dead: s.dead, meditating: s.meditating, rank: s.rank, level: s.level,
       appearance: { ...(s.appearance ?? DEFAULT_APPEARANCE) }, dir: dirOf(s.fx, s.fy),
     };
@@ -286,7 +303,7 @@ export class GameWorld {
       meditationRegenMultiplier: combat.player.meditationRegenMultiplier,
       npcs: this.config.npcs.map((n) => ({ ...n })),
       basicAttack: { range: combat.basicAttack.range, cooldownMs: combat.basicAttack.cooldownMs },
-      village: { x: spawn.x, y: spawn.y, radius: this.config.village.radius },
+      village: { x: spawn.x, y: spawn.y, radius: this.config.village.radius, houses: this.walls.map((w) => ({ ...w })) },
       attributePerPoint: { ...combat.attributes.perPoint },
     };
   }
@@ -311,6 +328,11 @@ export class GameWorld {
       y: previous?.y ?? this.config.spawn.y,
       dx: 0,
       dy: 0,
+      inputQueue: [],
+      lastQueuedSeq: 0,
+      ackSeq: 0,
+      droppedUpTo: 0,
+      moveBudgetMs: 0,
       fx: previous?.fx ?? 0,
       fy: previous?.fy ?? 1,
       lastUpdate: t,
@@ -419,6 +441,7 @@ export class GameWorld {
     }
     if (!parsed) this.sendError(session, 'INVALID_MESSAGE');
     else if (parsed.type === 'move') this.setDirection(session, parsed.dx, parsed.dy);
+    else if (parsed.type === 'input') this.queueInputs(session, parsed.seq, parsed.inputs);
     else if (parsed.type === 'cast') this.cast(session, parsed.skill, t, parsed.targetId);
     else if (parsed.type === 'meditate') this.meditate(session, parsed.active);
     else if (parsed.type === 'respawn') this.respawn(session, t);
@@ -449,6 +472,80 @@ export class GameWorld {
     if (length > 0) {
       session.fx = dx / length;
       session.fy = dy / length;
+    }
+  }
+
+  /**
+   * Entradas com predição. O cliente já andou na tela; aqui elas só entram na fila, e o
+   * tick aplica no máximo o tempo real que passou. Entrada repetida (seq já visto) é
+   * ignorada; fila cheia descarta (o cliente será corrigido pela posição oficial).
+   */
+  private queueInputs(session: Session, seq: number, inputs: [number, number][]): void {
+    session.dx = 0;                       // quem usa predição não usa a direção "segurada"
+    session.dy = 0;
+    inputs.forEach(([dx, dy], i) => {
+      const n = seq + i;
+      if (n <= session.lastQueuedSeq) return;
+      session.lastQueuedSeq = n;
+      if (session.dead) {                 // morto não anda: só confirma
+        session.droppedUpTo = n;
+        return;
+      }
+      if (dx !== 0 || dy !== 0) this.stopMeditation(session, 'moved');
+      if (session.inputQueue.length >= this.config.maxQueuedInputs) {
+        session.droppedUpTo = n;
+        return;
+      }
+      session.inputQueue.push({ seq: n, dx, dy });
+    });
+    if (session.inputQueue.length === 0 && session.droppedUpTo > session.ackSeq) {
+      session.ackSeq = session.droppedUpTo;
+      session.dirty = true;
+    }
+  }
+
+  /** Joga fora as entradas na fila, confirmando todas (morte, renascimento). */
+  private dropInputs(session: Session): void {
+    session.inputQueue.length = 0;
+    session.droppedUpTo = Math.max(session.droppedUpTo, session.lastQueuedSeq);
+    session.ackSeq = session.droppedUpTo;
+    session.dirty = true;
+  }
+
+  /**
+   * Anda o jogador neste tick. O orçamento ganha o tempo real do tick (com folga de
+   * `inputBufferMs` para pacotes atrasados) e cada passo gasta o tempo dele:
+   *  - entradas da fila: 1 tick (50 ms) cada, com a MESMA função do cliente (movement.ts);
+   *  - direção "segurada" (sem predição): o tempo do tick.
+   */
+  private moveSession(s: Session, dtMs: number, t: number): void {
+    const tickMs = this.config.tickMs;
+    const { width, height } = this.config.world;
+    s.moveBudgetMs = Math.min(this.config.inputBufferMs, s.moveBudgetMs + dtMs);
+    const before = [s.x, s.y];
+    if (s.inputQueue.length > 0) {
+      while (s.inputQueue.length > 0 && s.moveBudgetMs >= tickMs) {
+        const input = s.inputQueue.shift()!;
+        s.moveBudgetMs -= tickMs;
+        s.ackSeq = input.seq;
+        s.dirty = true;                   // o dono precisa do ack, mesmo parado numa parede
+        if (s.meditating || (input.dx === 0 && input.dy === 0)) continue;
+        const len = Math.sqrt(input.dx * input.dx + input.dy * input.dy);
+        s.fx = input.dx / len;
+        s.fy = input.dy / len;
+        [s.x, s.y] = stepMove(s.x, s.y, input.dx, input.dy, (this.speedOf(s) * tickMs) / 1000, width, height, this.walls);
+      }
+    } else if (!s.meditating && (s.dx !== 0 || s.dy !== 0)) {
+      [s.x, s.y] = stepMove(s.x, s.y, s.dx, s.dy, (this.speedOf(s) * dtMs) / 1000, width, height, this.walls);
+      s.moveBudgetMs = Math.max(0, s.moveBudgetMs - dtMs);
+    }
+    if (s.inputQueue.length === 0 && s.droppedUpTo > s.ackSeq) {
+      s.ackSeq = s.droppedUpTo;
+      s.dirty = true;
+    }
+    if (s.x !== before[0] || s.y !== before[1]) {
+      s.lastUpdate = t;
+      s.dirty = true;
     }
   }
 
@@ -970,6 +1067,7 @@ export class GameWorld {
       session.deadAt = t;
       session.dx = 0;
       session.dy = 0;
+      this.dropInputs(session);           // morto não anda: entradas na fila só são confirmadas
       session.shield = 0;
       this.broadcast({ type: 'player_died', playerId: session.id, respawnInMs: this.config.combat.player.respawnMs });
     }
@@ -993,6 +1091,7 @@ export class GameWorld {
     session.y = this.config.spawn.y;
     session.dx = 0;
     session.dy = 0;
+    this.dropInputs(session);             // teleporte para o centro: o cliente recomeça daqui
     session.sentHp = maxHp;
     this.broadcast({ type: 'player_respawned', playerId: session.id, x: session.x, y: session.y, hp: maxHp, maxHp });
     this.sendStats(session, t);
@@ -1078,23 +1177,12 @@ export class GameWorld {
     const dtMs = Math.min(Math.max(0, t - this.lastTick), this.config.maxTickDtMs);
     const dt = dtMs / 1000;
     this.lastTick = t;
-    const { width, height } = this.config.world;
     const p = this.config.combat.player;
 
     // 1. Jogadores: movimento (andando 5, correndo 8, + agilidade) e energia.
     for (const s of this.sessions.values()) {
       if (s.closed || s.dead) continue;
-      if (!s.meditating && (s.dx !== 0 || s.dy !== 0)) {   // meditando não anda
-        const step = this.speedOf(s) * dt;
-        const x = clamp(s.x + s.dx * step, 0, width);
-        const y = clamp(s.y + s.dy * step, 0, height);
-        if (x !== s.x || y !== s.y) {
-          s.x = x;
-          s.y = y;
-          s.lastUpdate = t;
-          s.dirty = true;
-        }
-      }
+      this.moveSession(s, dtMs, t);
       // Chakra: SÓ meditando (15/s + atributo). Vida: SÓ com o chakra no máximo.
       if (s.meditating) s.chakra = Math.min(s.stats.maxChakra, s.chakra + s.stats.meditationChakraPerSec * dt);
       if (s.chakra >= s.stats.maxChakra) s.hp = Math.min(s.stats.maxHp, s.hp + p.hpRegenPerSec * dt);
@@ -1115,7 +1203,7 @@ export class GameWorld {
       if (s.dirty) {
         s.dirty = false;
         movedPlayers += 1;
-        this.broadcast({ type: 'player_moved', playerId: s.id, x: round2(s.x), y: round2(s.y), d: dirOf(s.fx, s.fy) });
+        this.broadcast({ type: 'player_moved', playerId: s.id, x: round3(s.x), y: round3(s.y), d: dirOf(s.fx, s.fy), a: s.ackSeq });
       }
       if (statsKey(s) !== s.sentStats && t - s.lastStatsAt >= this.config.combat.statsEveryMs) this.sendStats(s, t);
       const hp = shownHp(s.hp);

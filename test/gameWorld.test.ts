@@ -96,7 +96,7 @@ describe('GameWorld: movimento autoritativo (joystick) e game loop', () => {
     assert.equal(b.conn.sent.length + a.conn.sent.length, 0, 'nada sai antes do tick');
     clock.advance(50);
     assert.equal(world.tick(), 1);
-    const expected = { type: 'player_moved', playerId: a.id, x: S.x + 0.25, y: S.y, d: 2 };   // 5 casas/s × 50 ms, olhando para a direita
+    const expected = { type: 'player_moved', playerId: a.id, x: S.x + 0.25, y: S.y, d: 2, a: 0 };   // 5 casas/s × 50 ms, olhando para a direita
     assert.deepEqual(b.conn.of('player_moved'), [expected]);
     assert.deepEqual(a.conn.of('player_moved'), [expected], 'quem andou recebe a posição oficial (corrige a previsão do cliente)');
   });

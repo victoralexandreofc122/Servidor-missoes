@@ -75,8 +75,20 @@ export interface RealtimeConfig {
   npcs: readonly { id: string; name: string; x: number; y: number; range: number }[];
   /** Pedidos ao banco de missões (falar com NPC, abrir a Sala): no máximo 1 a cada X ms por jogador. */
   missionRequestEveryMs: number;
-  /** Vila de pedra no centro (só visual e área segura: os monstros ficam fora). */
-  village: { radius: number };
+  /**
+   * Vila de pedra no centro (área segura: os monstros ficam fora). As casas são PAREDES:
+   * canto (dx, dy) a partir do centro, largura w e altura h, em casas. Mesma lista de
+   * public/village.js (o teste confere).
+   */
+  village: { radius: number; houses: readonly { dx: number; dy: number; w: number; h: number }[] };
+  /**
+   * Movimento com predição: o cliente manda ENTRADAS numeradas, cada uma vale 1 tick (50 ms).
+   * O servidor aplica cada entrada uma vez só, e no máximo o tempo real que passou: um
+   * cliente que mande entradas a mais (speed hack) não anda mais rápido. `inputBufferMs` é a
+   * folga para a rede (rajadas de pacotes atrasados); `maxQueuedInputs` o tamanho da fila.
+   */
+  inputBufferMs: number;
+  maxQueuedInputs: number;
   /** Missões entre jogadores: distância para criar/entregar e quantidades aceitas. */
   playerMissions: { range: number; quantities: readonly number[]; targetCode: string; missionType: string };
   /** Salvar kits / gastar ponto: no máximo 1 gravação a cada X ms por jogador. */
@@ -168,7 +180,19 @@ export const REALTIME: Readonly<RealtimeConfig> = {
    */
   npcs: [{ id: 'sensei', name: 'Mestre', x: 52, y: 49, range: 2.5 }],
   missionRequestEveryMs: 400,
-  village: { radius: 10 },
+  village: {
+    radius: 10,
+    houses: [
+      { dx: -8, dy: -7, w: 4, h: 3 },
+      { dx: 3, dy: -8, w: 4, h: 3 },
+      { dx: -8, dy: 3, w: 4, h: 3 },
+      { dx: 4, dy: 3, w: 3, h: 3 },
+      { dx: -4, dy: -4, w: 2, h: 2 },
+      { dx: 5, dy: -3, w: 3, h: 2 },
+    ],
+  },
+  inputBufferMs: 250,
+  maxQueuedInputs: 20,
   playerMissions: { range: 3, quantities: [3, 5, 10], targetCode: 'slime', missionType: 'DEFEAT_MONSTER' },
   profileRequestEveryMs: 250,
 };

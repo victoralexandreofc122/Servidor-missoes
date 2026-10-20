@@ -121,9 +121,9 @@ ausente, inválido ou vencido recebe HTTP 401 e não conecta. O token pode vir:
 
 | Direção | Mensagem |
 |---|---|
-| cliente → servidor | `{"type":"move","dx":0.5,"dy":-0.5}` (joystick, -1 a 1; `0,0` para) · `{"type":"cast","skill":"fire"}` · `{"type":"talk","npcId":"sensei"}` · `{"type":"missions"}` · `{"type":"chat","message":"Olá!"}` |
+| cliente → servidor | `{"type":"input","seq":41,"inputs":[[1,0],[0.7,-0.7]]}` (entradas numeradas, 1 por tick de 50 ms, eixos -1 a 1; 1 a 10 por mensagem) · `{"type":"move","dx":0.5,"dy":-0.5}` (direção segurada, antiga: só para teste manual) · `{"type":"cast","skill":"fire"}` · `{"type":"talk","npcId":"sensei"}` · `{"type":"missions"}` · `{"type":"chat","message":"Olá!"}` |
 | ao conectar | `welcome {you, players (os outros), world {width,height,speed,tickMs}}` |
-| a cada tick (50 ms) | `player_moved {playerId,x,y}` para todos, inclusive quem andou |
+| a cada tick (50 ms) | `player_moved {playerId,x,y,d,a}` para todos, inclusive quem andou (`d` = direção do boneco; `a` = última entrada aplicada, para a reconciliação) |
 | entradas e saídas | `player_joined` · `player_left` |
 | para todos | `chat {playerId,username,message}` |
 | só para quem enviou | `error {code,message}` |
@@ -169,6 +169,33 @@ Regras (em `src/realtime/config.ts`):
 - **Mesma conta:** conectando de novo, derruba a conexão antiga (4000).
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
+
+### v7: movimento com predição no cliente e reconciliação
+
+Com ~200 ms de ida e volta, esperar o servidor para andar dá atraso no joystick. Agora:
+
+- **Predição (`public/prediction.js`):** a cada tick de 50 ms com o joystick inclinado, o cliente
+  cria uma entrada numerada `{seq, dx, dy}` e anda na hora. Ele usa a **mesma função** do servidor
+  (`public/movement.js` = `src/realtime/movement.ts`, com o mesmo arredondamento e as mesmas paredes,
+  as casas da vila). Um teste compara as duas em 10 mil passos aleatórios.
+- **Envio leve:** as entradas vão em lotes de 2 (cerca de 10 mensagens/s andando; nada parado).
+- **Reconciliação:** cada `player_moved` traz `a`, a última entrada aplicada. O cliente:
+  - descarta as entradas confirmadas;
+  - refaz as que faltam a partir da posição oficial;
+  - corrige uma diferença pequena com suavidade em ~0,1 s;
+  - corrige uma diferença maior que 1,5 casa (trapaça, teleporte, posição forçada) com um pulo na hora.
+- **Outros jogadores:** são desenhados ~100 ms no passado, entre duas posições que já chegaram.
+  Sem teletransporte entre avisos e sem voltar para trás. Os monstros continuam com suavização.
+- **O servidor continua a autoridade:**
+  - cada entrada anda no máximo `velocidade × 50 ms`;
+  - quem manda entradas mais rápido que o relógio não ganha nada: o orçamento de tempo tem folga de
+    250 ms e a fila tem limite de 20, com o excesso descartado e confirmado;
+  - colide com as casas;
+  - ignora entradas repetidas ou inválidas;
+  - morto não anda.
+- **Modo de teste:** no console do navegador, `localStorage.setItem('nin.debug','1')` e recarregar.
+  `ninDebug.stats()` mostra as correções. `ninDebug.cheatSpeed(3)` e `ninDebug.cheatTeleport(8,0)`
+  simulam um cliente adulterado, para ver o servidor corrigindo. Nada de token no `ninDebug`.
 
 ### v6: paperdoll, dano por tipo e Agilidade no ataque
 

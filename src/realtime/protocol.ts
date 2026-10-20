@@ -5,7 +5,9 @@ import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
  * Protocolo do WebSocket: JSON simples, um objeto por mensagem, sempre com `type`.
  *
  * Cliente -> servidor (o cliente só PEDE; dano, acerto, morte e XP são decididos no servidor)
- *   { "type": "move", "dx": 0.5, "dy": -0.5 }   direção do joystick, de -1 a 1 (0,0 = parar)
+ *   { "type": "input", "seq": 41, "inputs": [[1, 0], [1, 0]] }   joystick com PREDIÇÃO: cada par é 1 tick
+ *                                               (50 ms) de direção; seq = número da 1ª entrada
+ *   { "type": "move", "dx": 0.5, "dy": -0.5 }   direção "segurada" (teste manual/Hoppscotch; 0,0 = parar)
  *   { "type": "cast", "skill": "fire", "targetId": "m12" }   habilidade; targetId (opcional) = alvo focado
  *   { "type": "meditate", "active": true }      começar/parar de meditar (chakra 3x mais rápido)
  *   { "type": "respawn" }                       renascer (só depois de 5 s morto)
@@ -25,7 +27,8 @@ import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
  * Servidor -> cliente
  *   welcome           { you, players, monsters, world }    ao conectar (players = os OUTROS)
  *   player_joined / player_left                            como antes
- *   player_moved      { playerId, x, y, d }                d = direção do boneco (0 baixo, 1 esquerda, 2 direita, 3 cima)
+ *   player_moved      { playerId, x, y, d, a }             d = direção (0 baixo, 1 esquerda, 2 direita, 3 cima);
+ *                                                          a = última entrada aplicada (o dono reconcilia)
  *   player_appearance { playerId, appearance }             visual novo (cores do paperdoll)
  *   stats             { hp, maxHp, chakra, maxChakra, shield }   só para o próprio jogador
  *   player_hp         { playerId, hp, maxHp }              vida dos outros (barrinha sobre o boneco)
@@ -83,6 +86,7 @@ export type Kits = Record<KitName, Skill[]>;
 
 export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move'), dx: axis, dy: axis }),
+  z.object({ type: z.literal('input'), seq: z.number().int().min(1).max(2_000_000_000), inputs: z.array(z.tuple([axis, axis])).min(1).max(10) }),
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: monsterId.optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
   z.object({ type: z.literal('respawn') }),
@@ -214,8 +218,8 @@ export interface WorldInfo {
   meditationRegenMultiplier: number;
   npcs: NpcView[];
   basicAttack: { range: number; cooldownMs: number };
-  /** Vila: chão de pedra em volta do centro (área segura, sem monstros). */
-  village: { x: number; y: number; radius: number };
+  /** Vila: chão de pedra em volta do centro (área segura, sem monstros); casas = paredes (casas inteiras). */
+  village: { x: number; y: number; radius: number; houses: { x: number; y: number; w: number; h: number }[] };
   attributePerPoint: Attributes;
   promotion: { fromRank: string; toRank: string; xp: number };
 }
@@ -228,7 +232,7 @@ export type MonsterStatus = 'stunned' | 'rooted';
 export type ServerMessage =
   | { type: 'welcome'; you: SelfView; players: PlayerView[]; monsters: MonsterView[]; world: WorldInfo; progress: ProgressView; kit: KitView }
   | { type: 'player_joined'; player: PlayerView }
-  | { type: 'player_moved'; playerId: string; x: number; y: number; d: Dir }
+  | { type: 'player_moved'; playerId: string; x: number; y: number; d: Dir; a: number }
   | { type: 'player_appearance'; playerId: string; appearance: Appearance }
   | { type: 'player_left'; playerId: string }
   | { type: 'chat'; playerId: string; username: string; message: string }
@@ -267,7 +271,7 @@ export interface SenseiDifficulty {
 }
 
 export const REALTIME_ERRORS = {
-  INVALID_MESSAGE: 'Mensagem inválida. Use {"type":"move","dx":..,"dy":..}, {"type":"cast","skill":".."}, {"type":"meditate","active":true}, {"type":"respawn"}, {"type":"talk","npcId":"sensei"}, {"type":"missions"}, {"type":"attack"}, {"type":"run","active":true}, {"type":"switch_kit","kit":"B"}, {"type":"spend_point","attribute":".."} ou {"type":"chat","message":".."}.',
+  INVALID_MESSAGE: 'Mensagem inválida. Use {"type":"input","seq":1,"inputs":[[1,0]]}, {"type":"move","dx":..,"dy":..}, {"type":"cast","skill":".."}, {"type":"meditate","active":true}, {"type":"respawn"}, {"type":"talk","npcId":"sensei"}, {"type":"missions"}, {"type":"attack"}, {"type":"run","active":true}, {"type":"switch_kit","kit":"B"}, {"type":"spend_point","attribute":".."} ou {"type":"chat","message":".."}.',
   RESPAWN_NOT_READY: 'Ainda não dá para renascer.',
   CANNOT_MEDITATE: 'Não dá para meditar agora.',
   UNKNOWN_NPC: 'Esse NPC não existe.',

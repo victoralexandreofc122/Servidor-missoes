@@ -31,6 +31,8 @@ const FILES = [
   { route: '/targeting.js', file: 'targeting.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/village.js', file: 'village.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/character.js', file: 'character.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/movement.js', file: 'movement.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/prediction.js', file: 'prediction.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/styles.css', file: 'styles.css', contentType: 'text/css; charset=utf-8' },
 ] as const;
 

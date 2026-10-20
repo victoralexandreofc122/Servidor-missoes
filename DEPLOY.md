@@ -511,3 +511,21 @@ então para essa conta ele responde "Seu rank já passou dos meus treinos".
    Durante a edição o combate fica parado: tocar num botão não ataca. Fora da edição, nada se
    arrasta. O layout fica salvo no celular, separado para deitado e em pé. **Restaurar** volta ao padrão.
 5. **🎨 Mudar visual** (dentro do ⚙️) reabre o Criador a qualquer hora.
+
+## Passo 14 — Atualização v7: movimento sem atraso (predição + reconciliação)
+
+**Banco:** nada a rodar (sem SQL nesta versão). **Render:** o push na `main` já faz o deploy.
+
+### Testar no celular
+
+1. **Resposta imediata:** mexa o joystick. O boneco sai no mesmo instante, mesmo com internet móvel lenta.
+2. **Outros jogadores:** com 2 celulares, ande com um e olhe no outro. O boneco desliza liso,
+   sem saltos entre um aviso e outro.
+3. **Paredes:** ande contra uma casa da vila. O boneco para na parede, sem tremer nem voltar.
+4. **Servidor corrigindo (opcional, no navegador do computador):**
+   - abra o console;
+   - rode `localStorage.setItem('nin.debug','1')` e recarregue;
+   - rode `ninDebug.cheatSpeed(3)` e ande. O boneco tenta correr 3× mais rápido e é puxado de volta;
+   - `ninDebug.stats()` mostra as correções;
+   - `ninDebug.cheatSpeed(1)` volta ao normal;
+   - para desligar: `localStorage.removeItem('nin.debug')`.

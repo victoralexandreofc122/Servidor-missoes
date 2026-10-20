@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { FastifyInstance } from 'fastify';
@@ -32,7 +33,7 @@ describe('cliente web servido pelo Fastify', () => {
 
   it('/game.js, /targeting.js, /village.js e /styles.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {
     const pub = app();
-    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/targeting.js', 'text/javascript; charset=utf-8'], ['/village.js', 'text/javascript; charset=utf-8'], ['/character.js', 'text/javascript; charset=utf-8'], ['/styles.css', 'text/css; charset=utf-8']];
+    const cases: [string, string][] = [['/game.js', 'text/javascript; charset=utf-8'], ['/targeting.js', 'text/javascript; charset=utf-8'], ['/village.js', 'text/javascript; charset=utf-8'], ['/character.js', 'text/javascript; charset=utf-8'], ['/movement.js', 'text/javascript; charset=utf-8'], ['/prediction.js', 'text/javascript; charset=utf-8'], ['/styles.css', 'text/css; charset=utf-8']];
     for (const [url, type] of cases) {
       const r = await pub.inject({ method: 'GET', url });
       assert.equal(r.statusCode, 200, url);
@@ -74,8 +75,13 @@ describe('garantias do cliente (public/)', () => {
     assert.doesNotMatch(js, /console\.(log|info|warn|error)\([^)]*token/i, 'token nunca no console');
   });
 
-  it('game.js: protocolo igual ao do servidor (move dx/dy, cast com as 7 habilidades, chat)', () => {
-    assert.match(js, /send\(\{ type: 'move', dx: want\.x, dy: want\.y \}\)/);
+  it('game.js: protocolo igual ao do servidor (entradas numeradas, cast com as 7 habilidades, chat)', () => {
+    assert.match(js, /from '\.\/prediction\.js'/, 'movimento pela predição testada');
+    assert.match(js, /for \(const msg of pred\.advance\([^)]*\)\) send\(msg\)/);
+    assert.match(js, /pred\.reconcile\(msg\.x, msg\.y, msg\.a, predWorld\)/);
+    assert.doesNotMatch(js, /type: 'move'/, 'sem a direção segurada antiga');
+    const p = readFileSync(new URL('../public/prediction.js', import.meta.url), 'utf8');
+    assert.match(p, /type: 'input', seq: this\.outbox\[0\]\.seq, inputs:/);
     assert.match(js, /send\(targetId \? \{ type: 'cast', skill, targetId \} : \{ type: 'cast', skill \}\)/);
     assert.match(js, /send\(\{ type: 'meditate', active: !state\.me\.meditating \}\)/);
     assert.match(js, /from '\.\/targeting\.js'/, 'foco e câmera vêm do módulo testado');
