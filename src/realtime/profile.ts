@@ -9,7 +9,7 @@ import { ATTRIBUTE_COLUMNS, type Attribute, type Attributes } from './stats.js';
  * cada atributo de 0 a 10, kits com até 4 habilidades sem repetir.
  */
 
-const ATTRS_RETURNING = `stat_points, attr_vitality, attr_chakra_max, attr_chakra_regen, attr_agility, attr_taijutsu, attr_ninjutsu`;
+const ATTRS_RETURNING = `stat_points, attr_vitality, attr_chakra_max, attr_chakra_regen, attr_agility, attr_taijutsu, attr_ninjutsu, attr_weapons`;
 
 interface AttrRow {
   stat_points: number;
@@ -19,6 +19,7 @@ interface AttrRow {
   attr_agility: number;
   attr_taijutsu: number;
   attr_ninjutsu: number;
+  attr_weapons: number;
 }
 
 const toAttributes = (r: AttrRow): Attributes => ({
@@ -28,6 +29,7 @@ const toAttributes = (r: AttrRow): Attributes => ({
   agility: r.attr_agility,
   taijutsu: r.attr_taijutsu,
   ninjutsu: r.attr_ninjutsu,
+  weapons: r.attr_weapons,
 });
 
 export function spendPointSql(attribute: Attribute): string {

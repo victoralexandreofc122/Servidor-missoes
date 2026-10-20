@@ -75,7 +75,7 @@ describe('garantias do cliente (public/)', () => {
     assert.doesNotMatch(js, /console\.(log|info|warn|error)\([^)]*token/i, 'token nunca no console');
   });
 
-  it('game.js: protocolo igual ao do servidor (entradas numeradas, cast com as 7 habilidades, chat)', () => {
+  it('game.js: protocolo igual ao do servidor (entradas numeradas, cast dos jutsus, chat)', () => {
     assert.match(js, /from '\.\/prediction\.js'/, 'movimento pela predição testada');
     assert.match(js, /for \(const msg of pred\.advance\([^)]*\)\) send\(msg\)/);
     assert.match(js, /pred\.reconcile\(state\.serverMap, msg\.x, msg\.y, msg\.a, predWorld\)/);
@@ -91,7 +91,30 @@ describe('garantias do cliente (public/)', () => {
     assert.match(js, /send\(\{ type: 'talk', npcId: npc\.id \}\)/);
     assert.match(js, /case 'shop_open':\s+openShop\(msg\.shop, msg\.npcId\)/);
     assert.match(html, /id="shop-panel"[^>]*role="dialog"/);
-    for (const skill of SKILLS) assert.match(html, new RegExp(`data-skill="${skill}"`));
+    // v7: a lista do kit é montada com os jutsus APRENDIDOS (o servidor recusa kit com jutsu não aprendido).
+    assert.match(html, /id="kit-list"/);
+    assert.match(js, /function learnedJutsus\(\)/);
+    assert.ok(SKILLS.length === 38);
+  });
+
+  it('v7: Academia, inventário, loja com Extração, classe e Hokage: o cliente só PEDE (sorteio, preço e passo são do servidor)', () => {
+    for (const id of ['tutorial-card', 'inv-toggle', 'inv-panel', 'extract-box', 'extract-go', 'class-panel', 'class-confirm', 'hokage-panel', 'tab-jutsus', 'jutsu-list']) {
+      assert.match(html, new RegExp(`id="${id}"`), id);
+    }
+    assert.match(html, /data-attr="weapons"/);
+    assert.match(js, /send\(\{ type: 'extract', class: extractChoice\.cls, level: extractChoice\.level \}\)/);
+    assert.match(js, /send\(\{ type: 'buy', item: item\.code, qty: 1 \}\)/);
+    assert.match(js, /send\(\{ type: 'equip', item: on \? null : code \}\)/);
+    assert.match(js, /send\(\{ type: 'choose_class', class: classChoice\.picked \}\)/);
+    assert.match(js, /send\(\{ type: 'hokage_apply' \}\)/);
+    // Nada de sorteio, chance, preço, passo do tutorial ou uso de jutsu saindo do cliente.
+    assert.doesNotMatch(js, /type: '(tutorial|advance_tutorial|jutsu_level|extract_result|set_ryo|learn)'/);
+    assert.doesNotMatch(js, /Math\.random\(\)[^\n]*send\(/);
+    // Portas da Academia: a predição usa o MESMO passo que o servidor manda.
+    assert.match(js, /pred\.gates\.tutorial = msg\.step;/);
+    const p = readFileSync(new URL('../public/prediction.js', import.meta.url), 'utf8');
+    assert.match(p, /moveStep\(world\.maps, this\.map, this\.x, this\.y, dx, dy, input\.dist, this\.gates\)/);
+    assert.match(p, /replay\(world\.maps, map, sx, sy, this\.pending, \(p\) => p\.dist, this\.gates\)/);
   });
 
   it('v6: Criador (5 cores), ⚙️ com sliders, modo "Editar layout" que trava o combate, visual só muda pelo servidor', () => {

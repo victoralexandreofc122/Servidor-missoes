@@ -4,12 +4,12 @@
  * O cliente só recebe o resultado pronto (nunca calcula).
  */
 
-/** Os 6 atributos que o jogador upa com pontos. */
-export const ATTRIBUTES = ['vitality', 'chakraMax', 'chakraRegen', 'agility', 'taijutsu', 'ninjutsu'] as const;
+/** Os 7 atributos que o jogador upa com pontos (v7: + Armas). */
+export const ATTRIBUTES = ['vitality', 'chakraMax', 'chakraRegen', 'agility', 'taijutsu', 'ninjutsu', 'weapons'] as const;
 export type Attribute = (typeof ATTRIBUTES)[number];
 export type Attributes = Record<Attribute, number>;
 
-export const NO_ATTRIBUTES: Readonly<Attributes> = { vitality: 0, chakraMax: 0, chakraRegen: 0, agility: 0, taijutsu: 0, ninjutsu: 0 };
+export const NO_ATTRIBUTES: Readonly<Attributes> = { vitality: 0, chakraMax: 0, chakraRegen: 0, agility: 0, taijutsu: 0, ninjutsu: 0, weapons: 0 };
 
 /** Coluna de cada atributo em game.players (lista fechada: nunca vem do cliente). */
 export const ATTRIBUTE_COLUMNS: Readonly<Record<Attribute, string>> = {
@@ -19,6 +19,7 @@ export const ATTRIBUTE_COLUMNS: Readonly<Record<Attribute, string>> = {
   agility: 'attr_agility',
   taijutsu: 'attr_taijutsu',
   ninjutsu: 'attr_ninjutsu',
+  weapons: 'attr_weapons',
 };
 
 export interface AttributeRules {
@@ -54,6 +55,8 @@ export interface DerivedStats {
   physicalMultiplier: number;
   /** Dano de NINJUTSU (jutsus elementais: Fogo, Água...): 1 + Ninjutsu. */
   jutsuMultiplier: number;
+  /** Dano de ARMAS (Kunai equipada e jutsus da classe Armas): 1 + Armas. */
+  weaponMultiplier: number;
   /** Recarga do Ataque Básico já com a Agilidade (ms). */
   attackCooldownMs: number;
 }
@@ -68,39 +71,39 @@ export function derivedStats(base: BaseStats, rules: AttributeRules, a: Attribut
     runSpeed: base.runSpeed + a.agility * p.agility,
     physicalMultiplier: Math.round((1 + a.taijutsu * p.taijutsu) * 1000) / 1000,
     jutsuMultiplier: Math.round((1 + a.ninjutsu * p.ninjutsu) * 1000) / 1000,
+    weaponMultiplier: Math.round((1 + a.weapons * p.weapons) * 1000) / 1000,
     attackCooldownMs: Math.round(base.attackCooldownMs * Math.max(rules.minAttackCooldownFactor, 1 - a.agility * rules.agilityAttackSpeed)),
   };
 }
 
-/** Qual atributo escala o dano de uma habilidade: corpo a corpo = Taijutsu; elemental = Ninjutsu. */
-export type DamageScaling = 'taijutsu' | 'ninjutsu';
+/** Qual atributo escala o dano: corpo a corpo = Taijutsu; elemental = Ninjutsu; armas = Armas. */
+export type DamageScaling = 'taijutsu' | 'ninjutsu' | 'weapons';
 export function damageMultiplier(stats: DerivedStats, scaling: DamageScaling): number {
-  return scaling === 'taijutsu' ? stats.physicalMultiplier : stats.jutsuMultiplier;
+  return scaling === 'taijutsu' ? stats.physicalMultiplier : scaling === 'weapons' ? stats.weaponMultiplier : stats.jutsuMultiplier;
 }
 
 /** Dano final: arredondado para inteiro (número flutuante limpo na tela). */
 export const scaledDamage = (damage: number, multiplier: number) => Math.round(damage * multiplier);
 
 /**
- * Meta de XP: do nível N para o N+1 são N x STEP. O nível L começa em STEP/2 x L x (L-1)
- * de XP total. MESMA conta da função game.level_for_xp (migração v5).
+ * Curva de XP (v7): do nível N para o N+1 são 100·N + 25·N·(N-1). Nível máximo 60.
+ * O nível L começa em 50·L·(L-1) + 25·(L-2)·(L-1)·L/3 de XP total (nível 11: 13.750;
+ * 40: 572.000; 60: 1.888.000). MESMA conta de game.level_start / game.level_for_xp (v7).
  */
-export const LEVEL_XP_STEP = 100;
-export const MAX_LEVEL = 99;
+export const MAX_LEVEL = 60;
 
 export function levelStart(level: number): number {
-  return (LEVEL_XP_STEP / 2) * level * (level - 1);
+  return 50 * level * (level - 1) + (25 * (level - 2) * (level - 1) * level) / 3;
 }
 
 export function levelForXp(totalXp: number): number {
-  let l = Math.max(1, Math.floor((1 + Math.sqrt(1 + (Math.max(0, totalXp) * 8) / LEVEL_XP_STEP)) / 2));
-  while (levelStart(l + 1) <= totalXp) l += 1;
-  while (l > 1 && levelStart(l) > totalXp) l -= 1;
-  return Math.min(l, MAX_LEVEL);
+  let l = 1;
+  while (l < MAX_LEVEL && levelStart(l + 1) <= totalXp) l += 1;
+  return l;
 }
 
 /** XP "dentro do nível" (zera a cada nível) e quanto falta para o próximo. */
 export function levelProgress(totalXp: number, level: number = levelForXp(totalXp)) {
   if (level >= MAX_LEVEL) return { level, xpInLevel: 0, xpToNext: 0 };
-  return { level, xpInLevel: totalXp - levelStart(level), xpToNext: level * LEVEL_XP_STEP };
+  return { level, xpInLevel: totalXp - levelStart(level), xpToNext: levelStart(level + 1) - levelStart(level) };
 }

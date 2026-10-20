@@ -6,6 +6,7 @@ import { REALTIME, type RealtimeConfig } from './config.js';
 import { GameWorld, type JoiningPlayer, type Progression, type WorldLogger } from './gameWorld.js';
 import type { Missions } from './missions.js';
 import type { Profile } from './profile.js';
+import type { NinjaStore } from './ninjaStore.js';
 
 /*
  * Endpoint WebSocket: wss://<servidor>/game
@@ -35,6 +36,8 @@ export interface GatewayDeps {
   missions?: Missions;
   /** Ficha no banco (gastar pontos, salvar kits). */
   profile?: Profile;
+  /** Progressão v7 (jutsus, tutorial, classes, loja, Extração). */
+  store?: NinjaStore;
   /** Sorteio dos monstros (testes). */
   random?: () => number;
   log: WorldLogger & { error(obj: object, msg?: string): void };
@@ -46,6 +49,8 @@ export interface Gateway {
   world: GameWorld;
   /** Fecha todos os jogadores (1001), para o game loop e o heartbeat. */
   close(): void;
+  /** Grava o que ainda está só em memória (uso dos jutsus). Antes do close, no desligamento. */
+  flush(): Promise<void>;
 }
 
 /** Recusa o handshake com um status HTTP e fecha o socket. */
@@ -80,6 +85,7 @@ export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
     ...(deps.progression ? { progression: deps.progression } : {}),
     ...(deps.missions ? { missions: deps.missions } : {}),
     ...(deps.profile ? { profile: deps.profile } : {}),
+    ...(deps.store ? { store: deps.store } : {}),
   });
   const wss = new WebSocketServer({
     noServer: true,
@@ -166,6 +172,7 @@ export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
 
   return {
     world,
+    flush: () => world.flushAll(),
     close() {
       clearInterval(heartbeat);
       world.close();   // manda o "close 1001" para cada jogador

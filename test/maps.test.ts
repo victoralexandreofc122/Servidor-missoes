@@ -288,7 +288,7 @@ describe('mapas: servidor (salas)', () => {
     const w = b.conn.last('welcome');
     assert.equal(w.world.map, 'map_1');
     assert.deepEqual([w.world.width, w.world.height], [80, 80]);
-    assert.deepEqual(Object.keys(w.world.maps), ['map_1', 'map_2', 'interior_weapons', 'interior_clothes', 'interior_scrolls']);
+    assert.deepEqual(Object.keys(w.world.maps), ['map_1', 'map_2', 'interior_weapons', 'interior_clothes', 'interior_scrolls', 'academy_interior']);
     assert.equal(w.world.maps.map_2.walls.length, FLORESTA.walls.length);
     assert.deepEqual(w.world.maps.map_1.safeZones, VILA.safeZones);
     assert.deepEqual(w.players, [], 'kaito está na Floresta: não aparece na Vila');

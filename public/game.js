@@ -11,7 +11,7 @@
 
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
 import { groundAt, inSafeZone, mapName, placements, visibleDeco, visibleWalls } from './world.js';
-import { drawDeco, drawGateRoof, drawWall } from './mapArt.js';
+import { drawAcademyDoor, drawDeco, drawGateRoof, drawWall } from './mapArt.js';
 import { DEFAULT_LOOK, dirFrom, drawCharacter, PARTS, PRESETS, safeLook } from './character.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 
@@ -33,7 +33,7 @@ const ui = {
   statusToggle: $('status-toggle'), statusBadge: $('status-badge'), statusPanel: $('status-panel'), statusClose: $('status-close'),
   statusLevel: $('status-level'), tabAttrs: $('tab-attrs'), tabKits: $('tab-kits'), paneAttrs: $('pane-attrs'), paneKits: $('pane-kits'),
   xpMeter: $('xp-meter'), xpFill: $('xp-fill'), xpCount: $('xp-count'), pointsLine: $('points-line'),
-  attrRows: [...document.querySelectorAll('.attr-list li')], kitRows: [...document.querySelectorAll('.kit-list li')],
+  attrRows: [...document.querySelectorAll('.attr-list li')],
   kitCount: $('kit-count'), kitSave: $('kit-save'),
   playerMenu: $('player-menu'), pmName: $('pm-name'), pmRank: $('pm-rank'), pmClose: $('pm-close'), pmDeliver: $('pm-deliver'),
   pmCreate: $('pm-create'), pmForm: $('pm-form'), pmQty: $('pm-qty'), pmDiff: $('pm-diff'), pmSend: $('pm-send'), pmNote: $('pm-note'),
@@ -58,6 +58,16 @@ const ui = {
   missionCount: $('mission-count'), missionStatus: $('mission-status'), missionReward: $('mission-reward'),
   missionEmpty: $('mission-empty'), missionLast: $('mission-last'),
   xpLine: $('xp-line'), hurt: $('hurt'), death: $('death'), deathTimer: $('death-timer'), respawn: $('respawn'),
+  // v7: progressão
+  invToggle: $('inv-toggle'), invBadge: $('inv-badge'), invPanel: $('inv-panel'), invClose: $('inv-close'), invRyo: $('inv-ryo'),
+  invClass: $('inv-class'), invItems: $('inv-items'), invEmpty: $('inv-empty'),
+  tutorialCard: $('tutorial-card'), tutorialTitle: $('tutorial-title'), tutorialText: $('tutorial-text'),
+  shopRyo: $('shop-ryo'), shopNote: $('shop-note'), extractBox: $('extract-box'), extractClass: $('extract-class'),
+  extractLevel: $('extract-level'), extractInfo: $('extract-info'), extractGo: $('extract-go'), extractResult: $('extract-result'),
+  tabJutsus: $('tab-jutsus'), paneJutsus: $('pane-jutsus'), jutsuList: $('jutsu-list'), kitList: $('kit-list'),
+  classPanel: $('class-panel'), classTitle: $('class-title'), classClose: $('class-close'), classGrid: $('class-grid'),
+  classDesc: $('class-desc'), classConfirm: $('class-confirm'),
+  hokagePanel: $('hokage-panel'), hokageClose: $('hokage-close'), hokageApply: $('hokage-apply'),
 };
 
 // ------------------------------------------------------------------ token
@@ -92,7 +102,12 @@ const state = {
   meId: null,
   /** id -> { id, username, x, y (desenho), tx, ty (servidor), color, bubble } */
   players: new Map(),
-  world: { width: 50, height: 50, speed: 5, tickMs: 50, spawn: { x: 25, y: 25 }, respawnMs: 5000, skills: {}, promotion: { xp: 100 } },
+  world: { width: 50, height: 50, speed: 5, tickMs: 50, spawn: { x: 25, y: 25 }, respawnMs: 5000, skills: {}, items: [], classes: [], extraction: [] },
+  /**
+   * Progressão (v7), SEMPRE a do servidor: passo do tutorial (trava as portas da Academia), ryō,
+   * itens, arma equipada, classes, jutsus aprendidos -> usos (o nível sai do uso) e Hokage.
+   */
+  ninja: { tutorialStep: 4, ryo: 0, items: {}, equipped: null, classes: { primary: null, secondary: null }, jutsus: {}, hokageCandidate: false },
   /** Layouts de todos os mapas (welcome), o mapa DESENHADO agora (o previsto) e o da última posição oficial. */
   maps: {},
   mapId: null,
@@ -140,6 +155,8 @@ const state = {
   failures: 0,
   reconnectTimer: null,
   effects: [],          // efeitos de habilidade: { skill, x, y, fx, fy, start }
+  /** Portas da Academia (desenhadas a cada quadro: abertas ou fechadas pelo passo do tutorial). */
+  doors: [],
 };
 
 // ------------------------------------------------------------------ login / cadastro
@@ -288,6 +305,9 @@ function disconnect() {
   state.lastReward = null;
   renderMission();
   closeMissions();
+  closeInventory();
+  closeClassChoice();
+  closeHokage();
   setFocus(null);
   hideDeath();
 }
@@ -346,6 +366,7 @@ const CAST_FAIL_TEXT = {
   NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum monstro perto',
   FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
   NOT_EQUIPPED: 'Fora do kit ativo', SAFE_ZONE: 'Zona segura: sem combate',
+  NOT_LEARNED: 'Jutsu não aprendido', BLOCKED: 'Caminho bloqueado',
 };
 
 function handleMessage(msg) {
@@ -383,6 +404,9 @@ function handleMessage(msg) {
       if (!state.me.appearanceSet) openCreator(true);
       if (msg.progress) state.progress = msg.progress;
       if (msg.kit) state.kit = msg.kit;
+      if (msg.ninja) state.ninja = msg.ninja;
+      pred.gates.tutorial = state.ninja.tutorialStep;   // portas da Academia: o MESMO passo do servidor
+      renderNinja();
       state.evalQueue = [];
       renderEval();
       closePlayerMenu();
@@ -403,6 +427,61 @@ function handleMessage(msg) {
     case 'shop_open':
       openShop(msg.shop, msg.npcId);
       break;
+
+    // ---- progressão (v7): tudo vem do servidor; o cliente só mostra
+    case 'tutorial': {
+      state.ninja.tutorialStep = msg.step;
+      pred.gates.tutorial = msg.step;           // a porta da sala abre na previsão também
+      renderTutorial();
+      if (msg.step >= 4) pulse(ui.invToggle);
+      break;
+    }
+    case 'inventory':
+      Object.assign(state.ninja, { ryo: msg.ryo, items: msg.items, equipped: msg.equipped });
+      renderInventory();
+      renderShopItems();
+      renderTutorial();
+      break;
+    case 'classes':
+      state.ninja.classes = { primary: msg.primary, secondary: msg.secondary };
+      closeClassChoice();
+      renderInventory();
+      renderShopItems();
+      break;
+    case 'jutsus':
+      state.ninja.jutsus = msg.jutsus;
+      renderStatus();
+      break;
+    case 'jutsu_level': {
+      const me = state.players.get(state.meId);
+      if (me) addFloater(me.x, me.y - 1.6, `${skillName(msg.skill)} Nv ${msg.level}!`, '#8fd8ff', 1.05);
+      state.ninja.jutsus[msg.skill] = Math.max(state.ninja.jutsus[msg.skill] || 0, (state.world.jutsuLevelUses || [])[msg.level - 1] || 0);
+      renderStatus();
+      break;
+    }
+    case 'class_choice':
+      openClassChoice(msg.kind, msg.classes);
+      break;
+    case 'extract_result':
+      showExtractResult(msg);
+      break;
+    case 'teleport': {
+      // Teleporte Curto: o SERVIDOR decidiu o lugar (alcance pelo nível, parando antes da parede).
+      state.effects.push({ skill: 'teleport', x: msg.fromX, y: msg.fromY, fx: 0, fy: 0, start: now });
+      state.effects.push({ skill: 'teleport', x: msg.x, y: msg.y, fx: 0, fy: 0, start: now + 60 });
+      jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
+      break;
+    }
+    case 'substitution': {
+      // Substituição: o golpe acertou um TRONCO; o ninja aparece atrás do atacante.
+      state.effects.push({ skill: 'log', x: msg.logX, y: msg.logY, fx: 0, fy: 0, start: now });
+      state.effects.push({ skill: 'teleport', x: msg.x, y: msg.y, fx: 0, fy: 0, start: now });
+      const p = state.players.get(msg.playerId);
+      if (p) addFloater(msg.logX, msg.logY - 0.9, 'Substituição!', '#e8c66a', 1);
+      jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
+      if (msg.playerId === state.meId && navigator.vibrate) try { navigator.vibrate(30); } catch { /* sem vibração */ }
+      break;
+    }
     case 'map_changed': {
       // O SERVIDOR confirmou a troca de mapa (andou até o portão ou renasceu na Vila). O mapa
       // novo em si já pode estar na tela (a predição atravessa na hora); aqui chegam os
@@ -490,6 +569,10 @@ function handleMessage(msg) {
     case 'player_rank': {
       const p = state.players.get(msg.playerId);
       if (p) { p.rank = msg.rank; p.level = msg.level; }
+      if (msg.playerId === state.meId) {          // Genin (Missão de Genin) / Chunin (Exame): a barra de baixo também
+        state.me.rank = msg.rank;
+        renderVitals();
+      }
       break;
     }
     case 'sensei_options':
@@ -510,7 +593,9 @@ function handleMessage(msg) {
       break;
     }
     case 'cast': {
-      state.effects.push({ skill: msg.skill, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
+      // Efeito pela MECÂNICA do jutsu (os tiers 2 a 4 usam a do tier 1, maior).
+      const fxKind = mechanicOf(msg.skill);
+      if (fxKind !== 'teleport') state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
       faceTo(msg.playerId, msg.fx, msg.fy);
       if (msg.playerId === state.meId) {
         console.log(`[habilidade] ${msg.skill}`);
@@ -641,6 +726,9 @@ function handleMessage(msg) {
       const npc = state.npcs.find((n) => n.id === msg.npcId);
       if (npc) npc.bubble = { text: msg.text, until: now + 4000 + msg.text.length * 45 };
       addChatLine(npc ? npc.name : 'NPC', msg.text, false, 'npc');
+      // Diretor, nível 60 e ainda sem candidatura: o botão de Hokage aparece.
+      const hokageAt = state.world.rankLevels?.hokage ?? 60;
+      if (msg.npcId === 'director' && (state.progress?.level ?? 1) >= hokageAt && !state.ninja.hokageCandidate) openHokage();
       break;
     }
     case 'mission_reward': {
@@ -656,7 +744,8 @@ function handleMessage(msg) {
     case 'error':
       if (msg.code === 'CHAT_RATE_LIMITED' || msg.code === 'CHAT_INVALID') addSystemLine(msg.message);
       else if (['NPC_TOO_FAR', 'CANNOT_TALK', 'UNKNOWN_NPC', 'MISSIONS_UNAVAILABLE', 'NO_POINTS', 'ATTRIBUTE_MAXED',
-        'PROFILE_UNAVAILABLE', 'PROFILE_BUSY', 'PLAYER_NOT_FOUND', 'PLAYER_TOO_FAR', 'INVALID_MISSION_OPTION'].includes(msg.code)) {
+        'PROFILE_UNAVAILABLE', 'PROFILE_BUSY', 'PLAYER_NOT_FOUND', 'PLAYER_TOO_FAR', 'INVALID_MISSION_OPTION',
+        'NOT_LEARNED', 'SHOP_TOO_FAR', 'DIRECTOR_TOO_FAR', 'ITEM_NOT_OWNED', 'NOT_A_WEAPON'].includes(msg.code)) {
         showToast(msg.message, 3500);
         addSystemLine(msg.message);
       }
@@ -698,6 +787,23 @@ function flashHurt() {
   void ui.hurt.offsetWidth;
   ui.hurt.classList.add('on');
   if (navigator.vibrate) try { navigator.vibrate(40); } catch { /* sem vibração */ }
+}
+
+/**
+ * Salto decidido pelo servidor (Teleporte, Substituição). O próprio jogador: a predição recomeça
+ * da posição oficial e refaz as entradas que o servidor ainda não aplicou, sem deslizar. Os outros:
+ * aparecem direto no lugar novo (sem interpolar o caminho).
+ */
+function jumpPlayer(playerId, x, y, ack) {
+  const p = state.players.get(playerId);
+  if (!p) return;
+  p.tx = x; p.ty = y;
+  if (playerId === state.meId) {
+    if (predWorld) pred.jump(state.serverMap, x, y, ack, predWorld);
+  } else {
+    p.x = x; p.y = y;
+    p.snaps = [{ t: performance.now(), x, y }];
+  }
 }
 
 // ---- derrota e renascimento
@@ -757,8 +863,9 @@ function enterMap(id, announce) {
   // Paredes de cima para baixo: o que está mais embaixo é desenhado por cima (3/4).
   state.walls = visibleWalls(state.places).sort((a, b) => a.y + a.h - (b.y + b.h));
   const deco = visibleDeco(state.places);
-  state.deco = deco.filter((d) => d.k !== 'gate_roof');
+  state.deco = deco.filter((d) => d.k !== 'gate_roof' && d.k !== 'door');
   state.overhead = deco.filter((d) => d.k === 'gate_roof');
+  state.doors = deco.filter((d) => d.k === 'door');      // Academia: abrem conforme o tutorial (desenho a cada quadro)
   state.npcs = state.allNpcs.filter((n) => n.map === id);
   state.nearNpc = null;
   ui.talkBtn.hidden = true;
@@ -773,6 +880,7 @@ function enterMap(id, announce) {
     mapFx.name = announce ? layout.name : '';
   }
   updateOnline();
+  renderTutorial();
 }
 const mapFx = { at: -1e9, name: '' };
 
@@ -932,7 +1040,8 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') toggleMeditation();
   if (e.key === 'e' || e.key === 'E') talkToNpc();
   if (e.key === 'j' || e.key === 'J') (ui.missionsPanel.hidden ? openMissions() : closeMissions());
-  if (e.key === 'Escape') closeShop();
+  if (e.key === 'i' || e.key === 'I') (ui.invPanel.hidden ? openInventory() : closeInventory());
+  if (e.key === 'Escape') { closeShop(); closeInventory(); closeClassChoice(); closeHokage(); }
 });
 window.addEventListener('keyup', (e) => {
   if (KEYMAP[e.code] && keys.delete(e.code)) keyDirection();
@@ -944,7 +1053,10 @@ window.addEventListener('blur', () => { keys.clear(); if (joy.pointerId === null
 
 // ------------------------------------------------------------------ habilidades
 
-/** As 7 habilidades: cor e duração do efeito no canvas (só visual, o servidor só valida). */
+/**
+ * Efeito de cada MECÂNICA: cor e duração no canvas (só visual, o servidor só valida). Os 38
+ * jutsus usam a mecânica da classe (Fogo, Água...) ou a da Academia (Teleporte, Substituição).
+ */
 const SKILLS = {
   fire: { color: '#ff2e1f', ms: 520 },
   water: { color: '#3ca6ff', ms: 700 },
@@ -953,11 +1065,19 @@ const SKILLS = {
   shadow: { color: '#2a2140', ms: 900 },
   stone: { color: '#9a7448', ms: 650 },
   heal: { color: '#5fe07a', ms: 900 },
+  weapons: { color: '#c9d2da', ms: 420 },
+  lightning: { color: '#fff27a', ms: 360 },
+  teleport: { color: '#d6efff', ms: 380 },
+  substitution: { color: '#e8c66a', ms: 600 },
+  log: { color: '#8b5a2b', ms: 1400 },         // tronco que levou o golpe da Substituição
   attack: { color: '#fff3c4', ms: 260 },   // Ataque Básico: corte rápido na direção do golpe
 };
-const GROUND_FX = new Set(['shadow', 'water']);
-/** Habilidades que miram no alvo focado (Taijutsu: sempre o mais perto; Pedra e Cura: em si mesmo). */
-const DIRECTED = new Set(['fire', 'water', 'illusion', 'shadow']);
+const GROUND_FX = new Set(['shadow', 'water', 'log']);
+/** Mecânicas que miram no alvo focado (Taijutsu: sempre o mais perto; Pedra e Cura: em si mesmo). */
+const DIRECTED = new Set(['fire', 'water', 'illusion', 'shadow', 'lightning', 'weapons']);
+/** Mecânica e nome de um jutsu (catálogo do welcome). */
+const mechanicOf = (skill) => state.world.skills?.[skill]?.mechanic || skill;
+const skillName = (skill) => state.world.skills?.[skill]?.name || skill;
 
 // ------------------------------------------------------------------ foco (🎯) e meditação (🧘)
 
@@ -1070,6 +1190,7 @@ function renderMission() {
 
 function openMissions() {
   closeSettings();
+  closeInventory();
   closeStatus();
   closePlayerMenu();
   ui.missionsPanel.hidden = false;
@@ -1118,18 +1239,26 @@ function updateNpcProximity(me) {
 
 // ------------------------------------------------------------------ lojas (painel)
 
-/** Vitrine de cada loja (placeholder: compra chega numa próxima versão). */
+/** Cada loja: ícone, nome e fala. O que ela VENDE (e o preço) vem do catálogo do servidor. */
 const SHOP_INFO = {
-  weapons: { icon: '⚔️', name: 'Armaria', greet: '“Lâminas afiadas para ninjas de verdade.”', items: [['🗡️', 'Kunai'], ['✴️', 'Shuriken'], ['⚔️', 'Katana de treino']] },
-  clothes: { icon: '👘', name: 'Alfaiataria', greet: '“Um ninja bem vestido assusta antes da luta.”', items: [['🥋', 'Colete ninja'], ['🎀', 'Bandana'], ['👡', 'Sandálias']] },
-  scrolls: { icon: '📜', name: 'Casa dos Pergaminhos', greet: '“Cada pergaminho guarda um jutsu.”', items: [['📜', 'Pergaminho de Fogo'], ['📜', 'Pergaminho de Água'], ['📘', 'Manual de Taijutsu']] },
+  weapons: { icon: '⚔️', name: 'Armaria', greet: '“Lâminas afiadas para ninjas de verdade.”' },
+  clothes: { icon: '👘', name: 'Alfaiataria', greet: '“Um ninja bem vestido assusta antes da luta.”' },
+  scrolls: { icon: '📜', name: 'Casa dos Pergaminhos', greet: '“Cada pergaminho guarda um jutsu. A Extração revela qual.”' },
 };
-/** Cores dos lojistas (paperdoll). */
+/** Cores dos lojistas e dos NPCs da Academia (paperdoll). */
 const SHOPKEEPER_LOOK = {
   weapons: { skin: '#c68642', hair: '#2b2118', shirt: '#4a4a52', pants: '#2a2a33', cape: '#7a3b1e' },
   clothes: { skin: '#f1c9a0', hair: '#7a2e5a', shirt: '#c94f7c', pants: '#3b2f6e', cape: '#e8c66a' },
   scrolls: { skin: '#e0ac69', hair: '#d9d4c7', shirt: '#2f5d8a', pants: '#1f2a44', cape: '#3b6e4f' },
 };
+const ACADEMY_LOOK = {
+  tutor_dummies: { skin: '#f1c9a0', hair: '#8a2b2b', shirt: '#3b6e4f', pants: '#2a2a33', cape: '#2f5d8a' },
+  tutor_meditation: { skin: '#c68642', hair: '#d9d4c7', shirt: '#e8c66a', pants: '#7a3b1e', cape: '#e8c66a' },
+  tutor_jutsu: { skin: '#e0ac69', hair: '#2b2118', shirt: '#2f3a52', pants: '#1f2a44', cape: '#9a6be0' },
+  director: { skin: '#f1c9a0', hair: '#efe9dc', shirt: '#7a2e1e', pants: '#3b2414', cape: '#e8c66a' },
+};
+const ryoText = (n) => `${Number(n || 0).toLocaleString('pt-BR')} ryō`;
+const itemDef = (code) => (state.world.items || []).find((i) => i.code === code);
 
 /** O servidor confirmou (shop_open): mostra o painel da loja. Itens montados com createElement + textContent (nada vira HTML). */
 function openShop(kind, npcId) {
@@ -1137,26 +1266,107 @@ function openShop(kind, npcId) {
   if (!info) return;
   state.shop = { kind, npcId };
   closeMissions();
+  closeInventory();
   ui.shopIcon.textContent = info.icon;
   ui.shopName.textContent = info.name;
   ui.shopGreet.textContent = info.greet;
-  ui.shopItems.replaceChildren(...info.items.map(([icon, name]) => {
+  ui.extractResult.textContent = '';
+  ui.extractResult.className = 'mission-status';
+  renderShopItems();
+  ui.shopPanel.hidden = false;
+}
+
+/** Vitrine com preço e "Comprar" (o servidor confere a distância, o preço e o saldo). */
+function renderShopItems() {
+  const shop = state.shop;
+  if (!shop) return;
+  ui.shopRyo.textContent = `Você tem ${ryoText(state.ninja.ryo)}`;
+  const forSale = (state.world.items || []).filter((i) => i.shop === shop.kind);
+  ui.shopItems.replaceChildren(...forSale.map((item) => {
     const li = document.createElement('li');
     const i = document.createElement('span');
     i.className = 'ico';
-    i.textContent = icon;
+    i.textContent = item.icon;
     const n = document.createElement('span');
     n.className = 'name';
-    n.textContent = name;
+    n.textContent = item.name;
+    const price = document.createElement('small');
+    price.className = 'price';
+    const have = state.ninja.items?.[item.code] || 0;
+    price.textContent = `${ryoText(item.price)}${item.damage ? ` · +${item.damage} de dano` : ''}${have ? ` · você tem ${have}` : ''}`;
+    n.append(price);
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'icon-btn small';
-    b.disabled = true;
-    b.textContent = 'Em breve';
+    b.textContent = 'Comprar';
+    b.disabled = (state.ninja.ryo || 0) < item.price;
+    b.addEventListener('click', () => {
+      if (!tapGuard(`buy:${item.code}`)) return;
+      send({ type: 'buy', item: item.code, qty: 1 });
+    });
     li.append(i, n, b);
     return li;
   }));
-  ui.shopPanel.hidden = false;
+  ui.shopNote.textContent = shop.kind === 'clothes' ? 'Roupas chegam numa próxima versão.' : forSale.length ? '' : 'Nada à venda agora.';
+  ui.extractBox.hidden = shop.kind !== 'scrolls';
+  if (shop.kind === 'scrolls') renderExtraction();
+}
+
+// ---- Extração (gacha): o cliente escolhe classe e nível; o SORTEIO é do servidor.
+const extractChoice = { cls: null, level: 1 };
+function renderExtraction() {
+  const owned = [state.ninja.classes?.primary, state.ninja.classes?.secondary].filter(Boolean);
+  if (!owned.includes(extractChoice.cls)) extractChoice.cls = owned[0] || null;
+  const classes = state.world.classes || [];
+  ui.extractClass.replaceChildren(...owned.map((code) => {
+    const c = classes.find((x) => x.code === code);
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `chip${extractChoice.cls === code ? ' on' : ''}`;
+    chip.setAttribute('role', 'radio');
+    chip.setAttribute('aria-checked', extractChoice.cls === code ? 'true' : 'false');
+    chip.textContent = `${c?.icon || ''} ${c?.name || code} (${state.ninja.items?.[`scroll_${code}`] || 0} 📜)`;
+    chip.addEventListener('click', () => { extractChoice.cls = code; renderExtraction(); });
+    return chip;
+  }));
+  ui.extractLevel.replaceChildren(...(state.world.extraction || []).map((e) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `chip${extractChoice.level === e.level ? ' on' : ''}`;
+    chip.setAttribute('role', 'radio');
+    chip.setAttribute('aria-checked', extractChoice.level === e.level ? 'true' : 'false');
+    chip.textContent = `Nv ${e.level}`;
+    chip.addEventListener('click', () => { extractChoice.level = e.level; renderExtraction(); });
+    return chip;
+  }));
+  const rule = (state.world.extraction || []).find((e) => e.level === extractChoice.level);
+  const have = extractChoice.cls ? state.ninja.items?.[`scroll_${extractChoice.cls}`] || 0 : 0;
+  if (!owned.length) {
+    ui.extractInfo.textContent = 'Você ainda não tem classe. Faça a Missão de Genin com o Diretor da Academia (nível 11).';
+  } else if (rule) {
+    ui.extractInfo.textContent = `Custa ${rule.scrolls} ${rule.scrolls === 1 ? 'pergaminho' : 'pergaminhos'} · chance de ${Math.round(rule.chance * 100)}% · jutsu do Tier ${rule.level}. Você tem ${have}.`;
+  }
+  ui.extractGo.disabled = !owned.length || !rule || have < rule.scrolls;
+}
+ui.extractGo.addEventListener('click', () => {
+  if (!extractChoice.cls || !tapGuard('extract')) return;
+  ui.extractGo.disabled = true;
+  ui.extractResult.textContent = 'Extraindo…';
+  ui.extractResult.className = 'mission-status';
+  send({ type: 'extract', class: extractChoice.cls, level: extractChoice.level });
+});
+function showExtractResult(r) {
+  const text = r.outcome === 'success' ? `✨ Sucesso! Você aprendeu ${skillName(r.jutsu)}. Coloque no kit (📊 → Kits).`
+    : r.outcome === 'failed' ? `💨 Falhou… ${r.consumed} ${r.consumed === 1 ? 'pergaminho se foi' : 'pergaminhos se foram'}.`
+      : r.outcome === 'no_scrolls' ? 'Pergaminhos insuficientes para esse nível.'
+        : 'Você já aprendeu todos os jutsus desse nível.';
+  ui.extractResult.textContent = text;
+  ui.extractResult.className = `mission-status ${r.outcome === 'success' ? 'good' : 'bad'}`;
+  if (r.outcome === 'success') {
+    showToast(text, 4500);
+    pulse(ui.statusToggle);
+  }
+  renderExtraction();
 }
 
 function closeShop() {
@@ -1165,6 +1375,153 @@ function closeShop() {
   ui.shopPanel.hidden = true;
 }
 ui.shopClose.addEventListener('click', closeShop);
+
+// ------------------------------------------------------------------ inventário (🎒)
+
+function renderInventory() {
+  const n = state.ninja;
+  ui.invBadge.textContent = ryoText(n.ryo);
+  ui.invToggle.setAttribute('aria-label', `Inventário: ${ryoText(n.ryo)}`);
+  ui.invRyo.textContent = ryoText(n.ryo);
+  const cls = (code) => state.world.classes?.find((c) => c.code === code);
+  const p = cls(n.classes?.primary), s2 = cls(n.classes?.secondary);
+  ui.invClass.textContent = p ? `Classe: ${p.icon} ${p.name}${s2 ? ` · ${s2.icon} ${s2.name}` : ''}` : 'Sem classe (Missão de Genin no nível 11)';
+  const entries = Object.entries(n.items || {}).filter(([, q]) => q > 0);
+  ui.invEmpty.hidden = entries.length > 0;
+  ui.invItems.replaceChildren(...entries.map(([code, qty]) => {
+    const def = itemDef(code);
+    const li = document.createElement('li');
+    if (n.equipped === code) li.className = 'equipped';
+    const i = document.createElement('span');
+    i.className = 'ico';
+    i.textContent = def?.icon || '📦';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = def?.name || code;
+    const sub = document.createElement('small');
+    sub.className = 'qty';
+    sub.textContent = def?.kind === 'weapon' ? ` · +${def.damage} de dano` : ` · ×${qty}`;
+    name.append(sub);
+    li.append(i, name);
+    if (def?.kind === 'weapon') {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'icon-btn small';
+      const on = n.equipped === code;
+      b.textContent = on ? 'Guardar' : 'Equipar';
+      // Só PEDE: a arma equipada muda quando o servidor confirma (inventory).
+      b.addEventListener('click', () => send({ type: 'equip', item: on ? null : code }));
+      li.append(b);
+    }
+    return li;
+  }));
+}
+function openInventory() {
+  closeSettings();
+  closeStatus();
+  closeMissions();
+  closeShop();
+  closePlayerMenu();
+  renderInventory();
+  ui.invPanel.hidden = false;
+  ui.invToggle.setAttribute('aria-expanded', 'true');
+}
+function closeInventory() {
+  ui.invPanel.hidden = true;
+  ui.invToggle.setAttribute('aria-expanded', 'false');
+}
+ui.invToggle.addEventListener('click', () => (ui.invPanel.hidden ? openInventory() : closeInventory()));
+ui.invClose.addEventListener('click', closeInventory);
+
+// ------------------------------------------------------------------ Diretor: classe e Hokage
+
+let classChoice = { kind: 'primary', picked: null };
+function openClassChoice(kind, classes) {
+  classChoice = { kind, picked: null };
+  closeShop();
+  closeInventory();
+  ui.classTitle.textContent = kind === 'primary' ? '🎓 Missão de Genin' : '🎖️ Classe Secundária';
+  ui.classDesc.textContent = 'Toque numa classe para ver o que ela faz.';
+  ui.classConfirm.disabled = true;
+  ui.classGrid.replaceChildren(...classes.map((code) => {
+    const c = state.world.classes?.find((x) => x.code === code) || { code, name: code, icon: '?', desc: '' };
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.setAttribute('role', 'radio');
+    chip.setAttribute('aria-checked', 'false');
+    const ico = document.createElement('span');
+    ico.className = 'ico';
+    ico.textContent = c.icon;
+    const name = document.createElement('span');
+    name.textContent = c.name;
+    chip.append(ico, name);
+    chip.addEventListener('click', () => {
+      classChoice.picked = code;
+      for (const other of ui.classGrid.children) {
+        other.classList.toggle('on', other === chip);
+        other.setAttribute('aria-checked', other === chip ? 'true' : 'false');
+      }
+      ui.classDesc.textContent = `${c.icon} ${c.name}: ${c.desc}`;
+      ui.classConfirm.disabled = false;
+      ui.classConfirm.textContent = `Escolher ${c.name}`;
+    });
+    return chip;
+  }));
+  ui.classPanel.hidden = false;
+}
+function closeClassChoice() { ui.classPanel.hidden = true; }
+ui.classClose.addEventListener('click', closeClassChoice);
+ui.classConfirm.addEventListener('click', () => {
+  if (!classChoice.picked || !tapGuard('class')) return;
+  ui.classConfirm.disabled = true;
+  send({ type: 'choose_class', class: classChoice.picked });   // o servidor (e o banco) decidem
+});
+
+function openHokage() { ui.hokagePanel.hidden = false; }
+function closeHokage() { ui.hokagePanel.hidden = true; }
+ui.hokageClose.addEventListener('click', closeHokage);
+ui.hokageApply.addEventListener('click', () => {
+  if (!tapGuard('hokage')) return;
+  send({ type: 'hokage_apply' });
+  state.ninja.hokageCandidate = true;   // só esconde o botão; quem registra é o servidor
+  closeHokage();
+});
+
+// ------------------------------------------------------------------ tutorial da Academia
+
+/** O que fazer em cada sala (o SERVIDOR confere: o cliente não diz que concluiu nada). */
+const TUTORIAL_STEPS = [
+  ['Sala 1 · Ataque Básico', 'Destrua 3 bonecos de treino com o 🗡️ Ataque Básico.'],
+  ['Sala 2 · Meditação', 'Vá para a Sala 2 (porta à direita) e medite 🧘 até o chakra encher.'],
+  ['Sala 3 · Jutsus da Academia', 'Use o 💨 Teleporte Curto e arme a 🪵 Substituição perto do boneco que bate.'],
+  ['Sala 4 · Equipamento', 'Abra o 🎒 Inventário e equipe a Kunai de Treino.'],
+];
+function renderTutorial() {
+  const step = state.ninja.tutorialStep ?? 4;
+  const inAcademy = state.mapId === 'academy_interior';
+  ui.tutorialCard.hidden = !inAcademy;
+  document.body.classList.toggle('tutorial', inAcademy);
+  if (!inAcademy) return;
+  const done = step >= 4;
+  ui.tutorialCard.classList.toggle('done', done);
+  if (done) {
+    ui.tutorialTitle.textContent = 'Academia · Tutorial concluído';
+    ui.tutorialText.textContent = 'A saída (embaixo, na Sala 4) está aberta. No nível 11, fale com o Diretor para a Missão de Genin.';
+  } else {
+    const [title, text] = TUTORIAL_STEPS[step];
+    ui.tutorialTitle.textContent = `Academia · ${title}`;
+    ui.tutorialText.textContent = text;
+  }
+}
+
+/** Tudo da progressão de uma vez (welcome). */
+function renderNinja() {
+  renderInventory();
+  renderTutorial();
+  closeClassChoice();
+  closeHokage();
+}
 
 /** Marcador sobre o NPC: "!" tem missão para dar, "?" dourado = pronta para entregar, "?" cinza = em andamento. */
 function npcMarker() {
@@ -1182,16 +1539,28 @@ function pulse(el) {
 }
 // ------------------------------------------------------------------ combate MOBA (ataque, 4 habilidades, kits)
 
-/** Ícone e cor de cada habilidade (só visual). */
+/** Ícone e cor de cada MECÂNICA (só visual); o nome do jutsu vem do catálogo do servidor. */
 const SKILL_UI = {
-  fire: { icon: '🔥', name: 'Fogo', color: '#e8572f' },
-  water: { icon: '💧', name: 'Água', color: '#3c9be0' },
-  taijutsu: { icon: '👊', name: 'Taijutsu', color: '#d9a441' },
-  illusion: { icon: '🌀', name: 'Ilusão', color: '#9a6be0' },
-  shadow: { icon: '🌑', name: 'Sombra', color: '#4a3f63' },
-  stone: { icon: '⛰', name: 'Pedra', color: '#8a6a45' },
-  heal: { icon: '✚', name: 'Cura', color: '#4fbf6a' },
+  fire: { icon: '🔥', color: '#e8572f' },
+  water: { icon: '💧', color: '#3c9be0' },
+  taijutsu: { icon: '👊', color: '#d9a441' },
+  illusion: { icon: '🌀', color: '#9a6be0' },
+  shadow: { icon: '🌑', color: '#4a3f63' },
+  stone: { icon: '⛰', color: '#8a6a45' },
+  heal: { icon: '✚', color: '#4fbf6a' },
+  weapons: { icon: '🗡️', color: '#8a96a3' },
+  lightning: { icon: '⚡', color: '#d9c22e' },
+  teleport: { icon: '💨', color: '#6fa8d6' },
+  substitution: { icon: '🪵', color: '#a0703a' },
 };
+/** Ícone + nome + tier de um jutsu. Tier 2 a 4: algarismo romano depois do nome. */
+const TIER_MARK = ['', '', ' II', ' III', ' IV'];
+function skillInfo(skill) {
+  const w = state.world.skills?.[skill];
+  const ui = SKILL_UI[w?.mechanic || skill];
+  if (!w || !ui) return null;
+  return { ...ui, name: w.name, tier: w.tier, mark: TIER_MARK[w.tier] || '' };
+}
 
 /** skill (ou "attack") -> { until, ms }: quando a recarga acaba. Começa quando o SERVIDOR confirma. */
 const cooldowns = {};
@@ -1204,9 +1573,13 @@ function faceTo(playerId, fx, fy) {
 
 function startCooldown(skill) {
   // Ataque: a recarga já vem com a Agilidade (o servidor calcula, em progress.derived).
+  // Substituição: a recarga cai com o nível do jutsu (30 / 25 / 20 / 15 s), igual ao servidor.
+  const uses = state.ninja.jutsus?.[skill] ?? 0;
+  const level = jutsuLevelOf(uses);
   const ms = skill === 'attack'
     ? (state.progress?.derived?.attackCooldownMs ?? state.world.basicAttack?.cooldownMs ?? 600)
-    : (state.world.skills?.[skill]?.cooldownMs ?? 600);
+    : skill === 'substitution' ? (35 - 5 * level) * 1000
+      : (state.world.skills?.[skill]?.cooldownMs ?? 600);
   cooldowns[skill] = { until: performance.now() + ms, ms };
 }
 
@@ -1216,14 +1589,15 @@ function renderKit() {
   ui.slots.forEach((button, i) => {
     const skill = list[i] || '';
     button.dataset.skill = skill;
-    const info = SKILL_UI[skill];
+    const info = skillInfo(skill);
     button.querySelector('.ico').textContent = info ? info.icon : '';
+    button.dataset.tier = info && info.tier > 1 ? String(info.tier) : '';
     const cost = state.world.skills?.[skill]?.cost;
     button.querySelector('.cost').textContent = cost !== undefined ? String(cost) : '';
     button.style.setProperty('--c', info ? info.color : 'transparent');
     button.classList.toggle('empty', !info);
     button.disabled = !info;
-    button.setAttribute('aria-label', info ? `${info.name} (${cost} de chakra) — tecla ${i + 1}` : `Espaço ${i + 1} vazio (monte na ficha 📊 → Kits)`);
+    button.setAttribute('aria-label', info ? `${info.name}${info.mark} (${cost} de chakra) — tecla ${i + 1}` : `Espaço ${i + 1} vazio (monte na ficha 📊 → Kits)`);
   });
   ui.kitLabel.textContent = state.kit.active;
   ui.kitBtn.setAttribute('aria-label', `Trocar de kit (ativo: ${state.kit.active})`);
@@ -1275,10 +1649,27 @@ function castSlot(i) {
   if (skill) castSkill(skill);
 }
 function castSkill(skill) {
-  if (!SKILLS[skill] || !state.connected || state.me.dead || !tapGuard(skill)) return;
+  const mech = mechanicOf(skill);
+  if (!SKILLS[mech] || !state.connected || state.me.dead || !tapGuard(skill)) return;
+  if (mech === 'teleport') {
+    // Teleporte Curto: para onde o joystick aponta (ou para onde o boneco olha). O ALCANCE é do servidor.
+    const me = state.players.get(state.meId);
+    const d = dir.x || dir.y ? [quantize(dir.x), quantize(dir.y)] : DIR_VECTOR[me?.dir ?? 0];
+    return send({ type: 'cast', skill, dir: d });
+  }
   // Jutsu direcionado: com alvo focado, vai o targetId (o servidor mira e confere o alcance).
-  const targetId = DIRECTED.has(skill) && state.focusId ? state.focusId : undefined;
+  // Substituição Nível 4: aparece atrás do alvo focado (o servidor confere o nível).
+  const targetId = (DIRECTED.has(mech) || mech === 'substitution') && state.focusId ? state.focusId : undefined;
   send(targetId ? { type: 'cast', skill, targetId } : { type: 'cast', skill });
+}
+/** Direção do boneco (0 baixo, 1 esquerda, 2 direita, 3 cima) -> vetor. */
+const DIR_VECTOR = [[0, 1], [-1, 0], [1, 0], [0, -1]];
+/** Nível do jutsu pelo uso (a MESMA tabela do servidor, que vem no welcome). */
+function jutsuLevelOf(uses) {
+  const t = state.world.jutsuLevelUses || [0, 100, 500, 2000];
+  let level = 1;
+  for (let i = 1; i < t.length; i++) if (uses >= t[i]) level = i + 1;
+  return level;
 }
 
 /** Ataque Básico: sem chakra; vai no focado (se estiver perto) ou no mais perto. */
@@ -1313,6 +1704,7 @@ const ATTR_EFFECT = {
   agility: (pp) => `+${String(pp.agility).replace('.', ',')} velocidade`,
   taijutsu: (pp) => `+${Math.round(pp.taijutsu * 100)}% Ataque Básico`,
   ninjutsu: (pp) => `+${Math.round(pp.ninjutsu * 100)}% jutsus`,
+  weapons: (pp) => `+${Math.round((pp.weapons ?? 0.05) * 100)}% armas (Kunai e jutsus de Armas)`,
 };
 /** O que o atributo dá hoje (números do SERVIDOR, em progress.derived). */
 const ATTR_NOW = {
@@ -1322,6 +1714,7 @@ const ATTR_NOW = {
   agility: (d) => `${String(d.walkSpeed).replace('.', ',')} / ${String(d.runSpeed).replace('.', ',')}`,
   taijutsu: (d) => `×${String(d.physicalMultiplier).replace('.', ',')}`,
   ninjutsu: (d) => `×${String(d.jutsuMultiplier).replace('.', ',')}`,
+  weapons: (d) => `×${String(d.weaponMultiplier ?? 1).replace('.', ',')}`,
 };
 
 let draftKits = null;   // kits sendo montados na aba Kits (só valem depois de salvos no servidor)
@@ -1349,12 +1742,58 @@ function renderStatus() {
     plus.disabled = pr.statPoints <= 0 || val >= pr.maxPoints;
   }
   if (!draftKits || ui.statusPanel.hidden) draftKits = { A: [...state.kit.kits.A], B: [...state.kit.kits.B] };
+  renderKitList();
   renderDraftKits();
+  renderJutsus();
+}
+
+/** Jutsus aprendidos, na ordem do catálogo (Academia primeiro, depois por classe e tier). */
+function learnedJutsus() {
+  const known = state.ninja.jutsus || {};
+  return Object.keys(state.world.skills || {}).filter((code) => code in known);
+}
+
+/** Aba Kits: uma linha por jutsu APRENDIDO, com os botões A e B. Montada com createElement (nada vira HTML). */
+let kitListKey = '';
+function renderKitList() {
+  const list = learnedJutsus();
+  const key = list.join(',');
+  if (key === kitListKey) return;
+  kitListKey = key;
+  ui.kitList.replaceChildren(...list.map((skill) => {
+    const info = skillInfo(skill);
+    const li = document.createElement('li');
+    li.dataset.skill = skill;
+    const label = document.createElement('span');
+    label.textContent = `${info ? info.icon : '•'} ${info ? info.name : skill}`;
+    if (info && info.tier > 0) {
+      const small = document.createElement('small');
+      small.textContent = `T${info.tier}`;
+      label.append(small);
+    }
+    li.append(label);
+    for (const kit of ['A', 'B']) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.dataset.kit = kit;
+      chip.textContent = kit;
+      chip.addEventListener('click', () => {
+        const kitSkills = draftKits[kit];
+        const i = kitSkills.indexOf(skill);
+        if (i >= 0) kitSkills.splice(i, 1);
+        else if (kitSkills.length < 4) kitSkills.push(skill);
+        renderDraftKits();
+      });
+      li.append(chip);
+    }
+    return li;
+  }));
 }
 
 function renderDraftKits() {
   if (!draftKits) return;
-  for (const li of ui.kitRows) {
+  for (const li of ui.kitList.children) {
     const skill = li.dataset.skill;
     for (const chip of li.querySelectorAll('.chip')) {
       const on = draftKits[chip.dataset.kit].includes(skill);
@@ -1366,8 +1805,45 @@ function renderDraftKits() {
   ui.kitCount.textContent = `Kit A: ${draftKits.A.length}/4 · Kit B: ${draftKits.B.length}/4`;
 }
 
+/** Aba Jutsus: nível pelo USO e a barra até o próximo nível (números do servidor). */
+function renderJutsus() {
+  if (ui.statusPanel.hidden) return;
+  const table = state.world.jutsuLevelUses || [0, 100, 500, 2000];
+  ui.jutsuList.replaceChildren(...learnedJutsus().map((skill) => {
+    const info = skillInfo(skill);
+    const uses = state.ninja.jutsus[skill] || 0;
+    const level = jutsuLevelOf(uses);
+    const next = table[level];
+    const li = document.createElement('li');
+    const ico = document.createElement('span');
+    ico.className = 'ico';
+    ico.textContent = info ? info.icon : '•';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = info ? info.name : skill;
+    const cls = state.world.skills[skill]?.class;
+    const small = document.createElement('small');
+    small.textContent = cls ? `${state.world.classes?.find((c) => c.code === cls)?.name || cls} · Tier ${info?.tier ?? 1}` : 'Academia';
+    name.append(small);
+    const lvl = document.createElement('b');
+    lvl.className = 'lvl';
+    lvl.textContent = `Nv ${level}`;
+    const bar = document.createElement('div');
+    bar.className = 'use';
+    const fill = document.createElement('span');
+    const prev = table[level - 1] || 0;
+    fill.style.transform = `scaleX(${next ? Math.min(1, (uses - prev) / (next - prev)) : 1})`;
+    const txt = document.createElement('b');
+    txt.textContent = next ? `${uses} / ${next} usos` : `${uses} usos · nível máximo`;
+    bar.append(fill, txt);
+    li.append(ico, name, lvl, bar);
+    return li;
+  }));
+}
+
 function openStatus() {
   closeSettings();
+  closeInventory();
   closeMissions();
   closePlayerMenu();
   draftKits = null;
@@ -1379,32 +1855,23 @@ function closeStatus() {
   ui.statusPanel.hidden = true;
   ui.statusToggle.setAttribute('aria-expanded', 'false');
 }
-function showTab(kits) {
-  ui.paneAttrs.hidden = kits;
-  ui.paneKits.hidden = !kits;
-  ui.tabAttrs.classList.toggle('active', !kits);
-  ui.tabKits.classList.toggle('active', kits);
-  ui.tabAttrs.setAttribute('aria-selected', kits ? 'false' : 'true');
-  ui.tabKits.setAttribute('aria-selected', kits ? 'true' : 'false');
+function showTab(which) {
+  const tabs = { attrs: [ui.tabAttrs, ui.paneAttrs], jutsus: [ui.tabJutsus, ui.paneJutsus], kits: [ui.tabKits, ui.paneKits] };
+  for (const [name, [tab, pane]] of Object.entries(tabs)) {
+    pane.hidden = name !== which;
+    tab.classList.toggle('active', name === which);
+    tab.setAttribute('aria-selected', name === which ? 'true' : 'false');
+  }
+  if (which === 'jutsus') renderJutsus();
 }
 ui.statusToggle.addEventListener('click', () => (ui.statusPanel.hidden ? openStatus() : closeStatus()));
 ui.statusClose.addEventListener('click', closeStatus);
-ui.tabAttrs.addEventListener('click', () => showTab(false));
-ui.tabKits.addEventListener('click', () => showTab(true));
+ui.tabAttrs.addEventListener('click', () => showTab('attrs'));
+ui.tabJutsus.addEventListener('click', () => showTab('jutsus'));
+ui.tabKits.addEventListener('click', () => showTab('kits'));
 for (const li of ui.attrRows) {
   // "+": só pede. Ponto, atributo e vida nova só mudam quando o servidor responde ("progress").
   li.querySelector('.plus').addEventListener('click', () => send({ type: 'spend_point', attribute: li.dataset.attr }));
-}
-for (const li of ui.kitRows) {
-  for (const chip of li.querySelectorAll('.chip')) {
-    chip.addEventListener('click', () => {
-      const list = draftKits[chip.dataset.kit];
-      const i = list.indexOf(li.dataset.skill);
-      if (i >= 0) list.splice(i, 1);
-      else if (list.length < 4) list.push(li.dataset.skill);
-      renderDraftKits();
-    });
-  }
 }
 ui.kitSave.addEventListener('click', () => send({ type: 'set_loadout', kitA: draftKits.A, kitB: draftKits.B }));
 
@@ -1415,6 +1882,7 @@ let menuChoice = { quantity: 3, difficulty: 'BASIC' };
 
 function openPlayerMenu(p) {
   closeMissions();
+  closeInventory();
   closeStatus();
   menuPlayerId = p.id;
   ui.pmName.textContent = p.username;
@@ -2330,9 +2798,16 @@ function draw(now) {
   ctx.lineWidth = Math.max(2, T / 10);
   ctx.strokeRect(toScreenX(0), toScreenY(0), width * T, height * T);
 
+  // 3b. Portas da Academia: fechadas (tranca vermelha) até o tutorial do jogador chegar no passo delas.
+  const step = state.ninja.tutorialStep ?? 4;
+  for (const d of state.doors) {
+    const x = toScreenX(d.x), y = toScreenY(d.y), w = d.w * T, h = d.h * T;
+    if (x + w >= 0 && x <= viewW && y + h >= 0 && y <= viewH) drawAcademyDoor(ctx, x, y, w, h, step >= (d.step ?? 0), d.h > d.w, now);
+  }
+
   // 4. Efeitos de habilidade: os "de chão" (Sombra, Água) por baixo dos bonecos, o resto por cima.
   let alive = 0;
-  for (const fx of state.effects) if (now - fx.start < SKILLS[fx.skill].ms) state.effects[alive++] = fx;
+  for (const fx of state.effects) if (SKILLS[fx.skill] && now - fx.start < SKILLS[fx.skill].ms) state.effects[alive++] = fx;
   state.effects.length = alive;
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
 
@@ -2380,7 +2855,7 @@ function draw(now) {
   // 7. Missão pronta e o Mestre fora da tela: seta na borda apontando para ele.
   const marker = npcMarker();
   if (me && marker && marker.strong && state.mission) {
-    for (const n of state.npcs) if (!n.shop) drawOffscreenArrow(toScreenX(n.x), toScreenY(n.y), marker, now);
+    for (const n of state.npcs) if (n.id === 'sensei') drawOffscreenArrow(toScreenX(n.x), toScreenY(n.y), marker, now);
   }
 
   drawJoystick();
@@ -2526,14 +3001,113 @@ function drawEffect(fx, sx, sy, T, now) {
       }
       break;
     }
+    case 'weapons': {                    // kunais voando em leque na direção do alvo
+      const a = Math.atan2(fx.fy || 0, fx.fx || 1);
+      ctx.globalAlpha = fade;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2, T * 0.07);
+      ctx.lineCap = 'round';
+      for (let k = -1; k <= 1; k++) {
+        const ang = a + k * 0.28;
+        const d = T * (0.4 + 3.6 * t);
+        const x0 = sx + Math.cos(ang) * d, y0 = sy + Math.sin(ang) * d;
+        ctx.beginPath(); ctx.moveTo(x0 - Math.cos(ang) * T * 0.35, y0 - Math.sin(ang) * T * 0.35); ctx.lineTo(x0, y0); ctx.stroke();
+      }
+      break;
+    }
+    case 'lightning': {                  // raio em zigue-zague até o alcance (4,5 casas)
+      const a = Math.atan2(fx.fy || 0, fx.fx || 1);
+      ctx.globalAlpha = fade;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2, T * 0.09);
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      for (let k = 1; k <= 6; k++) {
+        const d = (T * 4.5 * k) / 6, side = (k % 2 ? 1 : -1) * T * 0.25 * (k < 6 ? 1 : 0);
+        ctx.lineTo(sx + Math.cos(a) * d - Math.sin(a) * side, sy + Math.sin(a) * d + Math.cos(a) * side);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 0.35 * fade;
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(sx, sy, T * 0.6, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'teleport': {                   // nuvem de fumaça (some de um lado, aparece do outro)
+      ctx.globalAlpha = 0.8 * fade;
+      ctx.fillStyle = color;
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2;
+        const d = T * (0.15 + 0.55 * t);
+        ctx.beginPath(); ctx.arc(sx + Math.cos(a) * d, sy + Math.sin(a) * d * 0.7, T * (0.28 - 0.12 * t), 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    }
+    case 'substitution': {               // folhas girando em volta: Substituição armada
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = '#7fbf4a';
+      for (let k = 0; k < 6; k++) {
+        const a = t * 9 + (k / 6) * Math.PI * 2;
+        ctx.fillRect(Math.round(sx + Math.cos(a) * T * 0.8) - 3, Math.round(sy + Math.sin(a) * T * 0.5) - 2, 6, 4);
+      }
+      break;
+    }
+    case 'log': {                        // o tronco que levou o golpe, caindo e sumindo
+      const w = T * 0.5, h = T * 0.9;
+      ctx.globalAlpha = Math.min(1, fade * 1.6);
+      ctx.translate(sx, sy + T * 0.2);
+      ctx.rotate(Math.min(1, t * 3) * 1.2);
+      ctx.fillStyle = '#5c3a1c';
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+      ctx.fillStyle = color;
+      ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+      ctx.fillStyle = '#e9c88a';
+      ctx.beginPath(); ctx.ellipse(0, -h / 2, w / 2, w / 4, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
     default:
       break;
   }
   ctx.restore();
 }
 
+/** Bonecos de treino da Academia: poste de madeira com alvo (o que bate tem braços). */
+function drawDummyMonster(m, sx, sy, T, now) {
+  const dying = m.diedAt ? Math.max(0, Math.min(1, (now - m.diedAt) / 450)) : 0;
+  const born = Math.max(0.05, Math.min(1, (now - m.bornAt) / 250));
+  const big = m.type === 'sparring';
+  const s = T * (big ? 0.62 : 0.5) * born;
+  ctx.save();
+  ctx.globalAlpha = 1 - dying;
+  ctx.translate(sx, sy);
+  if (dying) ctx.rotate(dying * 1.4);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+  ctx.beginPath(); ctx.ellipse(0, s * 0.9, s * 0.8, s * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#5c3a1c';
+  ctx.fillRect(-s * 0.12, -s * 0.2, s * 0.24, s * 1.1);            // poste
+  ctx.fillStyle = '#c9a26b';
+  ctx.beginPath(); ctx.ellipse(0, -s * 0.35, s * 0.5, s * 0.55, 0, 0, Math.PI * 2); ctx.fill();   // corpo de palha
+  ctx.strokeStyle = '#7a5230';
+  ctx.lineWidth = Math.max(1.5, T * 0.04);
+  ctx.stroke();
+  if (big) {                                                        // braços que batem + faixa vermelha
+    const swing = Math.sin(now / 220) * 0.4;
+    ctx.save(); ctx.rotate(swing);
+    ctx.fillStyle = '#7a5230'; ctx.fillRect(-s * 1.1, -s * 0.5, s * 2.2, s * 0.16);
+    ctx.restore();
+    ctx.fillStyle = '#b3261e'; ctx.fillRect(-s * 0.5, -s * 0.25, s, s * 0.14);
+  }
+  ctx.fillStyle = '#b3261e';                                        // alvo
+  ctx.beginPath(); ctx.arc(0, -s * 0.35, s * 0.22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#efe3c2';
+  ctx.beginPath(); ctx.arc(0, -s * 0.35, s * 0.11, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  if (!dying) drawHpBar(sx, sy - s * 1.1 - Math.max(6, T * 0.16), T * 0.8, m.hp / m.maxHp, '#ffb347');
+  if (m.id === state.focusId && !dying) drawFocusMarker(sx, sy, s * 0.8, T, now);
+}
+
 /** Monstro provisório: círculo vermelho com "M", barra de vida e ícones de atordoado/preso. */
 function drawMonster(m, sx, sy, T, now) {
+  if (m.type === 'dummy' || m.type === 'sparring') return drawDummyMonster(m, sx, sy, T, now);
   const born = Math.max(0.05, Math.min(1, (now - m.bornAt) / 250));
   const dying = m.diedAt ? Math.max(0, Math.min(1, (now - m.diedAt) / 450)) : 0;
   const stunned = now < m.stunnedUntil;
@@ -2619,7 +3193,7 @@ function drawMeditationAura(sx, sy, r, T, now) {
 
 /** O Mestre: manto índigo com borda dourada, o kanji 師 (sensei) e o marcador de missão. */
 function drawNpc(n, sx, sy, T, now, me) {
-  if (n.shop) return drawShopkeeper(n, sx, sy, T, now);
+  if (n.shop || ACADEMY_LOOK[n.id]) return drawShopkeeper(n, sx, sy, T, now);
   const r = T * 0.44;
   ctx.save();
   // Perto o bastante para conversar: anel dourado no chão.
@@ -2688,7 +3262,7 @@ function drawShopkeeper(n, sx, sy, T, now) {
     ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 1.7, r * 0.66, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
   }
-  const top = drawCharacter(ctx, sx, sy, T, SHOPKEEPER_LOOK[n.shop] || DEFAULT_LOOK, 0, 0, false);
+  const top = drawCharacter(ctx, sx, sy, T, SHOPKEEPER_LOOK[n.shop] || ACADEMY_LOOK[n.id] || DEFAULT_LOOK, 0, 0, false);
   const fontSize = Math.max(11, Math.round(T * 0.3));
   ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
   ctx.textAlign = 'center';
@@ -2697,7 +3271,7 @@ function drawShopkeeper(n, sx, sy, T, now) {
   ctx.lineJoin = 'round';
   ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
   ctx.fillStyle = '#ffd23f';
-  const label = `${SHOP_INFO[n.shop]?.icon || '🛒'} ${n.name}`;
+  const label = `${n.shop ? SHOP_INFO[n.shop]?.icon || '🛒' : n.id === 'director' ? '🎓' : '📘'} ${n.name}`;
   ctx.strokeText(label, sx, top - 3);
   ctx.fillText(label, sx, top - 3);
   ctx.restore();

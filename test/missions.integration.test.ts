@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import { SQL } from '../src/missions/sql.js';
-import { REALTIME } from '../src/realtime/config.js';
 import { makeMissions, MISSIONS_SQL, NPC_MISSION, NPC_SENSEI_ID, type Missions } from '../src/realtime/missions.js';
 import { makeProgression } from '../src/realtime/progression.js';
 import { createTestDatabase, MIGRATIONS } from './support/testDb.js';
@@ -11,14 +10,13 @@ const noDatabase = process.env.TEST_DATABASE_URL
   ? false
   : 'TEST_DATABASE_URL não definida: integração com PostgreSQL pulada';
 
-const promotion = REALTIME.combat.promotion;
 
 describe('Missões do NPC Mestre no banco (PostgreSQL real)', { skip: noDatabase }, () => {
   let t: Awaited<ReturnType<typeof createTestDatabase>>;
   let missions: Missions;
   before(async () => {
     t = await createTestDatabase();
-    missions = makeMissions(t.db, promotion);
+    missions = makeMissions(t.db);
   });
   after(async () => { await t?.drop(); });
 
@@ -109,14 +107,14 @@ describe('Missões do NPC Mestre no banco (PostgreSQL real)', { skip: noDatabase
     assert.equal(xp.total_xp, '0');
   });
 
-  it('entregar o pergaminho promove Academia -> Genin quando passa de 100 XP', async () => {
+  it('entregar o pergaminho soma o XP mas NÃO promove (v7: Genin só pela Missão de Genin, no nível 11)', async () => {
     const id = await t.createPlayer('rin');
-    await makeProgression(t.db, promotion).grantXp(id, 80);
+    await makeProgression(t.db).grantXp(id, 80);
     await missions.talk(id);
     await killSlimes(id, 5);
     const done = await missions.talk(id);
     assert.ok(done.kind === 'rewarded');
-    assert.deepEqual([done.totalXp, done.rank.code, done.promoted], [130, 'GENIN', true]);
+    assert.deepEqual([done.totalXp, done.rank.code, done.promoted], [130, 'ACADEMY', false]);
   });
 
   it('missão de um sensei jogador: o Mestre não avalia, os abates contam e o pergaminho aprovado é entregue na Sala', async () => {
@@ -176,7 +174,7 @@ describe('Banco SEM a migração v4', { skip: noDatabase }, () => {
 
   it('o Mestre responde "indisponível" (o jogo segue) e o boot check acusa', async () => {
     const id = await t.createPlayer('hinata');
-    assert.deepEqual(await makeMissions(t.db, promotion).talk(id), { kind: 'unavailable' });
+    assert.deepEqual(await makeMissions(t.db).talk(id), { kind: 'unavailable' });
     const check = await t.pool.query(MISSIONS_SQL.bootCheck, [NPC_SENSEI_ID, NPC_MISSION.missionType, NPC_MISSION.difficulty]);
     assert.equal(check.rows.length, 0);
   });

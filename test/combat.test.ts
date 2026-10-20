@@ -81,9 +81,11 @@ describe('combate: monstros', () => {
     const zone = forest.hunt!;
     placeIn(world, a.id, 'map_2', 30, 50);
     assert.equal(a.conn.last('map_changed').monsters.length, M.count, 'chegando na Floresta, recebe os 10');
-    const before = world.monsterList();
+    // (a Academia tem os bonecos de treino fixos: aqui contam só os de caça)
+    const hunt = () => world.monsterList().filter((m) => m.type === M.type);
+    const before = hunt();
     run(30_000);
-    const after = world.monsterList();
+    const after = hunt();
     assert.equal(after.length, M.count);
     for (const m of after) {
       assert.ok(m.x >= zone.x && m.y >= zone.y && m.x < zone.x + zone.w && m.y < zone.y + zone.h, `monstro fora da zona: ${m.x},${m.y}`);
@@ -284,7 +286,7 @@ describe('combate: morte, renascimento e autoridade do servidor', () => {
     assert.equal(a.conn.last('error').code, 'RESPAWN_NOT_READY', 'vivo não "renasce" de novo');
   });
 
-  it('monstro morto: XP para o ÚLTIMO golpe (gravado antes de avisar), outro nasce na hora; 100 XP: aviso de Genin', async () => {
+  it('monstro morto: XP e ryō para o ÚLTIMO golpe (gravados antes de avisar), outro nasce na hora; promoção vinda do banco é anunciada', async () => {
     const fake = fakeProgression(100);
     const { world, connect } = setupWorld({ ...config(), combat: { ...config().combat, monsters: { ...config().combat.monsters, count: 1 } } }, fake.progression);
     const a = connect('kaito');
@@ -292,14 +294,15 @@ describe('combate: morte, renascimento e autoridade do servidor', () => {
     const F = { x: 10, y: 50 };                                // clareira da Floresta (onde nascem os monstros)
     placeIn(world, a.id, 'map_2', F.x, F.y);
     placeIn(world, b.id, 'map_2', F.x, F.y);
+    const hunt = () => world.monsterList().filter((m) => m.type === M.type);
     for (let kill = 1; kill <= 5; kill++) {
-      const target = world.monsterList()[0]!;
+      const target = hunt()[0]!;
       place(world, target.id, F.x + 1, F.y, 10);
       const who = kill === 5 ? b : a;
       ready(world, who.id);
       who.send({ type: 'cast', skill: 'taijutsu' });
       assert.deepEqual(a.conn.last('monster_died'), { type: 'monster_died', id: target.id, killerId: who.id });
-      assert.equal(world.monsterList().length, 1, 'sempre o mesmo número de monstros');
+      assert.equal(hunt().length, 1, 'sempre o mesmo número de monstros');
       assert.equal(a.conn.last('monster_spawned').monster.hp, M.maxHp);
       await flush();
     }

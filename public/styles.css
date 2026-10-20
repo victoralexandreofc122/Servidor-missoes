@@ -779,3 +779,93 @@ body.safe-zone #attack-btn {
 .shop-items .name { font-weight: 700; }
 .shop-items button { opacity: 0.6; cursor: not-allowed; white-space: nowrap; font-size: 0.8em; padding: 4px 10px; width: auto; min-width: 0; }
 .shop-soon { margin: 10px 0 0; font-size: 0.85em; color: #b9b2a4; }
+
+/* ------------------------------------------------------------ v7: progressão */
+
+/* Em pé, a barra de cima fica apertada: o 🎒 mostra só o ícone. */
+@media (orientation: portrait) { #inv-badge { display: none; } }
+@media (max-width: 520px) and (orientation: landscape) { #inv-badge { display: none; } }
+
+/* Tutorial da Academia: cartão pequeno no alto à esquerda (longe do joystick e dos botões). */
+.tutorial-card {
+  position: fixed;
+  top: calc(var(--safe-top) + 58px);
+  left: calc(var(--safe-left) + 10px);
+  max-width: min(300px, 46vw);
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid rgba(143, 224, 122, 0.55);
+  font-size: 13px;
+  line-height: 1.3;
+  pointer-events: none;
+  z-index: 3;
+}
+.tutorial-card b { color: #9be88a; font-size: 13px; letter-spacing: 0.02em; }
+.tutorial-card.done { border-color: rgba(255, 210, 63, 0.6); }
+.tutorial-card.done b { color: #ffd23f; }
+@media (orientation: portrait) { .tutorial-card { max-width: calc(100vw - 20px); right: 10px; } }
+
+/* Loja de verdade: preço e botão Comprar. */
+.shop-items button { opacity: 1; cursor: pointer; }
+.shop-items button:disabled { opacity: 0.45; cursor: not-allowed; }
+.shop-items .price { display: block; font-size: 12px; color: #ffe2a8; font-weight: 600; }
+.shop-items .qty { color: var(--muted); font-size: 12px; font-weight: 600; }
+.shop-items li.equipped { outline: 2px solid #8fe07a; }
+.extract-box { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.extract-title { margin: 0; font-size: 16px; color: #ffd23f; }
+.extract-box .chips .chip { flex: 1; min-width: 44px; }
+.extract-box .primary { min-height: 46px; }
+#extract-result.good { color: #9be88a; font-weight: 700; }
+#extract-result.bad { color: #ff9a8a; }
+
+/* Jutsus aprendidos (aba da ficha): nível e barra de uso. */
+.jutsu-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.jutsu-list li {
+  display: grid; grid-template-columns: 2em 1fr auto; grid-template-areas: "ico name lvl" "ico bar bar";
+  align-items: center; column-gap: 8px; row-gap: 4px;
+  padding: 6px 10px; border-radius: 10px; background: rgba(0, 0, 0, 0.28);
+}
+.jutsu-list .ico { grid-area: ico; font-size: 1.4em; text-align: center; }
+.jutsu-list .name { grid-area: name; font-weight: 700; font-size: 14px; }
+.jutsu-list .name small { display: block; color: var(--muted); font-weight: 600; font-size: 11px; }
+.jutsu-list .lvl { grid-area: lvl; color: #ffe2a8; font-weight: 800; font-size: 13px; }
+.jutsu-list .use { grid-area: bar; position: relative; height: 14px; border-radius: 7px; background: rgba(0, 0, 0, 0.45); overflow: hidden; }
+.jutsu-list .use span { position: absolute; inset: 0; transform-origin: left center; background: linear-gradient(180deg, #6fc0ff, #2f6fb5); }
+.jutsu-list .use b { position: relative; display: block; text-align: center; font-size: 10px; line-height: 14px; text-shadow: 0 1px 2px #000; }
+.kit-list li small { color: var(--muted); font-size: 11px; margin-left: 4px; }
+
+/* Escolha de classe (Diretor). */
+.class-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.class-grid .chip { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 58px; font-size: 12px; }
+.class-grid .chip .ico { font-size: 20px; }
+.class-panel, .hokage-panel, .inv-panel { display: flex; flex-direction: column; gap: 8px; }
+.class-panel .primary, .hokage-panel .primary { min-height: 46px; }
+.hokage-panel { border-color: #ffd23f; }
+/* Tier do jutsu (II, III, IV) no canto do botão. */
+.cbtn.skill[data-tier="2"]::before, .cbtn.skill[data-tier="3"]::before, .cbtn.skill[data-tier="4"]::before {
+  position: absolute; right: 6px; bottom: 4px; font: 900 10px/1 system-ui, sans-serif; color: #ffe2a8; text-shadow: 0 1px 2px #000;
+}
+.cbtn.skill[data-tier="2"]::before { content: "II"; }
+.cbtn.skill[data-tier="3"]::before { content: "III"; }
+.cbtn.skill[data-tier="4"]::before { content: "IV"; }
+/* Na Academia, o cartão do tutorial fica no alto à esquerda; o chat desce e o aviso vai para a direita. */
+@media (orientation: landscape) {
+  .tutorial-card { max-width: min(260px, 32vw); }
+  body.tutorial .chat-feed { top: calc(var(--safe-top) + 150px); width: min(260px, 32vw); }
+  body.tutorial .toast { left: auto; right: calc(var(--safe-right) + 110px); transform: none; max-width: min(380px, 44vw); }
+}
+@media (orientation: portrait) {
+  body.tutorial .chat-feed { top: calc(var(--safe-top) + 140px); }
+  body.tutorial .toast { top: calc(var(--safe-top) + 140px); }
+}
+/* Loja, inventário, classe e Hokage abertos: o aviso some (o próprio painel mostra o resultado). */
+#shop-panel:not([hidden]) ~ .toast, #inv-panel:not([hidden]) ~ .toast,
+#class-panel:not([hidden]) ~ .toast, #hokage-panel:not([hidden]) ~ .toast { display: none; }
+/* Em pé, com o 🎒 a barra de cima ganhou um botão: espaços menores para caber em 360 px. */
+@media (orientation: portrait) {
+  .topbar { gap: 4px; }
+  .topbar .mission-btn { padding: 0 8px; }
+  .topbar .icon-btn { width: 40px; }
+}

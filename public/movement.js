@@ -55,13 +55,14 @@ export function crossExit(maps, mapId, x, y, dx, dy) {
 }
 
 /** Porta (loja): cópia de useDoor do servidor. Dentro do retângulo, andando para dentro: outro mapa. */
-export function useDoor(maps, mapId, x, y, dx, dy) {
+export function useDoor(maps, mapId, x, y, dx, dy, gates) {
   const m = maps[mapId];
   if (!m || !m.doors) return null;
   for (const d of m.doors) {
     if (x < d.x || x > d.x + d.w || y < d.y || y > d.y + d.h) continue;
     const inward = d.dir === 'north' ? dy < 0 : d.dir === 'south' ? dy > 0 : d.dir === 'east' ? dx > 0 : dx < 0;
     if (!inward) continue;
+    if ((d.step ?? 0) > ((gates && gates.tutorial) ?? 0)) continue;   // travada (tutorial da Academia)
     const dest = maps[d.map];
     if (!dest || blocked(d.at.x, d.at.y, dest.walls)) continue;
     return [d.map, d.at.x, d.at.y];
@@ -70,19 +71,19 @@ export function useDoor(maps, mapId, x, y, dx, dy) {
 }
 
 /** Um passo num mundo de vários mapas: anda no mapa atual e, se for o caso, atravessa a borda ou entra pela porta. */
-export function moveStep(maps, mapId, x, y, dx, dy, dist) {
+export function moveStep(maps, mapId, x, y, dx, dy, dist, gates) {
   const m = maps[mapId];
   if (!m) return [mapId, x, y];
   const [nx, ny] = stepMove(x, y, dx, dy, dist, m.width, m.height, m.walls);
-  return crossExit(maps, mapId, nx, ny, dx, dy) ?? useDoor(maps, mapId, nx, ny, dx, dy) ?? [mapId, nx, ny];
+  return crossExit(maps, mapId, nx, ny, dx, dy) ?? useDoor(maps, mapId, nx, ny, dx, dy, gates) ?? [mapId, nx, ny];
 }
 
 /**
  * Reconciliação: parte da posição OFICIAL do servidor (mapa + posição, já com tudo até o
  * `ack`) e refaz as entradas que ele ainda não confirmou, inclusive trocas de mapa.
  */
-export function replay(maps, mapId, x, y, pending, distOf) {
+export function replay(maps, mapId, x, y, pending, distOf, gates) {
   let m = mapId, px = x, py = y;
-  for (const input of pending) [m, px, py] = moveStep(maps, m, px, py, input.dx, input.dy, distOf(input));
+  for (const input of pending) [m, px, py] = moveStep(maps, m, px, py, input.dx, input.dy, distOf(input), gates);
   return [m, px, py];
 }

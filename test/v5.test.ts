@@ -5,7 +5,7 @@ import type { Progression } from '../src/realtime/gameWorld.js';
 import type { Missions } from '../src/realtime/missions.js';
 import type { Profile, SpendResult } from '../src/realtime/profile.js';
 import type { MissionView } from '../src/realtime/protocol.js';
-import { derivedStats, levelForXp, levelProgress, NO_ATTRIBUTES, scaledDamage } from '../src/realtime/stats.js';
+import { derivedStats, levelForXp, levelProgress, levelStart, NO_ATTRIBUTES, scaledDamage } from '../src/realtime/stats.js';
 import { setupWorld } from './support/world.js';
 
 const S = REALTIME.spawn;
@@ -41,16 +41,19 @@ function fakeProfile(points = 0) {
 }
 
 describe('v5: atributos e nível (funções puras)', () => {
-  it('meta crescente: nível 2 aos 100 XP, 3 aos 300, 4 aos 600; o XP "zera" a cada nível', () => {
-    assert.deepEqual([0, 99, 100, 299, 300, 599, 600, 1000].map(levelForXp), [1, 1, 2, 2, 3, 3, 4, 5]);
-    assert.deepEqual(levelProgress(350), { level: 3, xpInLevel: 50, xpToNext: 300 });
-    assert.deepEqual(levelProgress(100), { level: 2, xpInLevel: 0, xpToNext: 200 });
+  it('meta crescente (v7, até o 60): N -> N+1 custa 100·N + 25·N·(N-1); o XP "zera" a cada nível', () => {
+    assert.deepEqual([0, 99, 100, 349, 350, 799, 800].map(levelForXp), [1, 1, 2, 2, 3, 3, 4]);
+    assert.deepEqual(levelProgress(400), { level: 3, xpInLevel: 50, xpToNext: 450 });
+    assert.deepEqual(levelProgress(100), { level: 2, xpInLevel: 0, xpToNext: 250 });
+    assert.deepEqual([levelStart(11), levelStart(40), levelStart(60)], [13_750, 572_000, 1_888_000]);
+    assert.equal(levelForXp(10 ** 9), 60, 'nível máximo 60');
+    assert.deepEqual(levelProgress(10 ** 9), { level: 60, xpInLevel: 0, xpToNext: 0 });
   });
 
   it('cada ponto: +10 vida, +10 chakra, +1/s meditando, +0,5 velocidade, +5% físico (Taijutsu), +5% jutsu (Ninjutsu)', () => {
     const base = { maxHp: 100, maxChakra: 100, meditationChakraPerSec: 15, walkSpeed: 5, runSpeed: 8, attackCooldownMs: 600 };
-    const d = derivedStats(base, REALTIME.combat.attributes, { vitality: 2, chakraMax: 3, chakraRegen: 4, agility: 2, taijutsu: 2, ninjutsu: 4 });
-    assert.deepEqual(d, { maxHp: 120, maxChakra: 130, meditationChakraPerSec: 19, walkSpeed: 6, runSpeed: 9, physicalMultiplier: 1.1, jutsuMultiplier: 1.2, attackCooldownMs: 552 });
+    const d = derivedStats(base, REALTIME.combat.attributes, { vitality: 2, chakraMax: 3, chakraRegen: 4, agility: 2, taijutsu: 2, ninjutsu: 4, weapons: 0 });
+    assert.deepEqual(d, { maxHp: 120, maxChakra: 130, meditationChakraPerSec: 19, walkSpeed: 6, runSpeed: 9, physicalMultiplier: 1.1, jutsuMultiplier: 1.2, weaponMultiplier: 1, attackCooldownMs: 552 });
     assert.equal(scaledDamage(12, 1.1), 13);
     assert.equal(scaledDamage(25, 1.2), 30);
   });
@@ -301,7 +304,7 @@ describe('v5: missões entre jogadores (sensei Chunin+)', () => {
       async recordKill() { return null; },
       async create(...args) { calls.push(['create', ...args]); return { kind: 'created', mission: view() }; },
       async deliver(...args) { calls.push(['deliver', ...args]); return { kind: 'submitted', mission: view({ status: 'submitted', progress: 3, ready: false }) }; },
-      async evaluate(...args) { calls.push(['evaluate', ...args]); return { kind: 'evaluated', approved: true, traineeId: String(args[3] ?? ''), mission: view({ status: 'approved', progress: 3, ready: true }) }; },
+      async evaluate(...args) { calls.push(['evaluate', ...args]); return { kind: 'evaluated', approved: true, traineeId: String(args[3] ?? ''), mission: view({ status: 'approved', progress: 3, ready: true }), traineeRank: { code: 'ACADEMY', name: 'Academia', canBeSensei: false } }; },
       async pendingEvaluations() { return [{ missionId: 'x', trainee: { id: 't', username: 'naruto' }, mission: view({ status: 'submitted' }) }]; },
       async senseiOptions() { return [{ code: 'BASIC', name: 'Básica', xp: 100, title: null }]; },
     };

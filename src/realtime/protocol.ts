@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
+import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type Mechanic } from './jutsus.js';
+import { ITEM_CODES, type ItemDef } from './items.js';
 
 /*
  * Protocolo do WebSocket: JSON simples, um objeto por mensagem, sempre com `type`.
@@ -23,6 +25,11 @@ import type { MapId, MapLayout, ShopKind } from './maps.js';
  *   { "type": "create_mission", "traineeId", "difficulty", "quantity" }   sensei (Chunin+) cria missão
  *   { "type": "deliver_mission", "senseiId" }   aprendiz entrega a missão ao sensei (perto dele)
  *   { "type": "evaluate_mission", "missionId", "approved", "score" }      sensei avalia
+ *   { "type": "choose_class", "class": "fire" } classe Primária (Missão de Genin) ou Secundária (Chunin 40)
+ *   { "type": "extract", "class": "fire", "level": 2 }   Extração na Casa dos Pergaminhos (gacha)
+ *   { "type": "buy", "item": "kunai", "qty": 1 }  compra (perto do lojista que vende; preço do banco)
+ *   { "type": "equip", "item": "kunai" }         equipar arma do inventário (null = desequipar)
+ *   { "type": "hokage_apply" }                   candidatura a Hokage (nível 60, com o Diretor)
  *   { "type": "chat", "message": "Olá!" }
  *
  * Servidor -> cliente
@@ -61,18 +68,28 @@ import type { MapId, MapLayout, ShopKind } from './maps.js';
  *   evaluation_request { missionId, trainee, mission }     para o sensei: aprendiz entregou
  *   sensei_options    { difficulties, quantities }         opções de missão (só para Chunin+)
  *   notice            { text, tone }                       aviso curto na tela (só para um jogador)
+ *   tutorial          { step }                             passo do tutorial da Academia (0 a 4; 4 = concluído)
+ *   inventory         { ryo, items, equipped }             ryō, itens e arma equipada (só o dono)
+ *   classes           { primary, secondary }               classes do jogador
+ *   jutsus            { jutsus }                           jutsus aprendidos e o uso de cada um (nível = uso)
+ *   jutsu_level       { skill, level }                     um jutsu subiu de nível pelo uso
+ *   class_choice      { kind, classes }                    o Diretor abriu a escolha de classe
+ *   extract_result    { class, level, outcome, jutsu, consumed, scrollsLeft }   resultado da Extração
+ *   teleport          { playerId, fromX, fromY, x, y, a }  Teleporte Curto (a = ack, para o dono reconciliar)
+ *   substitution      { playerId, logX, logY, x, y, a }    Substituição: tronco no lugar, ninja atrás do atacante
  *   chat / error                                           como antes
  */
 
 /** Direção de -1 a 1 em cada eixo; vetor maior que 1 (diagonal) é normalizado pelo servidor. */
 const axis = z.number().finite().min(-1).max(1);
 
-/** Fogo, Água, Taijutsu, Ilusão, Sombra, Pedra, Cura. */
-export const SKILLS = ['fire', 'water', 'taijutsu', 'illusion', 'shadow', 'stone', 'heal'] as const;
-export type Skill = (typeof SKILLS)[number];
+/** Todos os jutsus (catálogo em jutsus.ts): 2 da Academia + 9 classes x 4 tiers. */
+export const SKILLS = JUTSU_CODES;
+export type Skill = JutsuCode;
 
-/** Jutsus que podem mirar no alvo focado (Taijutsu é sempre no mais perto; Pedra e Cura são em si mesmo). */
-export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(['fire', 'water', 'illusion', 'shadow']);
+/** Mecânicas que miram no alvo focado (Taijutsu é sempre no mais perto; Pedra e Cura são em si mesmo). */
+export const DIRECTED_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'water', 'illusion', 'shadow', 'lightning', 'weapons']);
+export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(JUTSUS.filter((j) => DIRECTED_MECHANICS.has(j.mechanic)).map((j) => j.code));
 
 /** Id de monstro como o servidor cria ("m" + número). */
 const monsterId = z.string().regex(/^m\d{1,9}$/);
@@ -95,7 +112,8 @@ export type Kits = Record<KitName, Skill[]>;
 export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move'), dx: axis, dy: axis }),
   z.object({ type: z.literal('input'), seq: z.number().int().min(1).max(2_000_000_000), inputs: z.array(z.tuple([axis, axis])).min(1).max(10) }),
-  z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: monsterId.optional() }),
+  // dir: para onde o Teleporte Curto vai (o joystick do jogador); o ALCANCE é sempre do servidor.
+  z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: monsterId.optional(), dir: z.tuple([axis, axis]).optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z][a-z_]{0,23}$/) }),
@@ -109,6 +127,11 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('create_mission'), traineeId: uuid, difficulty: z.string().regex(/^[A-Z][A-Z0-9_]{0,31}$/), quantity: z.number().int() }),
   z.object({ type: z.literal('deliver_mission'), senseiId: uuid }),
   z.object({ type: z.literal('evaluate_mission'), missionId: uuid, approved: z.boolean(), score: z.number().int().min(1).max(5) }),
+  z.object({ type: z.literal('choose_class'), class: z.enum(CLASSES) }),
+  z.object({ type: z.literal('extract'), class: z.enum(CLASSES), level: z.number().int().min(1).max(4) }),
+  z.object({ type: z.literal('buy'), item: z.enum(ITEM_CODES), qty: z.number().int().min(1).max(99) }),
+  z.object({ type: z.literal('equip'), item: z.enum(ITEM_CODES).nullable() }),
+  z.object({ type: z.literal('hokage_apply') }),
   z.object({ type: z.literal('chat'), message: z.string() }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
@@ -186,6 +209,30 @@ export interface NpcView {
   range: number;
 }
 
+/** Progressão do ninja (v7): só o dono vê. */
+export interface NinjaView {
+  /** Passo do tutorial da Academia: 0 a 3 = na sala 1 a 4; 4 = concluído (pode sair). */
+  tutorialStep: number;
+  ryo: number;
+  items: Record<string, number>;
+  equipped: string | null;
+  classes: { primary: ClassCode | null; secondary: ClassCode | null };
+  /** Jutsus aprendidos -> quantas vezes o servidor contou o uso (o nível sai daí). */
+  jutsus: Record<string, number>;
+  hokageCandidate: boolean;
+}
+
+/** Jutsu como o cliente mostra (botão, aba Jutsus). */
+export interface SkillInfo {
+  name: string;
+  class: ClassCode | null;
+  tier: number;
+  mechanic: Mechanic;
+  cost: number;
+  cooldownMs: number;
+  range?: number;
+}
+
 /** Missão de sensei como o jogador vê (Sala de Missões). */
 export interface MissionView {
   id: string;
@@ -225,8 +272,8 @@ export interface WorldInfo {
   tickMs: number;
   spawn: { x: number; y: number };
   respawnMs: number;
-  /** range = alcance máximo (Fogo: raio da área); ausente = habilidade em si mesmo. */
-  skills: Record<Skill, { cost: number; cooldownMs: number; range?: number }>;
+  /** range = alcance máximo (Fogo: raio da área); ausente = habilidade em si mesmo (nível 1 do jutsu). */
+  skills: Record<Skill, SkillInfo>;
   meditationRegenMultiplier: number;
   npcs: NpcView[];
   basicAttack: { range: number; cooldownMs: number };
@@ -234,16 +281,24 @@ export interface WorldInfo {
   map: MapId;
   maps: Record<MapId, MapLayout>;
   attributePerPoint: Attributes;
-  promotion: { fromRank: string; toRank: string; xp: number };
+  /** Níveis dos ranks: Genin (Missão de Genin), Chunin (Exame Chunin), Hokage (candidatura). */
+  rankLevels: { genin: number; chunin: number; hokage: number };
+  classes: { code: ClassCode; name: string; icon: string; desc: string }[];
+  items: ItemDef[];
+  /** Extração: pergaminhos e chance por nível (1 a 4). Só informativo: o sorteio é do servidor. */
+  extraction: { level: number; scrolls: number; chance: number }[];
+  /** Usos para cada nível do jutsu (índice = nível - 1). */
+  jutsuLevelUses: number[];
+  maxLevel: number;
 }
 
-export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE';
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED';
 /** Por que a meditação acabou. */
 export type MeditationEnd = 'manual' | 'moved' | 'cast' | 'damaged' | 'died';
 export type MonsterStatus = 'stunned' | 'rooted';
 
 export type ServerMessage =
-  | { type: 'welcome'; you: SelfView; players: PlayerView[]; monsters: MonsterView[]; world: WorldInfo; progress: ProgressView; kit: KitView }
+  | { type: 'welcome'; you: SelfView; players: PlayerView[]; monsters: MonsterView[]; world: WorldInfo; progress: ProgressView; kit: KitView; ninja: NinjaView }
   | { type: 'player_joined'; player: PlayerView }
   | { type: 'shop_open'; shop: ShopKind; npcId: string }
   | { type: 'map_changed'; map: MapId; x: number; y: number; a: number; players: PlayerView[]; monsters: MonsterView[]; reason: 'walk' | 'respawn' }
@@ -276,6 +331,15 @@ export type ServerMessage =
   | { type: 'evaluation_request'; missionId: string; trainee: { id: string; username: string }; mission: MissionView }
   | { type: 'sensei_options'; difficulties: SenseiDifficulty[]; quantities: number[] }
   | { type: 'notice'; text: string; tone: 'info' | 'good' | 'bad' }
+  | { type: 'tutorial'; step: number }
+  | { type: 'inventory'; ryo: number; items: Record<string, number>; equipped: string | null }
+  | { type: 'classes'; primary: ClassCode | null; secondary: ClassCode | null }
+  | { type: 'jutsus'; jutsus: Record<string, number> }
+  | { type: 'jutsu_level'; skill: Skill; level: number }
+  | { type: 'class_choice'; kind: 'primary' | 'secondary'; classes: ClassCode[] }
+  | { type: 'extract_result'; class: ClassCode; level: number; outcome: 'success' | 'failed' | 'no_scrolls' | 'all_learned'; jutsu: Skill | null; consumed: number; scrollsLeft: number }
+  | { type: 'teleport'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }
+  | { type: 'substitution'; playerId: string; logX: number; logY: number; x: number; y: number; a: number }
   | { type: 'error'; code: RealtimeErrorCode; message: string };
 
 export interface SenseiDifficulty {
@@ -302,6 +366,11 @@ export const REALTIME_ERRORS = {
   INVALID_MISSION_OPTION: 'Opção de missão inválida.',
   CHAT_RATE_LIMITED: 'Calma! Espere um pouco antes de mandar outra mensagem no chat.',
   CHAT_INVALID: 'Mensagem de chat vazia ou longa demais.',
+  NOT_LEARNED: 'Você ainda não aprendeu esse jutsu.',
+  SHOP_TOO_FAR: 'Fale com o lojista que vende isso (dentro da loja).',
+  DIRECTOR_TOO_FAR: 'Fale com o Diretor, na última sala da Academia.',
+  ITEM_NOT_OWNED: 'Você não tem esse item.',
+  NOT_A_WEAPON: 'Isso não é uma arma.',
 } as const;
 export type RealtimeErrorCode = keyof typeof REALTIME_ERRORS;
 

@@ -56,7 +56,12 @@ export interface MoveMap {
   height: number;
   walls: readonly Box[];
   exits: readonly { edge: 'east' | 'west' | 'north' | 'south'; from: number; to: number; map: string; shift: number; arrive?: number }[];
-  doors?: readonly (Box & { dir: 'east' | 'west' | 'north' | 'south'; map: string; at: { x: number; y: number } })[];
+  doors?: readonly (Box & { dir: 'east' | 'west' | 'north' | 'south'; map: string; at: { x: number; y: number }; step?: number })[];
+}
+
+/** O que trava portas para ESTE jogador: o passo do tutorial da Academia (0 a 4). Sem gates = 0. */
+export interface MoveGates {
+  tutorial: number;
 }
 
 /**
@@ -65,7 +70,7 @@ export interface MoveMap {
  * e continua andando para longe dela: não volta sozinho.
  */
 export function useDoor(
-  maps: Readonly<Record<string, MoveMap>>, mapId: string, x: number, y: number, dx: number, dy: number,
+  maps: Readonly<Record<string, MoveMap>>, mapId: string, x: number, y: number, dx: number, dy: number, gates?: MoveGates,
 ): [string, number, number] | null {
   const m = maps[mapId];
   if (!m || !m.doors) return null;
@@ -73,6 +78,7 @@ export function useDoor(
     if (x < d.x || x > d.x + d.w || y < d.y || y > d.y + d.h) continue;
     const inward = d.dir === 'north' ? dy < 0 : d.dir === 'south' ? dy > 0 : d.dir === 'east' ? dx > 0 : dx < 0;
     if (!inward) continue;
+    if ((d.step ?? 0) > (gates?.tutorial ?? 0)) continue;   // travada: o jogador ainda não chegou nesse passo
     const dest = maps[d.map];
     if (!dest || blocked(d.at.x, d.at.y, dest.walls)) continue;
     return [d.map, d.at.x, d.at.y];
@@ -112,10 +118,10 @@ export function crossExit(
 
 /** Um passo num mundo de vários mapas: anda no mapa atual e, se for o caso, atravessa a borda ou entra pela porta. */
 export function moveStep(
-  maps: Readonly<Record<string, MoveMap>>, mapId: string, x: number, y: number, dx: number, dy: number, dist: number,
+  maps: Readonly<Record<string, MoveMap>>, mapId: string, x: number, y: number, dx: number, dy: number, dist: number, gates?: MoveGates,
 ): [string, number, number] {
   const m = maps[mapId];
   if (!m) return [mapId, x, y];
   const [nx, ny] = stepMove(x, y, dx, dy, dist, m.width, m.height, m.walls);
-  return crossExit(maps, mapId, nx, ny, dx, dy) ?? useDoor(maps, mapId, nx, ny, dx, dy) ?? [mapId, nx, ny];
+  return crossExit(maps, mapId, nx, ny, dx, dy) ?? useDoor(maps, mapId, nx, ny, dx, dy, gates) ?? [mapId, nx, ny];
 }

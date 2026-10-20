@@ -1,7 +1,6 @@
 import { withTransaction, type Db, type Queryable } from '../db.js';
 import { CONSTRAINT_ERRORS } from '../errors/errorTranslator.js';
 import { SQL } from '../missions/sql.js';
-import type { CombatConfig } from './config.js';
 import type { XpResult } from './gameWorld.js';
 import type { MissionView, SenseiDifficulty } from './protocol.js';
 import { GRANT_XP_SQL, grantResult, type GrantRow } from './progression.js';
@@ -104,7 +103,12 @@ export const MISSIONS_SQL = {
      LIMIT 10`,
 
   /** Aprendiz e sensei de uma missão (depois da avaliação: para avisar o aprendiz). */
-  missionPeople: `SELECT m.trainee_id, m.sensei_id FROM game.sensei_missions m WHERE m.id = $1`,
+  missionPeople: `
+    SELECT m.trainee_id, m.sensei_id, r.code AS rank_code, r.name AS rank_name, r.can_be_sensei
+      FROM game.sensei_missions m
+      JOIN game.players p ON p.id = m.trainee_id
+      JOIN game.ranks r ON r.id = p.current_rank_id
+     WHERE m.id = $1`,
 
   /** Dificuldades que um sensei jogador pode escolher (o Treino do Mestre é só do NPC). */
   senseiOptions: `
@@ -206,7 +210,9 @@ export type DeliverOutcome =
   | { kind: 'already_submitted'; mission: MissionView }
   | { kind: 'no_mission' }
   | Refused;
-export type EvaluateOutcome = { kind: 'evaluated'; approved: boolean; traineeId: string; mission: MissionView } | Refused;
+export type EvaluateOutcome =
+  | { kind: 'evaluated'; approved: boolean; traineeId: string; mission: MissionView; traineeRank: { code: string; name: string; canBeSensei: boolean } }
+  | Refused;
 
 export interface PendingEvaluation {
   missionId: string;
@@ -256,7 +262,7 @@ class Outcome extends Error {
   }
 }
 
-export function makeMissions(db: Db, promotion: CombatConfig['promotion']): Missions {
+export function makeMissions(db: Db): Missions {
   let optionsCache: { at: number; list: SenseiDifficulty[] } | undefined;
   const byId = async (q: Queryable, id: string) => missionView((await q.query<MissionRow>(MISSIONS_SQL.byId, [id])).rows[0]!);
 
@@ -295,9 +301,9 @@ export function makeMissions(db: Db, promotion: CombatConfig['promotion']): Miss
 
       const stillOpen = open && !finishedNpcMission ? open : undefined;
       if (rewards.length > 0) {
-        // O resgate soma XP sem mexer no rank: aplica a mesma promoção do combate (soma 0).
+        // O resgate já somou o XP (trigger): aqui só lê o resultado (soma 0 de XP e de ryō).
         // levels_gained aqui sai 0: o trigger já subiu o nível no resgate. Comparamos com o de antes.
-        const p = (await tx.query<GrantRow>(GRANT_XP_SQL, [playerId, 0, promotion.fromRank, promotion.toRank, promotion.xp])).rows[0]!;
+        const p = (await tx.query<GrantRow>(GRANT_XP_SQL, [playerId, 0, 0])).rows[0]!;
         return {
           kind: 'rewarded', rewards, ...grantResult(p), levelsGained: p.level - levelBefore,
           mission: stillOpen ? await byId(tx, stillOpen.id) : null,
@@ -380,8 +386,13 @@ export function makeMissions(db: Db, promotion: CombatConfig['promotion']): Miss
       try {
         return await withTransaction(db, async (tx): Promise<EvaluateOutcome> => {
           await tx.query(SQL.insertEvaluation, [missionId, evaluatorId, approved, score, null]);
-          const people = (await tx.query<{ trainee_id: string }>(MISSIONS_SQL.missionPeople, [missionId])).rows[0]!;
-          return { kind: 'evaluated', approved, traineeId: people.trainee_id, mission: await byId(tx, missionId) };
+          // Exame Chunin aprovado: o trigger da v7 já promoveu o aprendiz. Devolve o rank de agora.
+          const people = (await tx.query<{ trainee_id: string; rank_code: string; rank_name: string; can_be_sensei: boolean }>(
+            MISSIONS_SQL.missionPeople, [missionId])).rows[0]!;
+          return {
+            kind: 'evaluated', approved, traineeId: people.trainee_id, mission: await byId(tx, missionId),
+            traineeRank: { code: people.rank_code, name: people.rank_name, canBeSensei: people.can_be_sensei },
+          };
         });
       } catch (err) {
         return refusal(err);

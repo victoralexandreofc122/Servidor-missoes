@@ -33,6 +33,8 @@ export const quantize = (v) => Math.round(v * 20) / 20 || 0;
 
 export class Predictor {
   constructor() {
+    /** Portas travadas pelo tutorial da Academia: o MESMO passo que o servidor usa (vem dele). */
+    this.gates = { tutorial: 4 };
     this.reset('', 0, 0);
   }
 
@@ -74,7 +76,7 @@ export class Predictor {
       this.acc -= world.tickMs;
       if (!moving) continue;
       const input = { seq: ++this.seq, dx, dy, dist: (speed * world.tickMs) / 1000 };
-      [this.map, this.x, this.y] = moveStep(world.maps, this.map, this.x, this.y, dx, dy, input.dist);
+      [this.map, this.x, this.y] = moveStep(world.maps, this.map, this.x, this.y, dx, dy, input.dist, this.gates);
       this.pending.push(input);
       this.outbox.push(input);
       if (this.outbox.length >= BATCH) out.push(this.flush());
@@ -98,7 +100,7 @@ export class Predictor {
     let i = 0;
     while (i < this.pending.length && this.pending[i].seq <= ack) i++;
     if (i > 0) this.pending.splice(0, i);
-    const [rm, rx, ry] = replay(world.maps, map, sx, sy, this.pending, (p) => p.dist);
+    const [rm, rx, ry] = replay(world.maps, map, sx, sy, this.pending, (p) => p.dist, this.gates);
     const sameMap = rm === this.map;
     const ex = sameMap ? this.x - rx : 0, ey = sameMap ? this.y - ry : 0;
     const err = sameMap ? Math.sqrt(ex * ex + ey * ey) : Infinity;
@@ -120,6 +122,16 @@ export class Predictor {
       return 'smooth';
     }
     return 'none';
+  }
+
+  /**
+   * Salto decidido pelo servidor (Teleporte Curto, Substituição): posição oficial + as entradas
+   * que ele ainda não aplicou, SEM deslizar (o boneco aparece direto no lugar novo).
+   */
+  jump(map, sx, sy, ack, world) {
+    this.reconcile(map, sx, sy, ack, world);
+    this.offX = 0;
+    this.offY = 0;
   }
 
   /**

@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { REALTIME } from '../src/realtime/config.js';
 import { makeMissions } from '../src/realtime/missions.js';
 import { makeProfile } from '../src/realtime/profile.js';
 import { makeProgression } from '../src/realtime/progression.js';
@@ -10,7 +9,6 @@ const noDatabase = process.env.TEST_DATABASE_URL
   ? false
   : 'TEST_DATABASE_URL não definida: integração com PostgreSQL pulada';
 
-const promotion = REALTIME.combat.promotion;
 
 describe('v5 no banco: nível, pontos e kits (PostgreSQL real)', { skip: noDatabase }, () => {
   let t: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -22,7 +20,7 @@ describe('v5 no banco: nível, pontos e kits (PostgreSQL real)', { skip: noDatab
     const id = await t.createPlayer('kaito');
     const profile = makeProfile(t.db, 10);
     assert.deepEqual(await profile.spendPoint(id, 'vitality'), { ok: false, reason: 'NO_POINTS' });
-    const r = await makeProgression(t.db, promotion).grantXp(id, 300);
+    const r = await makeProgression(t.db).grantXp(id, 350);      // curva v7: nível 3 aos 350
     assert.deepEqual([r!.level, r!.statPoints, r!.levelsGained], [3, 2, 2]);
     const spent = await profile.spendPoint(id, 'ninjutsu');
     assert.ok(spent.ok && spent.statPoints === 1 && spent.attributes.ninjutsu === 1);
@@ -35,7 +33,7 @@ describe('v5 no banco: nível, pontos e kits (PostgreSQL real)', { skip: noDatab
   it('atributo no máximo (10): MAXED; dois toques com 1 ponto só gastam 1', async () => {
     const id = await t.createPlayer('mei');
     const profile = makeProfile(t.db, 10);
-    await makeProgression(t.db, promotion).grantXp(id, 6600);      // nível 12: 11 pontos
+    await makeProgression(t.db).grantXp(id, 17_600);    // nível 12 (curva v7): 11 pontos
     for (let i = 0; i < 10; i++) assert.equal((await profile.spendPoint(id, 'agility')).ok, true);
     assert.deepEqual(await profile.spendPoint(id, 'agility'), { ok: false, reason: 'MAXED' });
     const both = await Promise.all([profile.spendPoint(id, 'vitality'), profile.spendPoint(id, 'chakraMax')]);
@@ -60,7 +58,7 @@ describe('v5 no banco: missão entre jogadores (sensei Chunin -> aprendiz)', { s
   after(async () => { await t?.drop(); });
 
   it('ciclo completo: criar, contar abates, entregar ao sensei, reprovar, refazer, aprovar e resgatar no Mestre', async () => {
-    const missions = makeMissions(t.db, promotion);
+    const missions = makeMissions(t.db);
     const sensei = await t.createPlayer('obito', 'CHUNIN');
     const other = await t.createPlayer('kakashi', 'JONIN');
     const trainee = await t.createPlayer('naruto');
@@ -102,8 +100,8 @@ describe('v5 no banco: missão entre jogadores (sensei Chunin -> aprendiz)', { s
   });
 
   it('opções do sensei: as dificuldades do catálogo, sem o Treino do Mestre (só do NPC)', async () => {
-    const options = await makeMissions(t.db, promotion).senseiOptions();
-    assert.deepEqual(options.map((o) => o.code), ['BASIC', 'STANDARD', 'ADVANCED', 'MASTER']);
+    const options = await makeMissions(t.db).senseiOptions();
+    assert.deepEqual(options.map((o) => o.code), ['BASIC', 'STANDARD', 'ADVANCED', 'MASTER', 'CHUNIN_EXAM'], 'v7: + Exame Chunin');
     assert.equal(options[2]!.title, 'Aprendiz Dedicado');
   });
 });

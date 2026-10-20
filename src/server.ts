@@ -9,6 +9,7 @@ import { makeFindPlayer } from './realtime/findPlayer.js';
 import { REALTIME } from './realtime/config.js';
 import { attachGameGateway } from './realtime/gateway.js';
 import { makeMissions, MISSIONS_SQL, NPC_MISSION, NPC_SENSEI_ID } from './realtime/missions.js';
+import { makeNinjaStore, NINJA_SQL } from './realtime/ninjaStore.js';
 import { makeProfile, PROFILE_SQL } from './realtime/profile.js';
 import { makeProgression } from './realtime/progression.js';
 import { loadPublicFiles, type StaticFile } from './web/staticFiles.js';
@@ -72,9 +73,10 @@ const publicApp = buildPublicApp({
 const gateway = attachGameGateway(publicApp.server, {
   authenticate,
   findPlayer: makeFindPlayer(db),
-  progression: makeProgression(db, REALTIME.combat.promotion),   // XP do combate vai para game.players
-  missions: makeMissions(db, REALTIME.combat.promotion),         // NPC Mestre + abates em game.sensei_missions
+  progression: makeProgression(db),                               // XP e ryō do combate vão para game.players
+  missions: makeMissions(db),                                     // NPC Mestre + abates em game.sensei_missions
   profile: makeProfile(db, REALTIME.combat.attributes.maxPoints), // pontos de atributo e kits (v5)
+  store: makeNinjaStore(db),                                      // jutsus, tutorial, classes, loja, Extração (v7)
   log: publicApp.log,
 });
 const internalApp = buildInternalApp({ db, requireServiceToken: makeRequireServiceToken(config.SERVICE_TOKEN) }, settings);
@@ -83,6 +85,7 @@ const proxyWarning = trustProxyWarning(config);
 if (proxyWarning) publicApp.log.warn(proxyWarning);
 
 async function closeAll() {
+  await gateway.flush().catch(() => undefined);   // grava o uso de jutsus que ainda estava em memória
   gateway.close();   // avisa os jogadores (1001) antes de fechar o servidor
   await Promise.allSettled([publicApp.close(), internalApp.close()]);
   await pool.end().catch(() => undefined);
@@ -112,6 +115,7 @@ try {
   await db.query(AUTH_SQL.bootCheck);                    // migração v3 (login)
   await db.query(PROFILE_SQL.bootCheck);                 // migração v5 (nível, atributos, kits)
   await db.query(PROFILE_SQL.bootCheckV6);               // migração v6 (visual do personagem)
+  await db.query(NINJA_SQL.bootCheck);                   // migração v7 (progressão: tutorial, ryō, armas)
   // Migração v4 (NPC Mestre): sem ela o jogo sobe igual, só o Mestre não passa missões.
   const v4 = await db.query(MISSIONS_SQL.bootCheck, [NPC_SENSEI_ID, NPC_MISSION.missionType, NPC_MISSION.difficulty]);
   if (v4.rows.length === 0) publicApp.log.warn('[boot] NPC Mestre sem missões: rode db/schema_v4_npc_missions.sql no SQL Editor do Neon (não precisa reiniciar).');

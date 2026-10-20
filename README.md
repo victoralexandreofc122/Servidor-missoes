@@ -173,6 +173,45 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v11: progressão (níveis até 60, ranks, classes, Academia, Extração e armas)
+
+Migração `db/schema_v7_progressao.sql` (rodar no Neon, depois da v6). As regras ficam **no banco**
+(funções e triggers); o servidor só chama, e o cliente só pede.
+
+- **Níveis até 60** com mais XP: do nível N para o N+1 são `100·N + 25·N·(N-1)`
+  (nível 11 = 13.750 XP · 40 = 572.000 · 60 = 1.888.000). `levelStart` em `stats.ts` = `game.level_start` (o teste compara os 60).
+- **Ranks:** o XP não promove mais ninguém.
+  | Nível | Rank | Como |
+  |---|---|---|
+  | 1 a 10 | Academia | tutorial (4 salas) e caça |
+  | 11 | Genin | **Missão de Genin** com o Diretor da Academia: escolhe a classe Primária e ganha 1 pergaminho dela |
+  | 40 | Chunin | **Exame Chunin**: um Chunin+ cria a missão "Exame Chunin" (Criar Missão), o aprendiz cumpre e o sensei aprova; o trigger promove. Depois, classe Secundária com o Diretor |
+  | 60 | candidato a Hokage | candidatura registrada com o Diretor (eleição numa versão futura) |
+- **9 classes** (Cura, Sombra, Ilusão, Pedra, Fogo, Água, Taijutsu, Armas, Relâmpago), 4 jutsus cada
+  (tier 1 a 4) + 2 da Academia = **38 jutsus** (`src/realtime/jutsus.ts` = `game.jutsus`). Quem já
+  jogava mantém os 7 de antes; jutsu novo só da própria classe, pela Extração.
+- **Jutsus da Academia, nível pelo uso** (`game.player_jutsus.usage_count`, contado SÓ pelo servidor
+  a cada uso aceito; `level` é coluna gerada; o uso só sobe):
+  | | Nv 1 | Nv 2 (100 usos) | Nv 3 (500) | Nv 4 (2000) |
+  |---|---|---|---|---|
+  | Teleporte Curto | 3 casas | 4 | 5 | 6 |
+  | Substituição (5 s armada; anula o próximo golpe, deixa um tronco e aparece atrás do atacante) | recarga 30 s | 25 s | 20 s | 15 s e atrás do alvo **focado** |
+  O Teleporte vai na direção do joystick e para antes da primeira parede (nunca atravessa). Jutsus de classe: +10% de efeito por nível.
+- **Tutorial da Academia** (`academy_interior`, 4 salas de 16x16): conta nova nasce na Sala 1. Cada
+  porta só abre quando o **servidor** vê a sala concluída (`players.tutorial_step`, a mesma trava na
+  predição do cliente). Sala 1: 3 bonecos com o Ataque Básico · Sala 2: meditar até o chakra encher ·
+  Sala 3: Teleporte + Substituição (boneco que bate) · Sala 4: equipar a Kunai de Treino. A saída só
+  abre no passo 4 (+100 ryō, +50 XP). O prédio da Academia na Vila leva à Sala 4 (Diretor).
+- **Extração** (Casa dos Pergaminhos): nível 1/2/3/4 gasta 1/2/4/8 pergaminhos da classe com 80/60/40/20%
+  de chance de aprender um jutsu do tier. O sorteio é do servidor (`crypto`), a função `game.extract_jutsu`
+  confere classe, nível e pergaminhos e gasta mesmo na falha. Pergaminhos: compra (150 ryō) ou drop de monstro (4%, Genin+).
+- **Inventário e ryō:** monstros dão 5 a 15 ryō; Armaria vende Kunai (14 de dano, 300) e Shuriken Gigante
+  (22, 1200). A arma equipada soma ao Ataque Básico; o novo atributo **Armas** dá +5% por ponto (Kunai de Treino: +10).
+
+Mensagens novas: cliente `choose_class`, `extract`, `buy`, `equip`, `hokage_apply` e `cast` com `dir`
+(Teleporte); servidor `tutorial`, `inventory`, `classes`, `jutsus`, `jutsu_level`, `class_choice`,
+`extract_result`, `teleport`, `substitution`.
+
 ### v10: lojas com interior, fade entre mapas e Floresta escura
 
 - **Coordenadas da passagem:**

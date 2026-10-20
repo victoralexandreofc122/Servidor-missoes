@@ -1,19 +1,26 @@
+import { randomInt } from 'node:crypto';
 import { distance, inCone, nearest, shieldedDamage, STEPS, type Point } from './combat.js';
-import { REALTIME, type RealtimeConfig } from './config.js';
+import { REALTIME, type MonsterType, type RealtimeConfig } from './config.js';
 import {
   CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, SKILLS, sanitizeChat,
   type CastFailReason, type KitName, type KitView, type Kits, type MeditationEnd, type MissionView, type MonsterView,
-  type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
+  type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
   type Skill, type WorldInfo, type Appearance, type Dir,
 } from './protocol.js';
 import type { Missions, TalkOutcome } from './missions.js';
 import type { Profile } from './profile.js';
+import type { Classes, Inventory, NinjaStore } from './ninjaStore.js';
 import {
-  damageMultiplier, derivedStats, levelProgress, NO_ATTRIBUTES, scaledDamage,
+  ACADEMY_JUTSUS, CLASSES, CLASS_INFO, EXTRACTION, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
+  jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
+} from './jutsus.js';
+import { ITEMS, ITEM_BY_CODE, KILL_RYO, SCROLL_DROP_CHANCE, scrollOf } from './items.js';
+import {
+  damageMultiplier, derivedStats, levelProgress, MAX_LEVEL, NO_ATTRIBUTES, scaledDamage,
   type Attribute, type Attributes, type DerivedStats,
 } from './stats.js';
-import { blocked, moveStep } from './movement.js';
-import { inSafeZone, type MapId, type MapLayout } from './maps.js';
+import { blocked, moveStep, q3 } from './movement.js';
+import { ACADEMY, academySpawn, inSafeZone, type MapId, type MapLayout } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
 
 /*
@@ -34,6 +41,11 @@ import { TokenBucket } from './tokenBucket.js';
  * Missões (NPC Mestre): o banco é a fonte da verdade (missions.ts). O mundo só decide
  * QUEM pode pedir (perto do NPC, vivo, sem pedido em andamento) e conta o abate quando
  * o próprio servidor mata o monstro. Não existe mensagem do cliente que mexa no progresso.
+ *
+ * Progressão (v7, ninjaStore.ts): jutsus aprendidos e o USO de cada um (contado aqui, a cada
+ * uso aceito; o nível do jutsu sai do uso), tutorial da Academia (o passo trava as portas e só
+ * avança quando o SERVIDOR vê o jogador cumprir a sala), classes, Extração com sorteio do
+ * servidor, loja (preço do banco) e arma equipada (dano somado ao Ataque Básico).
  */
 
 /** O que o mundo precisa de uma conexão. O WebSocket do `ws` satisfaz isto. */
@@ -48,7 +60,7 @@ export interface WorldLogger {
   warn(obj: object, msg?: string): void;
 }
 
-/** Resultado de gravar XP: total, rank (promoção) e nível (o trigger da v5 dá os pontos). */
+/** Resultado de gravar XP: total, rank e nível (o trigger da v5 dá os pontos) e ryō. */
 export interface XpResult {
   totalXp: number;
   rank: RankView;
@@ -56,15 +68,19 @@ export interface XpResult {
   level?: number;
   statPoints?: number;
   levelsGained?: number;
+  ryo?: number;
 }
 
-/** Grava XP no banco (e promove de rank quando atingir o limite). Ver progression.ts. */
+/** Grava XP (e ryō do abate) no banco. Ver progression.ts. O XP não promove de rank (v7). */
 export interface Progression {
-  grantXp(playerId: string, amount: number): Promise<XpResult | undefined>;
+  grantXp(playerId: string, amount: number, ryo?: number): Promise<XpResult | undefined>;
 }
 
-/** Kits padrão (os mesmos DEFAULTs da migração v5). */
+/** Kits de quem já jogava antes da v7 (DEFAULTs da migração v5). Conta nova: NEW_KITS. */
 export const DEFAULT_KITS: Readonly<Kits> = { A: ['fire', 'water', 'taijutsu', 'heal'], B: ['illusion', 'shadow', 'stone', 'heal'] };
+export const NEW_KITS: Readonly<Kits> = { A: ['teleport', 'substitution'], B: [] };
+/** Sem ficha do banco (testes, jogo sem banco): sabe os 7 de antes e os 2 da Academia. */
+const DEFAULT_JUTSUS: readonly Skill[] = [...LEGACY_JUTSUS, ...ACADEMY_JUTSUS];
 
 /** Visual de quem ainda não criou o personagem (os outros veem este boneco). */
 export const DEFAULT_APPEARANCE: Readonly<Appearance> = { skin: '#f1c9a0', hair: '#2b2118', shirt: '#2f5d8a', pants: '#2a2a33', cape: '#8a2b2b' };
@@ -88,6 +104,10 @@ export interface WorldOptions {
   missions?: Missions;
   /** Ficha no banco: gastar pontos e salvar kits. Sem isto, gastar/salvar dá PROFILE_UNAVAILABLE. */
   profile?: Profile;
+  /** Progressão v7 no banco (uso de jutsu, tutorial, classes, loja, Extração). */
+  store?: NinjaStore;
+  /** Sorteio da Extração e dos drops (padrão: crypto). Injetável para teste. */
+  secureRandom?: () => number;
 }
 
 export interface JoiningPlayer {
@@ -102,6 +122,15 @@ export interface JoiningPlayer {
   kits?: Kits;
   /** null = ainda não criou o personagem. */
   appearance?: Appearance | null;
+  /** v7. Sem isto (testes): tutorial concluído, sem ryō, os 9 jutsus de antes. */
+  tutorialStep?: number;
+  ryo?: number;
+  items?: Inventory;
+  equipped?: string | null;
+  classes?: Classes;
+  /** Jutsu -> usos já gravados no banco. */
+  jutsus?: Record<string, number>;
+  hokageCandidate?: boolean;
 }
 
 /** Estado de um jogador online. É o valor do Map playerId -> estado. */
@@ -161,7 +190,7 @@ interface Session {
    */
   profileBusy: boolean;
   lastProfileAt: number;
-  profileQueue: ((profile: Profile) => Promise<void>)[];
+  profileQueue: (() => Promise<void>)[];
   /** Últimos valores enviados (para mandar só quando muda). */
   sentStats: string;
   lastStatsAt: number;
@@ -177,6 +206,30 @@ interface Session {
   /** Posição mudou desde o último envio. */
   dirty: boolean;
   closed: boolean;
+  // ------------------------------------------------ v7: progressão
+  /** Passo do tutorial (0 a 4) GRAVADO no banco: trava as portas da Academia. */
+  tutorial: number;
+  /** Pedido de avanço do tutorial a caminho do banco (não repete). */
+  tutorialBusy: boolean;
+  /** Sala 1: bonecos destruídos com o Ataque Básico. Sala 3: Teleporte e Substituição usados. */
+  tutorialKills: number;
+  tutorialTeleport: boolean;
+  tutorialSubstitution: boolean;
+  ryo: number;
+  items: Inventory;
+  equipped: string | null;
+  classes: Classes;
+  /** Jutsus aprendidos -> usos (os do banco + os contados nesta sessão). */
+  jutsus: Map<string, number>;
+  /** Usos ainda não gravados (vão em lote). */
+  usagePending: Map<string, number>;
+  lastUsageFlush: number;
+  hokageCandidate: boolean;
+  /** Substituição armada até este instante (anula o próximo golpe). */
+  substituteUntil: number;
+  substituteLevel: number;
+  /** Alvo focado quando armou (no nível 4 aparece atrás DELE). */
+  substituteFocus: string | undefined;
 }
 
 interface Monster {
@@ -191,6 +244,8 @@ interface Monster {
   nextAttackAt: number;
   stunnedUntil: number;
   rootedUntil: number;
+  /** Boneco fixo do mapa: renasce neste ponto. */
+  readonly home?: Point;
 }
 
 /** Devolvido pelo `join`: o gateway entrega as mensagens e o fechamento desta conexão. */
@@ -217,6 +272,10 @@ export class GameWorld {
   private readonly progression: Progression | undefined;
   private readonly missions: Missions | undefined;
   private readonly profile: Profile | undefined;
+  private readonly store: NinjaStore | undefined;
+  private readonly secureRandom: () => number;
+  /** Bonecos fixos esperando para renascer. */
+  private readonly respawns: { type: string; map: MapId; home: Point; at: number }[] = [];
   /** Quem está em cada mapa (envio só para o mesmo mapa sem percorrer todo mundo). */
   private readonly mapPlayers = new Map<MapId, Set<Session>>();
   private timer: NodeJS.Timeout | undefined;
@@ -233,11 +292,25 @@ export class GameWorld {
     this.progression = options.progression;
     this.missions = options.missions;
     this.profile = options.profile;
+    this.store = options.store;
+    this.secureRandom = options.secureRandom ?? (() => randomInt(0, 1_000_000) / 1_000_000);
     for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
     this.lastTick = now();
     for (const layout of this.huntingMaps()) {
       while (this.monstersIn(layout.id).length < this.config.combat.monsters.count) this.spawnMonster(undefined, this.lastTick, layout.id);
     }
+    // Bonecos fixos (Academia): cada um no seu lugar.
+    for (const layout of Object.values(this.config.maps)) {
+      for (const sp of layout.spawns ?? []) this.spawnMonster({ x: sp.x, y: sp.y }, this.lastTick, layout.id, sp.type, true);
+    }
+  }
+
+  /** Números de um tipo de monstro: os bonecos da Academia têm os próprios; o resto é o slime. */
+  private monsterType(type: string): MonsterType {
+    const known = this.config.combat.monsterTypes[type];
+    if (known) return known;
+    const m = this.config.combat.monsters;
+    return { maxHp: m.maxHp, xp: m.xp, attackRange: m.attackRange, attackDamage: m.attackDamage, attackEveryMs: m.attackEveryMs, stationary: false, respawnMs: 0 };
   }
 
   /** Está numa zona segura (sem combate)? Posição e mapa do servidor. */
@@ -330,20 +403,37 @@ export class GameWorld {
     const { speedTilesPerSecond, tickMs, spawn, combat } = this.config;
     const here = this.layout(map);
     const skills = Object.fromEntries(
-      Object.entries(combat.skills).map(([k, v]) => {
+      JUTSUS.map((j) => {
+        const v = combat.skills[j.code];
         const range = v.range ?? v.radius;
-        return [k, { cost: v.cost, cooldownMs: v.cooldownMs, ...(range !== undefined ? { range } : {}) }];
+        return [j.code, {
+          name: j.name, class: j.class, tier: j.tier, mechanic: v.mechanic, cost: v.cost, cooldownMs: v.cooldownMs,
+          ...(range !== undefined ? { range } : {}),
+        }];
       }),
     ) as WorldInfo['skills'];
     return {
       width: here.width, height: here.height, speed: speedTilesPerSecond, runSpeed: this.config.runSpeedTilesPerSecond,
-      tickMs, spawn: { ...spawn }, respawnMs: combat.player.respawnMs, skills, promotion: { ...combat.promotion },
+      tickMs, spawn: { ...spawn }, respawnMs: combat.player.respawnMs, skills,
       meditationRegenMultiplier: combat.player.meditationRegenMultiplier,
       npcs: this.config.npcs.map((n) => ({ ...n })),
       basicAttack: { range: combat.basicAttack.range, cooldownMs: combat.basicAttack.cooldownMs },
       map,
       maps: this.config.maps as Record<MapId, MapLayout>,
       attributePerPoint: { ...combat.attributes.perPoint },
+      rankLevels: { ...combat.rankLevels },
+      classes: CLASSES.map((code) => ({ code, ...CLASS_INFO[code] })),
+      items: ITEMS.map((i) => ({ ...i })),
+      extraction: EXTRACTION.map((e) => ({ ...e })),
+      jutsuLevelUses: [...JUTSU_LEVEL_USES],
+      maxLevel: MAX_LEVEL,
+    };
+  }
+
+  private ninjaView(s: Session): NinjaView {
+    return {
+      tutorialStep: s.tutorial, ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, classes: { ...s.classes },
+      jutsus: Object.fromEntries(s.jutsus), hokageCandidate: s.hokageCandidate,
     };
   }
 
@@ -359,13 +449,21 @@ export class GameWorld {
     const attributes = { ...(player.attributes ?? previous?.attributes ?? NO_ATTRIBUTES) };
     const stats = this.computeStats(attributes);
     const kits: Kits = player.kits ?? previous?.kits ?? DEFAULT_KITS;
+    const tutorial = player.tutorialStep ?? previous?.tutorial ?? 4;
+    // Quem não terminou o tutorial nasce na Academia, na sala do passo em que está.
+    const home = tutorial < 4 ? { map: 'academy_interior' as MapId, ...academySpawn(tutorial) } : { map: this.config.startMap, ...this.config.spawn };
+    const jutsus = new Map<string, number>(
+      player.jutsus ? Object.entries(player.jutsus) : previous ? [...previous.jutsus] : DEFAULT_JUTSUS.map((j) => [j, 0]),
+    );
+    // Reconexão rápida: usos da sessão antiga que ainda não foram para o banco continuam contando.
+    if (player.jutsus && previous) for (const [code, n] of previous.usagePending) jutsus.set(code, (jutsus.get(code) ?? 0) + n);
     const session: Session = {
       id: player.id,
       username: player.username,
       conn,
-      map: previous?.map ?? this.config.startMap,
-      x: previous?.x ?? this.config.spawn.x,
-      y: previous?.y ?? this.config.spawn.y,
+      map: previous?.map ?? home.map,
+      x: previous?.x ?? home.x,
+      y: previous?.y ?? home.y,
       dx: 0,
       dy: 0,
       inputQueue: [],
@@ -409,7 +507,26 @@ export class GameWorld {
       lastMissionAt: 0,
       dirty: false,
       closed: false,
+      tutorial,
+      tutorialBusy: false,
+      tutorialKills: previous?.tutorialKills ?? 0,
+      tutorialTeleport: previous?.tutorialTeleport ?? false,
+      tutorialSubstitution: previous?.tutorialSubstitution ?? false,
+      ryo: player.ryo ?? previous?.ryo ?? 0,
+      items: { ...(player.items ?? previous?.items ?? {}) },
+      equipped: player.equipped !== undefined ? player.equipped : (previous?.equipped ?? null),
+      classes: { ...(player.classes ?? previous?.classes ?? { primary: null, secondary: null }) },
+      jutsus,
+      usagePending: new Map(previous?.usagePending ?? []),
+      lastUsageFlush: t,
+      hokageCandidate: player.hokageCandidate ?? previous?.hokageCandidate ?? false,
+      substituteUntil: previous?.substituteUntil ?? 0,
+      substituteLevel: previous?.substituteLevel ?? 1,
+      substituteFocus: previous?.substituteFocus,
     };
+    // Sala 2 do tutorial (meditar até encher): quem chega nela começa com o chakra baixo.
+    if (!previous && tutorial === 1) session.chakra = Math.floor(session.stats.maxChakra * 0.25);
+    if (previous) previous.usagePending.clear();   // passaram para a sessão nova (gravadas uma vez só)
     session.sentStats = statsKey(session);
     session.sentHp = shownHp(session.hp);
 
@@ -431,7 +548,7 @@ export class GameWorld {
 
     this.sendTo(session, {
       type: 'welcome', you: this.selfView(session), players: this.othersIn(session), monsters: this.monstersIn(session.map), world: this.worldInfo(session.map),
-      progress: this.progressView(session), kit: this.kitView(session),
+      progress: this.progressView(session), kit: this.kitView(session), ninja: this.ninjaView(session),
     });
     this.syncMission(session.id);
     if (session.canBeSensei) this.syncSensei(session.id);
@@ -447,6 +564,7 @@ export class GameWorld {
   private leave(session: Session): void {
     session.closed = true;
     if (this.sessions.get(session.id) !== session) return;
+    this.flushUsage(session);
     this.sessions.delete(session.id);
     this.mapPlayers.get(session.map)?.delete(session);
     this.broadcastMap(session.map, { type: 'player_left', playerId: session.id });
@@ -485,7 +603,7 @@ export class GameWorld {
     if (!parsed) this.sendError(session, 'INVALID_MESSAGE');
     else if (parsed.type === 'move') this.setDirection(session, parsed.dx, parsed.dy);
     else if (parsed.type === 'input') this.queueInputs(session, parsed.seq, parsed.inputs);
-    else if (parsed.type === 'cast') this.cast(session, parsed.skill, t, parsed.targetId);
+    else if (parsed.type === 'cast') this.cast(session, parsed.skill, t, parsed.targetId, parsed.dir);
     else if (parsed.type === 'meditate') this.meditate(session, parsed.active);
     else if (parsed.type === 'respawn') this.respawn(session, t);
     else if (parsed.type === 'talk') this.talk(session, parsed.npcId, t);
@@ -499,6 +617,11 @@ export class GameWorld {
     else if (parsed.type === 'create_mission') this.createPlayerMission(session, parsed.traineeId, parsed.difficulty, parsed.quantity, t);
     else if (parsed.type === 'deliver_mission') this.deliverPlayerMission(session, parsed.senseiId, t);
     else if (parsed.type === 'evaluate_mission') this.evaluatePlayerMission(session, parsed.missionId, parsed.approved, parsed.score, t);
+    else if (parsed.type === 'choose_class') this.chooseClass(session, parsed.class);
+    else if (parsed.type === 'extract') this.extract(session, parsed.class, parsed.level);
+    else if (parsed.type === 'buy') this.buy(session, parsed.item, parsed.qty);
+    else if (parsed.type === 'equip') this.equip(session, parsed.item);
+    else if (parsed.type === 'hokage_apply') this.applyHokage(session);
     else this.chatMessage(session, parsed.message, t);
     this.flushKicks();
   }
@@ -596,7 +719,8 @@ export class GameWorld {
    * dentro do portão, passa para o mapa vizinho (crossExit). A posição é sempre a do SERVIDOR.
    */
   private step(s: Session, dx: number, dy: number, dist: number): void {
-    const [map, x, y] = moveStep(this.config.maps, s.map, s.x, s.y, dx, dy, dist);
+    // Portas da Academia travadas pelo passo GRAVADO do tutorial (a mesma regra no cliente).
+    const [map, x, y] = moveStep(this.config.maps, s.map, s.x, s.y, dx, dy, dist, { tutorial: s.tutorial });
     if (map === s.map) {
       s.x = x;
       s.y = y;
@@ -643,32 +767,39 @@ export class GameWorld {
   // ---------------------------------------------------------------- combate
 
   /**
-   * Habilidade. Ordem: vivo? recarregou? tem chakra? tem alvo/efeito? Só então cobra o
-   * chakra, avisa todos (`cast`, para a animação) e aplica o efeito. Falhou antes de
-   * cobrar: `cast_failed` só para quem tentou, sem gastar nada.
+   * Jutsu. Ordem: vivo? fora da zona segura? APRENDEU? está no kit ativo? recarregou? tem
+   * chakra? tem alvo/efeito? Só então cobra o chakra, avisa todos (`cast`, para a animação),
+   * aplica o efeito e CONTA O USO (o nível do jutsu sobe pelo uso, contado só aqui).
+   * Falhou antes de cobrar: `cast_failed` só para quem tentou, sem gastar nada.
    */
-  private cast(session: Session, skill: Skill, t: number, targetId?: string): void {
+  private cast(session: Session, skill: Skill, t: number, targetId?: string, dir?: [number, number]): void {
     const cfg = this.config.combat.skills[skill];
     const fail = (reason: CastFailReason) => this.sendTo(session, { type: 'cast_failed', skill, reason });
     // Qualquer TENTATIVA de usar habilidade encerra a meditação (mesmo que a habilidade falhe).
     this.stopMeditation(session, 'cast');
     if (session.dead) return fail('DEAD');
-    // Zona segura (praça da Vila): nenhuma habilidade, nem cura. Vale a posição do SERVIDOR.
+    // Zona segura (praça da Vila, lojas, sala do Diretor): nenhuma habilidade. Vale a posição do SERVIDOR.
     if (this.inSafeZone(session)) return fail('SAFE_ZONE');
-    // Só as 4 habilidades do kit ATIVO (o kit ativo é o que o servidor confirmou).
+    // Só jutsu APRENDIDO (Academia, os de antes ou os da Extração) e no kit ATIVO.
+    if (!session.jutsus.has(skill)) return fail('NOT_LEARNED');
     if (!session.kits[session.activeKit].includes(skill)) return fail('NOT_EQUIPPED');
     if ((session.cooldowns[skill] ?? 0) > t) return fail('COOLDOWN');
     if (session.chakra < cfg.cost) return fail('NO_CHAKRA');
 
+    const mechanic = cfg.mechanic;
+    const level = jutsuLevel(session.jutsus.get(skill) ?? 0);
     const alive = (m: Monster) => m.hp > 0 && m.map === session.map;   // só monstros do MESMO mapa
-    // Soco (Taijutsu 👊) escala com o atributo Taijutsu; jutsus elementais (Fogo, Água) com Ninjutsu.
-    const dmg = scaledDamage(cfg.damage ?? 0, damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu'));
+    // Taijutsu escala com o atributo Taijutsu; Armas com Armas (+ a arma equipada); o resto com Ninjutsu.
+    // Nível do jutsu (uso): +10% por nível acima do 1.
+    const weaponBonus = mechanic === 'weapons' ? this.weaponDamage(session) : 0;
+    const dmg = scaledDamage((cfg.damage ?? 0) + weaponBonus, damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * jutsuPower(level));
+    const reach = cfg.range ?? cfg.radius ?? 0;
     let target: Monster | undefined;
+    let blink: Point | undefined;
     if (targetId !== undefined && DIRECTED_SKILLS.has(skill)) {
       // Jutsu direcionado: o alvo é o focado, mas o ALCANCE continua sendo o da habilidade.
       target = this.monsters.get(targetId);
       if (!target || !alive(target)) return fail('NO_TARGET');
-      const reach = cfg.range ?? cfg.radius ?? 0;
       const d = distance(session, target);
       if (d > reach) return fail('OUT_OF_RANGE');
       // Mira: o servidor vira o jogador para o alvo (mesmo que ele estivesse olhando para o outro lado).
@@ -676,31 +807,59 @@ export class GameWorld {
         session.fx = (target.x - session.x) / d;
         session.fy = (target.y - session.y) / d;
       }
-    } else if (skill === 'taijutsu' || skill === 'illusion' || skill === 'shadow') {
-      target = nearest(session, this.monsters.values(), cfg.range ?? 0, alive);
+    } else if (mechanic === 'taijutsu' || mechanic === 'illusion' || mechanic === 'shadow' || mechanic === 'lightning' || mechanic === 'weapons') {
+      target = nearest(session, this.monsters.values(), reach, alive);
       if (!target) return fail('NO_TARGET');
     }
-    if (skill === 'heal' && session.hp >= session.stats.maxHp) return fail('FULL_HP');
-    if (skill === 'stone' && session.shield > 0) return fail('ALREADY_ACTIVE');
+    if (mechanic === 'heal' && session.hp >= session.stats.maxHp) return fail('FULL_HP');
+    if (mechanic === 'stone' && session.shield > 0) return fail('ALREADY_ACTIVE');
+    if (mechanic === 'substitution' && session.substituteUntil > t) return fail('ALREADY_ACTIVE');
+    if (mechanic === 'teleport') {
+      // Teleporte Curto: na direção do joystick (ou para onde está virado), até o alcance do NÍVEL,
+      // parando antes da primeira parede. Não atravessa parede, porta nem borda.
+      const len = dir ? Math.sqrt(dir[0] * dir[0] + dir[1] * dir[1]) : 0;
+      if (dir && len > 0.1) {
+        session.fx = dir[0] / len;
+        session.fy = dir[1] / len;
+      }
+      blink = blinkTarget(this.layout(session.map), session.x, session.y, session.fx, session.fy, teleportRange(level));
+      if (distance(session, blink) < 0.5) return fail('BLOCKED');
+    }
 
     session.chakra -= cfg.cost;
-    session.cooldowns[skill] = t + cfg.cooldownMs;
+    session.cooldowns[skill] = t + (mechanic === 'substitution' ? substitutionCooldownMs(level) : cfg.cooldownMs);
     this.broadcastMap(session.map, { type: 'cast', playerId: session.id, skill, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy) });
 
-    switch (skill) {
+    switch (mechanic) {
       case 'fire':
         for (const m of [...this.monsters.values()]) {
-          if (alive(m) && distance(session, m) <= (cfg.radius ?? 0)) this.damageMonster(m, dmg, session, t);
+          if (alive(m) && distance(session, m) <= (cfg.radius ?? 0)) this.damageMonster(m, dmg, session, t, 'skill');
         }
         break;
       case 'water':
         for (const m of [...this.monsters.values()]) {
-          if (alive(m) && inCone(session, session.fx, session.fy, m, cfg.range ?? 0, cfg.coneDeg ?? 90)) this.damageMonster(m, dmg, session, t);
+          if (alive(m) && inCone(session, session.fx, session.fy, m, cfg.range ?? 0, cfg.coneDeg ?? 90)) this.damageMonster(m, dmg, session, t, 'skill');
         }
         break;
       case 'taijutsu':
-        this.damageMonster(target!, dmg, session, t);
+        this.damageMonster(target!, dmg, session, t, 'skill');
         break;
+      case 'weapons': {
+        // Chuva de Kunais: o alvo e os 2 mais perto dele dentro do alcance.
+        const hit = [target!, ...[...this.monsters.values()]
+          .filter((m) => m !== target && alive(m) && distance(session, m) <= reach)
+          .sort((a, b) => distance(session, a) - distance(session, b))
+          .slice(0, 2)];
+        for (const m of hit) this.damageMonster(m, dmg, session, t, 'skill');
+        break;
+      }
+      case 'lightning': {
+        const stun = cfg.stunMs ?? 0;
+        target!.stunnedUntil = Math.max(target!.stunnedUntil, t + stun);
+        this.broadcastMap(session.map, { type: 'monster_status', id: target!.id, status: 'stunned', ms: stun });
+        this.damageMonster(target!, dmg, session, t, 'skill');
+        break;
+      }
       case 'illusion':
         target!.stunnedUntil = t + (cfg.stunMs ?? 0);
         this.broadcastMap(session.map, { type: 'monster_status', id: target!.id, status: 'stunned', ms: cfg.stunMs ?? 0 });
@@ -714,16 +873,83 @@ export class GameWorld {
         break;
       case 'heal': {
         const before = session.hp;
-        session.hp = Math.min(session.stats.maxHp, session.hp + (cfg.heal ?? 0));
+        session.hp = Math.min(session.stats.maxHp, session.hp + Math.round((cfg.heal ?? 0) * jutsuPower(level)));
         const amount = shownHp(session.hp) - shownHp(before);
         this.broadcastMap(session.map, { type: 'hit', target: 'player', id: session.id, amount, kind: 'heal', hp: shownHp(session.hp), maxHp: session.stats.maxHp });
         session.sentHp = shownHp(session.hp);
         break;
       }
+      case 'teleport': {
+        const from = { x: session.x, y: session.y };
+        session.x = blink!.x;
+        session.y = blink!.y;
+        session.lastUpdate = t;
+        session.dirty = true;
+        // a = última entrada aplicada: o dono refaz as que faltam a partir daqui (sem perder nenhuma).
+        this.broadcastMap(session.map, { type: 'teleport', playerId: session.id, fromX: round3(from.x), fromY: round3(from.y), x: round3(session.x), y: round3(session.y), a: session.ackSeq });
+        if (session.tutorial === 2 && session.map === 'academy_interior') {
+          session.tutorialTeleport = true;
+          this.tutorialProgress(session);
+        }
+        break;
+      }
+      case 'substitution':
+        // Fica armada 5 s: o PRÓXIMO golpe acerta um tronco (dano anulado) e o ninja aparece atrás.
+        session.substituteUntil = t + (cfg.durationMs ?? 5000);
+        session.substituteLevel = level;
+        session.substituteFocus = targetId;
+        break;
       default:
         break;
     }
+    this.countUse(session, skill);
     this.sendStats(session, t);
+  }
+
+  /** Dano da arma equipada (Kunai: +10). Escala com o atributo Armas. */
+  private weaponDamage(s: Session): number {
+    return (s.equipped ? ITEM_BY_CODE.get(s.equipped)?.damage : undefined) ?? 0;
+  }
+
+  /**
+   * +1 uso do jutsu (só o servidor conta, e só uso ACEITO). Subiu de nível: avisa o dono e grava
+   * na hora; senão grava em lote (a cada 20 usos ou 15 s, e ao sair).
+   */
+  private countUse(s: Session, skill: Skill): void {
+    const before = s.jutsus.get(skill) ?? 0;
+    const after = before + 1;
+    s.jutsus.set(skill, after);
+    s.usagePending.set(skill, (s.usagePending.get(skill) ?? 0) + 1);
+    const level = jutsuLevel(after);
+    if (level > jutsuLevel(before)) {
+      this.sendTo(s, { type: 'jutsu_level', skill, level });
+      this.sendTo(s, { type: 'notice', text: `${JUTSU_BY_CODE.get(skill)?.name ?? skill} subiu para o Nível ${level}!`, tone: 'good' });
+      this.flushUsage(s);
+      return;
+    }
+    let pending = 0;
+    for (const n of s.usagePending.values()) pending += n;
+    if (pending >= 20) this.flushUsage(s);
+  }
+
+  /** Grava os usos pendentes (fora do loop: o tick nunca espera o banco). */
+  private flushUsage(s: Session): Promise<void> {
+    s.lastUsageFlush = this.now();
+    if (!this.store || s.usagePending.size === 0) {
+      s.usagePending.clear();
+      return Promise.resolve();
+    }
+    const uses = [...s.usagePending.entries()];
+    s.usagePending.clear();
+    const { id } = s;
+    return this.store.flushUsage(id, uses).catch((err: unknown) => {
+      this.log.warn({ playerId: id, err }, 'falha ao gravar o uso dos jutsus');
+    });
+  }
+
+  /** Grava o uso de TODO mundo (desligando o servidor). */
+  async flushAll(): Promise<void> {
+    await Promise.all([...this.sessions.values()].map((s) => this.flushUsage(s)));
   }
 
   /** Começar ou parar de meditar. Morto não medita; meditar para o jogador na hora. */
@@ -776,7 +1002,9 @@ export class GameWorld {
     }
     session.cooldowns.attack = t + session.stats.attackCooldownMs;   // Agilidade deixa o ataque mais rápido
     this.broadcastMap(session.map, { type: 'attack', playerId: session.id, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy) });
-    this.damageMonster(target, scaledDamage(cfg.damage, session.stats.physicalMultiplier), session, t);   // FÍSICO: Taijutsu
+    // FÍSICO: base x Taijutsu + a arma equipada x Armas (Kunai de Treino: +10).
+    const damage = scaledDamage(cfg.damage, session.stats.physicalMultiplier) + scaledDamage(this.weaponDamage(session), session.stats.weaponMultiplier);
+    this.damageMonster(target, damage, session, t, 'attack');
   }
 
   /** Correr liga/desliga. A velocidade vem SEMPRE daqui (5 ou 8, mais agilidade); o cliente só pede. */
@@ -792,8 +1020,9 @@ export class GameWorld {
     this.sendTo(session, { type: 'kit', ...this.kitView(session) });
   }
 
-  /** Salvar kits (até 4 por kit, sem repetir: o Zod e o banco conferem). Vale na hora; grava no banco. */
+  /** Salvar kits (até 4 por kit, sem repetir: o Zod e o banco conferem; só jutsu APRENDIDO). Grava no banco. */
   private setLoadout(session: Session, kits: Kits): void {
+    if (![...kits.A, ...kits.B].every((j) => session.jutsus.has(j))) return this.sendError(session, 'NOT_LEARNED');
     const { id } = session;
     this.profileTask(session, (profile) => profile.saveLoadout(id, kits.A, kits.B).then(() => {
       const current = this.sessions.get(id);
@@ -844,21 +1073,32 @@ export class GameWorld {
 
   /** Põe uma gravação de ficha na fila do jogador (ver profileQueue). */
   private profileTask(session: Session, run: (profile: Profile) => Promise<void>): void {
-    if (!this.profile) return this.sendError(session, 'PROFILE_UNAVAILABLE');
+    const profile = this.profile;
+    if (!profile) return this.sendError(session, 'PROFILE_UNAVAILABLE');
+    this.queueTask(session, () => run(profile));
+  }
+
+  /** Mesma fila para a progressão v7 (loja, Extração, classe, arma, tutorial): uma gravação por vez. */
+  private storeTask(session: Session, run: (store: NinjaStore) => Promise<void>): void {
+    const store = this.store;
+    if (!store) return this.sendError(session, 'PROFILE_UNAVAILABLE');
+    this.queueTask(session, () => run(store));
+  }
+
+  private queueTask(session: Session, run: () => Promise<void>): void {
     if (session.profileQueue.length >= 5) return this.sendError(session, 'PROFILE_BUSY');
     session.profileQueue.push(run);
     this.pumpProfile(session);
   }
 
   private pumpProfile(session: Session): void {
-    const profile = this.profile;
-    if (session.profileBusy || !profile) return;
+    if (session.profileBusy) return;
     const next = session.profileQueue.shift();
     if (!next) return;
     session.profileBusy = true;
     const go = () => {
       session.lastProfileAt = this.now();
-      next(profile)
+      next()
         .catch((err: unknown) => this.profileFailed(session.id, err))
         .finally(() => {
           session.profileBusy = false;
@@ -877,20 +1117,263 @@ export class GameWorld {
     if (current) this.sendError(current, 'PROFILE_UNAVAILABLE');
   }
 
-  private damageMonster(m: Monster, amount: number, attacker: Session, t: number): void {
+  private damageMonster(m: Monster, amount: number, attacker: Session, t: number, source: 'attack' | 'skill'): void {
     m.hp = Math.max(0, m.hp - amount);
     this.broadcastMap(m.map, { type: 'hit', target: 'monster', id: m.id, amount, kind: 'damage', hp: m.hp, maxHp: m.maxHp });
-    if (m.hp === 0) this.killMonster(m, attacker, t);
+    if (m.hp === 0) this.killMonster(m, attacker, t, source);
   }
 
-  /** Último golpe ganha o XP. Um monstro novo nasce na hora no mesmo mapa (mapa de caça: sempre cheio). */
-  private killMonster(m: Monster, killer: Session, t: number): void {
+  /**
+   * Último golpe ganha o XP e o ryō (sorteados aqui). Monstro de caça: um novo nasce na hora no
+   * mesmo mapa. Boneco fixo (Academia): renasce no mesmo lugar depois de um tempo.
+   */
+  private killMonster(m: Monster, killer: Session, t: number, source: 'attack' | 'skill'): void {
     this.monsters.delete(m.id);
     this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: killer.id });
-    const layout = this.layout(m.map);
-    if (!layout.safe && layout.hunt && this.monstersIn(m.map).length < this.config.combat.monsters.count) this.spawnMonster(undefined, t, m.map);
-    this.awardXp(killer, this.config.combat.monsters.xp);
+    const type = this.monsterType(m.type);
+    if (m.home) {
+      this.respawns.push({ type: m.type, map: m.map, home: m.home, at: t + type.respawnMs });
+    } else {
+      const layout = this.layout(m.map);
+      if (!layout.safe && layout.hunt && this.monstersIn(m.map).length < this.config.combat.monsters.count) this.spawnMonster(undefined, t, m.map);
+    }
+    // Sala 1 do tutorial: bonecos destruídos com o ATAQUE BÁSICO.
+    if (m.type === 'dummy' && source === 'attack' && killer.tutorial === 0) {
+      killer.tutorialKills += 1;
+      this.tutorialProgress(killer);
+    }
+    if (type.xp <= 0) return;                                    // boneco de treino: sem XP, sem ryō
+    const ryo = KILL_RYO.min + Math.floor(this.random() * (KILL_RYO.max - KILL_RYO.min + 1));
+    this.awardXp(killer, type.xp, ryo);
     this.trackKill(killer, m.type);
+    this.maybeDropScroll(killer);
+  }
+
+  /** Genin ou acima: às vezes o monstro deixa 1 pergaminho de uma classe do jogador. */
+  private maybeDropScroll(killer: Session): void {
+    const store = this.store;
+    const owned = [killer.classes.primary, killer.classes.secondary].filter((c): c is ClassCode => c !== null);
+    if (!store || owned.length === 0 || this.secureRandom() >= SCROLL_DROP_CHANCE) return;
+    const cls = owned[Math.floor(this.secureRandom() * owned.length)]!;
+    const { id } = killer;
+    store.addItem(id, scrollOf(cls), 1).then((items) => {
+      const s = this.sessions.get(id);
+      if (!s) return;
+      s.items = items;
+      this.sendInventory(s);
+      this.sendTo(s, { type: 'notice', text: `O monstro deixou um Pergaminho de ${CLASS_INFO[cls].name}!`, tone: 'good' });
+    }).catch((err: unknown) => this.log.warn({ playerId: id, err }, 'falha ao gravar o pergaminho do drop'));
+  }
+
+  private sendInventory(s: Session): void {
+    this.sendTo(s, { type: 'inventory', ryo: s.ryo, items: { ...s.items }, equipped: s.equipped });
+  }
+
+  // ---------------------------------------------------------------- tutorial da Academia
+
+  /**
+   * O SERVIDOR confere cada sala (o cliente não diz que concluiu nada):
+   *   passo 0 (Sala 1) 3 bonecos destruídos com o Ataque Básico;
+   *   passo 1 (Sala 2) meditar na sala até o chakra encher (tick);
+   *   passo 2 (Sala 3) Teleporte Curto usado e um golpe anulado pela Substituição;
+   *   passo 3 (Sala 4) equipar a Kunai de Treino (ou outra arma).
+   */
+  private tutorialProgress(s: Session): void {
+    if (s.tutorial === 0) {
+      this.sendTo(s, { type: 'notice', text: `Bonecos destruídos: ${Math.min(3, s.tutorialKills)}/3`, tone: 'info' });
+      if (s.tutorialKills >= 3) this.advanceTutorial(s, 1);
+    } else if (s.tutorial === 2) {
+      if (s.tutorialTeleport && s.tutorialSubstitution) this.advanceTutorial(s, 3);
+      else this.sendTo(s, { type: 'notice', text: `Teleporte ${s.tutorialTeleport ? '✓' : '…'} · Substituição ${s.tutorialSubstitution ? '✓' : '…'}`, tone: 'info' });
+    }
+  }
+
+  /** Avança UM passo, gravando no banco (recompensas lá: Kunai no passo 3; ryō e XP no 4). */
+  private advanceTutorial(s: Session, to: number): void {
+    if (s.tutorialBusy || s.tutorial >= to) return;
+    const done = (current: Session) => {
+      current.tutorial = to;
+      this.sendTo(current, { type: 'tutorial', step: to });
+      const lines = [
+        '',
+        'Sala 1 concluída! A porta para a Sala 2 abriu: medite até o chakra encher.',
+        'Sala 2 concluída! Na Sala 3, use o Teleporte Curto e a Substituição contra o boneco que bate.',
+        'Sala 3 concluída! Você ganhou a Kunai de Treino: equipe na Sala 4 (Inventário).',
+        'Tutorial concluído! +100 ryō e +50 XP. A saída da Academia está aberta.',
+      ];
+      this.sendTo(current, { type: 'notice', text: lines[to] ?? '', tone: 'good' });
+      if (to === 1) {
+        // Sala 2: meditar até encher. Começa com o chakra baixo para o treino valer.
+        current.chakra = Math.min(current.chakra, Math.floor(current.stats.maxChakra * 0.25));
+        this.sendStats(current, this.now());
+      }
+    };
+    const store = this.store;
+    if (!store) {
+      // Sem banco (testes, jogo local): avança só em memória, com a Kunai de Treino no passo 3.
+      if (to === 3) s.items.kunai_training = Math.max(1, s.items.kunai_training ?? 0);
+      done(s);
+      if (to === 3) this.sendInventory(s);
+      return;
+    }
+    s.tutorialBusy = true;
+    const { id, username } = s;
+    store.advanceTutorial(id, to).then((result) => {
+      const current = this.sessions.get(id);
+      if (!current || !result) return;
+      const levelBefore = current.level;
+      current.ryo = result.ryo;
+      current.items = result.items;
+      done(current);
+      this.sendInventory(current);
+      if (result.totalXp !== current.xp) {
+        this.applyXp(id, username, result.totalXp - current.xp, {
+          totalXp: result.totalXp, rank: current.rank, promoted: false, level: result.level, statPoints: result.statPoints,
+          levelsGained: result.level - levelBefore,
+        });
+      }
+    }).catch((err: unknown) => {
+      this.log.warn({ playerId: id, err }, 'falha ao gravar o passo do tutorial');
+    }).finally(() => {
+      const current = this.sessions.get(id);
+      if (current) current.tutorialBusy = false;
+      s.tutorialBusy = false;
+      this.flushKicks();
+    });
+  }
+
+  // ---------------------------------------------------------------- classes, loja, Extração, arma, Hokage
+
+  /** NPC perto (mesmo mapa, no alcance)? Posição do SERVIDOR. */
+  private near(session: Session, npcId: string): boolean {
+    const npc = this.config.npcs.find((n) => n.id === npcId);
+    return !!npc && !session.dead && npc.map === session.map && distance(session, npc) <= npc.range;
+  }
+
+  /** Diretor da Academia: Missão de Genin (classe Primária) ou, Chunin 40, a classe Secundária. */
+  private chooseClass(session: Session, cls: ClassCode): void {
+    if (!this.near(session, 'director')) return this.sendError(session, 'DIRECTOR_TOO_FAR');
+    const { id, username } = session;
+    const refuse = (current: Session, text: string) => this.sendTo(current, { type: 'notice', text, tone: 'bad' });
+    if (session.classes.primary !== null) {
+      // Já tem a Primária: é a Secundária (Chunin nível 40; o banco confere).
+      this.storeTask(session, (store) => store.chooseSecondary(id, cls).then((result) => {
+        const current = this.sessions.get(id);
+        if (!current) return;
+        if (!result.ok) return refuse(current, result.text);
+        current.classes = { ...result.classes };
+        this.sendTo(current, { type: 'classes', ...current.classes });
+        this.sendTo(current, { type: 'notice', text: `Classe Secundária: ${CLASS_INFO[cls].name}.`, tone: 'good' });
+        return undefined;
+      }));
+      return;
+    }
+    // Missão de Genin: nível 11, tutorial feito, ainda da Academia (o banco confere tudo).
+    this.storeTask(session, (store) => store.becomeGenin(id, cls).then((result) => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      if (!result.ok) return refuse(current, result.text);
+      current.classes = { ...result.classes };
+      current.rank = result.rank;
+      current.canBeSensei = result.canBeSensei;
+      current.items = result.items;
+      this.sendTo(current, { type: 'classes', ...current.classes });
+      this.sendInventory(current);
+      this.broadcastMap(current.map, { type: 'player_rank', playerId: id, rank: current.rank, level: current.level });
+      this.broadcast({ type: 'announce', message: `${username} passou na Missão de Genin (classe ${CLASS_INFO[cls].name})!` });
+      this.sendTo(current, { type: 'notice', text: `Você é Genin! Classe Primária: ${CLASS_INFO[cls].name}. Ganhou 1 pergaminho dela: use na Extração.`, tone: 'good' });
+      this.log.info({ playerId: id, cls }, 'jogador virou Genin');
+      return undefined;
+    }));
+  }
+
+  /**
+   * Extração (Casa dos Pergaminhos): o SORTEIO é daqui (crypto), nunca do cliente; o banco
+   * confere a classe, gasta os pergaminhos e ensina o jutsu na mesma transação.
+   */
+  private extract(session: Session, cls: ClassCode, level: number): void {
+    if (!this.near(session, 'shop_scrolls')) return this.sendError(session, 'SHOP_TOO_FAR');
+    const { id } = session;
+    const roll = this.secureRandom();
+    const pick = this.secureRandom();
+    this.storeTask(session, (store) => store.extract(id, cls, level, roll, pick).then((result) => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      if (!result.ok) return this.sendTo(current, { type: 'notice', text: result.text, tone: 'bad' });
+      current.items = result.items;
+      if (result.outcome === 'success' && result.jutsu) {
+        current.jutsus.set(result.jutsu, current.jutsus.get(result.jutsu) ?? 0);
+        this.sendTo(current, { type: 'jutsus', jutsus: Object.fromEntries(current.jutsus) });
+      }
+      this.sendTo(current, {
+        type: 'extract_result', class: cls, level, outcome: result.outcome, jutsu: (result.jutsu as Skill | null),
+        consumed: result.consumed, scrollsLeft: result.scrollsLeft,
+      });
+      this.sendInventory(current);
+      return undefined;
+    }));
+  }
+
+  /** Compra: perto do lojista que VENDE o item. Preço e saldo: o banco. */
+  private buy(session: Session, item: string, qty: number): void {
+    const def = ITEM_BY_CODE.get(item);
+    const npc = def?.shop ? this.config.npcs.find((n) => n.shop === def.shop) : undefined;
+    if (!def || !npc) return this.sendTo(session, { type: 'notice', text: 'Esse item não está à venda.', tone: 'bad' });
+    if (!this.near(session, npc.id)) return this.sendError(session, 'SHOP_TOO_FAR');
+    const { id } = session;
+    this.storeTask(session, (store) => store.buy(id, item, qty).then((result) => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      if (!result.ok) return this.sendTo(current, { type: 'notice', text: result.text, tone: 'bad' });
+      current.ryo = result.ryo;
+      current.items = result.items;
+      this.sendInventory(current);
+      this.sendTo(current, { type: 'notice', text: `Comprou ${qty}x ${def.name}.`, tone: 'good' });
+      return undefined;
+    }));
+  }
+
+  /** Equipar arma do inventário (null = guardar). Sala 4 do tutorial: equipar conclui. */
+  private equip(session: Session, item: string | null): void {
+    if (item !== null) {
+      if (ITEM_BY_CODE.get(item)?.kind !== 'weapon') return this.sendError(session, 'NOT_A_WEAPON');
+      if (!((session.items[item] ?? 0) > 0)) return this.sendError(session, 'ITEM_NOT_OWNED');
+    }
+    const finish = (current: Session, equipped: string | null) => {
+      current.equipped = equipped;
+      this.sendInventory(current);
+      if (equipped && current.tutorial === 3) this.advanceTutorial(current, 4);
+    };
+    if (!this.store) {
+      finish(session, item);                      // sem banco: só em memória
+      return;
+    }
+    const { id } = session;
+    this.storeTask(session, (store) => store.equip(id, item).then((result) => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      if (!result.ok) return this.sendTo(current, { type: 'notice', text: result.text, tone: 'bad' });
+      finish(current, result.equipped);
+      return undefined;
+    }));
+  }
+
+  /** Candidatura a Hokage: nível 60, com o Diretor. Registrada; a eleição vem numa versão futura. */
+  private applyHokage(session: Session): void {
+    if (!this.near(session, 'director')) return this.sendError(session, 'DIRECTOR_TOO_FAR');
+    if (session.level < this.config.combat.rankLevels.hokage) {
+      return this.sendTo(session, { type: 'notice', text: `A candidatura a Hokage é no nível ${this.config.combat.rankLevels.hokage}.`, tone: 'bad' });
+    }
+    const { id, username } = session;
+    this.storeTask(session, (store) => store.applyHokage(id).then((result) => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      if (!result.ok) return this.sendTo(current, { type: 'notice', text: result.text, tone: 'bad' });
+      current.hokageCandidate = true;
+      this.sendTo(current, { type: 'notice', text: result.already ? 'Sua candidatura a Hokage já está registrada.' : 'Candidatura a Hokage registrada! Aguarde a eleição.', tone: 'good' });
+      if (!result.already) this.broadcast({ type: 'announce', message: `${username} se candidatou a Hokage!` });
+      return undefined;
+    }));
   }
 
   // ---------------------------------------------------------------- missões (NPC Mestre)
@@ -928,8 +1411,37 @@ export class GameWorld {
       session.lastMissionAt = t;
       return this.sendTo(session, { type: 'shop_open', shop: npc.shop, npcId: npc.id });
     }
+    if (npc.id === 'director' || npc.id.startsWith('tutor_')) {
+      if (t - session.lastMissionAt < this.config.missionRequestEveryMs) return;
+      session.lastMissionAt = t;
+      return npc.id === 'director' ? this.talkDirector(session) : this.sendTo(session, { type: 'npc_say', npcId: npc.id, text: tutorLine(npc.id, session.tutorial) });
+    }
     const { id, username } = session;
     this.missionRequest(session, t, (m) => m.talk(id).then((outcome) => this.applyTalk(id, username, npc.id, outcome)));
+  }
+
+  /** Diretor: o que o jogador pode fazer agora (Missão de Genin, classe Secundária, Exame Chunin, Hokage). */
+  private talkDirector(s: Session): void {
+    const say = (text: string) => this.sendTo(s, { type: 'npc_say', npcId: 'director', text });
+    const lv = this.config.combat.rankLevels;
+    if (s.tutorial < 4) return say('Primeiro, termine o treino das quatro salas. Cada porta só abre quando você conclui a sala.');
+    if (s.rank.code === 'ACADEMY') {
+      if (s.level < lv.genin) return say(`A Missão de Genin é no nível ${lv.genin}. Cace na Floresta, ao sul do portão, e volte aqui. (Nível ${s.level})`);
+      say('Chegou a hora da Missão de Genin. Escolha sua classe: ela decide quais jutsus você pode aprender.');
+      return this.sendTo(s, { type: 'class_choice', kind: 'primary', classes: [...CLASSES] });
+    }
+    if (s.level >= lv.hokage && !s.hokageCandidate) {
+      return say('Poucos chegam tão longe. Se quiser, registre aqui a sua candidatura a Hokage.');
+    }
+    if (s.rank.code === 'GENIN') {
+      if (s.level < lv.chunin) return say(`O Exame Chunin é no nível ${lv.chunin}. Até lá, treine seus jutsus: cada uso conta. (Nível ${s.level})`);
+      return say('Você já pode fazer o Exame Chunin. Peça a um Chunin (ou acima) que crie o “Exame Chunin” para você e cumpra a prova.');
+    }
+    if (s.classes.primary && !s.classes.secondary && s.level >= lv.chunin) {
+      say('Um Chunin pode dominar uma segunda classe. Escolha a sua classe Secundária.');
+      return this.sendTo(s, { type: 'class_choice', kind: 'secondary', classes: CLASSES.filter((c) => c !== s.classes.primary) });
+    }
+    return say(s.hokageCandidate ? 'Sua candidatura a Hokage está registrada. A eleição virá em breve.' : 'Continue treinando. A Vila conta com você.');
   }
 
   /**
@@ -1046,6 +1558,15 @@ export class GameWorld {
     const { id: senseiId, username: senseiName } = session;
     this.missionRequest(session, t, (m) => m.evaluate(senseiId, missionId, approved, score).then((outcome) => {
       if (outcome.kind === 'refused') return this.notice(senseiId, outcome.text, 'bad');
+      // Exame Chunin aprovado: o banco já promoveu. Atualiza o aprendiz online e anuncia.
+      const trainee = this.sessions.get(outcome.traineeId);
+      if (trainee && outcome.traineeRank.code !== trainee.rank.code) {
+        trainee.rank = { code: outcome.traineeRank.code, name: outcome.traineeRank.name };
+        trainee.canBeSensei = outcome.traineeRank.canBeSensei;
+        this.broadcastMap(trainee.map, { type: 'player_rank', playerId: trainee.id, rank: trainee.rank, level: trainee.level });
+        this.broadcast({ type: 'announce', message: `${trainee.username} passou no Exame Chunin e virou ${trainee.rank.name}!` });
+        if (trainee.canBeSensei) this.syncSensei(trainee.id);
+      }
       this.notice(senseiId, approved ? 'Missão aprovada: o pergaminho foi para o aprendiz.' : 'Missão reprovada: o aprendiz refaz do zero.', 'good');
       this.sendMission(outcome.traineeId, outcome.mission, 'sync');
       this.notice(outcome.traineeId, approved
@@ -1098,12 +1619,17 @@ export class GameWorld {
   }
 
   /** XP vai para o banco (fora do loop: o tick nunca espera o banco). O aviso só sai depois de gravado. */
-  private awardXp(killer: Session, amount: number): void {
+  private awardXp(killer: Session, amount: number, ryo = 0): void {
     if (!this.progression) return;
     const { id, username } = killer;
-    this.progression.grantXp(id, amount).then((result) => {
+    this.progression.grantXp(id, amount, ryo).then((result) => {
       if (!result) return;
       this.applyXp(id, username, amount, result);
+      const current = this.sessions.get(id);
+      if (current && result.ryo !== undefined && result.ryo !== current.ryo) {
+        current.ryo = result.ryo;
+        this.sendInventory(current);
+      }
       this.flushKicks();
     }).catch((err: unknown) => {
       this.log.warn({ playerId: id, err }, 'falha ao gravar XP no banco');
@@ -1137,9 +1663,10 @@ export class GameWorld {
     }
   }
 
-  private damagePlayer(session: Session, amount: number, t: number): void {
+  private damagePlayer(session: Session, amount: number, t: number, attacker?: Monster): void {
     // Apanhou: a meditação acaba ANTES do dano (não dá para meditar no meio da luta).
     this.stopMeditation(session, 'damaged');
+    if (attacker && session.substituteUntil > t) return this.substitute(session, attacker, t);
     let dmg = amount;
     let shielded = false;
     if (session.shield > 0) {
@@ -1163,7 +1690,37 @@ export class GameWorld {
     this.sendStats(session, t);
   }
 
-  /** Renascer: só morto e só depois do tempo. Volta à praça da Vila com vida e chakra cheios. */
+  /**
+   * Substituição: o golpe acerta um TRONCO no lugar do ninja (dano anulado) e ele aparece
+   * atrás do atacante. Nível 4: atrás do alvo FOCADO (se estiver vivo no mesmo mapa).
+   */
+  private substitute(s: Session, attacker: Monster, t: number): void {
+    s.substituteUntil = 0;
+    const focus = s.substituteLevel >= 4 && s.substituteFocus ? this.monsters.get(s.substituteFocus) : undefined;
+    const anchor = focus && focus.hp > 0 && focus.map === s.map ? focus : attacker;
+    const log = { x: s.x, y: s.y };
+    const spot = behind(this.layout(s.map), s, anchor);
+    if (spot) {
+      s.x = spot.x;
+      s.y = spot.y;
+      const d = distance(s, anchor);
+      if (d > 0.01) {
+        s.fx = (anchor.x - s.x) / d;
+        s.fy = (anchor.y - s.y) / d;
+      }
+      s.lastUpdate = t;
+      s.dirty = true;
+    }
+    this.broadcastMap(s.map, {
+      type: 'substitution', playerId: s.id, logX: round3(log.x), logY: round3(log.y), x: round3(s.x), y: round3(s.y), a: s.ackSeq,
+    });
+    if (s.tutorial === 2 && s.map === 'academy_interior') {
+      s.tutorialSubstitution = true;
+      this.tutorialProgress(s);
+    }
+  }
+
+  /** Renascer: só morto e só depois do tempo. Volta à praça da Vila (ou à sala da Academia) com vida e chakra cheios. */
   private respawn(session: Session, t: number): void {
     const p = this.config.combat.player;
     const { maxHp, maxChakra } = session.stats;
@@ -1179,7 +1736,10 @@ export class GameWorld {
     session.dx = 0;
     session.dy = 0;
     this.dropInputs(session);             // teleporte para a praça: o cliente recomeça daqui
-    const { startMap, spawn } = this.config;
+    session.substituteUntil = 0;
+    // Tutorial: renasce na sala do passo em que está (nunca fora da Academia).
+    const startMap: MapId = session.tutorial < 4 ? 'academy_interior' : this.config.startMap;
+    const spawn = session.tutorial < 4 ? academySpawn(session.tutorial) : this.config.spawn;
     if (session.map !== startMap) this.transfer(session, startMap, spawn.x, spawn.y, 'respawn');   // morreu na Floresta
     session.x = spawn.x;
     session.y = spawn.y;
@@ -1201,8 +1761,10 @@ export class GameWorld {
    * Cria um monstro. Sem posição: numa casa livre (fora das árvores) da zona de caça do mapa,
    * longe dos jogadores. Com posição (testes): no mapa pedido ou, sem mapa, no de entrada.
    */
-  spawnMonster(at?: Point, t: number = this.now(), map?: MapId): MonsterView {
+  spawnMonster(at?: Point, t: number = this.now(), map?: MapId, typeName?: string, fixed = false): MonsterView {
     const cfg = this.config.combat.monsters;
+    const type = typeName ?? cfg.type;
+    const stats = this.monsterType(type);
     const mapId: MapId = map ?? (at ? this.config.startMap : (this.huntingMaps()[0]?.id ?? this.config.startMap));
     const layout = this.layout(mapId);
     const zone = layout.hunt ?? { x: 0, y: 0, w: layout.width, h: layout.height };
@@ -1216,16 +1778,17 @@ export class GameWorld {
     }
     const m: Monster = {
       id: `m${++this.monsterSeq}`,
-      type: cfg.type,
+      type,
       map: mapId,
       x: pos!.x,
       y: pos!.y,
-      hp: cfg.maxHp,
-      maxHp: cfg.maxHp,
+      hp: stats.maxHp,
+      maxHp: stats.maxHp,
       nextStepAt: t + cfg.stepMs * (0.5 + this.random()),
       nextAttackAt: t,
       stunnedUntil: 0,
       rootedUntil: 0,
+      ...(fixed ? { home: { x: pos!.x, y: pos!.y } } : {}),
     };
     this.monsters.set(m.id, m);
     this.broadcastMap(mapId, { type: 'monster_spawned', monster: monsterView(m) });
@@ -1237,6 +1800,7 @@ export class GameWorld {
     const cfg = this.config.combat.monsters;
     m.nextStepAt = t + cfg.stepMs * (0.8 + this.random() * 0.4);
     if (t < m.stunnedUntil || t < m.rootedUntil) return false;   // atordoado ou preso: não anda
+    if (this.monsterType(m.type).stationary) return false;        // boneco de treino
     if (this.random() < 0.2) return false;                         // às vezes fica parado
     const layout = this.layout(m.map);
     if (!layout.hunt) return false;                                // fora de mapa de caça (teste): parado
@@ -1253,14 +1817,14 @@ export class GameWorld {
     return false;
   }
 
-  /** Monstro bate em quem está colado (o mais perto), no máximo a cada 2 s. Atordoado não ataca. */
+  /** Monstro bate em quem está colado (o mais perto), no ritmo do tipo dele. Atordoado não ataca. */
   private monsterAttack(m: Monster, t: number): void {
-    const cfg = this.config.combat.monsters;
-    if (t < m.nextAttackAt || t < m.stunnedUntil) return;
+    const cfg = this.monsterType(m.type);
+    if (cfg.attackDamage <= 0 || t < m.nextAttackAt || t < m.stunnedUntil) return;
     const target = nearest(m, this.mapPlayers.get(m.map) ?? [], cfg.attackRange, (s) => !s.dead && !s.closed && !this.inSafeZone(s));
     if (!target) return;
     m.nextAttackAt = t + cfg.attackEveryMs;
-    this.damagePlayer(target, cfg.attackDamage, t);
+    this.damagePlayer(target, cfg.attackDamage, t, m);
   }
 
   // ---------------------------------------------------------------- game loop
@@ -1284,6 +1848,18 @@ export class GameWorld {
       // Chakra: SÓ meditando (15/s + atributo). Vida: SÓ com o chakra no máximo.
       if (s.meditating) s.chakra = Math.min(s.stats.maxChakra, s.chakra + s.stats.meditationChakraPerSec * dt);
       if (s.chakra >= s.stats.maxChakra) s.hp = Math.min(s.stats.maxHp, s.hp + p.hpRegenPerSec * dt);
+      // Sala 2 do tutorial: meditando DENTRO da sala até o chakra encher.
+      if (s.tutorial === 1 && s.meditating && s.chakra >= s.stats.maxChakra && s.map === 'academy_interior'
+        && s.x >= ACADEMY.room && s.x < ACADEMY.room * 2) this.advanceTutorial(s, 2);
+      if (s.usagePending.size > 0 && t - s.lastUsageFlush >= 15_000) void this.flushUsage(s);
+    }
+
+    // 1b. Bonecos fixos que renascem.
+    for (let i = this.respawns.length - 1; i >= 0; i--) {
+      const r = this.respawns[i]!;
+      if (t < r.at) continue;
+      this.respawns.splice(i, 1);
+      this.spawnMonster({ ...r.home }, t, r.map, r.type, true);
     }
 
     // 2. Monstros: andar e atacar. Mapa sem ninguém: os monstros esperam (nada a enviar).
@@ -1432,6 +2008,54 @@ export const npcLine = {
     return `Excelente! Pergaminho entregue: ${prize}. Fale comigo de novo para outro treino.`;
   },
 };
+
+/** Instrutores das salas da Academia: a dica muda com o passo do jogador. */
+export function tutorLine(npcId: string, step: number): string {
+  if (npcId === 'tutor_dummies') {
+    return step === 0
+      ? 'Destrua 3 bonecos com o Ataque Básico (botão ⚔). Chegue perto: o golpe é corpo a corpo.'
+      : 'Muito bem! A porta da direita já está aberta. Siga para a Sala 2.';
+  }
+  if (npcId === 'tutor_meditation') {
+    return step <= 1
+      ? 'O chakra só volta meditando. Fique parado e toque em 🧘 até a barra azul encher.'
+      : 'Seu chakra está em ordem. A Sala 3 espera você.';
+  }
+  return step <= 2
+    ? 'Teleporte Curto: incline o joystick e use para saltar 3 casas. Substituição: arme e deixe o boneco bater em você!'
+    : 'Ótimo. Na última sala, equipe a sua Kunai de Treino e fale com o Diretor.';
+}
+
+/**
+ * Teleporte Curto: anda em passos de 0,05 casa na direção (dx, dy) até `range`, parando no
+ * último ponto livre (nunca entra nem atravessa parede; não sai do mapa).
+ */
+export function blinkTarget(layout: MapLayout, x: number, y: number, dx: number, dy: number, range: number): Point {
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  let best = { x, y };
+  for (let d = 0.05; d <= range + 1e-9; d += 0.05) {
+    const nx = q3(x + ux * d), ny = q3(y + uy * d);
+    if (nx < 0 || ny < 0 || nx > layout.width || ny > layout.height || blocked(nx, ny, layout.walls)) break;
+    best = { x: nx, y: ny };
+  }
+  return best;
+}
+
+/** Substituição: um ponto livre logo ATRÁS de `anchor` (do lado oposto ao jogador). */
+export function behind(layout: MapLayout, from: Point, anchor: Point): Point | undefined {
+  const d = distance(from, anchor);
+  const ux = d > 0.01 ? (anchor.x - from.x) / d : 0, uy = d > 0.01 ? (anchor.y - from.y) / d : 1;
+  for (const dist of [1, 0.75, 1.3, 1.7, 2.2]) {
+    for (const turn of [0, 0.5, -0.5, 1, -1, 1.57, -1.57]) {
+      const c = Math.cos(turn), sn = Math.sin(turn);
+      const vx = ux * c - uy * sn, vy = ux * sn + uy * c;
+      const p = { x: q3(anchor.x + vx * dist), y: q3(anchor.y + vy * dist) };
+      if (p.x >= 0 && p.y >= 0 && p.x <= layout.width && p.y <= layout.height && !blocked(p.x, p.y, layout.walls)) return p;
+    }
+  }
+  return undefined;
+}
 
 function monsterView(m: Monster): MonsterView {
   return { id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp };

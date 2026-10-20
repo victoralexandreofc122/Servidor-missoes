@@ -7,6 +7,7 @@
  *   map_2  Floresta 100 x 100  grama escura, árvores (paredes), monstros; entrada no NORTE (x 35..45)
  *   interior_weapons / interior_clothes / interior_scrolls   salas 15 x 15 das lojas: assoalho,
  *                              paredes, balcão no meio e o lojista atrás dele; porta de saída embaixo
+ *   academy_interior  Academia 64 x 16: 4 salas do tutorial, portas travadas pelo passo do jogador
  *
  * Os layouts são DADOS fixos, gerados aqui uma vez (a floresta com sorteio de semente fixa:
  * sempre as mesmas árvores). O servidor colide com `walls` e o cliente recebe a MESMA lista
@@ -17,7 +18,7 @@
 import type { Box } from './movement.js';
 
 export type Edge = 'east' | 'west' | 'north' | 'south';
-export type MapId = 'map_1' | 'map_2' | 'interior_weapons' | 'interior_clothes' | 'interior_scrolls';
+export type MapId = 'map_1' | 'map_2' | 'interior_weapons' | 'interior_clothes' | 'interior_scrolls' | 'academy_interior';
 /** As 3 lojas com interior (o NPC lojista manda `shop_open` com isto). */
 export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
 
@@ -48,7 +49,9 @@ export interface Area extends Box {
  * cima), tapete e capacho de porta.
  */
 export interface Deco extends Box {
-  k: 'bench' | 'rosette' | 'lamp' | 'plant' | 'gate_roof' | 'rug' | 'mat';
+  k: 'bench' | 'rosette' | 'lamp' | 'plant' | 'gate_roof' | 'rug' | 'mat' | 'door' | 'cushion' | 'board';
+  /** Porta da Academia: desenhada FECHADA enquanto o passo do tutorial do jogador for menor que este. */
+  step?: number;
 }
 
 /**
@@ -60,6 +63,11 @@ export interface Door extends Box {
   dir: Edge;
   map: MapId;
   at: { x: number; y: number };
+  /**
+   * Trava do tutorial da Academia: a porta só funciona para quem já chegou neste passo (0 a 4).
+   * Sem `step`, abre para todos. O servidor confere com o passo GRAVADO do jogador.
+   */
+  step?: number;
 }
 
 /**
@@ -100,6 +108,8 @@ export interface MapLayout {
   safeZones: Box[];
   /** Onde os monstros nascem e andam (mapas de caça). */
   hunt?: Box;
+  /** Monstros FIXOS (bonecos da Academia): tipo e lugar; renascem no mesmo ponto. */
+  spawns?: { type: string; x: number; y: number }[];
 }
 
 const wall = (k: Wall['k'], x: number, y: number, w: number, h: number, s?: Wall['s']): Wall => (s ? { x, y, w, h, k, s } : { x, y, w, h, k });
@@ -133,6 +143,26 @@ export const ROOM = {
   w: 15, h: 15, doorFrom: 6, doorTo: 9, counterY: 6, npc: { x: 7.5, y: 4.6 }, arrive: { x: 7.5, y: 12.8 },
   exit: { x: 5.5, y: 13.4, w: 4, h: 1.6 },
 } as const;
+
+/**
+ * Academia (tutorial): 4 salas de 16 x 16 lado a lado (x 0, 16, 32, 48). Cada sala tem uma porta
+ * para a próxima (leste), travada até o jogador concluir a sala, e uma de volta (oeste). A
+ * saída (sala 4, embaixo) só abre com o tutorial completo (passo 4). Conta nova nasce na sala 1.
+ */
+export const ACADEMY = {
+  room: 16, height: 16, rooms: 4,
+  /** Prédio da Academia na Vila (porta embaixo, no meio). */
+  building: { x: 53, y: 19, w: 12, h: 11 },
+  /** Onde se chega na sala 4 vindo da Vila. */
+  arrive: { x: 56, y: 12.4 },
+  /** Onde fica o Diretor (sala 4): Missão de Genin e Exame Chunin. */
+  director: { x: 56, y: 4.2 },
+} as const;
+/** Onde se nasce/renasce na Academia: na sala do passo atual do tutorial (0 a 3; 4 = sala 4). */
+export function academySpawn(step: number): { x: number; y: number } {
+  const room = Math.max(0, Math.min(3, Math.floor(step)));
+  return { x: ACADEMY.room * room + 8, y: 11 };
+}
 
 /** Porta da loja na Vila (faixa logo abaixo da fachada) e onde se chega ao sair da sala. */
 export function shopDoor(b: Box): { door: Box; outside: { x: number; y: number } } {
@@ -231,6 +261,10 @@ function village(): MapLayout {
     decos.push(deco('mat', door.x + 0.5, door.y, 2, 0.6));        // capacho na porta
     return { ...door, dir: 'north' as const, map: sh.map, at: { ...ROOM.arrive } };
   });
+  // Academia: a porta do prédio leva à sala 4 (onde fica o Diretor e a Missão de Genin).
+  const academyDoor = shopDoor(ACADEMY.building).door;
+  decos.push(deco('mat', academyDoor.x + 0.5, academyDoor.y, 2, 0.6));
+  doors.push({ ...academyDoor, dir: 'north', map: 'academy_interior', at: { ...ACADEMY.arrive } });
   return {
     id: 'map_1', name: 'Vila', kind: 'village', width: W, height: H, safe: true, walls,
     exits: [{ edge: 'south', from: G.from, to: G.to, map: 'map_2', shift: G.shift }],
@@ -340,12 +374,67 @@ function interior(sh: (typeof SHOPS)[number]): MapLayout {
   };
 }
 
+/**
+ * Academia (64 x 16), 4 salas vistas de cima:
+ *
+ *   ┌ sala 1 ──────┐┌ sala 2 ──────┐┌ sala 3 ──────┐┌ sala 4 ──────┐
+ *   │ 3 bonecos    ▕▏ almofadas    ▕▏ boneco que   ▕▏ armas  DIRETOR│
+ *   │ (Ataque      ▕▏ (meditar até ▕▏ bate (Telep. ▕▏ (equipar a   │
+ *   │  Básico)     ▕▏  chakra cheio)▕▏ + Substit.)  ▕▏  Kunai)      │
+ *   └──────────────┘└──────────────┘└──────────────┘└──[ saída ]───┘
+ *
+ * Entre duas salas a parede é dupla (2 casas); a passagem é uma PORTA (de um lado para o outro).
+ * A porta para a sala seguinte só abre para quem concluiu a sala (passo do tutorial); a de volta
+ * sempre abre. A saída (embaixo, na sala 4) só abre no passo 4 e leva à frente da Academia na Vila.
+ */
+function academy(): MapLayout {
+  const R = ACADEMY.room, H = ACADEMY.height;
+  const walls: Wall[] = [];
+  const doors: Door[] = [];
+  const decos: Deco[] = [];
+  for (let k = 0; k < ACADEMY.rooms; k++) {
+    const x0 = R * k;
+    walls.push(wall('iwall', x0, 0, R, 2));                                              // fundo
+    walls.push(wall('iwall', x0, 2, 1, H - 2), wall('iwall', x0 + R - 1, 2, 1, H - 2));  // laterais
+    if (k < ACADEMY.rooms - 1) {
+      walls.push(wall('iwall', x0 + 1, H - 1, R - 2, 1));                               // frente
+      // para a próxima sala (trava: passo k+1) e, na próxima, a de volta (sempre aberta)
+      doors.push({ x: x0 + 13.4, y: 6.5, w: 1.6, h: 3, dir: 'east', map: 'academy_interior', at: { x: x0 + R + 2.6, y: 8 }, step: k + 1 });
+      doors.push({ x: x0 + R + 1, y: 6.5, w: 1, h: 3, dir: 'west', map: 'academy_interior', at: { x: x0 + 12.6, y: 8 } });
+      decos.push({ ...deco('door', x0 + R - 1, 6.5, 2, 3), step: k + 1 });
+    } else {
+      walls.push(wall('iwall', x0 + 1, H - 1, 5.5, 1), wall('iwall', x0 + 9.5, H - 1, 5.5, 1));   // vão da saída (x 54,5..57,5)
+    }
+  }
+  // Saída: o capacho inteiro (como nas lojas, ninguém fica preso no canto). Só no passo 4.
+  doors.push({ x: 54.5, y: H - 1.6, w: 3, h: 1.6, dir: 'south', map: 'map_1', at: shopDoor(ACADEMY.building).outside, step: 4 });
+  decos.push({ ...deco('door', 54.5, H - 1, 3, 1), step: 4 }, deco('mat', 55, H - 1.6, 2, 0.6));
+  // Sala 1: tapete e quadro · Sala 2: almofadas · Sala 3: tapete · Sala 4: armas na parede.
+  decos.push(deco('rug', 3, 3.5, 10, 4.5), deco('board', 6, 0.5, 4, 1.2));
+  decos.push(deco('cushion', 20, 6, 1.4, 1.4), deco('cushion', 23.3, 5, 1.4, 1.4), deco('cushion', 26.6, 6, 1.4, 1.4), deco('board', 22, 0.5, 4, 1.2));
+  decos.push(deco('rug', 35, 3.5, 10, 4.5), deco('board', 38, 0.5, 4, 1.2));
+  decos.push(deco('rug', 52, 6, 8, 4));
+  walls.push(wall('furniture', 49.4, 0.6, 3.6, 2.2, 'sword_rack'), wall('furniture', 59, 0.6, 3.6, 2.2, 'shield_rack'));
+  return {
+    id: 'academy_interior', name: 'Academia', kind: 'interior', width: R * ACADEMY.rooms, height: H, safe: true, walls,
+    exits: [], doors,
+    areas: [area('wood', 0, 0, R * ACADEMY.rooms, H)],
+    deco: decos,
+    safeZones: [{ x: 48, y: 0, w: 16, h: H }],      // sala 4 (Diretor): sem combate; as salas de treino têm
+    spawns: [
+      { type: 'dummy', x: 4.5, y: 5.5 }, { type: 'dummy', x: 8, y: 4.5 }, { type: 'dummy', x: 11.5, y: 5.5 },
+      { type: 'sparring', x: 40, y: 5 },
+    ],
+  };
+}
+
 /** Todos os mapas, por id. */
 export function buildMaps(): Record<MapId, MapLayout> {
   const [weapons, clothes, scrolls] = SHOPS;
   return {
     map_1: village(), map_2: forest(),
     interior_weapons: interior(weapons), interior_clothes: interior(clothes), interior_scrolls: interior(scrolls),
+    academy_interior: academy(),
   };
 }
 

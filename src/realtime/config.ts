@@ -2,9 +2,9 @@
  * Regras do tempo real. Valores conservadores para o plano Free do Render;
  * mudam aqui, num lugar só.
  */
-import type { Skill } from './protocol.js';
+import { buildSkills, type JutsuCode, type Mechanic } from './jutsus.js';
 import type { AttributeRules } from './stats.js';
-import { ROOM, SHOPS, WORLD_MAPS, type MapId, type MapLayout, type ShopKind } from './maps.js';
+import { ACADEMY, ROOM, SHOPS, WORLD_MAPS, type MapId, type MapLayout, type ShopKind } from './maps.js';
 
 /** Números de cada habilidade. Só os campos que a habilidade usa vêm preenchidos. */
 export interface SkillConfig {
@@ -18,8 +18,23 @@ export interface SkillConfig {
   rootMs?: number;
   reduction?: number;      // escudo: fração do dano que some (0.5 = metade)
   heal?: number;
-  /** Qual atributo escala o dano: 'taijutsu' (corpo a corpo) ou 'ninjutsu' (elemental). Padrão: ninjutsu. */
-  scaling?: 'taijutsu' | 'ninjutsu';
+  /** Qual atributo escala o dano: 'taijutsu' (corpo a corpo), 'ninjutsu' (elemental) ou 'weapons'. Padrão: ninjutsu. */
+  scaling?: 'taijutsu' | 'ninjutsu' | 'weapons';
+  /** Efeito que dura (Substituição: 5 s esperando o próximo golpe). */
+  durationMs?: number;
+}
+
+/** Tipo de monstro. O slime é o de caça; os bonecos da Academia ficam parados e renascem rápido. */
+export interface MonsterType {
+  maxHp: number;
+  xp: number;
+  attackRange: number;
+  attackDamage: number;
+  attackEveryMs: number;
+  /** Não anda (bonecos de treino). */
+  stationary: boolean;
+  /** Renasce no mesmo lugar depois deste tempo (bonecos fixos do mapa). */
+  respawnMs: number;
 }
 
 export interface CombatConfig {
@@ -43,10 +58,14 @@ export interface CombatConfig {
     /** `count` = monstros em CADA mapa de caça (os que têm `hunt`); nascem longe dos jogadores. */
     minPlayerDistance: number;
   };
-  promotion: { fromRank: string; toRank: string; xp: number };
+  /** Bonecos da Academia (tipos além do slime, que usa `monsters`). */
+  monsterTypes: Readonly<Record<string, MonsterType>>;
+  /** Níveis dos ranks (v7): Genin pela Missão de Genin, Chunin pelo Exame Chunin, candidatura a Hokage. */
+  rankLevels: { genin: number; chunin: number; hokage: number };
   /** HP e chakra do próprio jogador: no máximo 1 atualização a cada X ms (regeneração). */
   statsEveryMs: number;
-  skills: Record<Skill, SkillConfig>;
+  /** Todos os jutsus (catálogo em jutsus.ts): números de combate + a mecânica. */
+  skills: Readonly<Record<JutsuCode, SkillConfig & { mechanic: Mechanic }>>;
 }
 
 export interface RealtimeConfig {
@@ -150,7 +169,8 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       maxPoints: 10,
       // vitalidade +10 vida · chakra máximo +10 · regen +1/s meditando · agilidade +0,5 velocidade
       // taijutsu +5% no corpo a corpo (Ataque Básico e o soco 👊) · ninjutsu +5% nos jutsus elementais
-      perPoint: { vitality: 10, chakraMax: 10, chakraRegen: 1, agility: 0.5, taijutsu: 0.05, ninjutsu: 0.05 },
+      // armas +5% no dano da arma equipada (Kunai: +10 de base) e nos jutsus da classe Armas
+      perPoint: { vitality: 10, chakraMax: 10, chakraRegen: 1, agility: 0.5, taijutsu: 0.05, ninjutsu: 0.05, weapons: 0.05 },
       // Agilidade também acelera o Ataque Básico: -4% de recarga por ponto (10 pontos: 600 -> 360 ms).
       agilityAttackSpeed: 0.04,
       minAttackCooldownFactor: 0.6,
@@ -161,17 +181,16 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       attackRange: 1.2, attackDamage: 10, attackEveryMs: 2000,
       minPlayerDistance: 3,
     },
-    promotion: { fromRank: 'ACADEMY', toRank: 'GENIN', xp: 100 },
-    statsEveryMs: 200,
-    skills: {
-      fire: { cost: 20, cooldownMs: 1500, damage: 25, radius: 3 },               // área em volta
-      water: { cost: 15, cooldownMs: 1000, damage: 20, range: 4, coneDeg: 90 },  // cone na frente
-      taijutsu: { cost: 5, cooldownMs: 500, damage: 35, range: 1.5, scaling: 'taijutsu' },   // soco: escala com Taijutsu
-      illusion: { cost: 30, cooldownMs: 4000, range: 5, stunMs: 3000 },          // atordoa: não anda nem ataca
-      shadow: { cost: 25, cooldownMs: 6000, range: 5, rootMs: 5000 },            // prende: não anda (ainda ataca)
-      stone: { cost: 15, cooldownMs: 6000, reduction: 0.5 },                     // escudo: próximo dano pela metade
-      heal: { cost: 30, cooldownMs: 4000, heal: 30 },
+    monsterTypes: {
+      // Sala 1: destruir 3 com o Ataque Básico (2 golpes cada). Não batem.
+      dummy: { maxHp: 24, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 2500 },
+      // Sala 3: boneco que BATE (fraco): para treinar a Substituição. Bastante vida.
+      sparring: { maxHp: 400, xp: 0, attackRange: 1.6, attackDamage: 6, attackEveryMs: 1800, stationary: true, respawnMs: 2500 },
     },
+    rankLevels: { genin: 11, chunin: 40, hokage: 60 },
+    statsEveryMs: 200,
+    // 38 jutsus (9 classes x 4 tiers + 2 da Academia): números gerados do catálogo em jutsus.ts.
+    skills: buildSkills(),
   },
 
   /**
@@ -185,6 +204,12 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     // Lojistas: cada um atrás do balcão da sua loja (só existem dentro do interior). Alcance 3,3
     // casas: dá para falar com ele da frente do balcão, sem passar para trás.
     ...SHOPS.map((sh) => ({ id: `shop_${sh.shop}`, name: sh.keeper, map: sh.map, x: ROOM.npc.x, y: ROOM.npc.y, range: 3.3, shop: sh.shop })),
+    // Academia: um instrutor em cada sala de treino (dica do passo) e o Diretor na sala 4
+    // (Missão de Genin, classe Secundária e candidatura a Hokage).
+    { id: 'tutor_dummies', name: 'Instrutora Aya', map: 'academy_interior', x: 13, y: 4, range: 2.5 },
+    { id: 'tutor_meditation', name: 'Monge Daichi', map: 'academy_interior', x: 29.5, y: 4, range: 2.5 },
+    { id: 'tutor_jutsu', name: 'Instrutor Kenji', map: 'academy_interior', x: 45.5, y: 4, range: 2.5 },
+    { id: 'director', name: 'Diretor da Academia', map: 'academy_interior', x: ACADEMY.director.x, y: ACADEMY.director.y, range: 3 },
   ],
   missionRequestEveryMs: 400,
 

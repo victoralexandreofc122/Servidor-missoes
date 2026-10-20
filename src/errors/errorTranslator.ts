@@ -36,6 +36,22 @@ export const CONSTRAINT_ERRORS: Readonly<Record<string, PublicError>> = {
   rule_redemption_requires_approval: { status: 409, code: 'SCROLL_NOT_REDEEMABLE', message: 'Este pergaminho não pode ser entregue na Sala de Missões.' },
   ux_scroll_redemptions_scroll: { status: 409, code: 'SCROLL_ALREADY_REDEEMED', message: 'Este pergaminho já foi entregue.' },
 
+  // progressão (v7): ranks, classes, Extração, loja, tutorial e Hokage
+  rule_tutorial_first: { status: 409, code: 'TUTORIAL_FIRST', message: 'Conclua o tutorial da Academia primeiro.' },
+  rule_genin_level: { status: 409, code: 'GENIN_LEVEL', message: 'A Missão de Genin é a partir do nível 11.' },
+  rule_genin_rank: { status: 409, code: 'ALREADY_GENIN', message: 'Você já passou da Academia.' },
+  rule_class_unknown: { status: 422, code: 'CLASS_UNKNOWN', message: 'Essa classe não existe.' },
+  rule_secondary_class: { status: 409, code: 'SECONDARY_CLASS', message: 'A classe Secundária é para Chunin de nível 40, diferente da Primária e escolhida uma vez só.' },
+  rule_extraction_input: { status: 422, code: 'EXTRACTION_INVALID', message: 'Extração inválida.' },
+  rule_class_not_owned: { status: 403, code: 'CLASS_NOT_OWNED', message: 'Você só aprende jutsus da sua classe.' },
+  rule_item_not_for_sale: { status: 422, code: 'ITEM_NOT_FOR_SALE', message: 'Esse item não está à venda.' },
+  rule_not_enough_ryo: { status: 409, code: 'NOT_ENOUGH_RYO', message: 'Ryō insuficiente.' },
+  rule_equip_owned: { status: 409, code: 'ITEM_NOT_OWNED', message: 'Só dá para equipar uma arma do seu inventário.' },
+  rule_hokage_level: { status: 409, code: 'HOKAGE_LEVEL', message: 'Só um ninja de nível 60 pode se candidatar a Hokage.' },
+  rule_usage_only_up: { status: 409, code: 'RECORD_LOCKED', message: 'Esse registro não pode ser alterado.' },
+  rule_chunin_exam: { status: 422, code: 'CHUNIN_EXAM_LEVEL', message: 'O Exame Chunin é para Genin de nível 40.' },
+  rule_level_from_xp: { status: 409, code: 'RECORD_LOCKED', message: 'Esse registro não pode ser alterado.' },
+
   // gerais
   rule_append_only: { status: 409, code: 'RECORD_LOCKED', message: 'Esse registro não pode ser alterado.' },
   ux_players_username: { status: 409, code: 'USERNAME_TAKEN', message: 'Esse nome já está em uso.' },

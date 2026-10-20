@@ -605,3 +605,40 @@ então para essa conta ele responde "Seu rank já passou dos meus treinos".
 5. **Sair:** desça até a porta, embaixo no meio, e continue descendo. Você volta para a Vila, na
    frente da loja, andando para longe da porta.
 6. **Lojista só dentro da loja:** na Vila ele não aparece, e falar com ele de fora não funciona.
+
+## Passo 18 — Atualização v11: progressão (níveis 60, classes, Academia, Extração)
+
+**Banco (obrigatório, ANTES do deploy):** no Neon → **SQL Editor**, cole e rode o arquivo
+`db/schema_v7_progressao.sql` inteiro. Pode rodar de novo sem erro. Ele:
+
+- recalcula o nível de todo mundo pela curva nova (até 60). Se alguém tinha mais pontos gastos do que o
+  nível novo dá, os atributos voltam a zero e os pontos ficam livres para redistribuir;
+- deixa quem já jogava com o tutorial **concluído** e os 7 jutsus de antes; contas novas começam na Academia;
+- cria classes, jutsus, itens, inventário, ryō e as regras de Genin, Chunin, Extração, loja e Hokage.
+
+Conferência (opcional, no mesmo SQL Editor):
+
+```sql
+SELECT count(*) FROM game.jutsus;                      -- 38
+SELECT code, min_level FROM game.ranks ORDER BY tier;  -- GENIN 11, CHUNIN 40, HOKAGE 60
+```
+
+Sem a migração, o servidor **não sobe** (o log do Render diz qual coluna falta) e a versão anterior
+continua no ar. **Render:** o push na `main` já faz o deploy. Nenhuma variável nova.
+
+### Testar no celular
+
+1. **Conta nova:** crie uma conta. Você nasce na **Academia, Sala 1**; o cartão verde no alto diz o que fazer.
+2. **Sala 1:** tente passar pela porta da direita: está trancada. Destrua 3 bonecos com o 🗡️ Ataque
+   Básico (chegue perto). A tranca vermelha some e a porta abre.
+3. **Sala 2:** medite 🧘 até a barra azul encher.
+4. **Sala 3:** incline o joystick e toque no 💨 (Teleporte Curto): você salta 3 casas. Toque no 🪵
+   (Substituição) perto do boneco que bate: no golpe aparece um tronco e você surge atrás dele, sem perder vida.
+5. **Sala 4:** abra o 🎒, toque em **Equipar** na Kunai de Treino. Tutorial concluído (+100 ryō, +50 XP).
+   Desça pela porta de baixo: você sai na frente da Academia, na Vila.
+6. **Ficha 📊 → Jutsus:** cada jutsu com o nível e os usos (100 = Nível 2).
+7. **Nível 11:** entre na Academia (porta do prédio na Vila) e fale com o **Diretor**. Escolha a classe:
+   você vira Genin e ganha 1 pergaminho. Na **Casa dos Pergaminhos**, fale com o lojista: compre
+   pergaminhos e use a **Extração**.
+8. **Chunin (nível 40):** um Chunin toca em você → Criar Missão → **Exame Chunin**. Cumpra, entregue, ele aprova.
+

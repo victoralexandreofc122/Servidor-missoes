@@ -419,7 +419,50 @@ export function drawDeco(g, d, x, y, w, h) {
       g.fillStyle = '#3d9637'; g.beginPath(); g.arc(cx - 2, y + h - 11, 2, 0, Math.PI * 2); g.fill();
       return;
     }
+    case 'cushion': {                                 // almofada de meditação (Academia, sala 2)
+      const cx = x + w / 2, cy = y + h / 2, r = Math.min(w, h) / 2;
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.arc(cx + 1, cy + 2, r, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#3b2f6e'; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#5a4aa0'; g.beginPath(); g.arc(cx, cy, r - 3, 0, Math.PI * 2); g.fill();
+      rect(g, '#e8c66a', cx - 1, cy - 1, 2, 2);
+      return;
+    }
+    case 'board': {                                   // quadro de lições pendurado na parede
+      rect(g, '#3b2414', x, y, w, h);
+      rect(g, '#2d4a3a', x + 2, y + 2, w - 4, h - 4);
+      g.fillStyle = '#e9dcbc';
+      for (let ly = y + 5; ly < y + h - 4; ly += 4) g.fillRect(x + 6, ly, (w - 12) * (0.5 + ((ly * 7) % 5) / 10), 1);
+      return;
+    }
     default:
       return undefined;
   }
+}
+
+/**
+ * Porta de correr da Academia (desenhada a cada quadro, por cima do chão): FECHADA (painéis de
+ * papel com uma tranca vermelha) enquanto o tutorial do jogador não chegou no passo dela;
+ * ABERTA (painéis recolhidos) depois. Coordenadas de tela; `vertical` = porta numa parede lateral.
+ */
+export function drawAcademyDoor(g, x, y, w, h, open, vertical, now) {
+  if (open) {
+    rect(g, 'rgba(120, 220, 140, 0.18)', x, y, w, h);
+    g.strokeStyle = 'rgba(140, 240, 160, 0.55)';
+    g.lineWidth = 2;
+    g.strokeRect(Math.round(x) + 1, Math.round(y) + 1, Math.round(w) - 2, Math.round(h) - 2);
+    return;
+  }
+  rect(g, '#3b2414', x, y, w, h);
+  const n = 3;
+  for (let i = 0; i < n; i++) {
+    const px = vertical ? x + 2 : x + 2 + ((w - 4) / n) * i;
+    const py = vertical ? y + 2 + ((h - 4) / n) * i : y + 2;
+    const pw = vertical ? w - 4 : (w - 4) / n - 1;
+    const ph = vertical ? (h - 4) / n - 1 : h - 4;
+    rect(g, '#efe3c2', px, py, pw, ph);
+  }
+  const pulse = 0.65 + 0.35 * Math.sin(now / 300);
+  g.globalAlpha = pulse;
+  rect(g, '#b3261e', x + w / 2 - 4, y + h / 2 - 4, 8, 8);    // tranca
+  g.globalAlpha = 1;
 }
