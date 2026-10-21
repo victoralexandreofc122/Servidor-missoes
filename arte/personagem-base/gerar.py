@@ -7,7 +7,7 @@ import json, os, shutil, zipfile
 from PIL import Image, ImageDraw, ImageFont
 
 W, H = 32, 48
-OUT = 'personagem-base'
+OUT = os.path.dirname(os.path.abspath(__file__))   # gera ao lado deste script
 OUTLINE = (26, 21, 48, 255)
 
 # Rampas: letra-base -> (luz, base, sombra). Letras de detalhe têm cor fixa.
@@ -433,8 +433,8 @@ PIVOTS['direita'] = {k.replace('_esq', '_X').replace('_dir', '_esq').replace('_X
 
 
 def main():
-    if os.path.isdir(OUT):
-        shutil.rmtree(OUT)
+    for sub in ('pecas', 'folhas', 'armas'):
+        shutil.rmtree(f'{OUT}/{sub}', ignore_errors=True)
     os.makedirs(f'{OUT}/pecas', exist_ok=True)
     os.makedirs(f'{OUT}/folhas', exist_ok=True)
     os.makedirs(f'{OUT}/armas', exist_ok=True)
