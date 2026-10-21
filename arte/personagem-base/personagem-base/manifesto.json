@@ -1,0 +1,301 @@
+{
+  "jogo": "Nin Online Mobile",
+  "quadro": {
+    "largura": 32,
+    "altura": 48,
+    "pixel_art": true,
+    "escala_sugerida": "inteira (x2, x3, x4), sem suavizar"
+  },
+  "direcoes": [
+    "baixo",
+    "esquerda",
+    "direita",
+    "cima"
+  ],
+  "folhas": "folhas/<peca>.png: 4 quadros lado a lado, na ordem de \"direcoes\"",
+  "lados": "esq/dir = lado do PERSONAGEM (de frente, o braço direito fica à esquerda da tela)",
+  "camadas": {
+    "baixo": [
+      "perna_dir",
+      "perna_esq",
+      "calca_dir",
+      "calca_esq",
+      "sapato_dir",
+      "sapato_esq",
+      "tronco",
+      "roupa_cima",
+      "braco_dir",
+      "braco_esq",
+      "munhequeira_dir",
+      "munhequeira_esq",
+      "cabeca",
+      "cabelo",
+      "bandana"
+    ],
+    "cima": [
+      "perna_dir",
+      "perna_esq",
+      "calca_dir",
+      "calca_esq",
+      "sapato_dir",
+      "sapato_esq",
+      "tronco",
+      "roupa_cima",
+      "braco_dir",
+      "braco_esq",
+      "munhequeira_dir",
+      "munhequeira_esq",
+      "cabeca",
+      "cabelo",
+      "bandana"
+    ],
+    "esquerda": [
+      "braco_dir",
+      "munhequeira_dir",
+      "perna_dir",
+      "calca_dir",
+      "sapato_dir",
+      "perna_esq",
+      "calca_esq",
+      "sapato_esq",
+      "tronco",
+      "roupa_cima",
+      "cabeca",
+      "cabelo",
+      "bandana",
+      "braco_esq",
+      "munhequeira_esq"
+    ],
+    "direita": [
+      "braco_esq",
+      "munhequeira_esq",
+      "perna_esq",
+      "calca_esq",
+      "sapato_esq",
+      "perna_dir",
+      "calca_dir",
+      "sapato_dir",
+      "tronco",
+      "roupa_cima",
+      "cabeca",
+      "cabelo",
+      "bandana",
+      "braco_dir",
+      "munhequeira_dir"
+    ]
+  },
+  "pecas_longe": {
+    "esquerda": [
+      "braco_dir",
+      "calca_dir",
+      "munhequeira_dir",
+      "perna_dir",
+      "sapato_dir"
+    ],
+    "direita": [
+      "braco_esq",
+      "calca_esq",
+      "munhequeira_esq",
+      "perna_esq",
+      "sapato_esq"
+    ]
+  },
+  "pivos": {
+    "baixo": {
+      "pescoco": [
+        15.5,
+        21.5
+      ],
+      "ombro_dir": [
+        8,
+        23.5
+      ],
+      "ombro_esq": [
+        23,
+        23.5
+      ],
+      "quadril_dir": [
+        14,
+        33
+      ],
+      "quadril_esq": [
+        18,
+        33
+      ],
+      "mao_dir": [
+        7.5,
+        32.5
+      ],
+      "mao_esq": [
+        24.5,
+        32.5
+      ]
+    },
+    "cima": {
+      "pescoco": [
+        15.5,
+        21.5
+      ],
+      "ombro_esq": [
+        8,
+        23.5
+      ],
+      "ombro_dir": [
+        23,
+        23.5
+      ],
+      "quadril_esq": [
+        14,
+        33
+      ],
+      "quadril_dir": [
+        18,
+        33
+      ],
+      "mao_esq": [
+        7.5,
+        32.5
+      ],
+      "mao_dir": [
+        24.5,
+        32.5
+      ]
+    },
+    "esquerda": {
+      "pescoco": [
+        15,
+        21.5
+      ],
+      "ombro_esq": [
+        14.5,
+        23.5
+      ],
+      "ombro_dir": [
+        17.5,
+        23.5
+      ],
+      "quadril_esq": [
+        14,
+        33
+      ],
+      "quadril_dir": [
+        17,
+        33
+      ],
+      "mao_esq": [
+        14.5,
+        32.5
+      ],
+      "mao_dir": [
+        17,
+        32.5
+      ]
+    },
+    "direita": {
+      "pescoco": [
+        16,
+        21.5
+      ],
+      "ombro_dir": [
+        16.5,
+        23.5
+      ],
+      "ombro_esq": [
+        13.5,
+        23.5
+      ],
+      "quadril_dir": [
+        17,
+        33
+      ],
+      "quadril_esq": [
+        14,
+        33
+      ],
+      "mao_dir": [
+        16.5,
+        32.5
+      ],
+      "mao_esq": [
+        14,
+        32.5
+      ]
+    }
+  },
+  "armas": {
+    "kunai": {
+      "arquivo": "armas/kunai.png",
+      "empunhadura": [
+        5,
+        4
+      ]
+    },
+    "espada": {
+      "arquivo": "armas/espada.png",
+      "empunhadura": [
+        6,
+        4
+      ]
+    },
+    "shuriken": {
+      "arquivo": "armas/shuriken.png",
+      "empunhadura": [
+        8,
+        8
+      ]
+    }
+  },
+  "paleta": {
+    "s": {
+      "luz": "#ffd6aa",
+      "base": "#f2b98a",
+      "sombra": "#c98a5e"
+    },
+    "h": {
+      "luz": "#46465c",
+      "base": "#282836",
+      "sombra": "#181822"
+    },
+    "g": {
+      "luz": "#5684e2",
+      "base": "#2f5fbf",
+      "sombra": "#1f3f8a"
+    },
+    "n": {
+      "luz": "#3c3c4c",
+      "base": "#1c1c24",
+      "sombra": "#101016"
+    },
+    "p": {
+      "luz": "#3e4468",
+      "base": "#2a2f4a",
+      "sombra": "#1c2036"
+    },
+    "f": {
+      "luz": "#544c6e",
+      "base": "#3b3550",
+      "sombra": "#262236"
+    },
+    "m": {
+      "luz": "#68688c",
+      "base": "#4a4a6a",
+      "sombra": "#34344e"
+    },
+    "r": {
+      "luz": "#f05a5a",
+      "base": "#d8323a",
+      "sombra": "#9c1f2a"
+    },
+    "t": {
+      "luz": "#f2f6fa",
+      "base": "#c9d2dc",
+      "sombra": "#8a96a6"
+    },
+    "u": {
+      "luz": "#7a462e",
+      "base": "#5a2e1e",
+      "sombra": "#3c1e14"
+    }
+  },
+  "contorno": "#1a1530"
+}
