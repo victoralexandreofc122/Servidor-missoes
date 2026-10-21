@@ -1,0 +1,158 @@
+{
+ "quadro": [
+  64,
+  64
+ ],
+ "direcoes": [
+  "baixo",
+  "esquerda",
+  "direita",
+  "cima"
+ ],
+ "ordem_camadas": [
+  "base",
+  "calca_ninja",
+  "sapato_ninja",
+  "roupa_camiseta",
+  "roupa_gi",
+  "munhequeira",
+  "cachecol",
+  "cabelo_espetado",
+  "cabelo_rabo",
+  "bandana",
+  "espada"
+ ],
+ "animacoes": {
+  "parado": {
+   "coluna": 0,
+   "quadros": 1,
+   "ms": 400
+  },
+  "andar": {
+   "coluna": 1,
+   "quadros": 4,
+   "ms": 150
+  },
+  "correr": {
+   "coluna": 5,
+   "quadros": 4,
+   "ms": 90
+  },
+  "soco": {
+   "coluna": 9,
+   "quadros": 4,
+   "ms": 100
+  },
+  "espada": {
+   "coluna": 13,
+   "quadros": 4,
+   "ms": 100
+  }
+ },
+ "camadas": [
+  "base",
+  "cabelo_espetado",
+  "cabelo_rabo",
+  "roupa_gi",
+  "roupa_camiseta",
+  "calca_ninja",
+  "sapato_ninja",
+  "munhequeira",
+  "bandana",
+  "cachecol",
+  "espada",
+  "efeito"
+ ],
+ "paletas": {
+  "pele": [
+   "#f6c7a0",
+   "#dc9c78",
+   "#ffe0c4",
+   "#5a3024"
+  ],
+  "intima": [
+   "#6c6f7b",
+   "#51535e",
+   "#878b98",
+   "#202128"
+  ],
+  "gi": [
+   "#3d6fd6",
+   "#2b51a6",
+   "#5e8ff0",
+   "#131b44"
+  ],
+  "faixa": [
+   "#1f2442",
+   "#161a31",
+   "#2d3358",
+   "#0b0d1a"
+  ],
+  "camiseta": [
+   "#34343e",
+   "#24242c",
+   "#4a4a56",
+   "#0d0d12"
+  ],
+  "calca": [
+   "#2c3150",
+   "#202439",
+   "#3e4569",
+   "#0d0f1b"
+  ],
+  "atadura": [
+   "#e8e2d4",
+   "#bdb5a4",
+   "#fffaf0",
+   "#4b4538"
+  ],
+  "sapato": [
+   "#26304f",
+   "#1a2039",
+   "#3a4671",
+   "#0b0e1b"
+  ],
+  "vermelho": [
+   "#d6353b",
+   "#a52328",
+   "#f15b55",
+   "#480d12"
+  ],
+  "cab_preto": [
+   "#2b2e47",
+   "#1c1e31",
+   "#474c72",
+   "#0a0b15"
+  ],
+  "cab_cast": [
+   "#7b4a2a",
+   "#5a331b",
+   "#a06a3f",
+   "#251208"
+  ],
+  "lamina": [
+   "#d4dde8",
+   "#98a4b5",
+   "#ffffff",
+   "#262c3a"
+  ],
+  "cabo": [
+   "#3b2c4d",
+   "#281e35",
+   "#57426f",
+   "#120c1a"
+  ],
+  "guarda": [
+   "#d5a73b",
+   "#a57a1f",
+   "#f3d277",
+   "#3e2a06"
+  ],
+  "bainha": [
+   "#3a2b27",
+   "#291e1b",
+   "#55403a",
+   "#100a08"
+  ]
+ }
+}
