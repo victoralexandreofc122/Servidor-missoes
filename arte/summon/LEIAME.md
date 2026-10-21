@@ -47,3 +47,12 @@ determinístico (sem timers nem números aleatórios). Cada quadro é desenhado 
 para 256 x 256, então a âncora é a mesma do `summon.html`.
 
 `summon.html` também abre direto no navegador, com play, troca de frame e formato vertical.
+
+## Vídeos
+
+Em `videos/` (MP4 H.264, sem transparência, só para ver ou divulgar):
+
+- `summon_square.mp4`: 1080 x 1080, 60 fps;
+- `summon_vertical.mp4`: 1080 x 1920, 60 fps;
+- `summon_sprite_previa.mp4`: a sprite sheet tocada a 30 fps, ampliada 4x; à esquerda a versão
+  `lighter`, à direita a versão com alfa sobre um fundo verde.
