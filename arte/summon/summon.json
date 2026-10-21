@@ -1,0 +1,42 @@
+{
+  "efeito": "summon",
+  "fonte": "summon.html (renderFrame, 1080×1080, 60 fps, determinístico)",
+  "quadro": {
+    "largura": 256,
+    "altura": 256
+  },
+  "grade": {
+    "colunas": 12,
+    "linhas": 15,
+    "largura": 3072,
+    "altura": 3840,
+    "ordem": "linhas, da esquerda para a direita"
+  },
+  "fps": 30,
+  "quadros": 170,
+  "duracao_s": 5.6667,
+  "quadro_no_tempo": "frame = round(t × 30); célula: coluna = frame % 12, linha = floor(frame / 12)",
+  "quadro_fonte": "renderFrame(round(frame / 30 × 60))",
+  "ancora": {
+    "descricao": "centro horizontal e base do cilindro (centro do círculo no chão)",
+    "fracao": {
+      "x": 0.5,
+      "y": 0.735
+    },
+    "px": {
+      "x": 128,
+      "y": 188.16
+    }
+  },
+  "borda_suave_px": 20,
+  "arquivos": {
+    "summon_lighter.png": {
+      "fundo": "preto puro",
+      "desenhar_com": "globalCompositeOperation = 'lighter'"
+    },
+    "summon_alfa.png": {
+      "fundo": "transparente (alfa = brilho, cor desmultiplicada)",
+      "desenhar_com": "globalCompositeOperation = 'source-over'"
+    }
+  }
+}
