@@ -1,0 +1,64 @@
+{
+  "quadro": [
+    80,
+    88
+  ],
+  "direcoes": [
+    "baixo",
+    "esquerda",
+    "direita",
+    "cima"
+  ],
+  "animacoes": {
+    "parado": {
+      "arquivo": "parado.png",
+      "quadros": {
+        "baixo": 1,
+        "esquerda": 1,
+        "direita": 1,
+        "cima": 1
+      },
+      "ms_por_quadro": 400
+    },
+    "andar": {
+      "arquivo": "andar.png",
+      "quadros": {
+        "baixo": 4,
+        "esquerda": 4,
+        "direita": 4,
+        "cima": 4
+      },
+      "ms_por_quadro": 150
+    },
+    "correr": {
+      "arquivo": "correr.png",
+      "quadros": {
+        "baixo": 4,
+        "esquerda": 4,
+        "direita": 4,
+        "cima": 4
+      },
+      "ms_por_quadro": 90
+    },
+    "soco": {
+      "arquivo": "soco.png",
+      "quadros": {
+        "baixo": 3,
+        "esquerda": 3,
+        "direita": 3,
+        "cima": 3
+      },
+      "ms_por_quadro": 110
+    },
+    "espada": {
+      "arquivo": "espada.png",
+      "quadros": {
+        "baixo": 4,
+        "esquerda": 4,
+        "direita": 4,
+        "cima": 4
+      },
+      "ms_por_quadro": 100
+    }
+  }
+}
