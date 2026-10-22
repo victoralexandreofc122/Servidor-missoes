@@ -11,7 +11,7 @@
 
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
 import { groundAt, inSafeZone, mapName, placements, visibleDeco, visibleWalls } from './world.js';
-import { drawAcademyDoor, drawDeco, drawGateRoof, drawWall } from './mapArt.js';
+import { drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawWall } from './mapArt.js';
 import { DEFAULT_LOOK, dirFrom, drawCharacter, PARTS, PRESETS, safeLook } from './character.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 
@@ -68,6 +68,12 @@ const ui = {
   classPanel: $('class-panel'), classTitle: $('class-title'), classClose: $('class-close'), classGrid: $('class-grid'),
   classDesc: $('class-desc'), classConfirm: $('class-confirm'),
   hokagePanel: $('hokage-panel'), hokageClose: $('hokage-close'), hokageApply: $('hokage-apply'),
+  // v8: histórico do chat, Sala de Missões (cartões) e redefinir atributos
+  historyToggle: $('history-toggle'), historyPanel: $('history-panel'), historyClose: $('history-close'),
+  historyList: $('history-list'), historyEmpty: $('history-empty'), historyTabs: [...document.querySelectorAll('#history-panel .tab')],
+  boardPanel: $('board-panel'), boardClose: $('board-close'), boardCards: $('board-cards'), boardCurrent: $('board-current'),
+  boardTitle: $('board-mission-title'), boardProgress: $('board-mission-progress'), boardDeliver: $('board-deliver'), boardHint: $('board-hint'),
+  resetAttrs: $('reset-attrs'),
 };
 
 // ------------------------------------------------------------------ token
@@ -107,7 +113,13 @@ const state = {
    * Progressão (v7), SEMPRE a do servidor: passo do tutorial (trava as portas da Academia), ryō,
    * itens, arma equipada, classes, jutsus aprendidos -> usos (o nível sai do uso) e Hokage.
    */
-  ninja: { tutorialStep: 4, ryo: 0, items: {}, equipped: null, classes: { primary: null, secondary: null }, jutsus: {}, hokageCandidate: false },
+  ninja: { tutorialStep: 4, ryo: 0, items: {}, equipped: null, equippedScroll: null, classes: { primary: null, secondary: null }, jutsus: {}, hokageCandidate: false, isAdmin: false },
+  /** Histórico do chat (o servidor manda as últimas 100 ao conectar; as novas entram no fim). */
+  chatHistory: [],
+  /** Cartões da Sala de Missões (o servidor manda ao falar com o Mestre) ou null. */
+  board: null,
+  /** Campos que drenam chakra no mapa atual (Sala de Controle da Academia). */
+  fields: [],
   /** Layouts de todos os mapas (welcome), o mapa DESENHADO agora (o previsto) e o da última posição oficial. */
   maps: {},
   mapId: null,
@@ -157,6 +169,12 @@ const state = {
   effects: [],          // efeitos de habilidade: { skill, x, y, fx, fy, start }
   /** Portas da Academia (desenhadas a cada quadro: abertas ou fechadas pelo passo do tutorial). */
   doors: [],
+};
+
+/** Gear vindo da rede: só códigos curtos (o desenho ignora o que não conhece). */
+const safeGear = (g) => {
+  const ok = (c) => (typeof c === 'string' && /^[a-z][a-z0-9_]{0,31}$/.test(c) ? c : null);
+  return { hand: ok(g?.hand), back: ok(g?.back), scroll: ok(g?.scroll) };
 };
 
 // ------------------------------------------------------------------ login / cadastro
@@ -337,6 +355,7 @@ function upsertPlayer(p, snap) {
     if (p.rank) { existing.rank = p.rank; existing.level = p.level; }
     if (p.appearance) existing.look = safeLook(p.appearance);
     if (p.dir !== undefined) existing.dir = p.dir;
+    if (p.gear) existing.gear = safeGear(p.gear);
     return existing;
   }
   const color = colorFor(p.id);
@@ -348,6 +367,8 @@ function upsertPlayer(p, snap) {
     rank: p.rank || null, level: p.level || 1,
     // Paperdoll: cores (do servidor), direção (0 baixo, 1 esq, 2 dir, 3 cima) e fase da caminhada.
     look: safeLook(p.appearance || DEFAULT_LOOK), dir: p.dir ?? 0, walk: 0, moving: false, lastX: p.x, lastY: p.y,
+    // Equipamento visível (o servidor manda): arma na mão / nas costas e pergaminho nas costas.
+    gear: safeGear(p.gear),
     initial: ([...p.username][0] || '?').toUpperCase(),
     initialColor: LIGHT_COLORS.has(color) ? '#14110d' : '#ffffff',
   };
@@ -366,7 +387,7 @@ const CAST_FAIL_TEXT = {
   NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum monstro perto',
   FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
   NOT_EQUIPPED: 'Fora do kit ativo', SAFE_ZONE: 'Zona segura: sem combate',
-  NOT_LEARNED: 'Jutsu não aprendido', BLOCKED: 'Caminho bloqueado',
+  NOT_LEARNED: 'Jutsu não aprendido', BLOCKED: 'Caminho bloqueado', TUTORIAL_LOCKED: 'Primeiro, o Ataque Básico',
 };
 
 function handleMessage(msg) {
@@ -433,12 +454,13 @@ function handleMessage(msg) {
       state.ninja.tutorialStep = msg.step;
       pred.gates.tutorial = msg.step;           // a porta da sala abre na previsão também
       renderTutorial();
-      if (msg.step >= 4) pulse(ui.invToggle);
+      if (msg.step === 3) pulse(ui.invToggle);      // Sala de Armas: a mochila
       break;
     }
     case 'inventory':
-      Object.assign(state.ninja, { ryo: msg.ryo, items: msg.items, equipped: msg.equipped });
+      Object.assign(state.ninja, { ryo: msg.ryo, items: msg.items, equipped: msg.equipped, equippedScroll: msg.equippedScroll ?? null });
       renderInventory();
+      renderResetButton();
       renderShopItems();
       renderTutorial();
       break;
@@ -494,8 +516,10 @@ function handleMessage(msg) {
       const me = state.players.get(state.meId);
       if (me) { me.map = msg.map; me.tx = msg.x; me.ty = msg.y; }
       if (!predWorld) break;
-      if (msg.reason === 'respawn') pred.teleport(msg.map, msg.x, msg.y);
+      // Renascer e o tutorial (o servidor leva para a sala seguinte / Praça): salto, sem refazer entradas.
+      if (msg.reason === 'respawn' || msg.reason === 'tutorial') pred.teleport(msg.map, msg.x, msg.y);
       else pred.reconcile(msg.map, msg.x, msg.y, msg.a, predWorld);
+      if (msg.reason === 'tutorial' && me) { me.x = msg.x; me.y = msg.y; me.snaps = [{ t: now, x: msg.x, y: msg.y }]; }
       updateOnline();
       break;
     }
@@ -529,11 +553,31 @@ function handleMessage(msg) {
       updateOnline();
       break;
     case 'chat': {
-      addChatLine(msg.username, msg.message, msg.playerId === state.meId);
+      const entry = { channel: msg.channel || 'local', playerId: msg.playerId, username: msg.username, to: msg.to, message: msg.message, at: new Date().toISOString() };
+      addChatLine(chatWho(entry), msg.message, msg.playerId === state.meId, entry.channel === 'local' ? '' : entry.channel);
+      rememberChat(entry);
       const p = state.players.get(msg.playerId);
-      if (p) p.bubble = { text: msg.message, until: now + 4500 };
+      // Balão só para a fala local (global e sussurro não "saem da boca" no mapa).
+      if (p && entry.channel === 'local') p.bubble = { text: msg.message, until: now + 4500 };
       break;
     }
+    case 'chat_history':
+      // Ao abrir o jogo e no 🕘: as mensagens anteriores (até 100, últimas 24 h).
+      state.chatHistory = (msg.messages || []).slice(-100);
+      renderHistory();
+      break;
+    case 'player_gear': {
+      const p = state.players.get(msg.playerId);
+      if (p) p.gear = safeGear(msg.gear);
+      break;
+    }
+    case 'mission_board':
+      // O Mestre abriu a Sala de Missões: cartões + a missão atual (tudo do servidor).
+      state.board = { offers: msg.offers || [] };
+      state.mission = msg.mission;
+      renderMission();
+      openBoard();
+      break;
 
     // ---- combate (tudo decidido pelo servidor)
     case 'stats':
@@ -707,6 +751,7 @@ function handleMessage(msg) {
       state.mission = msg.mission;
       if (msg.mission) state.lastReward = null;
       renderMission();
+      renderBoard();
       const m = msg.mission;
       const me = state.players.get(state.meId);
       if (m && msg.reason === 'assigned') {
@@ -745,7 +790,8 @@ function handleMessage(msg) {
       if (msg.code === 'CHAT_RATE_LIMITED' || msg.code === 'CHAT_INVALID') addSystemLine(msg.message);
       else if (['NPC_TOO_FAR', 'CANNOT_TALK', 'UNKNOWN_NPC', 'MISSIONS_UNAVAILABLE', 'NO_POINTS', 'ATTRIBUTE_MAXED',
         'PROFILE_UNAVAILABLE', 'PROFILE_BUSY', 'PLAYER_NOT_FOUND', 'PLAYER_TOO_FAR', 'INVALID_MISSION_OPTION',
-        'NOT_LEARNED', 'SHOP_TOO_FAR', 'DIRECTOR_TOO_FAR', 'ITEM_NOT_OWNED', 'NOT_A_WEAPON'].includes(msg.code)) {
+        'NOT_LEARNED', 'SHOP_TOO_FAR', 'DIRECTOR_TOO_FAR', 'ITEM_NOT_OWNED', 'NOT_A_WEAPON', 'NOT_A_SCROLL', 'SENSEI_TOO_FAR',
+        'TUTORIAL_LOCKED'].includes(msg.code)) {
         showToast(msg.message, 3500);
         addSystemLine(msg.message);
       }
@@ -866,6 +912,7 @@ function enterMap(id, announce) {
   state.deco = deco.filter((d) => d.k !== 'gate_roof' && d.k !== 'door');
   state.overhead = deco.filter((d) => d.k === 'gate_roof');
   state.doors = deco.filter((d) => d.k === 'door');      // Academia: abrem conforme o tutorial (desenho a cada quadro)
+  state.fields = layout.fields || [];                     // Sala de Controle: o campo que drena o chakra
   state.npcs = state.allNpcs.filter((n) => n.map === id);
   state.nearNpc = null;
   ui.talkBtn.hidden = true;
@@ -1041,7 +1088,8 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'e' || e.key === 'E') talkToNpc();
   if (e.key === 'j' || e.key === 'J') (ui.missionsPanel.hidden ? openMissions() : closeMissions());
   if (e.key === 'i' || e.key === 'I') (ui.invPanel.hidden ? openInventory() : closeInventory());
-  if (e.key === 'Escape') { closeShop(); closeInventory(); closeClassChoice(); closeHokage(); }
+  if (e.key === 'h' || e.key === 'H') (ui.historyPanel.hidden ? openHistory() : closeHistory());
+  if (e.key === 'Escape') { closeShop(); closeInventory(); closeClassChoice(); closeHokage(); closeBoard(); closeHistory(); }
 });
 window.addEventListener('keyup', (e) => {
   if (KEYMAP[e.code] && keys.delete(e.code)) keyDirection();
@@ -1193,6 +1241,8 @@ function openMissions() {
   closeInventory();
   closeStatus();
   closePlayerMenu();
+  closeBoard();
+  closeHistory();
   ui.missionsPanel.hidden = false;
   ui.missionsToggle.setAttribute('aria-expanded', 'true');
   renderMission();
@@ -1205,8 +1255,89 @@ function closeMissions() {
 ui.missionsToggle.addEventListener('click', () => (ui.missionsPanel.hidden ? openMissions() : closeMissions()));
 ui.missionsClose.addEventListener('click', closeMissions);
 
+// ---- Sala de Missões do Mestre (v8): cartões para escolher e o botão "Entregar".
+// Tudo vem do servidor (mission_board / mission); o cliente só pede accept_mission e deliver_npc_mission.
+
+const DIFFICULTY_CLASS = { 'Fácil': 'easy', Normal: 'normal', 'Difícil': 'hard' };
+
+function openBoard() {
+  closeMissions();
+  closeInventory();
+  closeStatus();
+  closeShop();
+  closePlayerMenu();
+  closeHistory();
+  renderBoard();
+  ui.boardPanel.hidden = false;
+}
+function closeBoard() { ui.boardPanel.hidden = true; }
+ui.boardClose.addEventListener('click', closeBoard);
+
+/** Estado do botão "Entregar": verde quando dá para entregar; cinza dizendo o que falta. */
+function deliverState(m) {
+  if (!m) return null;
+  if (m.status === 'approved') return { ready: true, text: '✅ Entregar pergaminho' };
+  if (m.status === 'submitted') return { ready: false, text: `Esperando a avaliação de ${m.senseiName}` };
+  if (!m.fromNpc) return { ready: false, text: m.ready ? `Entregue ao sensei ${m.senseiName}` : `Missão do sensei ${m.senseiName}` };
+  if (m.ready) return { ready: true, text: '✅ Entregar' };
+  const left = Math.max(0, m.target.quantity - m.progress);
+  return { ready: false, text: `Faltam ${left} ${left === 1 ? 'monstro' : 'monstros'}` };
+}
+
+function renderBoard() {
+  if (!state.board) return;
+  const m = state.mission;
+  ui.boardCurrent.hidden = !m;
+  if (m) {
+    const done = Math.min(m.progress, m.target.quantity);
+    ui.boardTitle.textContent = `${missionTitle(m)} · Sensei ${m.senseiName}`;
+    ui.boardProgress.textContent = `${done} / ${m.target.quantity} · Recompensa: ${m.reward.xp} XP${m.reward.title ? ` e o título “${m.reward.title}”` : ''}`;
+    const d = deliverState(m);
+    ui.boardDeliver.textContent = d.text;
+    ui.boardDeliver.disabled = !d.ready;
+    ui.boardDeliver.classList.toggle('ready', d.ready);
+  }
+  ui.boardHint.textContent = m ? 'Termine (ou entregue) a missão atual para escolher outra.' : 'Escolha um treino. A recompensa vem do Mestre ao entregar.';
+  ui.boardCards.replaceChildren(...state.board.offers.map((o) => {
+    const li = document.createElement('li');
+    li.className = `board-card ${DIFFICULTY_CLASS[o.difficulty] || ''}`;
+    const head = document.createElement('div');
+    head.className = 'board-card-head';
+    const title = document.createElement('h3');
+    title.textContent = o.title;
+    const diff = document.createElement('span');
+    diff.className = 'difficulty';
+    diff.textContent = o.difficulty;
+    head.append(title, diff);
+    const desc = document.createElement('p');
+    desc.className = 'board-desc';
+    desc.textContent = o.description;
+    const goal = document.createElement('p');
+    goal.className = 'board-goal';
+    goal.textContent = `🎯 Derrotar ${o.target.quantity} ${targetName(o.target.code, o.target.quantity)}`;
+    const reward = document.createElement('p');
+    reward.className = 'board-reward';
+    reward.textContent = `🏅 ${o.reward.xp} XP${o.reward.title ? ` + título “${o.reward.title}”` : ''}`;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'primary';
+    b.textContent = 'Aceitar';
+    b.disabled = !!m;
+    b.addEventListener('click', () => {
+      if (!tapGuard(`accept:${o.code}`)) return;
+      send({ type: 'accept_mission', offer: o.code });
+    });
+    li.append(head, desc, goal, reward, b);
+    return li;
+  }));
+}
+ui.boardDeliver.addEventListener('click', () => {
+  if (ui.boardDeliver.disabled || !tapGuard('deliver')) return;
+  send({ type: 'deliver_npc_mission' });   // o servidor (e o banco) conferem o objetivo de novo
+});
+
 /** Botão 💬 Falar (só aparece perto do NPC). O servidor confere a distância de novo. */
-let lastTalkAt = 0;
+let lastTalkAt = -Infinity;          // sem isto, falar no 1º meio segundo da página era ignorado
 function talkToNpc() {
   const npc = state.nearNpc;
   if (!npc || !state.connected || state.me.dead) return;
@@ -1229,6 +1360,11 @@ function updateNpcProximity(me) {
     // Lojista: o botão vira 🛒 (abre a loja); o Mestre continua 💬 (conversa e missões).
     ui.talkBtn.querySelector('.ico').textContent = near && near.shop ? '🛒' : '💬';
     ui.talkBtn.setAttribute('aria-label', near && near.shop ? 'Abrir a loja' : 'Falar');
+  }
+  // Sala de Missões aberta e o jogador se afastou do Mestre: fecha.
+  if (!ui.boardPanel.hidden) {
+    const sensei = state.npcs.find((n) => n.id === 'sensei');
+    if (!me || !sensei || Math.hypot(me.x - sensei.x, me.y - sensei.y) > sensei.range + 0.6) closeBoard();
   }
   // Loja aberta e o jogador se afastou do balcão: fecha.
   if (state.shop) {
@@ -1255,7 +1391,14 @@ const ACADEMY_LOOK = {
   tutor_dummies: { skin: '#f1c9a0', hair: '#8a2b2b', shirt: '#3b6e4f', pants: '#2a2a33', cape: '#2f5d8a' },
   tutor_meditation: { skin: '#c68642', hair: '#d9d4c7', shirt: '#e8c66a', pants: '#7a3b1e', cape: '#e8c66a' },
   tutor_jutsu: { skin: '#e0ac69', hair: '#2b2118', shirt: '#2f3a52', pants: '#1f2a44', cape: '#9a6be0' },
+  tutor_weapons: { skin: '#f1c9a0', hair: '#1b1410', shirt: '#4a4a52', pants: '#2a2a33', cape: '#8a2b2b' },
   director: { skin: '#f1c9a0', hair: '#efe9dc', shirt: '#7a2e1e', pants: '#3b2414', cape: '#e8c66a' },
+};
+/** A Professora da Sala de Armas mostra a Kunai na mão; o Ferreiro, a Espada Longa nas costas. */
+const NPC_GEAR = {
+  tutor_weapons: { hand: 'kunai', back: null, scroll: null },
+  shop_weapons: { hand: null, back: 'katana', scroll: null },
+  shop_scrolls: { hand: null, back: null, scroll: 'scroll_fire' },
 };
 const ryoText = (n) => `${Number(n || 0).toLocaleString('pt-BR')} ryō`;
 const itemDef = (code) => (state.world.items || []).find((i) => i.code === code);
@@ -1400,7 +1543,7 @@ function renderInventory() {
     name.textContent = def?.name || code;
     const sub = document.createElement('small');
     sub.className = 'qty';
-    sub.textContent = def?.kind === 'weapon' ? ` · +${def.damage} de dano` : ` · ×${qty}`;
+    sub.textContent = def?.kind === 'weapon' ? ` · +${def.damage} de dano · ${def.hold === 'back' ? 'nas costas' : 'na mão'}` : ` · ×${qty}`;
     name.append(sub);
     li.append(i, name);
     if (def?.kind === 'weapon') {
@@ -1412,6 +1555,16 @@ function renderInventory() {
       // Só PEDE: a arma equipada muda quando o servidor confirma (inventory).
       b.addEventListener('click', () => send({ type: 'equip', item: on ? null : code }));
       li.append(b);
+    } else if (def?.kind === 'scroll') {
+      // Pergaminho de jutsu: dá para levar nas costas (só visual; o boneco muda para todos).
+      if (n.equippedScroll === code) li.classList.add('equipped');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'icon-btn small';
+      const on = n.equippedScroll === code;
+      b.textContent = on ? 'Tirar' : 'Nas costas';
+      b.addEventListener('click', () => send({ type: 'equip', item: on ? null : code, slot: 'scroll' }));
+      li.append(b);
     }
     return li;
   }));
@@ -1422,6 +1575,8 @@ function openInventory() {
   closeMissions();
   closeShop();
   closePlayerMenu();
+  closeBoard();
+  closeHistory();
   renderInventory();
   ui.invPanel.hidden = false;
   ui.invToggle.setAttribute('aria-expanded', 'true');
@@ -1490,16 +1645,24 @@ ui.hokageApply.addEventListener('click', () => {
 
 // ------------------------------------------------------------------ tutorial da Academia
 
-/** O que fazer em cada sala (o SERVIDOR confere: o cliente não diz que concluiu nada). */
+/**
+ * As 4 etapas da Academia (o SERVIDOR confere tudo e leva o jogador de uma sala para a outra; o
+ * cliente não diz que concluiu nada). Etapas 1 e 2: os botões de jutsu ficam ocultos (e o servidor
+ * recusa jutsu com TUTORIAL_LOCKED); na 1, o 🧘 também.
+ */
 const TUTORIAL_STEPS = [
-  ['Sala 1 · Ataque Básico', 'Destrua 3 bonecos de treino com o 🗡️ Ataque Básico.'],
-  ['Sala 2 · Meditação', 'Vá para a Sala 2 (porta à direita) e medite 🧘 até o chakra encher.'],
-  ['Sala 3 · Jutsus da Academia', 'Use o 💨 Teleporte Curto e arme a 🪵 Substituição perto do boneco que bate.'],
-  ['Sala 4 · Equipamento', 'Abra o 🎒 Inventário e equipe a Kunai de Treino.'],
+  ['Etapa 1/4 · Sala de Taijutsu', 'Destrua 3 bonecos de treino usando só o 🗡️ Ataque Básico. Chegue perto: é corpo a corpo.'],
+  ['Etapa 2/4 · Sala de Controle', 'Um campo drena o seu chakra! Fique parado e toque em 🧘 Meditar até a barra azul encher.'],
+  ['Etapa 3/4 · Sala de Jutsus', 'Você aprendeu 💨 Teleporte Curto e 🪵 Substituição. Salte o vão com o Teleporte e use a Substituição contra a armadilha.'],
+  ['Etapa 4/4 · Sala de Armas', 'Abra a mochila 🎒, equipe a Kunai de Treino e acerte o boneco com o 🗡️ Ataque Básico.'],
 ];
 function renderTutorial() {
   const step = state.ninja.tutorialStep ?? 4;
   const inAcademy = state.mapId === 'academy_interior';
+  // Interface guiada: jutsus só a partir da etapa 3; meditar a partir da 2; a mochila brilha na 4.
+  document.body.classList.toggle('tut-no-skills', step < 2);
+  document.body.classList.toggle('tut-no-meditate', step < 1);
+  document.body.classList.toggle('tut-bag', step === 3 && !state.ninja.equipped);
   ui.tutorialCard.hidden = !inAcademy;
   document.body.classList.toggle('tutorial', inAcademy);
   if (!inAcademy) return;
@@ -1507,11 +1670,12 @@ function renderTutorial() {
   ui.tutorialCard.classList.toggle('done', done);
   if (done) {
     ui.tutorialTitle.textContent = 'Academia · Tutorial concluído';
-    ui.tutorialText.textContent = 'A saída (embaixo, na Sala 4) está aberta. No nível 11, fale com o Diretor para a Missão de Genin.';
+    ui.tutorialText.textContent = 'A saída fica embaixo, nesta sala. No nível 11, fale com o Diretor para a Missão de Genin.';
   } else {
     const [title, text] = TUTORIAL_STEPS[step];
     ui.tutorialTitle.textContent = `Academia · ${title}`;
-    ui.tutorialText.textContent = text;
+    ui.tutorialText.textContent = step === 3 && state.ninja.equipped
+      ? 'Kunai equipada! Agora acerte o boneco com o 🗡️ Ataque Básico.' : text;
   }
 }
 
@@ -1697,20 +1861,21 @@ ui.slots.forEach((button, i) => onTap(button, () => castSlot(i)));
 
 // ------------------------------------------------------------------ ficha (📊): atributos e kits
 
+/** Número com vírgula e no máximo 1 casa (só formatação: o valor vem pronto do servidor). */
+const num = (n) => String(Math.round(Number(n || 0) * 10) / 10).replace('.', ',');
+/** Quanto o PRÓXIMO ponto rende (progress.nextGain, calculado pelo servidor com o soft cap). */
 const ATTR_EFFECT = {
-  vitality: (pp) => `+${pp.vitality} vida`,
-  chakraMax: (pp) => `+${pp.chakraMax} chakra`,
-  chakraRegen: (pp) => `+${pp.chakraRegen}/s meditando`,
-  agility: (pp) => `+${String(pp.agility).replace('.', ',')} velocidade`,
-  taijutsu: (pp) => `+${Math.round(pp.taijutsu * 100)}% Ataque Básico`,
-  ninjutsu: (pp) => `+${Math.round(pp.ninjutsu * 100)}% jutsus`,
-  weapons: (pp) => `+${Math.round((pp.weapons ?? 0.05) * 100)}% armas (Kunai e jutsus de Armas)`,
+  vitality: (g) => `próximo ponto: +${num(g)} vida`,
+  chakra: (g) => `próximo ponto: +${num(g)} chakra (e meditação mais rápida)`,
+  agility: (g) => `próximo ponto: +${num(g)} velocidade`,
+  taijutsu: (g) => `próximo ponto: +${num(g * 100)}% Ataque Básico`,
+  ninjutsu: (g) => `próximo ponto: +${num(g * 100)}% jutsus`,
+  weapons: (g) => `próximo ponto: +${num(g * 100)}% armas`,
 };
 /** O que o atributo dá hoje (números do SERVIDOR, em progress.derived). */
 const ATTR_NOW = {
   vitality: (d) => `vida ${d.maxHp}`,
-  chakraMax: (d) => `chakra ${d.maxChakra}`,
-  chakraRegen: (d) => `${d.meditationChakraPerSec}/s`,
+  chakra: (d) => `chakra ${d.maxChakra} · ${num(d.meditationChakraPerSec)}/s meditando`,
   agility: (d) => `${String(d.walkSpeed).replace('.', ',')} / ${String(d.runSpeed).replace('.', ',')}`,
   taijutsu: (d) => `×${String(d.physicalMultiplier).replace('.', ',')}`,
   ninjutsu: (d) => `×${String(d.jutsuMultiplier).replace('.', ',')}`,
@@ -1732,20 +1897,51 @@ function renderStatus() {
   ui.xpMeter.setAttribute('aria-valuenow', String(pr.xpInLevel));
   ui.pointsLine.textContent = `Pontos disponíveis: ${pr.statPoints}`;
   ui.pointsLine.classList.toggle('ready', pr.statPoints > 0);
-  const pp = state.world.attributePerPoint || {};
+  // Sem teto de pontos (v8): o ganho de cada ponto cai aos poucos (soft cap do servidor).
   for (const li of ui.attrRows) {
     const key = li.dataset.attr;
+    if (!ATTR_EFFECT[key]) continue;
     const val = pr.attributes[key] ?? 0;
-    li.querySelector('.attr-val').textContent = `${val}/${pr.maxPoints}`;
-    li.querySelector('.attr-eff').textContent = `${ATTR_EFFECT[key](pp)} · agora ${ATTR_NOW[key](pr.derived)}`;
-    const plus = li.querySelector('.plus');
-    plus.disabled = pr.statPoints <= 0 || val >= pr.maxPoints;
+    li.querySelector('.attr-val').textContent = String(val);
+    li.querySelector('.attr-eff').textContent = `${ATTR_EFFECT[key](pr.nextGain?.[key] ?? 0)} · agora ${ATTR_NOW[key](pr.derived)}`;
+    li.querySelector('.plus').disabled = pr.statPoints <= 0;
   }
+  renderResetButton();
   if (!draftKits || ui.statusPanel.hidden) draftKits = { A: [...state.kit.kits.A], B: [...state.kit.kits.B] };
   renderKitList();
   renderDraftKits();
   renderJutsus();
 }
+
+/**
+ * "Redefinir Atributos": custa ryō (o custo vem do servidor em progress.resetCost) e pede dois
+ * toques (o 1º arma por 3 s, o 2º confirma). O servidor e o banco conferem saldo e pontos.
+ */
+let resetArmedUntil = 0;
+function renderResetButton() {
+  const pr = state.progress;
+  if (!pr) return;
+  const cost = pr.resetCost ?? 500;
+  const spent = Object.values(pr.attributes || {}).reduce((sum, n) => sum + n, 0);
+  const armed = performance.now() < resetArmedUntil;
+  ui.resetAttrs.textContent = armed ? `Toque de novo: redefinir por ${ryoText(cost)}` : `↺ Redefinir Atributos (${ryoText(cost)})`;
+  ui.resetAttrs.classList.toggle('armed', armed);
+  ui.resetAttrs.disabled = spent === 0 || (state.ninja.ryo || 0) < cost;
+  ui.resetAttrs.title = spent === 0 ? 'Nenhum ponto investido' : (state.ninja.ryo || 0) < cost ? `Precisa de ${ryoText(cost)}` : '';
+}
+ui.resetAttrs.addEventListener('click', () => {
+  if (ui.resetAttrs.disabled) return;
+  const t = performance.now();
+  if (t >= resetArmedUntil) {
+    resetArmedUntil = t + 3000;
+    renderResetButton();
+    setTimeout(renderResetButton, 3100);
+    return;
+  }
+  resetArmedUntil = 0;
+  renderResetButton();
+  if (tapGuard('reset')) send({ type: 'reset_attributes' });
+});
 
 /** Jutsus aprendidos, na ordem do catálogo (Academia primeiro, depois por classe e tier). */
 function learnedJutsus() {
@@ -1846,6 +2042,8 @@ function openStatus() {
   closeInventory();
   closeMissions();
   closePlayerMenu();
+  closeBoard();
+  closeHistory();
   draftKits = null;
   ui.statusPanel.hidden = false;
   ui.statusToggle.setAttribute('aria-expanded', 'true');
@@ -2261,6 +2459,69 @@ function appendLine(li) {
   li.addEventListener('animationend', (e) => { if (e.animationName === 'feed-out') li.remove(); });
   ui.chatFeed.append(li);
   while (ui.chatFeed.children.length > FEED_MAX) ui.chatFeed.firstElementChild.remove();
+}
+
+// ---- canais e histórico (v8). Local: o mapa. "/g texto": global. "/w Nome texto": sussurro.
+
+/** Quem falou, com o canal: "[Global] kaito", "kaito → mei" (sussurro). */
+function chatWho(e) {
+  if (e.channel === 'global') return `[Global] ${e.username}`;
+  if (e.channel === 'whisper') return e.playerId === state.meId ? `Você → ${e.to || '?'}` : `${e.username} → você`;
+  return e.username;
+}
+
+/** Mensagem nova também vai para o histórico (o servidor já guardou a mesma no banco). */
+function rememberChat(e) {
+  state.chatHistory.push(e);
+  if (state.chatHistory.length > 100) state.chatHistory.splice(0, state.chatHistory.length - 100);
+  if (!ui.historyPanel.hidden) renderHistory();
+}
+
+let historyFilter = 'all';
+function renderHistory() {
+  if (ui.historyPanel.hidden) return;
+  const list = state.chatHistory.filter((e) => historyFilter === 'all' || e.channel === historyFilter);
+  ui.historyEmpty.hidden = list.length > 0;
+  ui.historyList.replaceChildren(...list.map((e) => {
+    const li = document.createElement('li');
+    li.className = `${e.channel}${e.playerId === state.meId ? ' me' : ''}`;
+    const time = document.createElement('time');
+    const d = new Date(e.at);
+    time.textContent = Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = `${chatWho(e)}: `;                 // textContent: texto nunca vira HTML
+    li.append(time, who, document.createTextNode(e.message));
+    return li;
+  }));
+  ui.historyList.scrollTop = ui.historyList.scrollHeight;
+}
+function openHistory() {
+  closeSettings();
+  closeMissions();
+  closeInventory();
+  closeStatus();
+  closeBoard();
+  ui.historyPanel.hidden = false;
+  ui.historyToggle.setAttribute('aria-expanded', 'true');
+  renderHistory();
+  if (state.connected) send({ type: 'chat_history' });   // relê do servidor (no máximo 1 a cada 2 s)
+}
+function closeHistory() {
+  ui.historyPanel.hidden = true;
+  ui.historyToggle.setAttribute('aria-expanded', 'false');
+}
+ui.historyToggle.addEventListener('click', () => (ui.historyPanel.hidden ? openHistory() : closeHistory()));
+ui.historyClose.addEventListener('click', closeHistory);
+for (const tab of ui.historyTabs) {
+  tab.addEventListener('click', () => {
+    historyFilter = tab.dataset.filter;
+    for (const t of ui.historyTabs) {
+      t.classList.toggle('active', t === tab);
+      t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+    }
+    renderHistory();
+  });
 }
 
 // ------------------------------------------------------------------ orientação e tela
@@ -2804,6 +3065,10 @@ function draw(now) {
     const x = toScreenX(d.x), y = toScreenY(d.y), w = d.w * T, h = d.h * T;
     if (x + w >= 0 && x <= viewW && y + h >= 0 && y <= viewH) drawAcademyDoor(ctx, x, y, w, h, step >= (d.step ?? 0), d.h > d.w, now);
   }
+  for (const f of state.fields) {
+    const x = toScreenX(f.x), y = toScreenY(f.y), w = f.w * T, h = f.h * T;
+    if (x + w >= 0 && x <= viewW && y + h >= 0 && y <= viewH) drawChakraField(ctx, x, y, w, h, now);
+  }
 
   // 4. Efeitos de habilidade: os "de chão" (Sombra, Água) por baixo dos bonecos, o resto por cima.
   let alive = 0;
@@ -3262,7 +3527,7 @@ function drawShopkeeper(n, sx, sy, T, now) {
     ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 1.7, r * 0.66, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
   }
-  const top = drawCharacter(ctx, sx, sy, T, SHOPKEEPER_LOOK[n.shop] || ACADEMY_LOOK[n.id] || DEFAULT_LOOK, 0, 0, false);
+  const top = drawCharacter(ctx, sx, sy, T, SHOPKEEPER_LOOK[n.shop] || ACADEMY_LOOK[n.id] || DEFAULT_LOOK, 0, 0, false, NPC_GEAR[n.id]);
   const fontSize = Math.max(11, Math.round(T * 0.3));
   ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
   ctx.textAlign = 'center';
@@ -3402,7 +3667,7 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
     ctx.setLineDash([]);
   }
   // Boneco modular: cabeça, cabelo, tronco, braços, pernas e capa nas cores do jogador.
-  const headTop = drawCharacter(ctx, sx, sy, T, look, p.dead ? 0 : p.dir, p.walk, p.moving && !p.dead);
+  const headTop = drawCharacter(ctx, sx, sy, T, look, p.dead ? 0 : p.dir, p.walk, p.moving && !p.dead, p.gear);
   if (isMe) {                         // marquinha para achar o próprio boneco no meio dos outros
     ctx.fillStyle = '#ffe2a8';
     ctx.beginPath();

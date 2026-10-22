@@ -22,6 +22,8 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 15 | Atualização v8: mapas Vila e Floresta com passagem pelas bordas, sem SQL | ~5 min |
 | 16 | Atualização v9: Vila 80x80 com muralha, portão sul e praça segura, sem SQL | ~5 min |
 | 17 | Atualização v10: lojas com interior, fade entre mapas e Floresta escura, sem SQL | ~5 min |
+| 18 | Atualização v11: progressão (níveis 60, classes, Academia, Extração), com SQL | ~10 min |
+| 19 | Atualização v12: Modo Administrador, atributo Chakra, chat com histórico, Sala de Missões e Academia nova, com SQL | ~15 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -642,3 +644,35 @@ continua no ar. **Render:** o push na `main` já faz o deploy. Nenhuma variável
    pergaminhos e use a **Extração**.
 8. **Chunin (nível 40):** um Chunin toca em você → Criar Missão → **Exame Chunin**. Cumpra, entregue, ele aprova.
 
+## Passo 19 — Atualização v12: admin, atributos, chat, Sala de Missões e Academia nova
+
+**Banco (obrigatório, ANTES do deploy):** no Neon → **SQL Editor**, cole e rode o arquivo
+`db/schema_v8_admin_chat.sql` inteiro. Pode rodar de novo sem erro. Ele:
+
+- cria `is_admin` (falso para todos) e liga só a conta **Victor**; cria a auditoria `game.admin_audit_log`;
+- junta Chakra Máximo + Regen Chakra em **Chakra** (soma os pontos, nada se perde) e tira o teto de 10 pontos;
+- cria o histórico do chat (`game.chat_logs`, 24 h), os treinos novos do Mestre e as espadas da Armaria.
+
+Depois dela, **não rode a v5 nem a v7 de novo** (elas citam as colunas antigas de chakra).
+Sem a migração, o servidor **não sobe** (o log do Render diz que falta a v8) e a versão anterior continua no ar.
+
+Conferência (opcional):
+
+```sql
+SELECT username, is_admin FROM game.players WHERE is_admin;     -- Victor
+SELECT code, xp_reward FROM game.mission_difficulties WHERE code LIKE 'NPC_%';
+```
+
+### Testar no celular
+
+1. **Conta nova:** você nasce na **Sala de Taijutsu**. Só o 🗡️ aparece: destrua 3 bonecos. O servidor te leva
+   para a **Sala de Controle**: o chakra cai sozinho (campo roxo). Toque em 🧘 até encher.
+2. **Sala de Jutsus:** ande até o vão (você para na beira), incline o joystick para ele e toque em 💨: você
+   salta por cima. Do outro lado, toque em 🪵 perto da armadilha: o golpe acerta um tronco.
+3. **Sala de Armas:** a 🎒 brilha. Equipe a Kunai de Treino e acerte o boneco. Você aparece na **Praça da Vila**.
+4. **Sala de Missões:** fale com o Mestre: escolha um dos 3 cartões. O botão Entregar fica cinza
+   ("Faltam 3 monstros") até completar; depois, verde.
+5. **Ficha 📊:** o atributo **Chakra** e "próximo ponto: +X". **Redefinir Atributos** (2 toques, 500 ryō).
+6. **Chat:** `/g olá` fala com todos; `/w Nome oi` sussurra. O 🕘 mostra o histórico.
+7. **Admin (conta Victor, depois de sair e entrar):** `/admin giveitem Victor katana 1`, equipe a Espada Longa
+   (aparece nas costas) e `/admin spawn slime 3`. Tudo fica em `game.admin_audit_log`.

@@ -27,7 +27,6 @@ function fakeProfile(points = 0) {
     async spendPoint(_id, attribute): Promise<SpendResult> {
       calls.spend.push(attribute);
       if (statPoints <= 0) return { ok: false, reason: 'NO_POINTS' };
-      if (attrs[attribute] >= 10) return { ok: false, reason: 'MAXED' };
       statPoints -= 1;
       attrs[attribute] += 1;
       return { ok: true, statPoints, attributes: { ...attrs } };
@@ -36,6 +35,9 @@ function fakeProfile(points = 0) {
       calls.save.push([kitA, kitB]);
     },
     async saveAppearance() {},
+    async resetAttributes() {
+      return { ok: false, text: 'sem banco' };
+    },
   };
   return { profile, calls };
 }
@@ -50,10 +52,13 @@ describe('v5: atributos e nível (funções puras)', () => {
     assert.deepEqual(levelProgress(10 ** 9), { level: 60, xpInLevel: 0, xpToNext: 0 });
   });
 
-  it('cada ponto: +10 vida, +10 chakra, +1/s meditando, +0,5 velocidade, +5% físico (Taijutsu), +5% jutsu (Ninjutsu)', () => {
+  it('1º ponto: +10 vida, +10 chakra e +1/s meditando (Chakra), +0,5 velocidade, +5% físico, +5% jutsu; os seguintes com soft cap (v8)', () => {
     const base = { maxHp: 100, maxChakra: 100, meditationChakraPerSec: 15, walkSpeed: 5, runSpeed: 8, attackCooldownMs: 600 };
-    const d = derivedStats(base, REALTIME.combat.attributes, { vitality: 2, chakraMax: 3, chakraRegen: 4, agility: 2, taijutsu: 2, ninjutsu: 4, weapons: 0 });
-    assert.deepEqual(d, { maxHp: 120, maxChakra: 130, meditationChakraPerSec: 19, walkSpeed: 6, runSpeed: 9, physicalMultiplier: 1.1, jutsuMultiplier: 1.2, weaponMultiplier: 1, attackCooldownMs: 552 });
+    const one = derivedStats(base, REALTIME.combat.attributes, { vitality: 1, chakra: 1, agility: 1, taijutsu: 1, ninjutsu: 1, weapons: 1 });
+    assert.deepEqual(one, { maxHp: 110, maxChakra: 110, meditationChakraPerSec: 16, walkSpeed: 5.5, runSpeed: 8.5, physicalMultiplier: 1.05, jutsuMultiplier: 1.05, weaponMultiplier: 1.05, attackCooldownMs: 576 });
+    // 2 pontos = 1 + 1/1,05; 3 = ... + 1/1,10; 4 = ... + 1/1,15 (rendimento decrescente).
+    const d = derivedStats(base, REALTIME.combat.attributes, { vitality: 2, chakra: 3, agility: 2, taijutsu: 2, ninjutsu: 4, weapons: 0 });
+    assert.deepEqual(d, { maxHp: 120, maxChakra: 129, meditationChakraPerSec: 17.86, walkSpeed: 5.98, runSpeed: 8.98, physicalMultiplier: 1.098, jutsuMultiplier: 1.187, weaponMultiplier: 1, attackCooldownMs: 553 });
     assert.equal(scaledDamage(12, 1.1), 13);
     assert.equal(scaledDamage(25, 1.2), 30);
   });
@@ -79,15 +84,15 @@ describe('v5: energia', () => {
     assert.ok(s.hp > hp + 0.5, 'chakra cheio de novo: a vida volta a subir');
   });
 
-  it('Regen Chakra (atributo): +1/s meditando', () => {
+  it('Chakra (atributo, v8): também acelera a meditação (+1/s no 1º ponto, com soft cap)', () => {
     const { world, run } = setupWorld(config);
     const conn = new (class { sent: any[] = []; bufferedAmount = 0; send(d: string) { this.sent.push(JSON.parse(d)); } close() {} })();
-    const handle = world.join({ id: 'p1', username: 'zen', attributes: { ...NO_ATTRIBUTES, chakraRegen: 5 } }, conn);
+    const handle = world.join({ id: 'p1', username: 'zen', attributes: { ...NO_ATTRIBUTES, chakra: 5 } }, conn);
     const s = sess(world, 'p1');
     s.chakra = 0;
     handle.receive(JSON.stringify({ type: 'meditate', active: true }));
     run(1000);
-    assert.ok(Math.abs(s.chakra - 20) < 0.01, `15 + 5 = 20/s (${s.chakra})`);
+    assert.ok(Math.abs(s.chakra - 19.56) < 0.01, `15 + 4,56 (5 pontos com soft cap) = 19,56/s (${s.chakra})`);
   });
 });
 
@@ -116,13 +121,13 @@ describe('v5: corrida e velocidade', () => {
     assert.equal(a.conn.last('error').code, 'INVALID_MESSAGE');
   });
 
-  it('Agilidade: +0,5 por ponto em andar E correr', () => {
+  it('Agilidade: +0,5 no 1º ponto (soft cap nos seguintes) em andar E correr', () => {
     const { world } = setupWorld(config);
     const conn = new (class { sent: any[] = []; bufferedAmount = 0; send(d: string) { this.sent.push(JSON.parse(d)); } close() {} })();
     const h = world.join({ id: 'p2', username: 'rapido', attributes: { ...NO_ATTRIBUTES, agility: 4 } }, conn);
-    assert.equal(conn.sent[0].you.speed, 7);
+    assert.equal(conn.sent[0].you.speed, 6.87);
     h.receive(JSON.stringify({ type: 'run', active: true }));
-    assert.equal(conn.sent.at(-1).speed, 10);
+    assert.equal(conn.sent.at(-1).speed, 9.87);
   });
 });
 
@@ -280,12 +285,12 @@ describe('v5: pontos de atributo', () => {
     assert.deepEqual(b.conn.last('player_rank'), { type: 'player_rank', playerId: a.id, rank: { code: 'GENIN', name: 'Genin' }, level: 2 });
   });
 
-  it('Vitalidade e Chakra Máximo já valem ao entrar (vida e chakra cheios no máximo novo)', () => {
+  it('Vitalidade e Chakra já valem ao entrar (vida e chakra cheios no máximo novo)', () => {
     const { world } = setupWorld(config);
     const conn = new (class { sent: any[] = []; bufferedAmount = 0; send(d: string) { this.sent.push(JSON.parse(d)); } close() {} })();
-    world.join({ id: 'p3', username: 'forte', attributes: { ...NO_ATTRIBUTES, vitality: 3, chakraMax: 2 } }, conn);
+    world.join({ id: 'p3', username: 'forte', attributes: { ...NO_ATTRIBUTES, vitality: 3, chakra: 2 } }, conn);
     const you = conn.sent[0].you;
-    assert.deepEqual([you.hp, you.maxHp, you.chakra, you.maxChakra], [130, 130, 120, 120]);
+    assert.deepEqual([you.hp, you.maxHp, you.chakra, you.maxChakra], [129, 129, 120, 120]);
   });
 });
 
@@ -301,6 +306,7 @@ describe('v5: missões entre jogadores (sensei Chunin+)', () => {
     const missions: Missions = {
       async current() { return null; },
       async talk() { return { kind: 'unavailable' }; },
+      async board() { return []; },
       async recordKill() { return null; },
       async create(...args) { calls.push(['create', ...args]); return { kind: 'created', mission: view() }; },
       async deliver(...args) { calls.push(['deliver', ...args]); return { kind: 'submitted', mission: view({ status: 'submitted', progress: 3, ready: false }) }; },

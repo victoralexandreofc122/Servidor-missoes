@@ -354,8 +354,43 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     case 'iwall': return drawInteriorWall(g, x, y, w, h, tile);
     case 'counter': return drawCounter(g, x, y, w, h);
     case 'furniture': return drawFurniture(g, x, y, w, h, wall.s, Math.abs(seed));
+    case 'pit': return drawPit(g, x, y, w, h);
     default: return undefined;
   }
+}
+
+/** Vão no chão da Academia (Sala de Jutsus): bordas de madeira quebrada e o fundo escuro. Só o Teleporte passa. */
+function drawPit(g, x, y, w, h) {
+  rect(g, '#120d09', x, y, w, h);
+  rect(g, '#1d1510', x, y + h * 0.35, w, h * 0.3);
+  rect(g, '#5c3a1c', x, y, w, 2);                       // borda de cima (tábuas)
+  rect(g, '#3b2414', x, y + h - 2, w, 2);
+  g.fillStyle = '#7a5230';
+  for (let i = x + 3; i < x + w - 2; i += 7) g.fillRect(i, y + 2, 3, 2);   // lascas
+}
+
+/**
+ * Campo que drena chakra (Sala de Controle): véu roxo pulsando e símbolos subindo. Desenhado a
+ * cada quadro (não fica no bloco do chão) porque pulsa.
+ */
+export function drawChakraField(g, x, y, w, h, now) {
+  const pulse = 0.5 + 0.5 * Math.sin(now / 420);
+  g.globalAlpha = 0.10 + 0.08 * pulse;
+  rect(g, '#7b3fbf', x, y, w, h);
+  g.globalAlpha = 0.35 + 0.25 * pulse;
+  g.strokeStyle = '#b48cff';
+  g.lineWidth = 2;
+  g.setLineDash([8, 6]);
+  g.lineDashOffset = -now / 60;
+  g.strokeRect(Math.round(x) + 1, Math.round(y) + 1, Math.round(w) - 2, Math.round(h) - 2);
+  g.setLineDash([]);
+  g.fillStyle = '#d8c2ff';
+  for (let i = 0; i < 6; i++) {
+    const px = x + ((i * 0.37 + 0.11) % 1) * w;
+    const py = y + h - (((now / 2600) + i / 6) % 1) * h;
+    g.fillRect(Math.round(px), Math.round(py), 3, 3);
+  }
+  g.globalAlpha = 1;
 }
 
 // ------------------------------------------------------------------ enfeites (sem colisão)

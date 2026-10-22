@@ -6,7 +6,8 @@ import { AUTH_SQL } from './auth/sql.js';
 import { makeRequireServiceToken } from './auth/requireServiceToken.js';
 import { describeBootError } from './bootErrors.js';
 import { makeFindPlayer } from './realtime/findPlayer.js';
-import { REALTIME } from './realtime/config.js';
+import { makeAdminStore } from './realtime/admin.js';
+import { CHAT_SQL, makeChatLog } from './realtime/chatLog.js';
 import { attachGameGateway } from './realtime/gateway.js';
 import { makeMissions, MISSIONS_SQL, NPC_MISSION, NPC_SENSEI_ID } from './realtime/missions.js';
 import { makeNinjaStore, NINJA_SQL } from './realtime/ninjaStore.js';
@@ -75,8 +76,10 @@ const gateway = attachGameGateway(publicApp.server, {
   findPlayer: makeFindPlayer(db),
   progression: makeProgression(db),                               // XP e ryō do combate vão para game.players
   missions: makeMissions(db),                                     // NPC Mestre + abates em game.sensei_missions
-  profile: makeProfile(db, REALTIME.combat.attributes.maxPoints), // pontos de atributo e kits (v5)
+  profile: makeProfile(db),                                       // pontos de atributo, redefinir e kits (v5/v8)
   store: makeNinjaStore(db),                                      // jutsus, tutorial, classes, loja, Extração (v7)
+  chatLog: makeChatLog(db),                                       // histórico do chat, 24 h (v8)
+  admin: makeAdminStore(db),                                      // comandos /admin auditados (v8)
   log: publicApp.log,
 });
 const internalApp = buildInternalApp({ db, requireServiceToken: makeRequireServiceToken(config.SERVICE_TOKEN) }, settings);
@@ -116,6 +119,8 @@ try {
   await db.query(PROFILE_SQL.bootCheck);                 // migração v5 (nível, atributos, kits)
   await db.query(PROFILE_SQL.bootCheckV6);               // migração v6 (visual do personagem)
   await db.query(NINJA_SQL.bootCheck);                   // migração v7 (progressão: tutorial, ryō, armas)
+  await db.query(PROFILE_SQL.bootCheckV8);               // migração v8 (atributo Chakra, admin, pergaminho nas costas)
+  await db.query(CHAT_SQL.bootCheck);                    // migração v8 (histórico do chat)
   // Migração v4 (NPC Mestre): sem ela o jogo sobe igual, só o Mestre não passa missões.
   const v4 = await db.query(MISSIONS_SQL.bootCheck, [NPC_SENSEI_ID, NPC_MISSION.missionType, NPC_MISSION.difficulty]);
   if (v4.rows.length === 0) publicApp.log.warn('[boot] NPC Mestre sem missões: rode db/schema_v4_npc_missions.sql no SQL Editor do Neon (não precisa reiniciar).');

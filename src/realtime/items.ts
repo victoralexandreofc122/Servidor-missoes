@@ -1,7 +1,13 @@
 /*
  * Itens: armas (equipáveis, somam dano ao Ataque Básico) e pergaminhos de classe (gastos
- * na Extração). Fonte única: a migração v7 tem a mesma lista em game.items (o teste confere).
+ * na Extração). Fonte única: as migrações v7 e v8 têm a mesma lista em game.items (o teste confere).
  * Preço em ryō; `shop` = loja que vende (null = não está à venda: só recompensa).
+ *
+ * Visual (v8, paperdoll): `hold` diz ONDE o item aparece no boneco quando equipado:
+ *   hand = na mão (kunais e espadas curtas), só se a outra mão não estiver ocupada
+ *          (escudo ou item de duas mãos);
+ *   back = nas costas, atrás do tronco e à frente da capa (espadas longas, a Shuriken Gigante
+ *          e o pergaminho de jutsu levado nas costas).
  */
 import { CLASSES, CLASS_INFO, type ClassCode } from './jutsus.js';
 
@@ -18,14 +24,20 @@ export interface ItemDef {
   class?: ClassCode;
   price: number | null;
   shop: ShopKind | null;
+  /** Onde aparece no boneco quando equipado. */
+  hold: 'hand' | 'back';
+  /** Ocupa as duas mãos (nenhuma arma de mão aparece junto). */
+  twoHanded?: boolean;
 }
 
 export const ITEMS: readonly ItemDef[] = [
-  { code: 'kunai_training', name: 'Kunai de Treino', kind: 'weapon', icon: '🗡️', damage: 10, price: null, shop: null },
-  { code: 'kunai', name: 'Kunai', kind: 'weapon', icon: '🔪', damage: 14, price: 300, shop: 'weapons' },
-  { code: 'fuma_shuriken', name: 'Shuriken Gigante', kind: 'weapon', icon: '✴️', damage: 22, price: 1200, shop: 'weapons' },
+  { code: 'kunai_training', name: 'Kunai de Treino', kind: 'weapon', icon: '🗡️', damage: 10, price: null, shop: null, hold: 'hand' },
+  { code: 'kunai', name: 'Kunai', kind: 'weapon', icon: '🔪', damage: 14, price: 300, shop: 'weapons', hold: 'hand' },
+  { code: 'tanto', name: 'Espada Curta', kind: 'weapon', icon: '🗡', damage: 18, price: 600, shop: 'weapons', hold: 'hand' },
+  { code: 'fuma_shuriken', name: 'Shuriken Gigante', kind: 'weapon', icon: '✴️', damage: 22, price: 1200, shop: 'weapons', hold: 'back', twoHanded: true },
+  { code: 'katana', name: 'Espada Longa', kind: 'weapon', icon: '⚔️', damage: 28, price: 2000, shop: 'weapons', hold: 'back', twoHanded: true },
   ...CLASSES.map((c): ItemDef => ({
-    code: `scroll_${c}`, name: `Pergaminho de ${CLASS_INFO[c].name}`, kind: 'scroll', icon: '📜', class: c, price: 150, shop: 'scrolls',
+    code: `scroll_${c}`, name: `Pergaminho de ${CLASS_INFO[c].name}`, kind: 'scroll', icon: '📜', class: c, price: 150, shop: 'scrolls', hold: 'back',
   })),
 ];
 
@@ -37,3 +49,23 @@ export const scrollOf = (c: ClassCode) => `scroll_${c}`;
 export const KILL_RYO = { min: 5, max: 15 } as const;
 /** Chance de um monstro deixar 1 pergaminho da classe do jogador (Genin ou acima). */
 export const SCROLL_DROP_CHANCE = 0.04;
+
+/**
+ * O que aparece no boneco (todos veem): arma na mão, item nas costas e o pergaminho nas costas.
+ * Arma de mão só aparece com a outra mão livre (sem escudo e sem item de duas mãos).
+ */
+export interface Gear {
+  hand: string | null;
+  back: string | null;
+  scroll: string | null;
+}
+
+export function gearOf(weapon: string | null, scroll: string | null): Gear {
+  const w = weapon ? ITEM_BY_CODE.get(weapon) : undefined;
+  const s = scroll ? ITEM_BY_CODE.get(scroll) : undefined;
+  return {
+    hand: w && w.kind === 'weapon' && w.hold === 'hand' && !w.twoHanded ? w.code : null,
+    back: w && w.kind === 'weapon' && w.hold === 'back' ? w.code : null,
+    scroll: s && s.kind === 'scroll' ? s.code : null,
+  };
+}

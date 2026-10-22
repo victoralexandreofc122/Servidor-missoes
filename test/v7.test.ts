@@ -51,22 +51,16 @@ function walk(p: { send: (m: unknown) => void }, run: (ms: number) => void, seq:
 
 const NEW: Partial<JoiningPlayer> = { tutorialStep: 0, jutsus: { teleport: 0, substitution: 0 }, kits: { A: ['teleport', 'substitution'], B: [] } };
 
-describe('v7: Academia (mapa e portas travadas pelo tutorial)', () => {
-  it('4 salas de 16 x 16; porta para a próxima sala só abre no passo certo; a de volta sempre abre', () => {
+describe('v7/v8: Academia (mapa: salas fechadas, saída travada pelo tutorial)', () => {
+  it('4 salas de 16 x 16 FECHADAS (v8): nenhuma porta entre elas, em nenhum passo; só a saída de baixo, no passo 4', () => {
     assert.deepEqual([A.width, A.height, A.kind], [64, 16, 'interior']);
-    const maps = WORLD_MAPS;
+    assert.deepEqual(A.doors.map((d) => [d.map, d.step]), [['map_1', 4]], 'a única porta é a saída');
     for (let k = 0; k < 3; k++) {
-      const door = A.doors.find((d) => d.dir === 'east' && d.x > 16 * k && d.x < 16 * (k + 1))!;
-      const inside: [number, number] = [door.x + 1, door.y + 1.5];
-      assert.equal(door.step, k + 1);
-      // passo k: travada (o jogador só encosta na parede); passo k+1: passa para a sala seguinte
-      const locked = moveStep(maps, 'academy_interior', ...inside, 1, 0, 0.25, { tutorial: k });
-      assert.ok(locked[1] < 16 * (k + 1), `sala ${k + 1} travada no passo ${k}`);
-      const open = moveStep(maps, 'academy_interior', ...inside, 1, 0, 0.25, { tutorial: k + 1 });
-      assert.ok(open[1] > 16 * (k + 1) + 1, `sala ${k + 1} aberta no passo ${k + 1}`);
-      // volta (oeste) sempre abre
-      const back = moveStep(maps, 'academy_interior', 16 * (k + 1) + 1.4, 8, -1, 0, 0.25, { tutorial: 0 });
-      assert.ok(back[1] < 16 * (k + 1) - 1, 'a porta de volta sempre abre');
+      for (const tutorial of [0, 1, 2, 3, 4]) {
+        let st: [string, number, number] = ['academy_interior', 16 * k + 12, 11];
+        for (let i = 0; i < 40; i++) st = moveStep(WORLD_MAPS, st[0], st[1], st[2], 1, 0, 0.25, { tutorial });
+        assert.ok(st[0] === 'academy_interior' && st[1] < 16 * (k + 1), `sala ${k + 1} sem passagem (passo ${tutorial})`);
+      }
     }
   });
 
@@ -87,28 +81,40 @@ describe('v7: Academia (mapa e portas travadas pelo tutorial)', () => {
     }
   });
 
-  it('cliente (JS) e servidor (TS): mesmo resultado com as portas travadas, em 20 mil passos', () => {
+  it('cliente (JS) e servidor (TS): mesmo resultado na Academia (vão e saída), em 20 mil passos; ninguém troca de sala andando', () => {
     const rnd = seededRandom(9);
     let st: [string, number, number] = ['academy_interior', 8, 8];
     let tutorial = 0;
-    let crossed = 0;
     for (let i = 0; i < 20_000; i++) {
-      if (i % 4000 === 3999) tutorial += 1;
+      if (i % 4000 === 3999) {
+        tutorial += 1;
+        st = ['academy_interior', academySpawn(Math.min(3, tutorial)).x, academySpawn(Math.min(3, tutorial)).y];   // o servidor leva
+      }
       const dx = i % 500 < 300 ? 1 : -1;
       const dy = Math.round((rnd() * 2 - 1) * 10) / 20;
       const a = moveStep(WORLD_MAPS, st[0], st[1], st[2], dx, dy, 0.25, { tutorial });
       const b = client.moveStep(WORLD_MAPS, st[0], st[1], st[2], dx, dy, 0.25, { tutorial });
       assert.deepEqual(b, a, `passo ${i}`);
-      if (Math.floor(a[1] / 16) !== Math.floor(st[1] / 16)) crossed += 1;
-      assert.ok(Math.floor(a[1] / 16) <= tutorial, `passou de sala sem ter o passo (${a}, passo ${tutorial})`);
+      if (a[0] === 'academy_interior') assert.equal(Math.floor(a[1] / 16), Math.floor(st[1] / 16), `trocou de sala andando (${a}, passo ${tutorial})`);
+      if (a[0] !== 'academy_interior') break;
       st = a;
     }
-    assert.ok(crossed > 3);
+  });
+
+  it('Sala de Jutsus: o vão bloqueia quem anda, mas o Teleporte salta por cima (nunca para dentro dele)', () => {
+    const g = ACADEMY.gap;
+    let st: [string, number, number] = ['academy_interior', 40, 11];
+    for (let i = 0; i < 40; i++) st = moveStep(WORLD_MAPS, st[0], st[1], st[2], 0, -1, 0.25, { tutorial: 2 });
+    assert.ok(st[2] > g.y + g.h, `andando, para na beira do vão (${st[2]})`);
+    const over = blinkTarget(A, 40, st[2], 0, -1, 3);
+    assert.ok(over.y < g.y && !blocked(over.x, over.y, A.walls), `Teleporte da beira: do outro lado (${over.y})`);
+    const short = blinkTarget(A, 40, 11, 0, -1, 3);
+    assert.ok(short.y > g.y + g.h && !blocked(short.x, short.y, A.walls), `longe da beira: cai antes do vão (${short.y})`);
   });
 });
 
-describe('v7: tutorial no servidor', () => {
-  it('conta nova nasce na Sala 1 da Academia; morrer no tutorial renasce na sala do passo, nunca na Vila', () => {
+describe('v8: tutorial linear da Academia (servidor)', () => {
+  it('conta nova nasce na Sala de Taijutsu; morrer no tutorial renasce na sala do passo, nunca na Vila', () => {
     const { join, sess } = setup();
     const p = join('novato', NEW);
     const w = p.conn.last('welcome');
@@ -123,17 +129,22 @@ describe('v7: tutorial no servidor', () => {
     assert.deepEqual([s.x, s.y], [academySpawn(2).x, academySpawn(2).y]);
   });
 
-  it('tutorial completo, só com o que o SERVIDOR viu: bonecos (Ataque Básico), meditar, Teleporte + Substituição, equipar', async () => {
+  it('as 4 etapas, só com o que o SERVIDOR viu, e o servidor leva de sala em sala até a Praça da Vila', async () => {
     const fake = fakeNinjaStore();
-    const { join, run, sess, monsters, world } = setup({ store: fake.store });
+    const { join, run, sess, monsters } = setup({ store: fake.store });
     const p = join('novato', NEW);
     const s = sess(p.id);
     const seq = { n: 1 };
+    const room = () => Math.floor(s.x / 16);
 
-    // Sala 1: jutsu não conta; Ataque Básico conta. A porta só abre depois de 3.
-    walk(p, run, seq, 10, [1, 0]);
-    assert.ok(s.x < 16, 'a porta da Sala 1 está travada');
-    for (const d of monsters('dummy')) {
+    // Etapa 1 (Sala de Taijutsu): jutsus travados; só o Ataque Básico; andar não sai da sala.
+    p.send({ type: 'cast', skill: 'teleport', dir: [1, 0] });
+    assert.equal(p.conn.last('cast_failed').reason, 'TUTORIAL_LOCKED');
+    walk(p, run, seq, 40, [1, 0]);
+    assert.equal(room(), 0, 'sem porta para a sala seguinte');
+    const roomOneDummies = monsters('dummy').filter((d) => d.x < 16);
+    assert.equal(roomOneDummies.length, 3);
+    for (const d of roomOneDummies) {
       Object.assign(s, { x: d.x, y: d.y + 1.2 });
       for (let hit = 0; hit < 2; hit++) {
         s.cooldowns = {};
@@ -145,48 +156,63 @@ describe('v7: tutorial no servidor', () => {
     assert.deepEqual(fake.calls.filter((c) => c[0] === 'advanceTutorial').map((c) => c[2]), [1]);
     assert.equal(s.tutorial, 1);
     assert.deepEqual(p.conn.last('tutorial'), { type: 'tutorial', step: 1 });
-    assert.equal(Math.round(s.chakra), 25, 'Sala 2: começa com o chakra baixo');
-    assert.equal(monsters('dummy').length, 0);
+    assert.deepEqual([s.x, s.y], [academySpawn(1).x, academySpawn(1).y], 'levado para a Sala de Controle');
+    assert.equal(p.conn.last('map_changed').reason, 'tutorial');
+    assert.equal(Math.round(s.chakra), 25, 'começa com o chakra baixo');
     run(2600);
-    assert.equal(monsters('dummy').length, 3, 'os bonecos renascem no mesmo lugar');
+    assert.equal(monsters('dummy').filter((d) => d.x < 16).length, 3, 'os bonecos renascem no mesmo lugar');
 
-    // Sala 2: meditar FORA da sala não conta; dentro, até encher, conta.
+    // Etapa 2 (Sala de Controle): o campo drena o chakra; meditar vence o dreno e enche a barra.
+    p.send({ type: 'cast', skill: 'teleport', dir: [1, 0] });
+    assert.equal(p.conn.last('cast_failed').reason, 'TUTORIAL_LOCKED', 'ainda sem jutsus');
+    assert.ok(s.chakra < 25, 'o campo já drenou enquanto os bonecos renasciam');
+    s.chakra = 25;
+    run(1000);
+    assert.ok(Math.abs(s.chakra - (25 - ACADEMY.drainField.chakraPerSec)) < 0.01, `o campo drena ${ACADEMY.drainField.chakraPerSec}/s (${s.chakra})`);
     p.send({ type: 'meditate', active: true });
-    run(6000);
-    assert.equal(s.tutorial, 1, 'meditou na Sala 1: não conta');
-    Object.assign(s, { x: 24, y: 9, chakra: 25 });
-    p.send({ type: 'meditate', active: true });
-    run(6000);
+    run(10_000);
     await flush();
     assert.equal(s.tutorial, 2);
+    assert.deepEqual([s.x, s.y], [academySpawn(2).x, academySpawn(2).y], 'levado para a Sala de Jutsus');
+    assert.equal(s.meditating, false, 'a viagem encerra a meditação');
 
-    // Sala 3: Teleporte e Substituição (o boneco que bate).
-    Object.assign(s, { x: 36, y: 11, chakra: 100, cooldowns: {} });
+    // Etapa 3 (Sala de Jutsus): Teleporte que NÃO atravessa o vão não conta; por cima do vão, conta.
+    Object.assign(s, { chakra: 100, cooldowns: {} });
     p.send({ type: 'cast', skill: 'teleport', dir: [1, 0] });
-    const tp = p.conn.last('teleport');
-    assert.deepEqual([tp.fromX, tp.x, tp.y], [36, 39, 11], 'Teleporte Nv 1: 3 casas');
-    const sparring = monsters('sparring')[0]!;
-    Object.assign(s, { x: sparring.x, y: sparring.y + 1.2 });
+    assert.equal(s.tutorialTeleport, false, 'de lado, sem atravessar: não conta');
+    Object.assign(s, { x: 40, y: ACADEMY.gap.y + ACADEMY.gap.h + 0.35, cooldowns: {} });
+    p.send({ type: 'cast', skill: 'teleport', dir: [0, -1] });
+    assert.ok(s.y < ACADEMY.gap.y, `do outro lado do vão (${s.y})`);
+    assert.equal(s.tutorialTeleport, true);
+    const trap = monsters('sparring')[0]!;
+    Object.assign(s, { x: trap.x, y: trap.y + 1.2 });
     p.send({ type: 'cast', skill: 'substitution' });
     const hpBefore = s.hp;
     run(200);
     await flush();
-    const sub = p.conn.last('substitution');
-    assert.ok(sub, 'o golpe acertou o tronco');
+    assert.ok(p.conn.last('substitution'), 'o golpe da armadilha acertou o tronco');
     assert.equal(s.hp, hpBefore, 'dano anulado');
     assert.equal(s.tutorial, 3);
     assert.equal(s.items.kunai_training, 1, 'recompensa: Kunai de Treino');
+    assert.deepEqual([s.x, s.y], [academySpawn(3).x, academySpawn(3).y], 'levado para a Sala de Armas');
 
-    // Sala 4: equipar a Kunai conclui. A saída abre.
-    Object.assign(s, { x: 56, y: 10 });
+    // Etapa 4 (Sala de Armas): sem arma, acertar o boneco não conclui; com a Kunai equipada, conclui.
+    const dummy = monsters('dummy').find((d) => d.x > 48)!;
+    Object.assign(s, { x: dummy.x, y: dummy.y + 1.2, cooldowns: {} });
+    p.send({ type: 'attack', targetId: dummy.id });
+    assert.equal(s.tutorial, 3);
+    assert.match(p.conn.last('notice').text, /mochila/);
     p.send({ type: 'equip', item: 'kunai_training' });
     await flush(); await flush();
-    assert.equal(s.tutorial, 4);
     assert.equal(s.equipped, 'kunai_training');
+    assert.equal(s.tutorial, 3, 'equipar sozinho não conclui');
+    s.cooldowns = {};
+    p.send({ type: 'attack', targetId: dummy.id });
+    await flush(); await flush();
+    assert.equal(s.tutorial, 4);
     assert.equal(s.ryo, 100);
-    walk(p, run, seq, 30, [0, 1]);
-    assert.equal(s.map, 'map_1', 'saiu da Academia');
-    assert.ok(world.online === 1);
+    assert.deepEqual([s.map, s.x, s.y], ['map_1', REALTIME.tutorialEnd.x, REALTIME.tutorialEnd.y], 'liberado na Praça da Vila');
+    assert.equal(p.conn.last('map_changed').map, 'map_1');
   });
 
   it('não dá para sair antes: no passo 3 a saída não abre (e o cliente não manda passo nenhum)', () => {
@@ -198,6 +224,12 @@ describe('v7: tutorial no servidor', () => {
     assert.equal(s.map, 'academy_interior');
     p.send({ type: 'tutorial', step: 4 });
     assert.equal(p.conn.last('error').code, 'INVALID_MESSAGE');
+  });
+
+  it('a Praça da Vila (fim do tutorial) é casa livre e zona segura', () => {
+    const plaza = REALTIME.tutorialEnd;
+    assert.ok(!blocked(plaza.x, plaza.y, WORLD_MAPS.map_1.walls));
+    assert.ok(WORLD_MAPS.map_1.safeZones.some((z) => plaza.x >= z.x && plaza.x <= z.x + z.w && plaza.y >= z.y && plaza.y <= z.y + z.h));
   });
 });
 
@@ -266,12 +298,12 @@ describe('v7: Substituição e Teleporte (combate)', () => {
     const { join, sess } = setup();
     const p = join('aluno', { ...NEW, tutorialStep: 2 });
     const s = sess(p.id);
-    Object.assign(s, { x: 33.4, y: 8 });
+    Object.assign(s, { x: 33.4, y: 11 });
     p.send({ type: 'cast', skill: 'teleport', dir: [-1, 0] });
     assert.equal(p.conn.last('cast_failed').reason, 'BLOCKED');
     assert.equal(s.chakra, 100);
     // perto da parede: para antes dela, dentro da sala
-    const spot = blinkTarget(A, 35, 8, -1, 0, 6);
+    const spot = blinkTarget(A, 35, 11, -1, 0, 6);
     assert.ok(!blocked(spot.x, spot.y, A.walls) && spot.x >= 33.3 && spot.x < 33.5, `${spot.x}`);
   });
 });
@@ -279,7 +311,7 @@ describe('v7: Substituição e Teleporte (combate)', () => {
 describe('v7: jutsus aprendidos e nível pelo uso', () => {
   it('só jutsu APRENDIDO: cast e kit recusam (NOT_LEARNED)', () => {
     const { join } = setup();
-    const p = join('novato', NEW);
+    const p = join('novato', { ...NEW, tutorialStep: 4 });
     p.send({ type: 'cast', skill: 'fire' });
     assert.equal(p.conn.last('cast_failed').reason, 'NOT_LEARNED');
     p.send({ type: 'set_loadout', kitA: ['fire'], kitB: [] });
@@ -324,7 +356,7 @@ describe('v7: Armas, loja, Extração e classe (servidor)', () => {
   it('Ataque Básico com a Kunai de Treino: +10 de dano; o atributo Armas escala a arma', () => {
     for (const [weapons, expected] of [[0, 22], [4, 24]] as const) {
       const { join, sess, world } = setup();
-      const p = join('kaito', { equipped: 'kunai_training', items: { kunai_training: 1 }, attributes: { vitality: 0, chakraMax: 0, chakraRegen: 0, agility: 0, taijutsu: 0, ninjutsu: 0, weapons } });
+      const p = join('kaito', { equipped: 'kunai_training', items: { kunai_training: 1 }, attributes: { vitality: 0, chakra: 0, agility: 0, taijutsu: 0, ninjutsu: 0, weapons } });
       const s = sess(p.id);
       (world as any).transfer(s, 'map_2', 30, 50, 'walk');
       const m = world.spawnMonster({ x: 31, y: 50 }, undefined, 'map_2');

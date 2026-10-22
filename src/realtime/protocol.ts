@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
 import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type Mechanic } from './jutsus.js';
-import { ITEM_CODES, type ItemDef } from './items.js';
+import { ITEM_CODES, type Gear, type ItemDef } from './items.js';
 
 /*
  * Protocolo do WebSocket: JSON simples, um objeto por mensagem, sempre com `type`.
@@ -21,6 +21,7 @@ import { ITEM_CODES, type ItemDef } from './items.js';
  *   { "type": "switch_kit", "kit": "B" }        trocar de kit (só vale depois que o servidor confirma)
  *   { "type": "set_loadout", "kitA": [..], "kitB": [..] }   até 4 habilidades por kit
  *   { "type": "spend_point", "attribute": "vitality" }      gastar 1 ponto de atributo
+ *   { "type": "reset_attributes" }              redefinir os atributos (custa ryō; o custo é do servidor)
  *   { "type": "set_appearance", "appearance": { skin, hair, shirt, pants, cape } }   cores "#rrggbb"
  *   { "type": "create_mission", "traineeId", "difficulty", "quantity" }   sensei (Chunin+) cria missão
  *   { "type": "deliver_mission", "senseiId" }   aprendiz entrega a missão ao sensei (perto dele)
@@ -29,8 +30,13 @@ import { ITEM_CODES, type ItemDef } from './items.js';
  *   { "type": "extract", "class": "fire", "level": 2 }   Extração na Casa dos Pergaminhos (gacha)
  *   { "type": "buy", "item": "kunai", "qty": 1 }  compra (perto do lojista que vende; preço do banco)
  *   { "type": "equip", "item": "kunai" }         equipar arma do inventário (null = desequipar)
+ *   { "type": "equip", "item": "scroll_fire", "slot": "scroll" }   pergaminho nas costas (item null = tirar)
  *   { "type": "hokage_apply" }                   candidatura a Hokage (nível 60, com o Diretor)
- *   { "type": "chat", "message": "Olá!" }
+ *   { "type": "accept_mission", "offer": "NPC_EASY" }   escolher um cartão da Sala de Missões (perto do Mestre)
+ *   { "type": "deliver_npc_mission" }            botão "Entregar" da Sala de Missões (perto do Mestre)
+ *   { "type": "chat_history" }                   pedir o histórico do chat (últimas 100, 24 h)
+ *   { "type": "chat", "message": "Olá!" }        fala local (o mapa); "/g texto" = global; "/w Nome texto" = sussurro;
+ *                                               "/admin ..." = comandos do administrador (nunca vira chat)
  *
  * Servidor -> cliente
  *   welcome           { you, players, monsters, world }    ao conectar (players = os OUTROS do MESMO mapa;
@@ -77,6 +83,9 @@ import { ITEM_CODES, type ItemDef } from './items.js';
  *   extract_result    { class, level, outcome, jutsu, consumed, scrollsLeft }   resultado da Extração
  *   teleport          { playerId, fromX, fromY, x, y, a }  Teleporte Curto (a = ack, para o dono reconciliar)
  *   substitution      { playerId, logX, logY, x, y, a }    Substituição: tronco no lugar, ninja atrás do atacante
+ *   player_gear       { playerId, gear }                   arma na mão / nas costas e pergaminho nas costas (todos veem)
+ *   mission_board     { npcId, offers, mission }           Sala de Missões: cartões do Mestre e a missão atual
+ *   chat_history      { messages }                         histórico do chat (só para quem pediu)
  *   chat / error                                           como antes
  */
 
@@ -130,8 +139,12 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('choose_class'), class: z.enum(CLASSES) }),
   z.object({ type: z.literal('extract'), class: z.enum(CLASSES), level: z.number().int().min(1).max(4) }),
   z.object({ type: z.literal('buy'), item: z.enum(ITEM_CODES), qty: z.number().int().min(1).max(99) }),
-  z.object({ type: z.literal('equip'), item: z.enum(ITEM_CODES).nullable() }),
+  z.object({ type: z.literal('equip'), item: z.enum(ITEM_CODES).nullable(), slot: z.enum(['weapon', 'scroll']).optional() }),
   z.object({ type: z.literal('hokage_apply') }),
+  z.object({ type: z.literal('reset_attributes') }),
+  z.object({ type: z.literal('accept_mission'), offer: z.string().regex(/^NPC_[A-Z]{1,24}$/) }),
+  z.object({ type: z.literal('deliver_npc_mission') }),
+  z.object({ type: z.literal('chat_history') }),
   z.object({ type: z.literal('chat'), message: z.string() }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
@@ -155,6 +168,8 @@ export interface PlayerView {
   /** Cores do boneco (padrão se o jogador ainda não criou o personagem). */
   appearance: Appearance;
   dir: Dir;
+  /** Equipamento visível no boneco (arma na mão ou nas costas, pergaminho nas costas). */
+  gear: Gear;
 }
 
 export interface SelfView extends PlayerView {
@@ -178,8 +193,11 @@ export interface ProgressView {
   totalXp: number;
   statPoints: number;
   attributes: Attributes;
-  maxPoints: number;
+  /** Quanto o PRÓXIMO ponto de cada atributo rende (soft cap calculado pelo servidor). Sem teto de pontos. */
+  nextGain: Attributes;
   derived: DerivedStats;
+  /** Ryō para redefinir os atributos. */
+  resetCost: number;
 }
 
 export interface KitView {
@@ -216,11 +234,40 @@ export interface NinjaView {
   ryo: number;
   items: Record<string, number>;
   equipped: string | null;
+  /** Pergaminho levado nas costas (só visual). */
+  equippedScroll: string | null;
   classes: { primary: ClassCode | null; secondary: ClassCode | null };
   /** Jutsus aprendidos -> quantas vezes o servidor contou o uso (o nível sai daí). */
   jutsus: Record<string, number>;
   hokageCandidate: boolean;
+  /** Modo Administrador: o cliente mostra a dica dos comandos /admin (o servidor confere sempre). */
+  isAdmin: boolean;
 }
+
+/** Cartão da Sala de Missões (o Mestre): título, descrição, recompensa e dificuldade. */
+export interface MissionOffer {
+  /** Código da dificuldade no catálogo (game.mission_difficulties). */
+  code: string;
+  title: string;
+  description: string;
+  difficulty: 'Fácil' | 'Normal' | 'Difícil';
+  target: { code: string; quantity: number };
+  /** XP e título vêm do catálogo do BANCO (o mesmo que o trigger congela na missão). */
+  reward: { xp: number; title: string | null };
+}
+
+/** Uma linha do histórico do chat. */
+export interface ChatEntry {
+  channel: ChatChannel;
+  playerId: string;
+  username: string;
+  /** Sussurro: para quem foi. */
+  to?: string;
+  message: string;
+  /** ISO 8601. */
+  at: string;
+}
+export type ChatChannel = 'local' | 'global' | 'whisper';
 
 /** Jutsu como o cliente mostra (botão, aba Jutsus). */
 export interface SkillInfo {
@@ -292,7 +339,7 @@ export interface WorldInfo {
   maxLevel: number;
 }
 
-export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED';
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED' | 'TUTORIAL_LOCKED';
 /** Por que a meditação acabou. */
 export type MeditationEnd = 'manual' | 'moved' | 'cast' | 'damaged' | 'died';
 export type MonsterStatus = 'stunned' | 'rooted';
@@ -301,11 +348,14 @@ export type ServerMessage =
   | { type: 'welcome'; you: SelfView; players: PlayerView[]; monsters: MonsterView[]; world: WorldInfo; progress: ProgressView; kit: KitView; ninja: NinjaView }
   | { type: 'player_joined'; player: PlayerView }
   | { type: 'shop_open'; shop: ShopKind; npcId: string }
-  | { type: 'map_changed'; map: MapId; x: number; y: number; a: number; players: PlayerView[]; monsters: MonsterView[]; reason: 'walk' | 'respawn' }
+  | { type: 'map_changed'; map: MapId; x: number; y: number; a: number; players: PlayerView[]; monsters: MonsterView[]; reason: MapChangeReason }
   | { type: 'player_moved'; playerId: string; x: number; y: number; d: Dir; a: number }
   | { type: 'player_appearance'; playerId: string; appearance: Appearance }
   | { type: 'player_left'; playerId: string }
-  | { type: 'chat'; playerId: string; username: string; message: string }
+  | { type: 'chat'; playerId: string; username: string; message: string; channel?: ChatChannel; to?: string }
+  | { type: 'chat_history'; messages: ChatEntry[] }
+  | { type: 'player_gear'; playerId: string; gear: Gear }
+  | { type: 'mission_board'; npcId: string; offers: MissionOffer[]; mission: MissionView | null }
   | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean; speed: number; running: boolean }
   | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }
   | { type: 'cast'; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number }
@@ -332,7 +382,7 @@ export type ServerMessage =
   | { type: 'sensei_options'; difficulties: SenseiDifficulty[]; quantities: number[] }
   | { type: 'notice'; text: string; tone: 'info' | 'good' | 'bad' }
   | { type: 'tutorial'; step: number }
-  | { type: 'inventory'; ryo: number; items: Record<string, number>; equipped: string | null }
+  | { type: 'inventory'; ryo: number; items: Record<string, number>; equipped: string | null; equippedScroll: string | null }
   | { type: 'classes'; primary: ClassCode | null; secondary: ClassCode | null }
   | { type: 'jutsus'; jutsus: Record<string, number> }
   | { type: 'jutsu_level'; skill: Skill; level: number }
@@ -341,6 +391,9 @@ export type ServerMessage =
   | { type: 'teleport'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }
   | { type: 'substitution'; playerId: string; logX: number; logY: number; x: number; y: number; a: number }
   | { type: 'error'; code: RealtimeErrorCode; message: string };
+
+/** Por que o jogador trocou de mapa: andou, renasceu ou foi levado pelo tutorial (sala seguinte / Praça). */
+export type MapChangeReason = 'walk' | 'respawn' | 'tutorial';
 
 export interface SenseiDifficulty {
   code: string;
@@ -358,7 +411,6 @@ export const REALTIME_ERRORS = {
   CANNOT_TALK: 'Não dá para conversar agora.',
   MISSIONS_UNAVAILABLE: 'A Sala de Missões não está disponível agora. Tente de novo.',
   NO_POINTS: 'Você não tem pontos de atributo. Suba de nível para ganhar mais.',
-  ATTRIBUTE_MAXED: 'Esse atributo já está no máximo.',
   PROFILE_UNAVAILABLE: 'Não foi possível salvar agora. Tente de novo.',
   PROFILE_BUSY: 'Calma! Ainda salvando os pedidos anteriores.',
   PLAYER_NOT_FOUND: 'Esse jogador não está mais online.',
@@ -371,6 +423,9 @@ export const REALTIME_ERRORS = {
   DIRECTOR_TOO_FAR: 'Fale com o Diretor, na última sala da Academia.',
   ITEM_NOT_OWNED: 'Você não tem esse item.',
   NOT_A_WEAPON: 'Isso não é uma arma.',
+  NOT_A_SCROLL: 'Só pergaminhos vão nas costas.',
+  SENSEI_TOO_FAR: 'Fale com o Mestre, na avenida da Vila, para escolher ou entregar missões.',
+  TUTORIAL_LOCKED: 'Termine esta etapa da Academia primeiro.',
 } as const;
 export type RealtimeErrorCode = keyof typeof REALTIME_ERRORS;
 

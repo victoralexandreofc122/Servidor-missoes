@@ -7,6 +7,8 @@ import { GameWorld, type JoiningPlayer, type Progression, type WorldLogger } fro
 import type { Missions } from './missions.js';
 import type { Profile } from './profile.js';
 import type { NinjaStore } from './ninjaStore.js';
+import type { AdminStore } from './admin.js';
+import type { ChatLog } from './chatLog.js';
 
 /*
  * Endpoint WebSocket: wss://<servidor>/game
@@ -38,6 +40,10 @@ export interface GatewayDeps {
   profile?: Profile;
   /** Progressão v7 (jutsus, tutorial, classes, loja, Extração). */
   store?: NinjaStore;
+  /** v8: histórico do chat (game.chat_logs). Sem isto: em memória. */
+  chatLog?: ChatLog;
+  /** v8: comandos do administrador no banco (auditados). */
+  admin?: AdminStore;
   /** Sorteio dos monstros (testes). */
   random?: () => number;
   log: WorldLogger & { error(obj: object, msg?: string): void };
@@ -86,6 +92,8 @@ export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
     ...(deps.missions ? { missions: deps.missions } : {}),
     ...(deps.profile ? { profile: deps.profile } : {}),
     ...(deps.store ? { store: deps.store } : {}),
+    ...(deps.chatLog ? { chatLog: deps.chatLog } : {}),
+    ...(deps.admin ? { admin: deps.admin } : {}),
   });
   const wss = new WebSocketServer({
     noServer: true,

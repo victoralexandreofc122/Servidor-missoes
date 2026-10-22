@@ -40,6 +40,10 @@
       <button id="chat-toggle" class="icon-btn" type="button" aria-label="Abrir chat" aria-expanded="false" aria-controls="chat">
         <span aria-hidden="true">💬</span>
       </button>
+      <!-- Histórico do chat: últimas 100 mensagens (24 h) do servidor. -->
+      <button id="history-toggle" class="icon-btn" type="button" aria-label="Histórico do chat" aria-expanded="false" aria-controls="history-panel">
+        <span aria-hidden="true">🕘</span>
+      </button>
       <button id="settings-toggle" class="icon-btn" type="button" aria-label="Configurações" aria-expanded="false" aria-controls="settings-panel">
         <span aria-hidden="true">⚙️</span>
       </button>
@@ -57,7 +61,7 @@
 
     <!-- O botão 💬 abre só esta barra de digitação. -->
     <form id="chat" class="chat-bar" hidden autocomplete="off" aria-label="Chat">
-      <input id="chat-input" name="message" maxlength="200" placeholder="Mensagem…" enterkeyhint="send" aria-label="Mensagem do chat">
+      <input id="chat-input" name="message" maxlength="200" placeholder="Mensagem… (/g global · /w Nome sussurro)" enterkeyhint="send" aria-label="Mensagem do chat">
       <button type="submit">Enviar</button>
     </form>
 
@@ -78,6 +82,39 @@
       </div>
       <p id="mission-empty" class="mission-empty">Nenhuma missão ativa. Fale com o <strong>Mestre</strong>, ao lado do ponto de renascimento.</p>
       <p id="mission-last" class="mission-last" hidden></p>
+    </section>
+
+    <!-- Histórico do chat (abre no 🕘): global, sussurros e a fala do mapa atual. Montado com textContent. -->
+    <section id="history-panel" class="mission-panel history-panel" hidden role="dialog" aria-labelledby="history-title">
+      <header class="mission-head">
+        <h2 id="history-title"><span aria-hidden="true">🕘</span> Histórico</h2>
+        <button id="history-close" class="icon-btn small" type="button" aria-label="Fechar o histórico"><span aria-hidden="true">✕</span></button>
+      </header>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab active" role="tab" aria-selected="true" data-filter="all">Tudo</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-filter="local">Local</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-filter="global">Global</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-filter="whisper">Sussurros</button>
+      </div>
+      <ol id="history-list" class="history-list" aria-live="polite"></ol>
+      <p id="history-empty" class="mission-empty">Nenhuma mensagem nas últimas 24 horas.</p>
+      <p class="kits-help">No chat: <strong>/g</strong> texto fala com todos · <strong>/w Nome</strong> texto sussurra.</p>
+    </section>
+
+    <!-- Sala de Missões do Mestre: cartões (título, descrição, recompensa, dificuldade) e o "Entregar". -->
+    <section id="board-panel" class="mission-panel board-panel" hidden role="dialog" aria-labelledby="board-title">
+      <header class="mission-head">
+        <h2 id="board-title"><span aria-hidden="true">📜</span> Sala de Missões · Mestre</h2>
+        <button id="board-close" class="icon-btn small" type="button" aria-label="Fechar a Sala de Missões"><span aria-hidden="true">✕</span></button>
+      </header>
+      <div id="board-current" class="board-current" hidden>
+        <p class="mission-sensei">Missão atual</p>
+        <p id="board-mission-title" class="mission-title"></p>
+        <p id="board-mission-progress" class="mission-status"></p>
+        <button id="board-deliver" type="button" class="deliver-btn" disabled>Entregar</button>
+      </div>
+      <p id="board-hint" class="kits-help"></p>
+      <ul id="board-cards" class="board-cards"></ul>
     </section>
 
     <!-- Loja (abre quando o lojista responde shop_open). Preço e saldo: sempre do servidor. -->
@@ -202,13 +239,14 @@
         <p id="points-line" class="points-line">Pontos disponíveis: 0</p>
         <ul class="attr-list">
           <li data-attr="vitality"><span class="attr-name">❤️ Vitalidade</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Vitalidade">+</button></li>
-          <li data-attr="chakraMax"><span class="attr-name">🔷 Chakra Máximo</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Chakra Máximo">+</button></li>
-          <li data-attr="chakraRegen"><span class="attr-name">🧘 Regen Chakra</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Regen Chakra">+</button></li>
+          <li data-attr="chakra"><span class="attr-name">🔷 Chakra</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Chakra">+</button></li>
           <li data-attr="agility"><span class="attr-name">💨 Agilidade</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Agilidade">+</button></li>
           <li data-attr="taijutsu"><span class="attr-name">👊 Taijutsu</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Taijutsu">+</button></li>
           <li data-attr="ninjutsu"><span class="attr-name">🌀 Ninjutsu</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Ninjutsu">+</button></li>
           <li data-attr="weapons"><span class="attr-name">🗡️ Armas</span><small class="attr-eff"></small><b class="attr-val"></b><button type="button" class="plus" aria-label="+1 Armas">+</button></li>
         </ul>
+        <p class="kits-help">Sem limite por atributo: cada ponto rende um pouco menos que o anterior.</p>
+        <button id="reset-attrs" type="button" class="secondary reset-attrs">↺ Redefinir Atributos (500 ryō)</button>
       </div>
       <!-- Jutsus aprendidos: nível pelo USO (contado só pelo servidor) e quanto falta para o próximo. -->
       <div id="pane-jutsus" class="pane" hidden>

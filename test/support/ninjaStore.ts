@@ -16,6 +16,7 @@ export function fakeNinjaStore(seed: { ryo?: number; items?: Inventory; classes?
     learned: new Set<string>(),
     usage: new Map<string, number>(),
     xp: 0,
+    equippedScroll: null as string | null,
   };
   const store: NinjaStore = {
     async flushUsage(id, uses) {
@@ -48,14 +49,15 @@ export function fakeNinjaStore(seed: { ryo?: number; items?: Inventory; classes?
       const rule = EXTRACTION.find((e) => e.level === level)!;
       const have = state.items[`scroll_${cls}`] ?? 0;
       const pool = JUTSUS.filter((j) => j.class === cls && j.tier === level && !state.learned.has(j.code));
-      if (pool.length === 0) return { ok: true, outcome: 'all_learned', jutsu: null, consumed: 0, scrollsLeft: have, items: { ...state.items } };
-      if (have < rule.scrolls) return { ok: true, outcome: 'no_scrolls', jutsu: null, consumed: 0, scrollsLeft: have, items: { ...state.items } };
+      const back = () => (state.equippedScroll && state.items[state.equippedScroll] ? state.equippedScroll : (state.equippedScroll = null));
+      if (pool.length === 0) return { ok: true, outcome: 'all_learned', jutsu: null, consumed: 0, scrollsLeft: have, items: { ...state.items }, equippedScroll: back() };
+      if (have < rule.scrolls) return { ok: true, outcome: 'no_scrolls', jutsu: null, consumed: 0, scrollsLeft: have, items: { ...state.items }, equippedScroll: back() };
       state.items[`scroll_${cls}`] = have - rule.scrolls;
       if (state.items[`scroll_${cls}`] === 0) delete state.items[`scroll_${cls}`];
-      if (roll >= rule.chance) return { ok: true, outcome: 'failed', jutsu: null, consumed: rule.scrolls, scrollsLeft: have - rule.scrolls, items: { ...state.items } };
+      if (roll >= rule.chance) return { ok: true, outcome: 'failed', jutsu: null, consumed: rule.scrolls, scrollsLeft: have - rule.scrolls, items: { ...state.items }, equippedScroll: back() };
       const code = pool[Math.floor(pick * pool.length)]!.code;
       state.learned.add(code);
-      return { ok: true, outcome: 'success', jutsu: code, consumed: rule.scrolls, scrollsLeft: have - rule.scrolls, items: { ...state.items } };
+      return { ok: true, outcome: 'success', jutsu: code, consumed: rule.scrolls, scrollsLeft: have - rule.scrolls, items: { ...state.items }, equippedScroll: back() };
     },
     async buy(id, item, qty) {
       calls.push(['buy', id, item, qty]);
@@ -66,9 +68,10 @@ export function fakeNinjaStore(seed: { ryo?: number; items?: Inventory; classes?
       state.items[item] = (state.items[item] ?? 0) + qty;
       return { ok: true, ryo: state.ryo, items: { ...state.items } };
     },
-    async equip(id, item) {
-      calls.push(['equip', id, item]);
+    async equip(id, item, slot = 'weapon') {
+      calls.push(['equip', id, item, slot]);
       if (item && !state.items[item]) return { ok: false, text: 'Só dá para equipar uma arma do seu inventário.' };
+      if (slot === 'scroll') state.equippedScroll = item;
       return { ok: true, equipped: item };
     },
     async applyHokage(id) {

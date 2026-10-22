@@ -52,6 +52,15 @@ export const CONSTRAINT_ERRORS: Readonly<Record<string, PublicError>> = {
   rule_chunin_exam: { status: 422, code: 'CHUNIN_EXAM_LEVEL', message: 'O Exame Chunin é para Genin de nível 40.' },
   rule_level_from_xp: { status: 409, code: 'RECORD_LOCKED', message: 'Esse registro não pode ser alterado.' },
 
+  // v8: redefinir atributos, pergaminho nas costas e Modo Administrador
+  rule_nothing_to_reset: { status: 409, code: 'NOTHING_TO_RESET', message: 'Você ainda não investiu nenhum ponto.' },
+  rule_reset_cost: { status: 422, code: 'INVALID_INPUT', message: 'Custo inválido.' },
+  rule_equip_scroll_owned: { status: 409, code: 'ITEM_NOT_OWNED', message: 'Só dá para levar nas costas um pergaminho do seu inventário.' },
+  rule_admin_only: { status: 403, code: 'ADMIN_ONLY', message: 'Comando restrito ao administrador.' },
+  rule_admin_level: { status: 422, code: 'INVALID_INPUT', message: 'O nível vai de 1 a 60.' },
+  rule_admin_jutsu_level: { status: 422, code: 'INVALID_INPUT', message: 'O nível do jutsu vai de 1 a 4.' },
+  rule_admin_quantity: { status: 422, code: 'INVALID_INPUT', message: 'A quantidade vai de 1 a 999.' },
+
   // gerais
   rule_append_only: { status: 409, code: 'RECORD_LOCKED', message: 'Esse registro não pode ser alterado.' },
   ux_players_username: { status: 409, code: 'USERNAME_TAKEN', message: 'Esse nome já está em uso.' },

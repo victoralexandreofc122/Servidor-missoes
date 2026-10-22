@@ -181,7 +181,7 @@ describe('WebSocket /game (ws real + cliente nativo)', { skip: unavailable }, ()
     ca.send({ type: 'cast', skill: 'fire' });                      // aceito, sem resposta
 
     cb.send({ type: 'chat', message: 'Olá!' });
-    const expected = { type: 'chat', playerId: b.id, username: 'mei_b', message: 'Olá!' };
+    const expected = { type: 'chat', playerId: b.id, username: 'mei_b', message: 'Olá!', channel: 'local' };
     assert.deepEqual(await ca.waitFor('chat'), expected);
     assert.deepEqual(await cb.waitFor('chat'), expected);
 

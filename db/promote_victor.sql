@@ -12,6 +12,7 @@
 --     com permissão de sensei. Rank novo é só um INSERT (sem ALTER, sem código).
 --  2. Promove o jogador "Victor" (sem diferenciar maiúsculas). A troca de rank fica
 --     registrada no histórico (player_rank_changes) pelo trigger do schema.
+--  3. Com a migração v8 aplicada, liga o Modo Administrador (is_admin) da mesma conta.
 --
 -- Efeito colateral esperado: o NPC Mestre fica ABAIXO do Hokage, então ele não passa
 -- treino para essa conta ("Seu rank já passou dos meus treinos"). Para as outras, nada muda.
@@ -35,6 +36,16 @@ BEGIN
     RAISE NOTICE 'Nenhuma conta com o nome "Victor". Crie a conta no jogo e rode este script de novo.';
   ELSE
     RAISE NOTICE 'Conta Victor agora é Hokage. Saia e entre de novo no jogo.';
+  END IF;
+END
+$$;
+
+-- 3. Modo Administrador (migração v8): comandos /admin no chat, todos auditados.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'game' AND table_name = 'players' AND column_name = 'is_admin') THEN
+    UPDATE game.players SET is_admin = true WHERE lower(username) = 'victor';
   END IF;
 END
 $$;

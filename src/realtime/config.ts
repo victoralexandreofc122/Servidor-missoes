@@ -4,7 +4,7 @@
  */
 import { buildSkills, type JutsuCode, type Mechanic } from './jutsus.js';
 import type { AttributeRules } from './stats.js';
-import { ACADEMY, ROOM, SHOPS, WORLD_MAPS, type MapId, type MapLayout, type ShopKind } from './maps.js';
+import { ACADEMY, ROOM, SHOPS, VILLAGE_PLAZA, WORLD_MAPS, type MapId, type MapLayout, type ShopKind } from './maps.js';
 
 /** Números de cada habilidade. Só os campos que a habilidade usa vêm preenchidos. */
 export interface SkillConfig {
@@ -50,7 +50,7 @@ export interface CombatConfig {
   };
   /** Ataque básico: não gasta chakra. Acerta o alvo focado (se no alcance) ou o mais perto. */
   basicAttack: { damage: number; range: number; cooldownMs: number };
-  /** Quanto cada ponto de atributo vale e o máximo por atributo. */
+  /** Quanto cada ponto de atributo vale (com rendimento decrescente) e o custo de redefinir. */
   attributes: AttributeRules;
   monsters: {
     count: number; type: string; maxHp: number; xp: number; stepMs: number;
@@ -77,6 +77,7 @@ export interface RealtimeConfig {
   /** Onde se entra e se renasce: mapa e posição. */
   startMap: MapId;
   spawn: { x: number; y: number };
+  tutorialEnd: { x: number; y: number };
   /** Andando (sem atributo). */
   speedTilesPerSecond: number;
   /** Correndo (botão 🏃 ligado). */
@@ -125,6 +126,8 @@ export const REALTIME: Readonly<RealtimeConfig> = {
   /** Avenida da Vila, em frente à sede: onde o jogador aparece ao conectar e renasce (a posição ainda não é salva). */
   startMap: 'map_1',
   spawn: { x: 40, y: 34 },
+  /** Fim do tutorial da Academia: a Praça da Vila (zona segura), já no mundo aberto. */
+  tutorialEnd: { ...VILLAGE_PLAZA },
 
   /**
    * Movimento autoritativo: o cliente manda só a DIREÇÃO (joystick, de -1 a 1) e o servidor
@@ -166,14 +169,20 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 1, chakraRegenPerSec: 5, respawnMs: 5000, meditationRegenMultiplier: 3 },
     basicAttack: { damage: 12, range: 1.6, cooldownMs: 600 },
     attributes: {
-      maxPoints: 10,
-      // vitalidade +10 vida · chakra máximo +10 · regen +1/s meditando · agilidade +0,5 velocidade
+      // Sem teto de pontos (v8): o ponto investido com n pontos já no atributo vale base / (1 + n x 0,05).
+      // Vitalidade: 1º ponto +10 de vida, 10º +6,9, 50º +2,9 (59 pontos = +279, e não +590).
+      softCap: 0.05,
+      // vitalidade +10 vida · chakra +10 de chakra máximo (e +1/s meditando, abaixo) · agilidade +0,5 velocidade
       // taijutsu +5% no corpo a corpo (Ataque Básico e o soco 👊) · ninjutsu +5% nos jutsus elementais
       // armas +5% no dano da arma equipada (Kunai: +10 de base) e nos jutsus da classe Armas
-      perPoint: { vitality: 10, chakraMax: 10, chakraRegen: 1, agility: 0.5, taijutsu: 0.05, ninjutsu: 0.05, weapons: 0.05 },
-      // Agilidade também acelera o Ataque Básico: -4% de recarga por ponto (10 pontos: 600 -> 360 ms).
+      perPoint: { vitality: 10, chakra: 10, agility: 0.5, taijutsu: 0.05, ninjutsu: 0.05, weapons: 0.05 },
+      chakraRegenPerPoint: 1,
+      // Agilidade também acelera o Ataque Básico: -4% de recarga por ponto efetivo (até 60% da base).
       agilityAttackSpeed: 0.04,
       minAttackCooldownFactor: 0.6,
+      // Velocidade: no máximo +5 casas/s (o mesmo dos 10 pontos de antes, com o soft cap ~12 pontos).
+      maxSpeedBonus: 5,
+      resetCostRyo: 500,
     },
     monsters: {
       // 10 slimes na Floresta; a Vila é área segura (nenhum monstro).
@@ -184,7 +193,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     monsterTypes: {
       // Sala 1: destruir 3 com o Ataque Básico (2 golpes cada). Não batem.
       dummy: { maxHp: 24, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 2500 },
-      // Sala 3: boneco que BATE (fraco): para treinar a Substituição. Bastante vida.
+      // Sala de Jutsus: ARMADILHA de lâminas que bate (fraco) em quem chega perto: treina a Substituição.
       sparring: { maxHp: 400, xp: 0, attackRange: 1.6, attackDamage: 6, attackEveryMs: 1800, stationary: true, respawnMs: 2500 },
     },
     rankLevels: { genin: 11, chunin: 40, hokage: 60 },
@@ -204,11 +213,13 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     // Lojistas: cada um atrás do balcão da sua loja (só existem dentro do interior). Alcance 3,3
     // casas: dá para falar com ele da frente do balcão, sem passar para trás.
     ...SHOPS.map((sh) => ({ id: `shop_${sh.shop}`, name: sh.keeper, map: sh.map, x: ROOM.npc.x, y: ROOM.npc.y, range: 3.3, shop: sh.shop })),
-    // Academia: um instrutor em cada sala de treino (dica do passo) e o Diretor na sala 4
-    // (Missão de Genin, classe Secundária e candidatura a Hokage).
-    { id: 'tutor_dummies', name: 'Instrutora Aya', map: 'academy_interior', x: 13, y: 4, range: 2.5 },
-    { id: 'tutor_meditation', name: 'Monge Daichi', map: 'academy_interior', x: 29.5, y: 4, range: 2.5 },
-    { id: 'tutor_jutsu', name: 'Instrutor Kenji', map: 'academy_interior', x: 45.5, y: 4, range: 2.5 },
+    // Academia (v8): um Professor em cada etapa (dica do passo) e o Diretor na sala 4
+    // (Missão de Genin, classe Secundária e candidatura a Hokage). O da Sala de Jutsus fica ao
+    // SUL do vão, perto de onde se nasce; o da Sala de Armas, longe do canto seguro do Diretor.
+    { id: 'tutor_dummies', name: 'Professora Aya', map: 'academy_interior', x: 13, y: 4, range: 2.5 },
+    { id: 'tutor_meditation', name: 'Professor Daichi', map: 'academy_interior', x: 29.5, y: 4, range: 2.5 },
+    { id: 'tutor_jutsu', name: 'Professor Kenji', map: 'academy_interior', x: 44.5, y: 12, range: 2.5 },
+    { id: 'tutor_weapons', name: 'Professora Mei', map: 'academy_interior', x: 61, y: 10, range: 2.5 },
     { id: 'director', name: 'Diretor da Academia', map: 'academy_interior', x: ACADEMY.director.x, y: ACADEMY.director.y, range: 3 },
   ],
   missionRequestEveryMs: 400,

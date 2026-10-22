@@ -35,6 +35,8 @@ export interface ExtractResult {
   jutsu: string | null;
   consumed: number;
   scrollsLeft: number;
+  /** Pergaminho nas costas depois da Extração (gastou o último: sai das costas). */
+  equippedScroll: string | null;
 }
 
 export interface NinjaStore {
@@ -47,7 +49,8 @@ export interface NinjaStore {
   /** roll e pick: sorteios do SERVIDOR, de 0 a 1. */
   extract(playerId: string, cls: ClassCode, level: number, roll: number, pick: number): Promise<StoreResult<ExtractResult & { items: Inventory }>>;
   buy(playerId: string, item: string, qty: number): Promise<StoreResult<{ ryo: number; items: Inventory }>>;
-  equip(playerId: string, item: string | null): Promise<StoreResult<{ equipped: string | null }>>;
+  /** Arma (slot weapon) ou pergaminho nas costas (slot scroll). O banco confere que o jogador tem o item. */
+  equip(playerId: string, item: string | null, slot?: 'weapon' | 'scroll'): Promise<StoreResult<{ equipped: string | null }>>;
   applyHokage(playerId: string): Promise<StoreResult<{ already: boolean }>>;
   /** Item ganho em combate (pergaminho que caiu do monstro). */
   addItem(playerId: string, item: string, qty: number): Promise<Inventory>;
@@ -71,7 +74,15 @@ export const NINJA_SQL = {
   rank: `SELECT r.code, r.name, r.can_be_sensei FROM game.players p JOIN game.ranks r ON r.id = p.current_rank_id WHERE p.id = $1`,
   extract: `SELECT outcome, jutsu_code, consumed, scrolls_left FROM game.extract_jutsu($1, $2, $3, $4, $5)`,
   buy: `SELECT game.buy_item($1, $2, $3) AS ryo`,
-  equip: `UPDATE game.players SET equipped_weapon = $2 WHERE id = $1 RETURNING equipped_weapon`,
+  equip: `UPDATE game.players SET equipped_weapon = $2 WHERE id = $1 RETURNING equipped_weapon AS equipped`,
+  equipScroll: `UPDATE game.players SET equipped_scroll = $2 WHERE id = $1 RETURNING equipped_scroll AS equipped`,
+  /** Gastou o último pergaminho que levava nas costas: ele sai das costas. Devolve o que ficou. */
+  dropSpentScroll: `
+    UPDATE game.players p
+       SET equipped_scroll = CASE WHEN EXISTS (SELECT 1 FROM game.player_items i WHERE i.player_id = p.id AND i.item_code = p.equipped_scroll)
+                                  THEN p.equipped_scroll END
+     WHERE p.id = $1
+    RETURNING p.equipped_scroll`,
   hokage: `INSERT INTO game.hokage_candidates (player_id) VALUES ($1) ON CONFLICT (player_id) DO NOTHING RETURNING player_id`,
   addItem: `
     INSERT INTO game.player_items (player_id, item_code, quantity) VALUES ($1, $2, $3)
@@ -148,9 +159,10 @@ export function makeNinjaStore(db: Db): NinjaStore {
         return await withTransaction(db, async (tx) => {
           const r = (await tx.query<{ outcome: ExtractResult['outcome']; jutsu_code: string | null; consumed: number; scrolls_left: number }>(
             NINJA_SQL.extract, [playerId, cls, level, roll, pick])).rows[0]!;
+          const back = (await tx.query<{ equipped_scroll: string | null }>(NINJA_SQL.dropSpentScroll, [playerId])).rows[0];
           return {
             ok: true as const, outcome: r.outcome, jutsu: r.jutsu_code, consumed: r.consumed, scrollsLeft: r.scrolls_left,
-            items: await inventoryOf(tx, playerId),
+            items: await inventoryOf(tx, playerId), equippedScroll: back?.equipped_scroll ?? null,
           };
         });
       } catch (err) {
@@ -169,11 +181,11 @@ export function makeNinjaStore(db: Db): NinjaStore {
       }
     },
 
-    async equip(playerId, item) {
+    async equip(playerId, item, slot = 'weapon') {
       try {
-        const row = (await db.query<{ equipped_weapon: string | null }>(NINJA_SQL.equip, [playerId, item])).rows[0];
+        const row = (await db.query<{ equipped: string | null }>(slot === 'scroll' ? NINJA_SQL.equipScroll : NINJA_SQL.equip, [playerId, item])).rows[0];
         if (!row) return { ok: false, text: 'Jogador não encontrado.' };
-        return { ok: true, equipped: row.equipped_weapon };
+        return { ok: true, equipped: row.equipped };
       } catch (err) {
         return refuse(err);
       }

@@ -18,7 +18,7 @@ describe('v5 no banco: nível, pontos e kits (PostgreSQL real)', { skip: noDatab
 
   it('XP sobe o nível pelo trigger (+1 ponto por nível) e os pontos gastos ficam no banco', async () => {
     const id = await t.createPlayer('kaito');
-    const profile = makeProfile(t.db, 10);
+    const profile = makeProfile(t.db);
     assert.deepEqual(await profile.spendPoint(id, 'vitality'), { ok: false, reason: 'NO_POINTS' });
     const r = await makeProgression(t.db).grantXp(id, 350);      // curva v7: nível 3 aos 350
     assert.deepEqual([r!.level, r!.statPoints, r!.levelsGained], [3, 2, 2]);
@@ -30,13 +30,15 @@ describe('v5 no banco: nível, pontos e kits (PostgreSQL real)', { skip: noDatab
       { level: 3, stat_points: 0, attr_ninjutsu: 1, attr_taijutsu: 1 });
   });
 
-  it('atributo no máximo (10): MAXED; dois toques com 1 ponto só gastam 1', async () => {
+  it('sem teto (v8): 10 pontos e o 11º no mesmo atributo; dois toques com 1 ponto só gastam 1', async () => {
     const id = await t.createPlayer('mei');
-    const profile = makeProfile(t.db, 10);
+    const profile = makeProfile(t.db);
     await makeProgression(t.db).grantXp(id, 17_600);    // nível 12 (curva v7): 11 pontos
     for (let i = 0; i < 10; i++) assert.equal((await profile.spendPoint(id, 'agility')).ok, true);
-    assert.deepEqual(await profile.spendPoint(id, 'agility'), { ok: false, reason: 'MAXED' });
-    const both = await Promise.all([profile.spendPoint(id, 'vitality'), profile.spendPoint(id, 'chakraMax')]);
+    const eleventh = await profile.spendPoint(id, 'agility');
+    assert.ok(eleventh.ok && eleventh.attributes.agility === 11 && eleventh.statPoints === 0, 'o teto de 10 pontos não existe mais');
+    await t.pool.query(`UPDATE game.players SET stat_points = stat_points + 1, attr_agility = attr_agility - 1 WHERE id = $1`, [id]);
+    const both = await Promise.all([profile.spendPoint(id, 'vitality'), profile.spendPoint(id, 'chakra')]);
     assert.equal(both.filter((b) => b.ok).length, 1, 'o último ponto só sai uma vez');
   });
 
@@ -44,7 +46,7 @@ describe('v5 no banco: nível, pontos e kits (PostgreSQL real)', { skip: noDatab
     const id = await t.createPlayer('rin');
     await assert.rejects(t.pool.query('UPDATE game.players SET stat_points = 5 WHERE id = $1', [id]), (e: { constraint?: string }) => e.constraint === 'ck_players_stat_points');
     await assert.rejects(t.pool.query('UPDATE game.players SET level = 9 WHERE id = $1', [id]), (e: { constraint?: string }) => e.constraint === 'rule_level_from_xp');
-    const profile = makeProfile(t.db, 10);
+    const profile = makeProfile(t.db);
     await assert.rejects(profile.saveLoadout(id, ['fire', 'fire'], []), (e: { constraint?: string }) => e.constraint === 'ck_players_kits');
     await assert.rejects(profile.saveLoadout(id, ['fire', 'water', 'heal', 'stone', 'shadow'], []), (e: { constraint?: string }) => e.constraint === 'ck_players_kits');
     await profile.saveLoadout(id, ['shadow', 'fire'], ['heal']);

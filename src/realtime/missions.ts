@@ -2,7 +2,7 @@ import { withTransaction, type Db, type Queryable } from '../db.js';
 import { CONSTRAINT_ERRORS } from '../errors/errorTranslator.js';
 import { SQL } from '../missions/sql.js';
 import type { XpResult } from './gameWorld.js';
-import type { MissionView, SenseiDifficulty } from './protocol.js';
+import type { MissionOffer, MissionView, SenseiDifficulty } from './protocol.js';
 import { GRANT_XP_SQL, grantResult, type GrantRow } from './progression.js';
 
 /*
@@ -34,6 +34,28 @@ export const NPC_MISSION = {
   targetQuantity: 5,
   feedback: 'Treino concluído com honra.',
 } as const;
+
+/**
+ * Cartões da Sala de Missões (v8): o que o Mestre oferece. Título, descrição, alvo e quantidade
+ * são daqui; XP e título da recompensa vêm do catálogo do BANCO (game.mission_difficulties), o
+ * mesmo que o trigger congela na missão. Dificuldade fora do catálogo (migração v8 não aplicada)
+ * simplesmente não aparece.
+ */
+export const NPC_OFFERS: readonly Omit<MissionOffer, 'reward'>[] = [
+  {
+    code: 'NPC_EASY', title: 'Limpar a Trilha', difficulty: 'Fácil', target: { code: 'slime', quantity: 3 },
+    description: 'Slimes estão bloqueando a trilha que sai do portão sul. Afaste 3 deles da Floresta.',
+  },
+  {
+    code: NPC_MISSION.difficulty, title: 'Treino do Mestre', difficulty: 'Normal', target: { code: 'slime', quantity: NPC_MISSION.targetQuantity },
+    description: `O treino clássico da Vila: derrote ${NPC_MISSION.targetQuantity} slimes na Floresta e volte para entregar o pergaminho.`,
+  },
+  {
+    code: 'NPC_HARD', title: 'Caçada na Mata Fechada', difficulty: 'Difícil', target: { code: 'slime', quantity: 10 },
+    description: 'Os slimes do fundo da Floresta estão agitados. Derrote 10 deles e prove que está pronto para mais.',
+  },
+];
+export const NPC_OFFER_CODES: readonly string[] = NPC_OFFERS.map((o) => o.code);
 
 const MISSION_COLUMNS = `
   m.id, m.status, m.sensei_id, s.username AS sensei_name, t.code AS type_code, t.name AS type_name,
@@ -110,13 +132,20 @@ export const MISSIONS_SQL = {
       JOIN game.ranks r ON r.id = p.current_rank_id
      WHERE m.id = $1`,
 
-  /** Dificuldades que um sensei jogador pode escolher (o Treino do Mestre é só do NPC). */
+  /** Dificuldades que um sensei jogador pode escolher (os treinos do Mestre são só do NPC). */
   senseiOptions: `
     SELECT d.code, d.name, d.xp_reward, t.name AS title_name
       FROM game.mission_difficulties d
       LEFT JOIN game.titles t ON t.id = d.title_id
-     WHERE d.is_active AND d.code <> $1
+     WHERE d.is_active AND NOT (d.code = ANY($1::text[]))
      ORDER BY d.tier`,
+
+  /** Recompensa de cada cartão do Mestre (catálogo do banco). */
+  board: `
+    SELECT d.code, d.xp_reward, t.name AS title_name
+      FROM game.mission_difficulties d
+      LEFT JOIN game.titles t ON t.id = d.title_id
+     WHERE d.is_active AND d.code = ANY($1::text[])`,
 
   /** Volta ao NPC: trava a missão em aberto do aprendiz até o fim da transação. */
   lockOpen: `
@@ -197,6 +226,8 @@ export type TalkOutcome =
   | ({ kind: 'rewarded'; rewards: MissionReward[]; mission: MissionView | null } & XpResult)
   /** Rank do jogador não está abaixo do Mestre (regra rule_trainee_rank). */
   | { kind: 'rank_too_high' }
+  /** Botão "Entregar" sem missão nem pergaminho: nada a fazer (a escolha é pelos cartões). */
+  | { kind: 'none' }
   /** Migração v4 não aplicada (sem NPC ou sem catálogo). */
   | { kind: 'unavailable' };
 
@@ -223,8 +254,14 @@ export interface PendingEvaluation {
 /** O que o GameWorld usa. Implementação com banco: makeMissions. */
 export interface Missions {
   current(playerId: string): Promise<MissionView | null>;
-  /** Conversa com o NPC Mestre (atribuir, ver progresso, concluir e entregar). */
-  talk(playerId: string): Promise<TalkOutcome>;
+  /**
+   * Sala de Missões com o NPC Mestre: entrega (missão do Mestre completa e pergaminhos aprovados),
+   * mostra o progresso e, sem missão, cria a do cartão `offer` (código da dificuldade).
+   * `offer` null = só entregar (botão "Entregar"): sem missão, devolve `none`.
+   */
+  talk(playerId: string, offer?: string | null): Promise<TalkOutcome>;
+  /** Cartões do Mestre com a recompensa do catálogo do banco. */
+  board(): Promise<MissionOffer[]>;
   /** Abate de monstro. Devolve a missão atualizada, ou null se nenhuma missão contou o abate. */
   recordKill(playerId: string, monsterType: string): Promise<MissionView | null>;
   /** Sensei jogador cria a missão (o banco confere rank do sensei e do aprendiz). */
@@ -266,7 +303,9 @@ export function makeMissions(db: Db): Missions {
   let optionsCache: { at: number; list: SenseiDifficulty[] } | undefined;
   const byId = async (q: Queryable, id: string) => missionView((await q.query<MissionRow>(MISSIONS_SQL.byId, [id])).rows[0]!);
 
-  async function talkOnce(playerId: string): Promise<TalkOutcome> {
+  let boardCache: { at: number; list: MissionOffer[] } | undefined;
+
+  async function talkOnce(playerId: string, offerCode: string | null): Promise<TalkOutcome> {
     return withTransaction(db, async (tx) => {
       const open = (await tx.query<{ id: string; sensei_id: string; status: string; progress_quantity: number; target_quantity: number }>(
         MISSIONS_SQL.lockOpen, [playerId])).rows[0];
@@ -313,11 +352,13 @@ export function makeMissions(db: Db): Missions {
         return { kind: stillOpen.sensei_id === NPC_SENSEI_ID ? 'in_progress' : 'other_sensei', mission: await byId(tx, stillOpen.id) };
       }
 
-      // 3. Sem missão: o Mestre cria uma (mesmo INSERT do POST /missions, com ele de sensei).
+      // 3. Sem missão: o Mestre cria a do cartão escolhido (mesmo INSERT do POST /missions, com ele de sensei).
+      const offer = offerCode === null ? undefined : NPC_OFFERS.find((o) => o.code === offerCode);
+      if (!offer) return { kind: 'none' };
       try {
         const created = (await tx.query<{ id: string }>(SQL.createMission, [
-          NPC_SENSEI_ID, playerId, NPC_MISSION.missionType, NPC_MISSION.difficulty,
-          NPC_MISSION.targetCode, NPC_MISSION.targetQuantity, null,
+          NPC_SENSEI_ID, playerId, NPC_MISSION.missionType, offer.code,
+          offer.target.code, offer.target.quantity, null,
         ])).rows[0]!;
         return { kind: 'assigned', mission: await byId(tx, created.id) };
       } catch (err) {
@@ -336,10 +377,10 @@ export function makeMissions(db: Db): Missions {
       return row ? missionView(row) : null;
     },
 
-    async talk(playerId) {
+    async talk(playerId, offer = NPC_MISSION.difficulty) {
       for (let attempt = 0; ; attempt++) {
         try {
-          return await talkOnce(playerId);
+          return await talkOnce(playerId, offer);
         } catch (err) {
           if (err instanceof Outcome) return err.outcome;
           // Dois toques ao mesmo tempo (ex.: duas abas) criaram a missão juntos: o índice
@@ -407,10 +448,22 @@ export function makeMissions(db: Db): Missions {
     async senseiOptions() {
       if (!optionsCache || Date.now() - optionsCache.at > 5 * 60_000) {
         const { rows } = await db.query<{ code: string; name: string; xp_reward: number; title_name: string | null }>(
-          MISSIONS_SQL.senseiOptions, [NPC_MISSION.difficulty]);
+          MISSIONS_SQL.senseiOptions, [NPC_OFFER_CODES]);
         optionsCache = { at: Date.now(), list: rows.map((r) => ({ code: r.code, name: r.name, xp: r.xp_reward, title: r.title_name })) };
       }
       return optionsCache.list.map((d) => ({ ...d }));
+    },
+
+    async board() {
+      if (!boardCache || Date.now() - boardCache.at > 5 * 60_000) {
+        const { rows } = await db.query<{ code: string; xp_reward: number; title_name: string | null }>(MISSIONS_SQL.board, [NPC_OFFER_CODES]);
+        const reward = new Map(rows.map((r) => [r.code, { xp: r.xp_reward, title: r.title_name }]));
+        boardCache = {
+          at: Date.now(),
+          list: NPC_OFFERS.filter((o) => reward.has(o.code)).map((o) => ({ ...o, target: { ...o.target }, reward: reward.get(o.code)! })),
+        };
+      }
+      return boardCache.list.map((o) => ({ ...o, target: { ...o.target }, reward: { ...o.reward } }));
     },
   };
 }

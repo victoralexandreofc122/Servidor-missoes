@@ -8,6 +8,11 @@ export function describeBootError(err: unknown): string {
   const code = typeof e.code === 'string' ? e.code : '';
   const message = typeof e.message === 'string' ? e.message : String(err);
 
+  // v8 primeiro: "attr_chakra" também casaria com a regra da v5 (attr_), e chat_logs com a do schema.
+  if ((code === '42703' && /attr_chakra|is_admin|equipped_scroll/.test(message)) || (code === '42P01' && /chat_logs/.test(message))) {
+    return 'Falta a migração v8 (admin, chat e atributo Chakra) neste banco. Abra o SQL Editor do Neon, rode o arquivo '
+      + 'db/schema_v8_admin_chat.sql inteiro e depois faça "Manual Deploy" no Render.';
+  }
   if (code === '3F000' || code === '42P01') {
     return 'O schema do jogo não existe neste banco. Abra o SQL Editor do Neon, rode o arquivo '
       + 'db/schema_ranks_missoes_sensei.sql inteiro e depois faça "Manual Deploy" no Render.';

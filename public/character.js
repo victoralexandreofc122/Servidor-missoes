@@ -2,6 +2,12 @@
 // pernas e capa, cada parte com a sua cor. Leve de propósito: só retângulos e 1 círculo,
 // sem gradiente nem sombra (dá para dezenas de jogadores na tela a 60 quadros/s).
 // Sem DOM: o jogo desenha no canvas e os testes contam as operações num contexto falso.
+//
+// Equipamento (v8, o SERVIDOR diz o quê: gear = { hand, back, scroll }):
+//  - mão: kunais e espadas curtas, na mão da frente (o servidor só manda se a outra mão estiver livre);
+//  - costas: espadas longas, a Shuriken Gigante e o pergaminho de jutsu, ATRÁS do tronco e À FRENTE
+//    da capa. De frente e de lado, a capa vem antes, o item das costas depois e o tronco por cima
+//    (aparece o cabo sobre o ombro); de costas, o item vai por cima da capa.
 
 /** Visual padrão (o mesmo do servidor) e paletas prontas do Criador. */
 export const DEFAULT_LOOK = { skin: '#f1c9a0', hair: '#2b2118', shirt: '#2f5d8a', pants: '#2a2a33', cape: '#8a2b2b' };
@@ -42,12 +48,64 @@ export function safeLook(look) {
   return out;
 }
 
+/** Como cada item aparece no boneco (cor da lâmina, do cabo e o tamanho). Item desconhecido: nada. */
+export const GEAR_LOOK = {
+  kunai_training: { kind: 'blade', blade: '#9aa3ad', grip: '#6b4423', len: 3.2 },
+  kunai: { kind: 'blade', blade: '#c9d1d9', grip: '#2b2118', len: 3.4 },
+  tanto: { kind: 'blade', blade: '#dfe6ee', grip: '#7a2e1e', len: 4.6 },
+  katana: { kind: 'long', blade: '#e6edf3', grip: '#1f1b2e', len: 11 },
+  fuma_shuriken: { kind: 'star', blade: '#8a96a3', grip: '#3b3b44', len: 6 },
+  scroll: { kind: 'scroll', blade: '#efe3c2', grip: '#8a2b2b', len: 7 },
+};
+const gearLook = (code) => (code && (GEAR_LOOK[code] || (code.startsWith('scroll_') ? GEAR_LOOK.scroll : undefined))) || undefined;
+
+/**
+ * Item nas costas (espada longa na diagonal, Shuriken Gigante, pergaminho atravessado). Um pouco
+ * maior que o tronco: de frente, o cabo e a guarda aparecem sobre o ombro e a ponta no quadril.
+ */
+function drawBackItem(R, x, torsoY, u, dir, code) {
+  const gl = gearLook(code);
+  if (!gl) return;
+  if (gl.kind === 'long') {
+    // Cabo sobre um ombro, ponta no quadril do outro lado (de lado: tudo atrás das costas).
+    const s = dir === 0 ? -1 : 1;
+    const back = dir === 1 ? 1 : -1;
+    const side = dir === 1 || dir === 2;
+    const x0 = side ? x + back * 3.4 * u : x + s * 3.6 * u, y0 = torsoY - 3.8 * u;
+    const x1 = side ? x + back * 2.6 * u : x - s * 4.8 * u, y1 = torsoY + 7.2 * u;
+    for (let i = 0; i <= 4; i++) {
+      const t = i / 4;
+      R(x0 + (x1 - x0) * t - 0.65 * u, y0 + 2.6 * u + (y1 - y0 - 2.6 * u) * t, 1.3 * u, 2.4 * u, gl.blade);
+    }
+    R(x0 - 0.8 * u, y0, 1.6 * u, 2.4 * u, gl.grip);                 // cabo
+    R(x0 - 1.4 * u, y0 + 2.2 * u, 2.8 * u, 0.8 * u, '#c9a227');      // guarda (tsuba)
+  } else if (gl.kind === 'star') {
+    R(x - 6 * u, torsoY + 0.8 * u, 12 * u, 1.6 * u, gl.blade);       // grande: as pontas passam dos braços
+    R(x - 0.8 * u, torsoY - 4.6 * u, 1.6 * u, 11 * u, gl.blade);
+    R(x - 1.2 * u, torsoY + 0.4 * u, 2.4 * u, 2.4 * u, gl.grip);
+  } else if (gl.kind === 'scroll') {
+    R(x - 4.6 * u, torsoY + 3.4 * u, 9.2 * u, 1.5 * u, gl.blade);
+    R(x - 5.1 * u, torsoY + 3.1 * u, 1.1 * u, 2.1 * u, gl.grip);
+    R(x + 4 * u, torsoY + 3.1 * u, 1.1 * u, 2.1 * u, gl.grip);
+  }
+}
+
+/** Arma na mão da frente: lâmina curta saindo da mão, para baixo e um pouco para fora. */
+function drawHandItem(R, handX, handY, u, dir, code) {
+  const gl = gearLook(code);
+  if (!gl || gl.kind !== 'blade') return;
+  const out = dir === 1 ? -1 : 1;
+  R(handX + (out > 0 ? 1.6 * u : -0.6 * u), handY + 0.2 * u, u, 1.2 * u, gl.grip);
+  R(handX + (out > 0 ? 1.8 * u : -0.4 * u), handY + 1.2 * u, 0.8 * u, gl.len * u, gl.blade);
+}
+
 /**
  * Desenha o boneco com os pés em (sx, sy + 0,42·T). T = tamanho da casa em pixels.
  * dir: 0 baixo, 1 esquerda, 2 direita, 3 cima. phase: fase da caminhada (radianos);
  * moving: anda (pernas e braços balançam, corpo sobe e desce) ou parado.
+ * gear (opcional): { hand, back, scroll } do servidor.
  */
-export function drawCharacter(g, sx, sy, T, look, dir, phase, moving) {
+export function drawCharacter(g, sx, sy, T, look, dir, phase, moving, gear) {
   const u = T / 16;                                   // 1 "pixel" do boneco
   const swing = moving ? Math.sin(phase) : 0;
   const bob = moving ? Math.abs(Math.cos(phase)) * u * 0.8 : 0;
@@ -68,6 +126,11 @@ export function drawCharacter(g, sx, sy, T, look, dir, phase, moving) {
     const cx = side ? x - face * 2.5 * u : x;
     const flutter = moving ? Math.sin(phase * 0.5) * u * 0.8 : 0;
     R(cx - (side ? 2 : 4.5) * u, torsoY - u, (side ? 4 : 9) * u, 9 * u + flutter, shade(look.cape, 0.12));
+    // Costas: atrás do tronco (desenhado depois), à frente da capa (desenhada antes).
+    if (gear) {
+      drawBackItem(R, x, torsoY, u, dir, gear.back);
+      drawBackItem(R, x, torsoY, u, dir, gear.scroll);
+    }
   }
 
   // Pernas: balançam em sentidos opostos (de frente: sobe/desce; de lado: vai/volta).
@@ -85,11 +148,14 @@ export function drawCharacter(g, sx, sy, T, look, dir, phase, moving) {
   if (side) {
     R(x - 1 * u + swing * 1.2 * u * face, torsoY + u, 2 * u, 4.5 * u, look.shirt);
     R(x - 1 * u + swing * 1.2 * u * face, torsoY + 5.5 * u, 2 * u, 1.2 * u, look.skin);   // mão
+    if (gear && gear.hand) drawHandItem(R, x - 1 * u + swing * 1.2 * u * face, torsoY + 5.5 * u, u, dir, gear.hand);
   } else {
     R(x - torsoW / 2 - 2 * u, torsoY + u + swing * u, 2 * u, 4 * u, look.shirt);
     R(x + torsoW / 2, torsoY + u - swing * u, 2 * u, 4 * u, look.shirt);
     R(x - torsoW / 2 - 2 * u, torsoY + 5 * u + swing * u, 2 * u, 1.2 * u, look.skin);
     R(x + torsoW / 2, torsoY + 5 * u - swing * u, 2 * u, 1.2 * u, look.skin);
+    // De frente: a arma na mão direita do boneco (esquerda da tela). De costas, a mão fica escondida.
+    if (gear && gear.hand && dir === 0) drawHandItem(R, x - torsoW / 2 - 2 * u, torsoY + 5 * u + swing * u, u, 1, gear.hand);
   }
 
   // Cabeça (círculo de pele) e cabelo: de costas cobre tudo; de lado, a nuca.
@@ -113,11 +179,15 @@ export function drawCharacter(g, sx, sy, T, look, dir, phase, moving) {
     R(x + 0.6 * u, hy + 0.2 * u, 1.2 * u, 1.2 * u, '#1b1410');
   }
 
-  // De costas: a capa cobre as costas por cima do tronco.
+  // De costas: a capa cobre as costas por cima do tronco, e o que vai nas costas por cima da capa.
   if (dir === 3) {
     const flutter = moving ? Math.sin(phase * 0.5) * u * 0.8 : 0;
     R(x - 4.5 * u, torsoY - 0.5 * u, 9 * u, 9 * u + flutter, look.cape);
     R(x - 4.5 * u, torsoY - 0.5 * u, 9 * u, u, shade(look.cape));
+    if (gear) {
+      drawBackItem(R, x, torsoY, u, dir, gear.back);
+      drawBackItem(R, x, torsoY, u, dir, gear.scroll);
+    }
   }
   return top;   // topo da cabeça (para o nome e a barra de vida)
 }

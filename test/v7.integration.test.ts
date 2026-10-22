@@ -14,6 +14,7 @@ const noDatabase = process.env.TEST_DATABASE_URL
   ? false
   : 'TEST_DATABASE_URL não definida: integração com PostgreSQL pulada';
 const V7 = readFileSync(new URL('../db/schema_v7_progressao.sql', import.meta.url), 'utf8');
+const V8 = readFileSync(new URL('../db/schema_v8_admin_chat.sql', import.meta.url), 'utf8');
 const rule = (name: string) => (e: { constraint?: string }) => e.constraint === name;
 
 describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () => {
@@ -151,7 +152,8 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
 
 describe('v7 no banco: migração sobre quem já jogava', { skip: noDatabase }, () => {
   let t: Awaited<ReturnType<typeof createTestDatabase>>;
-  before(async () => { t = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v7_progressao.sql')); });
+  // Banco parado na v6 (antes da v7 e da v8): roda a v7 sobre quem já jogava, de novo, e depois a v8.
+  before(async () => { t = await createTestDatabase(MIGRATIONS.slice(0, MIGRATIONS.indexOf('schema_v7_progressao.sql'))); });
   after(async () => { await t?.drop(); });
 
   it('veterano: tutorial concluído, os 7 jutsus de antes, nível pela curva nova; rodar de novo não mexe em nada', async () => {
@@ -159,13 +161,14 @@ describe('v7 no banco: migração sobre quem já jogava', { skip: noDatabase }, 
     await t.pool.query('UPDATE game.players SET total_xp = 5000 WHERE id = $1', [id]);          // v5: nível 10
     await t.pool.query(`UPDATE game.players SET stat_points = stat_points - 9, attr_vitality = 9 WHERE id = $1`, [id]);
     await t.pool.query(V7);
+    const novo = await t.createPlayer('novato');
+    await t.pool.query(V7);                                                                       // de novo: sem erro
+    await t.pool.query(V8);                                                                       // e a v8 (findPlayer lê as colunas dela)
     const found = await makeFindPlayer(t.db)(id);
     assert.equal(found!.tutorialStep, 4);
     assert.equal(found!.level, levelForXp(5000));
     assert.deepEqual(Object.keys(found!.jutsus!).sort(), [...LEGACY_JUTSUS, 'substitution', 'teleport'].sort());
     assert.deepEqual(found!.attributes!.vitality + found!.statPoints!, found!.level! - 1, 'pontos redistribuídos dentro do nível novo');
-    const novo = await t.createPlayer('novato');
-    await t.pool.query(V7);                                                                       // de novo: sem erro
     assert.equal((await makeFindPlayer(t.db)(novo))!.tutorialStep, 0, 'conta nova continua no tutorial');
     assert.equal((await makeFindPlayer(t.db)(id))!.tutorialStep, 4);
   });

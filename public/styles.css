@@ -869,3 +869,69 @@ body.safe-zone #attack-btn {
   .topbar .mission-btn { padding: 0 8px; }
   .topbar .icon-btn { width: 40px; }
 }
+
+/* ------------------------------------------------------------------ v8 */
+
+/* Chat: canais no feed (o nome já diz "[Global]" ou "→"). */
+.chat-feed li.global .who { color: #8fd8ff; }
+.chat-feed li.whisper { font-style: italic; }
+.chat-feed li.whisper .who { color: #e7a6ff; }
+
+/* Histórico do chat (🕘). */
+.history-panel { display: flex; flex-direction: column; gap: 6px; }
+.history-list {
+  list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px;
+  max-height: min(48dvh, 340px); overflow-y: auto; overscroll-behavior: contain;
+}
+.history-list li { font-size: 13px; line-height: 1.35; color: var(--text); overflow-wrap: anywhere; }
+.history-list li time { color: var(--muted); font-size: 11px; margin-right: 6px; font-variant-numeric: tabular-nums; }
+.history-list li .who { font-weight: 700; color: var(--accent); }
+.history-list li.me .who { color: #ffe2a8; }
+.history-list li.global .who { color: #8fd8ff; }
+.history-list li.whisper { font-style: italic; }
+.history-list li.whisper .who { color: #e7a6ff; }
+.history-panel .tab { padding: 6px 8px; font-size: 12px; }
+
+/* Sala de Missões do Mestre: cartões e o botão Entregar. */
+.board-panel { display: flex; flex-direction: column; gap: 8px; width: min(420px, calc(100vw - 20px - var(--safe-left) - var(--safe-right))); }
+.board-current { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 12px; background: rgba(244, 234, 216, 0.06); border: 1px solid var(--line); }
+.board-current .mission-title { font-size: 16px; }
+.deliver-btn {
+  margin-top: 4px; min-height: 44px; border: 0; border-radius: 12px; font: inherit; font-weight: 800;
+  color: #d8cdb8; background: #4a4438; cursor: not-allowed;
+}
+.deliver-btn.ready {
+  color: #0f2a12; background: #4fbf6a; cursor: pointer;
+  box-shadow: 0 0 0 2px rgba(79, 191, 106, 0.35), 0 6px 16px rgba(79, 191, 106, 0.35);
+  animation: ready-glow-green 1.6s ease-in-out infinite;
+}
+@keyframes ready-glow-green { 50% { box-shadow: 0 0 0 3px rgba(79, 191, 106, 0.55), 0 0 18px rgba(79, 191, 106, 0.6); } }
+.board-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.board-card {
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(244, 234, 216, 0.05); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+}
+.board-card.easy { border-left-color: #4fbf6a; }
+.board-card.normal { border-left-color: #f0a03c; }
+.board-card.hard { border-left-color: #e8572f; }
+.board-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.board-card h3 { margin: 0; font-size: 15px; color: var(--text); }
+.board-card .difficulty { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.board-card.easy .difficulty { color: #7ee08f; }
+.board-card.normal .difficulty { color: #ffc06a; }
+.board-card.hard .difficulty { color: #ff8a6b; }
+.board-desc { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.35; }
+.board-goal, .board-reward { margin: 0; font-size: 13px; color: var(--text); }
+.board-card button { align-self: flex-end; min-height: 40px; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .board-cards { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+}
+
+/* Ficha: redefinir atributos (dois toques). */
+.reset-attrs { width: 100%; margin-top: 6px; }
+.reset-attrs.armed { background: #8a2b2b; color: #fff; border-color: #b3261e; }
+
+/* Tutorial guiado: na etapa 1 só o Ataque Básico; na 2, o Meditar aparece; na 4, a mochila brilha. */
+body.tut-no-skills #combat .cbtn.skill, body.tut-no-skills #kit-btn { display: none; }
+body.tut-no-meditate #meditate-btn { display: none; }
+body.tut-bag #inv-toggle { animation: ready-glow 1.4s ease-in-out infinite; border-color: #ffd23f; }

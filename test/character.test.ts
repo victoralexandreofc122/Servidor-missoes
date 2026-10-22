@@ -30,6 +30,38 @@ describe('paperdoll (cliente)', () => {
     }
   });
 
+  it('equipamento (v8): arma na mão e itens nas costas custam poucas operações; o que não conhece não desenha', () => {
+    const count = (dir: number, gear: unknown) => {
+      const g = fakeCtx();
+      drawCharacter(g, 100, 100, 40, DEFAULT_LOOK, dir, 1.2, true, gear);
+      return g.ops.filter((o) => o === 'rect').length;
+    };
+    for (const dir of [0, 1, 2, 3]) {
+      const bare = count(dir, undefined);
+      assert.equal(count(dir, { hand: null, back: null, scroll: null }), bare);
+      assert.equal(count(dir, { hand: 'espada_hackeada', back: '<img>', scroll: 'x' }), bare, 'código desconhecido: nada');
+      assert.ok(count(dir, { hand: null, back: 'katana', scroll: 'scroll_fire' }) - bare <= 10, `dir ${dir}: costas`);
+      assert.ok(count(dir, { hand: 'kunai', back: null, scroll: null }) - bare <= 2, `dir ${dir}: mão`);
+    }
+    assert.equal(count(3, { hand: 'kunai', back: null, scroll: null }), count(3, undefined), 'de costas, a mão (e a kunai) não aparece');
+  });
+
+  it('ordem das camadas: item das costas depois da capa e antes do tronco; de costas, por cima da capa', () => {
+    const look = { skin: '#111111', hair: '#222222', shirt: '#333333', pants: '#444444', cape: '#555555' };
+    const order = (dir: number) => {
+      const fills: string[] = [];
+      const g = { set fillStyle(v: string) { fills.push(v); }, fillRect() {}, beginPath() {}, arc() {}, fill() {} };
+      drawCharacter(g, 100, 100, 40, look, dir, 0, false, { hand: null, back: 'katana', scroll: null });
+      return fills;
+    };
+    const front = order(0);
+    const blade = front.indexOf('#e6edf3');
+    assert.ok(blade > front.findIndex((c) => c !== '#111111' && c !== look.pants && c !== look.shirt), 'capa (sombra) antes');
+    assert.ok(blade < front.indexOf(look.shirt), 'tronco depois: a espada fica atrás dele');
+    const back = order(3);
+    assert.ok(back.lastIndexOf('#e6edf3') > back.lastIndexOf(look.cape), 'de costas: por cima da capa');
+  });
+
   it('cada parte usa a cor do jogador (pele, cabelo, camisa, calça, capa)', () => {
     const look = { skin: '#111111', hair: '#222222', shirt: '#333333', pants: '#444444', cape: '#555555' };
     const g = fakeCtx();

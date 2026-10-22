@@ -8,9 +8,9 @@ const isClass = (c: unknown): c is ClassCode => typeof c === 'string' && (CLASSE
 /** Tudo que o jogo precisa do jogador. Uma consulta por conexão, nunca por passo. */
 export const FIND_PLAYER_SQL = `
   SELECT p.id, p.username, p.total_xp, r.code AS rank_code, r.name AS rank_name, r.can_be_sensei,
-         p.level, p.stat_points, p.attr_vitality, p.attr_chakra_max, p.attr_chakra_regen,
+         p.level, p.stat_points, p.attr_vitality, p.attr_chakra, p.is_admin,
          p.attr_agility, p.attr_taijutsu, p.attr_ninjutsu, p.attr_weapons, p.kit_a, p.kit_b, p.appearance,
-         p.tutorial_step, p.ryo, p.equipped_weapon, c.primary_class, c.secondary_class,
+         p.tutorial_step, p.ryo, p.equipped_weapon, p.equipped_scroll, c.primary_class, c.secondary_class,
          COALESCE((SELECT json_object_agg(j.jutsu_code, j.usage_count) FROM game.player_jutsus j WHERE j.player_id = p.id), '{}'::json) AS jutsus,
          COALESCE((SELECT json_object_agg(i.item_code, i.quantity) FROM game.player_items i WHERE i.player_id = p.id), '{}'::json) AS items,
          EXISTS (SELECT 1 FROM game.hokage_candidates h WHERE h.player_id = p.id) AS hokage_candidate
@@ -29,8 +29,8 @@ interface Row {
   level: number;
   stat_points: number;
   attr_vitality: number;
-  attr_chakra_max: number;
-  attr_chakra_regen: number;
+  attr_chakra: number;
+  is_admin: boolean;
   attr_agility: number;
   attr_taijutsu: number;
   attr_ninjutsu: number;
@@ -41,6 +41,7 @@ interface Row {
   tutorial_step: number;
   ryo: string;
   equipped_weapon: string | null;
+  equipped_scroll: string | null;
   primary_class: string | null;
   secondary_class: string | null;
   jutsus: Record<string, number>;
@@ -63,8 +64,7 @@ export function makeFindPlayer(db: Queryable) {
       statPoints: row.stat_points,
       attributes: {
         vitality: row.attr_vitality,
-        chakraMax: row.attr_chakra_max,
-        chakraRegen: row.attr_chakra_regen,
+        chakra: row.attr_chakra,
         agility: row.attr_agility,
         taijutsu: row.attr_taijutsu,
         ninjutsu: row.attr_ninjutsu,
@@ -79,6 +79,9 @@ export function makeFindPlayer(db: Queryable) {
       ryo: Number(row.ryo),
       items: { ...row.items },
       equipped: row.equipped_weapon,
+      equippedScroll: row.equipped_scroll,
+      // v8: Modo Administrador (só por SQL; os comandos /admin conferem de novo no banco).
+      isAdmin: row.is_admin,
       classes: { primary: isClass(row.primary_class) ? row.primary_class : null, secondary: isClass(row.secondary_class) ? row.secondary_class : null },
       jutsus: { ...row.jutsus },
       hokageCandidate: row.hokage_candidate,

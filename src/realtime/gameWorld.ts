@@ -3,24 +3,26 @@ import { distance, inCone, nearest, shieldedDamage, STEPS, type Point } from './
 import { REALTIME, type MonsterType, type RealtimeConfig } from './config.js';
 import {
   CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, SKILLS, sanitizeChat,
-  type CastFailReason, type KitName, type KitView, type Kits, type MeditationEnd, type MissionView, type MonsterView,
+  type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
   type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
   type Skill, type WorldInfo, type Appearance, type Dir,
 } from './protocol.js';
-import type { Missions, TalkOutcome } from './missions.js';
+import { NPC_OFFER_CODES, type Missions, type TalkOutcome } from './missions.js';
+import { ADMIN_HELP, isAdminCommand, parseAdminCommand, type AdminCommand, type AdminPlayerState, type AdminStore } from './admin.js';
+import { CHAT_HISTORY, memoryChatLog, type ChatLog, type ChatRecord } from './chatLog.js';
 import type { Profile } from './profile.js';
 import type { Classes, Inventory, NinjaStore } from './ninjaStore.js';
 import {
   ACADEMY_JUTSUS, CLASSES, CLASS_INFO, EXTRACTION, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
   jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
-import { ITEMS, ITEM_BY_CODE, KILL_RYO, SCROLL_DROP_CHANCE, scrollOf } from './items.js';
+import { ITEMS, ITEM_BY_CODE, KILL_RYO, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
 import {
-  damageMultiplier, derivedStats, levelProgress, MAX_LEVEL, NO_ATTRIBUTES, scaledDamage,
+  damageMultiplier, derivedStats, levelProgress, MAX_LEVEL, NO_ATTRIBUTES, nextPointGains, scaledDamage,
   type Attribute, type Attributes, type DerivedStats,
 } from './stats.js';
 import { blocked, moveStep, q3 } from './movement.js';
-import { ACADEMY, academySpawn, inSafeZone, type MapId, type MapLayout } from './maps.js';
+import { ACADEMY, academySpawn, crossedGap, inSafeZone, type MapId, type MapLayout } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
 
 /*
@@ -46,6 +48,12 @@ import { TokenBucket } from './tokenBucket.js';
  * uso aceito; o nível do jutsu sai do uso), tutorial da Academia (o passo trava as portas e só
  * avança quando o SERVIDOR vê o jogador cumprir a sala), classes, Extração com sorteio do
  * servidor, loja (preço do banco) e arma equipada (dano somado ao Ataque Básico).
+ *
+ * v8: Modo Administrador (comandos "/admin" no chat, só para players.is_admin, auditados no
+ * banco e sem disparar recompensa, anúncio ou rank), chat com canais (local, "/g" global e
+ * "/w" sussurro) e histórico de 24 h, Sala de Missões com cartões, redefinição de atributos,
+ * equipamento visível no boneco e o tutorial linear da Academia (o servidor leva o jogador de
+ * uma etapa para a outra e, no fim, para a Praça da Vila).
  */
 
 /** O que o mundo precisa de uma conexão. O WebSocket do `ws` satisfaz isto. */
@@ -108,6 +116,10 @@ export interface WorldOptions {
   store?: NinjaStore;
   /** Sorteio da Extração e dos drops (padrão: crypto). Injetável para teste. */
   secureRandom?: () => number;
+  /** Histórico do chat (game.chat_logs). Sem isto: em memória. */
+  chatLog?: ChatLog;
+  /** Comandos do administrador no banco (auditados). Sem isto: só o /admin spawn funciona (em memória). */
+  admin?: AdminStore;
 }
 
 export interface JoiningPlayer {
@@ -131,6 +143,10 @@ export interface JoiningPlayer {
   /** Jutsu -> usos já gravados no banco. */
   jutsus?: Record<string, number>;
   hokageCandidate?: boolean;
+  /** v8: pergaminho levado nas costas (só visual). */
+  equippedScroll?: string | null;
+  /** v8: Modo Administrador (players.is_admin). Sem isto: false. */
+  isAdmin?: boolean;
 }
 
 /** Estado de um jogador online. É o valor do Map playerId -> estado. */
@@ -203,6 +219,8 @@ interface Session {
   /** Pedido ao banco de missões em andamento (dois toques seguidos viram um). */
   missionBusy: boolean;
   lastMissionAt: number;
+  /** Aceitar/entregar que chegou dentro da janela: vai uma vez quando ela abrir. */
+  missionRetry: ((missions: Missions) => Promise<void>) | undefined;
   /** Posição mudou desde o último envio. */
   dirty: boolean;
   closed: boolean;
@@ -230,6 +248,13 @@ interface Session {
   substituteLevel: number;
   /** Alvo focado quando armou (no nível 4 aparece atrás DELE). */
   substituteFocus: string | undefined;
+  // ------------------------------------------------ v8
+  /** Modo Administrador (lido do banco ao conectar; o banco confere de novo a cada comando). */
+  readonly isAdmin: boolean;
+  /** Pergaminho levado nas costas (só visual). */
+  equippedScroll: string | null;
+  /** Último pedido de histórico do chat. */
+  lastHistoryAt: number;
 }
 
 interface Monster {
@@ -246,6 +271,8 @@ interface Monster {
   rootedUntil: number;
   /** Boneco fixo do mapa: renasce neste ponto. */
   readonly home?: Point;
+  /** Invocado por /admin spawn: não dá XP, ryō, drop, missão nem tutorial, e não renasce. */
+  readonly admin?: boolean;
 }
 
 /** Devolvido pelo `join`: o gateway entrega as mensagens e o fechamento desta conexão. */
@@ -274,6 +301,9 @@ export class GameWorld {
   private readonly profile: Profile | undefined;
   private readonly store: NinjaStore | undefined;
   private readonly secureRandom: () => number;
+  private readonly chatLog: ChatLog;
+  private readonly admin: AdminStore | undefined;
+  private purgeTimer: NodeJS.Timeout | undefined;
   /** Bonecos fixos esperando para renascer. */
   private readonly respawns: { type: string; map: MapId; home: Point; at: number }[] = [];
   /** Quem está em cada mapa (envio só para o mesmo mapa sem percorrer todo mundo). */
@@ -294,6 +324,8 @@ export class GameWorld {
     this.profile = options.profile;
     this.store = options.store;
     this.secureRandom = options.secureRandom ?? (() => randomInt(0, 1_000_000) / 1_000_000);
+    this.chatLog = options.chatLog ?? memoryChatLog(now);
+    this.admin = options.admin;
     for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
     this.lastTick = now();
     for (const layout of this.huntingMaps()) {
@@ -361,16 +393,28 @@ export class GameWorld {
     return {
       id: s.id, username: s.username, x: round3(s.x), y: round3(s.y), hp: shownHp(s.hp), maxHp: s.stats.maxHp,
       dead: s.dead, meditating: s.meditating, rank: s.rank, level: s.level,
-      appearance: { ...(s.appearance ?? DEFAULT_APPEARANCE) }, dir: dirOf(s.fx, s.fy),
+      appearance: { ...(s.appearance ?? DEFAULT_APPEARANCE) }, dir: dirOf(s.fx, s.fy), gear: this.gear(s),
     };
+  }
+
+  /** O que aparece no boneco (todos veem): arma na mão ou nas costas e o pergaminho nas costas. */
+  private gear(s: Session): Gear {
+    return gearOf(s.equipped, s.equippedScroll);
+  }
+
+  /** Equipamento mudou: todos no mapa veem o boneco novo. */
+  private broadcastGear(s: Session): void {
+    this.broadcastMap(s.map, { type: 'player_gear', playerId: s.id, gear: this.gear(s) });
   }
 
   /** Ficha: nível, XP do nível (zera a cada nível), pontos e o que os atributos dão. */
   private progressView(s: Session): ProgressView {
     const { xpInLevel, xpToNext } = levelProgress(s.xp, s.level);
+    const rules = this.config.combat.attributes;
     return {
       level: s.level, xpInLevel, xpToNext, totalXp: s.xp, statPoints: s.statPoints,
-      attributes: { ...s.attributes }, maxPoints: this.config.combat.attributes.maxPoints, derived: { ...s.stats },
+      attributes: { ...s.attributes }, nextGain: nextPointGains(rules, s.attributes), derived: { ...s.stats },
+      resetCost: rules.resetCostRyo,
     };
   }
 
@@ -432,8 +476,8 @@ export class GameWorld {
 
   private ninjaView(s: Session): NinjaView {
     return {
-      tutorialStep: s.tutorial, ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, classes: { ...s.classes },
-      jutsus: Object.fromEntries(s.jutsus), hokageCandidate: s.hokageCandidate,
+      tutorialStep: s.tutorial, ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll,
+      classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), hokageCandidate: s.hokageCandidate, isAdmin: s.isAdmin,
     };
   }
 
@@ -505,6 +549,7 @@ export class GameWorld {
       dropped: 0,
       missionBusy: false,
       lastMissionAt: 0,
+      missionRetry: undefined,
       dirty: false,
       closed: false,
       tutorial,
@@ -523,6 +568,9 @@ export class GameWorld {
       substituteUntil: previous?.substituteUntil ?? 0,
       substituteLevel: previous?.substituteLevel ?? 1,
       substituteFocus: previous?.substituteFocus,
+      isAdmin: player.isAdmin ?? previous?.isAdmin ?? false,
+      equippedScroll: player.equippedScroll !== undefined ? player.equippedScroll : (previous?.equippedScroll ?? null),
+      lastHistoryAt: 0,
     };
     // Sala 2 do tutorial (meditar até encher): quem chega nela começa com o chakra baixo.
     if (!previous && tutorial === 1) session.chakra = Math.floor(session.stats.maxChakra * 0.25);
@@ -552,6 +600,7 @@ export class GameWorld {
     });
     this.syncMission(session.id);
     if (session.canBeSensei) this.syncSensei(session.id);
+    this.sendChatHistory(session, t);          // ao abrir o jogo: as mensagens anteriores
     this.flushKicks();
 
     return {
@@ -620,8 +669,12 @@ export class GameWorld {
     else if (parsed.type === 'choose_class') this.chooseClass(session, parsed.class);
     else if (parsed.type === 'extract') this.extract(session, parsed.class, parsed.level);
     else if (parsed.type === 'buy') this.buy(session, parsed.item, parsed.qty);
-    else if (parsed.type === 'equip') this.equip(session, parsed.item);
+    else if (parsed.type === 'equip') this.equip(session, parsed.item, parsed.slot ?? 'weapon');
     else if (parsed.type === 'hokage_apply') this.applyHokage(session);
+    else if (parsed.type === 'reset_attributes') this.resetAttributes(session);
+    else if (parsed.type === 'accept_mission') this.acceptMission(session, parsed.offer, t);
+    else if (parsed.type === 'deliver_npc_mission') this.deliverNpcMission(session, t);
+    else if (parsed.type === 'chat_history') this.sendChatHistory(session, t);
     else this.chatMessage(session, parsed.message, t);
     this.flushKicks();
   }
@@ -733,7 +786,7 @@ export class GameWorld {
    * Troca de mapa: some para quem ficou (player_left), aparece para quem está no mapa novo
    * (player_joined) e o próprio jogador recebe `map_changed` só com o que existe lá.
    */
-  private transfer(s: Session, to: MapId, x: number, y: number, reason: 'walk' | 'respawn'): void {
+  private transfer(s: Session, to: MapId, x: number, y: number, reason: MapChangeReason): void {
     const from = s.map;
     s.x = x;
     s.y = y;
@@ -751,6 +804,15 @@ export class GameWorld {
     });
   }
 
+  /**
+   * Chat. Ritmo (1/s) e texto limpo primeiro; depois o canal:
+   *   "/admin ..."      comando do administrador (nunca vira chat; ver admin.ts)
+   *   "/g texto"        global: todos os mapas
+   *   "/w Nome texto"   sussurro: só o Nome (online) e quem mandou recebem
+   *   outro "/..."      ajuda dos comandos (não vira chat)
+   *   texto             fala local: quem está no mesmo mapa
+   * Toda fala entra no histórico (24 h), fora do loop.
+   */
   private chatMessage(session: Session, raw: string, t: number): void {
     if (!session.chat.take(t)) {
       this.sendError(session, 'CHAT_RATE_LIMITED');
@@ -761,7 +823,166 @@ export class GameWorld {
       this.sendError(session, 'CHAT_INVALID');
       return;
     }
-    this.broadcastMap(session.map, { type: 'chat', playerId: session.id, username: session.username, message });
+    if (isAdminCommand(message)) return this.adminCommand(session, message, t);
+    if (message.startsWith('/')) {
+      const global = /^\/g(?:lobal)?\s+(.+)$/i.exec(message);
+      if (global) return this.sayGlobal(session, global[1]!);
+      const whisper = /^\/(?:w|sussurro)\s+([A-Za-z0-9_]{3,24})\s+(.+)$/i.exec(message);
+      if (whisper) return this.whisper(session, whisper[1]!, whisper[2]!);
+      return this.sendTo(session, { type: 'notice', text: 'Chat: /g mensagem (global) · /w Nome mensagem (sussurro).', tone: 'info' });
+    }
+    this.broadcastMap(session.map, { type: 'chat', playerId: session.id, username: session.username, message, channel: 'local' });
+    this.recordChat({ channel: 'local', senderId: session.id, senderName: session.username, map: session.map, message });
+  }
+
+  /** Global: todos os mapas. */
+  private sayGlobal(session: Session, message: string): void {
+    this.broadcast({ type: 'chat', playerId: session.id, username: session.username, message, channel: 'global' });
+    this.recordChat({ channel: 'global', senderId: session.id, senderName: session.username, message });
+  }
+
+  /** Sussurro: só para o destinatário (online) e de volta para quem mandou. */
+  private whisper(session: Session, name: string, message: string): void {
+    const lower = name.toLowerCase();
+    let target: Session | undefined;
+    for (const other of this.sessions.values()) if (!other.closed && other.username.toLowerCase() === lower) target = other;
+    if (!target) return this.sendTo(session, { type: 'notice', text: `${name} não está online.`, tone: 'bad' });
+    if (target === session) return this.sendTo(session, { type: 'notice', text: 'Sussurrar para si mesmo? Tente outro nome.', tone: 'info' });
+    const out: ServerMessage = { type: 'chat', playerId: session.id, username: session.username, message, channel: 'whisper', to: target.username };
+    this.sendTo(target, out);
+    this.sendTo(session, out);
+    this.recordChat({ channel: 'whisper', senderId: session.id, senderName: session.username, recipientId: target.id, recipientName: target.username, message });
+  }
+
+  private recordChat(entry: ChatRecord): void {
+    this.chatLog.record(entry).catch((err: unknown) => this.log.warn({ playerId: entry.senderId, err }, 'falha ao gravar o histórico do chat'));
+  }
+
+  /** Histórico (últimas 100 em 24 h): ao conectar e no botão 🕘. No máximo 1 pedido a cada 2 s. */
+  private sendChatHistory(session: Session, t: number): void {
+    if (t - session.lastHistoryAt < CHAT_HISTORY.requestEveryMs) return;
+    session.lastHistoryAt = t;
+    const { id } = session;
+    this.chatLog.history(id, session.map).then((messages) => {
+      const current = this.sessions.get(id);
+      if (current) this.sendTo(current, { type: 'chat_history', messages });
+      this.flushKicks();
+    }).catch((err: unknown) => this.log.warn({ playerId: id, err }, 'falha ao ler o histórico do chat'));
+  }
+
+  // ---------------------------------------------------------------- Modo Administrador
+
+  /** Tipos que o /admin spawn aceita: o slime de caça e os bonecos da Academia. */
+  private monsterTypeNames(): string[] {
+    return [this.config.combat.monsters.type, ...Object.keys(this.config.combat.monsterTypes)];
+  }
+
+  /**
+   * "/admin ...": só para quem entrou como administrador (players.is_admin). Quem não é admin
+   * recebe "Comando desconhecido" e o servidor registra a tentativa no log. Os comandos que
+   * mexem no banco vão em fila (um por vez) e cada função do banco confere is_admin de novo e
+   * grava a auditoria; o /admin spawn é só de memória e também vai para a auditoria.
+   */
+  private adminCommand(session: Session, text: string, t: number): void {
+    if (!session.isAdmin) {
+      this.log.warn({ playerId: session.id }, 'comando de admin recusado: jogador não é administrador');
+      return this.sendTo(session, { type: 'notice', text: 'Comando desconhecido.', tone: 'bad' });
+    }
+    const parsed = parseAdminCommand(text, this.monsterTypeNames());
+    if (!parsed.ok) {
+      this.audit(session.id, /^[a-z]{2,24}$/.test(parsed.command) ? parsed.command : 'invalid', null, { text }, false, parsed.text);
+      return this.sendTo(session, { type: 'notice', text: parsed.text, tone: 'bad' });
+    }
+    const c = parsed.command;
+    if (c.cmd === 'help') return this.sendTo(session, { type: 'notice', text: ADMIN_HELP, tone: 'info' });
+    if (c.cmd === 'spawn') return this.adminSpawn(session, c.monster, c.quantity, t);
+    const store = this.admin;
+    if (!store) return this.sendTo(session, { type: 'notice', text: 'Modo Administrador sem banco: aqui só o /admin spawn funciona.', tone: 'bad' });
+    this.queueTask(session, () => this.runAdmin(session.id, store, c));
+  }
+
+  /** Auditoria sem esperar (spawn e comandos recusados antes do banco). Sem banco: só o log do servidor. */
+  private audit(adminId: string, command: string, targetId: string | null, args: Record<string, unknown>, ok: boolean, detail: string | null): void {
+    this.log.info({ adminId, command, targetId, ok }, 'comando de admin');
+    this.admin?.log(adminId, command, targetId, args, ok, detail).catch((err: unknown) => this.log.warn({ adminId, err }, 'falha ao gravar a auditoria do admin'));
+  }
+
+  /** Invoca monstros em volta do admin (casas livres do mapa dele). Não dão recompensa nenhuma. */
+  private adminSpawn(s: Session, type: string, quantity: number, t: number): void {
+    const layout = this.layout(s.map);
+    let made = 0;
+    for (let i = 0; i < quantity; i++) {
+      const angle = (i / quantity) * Math.PI * 2;
+      for (const r of [2, 3, 1.5, 4, 5]) {
+        const at = { x: q3(s.x + Math.cos(angle) * r), y: q3(s.y + Math.sin(angle) * r) };
+        if (at.x < 0.5 || at.y < 0.5 || at.x > layout.width - 0.5 || at.y > layout.height - 0.5 || blocked(at.x, at.y, layout.walls)) continue;
+        this.spawnMonster(at, t, s.map, type, false, true);
+        made += 1;
+        break;
+      }
+    }
+    this.audit(s.id, 'spawn', null, { monster: type, qty: quantity, map: s.map, made }, made > 0, null);
+    this.sendTo(s, { type: 'notice', text: made > 0 ? `Admin: ${made}x ${type} invocado(s) (sem recompensa).` : 'Admin: nenhum espaço livre por perto.', tone: made > 0 ? 'good' : 'bad' });
+  }
+
+  /** Comandos de admin no banco. O alvo online vê a ficha nova na hora (sem anúncio, sem XP de abate). */
+  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' }>): Promise<void> {
+    const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
+    const target = await store.findPlayer(c.username);
+    if (!target) {
+      await store.log(adminId, c.cmd, null, { username: c.username }, false, 'jogador não encontrado');
+      return say(`Admin: jogador "${c.username}" não encontrado.`, 'bad');
+    }
+    switch (c.cmd) {
+      case 'level': {
+        const r = await store.setLevel(adminId, target.id, c.level);
+        if (!r.ok) return say(`Admin: ${r.text}`, 'bad');
+        this.applyAdminState(target.id, r);
+        say(`Admin: ${target.username} agora está no nível ${r.level} (${r.statPoints} pontos livres).`, 'good');
+        break;
+      }
+      case 'givejutsu': {
+        const r = await store.giveJutsu(adminId, target.id, c.jutsu, c.level);
+        if (!r.ok) return say(`Admin: ${r.text}`, 'bad');
+        const s = this.sessions.get(target.id);
+        if (s) {
+          s.jutsus.set(c.jutsu, Math.max(s.jutsus.get(c.jutsu) ?? 0, r.uses));
+          this.sendTo(s, { type: 'jutsus', jutsus: Object.fromEntries(s.jutsus) });
+        }
+        say(`Admin: ${target.username} recebeu ${JUTSU_BY_CODE.get(c.jutsu as Skill)?.name ?? c.jutsu} (Nv ${jutsuLevel(r.uses)}).`, 'good');
+        break;
+      }
+      case 'giveitem': {
+        const r = await store.giveItem(adminId, target.id, c.item, c.quantity);
+        if (!r.ok) return say(`Admin: ${r.text}`, 'bad');
+        const s = this.sessions.get(target.id);
+        if (s) {
+          s.items = { ...r.items };
+          this.sendInventory(s);
+        }
+        say(`Admin: ${c.quantity}x ${ITEM_BY_CODE.get(c.item)?.name ?? c.item} para ${target.username}.`, 'good');
+        break;
+      }
+      case 'resetstats': {
+        const r = await store.resetStats(adminId, target.id);
+        if (!r.ok) return say(`Admin: ${r.text}`, 'bad');
+        this.applyAdminState(target.id, r);
+        say(`Admin: atributos de ${target.username} redefinidos (${r.statPoints} pontos livres).`, 'good');
+        break;
+      }
+    }
+    this.log.info({ adminId, command: c.cmd, targetId: target.id }, 'comando de admin aplicado');
+  }
+
+  /** Ficha nova vinda de um comando de admin: nível, XP, pontos e atributos (sem 'xp', sem anúncio). */
+  private applyAdminState(playerId: string, state: AdminPlayerState): void {
+    const s = this.sessions.get(playerId);
+    if (!s) return;
+    const levelBefore = s.level;
+    s.xp = state.totalXp;
+    s.level = state.level;
+    this.applyAttributes(s, state.statPoints, state.attributes);
+    if (s.level !== levelBefore) this.broadcastMap(s.map, { type: 'player_rank', playerId, rank: s.rank, level: s.level });
   }
 
   // ---------------------------------------------------------------- combate
@@ -778,7 +999,9 @@ export class GameWorld {
     // Qualquer TENTATIVA de usar habilidade encerra a meditação (mesmo que a habilidade falhe).
     this.stopMeditation(session, 'cast');
     if (session.dead) return fail('DEAD');
-    // Zona segura (praça da Vila, lojas, sala do Diretor): nenhuma habilidade. Vale a posição do SERVIDOR.
+    // Academia, etapas 1 e 2: só o Ataque Básico (os jutsus chegam na etapa 3, a Sala de Jutsus).
+    if (session.tutorial < 2) return fail('TUTORIAL_LOCKED');
+    // Zona segura (praça da Vila, lojas, canto do Diretor): nenhuma habilidade. Vale a posição do SERVIDOR.
     if (this.inSafeZone(session)) return fail('SAFE_ZONE');
     // Só jutsu APRENDIDO (Academia, os de antes ou os da Extração) e no kit ATIVO.
     if (!session.jutsus.has(skill)) return fail('NOT_LEARNED');
@@ -887,9 +1110,14 @@ export class GameWorld {
         session.dirty = true;
         // a = última entrada aplicada: o dono refaz as que faltam a partir daqui (sem perder nenhuma).
         this.broadcastMap(session.map, { type: 'teleport', playerId: session.id, fromX: round3(from.x), fromY: round3(from.y), x: round3(session.x), y: round3(session.y), a: session.ackSeq });
+        // Etapa 3: o Teleporte precisa ATRAVESSAR o vão da Sala de Jutsus.
         if (session.tutorial === 2 && session.map === 'academy_interior') {
-          session.tutorialTeleport = true;
-          this.tutorialProgress(session);
+          if (crossedGap(from, session)) {
+            session.tutorialTeleport = true;
+            this.tutorialProgress(session);
+          } else if (!session.tutorialTeleport) {
+            this.sendTo(session, { type: 'notice', text: 'Chegue na beira do vão e use o Teleporte na direção dele para saltar por cima.', tone: 'info' });
+          }
         }
         break;
       }
@@ -1005,6 +1233,11 @@ export class GameWorld {
     // FÍSICO: base x Taijutsu + a arma equipada x Armas (Kunai de Treino: +10).
     const damage = scaledDamage(cfg.damage, session.stats.physicalMultiplier) + scaledDamage(this.weaponDamage(session), session.stats.weaponMultiplier);
     this.damageMonster(target, damage, session, t, 'attack');
+    // Etapa 4 (Sala de Armas): acertar o boneco com o Ataque Básico E a arma equipada conclui a Academia.
+    if (session.tutorial === 3 && session.map === 'academy_interior' && target.type === 'dummy') {
+      if (session.equipped) this.advanceTutorial(session, 4);
+      else this.sendTo(session, { type: 'notice', text: 'Primeiro abra a mochila 🎒 e equipe a Kunai de Treino.', tone: 'info' });
+    }
   }
 
   /** Correr liga/desliga. A velocidade vem SEMPRE daqui (5 ou 8, mais agilidade); o cliente só pede. */
@@ -1047,28 +1280,59 @@ export class GameWorld {
     }));
   }
 
-  /** Gastar 1 ponto: o banco confere se tem ponto e se o atributo não passou do máximo. */
+  /** Gastar 1 ponto: o banco confere se tem ponto (sem teto por atributo; o soft cap é daqui). */
   private spendPoint(session: Session, attribute: Attribute): void {
     if (session.statPoints <= 0) return this.sendError(session, 'NO_POINTS');
     const { id } = session;
     this.profileTask(session, (profile) => profile.spendPoint(id, attribute).then((result) => {
       const current = this.sessions.get(id);
       if (!current) return;
-      if (!result.ok) return this.sendError(current, result.reason === 'NO_POINTS' ? 'NO_POINTS' : 'ATTRIBUTE_MAXED');
-      const before = current.stats;
-      current.statPoints = result.statPoints;
-      current.attributes = result.attributes;
-      current.stats = this.computeStats(result.attributes);
-      // Vida/chakra máximos subiram: o valor atual sobe junto (não começa "faltando").
-      current.hp += current.stats.maxHp - before.maxHp;
-      current.chakra += current.stats.maxChakra - before.maxChakra;
-      this.sendTo(current, { type: 'progress', ...this.progressView(current) });
-      this.sendStats(current, this.now());
-      if (current.stats.maxHp !== before.maxHp) {
-        this.broadcastMap(current.map, { type: 'player_hp', playerId: id, hp: shownHp(current.hp), maxHp: current.stats.maxHp }, id);
-      }
+      if (!result.ok) return this.sendError(current, 'NO_POINTS');
+      this.applyAttributes(current, result.statPoints, result.attributes);
       return undefined;
     }));
+  }
+
+  /**
+   * "Redefinir Atributos": devolve TODOS os pontos investidos e cobra o custo em ryō. O custo é
+   * do servidor (config), nunca do cliente; o banco confere saldo e pontos na mesma linha travada.
+   */
+  private resetAttributes(session: Session): void {
+    const cost = this.config.combat.attributes.resetCostRyo;
+    const spent = Object.values(session.attributes).reduce((sum, n) => sum + n, 0);
+    if (spent === 0) return this.sendTo(session, { type: 'notice', text: 'Você ainda não investiu nenhum ponto.', tone: 'bad' });
+    if (session.ryo < cost) return this.sendTo(session, { type: 'notice', text: `Redefinir os atributos custa ${cost} ryō.`, tone: 'bad' });
+    const { id } = session;
+    this.profileTask(session, (profile) => profile.resetAttributes(id, cost).then((result) => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      if (!result.ok) return this.sendTo(current, { type: 'notice', text: result.text, tone: 'bad' });
+      current.ryo = result.ryo;
+      this.applyAttributes(current, result.statPoints, result.attributes);
+      this.sendInventory(current);
+      this.sendTo(current, { type: 'notice', text: `Atributos redefinidos (-${cost} ryō): ${result.statPoints} pontos para distribuir.`, tone: 'good' });
+      return undefined;
+    }));
+  }
+
+  /**
+   * Atributos novos (gastar ponto, redefinir, admin): o SERVIDOR recalcula tudo pela curva.
+   * Máximo subiu: o valor atual sobe junto (não começa "faltando"); desceu: não passa do máximo.
+   */
+  private applyAttributes(s: Session, statPoints: number, attributes: Attributes): void {
+    const before = s.stats;
+    s.statPoints = statPoints;
+    s.attributes = { ...attributes };
+    s.stats = this.computeStats(s.attributes);
+    if (!s.dead) {
+      s.hp = Math.min(s.stats.maxHp, s.hp + Math.max(0, s.stats.maxHp - before.maxHp));
+      s.chakra = Math.min(s.stats.maxChakra, s.chakra + Math.max(0, s.stats.maxChakra - before.maxChakra));
+    }
+    this.sendTo(s, { type: 'progress', ...this.progressView(s) });
+    this.sendStats(s, this.now());
+    if (s.stats.maxHp !== before.maxHp) {
+      this.broadcastMap(s.map, { type: 'player_hp', playerId: s.id, hp: shownHp(s.hp), maxHp: s.stats.maxHp }, s.id);
+    }
   }
 
   /** Põe uma gravação de ficha na fila do jogador (ver profileQueue). */
@@ -1133,11 +1397,13 @@ export class GameWorld {
     const type = this.monsterType(m.type);
     if (m.home) {
       this.respawns.push({ type: m.type, map: m.map, home: m.home, at: t + type.respawnMs });
-    } else {
+    } else if (!m.admin) {
       const layout = this.layout(m.map);
       if (!layout.safe && layout.hunt && this.monstersIn(m.map).length < this.config.combat.monsters.count) this.spawnMonster(undefined, t, m.map);
     }
-    // Sala 1 do tutorial: bonecos destruídos com o ATAQUE BÁSICO.
+    // Invocado pelo admin: nada de XP, ryō, drop, missão nem tutorial (e não renasce).
+    if (m.admin) return;
+    // Etapa 1 do tutorial: bonecos destruídos com o ATAQUE BÁSICO.
     if (m.type === 'dummy' && source === 'attack' && killer.tutorial === 0) {
       killer.tutorialKills += 1;
       this.tutorialProgress(killer);
@@ -1166,17 +1432,19 @@ export class GameWorld {
   }
 
   private sendInventory(s: Session): void {
-    this.sendTo(s, { type: 'inventory', ryo: s.ryo, items: { ...s.items }, equipped: s.equipped });
+    this.sendTo(s, { type: 'inventory', ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll });
   }
 
   // ---------------------------------------------------------------- tutorial da Academia
 
   /**
-   * O SERVIDOR confere cada sala (o cliente não diz que concluiu nada):
-   *   passo 0 (Sala 1) 3 bonecos destruídos com o Ataque Básico;
-   *   passo 1 (Sala 2) meditar na sala até o chakra encher (tick);
-   *   passo 2 (Sala 3) Teleporte Curto usado e um golpe anulado pela Substituição;
-   *   passo 3 (Sala 4) equipar a Kunai de Treino (ou outra arma).
+   * O SERVIDOR confere cada etapa (o cliente não diz que concluiu nada):
+   *   passo 0 (Sala de Taijutsu) 3 bonecos destruídos com o Ataque Básico (jutsus travados);
+   *   passo 1 (Sala de Controle) meditar até o chakra encher, contra o campo que drena (tick);
+   *   passo 2 (Sala de Jutsus)   Teleporte Curto por cima do vão e um golpe da armadilha anulado
+   *                              pela Substituição;
+   *   passo 3 (Sala de Armas)    acertar o boneco com o Ataque Básico e a Kunai de Treino equipada.
+   * Concluída a etapa, o servidor leva o jogador para a sala seguinte; no fim, para a Praça da Vila.
    */
   private tutorialProgress(s: Session): void {
     if (s.tutorial === 0) {
@@ -1184,11 +1452,14 @@ export class GameWorld {
       if (s.tutorialKills >= 3) this.advanceTutorial(s, 1);
     } else if (s.tutorial === 2) {
       if (s.tutorialTeleport && s.tutorialSubstitution) this.advanceTutorial(s, 3);
-      else this.sendTo(s, { type: 'notice', text: `Teleporte ${s.tutorialTeleport ? '✓' : '…'} · Substituição ${s.tutorialSubstitution ? '✓' : '…'}`, tone: 'info' });
+      else this.sendTo(s, { type: 'notice', text: `Teleporte pelo vão ${s.tutorialTeleport ? '✓' : '…'} · Substituição na armadilha ${s.tutorialSubstitution ? '✓' : '…'}`, tone: 'info' });
     }
   }
 
-  /** Avança UM passo, gravando no banco (recompensas lá: Kunai no passo 3; ryō e XP no 4). */
+  /**
+   * Avança UM passo, gravando no banco (recompensas lá: Kunai no passo 3; ryō e XP no 4), e leva o
+   * jogador para a sala da etapa seguinte (ou para a Praça da Vila, no fim).
+   */
   private advanceTutorial(s: Session, to: number): void {
     if (s.tutorialBusy || s.tutorial >= to) return;
     const done = (current: Session) => {
@@ -1196,14 +1467,15 @@ export class GameWorld {
       this.sendTo(current, { type: 'tutorial', step: to });
       const lines = [
         '',
-        'Sala 1 concluída! A porta para a Sala 2 abriu: medite até o chakra encher.',
-        'Sala 2 concluída! Na Sala 3, use o Teleporte Curto e a Substituição contra o boneco que bate.',
-        'Sala 3 concluída! Você ganhou a Kunai de Treino: equipe na Sala 4 (Inventário).',
-        'Tutorial concluído! +100 ryō e +50 XP. A saída da Academia está aberta.',
+        'Etapa 1 concluída! Na Sala de Controle, um campo drena o seu chakra: medite 🧘 até a barra encher.',
+        'Etapa 2 concluída! Você aprendeu o Teleporte Curto e a Substituição: salte o vão e use a Substituição contra a armadilha.',
+        'Etapa 3 concluída! Você ganhou a Kunai de Treino: abra a mochila 🎒, equipe e acerte o boneco com o Ataque Básico.',
+        'Academia concluída! +100 ryō e +50 XP. Bem-vindo à Praça da Vila: o mundo está aberto.',
       ];
       this.sendTo(current, { type: 'notice', text: lines[to] ?? '', tone: 'good' });
+      this.moveToStage(current, to);
       if (to === 1) {
-        // Sala 2: meditar até encher. Começa com o chakra baixo para o treino valer.
+        // Sala de Controle: começa com o chakra baixo para o treino valer.
         current.chakra = Math.min(current.chakra, Math.floor(current.stats.maxChakra * 0.25));
         this.sendStats(current, this.now());
       }
@@ -1240,6 +1512,27 @@ export class GameWorld {
       s.tutorialBusy = false;
       this.flushKicks();
     });
+  }
+
+  /** Leva o jogador para a sala da etapa `step` (0 a 3) ou, no passo 4, para a Praça da Vila. */
+  private moveToStage(s: Session, step: number): void {
+    this.stopMeditation(s, 'manual');
+    s.dx = 0;
+    s.dy = 0;
+    this.dropInputs(s);                 // as entradas a caminho são confirmadas: o cliente recomeça do lugar novo
+    s.substituteUntil = 0;
+    const at = step >= 4 ? this.config.tutorialEnd : academySpawn(step);
+    this.transfer(s, step >= 4 ? this.config.startMap : 'academy_interior', at.x, at.y, 'tutorial');
+    s.lastUpdate = this.now();
+    s.dirty = true;
+  }
+
+  /** Chakra/s drenado onde o jogador está (campo da Sala de Controle). */
+  private drainAt(s: Session): number {
+    const fields = this.layout(s.map).fields;
+    if (!fields) return 0;
+    for (const f of fields) if (s.x >= f.x && s.x <= f.x + f.w && s.y >= f.y && s.y <= f.y + f.h) return f.chakraPerSec;
+    return 0;
   }
 
   // ---------------------------------------------------------------- classes, loja, Extração, arma, Hokage
@@ -1301,6 +1594,10 @@ export class GameWorld {
       if (!current) return;
       if (!result.ok) return this.sendTo(current, { type: 'notice', text: result.text, tone: 'bad' });
       current.items = result.items;
+      if (current.equippedScroll !== result.equippedScroll) {
+        current.equippedScroll = result.equippedScroll;   // gastou o último que levava nas costas
+        this.broadcastGear(current);
+      }
       if (result.outcome === 'success' && result.jutsu) {
         current.jutsus.set(result.jutsu, current.jutsus.get(result.jutsu) ?? 0);
         this.sendTo(current, { type: 'jutsus', jutsus: Object.fromEntries(current.jutsus) });
@@ -1333,23 +1630,35 @@ export class GameWorld {
     }));
   }
 
-  /** Equipar arma do inventário (null = guardar). Sala 4 do tutorial: equipar conclui. */
-  private equip(session: Session, item: string | null): void {
+  /**
+   * Equipar do inventário (item null = guardar): arma (slot weapon) ou pergaminho nas costas
+   * (slot scroll). O boneco muda para TODOS (player_gear). Etapa 4 da Academia: equipar a arma é o
+   * primeiro passo; acertar o boneco com ela conclui.
+   */
+  private equip(session: Session, item: string | null, slot: 'weapon' | 'scroll'): void {
     if (item !== null) {
-      if (ITEM_BY_CODE.get(item)?.kind !== 'weapon') return this.sendError(session, 'NOT_A_WEAPON');
+      const kind = ITEM_BY_CODE.get(item)?.kind;
+      if (slot === 'weapon' && kind !== 'weapon') return this.sendError(session, 'NOT_A_WEAPON');
+      if (slot === 'scroll' && kind !== 'scroll') return this.sendError(session, 'NOT_A_SCROLL');
       if (!((session.items[item] ?? 0) > 0)) return this.sendError(session, 'ITEM_NOT_OWNED');
     }
     const finish = (current: Session, equipped: string | null) => {
-      current.equipped = equipped;
+      const before = this.gear(current);
+      if (slot === 'scroll') current.equippedScroll = equipped;
+      else current.equipped = equipped;
       this.sendInventory(current);
-      if (equipped && current.tutorial === 3) this.advanceTutorial(current, 4);
+      const after = this.gear(current);
+      if (before.hand !== after.hand || before.back !== after.back || before.scroll !== after.scroll) this.broadcastGear(current);
+      if (slot === 'weapon' && equipped && current.tutorial === 3) {
+        this.sendTo(current, { type: 'notice', text: 'Arma equipada! Agora acerte o boneco com o 🗡️ Ataque Básico.', tone: 'good' });
+      }
     };
     if (!this.store) {
       finish(session, item);                      // sem banco: só em memória
       return;
     }
     const { id } = session;
-    this.storeTask(session, (store) => store.equip(id, item).then((result) => {
+    this.storeTask(session, (store) => store.equip(id, item, slot).then((result) => {
       const current = this.sessions.get(id);
       if (!current) return;
       if (!result.ok) return this.sendTo(current, { type: 'notice', text: result.text, tone: 'bad' });
@@ -1416,15 +1725,34 @@ export class GameWorld {
       session.lastMissionAt = t;
       return npc.id === 'director' ? this.talkDirector(session) : this.sendTo(session, { type: 'npc_say', npcId: npc.id, text: tutorLine(npc.id, session.tutorial) });
     }
+    // Mestre: abre a Sala de Missões (cartões + a missão atual). Escolher e entregar são pedidos à parte.
+    const { id } = session;
+    this.missionRequest(session, t, (m) => Promise.all([m.current(id), m.board()]).then(([mission, offers]) => {
+      const current = this.sessions.get(id);
+      if (current) this.sendTo(current, { type: 'mission_board', npcId: npc.id, offers, mission });
+    }));
+  }
+
+  /** Cartão escolhido na Sala de Missões (perto do Mestre). O banco cria a missão com a recompensa do catálogo. */
+  private acceptMission(session: Session, offer: string, t: number): void {
+    if (!NPC_OFFER_CODES.includes(offer)) return this.sendError(session, 'INVALID_MISSION_OPTION');
+    if (!this.near(session, 'sensei')) return this.sendError(session, 'SENSEI_TOO_FAR');
     const { id, username } = session;
-    this.missionRequest(session, t, (m) => m.talk(id).then((outcome) => this.applyTalk(id, username, npc.id, outcome)));
+    this.missionRequest(session, t, (m) => m.talk(id, offer).then((outcome) => this.applyTalk(id, username, 'sensei', outcome)), true);
+  }
+
+  /** Botão "Entregar" da Sala de Missões: o banco confere o objetivo de novo (o cliente só pede). */
+  private deliverNpcMission(session: Session, t: number): void {
+    if (!this.near(session, 'sensei')) return this.sendError(session, 'SENSEI_TOO_FAR');
+    const { id, username } = session;
+    this.missionRequest(session, t, (m) => m.talk(id, null).then((outcome) => this.applyTalk(id, username, 'sensei', outcome)), true);
   }
 
   /** Diretor: o que o jogador pode fazer agora (Missão de Genin, classe Secundária, Exame Chunin, Hokage). */
   private talkDirector(s: Session): void {
     const say = (text: string) => this.sendTo(s, { type: 'npc_say', npcId: 'director', text });
     const lv = this.config.combat.rankLevels;
-    if (s.tutorial < 4) return say('Primeiro, termine o treino das quatro salas. Cada porta só abre quando você conclui a sala.');
+    if (s.tutorial < 4) return say('Primeiro, conclua as quatro etapas da Academia. Os Professores levam você de uma sala para a outra.');
     if (s.rank.code === 'ACADEMY') {
       if (s.level < lv.genin) return say(`A Missão de Genin é no nível ${lv.genin}. Cace na Floresta, ao sul do portão, e volte aqui. (Nível ${s.level})`);
       say('Chegou a hora da Missão de Genin. Escolha sua classe: ela decide quais jutsus você pode aprender.');
@@ -1448,9 +1776,14 @@ export class GameWorld {
    * Um pedido ao banco de missões por vez, e no máximo 1 a cada `missionRequestEveryMs`.
    * Toque repetido no meio do caminho é ignorado (não enfileira consultas).
    */
-  private missionRequest(session: Session, t: number, run: (missions: Missions) => Promise<void>): void {
+  private missionRequest(session: Session, t: number, run: (missions: Missions) => Promise<void>, retry = false): void {
     if (!this.missions) return this.sendError(session, 'MISSIONS_UNAVAILABLE');
-    if (session.missionBusy || t - session.lastMissionAt < this.config.missionRequestEveryMs) return;
+    if (session.missionBusy || t - session.lastMissionAt < this.config.missionRequestEveryMs) {
+      // Botão da Sala de Missões (aceitar/entregar) logo depois de abrir: não some em silêncio,
+      // vai uma vez quando a janela abrir (só o último pedido; toque repetido não enfileira).
+      if (retry) this.retryMission(session, run);
+      return;
+    }
     session.missionBusy = true;
     session.lastMissionAt = t;
     const { id } = session;
@@ -1462,6 +1795,21 @@ export class GameWorld {
       session.missionBusy = false;
       this.flushKicks();
     });
+  }
+
+  private retryMission(session: Session, run: (missions: Missions) => Promise<void>): void {
+    const first = !session.missionRetry;
+    session.missionRetry = run;
+    if (!first) return;
+    const wait = Math.max(50, session.lastMissionAt + this.config.missionRequestEveryMs - this.now());
+    setTimeout(() => {
+      const again = session.missionRetry;
+      session.missionRetry = undefined;
+      if (!again || session.closed || this.sessions.get(session.id) !== session) return;
+      if (session.missionBusy) return this.retryMission(session, again);
+      this.missionRequest(session, this.now(), again);
+      this.flushKicks();
+    }, wait).unref();
   }
 
   private sendMission(playerId: string, mission: MissionView | null, reason: 'sync' | 'assigned' | 'progress' | 'ready' | 'completed'): void {
@@ -1610,6 +1958,10 @@ export class GameWorld {
       }
       case 'rank_too_high':
         say('Seu rank já passou dos meus treinos. Procure um sensei à sua altura.');
+        break;
+      case 'none':
+        say('Você não tem missão para entregar. Escolha um dos meus treinos.');
+        this.sendMission(playerId, null, 'sync');
         break;
       case 'unavailable':
         this.log.warn({}, 'missões do NPC indisponíveis: rode db/schema_v4_npc_missions.sql no banco');
@@ -1761,7 +2113,7 @@ export class GameWorld {
    * Cria um monstro. Sem posição: numa casa livre (fora das árvores) da zona de caça do mapa,
    * longe dos jogadores. Com posição (testes): no mapa pedido ou, sem mapa, no de entrada.
    */
-  spawnMonster(at?: Point, t: number = this.now(), map?: MapId, typeName?: string, fixed = false): MonsterView {
+  spawnMonster(at?: Point, t: number = this.now(), map?: MapId, typeName?: string, fixed = false, admin = false): MonsterView {
     const cfg = this.config.combat.monsters;
     const type = typeName ?? cfg.type;
     const stats = this.monsterType(type);
@@ -1789,6 +2141,7 @@ export class GameWorld {
       stunnedUntil: 0,
       rootedUntil: 0,
       ...(fixed ? { home: { x: pos!.x, y: pos!.y } } : {}),
+      ...(admin ? { admin: true } : {}),
     };
     this.monsters.set(m.id, m);
     this.broadcastMap(mapId, { type: 'monster_spawned', monster: monsterView(m) });
@@ -1845,10 +2198,13 @@ export class GameWorld {
     for (const s of this.sessions.values()) {
       if (s.closed || s.dead) continue;
       this.moveSession(s, dtMs, t);
+      // Campo da Sala de Controle: drena o chakra (antes da meditação, que vence o dreno).
+      const drain = this.drainAt(s);
+      if (drain > 0) s.chakra = Math.max(0, s.chakra - drain * dt);
       // Chakra: SÓ meditando (15/s + atributo). Vida: SÓ com o chakra no máximo.
       if (s.meditating) s.chakra = Math.min(s.stats.maxChakra, s.chakra + s.stats.meditationChakraPerSec * dt);
       if (s.chakra >= s.stats.maxChakra) s.hp = Math.min(s.stats.maxHp, s.hp + p.hpRegenPerSec * dt);
-      // Sala 2 do tutorial: meditando DENTRO da sala até o chakra encher.
+      // Etapa 2 do tutorial: meditando DENTRO da Sala de Controle até o chakra encher.
       if (s.tutorial === 1 && s.meditating && s.chakra >= s.stats.maxChakra && s.map === 'academy_interior'
         && s.x >= ACADEMY.room && s.x < ACADEMY.room * 2) this.advanceTutorial(s, 2);
       if (s.usagePending.size > 0 && t - s.lastUsageFlush >= 15_000) void this.flushUsage(s);
@@ -1901,12 +2257,19 @@ export class GameWorld {
     this.lastTick = this.now();
     this.timer = setInterval(() => this.tick(), this.config.tickMs);
     this.timer.unref();
+    // Histórico do chat: apaga o que passou de 24 h (fora do loop).
+    this.purgeTimer = setInterval(() => {
+      this.chatLog.purge().catch((err: unknown) => this.log.warn({ err }, 'falha ao limpar o histórico do chat'));
+    }, CHAT_HISTORY.purgeEveryMs);
+    this.purgeTimer.unref();
   }
 
   /** Para o loop e fecha todo mundo (deploy/reinício do Render). */
   close(): void {
     if (this.timer) clearInterval(this.timer);
+    if (this.purgeTimer) clearInterval(this.purgeTimer);
     this.timer = undefined;
+    this.purgeTimer = undefined;
     for (const session of this.sessions.values()) {
       session.closed = true;
       safeClose(session.conn, CLOSE.SHUTDOWN);
@@ -2009,35 +2372,45 @@ export const npcLine = {
   },
 };
 
-/** Instrutores das salas da Academia: a dica muda com o passo do jogador. */
+/** Professores das etapas da Academia: a dica muda com o passo do jogador. */
 export function tutorLine(npcId: string, step: number): string {
   if (npcId === 'tutor_dummies') {
     return step === 0
-      ? 'Destrua 3 bonecos com o Ataque Básico (botão ⚔). Chegue perto: o golpe é corpo a corpo.'
-      : 'Muito bem! A porta da direita já está aberta. Siga para a Sala 2.';
+      ? 'Etapa 1, Taijutsu: destrua 3 bonecos usando SÓ o Ataque Básico (🗡️). Chegue perto: o golpe é corpo a corpo.'
+      : 'Muito bem! Você já passou desta etapa.';
   }
   if (npcId === 'tutor_meditation') {
     return step <= 1
-      ? 'O chakra só volta meditando. Fique parado e toque em 🧘 até a barra azul encher.'
-      : 'Seu chakra está em ordem. A Sala 3 espera você.';
+      ? 'Etapa 2, Controle: este campo drena o seu chakra. Fique parado e toque em 🧘 Meditar até a barra azul encher.'
+      : 'Seu chakra está em ordem. Siga em frente.';
   }
-  return step <= 2
-    ? 'Teleporte Curto: incline o joystick e use para saltar 3 casas. Substituição: arme e deixe o boneco bater em você!'
-    : 'Ótimo. Na última sala, equipe a sua Kunai de Treino e fale com o Diretor.';
+  if (npcId === 'tutor_jutsu') {
+    return step <= 2
+      ? 'Etapa 3, Jutsus: incline o joystick para o vão e use o 💨 Teleporte Curto para saltar por cima. Do outro lado, arme a 🪵 Substituição e deixe a armadilha te atacar!'
+      : 'Ótimo. Na Sala de Armas, a Professora Mei espera você.';
+  }
+  if (npcId === 'tutor_weapons') {
+    return step <= 3
+      ? 'Etapa 4, Armas: abra a mochila 🎒, equipe a Kunai de Treino e acerte o boneco com o 🗡️ Ataque Básico.'
+      : 'Você concluiu a Academia! A saída fica embaixo; no nível 11, fale com o Diretor.';
+  }
+  return 'Continue treinando.';
 }
 
 /**
  * Teleporte Curto: anda em passos de 0,05 casa na direção (dx, dy) até `range`, parando no
- * último ponto livre (nunca entra nem atravessa parede; não sai do mapa).
+ * último ponto livre (nunca entra nem atravessa parede; não sai do mapa). Vão no chão (`pit`):
+ * salta por cima, mas nunca para dentro dele (cai no último ponto livre antes, se não der).
  */
 export function blinkTarget(layout: MapLayout, x: number, y: number, dx: number, dy: number, range: number): Point {
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
   const ux = dx / len, uy = dy / len;
+  const solid = layout.walls.some((w) => w.k === 'pit') ? layout.walls.filter((w) => w.k !== 'pit') : layout.walls;
   let best = { x, y };
   for (let d = 0.05; d <= range + 1e-9; d += 0.05) {
     const nx = q3(x + ux * d), ny = q3(y + uy * d);
-    if (nx < 0 || ny < 0 || nx > layout.width || ny > layout.height || blocked(nx, ny, layout.walls)) break;
-    best = { x: nx, y: ny };
+    if (nx < 0 || ny < 0 || nx > layout.width || ny > layout.height || blocked(nx, ny, solid)) break;
+    if (solid === layout.walls || !blocked(nx, ny, layout.walls)) best = { x: nx, y: ny };
   }
   return best;
 }

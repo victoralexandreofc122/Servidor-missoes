@@ -33,8 +33,8 @@ describe('v6: dano por tipo (Taijutsu x Ninjutsu)', () => {
       const h = world.join({ id, username: id, attributes: { ...NO_ATTRIBUTES, ...attrs } }, c);
       return (msg: unknown) => h.receive(JSON.stringify(msg));
     };
-    const tai = join('tai', { taijutsu: 4 });       // +20% corpo a corpo
-    const nin = join('nin', { ninjutsu: 4 });       // +20% elemental
+    const tai = join('tai', { taijutsu: 4 });       // +18,7% corpo a corpo (4 pontos com soft cap)
+    const nin = join('nin', { ninjutsu: 4 });       // +18,7% elemental
     const hit = (who: (m: unknown) => void, skill: string) => {
       const m = world.spawnMonster({ x: S.x + 1, y: S.y });
       who({ type: 'cast', skill, targetId: m.id });   // a Água mira no alvo
@@ -42,31 +42,31 @@ describe('v6: dano por tipo (Taijutsu x Ninjutsu)', () => {
       (world as any).monsters.delete(m.id);
       return M.maxHp - hp;
     };
-    assert.equal(hit(tai, 'taijutsu'), scaledDamage(SK.taijutsu.damage!, 1.2), 'soco: 35 -> 42 com Taijutsu');
+    assert.equal(hit(tai, 'taijutsu'), scaledDamage(SK.taijutsu.damage!, 1.187), 'soco: 35 -> 42 com Taijutsu');
     assert.equal(hit(nin, 'taijutsu'), SK.taijutsu.damage, 'Ninjutsu NÃO sobe o soco');
-    assert.equal(hit(nin, 'fire'), scaledDamage(SK.fire.damage!, 1.2), 'Fogo: 25 -> 30 com Ninjutsu');
+    assert.equal(hit(nin, 'fire'), scaledDamage(SK.fire.damage!, 1.187), 'Fogo: 25 -> 30 com Ninjutsu');
     assert.equal(hit(tai, 'fire'), SK.fire.damage, 'Taijutsu NÃO sobe o Fogo');
-    assert.equal(hit(nin, 'water'), scaledDamage(SK.water.damage!, 1.2), 'Água também é Ninjutsu');
+    assert.equal(hit(nin, 'water'), scaledDamage(SK.water.damage!, 1.187), 'Água também é Ninjutsu');
   });
 });
 
 describe('v6: Agilidade também acelera o Ataque Básico', () => {
-  it('recarga 600 ms -> 4% a menos por ponto (5 pontos: 480 ms), nunca abaixo de 60%', () => {
+  it('recarga 600 ms -> 4% a menos por ponto efetivo (5 pontos com soft cap: 490 ms), nunca abaixo de 60%', () => {
     const { world, clock } = setupWorld(config);
     const c = new Conn();
     const h = world.join({ id: 'agil', username: 'agil', attributes: { ...NO_ATTRIBUTES, agility: 5 } }, c);
-    assert.equal(c.sent[0].progress.derived.attackCooldownMs, 480);
+    assert.equal(c.sent[0].progress.derived.attackCooldownMs, 490);
     world.spawnMonster({ x: S.x + 1, y: S.y });
     h.receive(JSON.stringify({ type: 'attack' }));
-    clock.advance(480);
+    clock.advance(490);
     h.receive(JSON.stringify({ type: 'attack' }));
-    assert.equal(c.sent.filter((m) => m.type === 'attack').length, 2, 'com 480 ms já ataca de novo');
-    clock.advance(479);
+    assert.equal(c.sent.filter((m) => m.type === 'attack').length, 2, 'com 490 ms já ataca de novo');
+    clock.advance(489);
     h.receive(JSON.stringify({ type: 'attack' }));
     assert.equal(c.last('attack_failed').reason, 'COOLDOWN');
     const max = new Conn();
-    world.join({ id: 'max', username: 'max', attributes: { ...NO_ATTRIBUTES, agility: 10 } }, max);
-    assert.equal(max.sent[0].progress.derived.attackCooldownMs, 360, '10 pontos: 60% de 600');
+    world.join({ id: 'max', username: 'max', attributes: { ...NO_ATTRIBUTES, agility: 20 } }, max);
+    assert.equal(max.sent[0].progress.derived.attackCooldownMs, 360, '20 pontos: no piso de 60% de 600');
   });
 });
 
@@ -77,6 +77,7 @@ describe('v6: visual do personagem e direção', () => {
       async spendPoint() { return { ok: false, reason: 'NO_POINTS' }; },
       async saveLoadout() {},
       async saveAppearance(_id, a) { saved.push(a); },
+      async resetAttributes() { return { ok: false, text: 'sem banco' }; },
     };
     return { profile, saved };
   }
@@ -114,6 +115,7 @@ describe('v6: visual do personagem e direção', () => {
       async spendPoint() { calls.push('ponto'); return { ok: true, statPoints: 0, attributes: { ...NO_ATTRIBUTES, vitality: 1 } }; },
       async saveLoadout() { calls.push('kits'); },
       async saveAppearance() { calls.push('visual'); },
+      async resetAttributes() { return { ok: false, text: 'sem banco' }; },
     };
     const { world, connect } = setupWorld(config, undefined, undefined, profile);
     const a = connect('kaito');
@@ -152,7 +154,7 @@ describe('v6 no banco: visual e script do Hokage (PostgreSQL real)', { skip: noD
     const id = await t.createPlayer('kaito');
     const find = makeFindPlayer(t.db);
     assert.equal((await find(id))!.appearance, null);
-    await makeProfile(t.db, 10).saveAppearance(id, LOOK);
+    await makeProfile(t.db).saveAppearance(id, LOOK);
     assert.deepEqual((await find(id))!.appearance, LOOK);
     for (const bad of [{ ...LOOK, skin: 'red' }, { ...LOOK, extra: '#000000' }, { skin: '#000000' }, [1], 'texto']) {
       await assert.rejects(

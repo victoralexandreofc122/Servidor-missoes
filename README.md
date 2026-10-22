@@ -16,7 +16,9 @@ psql "$DATABASE_URL" -f db/schema_v3_auth.sql      # migração v3: login
 psql "$DATABASE_URL" -f db/schema_v4_npc_missions.sql   # migração v4: NPC Mestre
 psql "$DATABASE_URL" -f db/schema_v5_atributos.sql      # migração v5: nível, atributos, kits
 psql "$DATABASE_URL" -f db/schema_v6_aparencia.sql      # migração v6: visual do personagem
-# opcional, só para testes: deixa a conta "Victor" como Hokage
+psql "$DATABASE_URL" -f db/schema_v7_progressao.sql     # migração v7: níveis 60, classes, Academia, loja
+psql "$DATABASE_URL" -f db/schema_v8_admin_chat.sql     # migração v8: admin, chat, atributo Chakra, Sala de Missões
+# opcional, só para testes: deixa a conta "Victor" como Hokage e administradora
 psql "$DATABASE_URL" -f db/promote_victor.sql
 npm run dev
 ```
@@ -71,6 +73,7 @@ servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
 - **Personagem:** círculo com a inicial do nome.
 - **Controles:** joystick flutuante à esquerda (nasce onde o polegar toca) e 7 habilidades à direita, cada uma com uma animação.
 - **Chat:** botão 💬 no topo abre a barra de digitação; as mensagens aparecem na tela e somem em ~6 s.
+  `/g texto` fala com todos os mapas, `/w Nome texto` sussurra; o 🕘 abre o histórico (últimas 100, 24 h).
 - **🎯 Alvo (foco):** foca o monstro vivo mais perto (até 10 casas); tocar de novo passa para o próximo
   (ciclo). A câmera desliza para o meio do caminho e afasta o zoom só o necessário para os dois caberem
   (no máximo 5 casas de deslocamento e zoom 0,6). Andar para mais de 12 casas perde o foco.
@@ -107,6 +110,7 @@ servidos de uma lista fechada com CSP (`script-src 'self'`) e ETag.
   | Falar com o NPC | E |
   | Missões | J |
   | Chat | Enter |
+  | Histórico do chat | H |
 
 O token fica no `localStorage` e vai no subprotocolo do WebSocket, nunca na URL.
 
@@ -172,6 +176,67 @@ Regras (em `src/realtime/config.ts`):
 - **Mesma conta:** conectando de novo, derruba a conexão antiga (4000).
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
+
+### v12: polimento, Modo Administrador e Academia nova (migração `db/schema_v8_admin_chat.sql`)
+
+Rodar no Neon depois da v7 (pode rodar de novo). Sem ela o servidor não sobe e o log diz qual migração falta.
+
+**1. Modo Administrador (God Mode)** — `players.is_admin` (falso para todos; a migração e o
+`db/promote_victor.sql` ligam só a conta `Victor`). Comandos no chat, que **nunca** viram mensagem:
+
+| Comando | O que faz |
+|---|---|
+| `/admin level <nome> <nível>` | nível 1 a 60 (XP no começo do nível; pontos recalculados, atributos zerados se não couberem) |
+| `/admin spawn <slime\|dummy\|sparring> <qtd>` | 1 a 20 monstros em volta do admin |
+| `/admin givejutsu <nome> <jutsu> <nível>` | ensina o jutsu ou sobe o uso até o nível 1 a 4 (o uso nunca desce) |
+| `/admin giveitem <nome> <item> <qtd>` | 1 a 999 itens no inventário |
+| `/admin resetstats <nome>` | devolve os pontos de atributo, sem custo |
+
+- **Restrito:** o servidor só aceita de quem entrou com `is_admin`; cada função do banco (`game.admin_*`)
+  confere `is_admin` de novo. Quem não é admin recebe só "Comando desconhecido" (e o servidor registra no log).
+- **Auditoria:** `game.admin_audit_log` (só INSERT: editar ou apagar é recusado pelo banco), com
+  comando, alvo, argumentos e se deu certo, inclusive as recusas.
+- **Sem efeitos colaterais:** nada de admin dispara anúncio, XP de abate, rank, título ou missão. O nível
+  passa pela flag local `game.admin_action` (só dentro da transação); os monstros invocados não dão XP,
+  ryō, pergaminho, progresso de missão nem de tutorial, e não renascem.
+- Sem `is_admin` (padrão), o jogo e os testes se comportam exatamente como antes.
+
+**2. Atributos: "Chakra" único, sem teto e com rendimento decrescente** (`src/realtime/stats.ts`)
+
+- Chakra Máximo + Regen Chakra viraram **Chakra** (`attr_chakra`; a migração soma os pontos das duas
+  colunas). Cada ponto dá chakra máximo **e** meditação mais rápida.
+- **Sem o teto de 10 pontos.** O ponto investido quando já há `n` pontos vale `base / (1 + n × 0,05)`:
+  Vitalidade +10 no 1º ponto, +6,9 no 10º, +2,9 no 50º; nível 60 com tudo em Vitalidade = 379 de vida (e não 690).
+  A velocidade tem teto de +5 casas/s (o movimento com predição conta com passos curtos).
+- **O servidor calcula tudo:** a ficha recebe o resultado (`derived`) e quanto o próximo ponto rende (`nextGain`).
+- **Redefinir Atributos** (📊, dois toques): 500 ryō, devolve todos os pontos (`game.reset_attributes`;
+  custo decidido pelo servidor, saldo conferido pelo banco).
+
+**3. Equipamento no boneco** (`public/character.js`, `gear` em cada jogador, `player_gear` para todos):
+Kunai, Kunai de Treino e **Espada Curta** na mão (só com a outra mão livre); **Espada Longa** e Shuriken
+Gigante nas costas; pergaminho de jutsu nas costas (🎒 → "Nas costas"). As costas ficam atrás do tronco
+e à frente da capa (de costas, por cima da capa). Espada Curta (600 ryō) e Espada Longa (2000) na Armaria.
+
+**4. Chat com histórico** (`src/realtime/chatLog.ts`, `game.chat_logs`, retenção de 24 h):
+fala local (o mapa), `/g texto` (global) e `/w Nome texto` (sussurro, só os dois). O 🕘 mostra as últimas
+100 do jogador (global, sussurros dele e a fala do mapa atual), com abas; ao abrir o jogo elas já chegam.
+
+**5. Sala de Missões em cartões:** falar com o Mestre abre um modal com 3 cartões (título, descrição,
+recompensa do catálogo do banco e dificuldade: Treino Leve 3 slimes / 30 XP, Treino do Mestre 5 / 50 XP +
+título, Treino Pesado 10 / 150 XP). O botão **Entregar** fica verde com a missão completa; senão, cinza com
+o que falta ("Faltam 3 monstros"). Mensagens: `accept_mission`, `deliver_npc_mission`, `mission_board`.
+
+**6. Academia em 4 etapas, linear** (salas fechadas: o servidor leva o jogador de uma para a outra):
+
+| Etapa | Sala | O que fazer | Interface |
+|---|---|---|---|
+| 1 | Taijutsu | destruir 3 bonecos só com o Ataque Básico | jutsus e 🧘 ocultos (o servidor recusa jutsu: `TUTORIAL_LOCKED`) |
+| 2 | Controle | um campo drena o chakra (6/s): meditar até encher | 🧘 aparece |
+| 3 | Jutsus | Teleporte Curto **por cima do vão** + Substituição contra a armadilha | jutsus aparecem |
+| 4 | Armas | ganha a Kunai de Treino: 🎒 (brilha), equipar e acertar o boneco com o Ataque Básico | |
+
+Concluiu: +100 ryō, +50 XP e o servidor leva para a **Praça da Vila** (40, 66). Ninguém pula etapa nem sai
+antes: não há porta entre as salas, a saída só abre no passo 4 e morrer renasce na sala da etapa.
 
 ### v11: progressão (níveis até 60, ranks, classes, Academia, Extração e armas)
 

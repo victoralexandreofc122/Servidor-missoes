@@ -7,7 +7,8 @@
  *   map_2  Floresta 100 x 100  grama escura, árvores (paredes), monstros; entrada no NORTE (x 35..45)
  *   interior_weapons / interior_clothes / interior_scrolls   salas 15 x 15 das lojas: assoalho,
  *                              paredes, balcão no meio e o lojista atrás dele; porta de saída embaixo
- *   academy_interior  Academia 64 x 16: 4 salas do tutorial, portas travadas pelo passo do jogador
+ *   academy_interior  Academia 64 x 16: 4 salas do tutorial (v8: fechadas; o servidor leva o jogador
+ *                              para a sala seguinte quando ele conclui a etapa)
  *
  * Os layouts são DADOS fixos, gerados aqui uma vez (a floresta com sorteio de semente fixa:
  * sempre as mesmas árvores). O servidor colide com `walls` e o cliente recebe a MESMA lista
@@ -27,9 +28,10 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
  *  wall = muralha · gatepost = pilar do portão · rock = montanha · house = prédio (s = estilo)
  *  tree = árvore · water = rio/canal · dummy = boneco de treino
  *  iwall = parede de interior · counter = balcão · furniture = móvel (s = qual)
+ *  pit = vão no chão (Academia): ninguém atravessa andando, mas o Teleporte Curto salta por cima
  */
 export interface Wall extends Box {
-  k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture';
+  k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit';
   /**
    * Estilo do prédio (sede, hospital, academia, lojas, casa, cabana) ou do móvel do interior
    * (suporte de espadas, de lanças, de escudos, manequim, prateleira de roupas, estante de
@@ -110,6 +112,8 @@ export interface MapLayout {
   hunt?: Box;
   /** Monstros FIXOS (bonecos da Academia): tipo e lugar; renascem no mesmo ponto. */
   spawns?: { type: string; x: number; y: number }[];
+  /** Campos que drenam chakra de quem está dentro (Sala de Controle da Academia), por segundo. */
+  fields?: (Box & { chakraPerSec: number })[];
 }
 
 const wall = (k: Wall['k'], x: number, y: number, w: number, h: number, s?: Wall['s']): Wall => (s ? { x, y, w, h, k, s } : { x, y, w, h, k });
@@ -145,9 +149,15 @@ export const ROOM = {
 } as const;
 
 /**
- * Academia (tutorial): 4 salas de 16 x 16 lado a lado (x 0, 16, 32, 48). Cada sala tem uma porta
- * para a próxima (leste), travada até o jogador concluir a sala, e uma de volta (oeste). A
- * saída (sala 4, embaixo) só abre com o tutorial completo (passo 4). Conta nova nasce na sala 1.
+ * Academia (tutorial, v8): 4 salas de 16 x 16 lado a lado (x 0, 16, 32, 48), FECHADAS entre si.
+ * Não há porta de uma sala para a outra: quando o SERVIDOR vê a etapa concluída, ele mesmo leva o
+ * jogador para a sala seguinte (e, no fim, para a Praça da Vila). Assim ninguém pula etapa. A
+ * única saída (sala 4, embaixo) só abre com o tutorial completo (passo 4).
+ *
+ *   Etapa 1  Sala de Taijutsu  3 bonecos, só o Ataque Básico (os jutsus ficam ocultos)
+ *   Etapa 2  Sala de Controle  um campo drena o chakra: meditar 🧘 até encher
+ *   Etapa 3  Sala de Jutsus    Teleporte Curto por cima do vão + Substituição contra a armadilha
+ *   Etapa 4  Sala de Armas     equipar a Kunai de Treino (🎒) e acertar o boneco com o Ataque Básico
  */
 export const ACADEMY = {
   room: 16, height: 16, rooms: 4,
@@ -157,11 +167,27 @@ export const ACADEMY = {
   arrive: { x: 56, y: 12.4 },
   /** Onde fica o Diretor (sala 4): Missão de Genin e Exame Chunin. */
   director: { x: 56, y: 4.2 },
+  /** Sala de Controle: o campo que drena o chakra (a sala inteira; chakra/s). */
+  drainField: { x: 17, y: 2, w: 14, h: 13, chakraPerSec: 6 },
+  /** Sala de Jutsus: o vão de lado a lado (só o Teleporte passa). Nasce-se ao sul dele. */
+  gap: { x: 33, y: 7, w: 14, h: 2 },
+  /** Nomes das etapas (passo 0 a 3). */
+  stages: ['Sala de Taijutsu', 'Sala de Controle', 'Sala de Jutsus', 'Sala de Armas'],
 } as const;
 /** Onde se nasce/renasce na Academia: na sala do passo atual do tutorial (0 a 3; 4 = sala 4). */
 export function academySpawn(step: number): { x: number; y: number } {
   const room = Math.max(0, Math.min(3, Math.floor(step)));
   return { x: ACADEMY.room * room + 8, y: 11 };
+}
+/** Praça da Vila (zona segura): onde o tutorial termina. */
+export const VILLAGE_PLAZA = { x: 40, y: 66 } as const;
+
+/** O Teleporte atravessou o vão da Sala de Jutsus (de um lado para o outro)? */
+export function crossedGap(from: { x: number; y: number }, to: { x: number; y: number }): boolean {
+  const g = ACADEMY.gap;
+  const inX = (p: { x: number }) => p.x >= g.x && p.x <= g.x + g.w;
+  if (!inX(from) || !inX(to)) return false;
+  return (from.y >= g.y + g.h && to.y <= g.y) || (from.y <= g.y && to.y >= g.y + g.h);
 }
 
 /** Porta da loja na Vila (faixa logo abaixo da fachada) e onde se chega ao sair da sala. */
@@ -378,14 +404,15 @@ function interior(sh: (typeof SHOPS)[number]): MapLayout {
  * Academia (64 x 16), 4 salas vistas de cima:
  *
  *   ┌ sala 1 ──────┐┌ sala 2 ──────┐┌ sala 3 ──────┐┌ sala 4 ──────┐
- *   │ 3 bonecos    ▕▏ almofadas    ▕▏ boneco que   ▕▏ armas  DIRETOR│
- *   │ (Ataque      ▕▏ (meditar até ▕▏ bate (Telep. ▕▏ (equipar a   │
- *   │  Básico)     ▕▏  chakra cheio)▕▏ + Substit.)  ▕▏  Kunai)      │
+ *   │ Taijutsu:    ││ Controle:    ││ Jutsus: ar-  ││ Armas: DIRE- │
+ *   │ 3 bonecos    ││ campo drena  ││ madilha      ││ TOR  boneco  │
+ *   │ (Ataque      ││ o chakra     ││ ~~~~ vão ~~~ ││ (Kunai +     │
+ *   │  Básico)     ││ (meditar)    ││ (Teleporte)  ││  Ataque)     │
  *   └──────────────┘└──────────────┘└──────────────┘└──[ saída ]───┘
  *
- * Entre duas salas a parede é dupla (2 casas); a passagem é uma PORTA (de um lado para o outro).
- * A porta para a sala seguinte só abre para quem concluiu a sala (passo do tutorial); a de volta
- * sempre abre. A saída (embaixo, na sala 4) só abre no passo 4 e leva à frente da Academia na Vila.
+ * Entre duas salas a parede é dupla (2 casas) e não tem passagem: quem leva de uma sala para a
+ * outra é o servidor (etapa concluída). A saída (embaixo, na sala 4) só abre no passo 4 e leva à
+ * frente da Academia na Vila; quem conclui o tutorial é levado direto para a Praça da Vila.
  */
 function academy(): MapLayout {
   const R = ACADEMY.room, H = ACADEMY.height;
@@ -398,10 +425,6 @@ function academy(): MapLayout {
     walls.push(wall('iwall', x0, 2, 1, H - 2), wall('iwall', x0 + R - 1, 2, 1, H - 2));  // laterais
     if (k < ACADEMY.rooms - 1) {
       walls.push(wall('iwall', x0 + 1, H - 1, R - 2, 1));                               // frente
-      // para a próxima sala (trava: passo k+1) e, na próxima, a de volta (sempre aberta)
-      doors.push({ x: x0 + 13.4, y: 6.5, w: 1.6, h: 3, dir: 'east', map: 'academy_interior', at: { x: x0 + R + 2.6, y: 8 }, step: k + 1 });
-      doors.push({ x: x0 + R + 1, y: 6.5, w: 1, h: 3, dir: 'west', map: 'academy_interior', at: { x: x0 + 12.6, y: 8 } });
-      decos.push({ ...deco('door', x0 + R - 1, 6.5, 2, 3), step: k + 1 });
     } else {
       walls.push(wall('iwall', x0 + 1, H - 1, 5.5, 1), wall('iwall', x0 + 9.5, H - 1, 5.5, 1));   // vão da saída (x 54,5..57,5)
     }
@@ -409,22 +432,30 @@ function academy(): MapLayout {
   // Saída: o capacho inteiro (como nas lojas, ninguém fica preso no canto). Só no passo 4.
   doors.push({ x: 54.5, y: H - 1.6, w: 3, h: 1.6, dir: 'south', map: 'map_1', at: shopDoor(ACADEMY.building).outside, step: 4 });
   decos.push({ ...deco('door', 54.5, H - 1, 3, 1), step: 4 }, deco('mat', 55, H - 1.6, 2, 0.6));
-  // Sala 1: tapete e quadro · Sala 2: almofadas · Sala 3: tapete · Sala 4: armas na parede.
+  // Etapa 3: o vão de parede a parede (Teleporte por cima). Colide como parede para quem anda.
+  const g = ACADEMY.gap;
+  walls.push(wall('pit', g.x, g.y, g.w, g.h));
+  // Sala 1: tapete e quadro · Sala 2: almofadas · Sala 3: tapete (além do vão) · Sala 4: armas na parede.
   decos.push(deco('rug', 3, 3.5, 10, 4.5), deco('board', 6, 0.5, 4, 1.2));
   decos.push(deco('cushion', 20, 6, 1.4, 1.4), deco('cushion', 23.3, 5, 1.4, 1.4), deco('cushion', 26.6, 6, 1.4, 1.4), deco('board', 22, 0.5, 4, 1.2));
-  decos.push(deco('rug', 35, 3.5, 10, 4.5), deco('board', 38, 0.5, 4, 1.2));
+  decos.push(deco('rug', 35, 2.4, 10, 3.8), deco('board', 38, 0.5, 4, 1.2));
   decos.push(deco('rug', 52, 6, 8, 4));
   walls.push(wall('furniture', 49.4, 0.6, 3.6, 2.2, 'sword_rack'), wall('furniture', 59, 0.6, 3.6, 2.2, 'shield_rack'));
+  const f = ACADEMY.drainField;
   return {
     id: 'academy_interior', name: 'Academia', kind: 'interior', width: R * ACADEMY.rooms, height: H, safe: true, walls,
     exits: [], doors,
     areas: [area('wood', 0, 0, R * ACADEMY.rooms, H)],
     deco: decos,
-    safeZones: [{ x: 48, y: 0, w: 16, h: H }],      // sala 4 (Diretor): sem combate; as salas de treino têm
+    // Só o canto do Diretor é seguro: na Sala de Armas se treina o Ataque Básico com a arma.
+    safeZones: [{ x: 52.5, y: 2, w: 7, h: 4.5 }],
     spawns: [
       { type: 'dummy', x: 4.5, y: 5.5 }, { type: 'dummy', x: 8, y: 4.5 }, { type: 'dummy', x: 11.5, y: 5.5 },
-      { type: 'sparring', x: 40, y: 5 },
+      // Armadilha de lâminas ALÉM do vão: só bate em quem chega perto (Substituição!).
+      { type: 'sparring', x: 40, y: 4 },
+      { type: 'dummy', x: 51.5, y: 10 },
     ],
+    fields: [{ x: f.x, y: f.y, w: f.w, h: f.h, chakraPerSec: f.chakraPerSec }],
   };
 }
 
