@@ -28,6 +28,27 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
 
+## Regras para as migrações (SQL do Neon)
+
+O Victor roda as migrações colando o arquivo no **SQL Editor do Neon**, pelo celular. Esse editor
+divide o texto em comandos sozinho, e isso impõe regras a todo arquivo novo em `db/`:
+
+1. **Nada de blocos `DO $$ ... $$`.** O editor corta o bloco no primeiro `;` de dentro e dá
+   `unterminated dollar-quoted string` (aconteceu na v8, em 22/10/2026). `CREATE FUNCTION ... AS $$ ... $$`
+   funciona; `DO` não.
+2. **Para "fazer só se ainda não foi feito"**, use `IF NOT EXISTS` / `IF EXISTS` (`ADD COLUMN`, `CREATE TABLE`,
+   `CREATE INDEX`, `DROP ... IF EXISTS`), `CREATE OR REPLACE FUNCTION` e `INSERT ... ON CONFLICT`. Se precisar
+   mesmo de lógica condicional, crie uma função (`CREATE OR REPLACE FUNCTION game._migrar_vN() ...`), chame com
+   `SELECT game._migrar_vN();` e apague com `DROP FUNCTION game._migrar_vN();`.
+3. **Tudo dentro de `BEGIN; ... COMMIT;`.** Se um comando falhar, o editor mostra "Failed transaction:
+   ROLLBACK required": tocar em ROLLBACK desfaz tudo e o banco fica como estava.
+4. **O branch principal do Neon se chama `production`.** Antes de rodar, confira no seletor do SQL Editor que é
+   ele (depois de criar um branch de backup, o editor pode ficar apontando para o backup).
+5. **Antes de toda migração que renomeia ou apaga colunas:** crie um branch de backup do `production` e mude o
+   "Expires" dele para **Never** (o Neon apaga branches com ampulheta).
+6. **Ordem do deploy:** migração no Neon primeiro, depois o código na `main`. Se o Render publicar antes, o
+   servidor não sobe e a versão anterior continua no ar; depois da migração, use **Manual Deploy**.
+
 ---
 
 ## Passo 1 — Neon (banco de dados)
@@ -647,7 +668,12 @@ continua no ar. **Render:** o push na `main` já faz o deploy. Nenhuma variável
 ## Passo 19 — Atualização v12: admin, atributos, chat, Sala de Missões e Academia nova
 
 **Banco (obrigatório, ANTES do deploy):** no Neon → **SQL Editor**, cole e rode o arquivo
-`db/schema_v8_admin_chat.sql` inteiro. Pode rodar de novo sem erro. Ele:
+`db/schema_v8_admin_chat.sql` inteiro. Ele:
+
+> **Já aplicada no `production` em 22/10/2026.** O arquivo tem um bloco `DO $$` que o SQL Editor do Neon não
+> aceita (veja "Regras para as migrações"). Ela foi rodada com esse bloco trocado por três comandos diretos
+> (`UPDATE` que soma os pontos, `RENAME COLUMN`, `DROP COLUMN`). Para um banco novo, use `psql` ou faça a mesma troca.
+
 
 - cria `is_admin` (falso para todos) e liga só a conta **Victor**; cria a auditoria `game.admin_audit_log`;
 - junta Chakra Máximo + Regen Chakra em **Chakra** (soma os pontos, nada se perde) e tira o teto de 10 pontos;
