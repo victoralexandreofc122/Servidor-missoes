@@ -41,6 +41,12 @@ const FILES = [
   { route: '/spriteData.js', file: 'spriteData.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/sprites/chibi_m.png', file: 'sprites/chibi_m.png', contentType: 'image/png', binary: true },
   { route: '/sprites/chibi_f.png', file: 'sprites/chibi_f.png', contentType: 'image/png', binary: true },
+  // Identidade visual (binários): favicon da Folha em Chamas e Pergaminho em Chamas do login.
+  { route: '/img/favicon-32.png', file: 'img/favicon-32.png', contentType: 'image/png', binary: true },
+  { route: '/img/favicon-192.png', file: 'img/favicon-192.png', contentType: 'image/png', binary: true },
+  { route: '/img/apple-touch-icon.png', file: 'img/apple-touch-icon.png', contentType: 'image/png', binary: true },
+  { route: '/img/login-bg.webp', file: 'img/login-bg.webp', contentType: 'image/webp', binary: true },
+  { route: '/img/logo.webp', file: 'img/logo.webp', contentType: 'image/webp', binary: true },
 ] as const;
 
 /** public/ fica na raiz do projeto: dois níveis acima de src/web/ (dev) e de dist/web/ (Render). */

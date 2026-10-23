@@ -58,6 +58,19 @@ describe('cliente web servido pelo Fastify', () => {
     }
   });
 
+  it('identidade visual: favicon, ícone e imagens do login são servidos como imagem (bytes, não texto)', async () => {
+    const pub = app();
+    const imgs: [string, string][] = [['/img/favicon-32.png', 'image/png'], ['/img/favicon-192.png', 'image/png'], ['/img/apple-touch-icon.png', 'image/png'], ['/img/login-bg.webp', 'image/webp'], ['/img/logo.webp', 'image/webp']];
+    for (const [url, type] of imgs) {
+      const r = await pub.inject({ method: 'GET', url });
+      assert.equal(r.statusCode, 200, url);
+      assert.equal(r.headers['content-type'], type, url);
+      assert.ok(Buffer.isBuffer(byRoute(url).body), url);
+    }
+    assert.match(html, /<link rel="icon" type="image\/png" sizes="32x32" href="\/img\/favicon-32\.png">/);
+    assert.match(html, /class="login-logo" src="\/img\/logo\.webp"/);
+  });
+
   it('só a lista fechada existe: caminhos com ../ ou arquivos do servidor dão 404', async () => {
     const pub = app();
     for (const url of ['/../package.json', '/.env', '/public/game.js', '/src/server.ts', '/index.html.bak']) {

@@ -258,6 +258,34 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
 .link { border: 0; background: none; color: var(--accent); padding: 6px; font-size: 14px; }
 .big { font-size: 46px; margin: 0; }
 
+/* Login: Pergaminho em Chamas ao fundo. O degradê escuro por cima e o cartão quase opaco
+   garantem contraste do texto (o fundo é só clima, nunca fica atrás das letras sem véu). */
+#login {
+  background:
+    linear-gradient(180deg, rgba(10, 6, 4, 0.55) 0%, rgba(10, 6, 4, 0.35) 45%, rgba(10, 6, 4, 0.85) 100%),
+    url('/img/login-bg.webp') center / cover no-repeat,
+    #0a0604;
+}
+#login .card {
+  background: rgba(18, 12, 9, 0.86);
+  border-color: rgba(255, 140, 60, 0.35);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(255, 90, 20, 0.18);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+#login .card h1 { text-align: center; color: #fff4e6; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8); }
+#login .card .sub { text-align: center; color: #e8cdb0; }
+#login .card label { color: #f1dcc4; }
+#login .card input { background: rgba(0, 0, 0, 0.55); border-color: rgba(255, 170, 100, 0.35); }
+.login-logo {
+  display: block;
+  width: 96px;
+  height: 96px;
+  margin: -4px auto 0;
+  border-radius: 22px;
+  box-shadow: 0 0 24px rgba(255, 100, 30, 0.45);
+}
+
 /* ------------------------------------------------------------ combate */
 
 /* Vida e chakra: embaixo, no meio (entre o joystick e as habilidades). */
