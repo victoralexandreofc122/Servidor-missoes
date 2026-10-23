@@ -84,10 +84,11 @@ só tem um lugar para ela); o pergaminho é à parte e fica sempre nas costas.
 - **Shuriken Gigante (arremesso, `lanca` nos dados):** 60 px de ponta a ponta, maior que as costas (de frente, as
   lâminas saem dos dois lados da cintura). No golpe ela aparece na mão no preparo e sai voando no lançamento
   (efeito `fuma`, girando); as costas ficam vazias até ela terminar o caminho.
-- **Nas costas:** o meio do desenho vai na âncora das costas mais o deslocamento da vista (`desloc` nos dados). A
-  espada longa é grande (~58 px) e vai quase deitada na lombar: de frente o cabo sai de um lado do quadril e a ponta
-  do outro; de lado o cabo sai para trás. Essas posições foram medidas na silhueta do boneco (na diagonal, a cabeça
-  chibi grande e o corpo escondem a espada inteira).
+- **Nas costas:** o meio do desenho vai na âncora das costas mais o deslocamento da vista (`desloc` nos dados).
+  A espada longa (~66 px) vai **deitada na horizontal, na altura do cinto**, como na referência das 8 vistas: as
+  duas pontas passam bem dos lados do corpo, as mãos ficam na frente dela e, de costas, ela atravessa a lombar. O
+  cabo fica do lado esquerdo do personagem: de frente, à direita da tela; de costas, à esquerda; de lado, para a
+  frente.
 
 Ordem de desenho (paperdoll):
 

@@ -756,8 +756,8 @@ O que muda:
 5. **Kit B:** 🌀 Ilusão (espiral em volta: atordoa todos a até 3 casas) e 🌑 Sombra (linha no chão até o primeiro
    slime, que fica preso).
 6. **Armas (uma de ataque por vez):** equipe a Kunai na 🎒: ela fica na mão, com o punho fechado no cabo, e o 🗡️
-   vira um golpe com ela (recua, estoca, desce). Equipe a Espada Longa: a kunai sai da mão e a espada fica grande na
-   lombar; no 🗡️ ela sai das costas para a mão, corta e volta (a bainha vazia fica nas costas). O pergaminho
+   vira um golpe com ela (recua, estoca, desce). Equipe a Espada Longa: a kunai sai da mão e a espada fica deitada no
+   cinto, passando dos dois lados do corpo; no 🗡️ ela sai para a mão, corta e volta (a bainha vazia fica no cinto). O pergaminho
    continua nas costas com qualquer arma.
 7. **Shuriken Gigante:** equipada, fica enorme nas costas (de frente, as lâminas saem dos lados da cintura). O 🗡️
    vira um arremesso: ela sai girando até 6 casas, atravessa todos os slimes na linha (85 de dano em cada) e volta

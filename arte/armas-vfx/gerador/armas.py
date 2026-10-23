@@ -93,7 +93,7 @@ def tanto_sample(u, v, lit):
     return None
 
 
-KATANA_LEN = 1.75   # chibi: espada longa de verdade (quase 2/3 da altura do boneco)
+KATANA_LEN = 2.0    # chibi: espada longa de verdade (~66 px, passa bem dos dois lados do corpo)
 KATANA_W = 1.3      # e mais grossa
 
 
@@ -273,11 +273,12 @@ HAND = {
 
 # Costas: tamanho do quadro, e por vista (frente, lado, costas): ângulo da espada / deslocamento do meio
 # em relação à âncora das costas (pixels do boneco; na vista de lado o boneco olha para a esquerda,
-# então as costas ficam para +x). A espada longa vai quase deitada na lombar: de frente, o cabo sai de um lado
-# do quadril e a ponta do outro; de lado, o cabo sai para trás e a ponta na frente (posições medidas na silhueta
-# do boneco: na diagonal, ela some atrás da cabeça grande e do corpo).
+# então as costas ficam para +x).
 BACK = {
-    "katana": dict(size=(70, 70), views=[dict(ang=-155, off=(-4, 6)), dict(ang=-28, off=(6, 7)), dict(ang=-32, off=(0, 3))]),
+    # Espada longa deitada na horizontal, na altura do cinto, com as duas pontas para fora do corpo em todas as
+    # vistas (referência do Victor). O cabo fica do lado esquerdo do personagem: de frente, à direita da tela;
+    # de costas, à esquerda; de lado (olhando para a esquerda), para a frente.
+    "katana": dict(size=(72, 16), views=[dict(ang=0, off=(0, 8)), dict(ang=180, off=(3, 8)), dict(ang=180, off=(0, 8))]),
     # Shuriken Gigante: maior que as costas; de frente, as 4 pontas saem em volta do corpo (giro medido na silhueta).
     "fuma_shuriken": dict(size=(70, 70), views=[dict(off=(0, 2), rot=75), dict(off=(6, -1)), dict(off=(0, -1), rot=45)]),
     "scroll": dict(size=(40, 16), views=[dict(off=(0, 5)), dict(off=(5, 5)), dict(off=(0, 5))]),
