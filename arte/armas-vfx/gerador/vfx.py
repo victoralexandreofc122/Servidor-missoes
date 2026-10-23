@@ -621,21 +621,21 @@ def stone():
 # ------------------------------------------------------------------ Kunai voando (px 1: a mesma escala da arma)
 
 def kunai_flying():
-    W, H, AX, AY = 30, 12, 17, 6
-    art = rasterize(armas.kunai_sampler(armas.ACO, armas.FAIXA_ESCURA, 10.5), W, H, AX, AY, 0)
+    W, H, AX, AY = 40, 14, 20, 7
+    art = rasterize(armas.kunai_sampler(armas.KUNAI_ESCURA, armas.FAIXA_BEGE, 17.0), W, H, AX, AY, 0)
     art = outline(art)
     frames = []
     for k in range(2):
         f = blank(W, H)
         for i in range(3):                                          # rastro do movimento
             yy = AY - 2 + i * 2
-            for xx in range(0, 9 - i * 2):
+            for xx in range(0, 10 - i * 2):
                 if (xx + k + i) % 3:
                     dot(f, xx + i, yy, (200, 210, 226) if xx > 3 else (150, 160, 182))
         m = art[..., 3] > 0
         f[m] = art[m]
         if k == 1:
-            dot(f, AX + 6, AY - 1, (255, 255, 255))
+            dot(f, AX + 9, AY - 1, (255, 255, 255))
         frames.append(f)
     return frames, dict(quadro=[W, H], ancora=[AX, AY], ms=60, px=1, gira=True)
 

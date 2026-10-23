@@ -27,12 +27,15 @@ ANIMS = [  # (função, nome, sequência de frames, duração de cada passo em m
     (poses.run, "correr", [0, 1, 2, 1], [100, 90, 100, 90], True),
     (poses.attack, "ataque", [1, 0, 1, 2], [140, 220, 140, 320], False),
     (poses.jutsu, "jutsu", [1, 2, 1], [110, 170, 110], False),
+    (poses.golpe, "golpe", [0, 1, 2], [90, 120, 150], False),
 ]
 ANIM_NOTAS = {
     "parado": "0 = parado, 1 = solta o ar (tronco/cabeça descem 1 px), 2 = braços abrem levemente",
     "andar": "0 = perna de perto/visível na frente, 1 = passagem, 2 = perna de trás na frente",
     "correr": "0 = perna de perto na frente, 1 = passagem (apoio), 2 = perna de trás na frente",
     "ataque": "0 = soco, 1 = guarda (mão volta pro corpo), 2 = chute alto",
+    "golpe": "golpe com a arma equipada: 0 = preparação (arma lá atrás), 1 = corte (braço estendido, avança), "
+             "2 = fim do golpe (braço desce)",
     "jutsu": "0 = carregar chakra (agachado, selo do carneiro; parado em loop na meditação), 1 = A, preparação "
              "(mãos juntas), 2 = B, lançamento (palmas pra frente, grito). Jutsu: A -> B -> A. Rosto sério",
 }

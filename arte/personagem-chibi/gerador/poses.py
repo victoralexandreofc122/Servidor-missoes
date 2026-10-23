@@ -331,3 +331,54 @@ def jutsu(g, view, f):
         else:
             fig.arm(side, wr, el=el, plane=FRENTE, hand="none")
     return fig
+
+
+# ---------------------------------------------------------------- GOLPE COM ARMA (Ataque Básico com arma equipada)
+# 0 = preparação (arma lá atrás), 1 = corte (braço estendido, avança), 2 = fim do golpe (braço desce)
+# A mão de perto (de frente: a direita do personagem) segura a arma. `fig.grip` = para onde a lâmina aponta
+# (graus de tela: 0 = direita, 90 = baixo); vai junto da âncora da mão para o jogo girar a arma.
+GOLPE_SIDE = {    # olhando pra esquerda
+    0: dict(hip=(32.5, 76.0), lean=-5, near=((27.5, 81.5), (26.5, 88.5)), far=((36.5, 82.0), (38.0, 88.5)),
+            el=(39.5, 59.5), wr=(44.5, 57.5), far_arm=((28.5, 58.5), (24.5, 60.5)), grip=16, mouth="reta"),
+    1: dict(hip=(30.5, 77.0), lean=10, near=((25.0, 81.0), (23.0, 88.5)), far=((36.5, 82.5), (40.0, 88.5)),
+            el=(27.0, 56.0), wr=(19.0, 57.5), far_arm=((38.0, 58.0), (41.0, 63.5)), grip=176, mouth="grito"),
+    2: dict(hip=(30.5, 77.5), lean=12, near=((25.0, 81.5), (23.0, 88.5)), far=((36.5, 82.5), (40.0, 88.5)),
+            el=(27.0, 59.5), wr=(22.0, 66.5), far_arm=((37.5, 59.0), (39.5, 65.5)), grip=118, mouth="reta"),
+}
+GOLPE_FRONT = {   # braço que segura do lado esquerdo da tela (de costas: o espelho, do lado direito)
+    0: dict(hip=(32.0, 76.0), legs=((23.5, 88.5), (40.5, 88.5)), el=(18.0, 54.5), wr=(14.0, 46.5),
+            other=((42.5, 58.0), (41.0, 64.5)), grip=-118, mouth="reta"),
+    1: dict(hip=(32.0, 77.0), legs=((23.0, 88.5), (41.0, 88.5)), el=(23.5, 57.5), wr=(32.5, 60.0),
+            other=((44.0, 57.5), (46.5, 64.0)), grip=14, mouth="grito"),
+    2: dict(hip=(32.0, 77.0), legs=((23.0, 88.5), (41.0, 88.5)), el=(26.5, 60.0), wr=(35.5, 66.0),
+            other=((44.0, 57.5), (46.5, 64.0)), grip=52, mouth="reta"),
+}
+
+
+def golpe(g, view, f):
+    if view == "side":
+        P = GOLPE_SIDE[f]
+        fig = Figure(g, "side", hip=P["hip"], lean=P["lean"])
+        fig.face = {"olhos": "serio", "boca": P["mouth"]}
+        fel, fwr = P["far_arm"]
+        fig.arm("far", fwr, el=fel, plane=TRAS, far=True, hand="fist")
+        fig.leg("far", P["far"][1], knee=P["far"][0], plane=TRAS, far=True)
+        fig.leg("near", P["near"][1], knee=P["near"][0])
+        fig.arm("near", P["wr"], el=P["el"], plane=FRENTE, hand="fist")
+        fig.grip = P["grip"]
+        return fig
+    P = GOLPE_FRONT[f]
+    back = view == "back"
+    m = mirror_pt if back else (lambda p: p)
+    H, O = ("R", "L") if back else ("L", "R")
+    fig = Figure(g, view, hip=P["hip"])
+    fig.face = {"olhos": "serio", "boca": P["mouth"]}
+    for side, ank in zip(("L", "R"), P["legs"]):
+        leg_straight(fig, side, ank)
+    oel, owr = P["other"]
+    fig.arm(O, m(owr), el=m(oel), plane=FRENTE, hand="fist")
+    # de costas, no corte a mão passa na frente do corpo (some); a lâmina aparece por fora
+    plane = TRAS if (back and f > 0) else FRENTE
+    fig.arm(H, m(P["wr"]), el=m(P["el"]), plane=plane, hand="fist")
+    fig.grip = (180 - P["grip"]) if back else P["grip"]
+    return fig

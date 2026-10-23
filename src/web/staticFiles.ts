@@ -55,7 +55,7 @@ const FILES = [
     'slash', 'hit', 'punch', 'dust', 'smoke', 'fireball', 'explosion', 'water',
     'lightning', 'spark', 'shadow', 'bind', 'illusion', 'heal', 'stone', 'kunai',
   ]),
-  ...sheets('weapons', ['kunai_training', 'kunai', 'tanto', 'katana', 'fuma_shuriken', 'scroll']),
+  ...sheets('weapons', ['kunai_training', 'kunai', 'tanto', 'katana', 'katana_mao', 'katana_bainha', 'fuma_shuriken', 'fuma_shuriken_mao', 'scroll']),
   // Identidade visual (binários): favicon da Folha em Chamas e Pergaminho em Chamas do login.
   { route: '/img/favicon-32.png', file: 'img/favicon-32.png', contentType: 'image/png', binary: true },
   { route: '/img/favicon-192.png', file: 'img/favicon-192.png', contentType: 'image/png', binary: true },

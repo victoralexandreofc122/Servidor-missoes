@@ -33,21 +33,39 @@ def steel_blade(ramp, u, v, hw, lit, ridge=0.45):
     return ramp[0] if abs(v) > hw - 0.5 else ramp[1]
 
 
-def kunai_sampler(blade_ramp, wrap, blade_end=10.5):
+# Kunai como nas referências: lâmina escura em folha larga, com duas faces (uma clara, outra escura) que se
+# encontram na crista do meio; cabo enrolado em faixa; argola na ponta do cabo. u = 0 no meio do cabo (o punho).
+KUNAI_ESCURA = [(30, 32, 42), (52, 56, 70), (84, 90, 106), (124, 130, 148), (176, 182, 198)]
+KUNAI_TREINO = [(70, 72, 84), (100, 104, 118), (132, 136, 150), (164, 168, 182), (198, 202, 212)]
+FAIXA_BEGE = [(150, 132, 104), (190, 174, 142), (222, 210, 182), (242, 234, 214)]
+
+
+def kunai_sampler(blade_ramp, wrap, blade_end=17.0, ring_ramp=None):
+    ring_ramp = ring_ramp or blade_ramp
+
     def sample(u, v, lit):
-        # argola do cabo
-        d = math.hypot(u + 6.3, v)
-        if 0.75 <= d <= 1.95:
-            return ACO[3] if (lit and v != 0) else ACO[1]
-        # cabo enrolado em faixa (listras na diagonal)
-        if -4.6 <= u <= 1.8 and abs(v) <= 0.95:
-            stripe = math.floor((u + v * 0.9) * 0.8) % 2
+        d = math.hypot(u + 7.6, v)                                   # argola
+        if 0.95 <= d <= 2.45:
+            top = (v < 0) == lit
+            return ring_ramp[3] if (top and d > 1.6) else ring_ramp[1] if d > 1.6 else ring_ramp[0]
+        if -5.6 <= u <= 3.0 and abs(v) <= 1.05:                     # cabo enrolado (listras na diagonal)
+            stripe = math.floor((u - v * 0.9) * 0.9) % 2
             return wrap[3 if (stripe and lit) else 2 if stripe else 1 if lit else 0]
-        # lâmina em folha
-        if 1.8 <= u <= blade_end:
-            hw = 1.0 + (u - 1.8) / 2.2 * 1.1 if u < 4.0 else 2.1 * (blade_end - u) / (blade_end - 4.0)
-            if abs(v) <= hw:
-                return steel_blade(blade_ramp, u, v, hw, lit)
+        if 3.0 <= u <= blade_end:                                    # lâmina em folha
+            if u < 3.8:
+                hw = 1.3                                             # gola
+            elif u < 7.0:
+                hw = 1.3 + (u - 3.8) / 3.2 * 1.6
+            else:
+                hw = 2.9 * (blade_end - u) / (blade_end - 7.0)
+            if abs(v) > hw:
+                return None
+            if abs(v) < 0.35:
+                return blade_ramp[3]                                 # crista
+            face_lit = (v > 0) == lit
+            if face_lit:
+                return blade_ramp[4] if (abs(v) > hw - 0.6 and u > 7) else blade_ramp[2]
+            return blade_ramp[0] if abs(v) > hw - 0.6 else blade_ramp[1]
         return None
     return sample
 
@@ -75,12 +93,14 @@ def tanto_sample(u, v, lit):
     return None
 
 
-KATANA_LEN = 1.28   # chibi: a espada é bem comprida para aparecer por trás da cabeça grande e dos braços
+KATANA_LEN = 1.75   # chibi: espada longa de verdade (quase 2/3 da altura do boneco)
+KATANA_W = 1.3      # e mais grossa
 
 
 def katana_sample(u, v, lit):
     """Espada longa na bainha. u = 0 no meio; a ponta da bainha em -17 (x KATANA_LEN), o cabo para +u."""
     u = u / KATANA_LEN
+    v = v / KATANA_W
     if -17.2 <= u <= -15.9 and abs(v) <= 1.55:                   # kojiri (ponteira de ouro)
         return OURO[3] if lit else OURO[1]
     if -15.9 <= u <= 5.0 and abs(v) <= 1.5:                      # saya (bainha laqueada)
@@ -91,6 +111,11 @@ def katana_sample(u, v, lit):
         return LACA[4] if (lit and abs(v) > 0.75 and u > -12) else LACA[2] if lit else LACA[1]
     if 5.0 <= u <= 6.0 and abs(v) <= 1.6:                        # koiguchi (boca da bainha)
         return OURO[3] if lit else OURO[1]
+    return katana_hilt(u, v, lit)
+
+
+def katana_hilt(u, v, lit):
+    """Tsuba, cabo trançado e kashira (u e v já na escala da espada)."""
     if 6.0 <= u <= 7.2 and abs(v) <= 2.9:                        # tsuba
         return OURO[4] if (lit and abs(v) > 2.0) else OURO[2] if lit else OURO[1]
     if 7.2 <= u <= 14.6 and abs(v) <= 1.25:                      # tsuka: trama escura com losangos de seda
@@ -101,6 +126,39 @@ def katana_sample(u, v, lit):
         return LACA[3] if lit else LACA[1]
     if 14.6 <= u <= 15.7 and abs(v) <= 1.35:                     # kashira
         return OURO[3] if lit else OURO[1]
+    return None
+
+
+def katana_scabbard_only(u, v, lit):
+    """Só a bainha (a espada está na mão, no golpe)."""
+    uu, vv = u / KATANA_LEN, v / KATANA_W
+    if uu > 6.0:
+        return None
+    return katana_sample(u, v, lit)
+
+
+KATANA_HAND_LEN = 1.55
+
+
+def katana_drawn(u, v, lit):
+    """Espada desembainhada, na mão. u = 0 no meio do cabo (o punho); a lâmina vai para +u."""
+    uu = -u / KATANA_HAND_LEN + 10.9                             # o cabo (7,2..14,6) centrado no punho
+    vv = v / KATANA_W
+    hilt = katana_hilt(uu, vv, lit)
+    if hilt is not None:
+        return hilt
+    if 5.2 <= uu <= 6.0 and abs(vv) <= 1.2:                      # habaki
+        return OURO[3]
+    if -16.5 <= uu <= 5.2:                                       # lâmina (fio de um lado, ponta curva)
+        t = (uu + 16.5) / 21.7                                   # 0 na ponta, 1 na guarda
+        spine = -1.05 if t > 0.1 else -1.05 + (0.1 - t) / 0.1 * 1.6
+        edge = 1.0 if t > 0.12 else 1.0 - (0.12 - t) / 0.12 * 1.6
+        if spine <= vv <= edge:
+            if vv > edge - 0.55:
+                return ACO[4]
+            if vv < spine + 0.5:
+                return ACO[1] if not lit else ACO[2]
+            return ACO[3] if lit else ACO[2]
     return None
 
 
@@ -188,31 +246,44 @@ def hand_weapon(sample, size):
     return [outline(rasterize(sample, size, size, c, c, k * 22.5)) for k in range(16)]
 
 
-# Itens: (código, tipo, desenho)
+def shuriken_hand(size=52, R=16.0, reach=8.0):
+    """Shuriken Gigante na mão (no golpe): segura pelo miolo, a estrela um pouco para fora, girando com o ângulo."""
+    out = []
+    for k in range(16):
+        a = math.radians(k * 22.5)
+        cx, cy = size / 2 + math.cos(a) * reach, size / 2 + math.sin(a) * reach
+        out.append(shuriken_back(size, size, cx, cy, R=R, rot=45 + k * 22.5))
+    return out
+
+
+# Na mão: código -> (desenho, tamanho do quadro). A espada longa também tem a versão desembainhada (no golpe).
 HAND = {
-    "kunai_training": (kunai_sampler(ACO_FOSCO, FAIXA_COURO, 9.6), 24),
-    "kunai": (kunai_sampler(ACO, FAIXA_ESCURA, 10.5), 26),
-    "tanto": (tanto_sample, 32),
+    "kunai_training": (kunai_sampler(KUNAI_TREINO, FAIXA_COURO, 15.5), 38),
+    "kunai": (kunai_sampler(KUNAI_ESCURA, FAIXA_BEGE, 17.0), 40),
+    "tanto": (tanto_sample, 34),
+    "katana": (katana_drawn, 90),
 }
 
 # Costas: tamanho do quadro, e por vista (frente, lado, costas): ângulo da espada / deslocamento do meio
 # em relação à âncora das costas (pixels do boneco; na vista de lado o boneco olha para a esquerda,
-# então as costas ficam para +x).
+# então as costas ficam para +x). A espada longa vai quase deitada na lombar: de frente, o cabo sai de um lado
+# do quadril e a ponta do outro; de lado, o cabo sai para trás e a ponta na frente (posições medidas na silhueta
+# do boneco: na diagonal, ela some atrás da cabeça grande e do corpo).
 BACK = {
-    # De frente a espada fica quase deitada, com o cabo saindo do lado do ombro e a ponta do outro lado do
-    # quadril (posição medida na silhueta do boneco: o resto some atrás da cabeça e do corpo).
-    "katana": dict(size=(52, 52), views=[dict(ang=-155, off=(-5, 4)), dict(ang=-74, off=(5, -4)), dict(ang=-58, off=(0, -3))]),
+    "katana": dict(size=(70, 70), views=[dict(ang=-155, off=(-4, 6)), dict(ang=-28, off=(6, 7)), dict(ang=-32, off=(0, 3))]),
     "fuma_shuriken": dict(size=(38, 38), views=[dict(off=(0, 6), rot=75), dict(off=(5, -2)), dict(off=(0, -2), rot=45)]),
     "scroll": dict(size=(40, 16), views=[dict(off=(0, 5)), dict(off=(5, 5)), dict(off=(0, 5))]),
 }
 
 
-def back_views(code):
+def back_views(code, empty=False):
+    """As 3 vistas do item nas costas. empty: só a bainha (a espada está na mão, no golpe)."""
     spec = BACK[code]
     w, h = spec["size"]
     cx, cy = w / 2, h / 2
     if code == "katana":
-        return [outline(rasterize(katana_sample, w, h, cx, cy, v["ang"])) for v in spec["views"]]
+        sample = katana_scabbard_only if empty else katana_sample
+        return [outline(rasterize(sample, w, h, cx, cy, v["ang"])) for v in spec["views"]]
     if code == "fuma_shuriken":
         v = spec["views"]
         return [shuriken_back(w, h, cx, cy, rot=v[0]["rot"]), shuriken_side(w, h, cx, cy), shuriken_back(w, h, cx, cy, rot=v[2]["rot"])]

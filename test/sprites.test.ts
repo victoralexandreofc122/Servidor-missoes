@@ -63,7 +63,7 @@ describe('v9: sprites do personagem (cliente)', () => {
     assert.equal(S.colorKey(LOOK, 'corpo'), S.colorKey({ ...LOOK, shirtColor: 'vermelho' }, 'corpo'), 'cache do corpo não depende da roupa');
   });
 
-  it('animação: parado respira, andar/correr seguem a fase dos passos, soco/chute/selo tocam e voltam', () => {
+  it('animação: parado respira, andar/correr seguem a fase dos passos, soco/chute/selo/golpe tocam e voltam', () => {
     assert.deepEqual(S.pickFrame({ dead: true, moving: true }, 0), { anim: 'parado', frame: 0 });
     const walk = [0, 1, 2, 3, 4].map((k) => S.pickFrame({ moving: true, walk: k * Math.PI + 0.1 }, 0).frame);
     assert.deepEqual(walk, [0, 1, 2, 1, 0], 'ida e volta: perna da frente, passagem, perna de trás');
@@ -78,6 +78,10 @@ describe('v9: sprites do personagem (cliente)', () => {
       { anim: 'jutsu', frame: 1 }, { anim: 'jutsu', frame: 2 }, { anim: 'jutsu', frame: 1 }, S.pickFrame({}, 500)]);
     assert.deepEqual(S.pickFrame({ meditating: true }, 1234), { anim: 'jutsu', frame: 0 });
     assert.deepEqual(S.pickFrame({ meditating: true, act: cast }, 200), { anim: 'jutsu', frame: 2 }, 'o jutsu toca por cima');
+    // golpe com arma: prepara (0), corta (1) e termina (2), e volta
+    const strike = { kind: 'golpe', start: 0 };
+    assert.deepEqual([40, 150, 260, 500].map((t) => S.pickFrame({ act: strike }, t)), [
+      { anim: 'golpe', frame: 0 }, { anim: 'golpe', frame: 1 }, { anim: 'golpe', frame: 2 }, S.pickFrame({}, 500)]);
     const idle = new Set([0, 1300, 1500, 1800, 2000].map((t) => S.pickFrame({}, t).frame));
     assert.ok(idle.has(0) && idle.has(1), 'parado: o quadro muda com o tempo');
   });

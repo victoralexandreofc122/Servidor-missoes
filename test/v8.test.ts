@@ -474,7 +474,9 @@ describe('v8: equipamento visível no boneco (paperdoll)', () => {
     assert.equal(a.conn.last('inventory').equippedScroll, 'scroll_fire');
     a.send({ type: 'equip', item: 'katana' });
     await new Promise((r) => setTimeout(r, 300));
+    // Uma arma de ataque por vez: a espada longa TIRA a kunai da mão (nunca as duas); o pergaminho não é arma.
     assert.deepEqual(b.conn.last('player_gear').gear, { hand: null, back: 'katana', scroll: 'scroll_fire' });
+    assert.equal(a.conn.last('inventory').equipped, 'katana');
     const c = join('rin');
     assert.deepEqual(c.conn.last('welcome').players.find((p: any) => p.id === a.id).gear, { hand: null, back: 'katana', scroll: 'scroll_fire' });
   });

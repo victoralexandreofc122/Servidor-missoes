@@ -31,20 +31,25 @@ def hexc(c):
 
 
 def cell_anchors(fig):
-    """Mão que segura arma (de frente: a direita do personagem = esquerda da tela; de lado: a de perto):
-    [x, y, plano do braço, ângulo do antebraço em graus]; e o meio das costas (itens nas costas)."""
+    """Mão que segura a arma: de frente, a direita do personagem (esquerda da tela); de lado, a de perto; de costas,
+    a direita (direita da tela). [x, y, plano do braço, ângulo da lâmina em graus de tela]. O ângulo vem da pose
+    (`fig.grip`, no golpe com arma) ou do antebraço girado 45° para fora (a lâmina sai do lado do polegar).
+    E o meio das costas (itens nas costas)."""
     arms = {a.side: a for a in fig.limbs if a.kind == "arm"}
-    side = {"front": "L", "side": "near", "back": None}[fig.view]
+    side = {"front": "L", "side": "near", "back": "R"}[fig.view]
     hand = None
-    if side and side in arms:
+    if side in arms:
         j = arms[side].j
         hx = (j["wr"][0] + j["end"][0]) / 2
         hy = (j["wr"][1] + j["end"][1]) / 2
         if getattr(fig, "breath", 0) and hy <= 63:
             hy += 1
-        # ângulo do antebraço (cotovelo -> ponta da mão), em graus de tela: a arma segue esse rumo
-        ang = math.degrees(math.atan2(j["end"][1] - j["el"][1], j["end"][0] - j["el"][0]))
-        hand = [round(hx, 1), round(hy, 1), int(arms[side].plane), int(round(ang))]
+        fore = math.degrees(math.atan2(j["end"][1] - j["el"][1], j["end"][0] - j["el"][0]))
+        grip = getattr(fig, "grip", None)
+        if grip is None:
+            grip = fore + (-45 if fig.view == "back" else 45)
+        grip = (grip + 180) % 360 - 180
+        hand = [round(hx, 1), round(hy, 1), int(arms[side].plane), int(round(grip))]
     bx = (fig.neck[0] + fig.hip[0]) / 2
     by = (fig.neck[1] + fig.hip[1]) / 2 + (1 if getattr(fig, "breath", 0) else 0)
     return dict(mao=hand, costas=[round(bx, 1), round(by, 1)])

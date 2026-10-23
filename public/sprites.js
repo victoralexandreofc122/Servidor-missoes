@@ -141,6 +141,8 @@ export const ACTIONS = {
   soco: [['ataque', 1, 80], ['ataque', 0, 170], ['ataque', 1, 110]],
   chute: [['ataque', 1, 80], ['ataque', 2, 230], ['ataque', 1, 110]],
   jutsu: [['jutsu', 1, 110], ['jutsu', 2, 170], ['jutsu', 1, 110]],
+  // Ataque Básico com arma equipada: prepara (arma lá atrás), corta e termina o golpe.
+  golpe: [['golpe', 0, 90], ['golpe', 1, 120], ['golpe', 2, 150]],
 };
 
 /**
@@ -254,11 +256,10 @@ function cellCanvas(gender, key, rect, ramps, ck) {
 /**
  * Desenha o boneco com o canto de cima-esquerda da célula 64x96 em (left, top) e `scale` px de tela por
  * pixel do sprite. flip = olhando para a direita. onPlane(plano): chamado antes de cada plano e no fim (4),
- * para pôr a arma atrás ou na frente do corpo; onSlot(plano, slot): antes de cada slot (ex.: a espada nas
- * costas por cima da roupa e por baixo do cabelo). Devolve a linha mais alta desenhada (topo da cabeça, em
+ * para pôr a arma atrás ou na frente do corpo. Devolve a linha mais alta desenhada (topo da cabeça, em
  * pixels da célula), ou null se o atlas do gênero ainda não chegou.
  */
-export function drawCell(g, left, top, scale, look, view, flip, anim, frame, onPlane, onSlot) {
+export function drawCell(g, left, top, scale, look, view, flip, anim, frame, onPlane) {
   const atlas = atlases[look.gender];
   if (!atlas) return null;
   let minY = 96;
@@ -267,7 +268,6 @@ export function drawCell(g, left, top, scale, look, view, flip, anim, frame, onP
   for (let plane = 0; plane < 4; plane++) {
     if (onPlane) onPlane(plane);
     for (const slot of SPRITES.slots) {
-      if (onSlot) onSlot(plane, slot);
       const list = items[slot];
       if (!list || !list.length) continue;
       let ramps = null, ck = null;

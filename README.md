@@ -147,7 +147,7 @@ Cada golpe tem uma **hitbox geométrica** (`src/realtime/combat.ts`: `isInArc`, 
 
 | Habilidade | Chakra | Recarga | Hitbox | Efeito |
 |---|---|---|---|---|
-| Ataque Básico | 0 | 0,6 s | arco de 90° e 1,6 casa na direção do alvo | 12 de dano em todos no arco |
+| Ataque Básico | 0 | 0,6 s | arco de 90° e 1,6 casa na direção do alvo | 12 de dano + a arma equipada, em todos no arco |
 | Fogo (`fire`) | 20 | 1,5 s | projétil reto (5 casas, 12 casas/s) + círculo de 2 casas onde ele bate | 25 de dano na explosão |
 | Água (`water`) | 15 | 1 s | cone de 90° e 4 casas, para onde o jogador olha (ou no alvo focado) | 20 de dano |
 | Taijutsu (`taijutsu`) | 5 | 0,5 s | avanço até o mais perto (alcance 2,5) + círculo de 1 casa na frente | 35 de dano |
@@ -180,6 +180,9 @@ Cada golpe tem uma **hitbox geométrica** (`src/realtime/combat.ts`: `isInArc`, 
   tocadas pelo `VFXManager` (`public/vfx.js`) na posição que o servidor mandou. As armas equipadas são
   desenhadas no boneco (`public/weapons.js`, artes em `public/assets/weapons/`) na ordem do paperdoll.
   Tudo é gerado por `arte/armas-vfx/` (veja o LEIAME de lá).
+- **Arma equipada:** só uma de ataque por vez (kunai, espada curta, espada longa ou Shuriken Gigante); o pergaminho
+  é à parte. Com arma, o Ataque Básico é um golpe com ela (animação `golpe`): a kunai já fica na mão; a espada longa
+  e a Shuriken Gigante saem das costas para a mão no golpe e voltam depois.
 - **Meditação** (`{"type":"meditate","active":true}`): parado, chakra 3x mais rápido (15/s). Tentar andar,
   tentar usar habilidade ou apanhar de monstro encerra na hora (`meditation` com `reason`). Morto não medita.
 - **XP:** cada monstro dá 20 de XP para quem deu o último golpe. O XP é gravado em `game.players.total_xp`

@@ -1,11 +1,14 @@
 /*
  * Armas no boneco em pixel art (public/assets/weapons/, geradas por arte/armas-vfx; números em weaponData.js).
  *
- * - Na mão (kunai de treino, kunai, espada curta): 16 ângulos já desenhados. O meio do cabo vai na âncora da
- *   mão e a lâmina segue o antebraço (ângulo que vem com a âncora de cada quadro da animação).
- * - Nas costas (espada longa, Shuriken Gigante, pergaminho): uma arte por vista (frente, lado, costas), com o
- *   meio na âncora das costas mais um deslocamento. De lado olhando para a direita, tudo é espelhado.
- * A ordem de desenho (atrás do corpo, por baixo do cabelo, por cima da mão) é decidida por quem chama.
+ * Cada arma tem a arte de onde ela fica parada (`onde`: mão ou costas):
+ * - `mao`: 16 ângulos já desenhados; o centro do quadro é o punho (vai na âncora da mão) e a lâmina aponta para o
+ *   ângulo que vem com a âncora de cada quadro da animação.
+ * - `costas`: uma arte por vista (frente, lado, costas), com o meio na âncora das costas mais um deslocamento.
+ * As armas das costas também têm `mao` (a espada desembainhada, a Shuriken Gigante na mão) para o golpe, e a
+ * espada tem a `bainha` vazia, que fica nas costas enquanto ela está na mão.
+ * De lado olhando para a direita, tudo é espelhado. A ordem de desenho (atrás do corpo, debaixo do braço) é
+ * decidida por quem chama.
  */
 import { ARMAS } from './weaponData.js';
 
@@ -14,11 +17,13 @@ let loading = null;
 
 export function loadWeapons() {
   if (loading) return loading;
-  loading = Promise.all(Object.entries(ARMAS.armas).map(([code, a]) => new Promise((resolve) => {
+  const sheets = [];
+  for (const a of Object.values(ARMAS.armas)) for (const k of ['mao', 'costas', 'bainha']) if (a[k]) sheets.push(a[k].arquivo);
+  loading = Promise.all(sheets.map((file) => new Promise((resolve) => {
     const img = new Image();
-    img.onload = () => { imgs[code] = img; resolve(); };
+    img.onload = () => { imgs[file] = img; resolve(); };
     img.onerror = () => resolve();
-    img.src = `/${a.arquivo}`;
+    img.src = `/${file}`;
   })));
   return loading;
 }
@@ -26,11 +31,20 @@ export function loadWeapons() {
 /** Código do item -> arte (todos os pergaminhos de classe usam a mesma). */
 export const weaponArt = (code) => (code && code.startsWith('scroll_') ? 'scroll' : code);
 
-/** A arte deste item já carregou? (Senão, o boneco usa o desenho antigo, de retângulos.) */
-export const weaponReady = (code) => Boolean(code && imgs[weaponArt(code)]);
+const sheetOf = (code, kind) => ARMAS.armas[weaponArt(code)]?.[kind];
 
-/** Onde o item vai: 'mao' ou 'costas' (undefined = item sem arte). */
+/** A arte deste item (na mão ou nas costas) já carregou? Senão, o boneco usa o desenho antigo, de retângulos. */
+export function weaponReady(code, kind) {
+  const a = code && ARMAS.armas[weaponArt(code)];
+  const sheet = a && a[kind ?? (a.onde === 'mao' ? 'mao' : 'costas')];
+  return Boolean(sheet && imgs[sheet.arquivo]);
+}
+
+/** Onde o item fica parado: 'mao' ou 'costas' (undefined = item sem arte). */
 export const weaponSlot = (code) => ARMAS.armas[weaponArt(code)]?.onde;
+
+/** A arma das costas vai para a mão no golpe? (espada, Shuriken Gigante; o pergaminho, não) */
+export const drawnForStrike = (code) => Boolean(sheetOf(code, 'mao')) && weaponSlot(code) === 'costas';
 
 /** Quadro do ângulo mais perto (0° = para a direita, sentido horário na tela). */
 export function angleFrame(deg) {
@@ -38,24 +52,27 @@ export function angleFrame(deg) {
 }
 
 /**
- * Arma na mão: o meio do cabo em (x, y) da tela, apontando para `deg` graus. s = escala do boneco (tela por
+ * Arma na mão: o punho em (x, y) da tela, a lâmina apontando para `deg` graus. s = escala do boneco (tela por
  * pixel do boneco). flip: o boneco está espelhado (de lado, olhando para a direita): o ângulo espelha também.
  */
 export function drawHandWeapon(g, code, x, y, s, deg, flip, dpr) {
-  const a = ARMAS.armas[weaponArt(code)];
-  const img = imgs[weaponArt(code)];
-  if (!a || !img || a.onde !== 'mao') return;
+  const a = sheetOf(code, 'mao');
+  const img = a && imgs[a.arquivo];
+  if (!img) return;
   const frame = angleFrame(flip ? 180 - deg : deg);
   const [w, h] = a.quadro;
   const [ax, ay] = a.ancora;
   g.drawImage(img, frame * w, 0, w, h, snap(x - ax * s, dpr), snap(y - ay * s, dpr), w * s, h * s);
 }
 
-/** Item nas costas: o meio em (x, y) da tela (âncora das costas) + o deslocamento da vista (0 frente, 1 lado, 2 costas). */
-export function drawBackWeapon(g, code, x, y, s, view, flip, dpr) {
-  const a = ARMAS.armas[weaponArt(code)];
-  const img = imgs[weaponArt(code)];
-  if (!a || !img || a.onde !== 'costas') return;
+/**
+ * Item nas costas: o meio em (x, y) da tela (âncora das costas) + o deslocamento da vista (0 frente, 1 lado,
+ * 2 costas). empty: só a bainha (a espada está na mão).
+ */
+export function drawBackWeapon(g, code, x, y, s, view, flip, dpr, empty = false) {
+  const a = sheetOf(code, empty ? 'bainha' : 'costas');
+  const img = a && imgs[a.arquivo];
+  if (!img) return;
   const [w, h] = a.quadro;
   const [ax, ay] = a.ancora;
   const [dx, dy] = a.desloc[view];

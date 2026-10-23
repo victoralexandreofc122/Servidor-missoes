@@ -19,7 +19,7 @@ import {
 } from './sprites.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
-import { drawBackWeapon, drawHandWeapon, loadWeapons, weaponReady } from './weapons.js';
+import { drawBackWeapon, drawHandWeapon, drawnForStrike, loadWeapons, weaponReady } from './weapons.js';
 
 const TOKEN_KEY = 'nin.token';
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/game`;
@@ -620,13 +620,17 @@ function handleMessage(msg) {
       renderStatus();
       break;
     case 'attack': {
-      // Corte em arco (a hitbox do servidor: 90°, 1,6 casa) na direção do golpe.
-      if (!vfx.play('slash', msg.x, msg.y, { start: now, angle: Math.atan2(msg.fy, msg.fx) })) {
+      // Corte em arco (a hitbox do servidor: 90°, 1,6 casa) na direção do golpe, junto do quadro do corte/soco.
+      if (!vfx.play('slash', msg.x, msg.y, { start: now, delay: 80, angle: Math.atan2(msg.fy, msg.fx) })) {
         state.effects.push({ skill: 'attack', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
       }
       faceTo(msg.playerId, msg.fx, msg.fy);
       const attacker = state.players.get(msg.playerId);
-      if (attacker) attacker.act = { kind: attacker.act?.kind === 'soco' ? 'chute' : 'soco', start: now };
+      // Com arma equipada (na mão ou nas costas), o golpe é com ela; sem arma, soco e chute alternados.
+      if (attacker) {
+        const armed = attacker.gear?.hand || attacker.gear?.back;
+        attacker.act = { kind: armed ? 'golpe' : attacker.act?.kind === 'soco' ? 'chute' : 'soco', start: now };
+      }
       if (msg.playerId === state.meId) startCooldown('attack');
       break;
     }
@@ -3812,34 +3816,41 @@ function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
   const left = Math.round((sx - 32 * s) * dpr) / dpr;
   const top = Math.round((sy + T * 0.42 - 93 * s) * dpr) / dpr;
   let onPlane = null;
-  let onSlot = null;
   const an = gear && (gear.hand || gear.back || gear.scroll) ? anchorsOf(look.gender, anim, view, frame) : null;
   if (an) {
-    // Ordem do paperdoll: costas ATRÁS do corpo (de frente e de lado) ou por cima da roupa e por baixo do
-    // cabelo (de costas); a arma da mão logo depois do plano do braço que segura (atrás do corpo ou na frente).
+    // Ordem do paperdoll:
+    //  - costas: atrás do corpo (de frente e de lado) ou por cima de tudo (de costas);
+    //  - mão: logo ANTES do plano do braço que segura (o punho fecha por cima do cabo); no selo do jutsu, some.
+    // No golpe com arma, a espada / Shuriken Gigante sai das costas para a mão (a bainha vazia fica nas costas).
     const ax = (x) => (flip ? left + (64 - x) * s : left + x * s);
     const u = (T / 16) * 1.3;
     const R = (px, py, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(px), Math.round(py), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); };
     const backX = ax(an.costas[0]), backY = top + an.costas[1] * s;
+    const strike = anim === 'golpe' && an.mao;
+    const inHand = gear.hand || (strike && gear.back && drawnForStrike(gear.back) && weaponReady(gear.back, 'mao') ? gear.back : null);
     const back = () => {
       for (const code of [gear.back, gear.scroll]) {
         if (!code) continue;
-        if (weaponReady(code)) drawBackWeapon(g, code, backX, backY, s, view, flip, dpr);
-        else drawBackItem(R, backX, backY - 2.75 * u, u, dir, code);
+        if (code === inHand) {
+          if (weaponReady(code, 'bainha')) drawBackWeapon(g, code, backX, backY, s, view, flip, dpr, true);
+        } else if (weaponReady(code)) {
+          drawBackWeapon(g, code, backX, backY, s, view, flip, dpr);
+        } else {
+          drawBackItem(R, backX, backY - 2.75 * u, u, dir, code);
+        }
       }
     };
     const hand = () => {
-      if (weaponReady(gear.hand)) drawHandWeapon(g, gear.hand, ax(an.mao[0]), top + an.mao[1] * s, s, an.mao[3] ?? 90, flip, dpr);
-      else drawHandItem(R, ax(an.mao[0]) - u, top + an.mao[1] * s - 0.6 * u, u, dir === 0 ? 1 : dir, gear.hand);
+      if (weaponReady(inHand, 'mao')) drawHandWeapon(g, inHand, ax(an.mao[0]), top + an.mao[1] * s, s, an.mao[3] ?? 90, flip, dpr);
+      else if (dir !== 3) drawHandItem(R, ax(an.mao[0]) - u, top + an.mao[1] * s - 0.6 * u, u, dir === 0 ? 1 : dir, inHand);
     };
-    const handAfter = an.mao ? Math.min(4, an.mao[2] + 1) : -1;   // desenha antes do plano seguinte ao do braço
+    const handPlane = inHand && an.mao && anim !== 'jutsu' ? an.mao[2] : -1;
     onPlane = (plane) => {
-      if (plane === 0 && dir !== 3) back();
-      if (gear.hand && dir !== 3 && anim !== 'jutsu' && plane === handAfter) hand();   // no selo, as mãos estão ocupadas
+      if (plane === (dir === 3 ? 4 : 0)) back();
+      if (plane === handPlane) hand();
     };
-    if (dir === 3) onSlot = (plane, slot) => { if (plane === 1 && slot === 'cabelo') back(); };
   }
-  const minY = drawCell(g, left, top, s, look, view, flip, anim, frame, onPlane, onSlot);
+  const minY = drawCell(g, left, top, s, look, view, flip, anim, frame, onPlane);
   return minY == null ? null : top + minY * s;
 }
 

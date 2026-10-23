@@ -19,14 +19,14 @@ próprio aparelho.
 | `saida/ferramentas/recolorir.py` | Recolore uma folha a partir do mapa de índices |
 
 - Gêneros: `masculino`, `feminino`
-- Animações: `parado`, `andar`, `correr`, `ataque` e `jutsu`, cada uma em arquivos separados
+- Animações: `parado`, `andar`, `correr`, `ataque`, `jutsu` e `golpe`, cada uma em arquivos separados
 
 ## No jogo
 
 | Arquivo | O que é |
 |---|---|
 | `public/sprites/chibi_m.png`, `chibi_f.png` | Atlas de cada gênero com os mapas de índice. Cada célula fica recortada no que tem pixel (~30 KB cada) |
-| `public/spriteData.js` | Retângulos das células, âncoras (mão: `[x, y, plano do braço, ângulo do antebraço]`; costas: `[x, y]`, para as armas), paletas, vilas e tempos das animações |
+| `public/spriteData.js` | Retângulos das células, âncoras (mão: `[x, y, plano do braço, ângulo da lâmina]` nas 3 vistas; costas: `[x, y]`, para as armas), paletas, vilas e tempos das animações |
 | `public/sprites.js` | Lê os atlas, recolore cada célula uma vez por visual (com cache) e desenha as camadas na ordem certa |
 
 `spriteData.js` e os atlas são **gerados**: não edite à mão.
@@ -48,7 +48,8 @@ Como o jogo escolhe a animação:
 | Parado | `parado`, respirando |
 | Andando | `andar` |
 | Correndo (botão 🏃, ou alguém andando bem rápido) | `correr` |
-| Ataque básico | `ataque`, alternando soco e chute |
+| Ataque básico sem arma | `ataque`, alternando soco e chute |
+| Ataque básico com arma | `golpe`: prepara (arma lá atrás), corta (braço estendido) e termina (braço desce) |
 | Jutsu | `jutsu`: preparação (mãos juntas), lançamento (palmas para frente, grito) e volta |
 | Meditando (🧘) | `jutsu` quadro 0: carregar chakra (agachado, selo do carneiro), parado |
 | Morto | `parado`, quadro 0 |
@@ -79,6 +80,18 @@ Depois rode `npm test`. O `test/sprites.test.ts` confere três coisas:
 - O rosto fica sério (olhos `+serio`, boca `reta` ou `grito`): a pose pede com `fig.face`.
 - As mãos são carimbos à parte (`HAND_STAMPS` em `gerador/body.py`), no plano `topo`, por cima das mangas.
 - De costas, as mãos ficam escondidas na frente do corpo e só os cotovelos aparecem.
+
+## Golpe com arma
+
+| Quadro | Pose | Lâmina (`fig.grip`) |
+|---|---|---|
+| 0 | prepara: de frente a arma sobe ao lado da cabeça; de lado o braço puxa para trás | para cima e para fora / para trás |
+| 1 | corta: de frente o braço cruza o peito; de lado estende para a frente e avança | atravessada / para a frente |
+| 2 | termina: o braço desce | para baixo |
+
+- A mão que segura é a de perto (de frente, a direita do personagem; de costas, a direita da tela). De costas, no
+  corte, a mão passa na frente do corpo e some; a lâmina aparece por fora.
+- O jogo desenha a arma na mão com o ângulo da âncora (`arte/armas-vfx`).
 
 ## Formato das folhas (`saida/`)
 

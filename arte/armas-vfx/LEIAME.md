@@ -60,24 +60,32 @@ Os efeitos com direção são desenhados apontando para a **direita**; o jogo gi
 
 ## Armas (`public/assets/weapons/`)
 
-Escala do boneco (1 pixel = 1 pixel do personagem).
+Escala do boneco (1 pixel = 1 pixel do personagem). O jogador equipa **uma** arma de ataque por vez (o servidor
+só tem um lugar para ela); o pergaminho é à parte e fica sempre nas costas.
 
-| Arma | Onde | Folha |
+| Arma | Fica parada | Folhas |
 |---|---|---|
-| `kunai_training`, `kunai`, `tanto` | mão | 16 ângulos (0° = direita, de 22,5° em 22,5°); o centro do quadro é o meio do cabo |
-| `katana` | costas | 3 vistas: frente, lado, costas |
-| `fuma_shuriken` | costas | 3 vistas |
-| `scroll` | costas | 3 vistas (todos os pergaminhos de classe usam esta) |
+| `kunai_training`, `kunai`, `tanto` | na mão | `<arma>.png`: 16 ângulos |
+| `katana` | nas costas | `katana.png` (3 vistas), `katana_mao.png` (desembainhada, 16 ângulos), `katana_bainha.png` (bainha vazia, 3 vistas) |
+| `fuma_shuriken` | nas costas | `fuma_shuriken.png` (3 vistas), `fuma_shuriken_mao.png` (na mão, 16 ângulos) |
+| `scroll` | nas costas | `scroll.png` (3 vistas; todos os pergaminhos de classe usam esta) |
 
-- **Na mão:** o meio do cabo vai na âncora da mão (`spriteData.js`, `mao = [x, y, plano, ângulo]`) e a lâmina
-  segue o ângulo do antebraço daquele quadro. No selo do jutsu a arma da mão some (as mãos estão ocupadas).
-- **Nas costas:** o meio do desenho vai na âncora das costas mais o deslocamento da vista (`desloc` nos dados).
-  De frente, a espada fica quase deitada e mais comprida, com o cabo saindo de um lado do quadril e a ponta do
-  outro. Essa posição foi medida na silhueta do boneco: com a cabeça chibi grande, uma espada na diagonal some
-  inteira atrás do corpo.
+- **Kunai** como nas referências: lâmina escura em folha larga, com uma face clara e outra escura que se encontram
+  na crista do meio; cabo enrolado em faixa bege; argola na ponta. A de treino é mais clara, com faixa de couro.
+- **Na mão:** o centro do quadro é o punho e vai na âncora da mão (`spriteData.js`: `mao = [x, y, plano, ângulo da
+  lâmina]`). A arma é desenhada logo **antes** do braço: o punho fecha por cima do cabo e só a lâmina e a argola
+  aparecem. No selo do jutsu ela some (as mãos estão ocupadas).
+- **Ângulo da lâmina:** vem de cada quadro da animação. Parado, andando e correndo, é o antebraço girado 45° para fora
+  (a lâmina sai do lado do polegar, apontando para baixo e para fora, como na pose de guarda). No golpe, a pose diz.
+- **Golpe com arma** (animação `golpe` do boneco: prepara, corta, termina): o Ataque Básico com arma equipada usa
+  ela. A espada e a Shuriken Gigante saem das costas para a mão e voltam no fim; a espada deixa a bainha vazia nas
+  costas enquanto isso. Sem arma, o ataque continua sendo soco e chute.
+- **Nas costas:** o meio do desenho vai na âncora das costas mais o deslocamento da vista (`desloc` nos dados). A
+  espada longa é grande (~58 px) e vai quase deitada na lombar: de frente o cabo sai de um lado do quadril e a ponta
+  do outro; de lado o cabo sai para trás. Essas posições foram medidas na silhueta do boneco (na diagonal, a cabeça
+  chibi grande e o corpo escondem a espada inteira).
 
 Ordem de desenho (paperdoll):
 
-- **Costas, de frente e de lado:** antes de tudo, atrás do corpo.
-- **Costas, de costas:** por cima da roupa e por baixo do cabelo (o cabelo longo cobre o cabo).
-- **Mão:** logo depois do plano do braço que segura (atrás do corpo, se o braço está atrás).
+- **Costas:** de frente e de lado, antes de tudo (atrás do corpo); de costas, por cima de tudo.
+- **Mão:** logo antes do plano do braço que segura (se o braço está atrás do corpo, a arma também está).

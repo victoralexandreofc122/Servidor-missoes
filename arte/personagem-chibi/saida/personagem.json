@@ -124,6 +124,20 @@
    ],
    "repete": false,
    "frames": "0 = carregar chakra (agachado, selo do carneiro; parado em loop na meditação), 1 = A, preparação (mãos juntas), 2 = B, lançamento (palmas pra frente, grito). Jutsu: A -> B -> A. Rosto sério"
+  },
+  "golpe": {
+   "sequencia": [
+    0,
+    1,
+    2
+   ],
+   "duracao_ms": [
+    90,
+    120,
+    150
+   ],
+   "repete": false,
+   "frames": "golpe com a arma equipada: 0 = preparação (arma lá atrás), 1 = corte (braço estendido, avança), 2 = fim do golpe (braço desce)"
   }
  },
  "canais": {
@@ -1092,6 +1106,148 @@
     "indices": "indices/masculino/jutsu/calca__basica__corpo.png"
    }
   ],
+  "masculino/golpe": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/golpe/corpo__base__tras.png",
+    "indices": "indices/masculino/golpe/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/corpo__base__corpo.png",
+    "indices": "indices/masculino/golpe/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/golpe/corpo__base__frente.png",
+    "indices": "indices/masculino/golpe/corpo__base__frente.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/olhos__masculino__corpo.png",
+    "indices": "indices/masculino/golpe/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/olhos__cilios__corpo.png",
+    "indices": "indices/masculino/golpe/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/boca__sorriso__corpo.png",
+    "indices": "indices/masculino/golpe/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/cabelo__espetado__corpo.png",
+    "indices": "indices/masculino/golpe/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/golpe/cabelo__longo_lateral__tras.png",
+    "indices": "indices/masculino/golpe/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/masculino/golpe/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/chapeu__bandana__corpo.png",
+    "indices": "indices/masculino/golpe/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/golpe/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/golpe/conjunto__vila__tras.png",
+    "indices": "indices/masculino/golpe/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/conjunto__vila__corpo.png",
+    "indices": "indices/masculino/golpe/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/golpe/conjunto__vila__frente.png",
+    "indices": "indices/masculino/golpe/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/golpe/camisa__basica__tras.png",
+    "indices": "indices/masculino/golpe/camisa__basica__tras.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/camisa__basica__corpo.png",
+    "indices": "indices/masculino/golpe/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/golpe/camisa__basica__frente.png",
+    "indices": "indices/masculino/golpe/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/golpe/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/golpe/calca__basica__tras.png",
+    "indices": "indices/masculino/golpe/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/calca__basica__corpo.png",
+    "indices": "indices/masculino/golpe/calca__basica__corpo.png"
+   }
+  ],
   "feminino/parado": [
    {
     "slot": "corpo",
@@ -1835,6 +1991,148 @@
     "plano": "corpo",
     "arquivo": "camadas/feminino/jutsu/calca__basica__corpo.png",
     "indices": "indices/feminino/jutsu/calca__basica__corpo.png"
+   }
+  ],
+  "feminino/golpe": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/golpe/corpo__base__tras.png",
+    "indices": "indices/feminino/golpe/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/corpo__base__corpo.png",
+    "indices": "indices/feminino/golpe/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/golpe/corpo__base__frente.png",
+    "indices": "indices/feminino/golpe/corpo__base__frente.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/olhos__masculino__corpo.png",
+    "indices": "indices/feminino/golpe/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/olhos__cilios__corpo.png",
+    "indices": "indices/feminino/golpe/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/boca__sorriso__corpo.png",
+    "indices": "indices/feminino/golpe/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/cabelo__espetado__corpo.png",
+    "indices": "indices/feminino/golpe/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/golpe/cabelo__longo_lateral__tras.png",
+    "indices": "indices/feminino/golpe/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/feminino/golpe/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/chapeu__bandana__corpo.png",
+    "indices": "indices/feminino/golpe/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/golpe/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/golpe/conjunto__vila__tras.png",
+    "indices": "indices/feminino/golpe/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/conjunto__vila__corpo.png",
+    "indices": "indices/feminino/golpe/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/golpe/conjunto__vila__frente.png",
+    "indices": "indices/feminino/golpe/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/golpe/camisa__basica__tras.png",
+    "indices": "indices/feminino/golpe/camisa__basica__tras.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/camisa__basica__corpo.png",
+    "indices": "indices/feminino/golpe/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/golpe/camisa__basica__frente.png",
+    "indices": "indices/feminino/golpe/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/golpe/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/golpe/calca__basica__tras.png",
+    "indices": "indices/feminino/golpe/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/calca__basica__corpo.png",
+    "indices": "indices/feminino/golpe/calca__basica__corpo.png"
    }
   ]
  }

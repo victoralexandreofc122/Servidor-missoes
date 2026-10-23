@@ -755,6 +755,8 @@ O que muda:
 4. **👊 Taijutsu:** com um slime a 2 casas, o ninja avança até ele e dá o golpe (poeira onde saiu).
 5. **Kit B:** 🌀 Ilusão (espiral em volta: atordoa todos a até 3 casas) e 🌑 Sombra (linha no chão até o primeiro
    slime, que fica preso).
-6. **Armas:** equipe a Kunai na 🎒: ela aparece na mão e acompanha o braço. A Espada Longa e o pergaminho ficam
-   nas costas (de frente, o cabo e a ponta aparecem dos lados do quadril; de costas, a espada atravessa as costas).
+6. **Armas (uma de ataque por vez):** equipe a Kunai na 🎒: ela fica na mão, com o punho fechado no cabo, e o 🗡️
+   vira um golpe com ela (recua, estoca, desce). Equipe a Espada Longa: a kunai sai da mão e a espada fica grande na
+   lombar; no 🗡️ ela sai das costas para a mão, corta e volta (a bainha vazia fica nas costas). O pergaminho
+   continua nas costas com qualquer arma.
 7. **Admin (conta Victor):** `/admin spawn slime 4` em volta, para testar vários de uma vez.

@@ -44,36 +44,51 @@ def main():
         efeitos[name] = dict(arquivo=f"assets/vfx/{name}.png", quadros=len(frames), **meta)
         print(f"vfx  {name:10s} {len(frames)} quadros {meta['quadro']}")
 
+    # Cada arma: a arte de onde ela fica (mão ou costas) e, se for das costas, a da mão (no golpe) e a bainha vazia.
     lista = {}
-    for code, (sample, size) in armas.HAND.items():
-        frames = armas.hand_weapon(sample, size)
-        pix.save(pix.strip(frames), os.path.join(OUT_ARMAS, f"{code}.png"))
-        lista[code] = dict(arquivo=f"assets/weapons/{code}.png", onde="mao", quadro=[size, size], ancora=[size // 2, size // 2],
-                           angulos=len(frames))
-        print(f"arma {code:14s} mão, {len(frames)} ângulos")
-    for code, spec in armas.BACK.items():
-        frames = armas.back_views(code)
-        pix.save(pix.strip(frames), os.path.join(OUT_ARMAS, f"{code}.png"))
+
+    def sheet_hand(name, frames, size):
+        pix.save(pix.strip(frames), os.path.join(OUT_ARMAS, f"{name}.png"))
+        return dict(arquivo=f"assets/weapons/{name}.png", quadro=[size, size], ancora=[size // 2, size // 2], angulos=len(frames))
+
+    def sheet_back(name, frames, spec):
         w, h = spec["size"]
-        lista[code] = dict(arquivo=f"assets/weapons/{code}.png", onde="costas", quadro=[w, h], ancora=[w // 2, h // 2],
-                           desloc=[list(v["off"]) for v in spec["views"]])
-        print(f"arma {code:14s} costas, 3 vistas")
+        pix.save(pix.strip(frames), os.path.join(OUT_ARMAS, f"{name}.png"))
+        return dict(arquivo=f"assets/weapons/{name}.png", quadro=[w, h], ancora=[w // 2, h // 2], desloc=[list(v["off"]) for v in spec["views"]])
+
+    for code in ("kunai_training", "kunai", "tanto"):
+        sample, size = armas.HAND[code]
+        lista[code] = dict(onde="mao", mao=sheet_hand(code, armas.hand_weapon(sample, size), size))
+    for code, spec in armas.BACK.items():
+        entry = dict(onde="costas", costas=sheet_back(code, armas.back_views(code), spec))
+        if code == "katana":
+            sample, size = armas.HAND["katana"]
+            entry["mao"] = sheet_hand("katana_mao", armas.hand_weapon(sample, size), size)
+            entry["bainha"] = sheet_back("katana_bainha", armas.back_views(code, empty=True), spec)
+        if code == "fuma_shuriken":
+            entry["mao"] = sheet_hand("fuma_shuriken_mao", armas.shuriken_hand(), 52)
+        lista[code] = entry
+    for code, e in lista.items():
+        print(f"arma {code:14s} {e['onde']}: " + ", ".join(k for k in ("mao", "costas", "bainha") if k in e))
 
     with open(os.path.join(PUBLIC, "vfxData.js"), "w") as fh:
         fh.write(js_module("VFX", "Efeitos dos golpes: folhas em assets/vfx (quadros numa linha; px = pixels do boneco por pixel do efeito).",
                            dict(versao=1, casaPx=92 / 1.5, efeitos=efeitos)))
     with open(os.path.join(PUBLIC, "weaponData.js"), "w") as fh:
-        fh.write(js_module("ARMAS", "Armas no boneco: na mão (16 ângulos, 0° = para a direita, de 22,5 em 22,5) ou nas costas (frente, lado, costas).",
-                           dict(versao=1, armas=lista)))
+        fh.write(js_module("ARMAS", "Armas no boneco: `mao` = 16 ângulos (0° = direita, de 22,5 em 22,5; o centro é o punho); "
+                           "`costas` e `bainha` = 3 vistas (frente, lado, costas). `onde` = onde a arma fica parada.",
+                           dict(versao=2, armas=lista)))
 
     # prévias
     import subprocess
     subprocess.run([sys.executable, os.path.join(HERE, "previa.py"), "all", "2"], cwd=HERE, check=True)
     rows = []
     for code, (sample, size) in armas.HAND.items():
-        rows.append(pix.strip(armas.hand_weapon(sample, size)))
+        rows.append(pix.strip(armas.hand_weapon(sample, size)[::2]))
+    rows.append(pix.strip(armas.shuriken_hand()[::2]))
     for code in armas.BACK:
         rows.append(pix.strip(armas.back_views(code)))
+    rows.append(pix.strip(armas.back_views("katana", empty=True)))
     W = max(r.shape[1] for r in rows)
     H = sum(r.shape[0] + 2 for r in rows)
     out = pix.blank(W, H)
