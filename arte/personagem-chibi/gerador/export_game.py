@@ -8,6 +8,7 @@ Saída (pasta public/ do servidor):
 
 Uso: python3 export_game.py            (grava em public/ do servidor; ou passe outra pasta)
 """
+import math
 import json
 import os
 import sys
@@ -30,8 +31,8 @@ def hexc(c):
 
 
 def cell_anchors(fig):
-    """Mão que segura arma (de frente: a direita do personagem = esquerda da tela; de lado: a de perto),
-    meio das costas (itens nas costas) e se a mão está atrás do corpo."""
+    """Mão que segura arma (de frente: a direita do personagem = esquerda da tela; de lado: a de perto):
+    [x, y, plano do braço, ângulo do antebraço em graus]; e o meio das costas (itens nas costas)."""
     arms = {a.side: a for a in fig.limbs if a.kind == "arm"}
     side = {"front": "L", "side": "near", "back": None}[fig.view]
     hand = None
@@ -41,7 +42,9 @@ def cell_anchors(fig):
         hy = (j["wr"][1] + j["end"][1]) / 2
         if getattr(fig, "breath", 0) and hy <= 63:
             hy += 1
-        hand = [round(hx, 1), round(hy, 1), int(arms[side].plane)]
+        # ângulo do antebraço (cotovelo -> ponta da mão), em graus de tela: a arma segue esse rumo
+        ang = math.degrees(math.atan2(j["end"][1] - j["el"][1], j["end"][0] - j["el"][0]))
+        hand = [round(hx, 1), round(hy, 1), int(arms[side].plane), int(round(ang))]
     bx = (fig.neck[0] + fig.hip[0]) / 2
     by = (fig.neck[1] + fig.hip[1]) / 2 + (1 if getattr(fig, "breath", 0) else 0)
     return dict(mao=hand, costas=[round(bx, 1), round(by, 1)])

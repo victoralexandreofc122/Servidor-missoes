@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { distance, inCone, nearest, randomInRing, shieldedDamage } from '../src/realtime/combat.js';
+import { distance, isInCone as inCone, nearest, randomInRing, shieldedDamage } from '../src/realtime/combat.js';
 import { REALTIME, type CombatConfig, type RealtimeConfig } from '../src/realtime/config.js';
 import type { Progression } from '../src/realtime/gameWorld.js';
 import { blocked } from '../src/realtime/movement.js';
@@ -113,20 +113,41 @@ describe('combate: monstros', () => {
 });
 
 describe('combate: habilidades', () => {
-  it('Fogo (20 chakra): área de 3 casas; quem está a 3,5 não é atingido', () => {
-    const { world, connect } = setupWorld(config());
+  it('Fogo (20 chakra): projétil reto até o primeiro alvo, explosão de 2 casas em volta dele; o dano chega quando ele bate', () => {
+    const { world, connect, run } = setupWorld(config());
     const a = connect('kaito');
     const b = connect('mei');
-    const near = world.spawnMonster({ x: S.x + 2, y: S.y });
-    const edge = world.spawnMonster({ x: S.x, y: S.y - 3 });
-    const far = world.spawnMonster({ x: S.x + 3, y: S.y + 2 });   // ~3,6 casas
+    const near = world.spawnMonster({ x: S.x + 2, y: S.y });       // o mais perto: a mira
+    const buddy = world.spawnMonster({ x: S.x + 3, y: S.y + 1 });  // colado nele: pega na explosão
+    const far = world.spawnMonster({ x: S.x + 2, y: S.y - 3 });    // 3 casas do impacto: fora
+    const behind = world.spawnMonster({ x: S.x - 3, y: S.y });     // atrás do jogador: nunca
     a.send({ type: 'cast', skill: 'fire' });
-    assert.deepEqual(b.conn.last('cast'), { type: 'cast', playerId: a.id, skill: 'fire', x: S.x, y: S.y, fx: 0, fy: 1 });
-    assert.equal(monsterHp(world, near.id), M.maxHp - SK.fire.damage!);
-    assert.equal(monsterHp(world, edge.id), M.maxHp - SK.fire.damage!);
-    assert.equal(monsterHp(world, far.id), M.maxHp);
+    assert.deepEqual(b.conn.last('cast'), { type: 'cast', playerId: a.id, skill: 'fire', x: S.x, y: S.y, fx: 1, fy: 0 });
+    const shot = b.conn.last('projectile');
+    assert.deepEqual({ ...shot, id: 0 }, { type: 'projectile', id: 0, playerId: a.id, skill: 'fire', x: S.x, y: S.y, fx: 1, fy: 0, speed: 12, range: 5 });
+    assert.equal(monsterHp(world, near.id), M.maxHp, 'ainda voando: nada de dano');
     assert.equal(a.conn.last('stats').chakra, 100 - SK.fire.cost);
+    run(400);
+    const boom = b.conn.last('impact');
+    assert.equal(boom.id, shot.id);
+    assert.equal(boom.r, 2);
+    assert.ok(boom.x >= S.x + 1.5 && boom.x <= S.x + 2 && boom.y === S.y, `bateu no primeiro alvo: ${boom.x},${boom.y}`);
+    assert.equal(monsterHp(world, near.id), M.maxHp - SK.fire.damage!);
+    assert.equal(monsterHp(world, buddy.id), M.maxHp - SK.fire.damage!);
+    assert.equal(monsterHp(world, far.id), M.maxHp);
+    assert.equal(monsterHp(world, behind.id), M.maxHp);
     assert.deepEqual(b.conn.of('hit').map((h) => [h.target, h.amount, h.kind]), [['monster', 25, 'damage'], ['monster', 25, 'damage']]);
+  });
+
+  it('Fogo sem ninguém por perto: sai reto para onde o jogador olha e explode no fim do alcance (ou na parede)', () => {
+    const { connect, run } = setupWorld(config());
+    const a = connect('kaito');
+    a.send({ type: 'cast', skill: 'fire' });                    // olhando para baixo (0, 1)
+    assert.deepEqual([a.conn.last('projectile').fx, a.conn.last('projectile').fy], [0, 1]);
+    run(600);
+    const boom = a.conn.last('impact');
+    assert.ok(boom.x === S.x && boom.y > S.y && boom.y <= S.y + 5.001, `${boom.x},${boom.y}`);
+    assert.equal(a.conn.of('hit').length, 0);
   });
 
   it('Água (15 chakra): cone na frente de onde o jogador olhou por último', () => {
@@ -146,7 +167,7 @@ describe('combate: habilidades', () => {
     assert.equal(a.conn.last('cast').fx, 1);
   });
 
-  it('Taijutsu (5 chakra): dano alto só no MAIS PERTO a até 1,5 casa; sem alvo não gasta chakra', () => {
+  it('Taijutsu (5 chakra): golpe num círculo de 1 casa na frente, mirando o mais perto; quem está atrás não apanha; sem alvo não gasta chakra', () => {
     const { world, connect } = setupWorld(config());
     const a = connect('kaito');
     a.send({ type: 'cast', skill: 'taijutsu' });
@@ -386,8 +407,8 @@ describe('jutsus direcionados (targetId)', () => {
   it('alcance continua valendo: alvo longe demais = OUT_OF_RANGE, sem gastar chakra nem recarga', () => {
     const { world, connect } = setupWorld(config());
     const a = connect('kaito');
-    const far = world.spawnMonster({ x: S.x + 6, y: S.y });  // Água 4, Ilusão/Sombra 5, Fogo 3
-    for (const skill of ['water', 'illusion', 'shadow', 'fire']) {
+    const far = world.spawnMonster({ x: S.x + 6, y: S.y });  // Água 4, Sombra 4, Fogo 5 (a Ilusão não mira: é em volta)
+    for (const skill of ['water', 'shadow', 'fire']) {
       a.send({ type: 'switch_kit', kit: skill === 'water' || skill === 'fire' ? 'A' : 'B' });
       a.send({ type: 'cast', skill, targetId: far.id });
       assert.deepEqual(a.conn.last('cast_failed'), { type: 'cast_failed', skill, reason: 'OUT_OF_RANGE' });
@@ -400,26 +421,54 @@ describe('jutsus direcionados (targetId)', () => {
     assert.equal(monsterHp(world, near.id), M.maxHp - SK.water.damage!);
   });
 
-  it('Ilusão e Sombra com alvo: pegam O FOCADO, não o mais perto', () => {
+  it('Sombra com alvo: a linha vai até o FOCADO e prende o PRIMEIRO que ela encosta; sem alvo, o mais perto', () => {
     const { world, connect } = setupWorld(config());
     const a = connect('kaito');
     const close = world.spawnMonster({ x: S.x + 1, y: S.y });
-    const focused = world.spawnMonster({ x: S.x - 4, y: S.y });
+    const focused = world.spawnMonster({ x: S.x - 3, y: S.y });
     a.send({ type: 'switch_kit', kit: 'B' });
-    a.send({ type: 'cast', skill: 'illusion', targetId: focused.id });
-    assert.deepEqual(a.conn.last('monster_status'), { type: 'monster_status', id: focused.id, status: 'stunned', ms: 3000 });
+    a.send({ type: 'cast', skill: 'shadow', targetId: focused.id });
+    assert.deepEqual(a.conn.last('monster_status'), { type: 'monster_status', id: focused.id, status: 'rooted', ms: 5000 });
+    assert.equal(a.conn.last('cast').fx, -1, 'virou para o focado');
+    assert.ok(Math.abs(a.conn.last('cast').tx - (S.x - 3)) < 0.01, 'a linha termina nele');
+    const ready2 = (world as any).sessions.get(a.id);
+    ready2.cooldowns = {};
+    const blocker = world.spawnMonster({ x: S.x - 2, y: S.y });  // entrou na frente
+    a.send({ type: 'cast', skill: 'shadow', targetId: focused.id });
+    assert.equal(a.conn.last('monster_status').id, blocker.id, 'quem está na frente na linha é preso');
+    ready2.cooldowns = {};
+    world.spawnMonster({ x: S.x + 6, y: S.y });
+    (world as any).monsters.delete(blocker.id);
+    (world as any).monsters.delete(focused.id);
     a.send({ type: 'cast', skill: 'shadow' });                      // sem alvo: o mais perto
     assert.equal(a.conn.last('monster_status').id, close.id);
   });
 
-  it('Fogo com alvo: alvo precisa estar no raio (3); a área continua em volta do jogador', () => {
+  it('Ilusão: atordoa TODOS num círculo de 3 casas em volta do jogador (o foco não importa); ninguém perto: NO_TARGET', () => {
     const { world, connect } = setupWorld(config());
     const a = connect('kaito');
-    const t1 = world.spawnMonster({ x: S.x + 2, y: S.y });
-    const other = world.spawnMonster({ x: S.x - 2, y: S.y });
-    a.send({ type: 'cast', skill: 'fire', targetId: t1.id });
-    assert.equal(monsterHp(world, t1.id), M.maxHp - SK.fire.damage!);
-    assert.equal(monsterHp(world, other.id), M.maxHp - SK.fire.damage!, 'área em volta, não só o alvo');
+    a.send({ type: 'switch_kit', kit: 'B' });
+    a.send({ type: 'cast', skill: 'illusion' });
+    assert.equal(a.conn.last('cast_failed').reason, 'NO_TARGET');
+    const m1 = world.spawnMonster({ x: S.x + 1, y: S.y });
+    const m2 = world.spawnMonster({ x: S.x - 3, y: S.y });          // na borda (3)
+    const out = world.spawnMonster({ x: S.x, y: S.y + 4 });
+    a.send({ type: 'cast', skill: 'illusion', targetId: out.id });
+    assert.deepEqual(a.conn.of('monster_status').map((m) => m.id).sort(), [m1.id, m2.id].sort());
+  });
+
+  it('Fogo com alvo: voa até o FOCADO (mesmo atrás) e explode em volta dele; quem está do lado do jogador não apanha', () => {
+    const { world, connect, run } = setupWorld(config());
+    const a = connect('kaito');
+    const side = world.spawnMonster({ x: S.x + 1, y: S.y });
+    const focused = world.spawnMonster({ x: S.x - 4, y: S.y });
+    const buddy = world.spawnMonster({ x: S.x - 4, y: S.y + 1 });
+    a.send({ type: 'cast', skill: 'fire', targetId: focused.id });
+    assert.equal(a.conn.last('projectile').fx, -1);
+    run(500);
+    assert.equal(monsterHp(world, focused.id), M.maxHp - SK.fire.damage!);
+    assert.equal(monsterHp(world, buddy.id), M.maxHp - SK.fire.damage!, 'explosão: área em volta do impacto');
+    assert.equal(monsterHp(world, side.id), M.maxHp, 'o perto do jogador, do outro lado, fica inteiro');
   });
 
   it('alvo morto, inexistente ou com id inválido: NO_TARGET / INVALID_MESSAGE; Taijutsu ignora targetId', () => {
@@ -430,7 +479,7 @@ describe('jutsus direcionados (targetId)', () => {
     a.send({ type: 'cast', skill: 'water', targetId: '../../etc' });
     assert.equal(a.conn.last('error').code, 'INVALID_MESSAGE');
     const close = world.spawnMonster({ x: S.x + 1, y: S.y });
-    const farOne = world.spawnMonster({ x: S.x + 1, y: S.y + 1 });
+    const farOne = world.spawnMonster({ x: S.x + 1, y: S.y + 2 });   // 2 casas do golpe: fora do círculo
     a.send({ type: 'cast', skill: 'taijutsu', targetId: farOne.id });
     assert.equal(monsterHp(world, close.id), M.maxHp - SK.taijutsu.damage!, 'Taijutsu: sempre o mais perto');
     assert.equal(monsterHp(world, farOne.id), M.maxHp);
@@ -440,8 +489,9 @@ describe('jutsus direcionados (targetId)', () => {
     const { connect } = setupWorld(config());
     const a = connect('kaito');
     const skills = a.conn.of('welcome')[0].world.skills;
-    assert.deepEqual([skills.fire.range, skills.water.range, skills.illusion.range, skills.shadow.range, skills.taijutsu.range], [3, 4, 5, 5, 1.5]);
-    assert.equal(skills.heal.range, undefined);
+    assert.deepEqual([skills.fire.range, skills.water.range, skills.illusion.range, skills.shadow.range, skills.taijutsu.range], [5, 4, 3, 4, 2.5]);
+    assert.deepEqual([skills.fire.radius, skills.illusion.radius, skills.taijutsu.radius, skills.heal.radius], [2, 3, 1, 3]);
+    assert.equal(skills.stone.range, undefined);
   });
 });
 

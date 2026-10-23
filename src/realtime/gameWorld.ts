@@ -1,11 +1,13 @@
 import { randomInt } from 'node:crypto';
-import { distance, inCone, nearest, shieldedDamage, STEPS, type Point } from './combat.js';
+import {
+  ahead, distance, firstOnLine, isInArc, isInCircle, isInCone, nearest, rotate, shieldedDamage, STEPS, STRIKE_AHEAD, unit, type Point,
+} from './combat.js';
 import { REALTIME, type MonsterType, type RealtimeConfig } from './config.js';
 import {
   CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, SKILLS, sanitizeChat,
   type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
   type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
-  type Skill, type WorldInfo, type Appearance, type Dir,
+  type Skill, type WorldInfo, type Appearance, type Dir, type MonsterStatus,
 } from './protocol.js';
 import { NPC_OFFER_CODES, type Missions, type TalkOutcome } from './missions.js';
 import { ADMIN_HELP, isAdminCommand, parseAdminCommand, type AdminCommand, type AdminPlayerState, type AdminStore } from './admin.js';
@@ -180,6 +182,9 @@ interface Session {
   chakra: number;
   /** Escudo de Pedra: fração do próximo dano que some (0 = sem escudo). */
   shield: number;
+  /** PvP: atordoado (não anda nem ataca) e preso (não anda) até estes instantes. */
+  stunnedUntil: number;
+  rootedUntil: number;
   dead: boolean;
   deadAt: number;
   /** Meditando: parado, sem habilidades, chakra 3x mais rápido. Mover, atacar ou apanhar cancela. */
@@ -276,6 +281,32 @@ interface Monster {
   readonly admin?: boolean;
 }
 
+/** Quem uma hitbox pode acertar: um monstro ou (com o PvP ligado) outro jogador. */
+type Target =
+  | { readonly kind: 'monster'; readonly id: string; readonly x: number; readonly y: number; readonly monster: Monster }
+  | { readonly kind: 'player'; readonly id: string; readonly x: number; readonly y: number; readonly session: Session };
+
+/** Fogo e Kunai voando: o tick anda com eles e decide a colisão (stepProjectile). */
+interface Projectile {
+  readonly id: number;
+  readonly owner: Session;
+  readonly map: MapId;
+  readonly skill: Skill;
+  x: number;
+  y: number;
+  readonly ux: number;
+  readonly uy: number;
+  /** Casas por segundo. */
+  readonly speed: number;
+  /** Casas que ainda pode andar. */
+  left: number;
+  readonly damage: number;
+  /** Raio da explosão (Fogo). 0 = acerta só quem encostou (Kunai). */
+  readonly radius: number;
+  /** Kunais do mesmo arremesso: quem já levou uma não leva outra (a kunai passa por ele). */
+  readonly volley: Set<string>;
+}
+
 /** Devolvido pelo `join`: o gateway entrega as mensagens e o fechamento desta conexão. */
 export interface SessionHandle {
   receive(data: string | Buffer, isBinary?: boolean): void;
@@ -312,6 +343,9 @@ export class GameWorld {
   private timer: NodeJS.Timeout | undefined;
   private lastTick: number;
   private monsterSeq = 0;
+  /** Projéteis no ar (Fogo, Kunais), na ordem em que saíram. */
+  private readonly projectiles: Projectile[] = [];
+  private projectileSeq = 0;
 
   constructor(
     private readonly config: RealtimeConfig = REALTIME,
@@ -454,6 +488,7 @@ export class GameWorld {
         return [j.code, {
           name: j.name, class: j.class, tier: j.tier, mechanic: v.mechanic, cost: v.cost, cooldownMs: v.cooldownMs,
           ...(range !== undefined ? { range } : {}),
+          ...(v.radius !== undefined ? { radius: v.radius } : {}),
         }];
       }),
     ) as WorldInfo['skills'];
@@ -567,6 +602,8 @@ export class GameWorld {
       lastUsageFlush: t,
       hokageCandidate: player.hokageCandidate ?? previous?.hokageCandidate ?? false,
       substituteUntil: previous?.substituteUntil ?? 0,
+      stunnedUntil: 0,
+      rootedUntil: 0,
       substituteLevel: previous?.substituteLevel ?? 1,
       substituteFocus: previous?.substituteFocus,
       isAdmin: player.isAdmin ?? previous?.isAdmin ?? false,
@@ -742,19 +779,21 @@ export class GameWorld {
     const tickMs = this.config.tickMs;
     s.moveBudgetMs = Math.min(this.config.inputBufferMs, s.moveBudgetMs + dtMs);
     const before = [s.x, s.y, s.map];
+    // Atordoado ou preso (PvP): as entradas são confirmadas, mas o jogador não sai do lugar.
+    const held = t < s.stunnedUntil || t < s.rootedUntil;
     if (s.inputQueue.length > 0) {
       while (s.inputQueue.length > 0 && s.moveBudgetMs >= tickMs) {
         const input = s.inputQueue.shift()!;
         s.moveBudgetMs -= tickMs;
         s.ackSeq = input.seq;
         s.dirty = true;                   // o dono precisa do ack, mesmo parado numa parede
-        if (s.meditating || (input.dx === 0 && input.dy === 0)) continue;
+        if (held || s.meditating || (input.dx === 0 && input.dy === 0)) continue;
         const len = Math.sqrt(input.dx * input.dx + input.dy * input.dy);
         s.fx = input.dx / len;
         s.fy = input.dy / len;
         this.step(s, input.dx, input.dy, (this.speedOf(s) * tickMs) / 1000);
       }
-    } else if (!s.meditating && (s.dx !== 0 || s.dy !== 0)) {
+    } else if (!held && !s.meditating && (s.dx !== 0 || s.dy !== 0)) {
       this.step(s, s.dx, s.dy, (this.speedOf(s) * dtMs) / 1000);
       s.moveBudgetMs = Math.max(0, s.moveBudgetMs - dtMs);
     }
@@ -990,9 +1029,20 @@ export class GameWorld {
 
   /**
    * Jutsu. Ordem: vivo? fora da zona segura? APRENDEU? está no kit ativo? recarregou? tem
-   * chakra? tem alvo/efeito? Só então cobra o chakra, avisa todos (`cast`, para a animação),
-   * aplica o efeito e CONTA O USO (o nível do jutsu sobe pelo uso, contado só aqui).
+   * chakra? a HITBOX acha alguém? Só então cobra o chakra, avisa todos (`cast`, para a
+   * animação), aplica o efeito e CONTA O USO (o nível do jutsu sobe pelo uso, contado só aqui).
    * Falhou antes de cobrar: `cast_failed` só para quem tentou, sem gastar nada.
+   *
+   * Hitboxes (combat.ts), sempre na posição do SERVIDOR:
+   *   Água       cone na direção em que o jogador olha (ou no alvo focado)
+   *   Ilusão     círculo em volta do jogador: atordoa todos
+   *   Taijutsu   avança até o mais perto e acerta um círculo pequeno na frente
+   *   Relâmpago  linha instantânea: o primeiro que ela encosta (dano + choque)
+   *   Sombra     linha instantânea: prende o primeiro que ela encosta
+   *   Fogo       projétil em linha reta que explode (círculo) no primeiro alvo, na parede ou no fim
+   *   Kunais     3 projéteis em leque; cada alvo leva no máximo uma
+   *   Cura       em si mesmo ou num aliado perto; Pedra, em si mesmo
+   * Acertam monstros e, com o PvP ligado, outros jogadores (targetsFor).
    */
   private cast(session: Session, skill: Skill, t: number, targetId?: string, dir?: [number, number]): void {
     const cfg = this.config.combat.skills[skill];
@@ -1000,6 +1050,7 @@ export class GameWorld {
     // Qualquer TENTATIVA de usar habilidade encerra a meditação (mesmo que a habilidade falhe).
     this.stopMeditation(session, 'cast');
     if (session.dead) return fail('DEAD');
+    if (t < session.stunnedUntil) return fail('STUNNED');
     // Academia, etapas 1 e 2: só o Ataque Básico (os jutsus chegam na etapa 3, a Sala de Jutsus).
     if (session.tutorial < 2) return fail('TUTORIAL_LOCKED');
     // Zona segura (praça da Vila, lojas, canto do Diretor): nenhuma habilidade. Vale a posição do SERVIDOR.
@@ -1012,95 +1063,150 @@ export class GameWorld {
 
     const mechanic = cfg.mechanic;
     const level = jutsuLevel(session.jutsus.get(skill) ?? 0);
-    const alive = (m: Monster) => m.hp > 0 && m.map === session.map;   // só monstros do MESMO mapa
     // Taijutsu escala com o atributo Taijutsu; Armas com Armas (+ a arma equipada); o resto com Ninjutsu.
     // Nível do jutsu (uso): +10% por nível acima do 1.
     const weaponBonus = mechanic === 'weapons' ? this.weaponDamage(session) : 0;
     const dmg = scaledDamage((cfg.damage ?? 0) + weaponBonus, damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * jutsuPower(level));
     const reach = cfg.range ?? cfg.radius ?? 0;
-    let target: Monster | undefined;
-    let blink: Point | undefined;
+    const targets = this.targetsFor(session);
+
+    // 1. Mira. Jutsu que mira + alvo focado: o focado, dentro do alcance. Sem foco, as formas
+    //    estreitas (linha, avanço, projétil) procuram o mais perto; a Água vai para onde o
+    //    jogador olha, e o Fogo sem ninguém por perto sai reto para a frente.
+    let aim: Target | undefined;
     if (targetId !== undefined && DIRECTED_SKILLS.has(skill)) {
-      // Jutsu direcionado: o alvo é o focado, mas o ALCANCE continua sendo o da habilidade.
-      target = this.monsters.get(targetId);
-      if (!target || !alive(target)) return fail('NO_TARGET');
-      const d = distance(session, target);
-      if (d > reach) return fail('OUT_OF_RANGE');
-      // Mira: o servidor vira o jogador para o alvo (mesmo que ele estivesse olhando para o outro lado).
-      if (d > 0.01) {
-        session.fx = (target.x - session.x) / d;
-        session.fy = (target.y - session.y) / d;
-      }
-    } else if (mechanic === 'taijutsu' || mechanic === 'illusion' || mechanic === 'shadow' || mechanic === 'lightning' || mechanic === 'weapons') {
-      target = nearest(session, this.monsters.values(), reach, alive);
-      if (!target) return fail('NO_TARGET');
+      aim = targets.find((x) => x.id === targetId);
+      if (!aim) return fail('NO_TARGET');
+      if (distance(session, aim) > reach) return fail('OUT_OF_RANGE');
+    } else if (mechanic === 'taijutsu' || mechanic === 'shadow' || mechanic === 'lightning' || mechanic === 'weapons' || mechanic === 'fire') {
+      aim = nearest(session, targets, reach);
+      if (!aim && mechanic !== 'fire') return fail('NO_TARGET');
     }
-    if (mechanic === 'heal' && session.hp >= session.stats.maxHp) return fail('FULL_HP');
-    if (mechanic === 'stone' && session.shield > 0) return fail('ALREADY_ACTIVE');
-    if (mechanic === 'substitution' && session.substituteUntil > t) return fail('ALREADY_ACTIVE');
-    if (mechanic === 'teleport') {
-      // Teleporte Curto: na direção do joystick (ou para onde está virado), até o alcance do NÍVEL,
-      // parando antes da primeira parede. Não atravessa parede, porta nem borda.
-      const len = dir ? Math.sqrt(dir[0] * dir[0] + dir[1] * dir[1]) : 0;
-      if (dir && len > 0.1) {
-        session.fx = dir[0] / len;
-        session.fy = dir[1] / len;
+    // Mira: o servidor vira o jogador para o alvo (mesmo que ele estivesse olhando para o outro lado).
+    if (aim) this.faceTo(session, aim);
+    const o: Point = { x: session.x, y: session.y };
+    const { fx, fy } = session;
+
+    // 2. Hitbox, ANTES de cobrar: sem ninguém para acertar, falha sem gastar nada.
+    let hits: Target[] = [];
+    let to: Point | undefined;            // onde o efeito acontece (vai no `cast`, para a animação)
+    let dashTo: Point | undefined;
+    let healed: Session | undefined;
+    let blink: Point | undefined;
+    switch (mechanic) {
+      case 'water':
+        hits = targets.filter((x) => isInCone(o, fx, fy, x, reach, cfg.coneDeg ?? 90));
+        break;
+      case 'illusion':
+        hits = targets.filter((x) => isInCircle(o, cfg.radius ?? 0, x));
+        if (hits.length === 0) return fail('NO_TARGET');
+        break;
+      case 'lightning':
+      case 'shadow': {
+        const end = rayEnd(this.layout(session.map), o.x, o.y, fx, fy, reach);
+        const first = firstOnLine(o, end, targets);
+        if (!first) return fail('BLOCKED');            // uma parede entre o jogador e o alvo
+        hits = [first.target];
+        to = first.at;
+        break;
       }
-      blink = blinkTarget(this.layout(session.map), session.x, session.y, session.fx, session.fy, teleportRange(level));
-      if (distance(session, blink) < 0.5) return fail('BLOCKED');
+      case 'taijutsu': {
+        // Avança até ficar colado no alvo (para antes de parede e de vão), e golpeia um círculo na frente.
+        const r = cfg.radius ?? 1;
+        const dash = Math.max(0, Math.min(distance(o, aim!) - STRIKE_AHEAD, reach - r));
+        dashTo = dash > 0.05 ? rayEnd(this.layout(session.map), o.x, o.y, fx, fy, dash, true) : o;
+        to = ahead(dashTo, fx, fy, STRIKE_AHEAD);
+        hits = targets.filter((x) => isInCircle(to!, r, x));
+        if (hits.length === 0) return fail('BLOCKED');
+        break;
+      }
+      case 'heal': {
+        // O aliado FOCADO (perto); senão em si mesmo; senão o aliado mais ferido por perto.
+        const hurt = (p: Session) => !p.dead && !p.closed && p.hp < p.stats.maxHp;
+        const allies = [...(this.mapPlayers.get(session.map) ?? [])]
+          .filter((p) => p !== session && hurt(p) && !this.canHurt(session, p) && isInCircle(o, cfg.radius ?? 0, p))
+          .sort((a, b) => a.hp / a.stats.maxHp - b.hp / b.stats.maxHp);
+        healed = (targetId !== undefined ? allies.find((p) => p.id === targetId) : undefined) ?? (hurt(session) ? session : allies[0]);
+        if (!healed) return fail('FULL_HP');
+        if (healed !== session) to = { x: healed.x, y: healed.y };
+        break;
+      }
+      case 'stone':
+        if (session.shield > 0) return fail('ALREADY_ACTIVE');
+        break;
+      case 'substitution':
+        if (session.substituteUntil > t) return fail('ALREADY_ACTIVE');
+        break;
+      case 'teleport': {
+        // Teleporte Curto: na direção do joystick (ou para onde está virado), até o alcance do NÍVEL,
+        // parando antes da primeira parede. Não atravessa parede, porta nem borda.
+        const len = dir ? Math.sqrt(dir[0] * dir[0] + dir[1] * dir[1]) : 0;
+        if (dir && len > 0.1) {
+          session.fx = dir[0] / len;
+          session.fy = dir[1] / len;
+        }
+        blink = blinkTarget(this.layout(session.map), session.x, session.y, session.fx, session.fy, teleportRange(level));
+        if (distance(session, blink) < 0.5) return fail('BLOCKED');
+        break;
+      }
+      default:
+        break;
     }
 
+    // 3. Cobra, avisa todos e aplica.
     session.chakra -= cfg.cost;
     session.cooldowns[skill] = t + (mechanic === 'substitution' ? substitutionCooldownMs(level) : cfg.cooldownMs);
-    this.broadcastMap(session.map, { type: 'cast', playerId: session.id, skill, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy) });
+    this.broadcastMap(session.map, {
+      type: 'cast', playerId: session.id, skill, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy),
+      ...(to ? { tx: round2(to.x), ty: round2(to.y) } : {}),
+    });
 
     switch (mechanic) {
-      case 'fire':
-        for (const m of [...this.monsters.values()]) {
-          if (alive(m) && distance(session, m) <= (cfg.radius ?? 0)) this.damageMonster(m, dmg, session, t, 'skill');
-        }
-        break;
       case 'water':
-        for (const m of [...this.monsters.values()]) {
-          if (alive(m) && inCone(session, session.fx, session.fy, m, cfg.range ?? 0, cfg.coneDeg ?? 90)) this.damageMonster(m, dmg, session, t, 'skill');
-        }
+        for (const x of hits) this.hitTarget(x, dmg, session, t, 'skill');
         break;
       case 'taijutsu':
-        this.damageMonster(target!, dmg, session, t, 'skill');
+        if (dashTo && distance(o, dashTo) > 0.01) this.dash(session, dashTo, t);
+        for (const x of hits) this.hitTarget(x, dmg, session, t, 'skill');
         break;
-      case 'weapons': {
-        // Chuva de Kunais: o alvo e os 2 mais perto dele dentro do alcance.
-        const hit = [target!, ...[...this.monsters.values()]
-          .filter((m) => m !== target && alive(m) && distance(session, m) <= reach)
-          .sort((a, b) => distance(session, a) - distance(session, b))
-          .slice(0, 2)];
-        for (const m of hit) this.damageMonster(m, dmg, session, t, 'skill');
+      case 'lightning':
+        for (const x of hits) {
+          this.applyStatus(x, 'stunned', cfg.stunMs ?? 0, t);
+          this.hitTarget(x, dmg, session, t, 'skill');
+        }
         break;
-      }
-      case 'lightning': {
-        const stun = cfg.stunMs ?? 0;
-        target!.stunnedUntil = Math.max(target!.stunnedUntil, t + stun);
-        this.broadcastMap(session.map, { type: 'monster_status', id: target!.id, status: 'stunned', ms: stun });
-        this.damageMonster(target!, dmg, session, t, 'skill');
-        break;
-      }
       case 'illusion':
-        target!.stunnedUntil = t + (cfg.stunMs ?? 0);
-        this.broadcastMap(session.map, { type: 'monster_status', id: target!.id, status: 'stunned', ms: cfg.stunMs ?? 0 });
+        for (const x of hits) this.applyStatus(x, 'stunned', cfg.stunMs ?? 0, t);
         break;
       case 'shadow':
-        target!.rootedUntil = t + (cfg.rootMs ?? 0);
-        this.broadcastMap(session.map, { type: 'monster_status', id: target!.id, status: 'rooted', ms: cfg.rootMs ?? 0 });
+        for (const x of hits) this.applyStatus(x, 'rooted', cfg.rootMs ?? 0, t);
         break;
+      case 'fire':
+        this.launch(session, skill, fx, fy, cfg.speed ?? 12, reach, dmg, cfg.radius ?? 0, new Set());
+        break;
+      case 'weapons': {
+        // Leque: a do meio primeiro, depois as dos lados (-fan/2 e +fan/2).
+        const n = Math.max(1, cfg.shots ?? 3);
+        const fan = cfg.fanDeg ?? 45;
+        const volley = new Set<string>();
+        const angles = [0, ...Array.from({ length: n - 1 }, (_, k) => -fan / 2 + (fan * k) / Math.max(1, n - 2))];
+        for (const deg of angles) {
+          const [ux, uy] = rotate(fx, fy, deg);
+          this.launch(session, skill, ux, uy, cfg.speed ?? 16, reach, dmg, 0, volley);
+        }
+        break;
+      }
       case 'stone':
         session.shield = cfg.reduction ?? 0.5;
         break;
       case 'heal': {
-        const before = session.hp;
-        session.hp = Math.min(session.stats.maxHp, session.hp + Math.round((cfg.heal ?? 0) * jutsuPower(level)));
-        const amount = shownHp(session.hp) - shownHp(before);
-        this.broadcastMap(session.map, { type: 'hit', target: 'player', id: session.id, amount, kind: 'heal', hp: shownHp(session.hp), maxHp: session.stats.maxHp });
-        session.sentHp = shownHp(session.hp);
+        const h = healed!;
+        const before = h.hp;
+        h.hp = Math.min(h.stats.maxHp, h.hp + Math.round((cfg.heal ?? 0) * jutsuPower(level)));
+        const amount = shownHp(h.hp) - shownHp(before);
+        this.broadcastMap(h.map, { type: 'hit', target: 'player', id: h.id, amount, kind: 'heal', hp: shownHp(h.hp), maxHp: h.stats.maxHp });
+        h.sentHp = shownHp(h.hp);
+        if (h !== session) this.sendStats(h, t);
         break;
       }
       case 'teleport': {
@@ -1133,6 +1239,103 @@ export class GameWorld {
     }
     this.countUse(session, skill);
     this.sendStats(session, t);
+  }
+
+  // ---------------------------------------------------------------- hitboxes: alvos, projéteis, efeitos
+
+  /** PvP: `attacker` pode machucar `victim`? Só com o PvP ligado, os dois vivos, fora da zona segura e já fora da Academia. */
+  private canHurt(attacker: Session, victim: Session): boolean {
+    return this.config.combat.pvp && attacker !== victim && !victim.dead && !victim.closed && victim.map === attacker.map
+      && attacker.tutorial >= 4 && victim.tutorial >= 4 && !this.inSafeZone(attacker) && !this.inSafeZone(victim);
+  }
+
+  /** O que as hitboxes de `s` podem acertar agora: os monstros vivos do mapa e, com o PvP ligado, os outros jogadores. */
+  private targetsFor(s: Session): Target[] {
+    const out: Target[] = [];
+    for (const m of this.monsters.values()) if (m.hp > 0 && m.map === s.map) out.push({ kind: 'monster', id: m.id, x: m.x, y: m.y, monster: m });
+    if (this.config.combat.pvp) {
+      for (const o of this.mapPlayers.get(s.map) ?? []) if (this.canHurt(s, o)) out.push({ kind: 'player', id: o.id, x: o.x, y: o.y, session: o });
+    }
+    return out;
+  }
+
+  /** Dano de uma hitbox: no monstro (XP para quem matou) ou no jogador (PvP). Quem já morreu no meio do golpe não apanha de novo. */
+  private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill'): void {
+    if (target.kind === 'monster') {
+      if (target.monster.hp > 0 && this.monsters.has(target.id)) this.damageMonster(target.monster, amount, attacker, t, source);
+    } else if (this.canHurt(attacker, target.session)) {
+      this.damagePlayer(target.session, amount, t, attacker);
+    }
+  }
+
+  /** Atordoar ou prender um alvo (todos veem). */
+  private applyStatus(target: Target, status: MonsterStatus, ms: number, t: number): void {
+    const who = target.kind === 'monster' ? target.monster : target.session;
+    if (status === 'stunned') who.stunnedUntil = Math.max(who.stunnedUntil, t + ms);
+    else who.rootedUntil = Math.max(who.rootedUntil, t + ms);
+    if (target.kind === 'monster') this.broadcastMap(target.monster.map, { type: 'monster_status', id: target.id, status, ms });
+    else this.broadcastMap(target.session.map, { type: 'player_status', playerId: target.id, status, ms });
+  }
+
+  /** O servidor vira o jogador para `p` (mira automática do golpe e dos jutsus). */
+  private faceTo(s: Session, p: Point): void {
+    const d = distance(s, p);
+    if (d > 0.01) {
+      s.fx = (p.x - s.x) / d;
+      s.fy = (p.y - s.y) / d;
+    }
+  }
+
+  /** Avanço do Taijutsu: o servidor move o jogador; o dono refaz as entradas que faltam a partir daqui. */
+  private dash(s: Session, to: Point, t: number): void {
+    const from = { x: s.x, y: s.y };
+    s.x = to.x;
+    s.y = to.y;
+    s.lastUpdate = t;
+    s.dirty = true;
+    this.broadcastMap(s.map, { type: 'dash', playerId: s.id, fromX: round3(from.x), fromY: round3(from.y), x: round3(s.x), y: round3(s.y), a: s.ackSeq });
+  }
+
+  /** Um projétil sai do jogador na direção (ux, uy). Todos veem; o tick anda com ele. */
+  private launch(owner: Session, skill: Skill, fx: number, fy: number, speed: number, range: number, damage: number, radius: number, volley: Set<string>): void {
+    const [ux, uy] = unit(fx, fy);
+    const p: Projectile = { id: ++this.projectileSeq, owner, map: owner.map, skill, x: owner.x, y: owner.y, ux, uy, speed, left: range, damage, radius, volley };
+    this.projectiles.push(p);
+    this.broadcastMap(owner.map, {
+      type: 'projectile', id: p.id, playerId: owner.id, skill, x: round2(p.x), y: round2(p.y), fx: round2(ux), fy: round2(uy), speed, range,
+    });
+  }
+
+  /**
+   * Um tick de um projétil: o trecho que ele anda neste tick é uma LINHA. O primeiro alvo que
+   * ela encosta, a parede ou o fim do alcance param o projétil. Devolve true quando acabou
+   * (bateu, ou o dono saiu do jogo ou do mapa).
+   */
+  private stepProjectile(p: Projectile, dt: number, t: number): boolean {
+    if (p.owner.closed || p.owner.map !== p.map) return true;
+    const step = Math.min(p.left, p.speed * dt);
+    const from = { x: p.x, y: p.y };
+    const end = rayEnd(this.layout(p.map), p.x, p.y, p.ux, p.uy, step);
+    const wall = distance(from, end) < step - 0.06;
+    const first = firstOnLine(from, end, this.targetsFor(p.owner).filter((x) => !p.volley.has(x.id)));
+    p.x = end.x;
+    p.y = end.y;
+    p.left -= step;
+    if (first) this.impact(p, first.at, first.target, t);
+    else if (wall || p.left <= 1e-9) this.impact(p, end, undefined, t);
+    else return false;
+    return true;
+  }
+
+  /** O projétil bateu: o Fogo explode (círculo); a kunai acerta só quem ela encostou. */
+  private impact(p: Projectile, at: Point, hit: Target | undefined, t: number): void {
+    this.broadcastMap(p.map, { type: 'impact', id: p.id, skill: p.skill, x: round2(at.x), y: round2(at.y), r: p.radius });
+    if (p.radius > 0) {
+      for (const x of this.targetsFor(p.owner)) if (isInCircle(at, p.radius, x)) this.hitTarget(x, p.damage, p.owner, t, 'skill');
+    } else if (hit) {
+      p.volley.add(hit.id);
+      this.hitTarget(hit, p.damage, p.owner, t, 'skill');
+    }
   }
 
   /** Dano da arma equipada (Kunai: +10). Escala com o atributo Armas. */
@@ -1206,36 +1409,31 @@ export class GameWorld {
 
   /**
    * Ataque Básico: NÃO gasta chakra (o chakra só volta meditando, então sempre dá para lutar).
-   * Dano FÍSICO: multiplicador de Taijutsu. Alvo focado se estiver no alcance; senão, o mais
-   * perto no alcance. Tentar atacar encerra a meditação, como as habilidades.
+   * Dano FÍSICO: multiplicador de Taijutsu. Mira no alvo focado (se estiver no alcance) ou no
+   * mais perto, e acerta TODOS no ARCO (raio 1,6, 90°) na direção dele. Tentar atacar encerra a
+   * meditação, como as habilidades.
    */
   private basicAttack(session: Session, t: number, targetId?: string): void {
     const cfg = this.config.combat.basicAttack;
-    const fail = (reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE') => this.sendTo(session, { type: 'attack_failed', reason });
+    const fail = (reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED') => this.sendTo(session, { type: 'attack_failed', reason });
     this.stopMeditation(session, 'cast');
     if (session.dead) return fail('DEAD');
+    if (t < session.stunnedUntil) return fail('STUNNED');
     if (this.inSafeZone(session)) return fail('SAFE_ZONE');
     if ((session.cooldowns.attack ?? 0) > t) return fail('COOLDOWN');
-    const alive = (m: Monster) => m.hp > 0 && m.map === session.map;
-    let target: Monster | undefined;
-    if (targetId !== undefined) {
-      const focused = this.monsters.get(targetId);
-      if (focused && alive(focused) && distance(session, focused) <= cfg.range) target = focused;
-    }
-    target ??= nearest(session, this.monsters.values(), cfg.range, alive);
-    if (!target) return fail(targetId !== undefined && this.monsters.get(targetId)?.map === session.map ? 'OUT_OF_RANGE' : 'NO_TARGET');
-    const d = distance(session, target);
-    if (d > 0.01) {
-      session.fx = (target.x - session.x) / d;
-      session.fy = (target.y - session.y) / d;
-    }
+    const targets = this.targetsFor(session);
+    const focused = targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined;
+    const aim = focused && distance(session, focused) <= cfg.range ? focused : nearest(session, targets, cfg.range);
+    if (!aim) return fail(focused ? 'OUT_OF_RANGE' : 'NO_TARGET');
+    this.faceTo(session, aim);
     session.cooldowns.attack = t + session.stats.attackCooldownMs;   // Agilidade deixa o ataque mais rápido
     this.broadcastMap(session.map, { type: 'attack', playerId: session.id, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy) });
     // FÍSICO: base x Taijutsu + a arma equipada x Armas (Kunai de Treino: +10).
     const damage = scaledDamage(cfg.damage, session.stats.physicalMultiplier) + scaledDamage(this.weaponDamage(session), session.stats.weaponMultiplier);
-    this.damageMonster(target, damage, session, t, 'attack');
+    const hits = targets.filter((x) => isInArc(session, session.fx, session.fy, x, cfg.range, cfg.arcDeg));
+    for (const x of hits) this.hitTarget(x, damage, session, t, 'attack');
     // Etapa 4 (Sala de Armas): acertar o boneco com o Ataque Básico E a arma equipada conclui a Academia.
-    if (session.tutorial === 3 && session.map === 'academy_interior' && target.type === 'dummy') {
+    if (session.tutorial === 3 && session.map === 'academy_interior' && hits.some((x) => x.kind === 'monster' && x.monster.type === 'dummy')) {
       if (session.equipped) this.advanceTutorial(session, 4);
       else this.sendTo(session, { type: 'notice', text: 'Primeiro abra a mochila 🎒 e equipe a Kunai de Treino.', tone: 'info' });
     }
@@ -2016,7 +2214,7 @@ export class GameWorld {
     }
   }
 
-  private damagePlayer(session: Session, amount: number, t: number, attacker?: Monster): void {
+  private damagePlayer(session: Session, amount: number, t: number, attacker?: Point): void {
     // Apanhou: a meditação acaba ANTES do dano (não dá para meditar no meio da luta).
     this.stopMeditation(session, 'damaged');
     if (attacker && session.substituteUntil > t) return this.substitute(session, attacker, t);
@@ -2047,7 +2245,7 @@ export class GameWorld {
    * Substituição: o golpe acerta um TRONCO no lugar do ninja (dano anulado) e ele aparece
    * atrás do atacante. Nível 4: atrás do alvo FOCADO (se estiver vivo no mesmo mapa).
    */
-  private substitute(s: Session, attacker: Monster, t: number): void {
+  private substitute(s: Session, attacker: Point, t: number): void {
     s.substituteUntil = 0;
     const focus = s.substituteLevel >= 4 && s.substituteFocus ? this.monsters.get(s.substituteFocus) : undefined;
     const anchor = focus && focus.hp > 0 && focus.map === s.map ? focus : attacker;
@@ -2085,6 +2283,8 @@ export class GameWorld {
     session.hp = maxHp;
     session.chakra = maxChakra;
     session.shield = 0;
+    session.stunnedUntil = 0;
+    session.rootedUntil = 0;
     session.cooldowns = {};
     session.dx = 0;
     session.dy = 0;
@@ -2209,6 +2409,13 @@ export class GameWorld {
       if (s.tutorial === 1 && s.meditating && s.chakra >= s.stats.maxChakra && s.map === 'academy_interior'
         && s.x >= ACADEMY.room && s.x < ACADEMY.room * 2) this.advanceTutorial(s, 2);
       if (s.usagePending.size > 0 && t - s.lastUsageFlush >= 15_000) void this.flushUsage(s);
+    }
+
+    // 1a. Projéteis (Fogo, Kunais): andam e batem (depois de os jogadores andarem neste tick).
+    if (this.projectiles.length > 0) {
+      let alive = 0;
+      for (const pr of this.projectiles) if (!this.stepProjectile(pr, dt, t)) this.projectiles[alive++] = pr;
+      this.projectiles.length = alive;
     }
 
     // 1b. Bonecos fixos que renascem.
@@ -2412,6 +2619,25 @@ export function blinkTarget(layout: MapLayout, x: number, y: number, dx: number,
     const nx = q3(x + ux * d), ny = q3(y + uy * d);
     if (nx < 0 || ny < 0 || nx > layout.width || ny > layout.height || blocked(nx, ny, solid)) break;
     if (solid === layout.walls || !blocked(nx, ny, layout.walls)) best = { x: nx, y: ny };
+  }
+  return best;
+}
+
+/**
+ * Até onde uma LINHA vai de (x, y) na direção (dx, dy), no máximo `range` casas, sem entrar em
+ * parede nem sair do mapa: o último ponto livre, a cada 0,05 casa (Relâmpago, Sombra, projéteis).
+ * Vão no chão (`pit`): o que voa passa por cima; com `pitsBlock` (avanço do Taijutsu, a pé) para antes.
+ */
+export function rayEnd(layout: MapLayout, x: number, y: number, dx: number, dy: number, range: number, pitsBlock = false): Point {
+  const [ux, uy] = unit(dx, dy);
+  const solid = !pitsBlock && layout.walls.some((w) => w.k === 'pit') ? layout.walls.filter((w) => w.k !== 'pit') : layout.walls;
+  let best = { x, y };
+  const n = Math.ceil(range / 0.05 - 1e-9);
+  for (let i = 1; i <= n; i++) {
+    const d = Math.min(range, i * 0.05);
+    const nx = q3(x + ux * d), ny = q3(y + uy * d);
+    if (nx < 0 || ny < 0 || nx > layout.width || ny > layout.height || blocked(nx, ny, solid)) break;
+    best = { x: nx, y: ny };
   }
   return best;
 }

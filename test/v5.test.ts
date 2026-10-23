@@ -160,7 +160,7 @@ describe('v5: Ataque Básico (físico) vs jutsus', () => {
   });
 
   it('Taijutsu sobe SÓ o Ataque Básico; Ninjutsu sobe SÓ os jutsus', () => {
-    const { world } = setupWorld(config);
+    const { world, run } = setupWorld(config);
     const mk = (id: string, attrs: Partial<typeof NO_ATTRIBUTES>) => {
       const conn = new (class { sent: any[] = []; bufferedAmount = 0; send(d: string) { this.sent.push(JSON.parse(d)); } close() {} })();
       const h = world.join({ id, username: id, attributes: { ...NO_ATTRIBUTES, ...attrs } }, conn);
@@ -178,10 +178,12 @@ describe('v5: Ataque Básico (físico) vs jutsus', () => {
     (world as any).monsters.delete(m);
     m = target();
     tai({ type: 'cast', skill: 'fire' });
+    run(300);                                                     // o Fogo é um projétil: o dano chega quando ele bate
     assert.equal(monsterHp(world, m), M.maxHp - SK.fire.damage!, 'Taijutsu NÃO mexe no Fogo');
     (world as any).monsters.delete(m);
     m = target();
     nin({ type: 'cast', skill: 'fire' });
+    run(300);
     assert.equal(monsterHp(world, m), M.maxHp - scaledDamage(SK.fire.damage!, 1.2), 'Ninjutsu no Fogo: 25 -> 30');
     (world as any).monsters.delete(m);
     m = target();

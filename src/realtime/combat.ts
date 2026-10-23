@@ -10,19 +10,104 @@ export interface Point {
 
 export const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 
-/**
- * O ponto `target` está no cone que sai de `origin` na direção (fx, fy)?
- * Quem está "em cima" do jogador (menos de 0,3 casa) conta como dentro.
- */
-export function inCone(origin: Point, fx: number, fy: number, target: Point, range: number, coneDeg: number): boolean {
-  const dx = target.x - origin.x;
-  const dy = target.y - origin.y;
+// ------------------------------------------------------------------ hitboxes
+//
+// Formas de acerto (o SERVIDOR decide quem foi atingido; o cliente só desenha):
+//   arco    Ataque Básico: o corte em volta do corpo
+//   cone    Água: leque largo saindo do jogador
+//   círculo Fogo (explosão), Ilusão (em volta do jogador), Taijutsu (na frente, depois do avanço), Cura
+//   linha   Relâmpago, Sombra e os projéteis (Fogo, Kunais): pega quem a linha encosta
+
+/** "Corpo" de um alvo para as linhas: o tiro pega quem passa a até meia casa dele. */
+export const HIT_RADIUS = 0.5;
+/** Arco: a ponta do setor fica meia casa ATRÁS do jogador (quem está colado do lado também apanha). */
+export const ARC_BACK = 0.5;
+/** Taijutsu: o centro do golpe fica 0,75 casa na frente de onde o avanço parou. */
+export const STRIKE_AHEAD = 0.75;
+
+/** Direção (fx, fy) normalizada; parado/sem direção: para baixo (0, 1). */
+export function unit(fx: number, fy: number): [number, number] {
+  const len = Math.hypot(fx, fy);
+  return len > 1e-9 ? [fx / len, fy / len] : [0, 1];
+}
+
+/** Direção girada `deg` graus (positivo = sentido horário na tela, onde y cresce para baixo). */
+export function rotate(fx: number, fy: number, deg: number): [number, number] {
+  const a = (deg * Math.PI) / 180;
+  const c = Math.cos(a), s = Math.sin(a);
+  return [fx * c - fy * s, fx * s + fy * c];
+}
+
+/** O ponto `dist` casas à frente de `origin` na direção (fx, fy). */
+export function ahead(origin: Point, fx: number, fy: number, dist: number): Point {
+  const [ux, uy] = unit(fx, fy);
+  return { x: origin.x + ux * dist, y: origin.y + uy * dist };
+}
+
+/** Círculo: `target` a até `radius` casas de `center` (a borda conta). */
+export function isInCircle(center: Point, radius: number, target: Point): boolean {
+  return distance(center, target) <= radius + 1e-9;
+}
+
+/** Setor (fatia de pizza) com a ponta em `apex`: base do cone e do arco. */
+function inSector(apex: Point, fx: number, fy: number, target: Point, radius: number, angleDeg: number): boolean {
+  const dx = target.x - apex.x;
+  const dy = target.y - apex.y;
   const d = Math.hypot(dx, dy);
-  if (d > range) return false;
+  if (d > radius + 1e-9) return false;
   if (d < 0.3) return true;
-  const facing = Math.hypot(fx, fy) || 1;
-  const cos = (dx * fx + dy * fy) / (d * facing);
-  return cos >= Math.cos(((coneDeg / 2) * Math.PI) / 180);
+  const [ux, uy] = unit(fx, fy);
+  return (dx * ux + dy * uy) / d >= Math.cos(((angleDeg / 2) * Math.PI) / 180) - 1e-9;
+}
+
+/**
+ * Cone (Água): `target` está no leque de `range` casas e `coneDeg` graus que sai de `origin`
+ * na direção (fx, fy)? Quem está "em cima" do jogador (menos de 0,3 casa) conta como dentro.
+ * Atrás do jogador, nunca.
+ */
+export function isInCone(origin: Point, fx: number, fy: number, target: Point, range: number, coneDeg: number): boolean {
+  return inSector(origin, fx, fy, target, range, coneDeg);
+}
+
+/**
+ * Arco (Ataque Básico): o corte corpo a corpo, de `radius` casas e `arcDeg` graus na direção
+ * (fx, fy). É um setor com a ponta recuada `ARC_BACK` para trás do jogador: o golpe passa em
+ * volta do corpo, então quem está colado do lado também apanha. O alcance conta do jogador.
+ */
+export function isInArc(origin: Point, fx: number, fy: number, target: Point, radius: number, arcDeg: number): boolean {
+  if (distance(origin, target) > radius + 1e-9) return false;
+  const [ux, uy] = unit(fx, fy);
+  const apex = { x: origin.x - ux * ARC_BACK, y: origin.y - uy * ARC_BACK };
+  return inSector(apex, ux, uy, target, radius + ARC_BACK, arcDeg);
+}
+
+/** Onde, de 0 (em `a`) a 1 (em `b`), fica o ponto do segmento a→b mais perto de `p`. */
+function along(a: Point, b: Point, p: Point): number {
+  const vx = b.x - a.x, vy = b.y - a.y;
+  const len2 = vx * vx + vy * vy;
+  if (len2 < 1e-12) return 0;
+  return Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / len2));
+}
+
+/** Linha (segmento a→b) x círculo: a linha passa a até `radius` casas de `center`? */
+export function lineIntersects(a: Point, b: Point, center: Point, radius: number): boolean {
+  const k = along(a, b, center);
+  return Math.hypot(a.x + (b.x - a.x) * k - center.x, a.y + (b.y - a.y) * k - center.y) <= radius + 1e-9;
+}
+
+/**
+ * O PRIMEIRO alvo que a linha a→b encontra (o mais perto de `a` ao longo dela), com o ponto da
+ * linha onde bateu (`at`) e quanto da linha andou até lá (`k`, de 0 a 1).
+ */
+export function firstOnLine<T extends Point>(a: Point, b: Point, candidates: Iterable<T>, radius = HIT_RADIUS): { target: T; at: Point; k: number } | undefined {
+  let best: { target: T; at: Point; k: number } | undefined;
+  for (const c of candidates) {
+    if (!lineIntersects(a, b, c, radius)) continue;
+    const k = along(a, b, c);
+    if (best && k >= best.k) continue;
+    best = { target: c, at: { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k }, k };
+  }
+  return best;
 }
 
 /** O mais perto de `origin` dentro de `range` (ou undefined). */

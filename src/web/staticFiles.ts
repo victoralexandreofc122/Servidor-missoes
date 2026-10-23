@@ -26,6 +26,11 @@ export interface StaticFile {
   etag: string;
 }
 
+/** Folhas PNG de public/assets/<pasta>/ (a lista bate com vfxData.js e weaponData.js: test/static.test.ts confere). */
+function sheets(folder: 'vfx' | 'weapons', names: readonly string[]) {
+  return names.map((n) => ({ route: `/assets/${folder}/${n}.png`, file: `assets/${folder}/${n}.png`, contentType: 'image/png', binary: true as const }));
+}
+
 const FILES = [
   { route: '/', file: 'index.html', contentType: 'text/html; charset=utf-8' },
   { route: '/game.js', file: 'game.js', contentType: 'text/javascript; charset=utf-8' },
@@ -41,13 +46,23 @@ const FILES = [
   { route: '/spriteData.js', file: 'spriteData.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/sprites/chibi_m.png', file: 'sprites/chibi_m.png', contentType: 'image/png', binary: true },
   { route: '/sprites/chibi_f.png', file: 'sprites/chibi_f.png', contentType: 'image/png', binary: true },
+  // Efeitos dos golpes e armas em pixel art (arte/armas-vfx): o código, os dados e as folhas (abaixo, em VFX_SHEETS/WEAPON_SHEETS).
+  { route: '/vfx.js', file: 'vfx.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/vfxData.js', file: 'vfxData.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/weapons.js', file: 'weapons.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/weaponData.js', file: 'weaponData.js', contentType: 'text/javascript; charset=utf-8' },
+  ...sheets('vfx', [
+    'slash', 'hit', 'punch', 'dust', 'smoke', 'fireball', 'explosion', 'water',
+    'lightning', 'spark', 'shadow', 'bind', 'illusion', 'heal', 'stone', 'kunai',
+  ]),
+  ...sheets('weapons', ['kunai_training', 'kunai', 'tanto', 'katana', 'fuma_shuriken', 'scroll']),
   // Identidade visual (binários): favicon da Folha em Chamas e Pergaminho em Chamas do login.
   { route: '/img/favicon-32.png', file: 'img/favicon-32.png', contentType: 'image/png', binary: true },
   { route: '/img/favicon-192.png', file: 'img/favicon-192.png', contentType: 'image/png', binary: true },
   { route: '/img/apple-touch-icon.png', file: 'img/apple-touch-icon.png', contentType: 'image/png', binary: true },
   { route: '/img/login-bg.webp', file: 'img/login-bg.webp', contentType: 'image/webp', binary: true },
   { route: '/img/logo.webp', file: 'img/logo.webp', contentType: 'image/webp', binary: true },
-] as const;
+];
 
 /** public/ fica na raiz do projeto: dois níveis acima de src/web/ (dev) e de dist/web/ (Render). */
 export const PUBLIC_DIR = new URL('../../public/', import.meta.url);
@@ -69,7 +84,7 @@ export function loadPublicFiles(dir: URL = PUBLIC_DIR): StaticFile[] {
     const { route, file, contentType } = entry;
     let body: string | Buffer;
     try {
-      body = 'binary' in entry ? readFileSync(new URL(file, dir)) : readFileSync(new URL(file, dir), 'utf8');
+      body = 'binary' in entry && entry.binary ? readFileSync(new URL(file, dir)) : readFileSync(new URL(file, dir), 'utf8');
     } catch {
       throw new Error(`Cliente web: arquivo public/${file} não encontrado. Confira se a pasta public/ foi enviada ao GitHub.`);
     }

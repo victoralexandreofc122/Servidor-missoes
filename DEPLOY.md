@@ -732,3 +732,29 @@ SELECT game.valid_appearance('{"skin":"#f1c9a0","hair":"#2b2118","shirt":"#2f5d8
    (soco e chute alternados), use um jutsu (mãos juntas, palmas para frente e volta) e medite (🧘: agachado, com o selo do carneiro). Para a direita, o boneco é o de lado espelhado.
 4. **Outro jogador** (outro celular ou aba anônima) vê o seu visual igual, e a mudança aparece na hora quando você salva no Criador.
 
+
+## Passo 21 — Atualização v14: hitboxes, efeitos dos golpes e armas no boneco
+
+**Banco:** nada a rodar no Neon (nenhuma migração). O Render publica a `main` sozinho.
+
+O que muda:
+
+- **Hitboxes:** cada golpe acerta pela forma, com as posições do servidor: Ataque Básico em arco, Fogo como
+  bola que voa e explode (raio 2), Água em cone, Taijutsu com avanço, Ilusão em volta, Sombra e Relâmpago em
+  linha (o primeiro que ela encosta), Kunais em leque de 3. Paredes e árvores param linhas e projéteis.
+- **Efeitos** em pixel art e **armas** desenhadas no boneco (kunai e espada curta na mão; espada longa, Shuriken
+  Gigante e pergaminho nas costas).
+- **PvP preparado, desligado:** só liga trocando `pvp: false` para `true` em `src/realtime/config.ts`.
+
+### Testar no celular
+
+1. **Floresta:** toque em 🗡️ perto de 2 slimes lado a lado: o corte em arco pega os dois.
+2. **🔥 Fogo:** a bola sai voando até o slime mais perto e explode; o dano aparece quando ela bate. Atrás de uma
+   árvore, ela explode no tronco.
+3. **💧 Água:** o cone sai para onde você olha (ou para o alvo focado 🎯).
+4. **👊 Taijutsu:** com um slime a 2 casas, o ninja avança até ele e dá o golpe (poeira onde saiu).
+5. **Kit B:** 🌀 Ilusão (espiral em volta: atordoa todos a até 3 casas) e 🌑 Sombra (linha no chão até o primeiro
+   slime, que fica preso).
+6. **Armas:** equipe a Kunai na 🎒: ela aparece na mão e acompanha o braço. A Espada Longa e o pergaminho ficam
+   nas costas (de frente, o cabo e a ponta aparecem dos lados do quadril; de costas, a espada atravessa as costas).
+7. **Admin (conta Victor):** `/admin spawn slime 4` em volta, para testar vários de uma vez.

@@ -135,21 +135,37 @@ ausente, inválido ou vencido recebe HTTP 401 e não conecta. O token pode vir:
 | para todos | `chat {playerId,username,message}` |
 | só para quem enviou | `error {code,message}` |
 
-Mensagens de combate (o servidor decide tudo; o cliente só pede `cast` e `respawn`):
-`stats` (vida/chakra do dono), `player_hp`, `cast` / `cast_failed`, `hit` (número flutuante), `monsters_moved`,
-`monster_spawned`, `monster_status`, `monster_died`, `player_died`, `player_respawned`, `xp`, `announce`.
+Mensagens de combate (o servidor decide tudo; o cliente só pede `cast`, `attack` e `respawn`):
+`stats` (vida/chakra do dono), `player_hp`, `cast` / `cast_failed`, `projectile` / `impact` (Fogo e Kunais voando),
+`dash` (avanço do Taijutsu), `hit` (número flutuante), `monsters_moved`, `monster_spawned`, `monster_status`,
+`player_status` (PvP), `monster_died`, `player_died`, `player_respawned`, `xp`, `announce`.
 
 ### Combate PvE (valores em `src/realtime/config.ts` → `combat`)
 
-| Habilidade | Chakra | Recarga | Efeito |
-|---|---|---|---|
-| Fogo (`fire`) | 20 | 1,5 s | 25 de dano em todos a até 3 casas |
-| Água (`water`) | 15 | 1 s | 20 de dano num cone de 90° e 4 casas, para onde o jogador olhou por último |
-| Taijutsu (`taijutsu`) | 5 | 0,5 s | 35 de dano no monstro mais perto, a até 1,5 casa |
-| Ilusão (`illusion`) | 30 | 4 s | atordoa o mais perto (até 5 casas) por 3 s: não anda nem ataca |
-| Sombra (`shadow`) | 25 | 6 s | prende o mais perto (até 5 casas) por 5 s: não anda, mas ataca |
-| Pedra (`stone`) | 15 | 6 s | escudo: o próximo dano cai pela metade |
-| Cura (`heal`) | 30 | 4 s | +30 de vida (até 100) |
+Cada golpe tem uma **hitbox geométrica** (`src/realtime/combat.ts`: `isInArc`, `isInCone`, `isInCircle`,
+`lineIntersects`, `firstOnLine`). O servidor calcula quem foi atingido com as posições dele; o cliente só desenha.
+
+| Habilidade | Chakra | Recarga | Hitbox | Efeito |
+|---|---|---|---|---|
+| Ataque Básico | 0 | 0,6 s | arco de 90° e 1,6 casa na direção do alvo | 12 de dano em todos no arco |
+| Fogo (`fire`) | 20 | 1,5 s | projétil reto (5 casas, 12 casas/s) + círculo de 2 casas onde ele bate | 25 de dano na explosão |
+| Água (`water`) | 15 | 1 s | cone de 90° e 4 casas, para onde o jogador olha (ou no alvo focado) | 20 de dano |
+| Taijutsu (`taijutsu`) | 5 | 0,5 s | avanço até o mais perto (alcance 2,5) + círculo de 1 casa na frente | 35 de dano |
+| Ilusão (`illusion`) | 30 | 4 s | círculo de 3 casas em volta do jogador | atordoa todos por 3 s |
+| Sombra (`shadow`) | 25 | 6 s | linha instantânea de 4 casas: o primeiro que ela encosta | prende por 5 s (não anda, mas ataca) |
+| Relâmpago (`lightning`) | 20 | 2 s | linha instantânea de 4,5 casas: o primeiro que ela encosta | 30 de dano e choque de 0,4 s |
+| Armas (`weapons`) | 10 | 1,2 s | 3 kunais (projéteis) em leque de 45°, 4 casas | 18 + arma em cada alvo (no máximo 1 kunai por alvo) |
+| Pedra (`stone`) | 15 | 6 s | em si mesmo | escudo: o próximo dano cai pela metade |
+| Cura (`heal`) | 30 | 4 s | em si mesmo ou num aliado a até 3 casas | +30 de vida |
+
+- **Mira:** com alvo focado, Fogo, Água, Sombra, Relâmpago e Armas mandam `targetId` e o servidor vira o
+  jogador para ele. Sem foco, as formas estreitas (linha, avanço, projétil) miram o mais perto; a Água vai
+  para onde o jogador olha e o Fogo sem ninguém por perto sai reto para a frente.
+- **Paredes:** linhas e projéteis param na parede (árvore, casa). Uma parede entre o jogador e o alvo dá
+  `BLOCKED` sem gastar chakra. O avanço do Taijutsu também para antes de vão no chão.
+- **PvP (preparado, desligado):** com `combat.pvp: true` em `src/realtime/config.ts`, as mesmas hitboxes
+  acertam outros jogadores (fora da zona segura e fora da Academia). Atordoado não anda nem ataca
+  (`STUNNED`); preso não anda. Desligado, todo jogador é aliado e a Cura pega quem estiver perto.
 
 - **Jogador:** 100 de vida (regenera 1/s) e 100 de chakra (regenera 5/s). Sem alvo, com vida cheia ou com
   escudo ativo, a habilidade falha sem gastar chakra.
@@ -158,9 +174,12 @@ Mensagens de combate (o servidor decide tudo; o cliente só pede `cast` e `respa
   Num mapa sem ninguém, os monstros esperam (nada a calcular nem a enviar).
 - **Derrota:** com vida 0, o jogador não anda nem usa habilidade. Depois de 5 s pode pedir `respawn` e
   volta à avenida da Vila, em frente à sede, com vida e chakra cheios (de qualquer mapa). Reconectar não cura.
-- **Jutsus direcionados:** com alvo focado, Fogo, Água, Ilusão e Sombra mandam `targetId`. O servidor
-  vira o jogador para o alvo (a Água sai na direção dele) e confere o alcance (Fogo 3, Água 4, Ilusão e
-  Sombra 5): longe demais = `OUT_OF_RANGE`, sem gastar chakra.
+- **Alcance:** com alvo focado longe demais (Fogo 5, Água 4, Sombra 4, Relâmpago 4,5, Armas 4), o servidor
+  responde `OUT_OF_RANGE` sem gastar chakra.
+- **Efeitos visuais:** folhas de sprite em `public/assets/vfx/` (4 a 8 quadros, pixel art no estilo do boneco),
+  tocadas pelo `VFXManager` (`public/vfx.js`) na posição que o servidor mandou. As armas equipadas são
+  desenhadas no boneco (`public/weapons.js`, artes em `public/assets/weapons/`) na ordem do paperdoll.
+  Tudo é gerado por `arte/armas-vfx/` (veja o LEIAME de lá).
 - **Meditação** (`{"type":"meditate","active":true}`): parado, chakra 3x mais rápido (15/s). Tentar andar,
   tentar usar habilidade ou apanhar de monstro encerra na hora (`meditation` com `reason`). Morto não medita.
 - **XP:** cada monstro dá 20 de XP para quem deu o último golpe. O XP é gravado em `game.players.total_xp`

@@ -18,6 +18,8 @@ import {
   spritesReady, swatchOf, viewOf,
 } from './sprites.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
+import { VFXManager, loadVfx, vfxReady } from './vfx.js';
+import { drawBackWeapon, drawHandWeapon, loadWeapons, weaponReady } from './weapons.js';
 
 const TOKEN_KEY = 'nin.token';
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/game`;
@@ -394,6 +396,7 @@ const CAST_FAIL_TEXT = {
   FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
   NOT_EQUIPPED: 'Fora do kit ativo', SAFE_ZONE: 'Zona segura: sem combate',
   NOT_LEARNED: 'Jutsu não aprendido', BLOCKED: 'Caminho bloqueado', TUTORIAL_LOCKED: 'Primeiro, o Ataque Básico',
+  STUNNED: 'Atordoado!',
 };
 
 function handleMessage(msg) {
@@ -495,15 +498,26 @@ function handleMessage(msg) {
       break;
     case 'teleport': {
       // Teleporte Curto: o SERVIDOR decidiu o lugar (alcance pelo nível, parando antes da parede).
-      state.effects.push({ skill: 'teleport', x: msg.fromX, y: msg.fromY, fx: 0, fy: 0, start: now });
-      state.effects.push({ skill: 'teleport', x: msg.x, y: msg.y, fx: 0, fy: 0, start: now + 60 });
+      if (!vfx.play('smoke', msg.fromX, msg.fromY, { start: now })) {
+        state.effects.push({ skill: 'teleport', x: msg.fromX, y: msg.fromY, fx: 0, fy: 0, start: now });
+        state.effects.push({ skill: 'teleport', x: msg.x, y: msg.y, fx: 0, fy: 0, start: now + 60 });
+      } else {
+        vfx.play('smoke', msg.x, msg.y, { start: now, delay: 60 });
+      }
+      jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
+      break;
+    }
+    case 'dash': {
+      // Avanço do Taijutsu: o servidor moveu o jogador até o alvo. Poeira onde ele saiu.
+      vfx.play('dust', msg.fromX, msg.fromY, { start: now, feet: true, layer: 'ground' });
       jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
       break;
     }
     case 'substitution': {
       // Substituição: o golpe acertou um TRONCO; o ninja aparece atrás do atacante.
       state.effects.push({ skill: 'log', x: msg.logX, y: msg.logY, fx: 0, fy: 0, start: now });
-      state.effects.push({ skill: 'teleport', x: msg.x, y: msg.y, fx: 0, fy: 0, start: now });
+      if (!vfx.play('smoke', msg.x, msg.y, { start: now })) state.effects.push({ skill: 'teleport', x: msg.x, y: msg.y, fx: 0, fy: 0, start: now });
+      vfx.play('smoke', msg.logX, msg.logY, { start: now, scale: 0.8 });
       const p = state.players.get(msg.playerId);
       if (p) addFloater(msg.logX, msg.logY - 0.9, 'Substituição!', '#e8c66a', 1);
       jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
@@ -606,7 +620,10 @@ function handleMessage(msg) {
       renderStatus();
       break;
     case 'attack': {
-      state.effects.push({ skill: 'attack', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
+      // Corte em arco (a hitbox do servidor: 90°, 1,6 casa) na direção do golpe.
+      if (!vfx.play('slash', msg.x, msg.y, { start: now, angle: Math.atan2(msg.fy, msg.fx) })) {
+        state.effects.push({ skill: 'attack', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
+      }
       faceTo(msg.playerId, msg.fx, msg.fy);
       const attacker = state.players.get(msg.playerId);
       if (attacker) attacker.act = { kind: attacker.act?.kind === 'soco' ? 'chute' : 'soco', start: now };
@@ -647,13 +664,40 @@ function handleMessage(msg) {
     case 'cast': {
       // Efeito pela MECÂNICA do jutsu (os tiers 2 a 4 usam a do tier 1, maior).
       const fxKind = mechanicOf(msg.skill);
-      if (fxKind !== 'teleport') state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
+      // (Fogo: a explosão é no impacto, mensagem `impact`; nada em volta de quem lançou.)
+      if (fxKind !== 'teleport' && fxKind !== 'fire' && !playCastVfx(msg, fxKind, now)) state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
       faceTo(msg.playerId, msg.fx, msg.fy);
       const caster = state.players.get(msg.playerId);
       if (caster) caster.act = { kind: 'jutsu', start: now };
       if (msg.playerId === state.meId) {
         console.log(`[habilidade] ${msg.skill}`);
         startCooldown(msg.skill);
+      }
+      break;
+    }
+    case 'projectile': {
+      // Fogo / Kunai saiu voando: a tela anda com ele; quem decide onde bate é o servidor (`impact`).
+      const sheet = mechanicOf(msg.skill) === 'fire' ? 'fireball' : 'kunai';
+      vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now);
+      break;
+    }
+    case 'impact': {
+      vfx.land(msg.id);
+      if (msg.r > 0) {
+        if (!vfx.play('explosion', msg.x, msg.y, { start: now, scale: msg.r / 2 })) {
+          state.effects.push({ skill: 'fire', x: msg.x, y: msg.y, fx: 0, fy: 0, r: msg.r, start: now });
+        }
+      } else {
+        vfx.play('hit', msg.x, msg.y, { start: now });
+      }
+      break;
+    }
+    case 'player_status': {
+      // PvP: jogador atordoado (Relâmpago) ou preso (Sombra).
+      const p = state.players.get(msg.playerId);
+      if (p) {
+        if (msg.status === 'stunned') p.stunnedUntil = now + msg.ms;
+        else p.rootedUntil = now + msg.ms;
       }
       break;
     }
@@ -672,6 +716,7 @@ function handleMessage(msg) {
       const color = heal ? '#6cf08a' : msg.target === 'monster' ? '#fff3c4' : '#ff6b5a';
       const text = heal ? `+${msg.amount}` : `-${msg.amount}${msg.shielded ? ' 🛡' : ''}`;
       addFloater(target.x, target.y - 0.6, text, color, mine || msg.target === 'monster' ? 1.15 : 0.9);
+      if (!heal) vfx.play('hit', target.x, target.y - 0.15, { start: now, scale: 0.8 });
       if (mine) {
         state.me.hp = msg.hp;
         renderVitals();
@@ -931,6 +976,7 @@ function enterMap(id, announce) {
   if (changed) {
     closeShop();
     state.effects.length = 0;
+    vfx.clear();
     state.floaters.length = 0;
     if (state.focusId) setFocus(null);
     mapFx.at = performance.now();
@@ -1131,8 +1177,52 @@ const SKILLS = {
   attack: { color: '#fff3c4', ms: 260 },   // Ataque Básico: corte rápido na direção do golpe
 };
 const GROUND_FX = new Set(['shadow', 'water', 'log']);
-/** Mecânicas que miram no alvo focado (Taijutsu: sempre o mais perto; Pedra e Cura: em si mesmo). */
-const DIRECTED = new Set(['fire', 'water', 'illusion', 'shadow', 'lightning', 'weapons']);
+/** Efeitos em sprite (assets/vfx). Os de `SKILLS`/drawEffect ficam de reserva, se as folhas não carregarem. */
+const vfx = new VFXManager();
+
+/**
+ * Efeito em sprite de um jutsu aceito, na forma da hitbox do servidor (tx, ty = onde o efeito acontece).
+ * Devolve false se a folha não carregou (o jogo desenha o efeito antigo).
+ */
+function playCastVfx(msg, mechanic, now) {
+  const angle = Math.atan2(msg.fy, msg.fx);
+  const info = state.world.skills?.[msg.skill] || {};
+  const at = { start: now };
+  const hasTo = msg.tx !== undefined && msg.ty !== undefined;
+  const len = hasTo ? Math.hypot(msg.tx - msg.x, msg.ty - msg.y) : (info.range ?? 4);
+  switch (mechanic) {
+    case 'fire':
+    case 'weapons':
+      return vfxReady(mechanic === 'fire' ? 'fireball' : 'kunai');   // o projétil (mensagem `projectile`) é o efeito
+    case 'water':
+      return vfx.play('water', msg.x, msg.y, { ...at, angle, scale: (info.range ?? 4) / 4, layer: 'ground' });
+    case 'taijutsu':
+      if (!vfxReady('punch')) return false;
+      if (hasTo) vfx.play('punch', msg.tx, msg.ty, { ...at, delay: 60 });
+      return true;
+    case 'illusion':
+      return vfx.play('illusion', msg.x, msg.y, { ...at, scale: (info.radius ?? 3) / 3, layer: 'ground' });
+    case 'shadow':
+      if (!vfx.play('shadow', msg.x, msg.y, { ...at, angle, length: len, feet: true, layer: 'ground' })) return false;
+      if (hasTo) vfx.play('bind', msg.tx, msg.ty, { ...at, delay: 160, feet: true });
+      return true;
+    case 'lightning':
+      if (!vfx.play('lightning', msg.x, msg.y, { ...at, angle, length: len })) return false;
+      if (hasTo) vfx.play('spark', msg.tx, msg.ty, at);
+      return true;
+    case 'stone':
+      return vfx.play('stone', msg.x, msg.y, { ...at, feet: true });
+    case 'heal':
+      return vfx.play('heal', hasTo ? msg.tx : msg.x, hasTo ? msg.ty : msg.y, { ...at, feet: true });
+    default:
+      return false;
+  }
+}
+/**
+ * Mecânicas que miram no alvo focado (as mesmas do servidor). Taijutsu: sempre o mais perto; Ilusão: círculo
+ * em volta do jogador; Pedra e Cura: em si mesmo (a Cura pega o aliado mais ferido por perto).
+ */
+const DIRECTED = new Set(['fire', 'water', 'shadow', 'lightning', 'weapons']);
 /** Mecânica e nome de um jutsu (catálogo do welcome). */
 const mechanicOf = (skill) => state.world.skills?.[skill]?.mechanic || skill;
 const skillName = (skill) => state.world.skills?.[skill]?.name || skill;
@@ -2285,6 +2375,8 @@ function renderCreatorOptions() {
   }));
 }
 loadSprites();   // atlas do personagem (2 PNGs pequenos); até chegarem, o jogo desenha o boneco antigo
+loadVfx();       // folhas dos efeitos dos golpes (assets/vfx); até chegarem, os efeitos desenhados à mão
+loadWeapons();   // armas em pixel art (assets/weapons); até chegarem, as armas de retângulos
 ui.creatorTurn.addEventListener('click', () => { creatorDir = [0, 1, 3, 2][(([0, 1, 3, 2].indexOf(creatorDir)) + 1) % 4]; });
 ui.creatorRandom.addEventListener('click', () => {
   const pick = (list) => list[Math.floor(Math.random() * list.length)];
@@ -3129,6 +3221,7 @@ function draw(now) {
   for (const fx of state.effects) if (SKILLS[fx.skill] && now - fx.start < SKILLS[fx.skill].ms) state.effects[alive++] = fx;
   state.effects.length = alive;
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
+  vfx.draw(ctx, 'ground', toScreenX, toScreenY, T, dpr, now);
 
   // Linha pontilhada do jogador até o alvo focado.
   const focused = state.focusId ? state.monsters.get(state.focusId) : null;
@@ -3160,6 +3253,7 @@ function draw(now) {
   }
 
   for (const fx of state.effects) if (!GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
+  vfx.draw(ctx, 'top', toScreenX, toScreenY, T, dpr, now);
 
   // Por cima de todos: o telhado do portão (quem passa por baixo fica escondido por ele).
   for (const o of state.overhead) {
@@ -3223,8 +3317,8 @@ function drawEffect(fx, sx, sy, T, now) {
   const fade = 1 - t;
   ctx.save();
   switch (fx.skill) {
-    case 'fire': {                       // círculo vermelho do tamanho da área real (3 casas)
-      const r = T * 3 * (1 - (1 - t) * (1 - t));
+    case 'fire': {                       // explosão: círculo vermelho do tamanho da área real (raio do impacto)
+      const r = T * (fx.r ?? 2) * (1 - (1 - t) * (1 - t));
       ctx.globalAlpha = 0.55 * fade;
       ctx.fillStyle = color;
       ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
@@ -3718,24 +3812,34 @@ function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
   const left = Math.round((sx - 32 * s) * dpr) / dpr;
   const top = Math.round((sy + T * 0.42 - 93 * s) * dpr) / dpr;
   let onPlane = null;
+  let onSlot = null;
   const an = gear && (gear.hand || gear.back || gear.scroll) ? anchorsOf(look.gender, anim, view, frame) : null;
   if (an) {
+    // Ordem do paperdoll: costas ATRÁS do corpo (de frente e de lado) ou por cima da roupa e por baixo do
+    // cabelo (de costas); a arma da mão logo depois do plano do braço que segura (atrás do corpo ou na frente).
+    const ax = (x) => (flip ? left + (64 - x) * s : left + x * s);
     const u = (T / 16) * 1.3;
     const R = (px, py, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(px), Math.round(py), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); };
-    const ax = (x) => (flip ? left + (64 - x) * s : left + x * s);
+    const backX = ax(an.costas[0]), backY = top + an.costas[1] * s;
     const back = () => {
-      const torsoY = top + an.costas[1] * s - 2.75 * u;
-      drawBackItem(R, ax(an.costas[0]), torsoY, u, dir, gear.back);
-      drawBackItem(R, ax(an.costas[0]), torsoY, u, dir, gear.scroll);
+      for (const code of [gear.back, gear.scroll]) {
+        if (!code) continue;
+        if (weaponReady(code)) drawBackWeapon(g, code, backX, backY, s, view, flip, dpr);
+        else drawBackItem(R, backX, backY - 2.75 * u, u, dir, code);
+      }
     };
-    const hand = () => drawHandItem(R, ax(an.mao[0]) - u, top + an.mao[1] * s - 0.6 * u, u, dir === 0 ? 1 : dir, gear.hand);
+    const hand = () => {
+      if (weaponReady(gear.hand)) drawHandWeapon(g, gear.hand, ax(an.mao[0]), top + an.mao[1] * s, s, an.mao[3] ?? 90, flip, dpr);
+      else drawHandItem(R, ax(an.mao[0]) - u, top + an.mao[1] * s - 0.6 * u, u, dir === 0 ? 1 : dir, gear.hand);
+    };
+    const handAfter = an.mao ? Math.min(4, an.mao[2] + 1) : -1;   // desenha antes do plano seguinte ao do braço
     onPlane = (plane) => {
-      if (plane === 0 && dir !== 3) back();                       // de frente e de lado: atrás do corpo
-      if (an.mao && gear.hand && dir !== 3 && plane === (an.mao[2] === 0 ? 0 : 4)) hand();
-      if (plane === 4 && dir === 3) back();                       // de costas: por cima
+      if (plane === 0 && dir !== 3) back();
+      if (gear.hand && dir !== 3 && anim !== 'jutsu' && plane === handAfter) hand();   // no selo, as mãos estão ocupadas
     };
+    if (dir === 3) onSlot = (plane, slot) => { if (plane === 1 && slot === 'cabelo') back(); };
   }
-  const minY = drawCell(g, left, top, s, look, view, flip, anim, frame, onPlane);
+  const minY = drawCell(g, left, top, s, look, view, flip, anim, frame, onPlane, onSlot);
   return minY == null ? null : top + minY * s;
 }
 
@@ -3757,10 +3861,22 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
     ctx.beginPath(); ctx.arc(sx, sy, r * 1.45, now / 600, now / 600 + Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
   }
+  // PvP: preso pela Sombra (mancha escura no chão)
+  if (!p.dead && now < (p.rootedUntil || 0)) {
+    ctx.fillStyle = 'rgba(42, 33, 64, 0.8)';
+    ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.92, r * 1.4, r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  }
   // Boneco em sprites (camadas recoloridas); enquanto os atlas não chegam, o boneco antigo de retângulos.
   const dirNow = p.dead ? 0 : p.dir;
   const headTop = drawSpriteCharacter(ctx, p, sx, sy, T, look, dirNow, now, p.gear)
     ?? drawCharacter(ctx, sx, sy, T, fallbackColors(look), dirNow, p.walk, p.moving && !p.dead, p.gear);
+  if (!p.dead && now < (p.stunnedUntil || 0)) {   // PvP: atordoado (estrelinhas girando em cima da cabeça)
+    ctx.fillStyle = '#ffe066';
+    for (let k = 0; k < 3; k++) {
+      const a = now / 250 + (k * Math.PI * 2) / 3;
+      ctx.fillRect(Math.round(sx + Math.cos(a) * r * 0.9) - 2, Math.round(headTop - 4 + Math.sin(a) * r * 0.25) - 2, 4, 4);
+    }
+  }
   if (isMe) {                         // marquinha para achar o próprio boneco no meio dos outros
     ctx.fillStyle = '#ffe2a8';
     ctx.beginPath();

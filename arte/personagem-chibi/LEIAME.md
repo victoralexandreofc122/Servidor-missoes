@@ -26,7 +26,7 @@ próprio aparelho.
 | Arquivo | O que é |
 |---|---|
 | `public/sprites/chibi_m.png`, `chibi_f.png` | Atlas de cada gênero com os mapas de índice. Cada célula fica recortada no que tem pixel (~30 KB cada) |
-| `public/spriteData.js` | Retângulos das células, âncoras (mão e costas, para as armas), paletas, vilas e tempos das animações |
+| `public/spriteData.js` | Retângulos das células, âncoras (mão: `[x, y, plano do braço, ângulo do antebraço]`; costas: `[x, y]`, para as armas), paletas, vilas e tempos das animações |
 | `public/sprites.js` | Lê os atlas, recolore cada célula uma vez por visual (com cache) e desenha as camadas na ordem certa |
 
 `spriteData.js` e os atlas são **gerados**: não edite à mão.

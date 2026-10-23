@@ -31,7 +31,7 @@ class Conn {
 
 describe('v6: dano por tipo (Taijutsu x Ninjutsu)', () => {
   it('soco (habilidade Taijutsu 👊) escala com Taijutsu; Fogo e Água com Ninjutsu', () => {
-    const { world } = setupWorld(config);
+    const { world, run } = setupWorld(config);
     const join = (id: string, attrs: Partial<typeof NO_ATTRIBUTES>) => {
       const c = new Conn();
       const h = world.join({ id, username: id, attributes: { ...NO_ATTRIBUTES, ...attrs } }, c);
@@ -42,6 +42,7 @@ describe('v6: dano por tipo (Taijutsu x Ninjutsu)', () => {
     const hit = (who: (m: unknown) => void, skill: string) => {
       const m = world.spawnMonster({ x: S.x + 1, y: S.y });
       who({ type: 'cast', skill, targetId: m.id });   // a Água mira no alvo
+      run(300);                                       // o Fogo é um projétil: o dano chega quando ele bate
       const hp = monsterHp(world, m.id);
       (world as any).monsters.delete(m.id);
       return M.maxHp - hp;

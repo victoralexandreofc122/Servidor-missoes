@@ -11,9 +11,14 @@ export interface SkillConfig {
   cost: number;            // chakra
   cooldownMs: number;
   damage?: number;
-  radius?: number;         // área em volta do jogador (casas)
-  range?: number;          // alcance (casas)
+  radius?: number;         // círculo (casas): a explosão do Fogo, a Ilusão em volta, o golpe do Taijutsu, a Cura
+  range?: number;          // alcance (casas): até onde a linha, o projétil ou o cone vão
   coneDeg?: number;        // abertura do cone
+  /** Projétil (Fogo, Kunais): velocidade em casas/s. Sem `speed`, a linha é instantânea. */
+  speed?: number;
+  /** Kunais: quantos projéteis e a abertura total do leque (graus). */
+  shots?: number;
+  fanDeg?: number;
   stunMs?: number;
   rootMs?: number;
   reduction?: number;      // escudo: fração do dano que some (0.5 = metade)
@@ -48,8 +53,16 @@ export interface CombatConfig {
     respawnMs: number;
     meditationRegenMultiplier: number;
   };
-  /** Ataque básico: não gasta chakra. Acerta o alvo focado (se no alcance) ou o mais perto. */
-  basicAttack: { damage: number; range: number; cooldownMs: number };
+  /**
+   * Ataque básico: não gasta chakra. Mira no alvo focado (se no alcance) ou no mais perto e
+   * acerta todo mundo no ARCO (raio `range`, abertura `arcDeg`) na direção dele.
+   */
+  basicAttack: { damage: number; range: number; arcDeg: number; cooldownMs: number };
+  /**
+   * PvP: as hitboxes também acertam outros jogadores (fora da zona segura e fora da Academia).
+   * Desligado, só monstros apanham e todo jogador é aliado (a Cura pega os outros).
+   */
+  pvp: boolean;
   /** Quanto cada ponto de atributo vale (com rendimento decrescente) e o custo de redefinir. */
   attributes: AttributeRules;
   monsters: {
@@ -167,7 +180,8 @@ export const REALTIME: Readonly<RealtimeConfig> = {
   combat: {
     // Chakra só volta meditando: 5 x 3 = 15/s. Vida volta 1/s só com o chakra cheio.
     player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 1, chakraRegenPerSec: 5, respawnMs: 5000, meditationRegenMultiplier: 3 },
-    basicAttack: { damage: 12, range: 1.6, cooldownMs: 600 },
+    basicAttack: { damage: 12, range: 1.6, arcDeg: 90, cooldownMs: 600 },
+    pvp: false,
     attributes: {
       // Sem teto de pontos (v8): o ponto investido com n pontos já no atributo vale base / (1 + n x 0,05).
       // Vitalidade: 1º ponto +10 de vida, 10º +6,9, 50º +2,9 (59 pontos = +279, e não +590).

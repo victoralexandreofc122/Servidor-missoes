@@ -17,14 +17,14 @@ export type ClassCode = (typeof CLASSES)[number];
 
 export const CLASS_INFO: Readonly<Record<ClassCode, { name: string; icon: string; desc: string }>> = {
   heal: { name: 'Cura', icon: '✚', desc: 'Fecha feridas e mantém o grupo de pé.' },
-  shadow: { name: 'Sombra', icon: '🌑', desc: 'Prende o inimigo no chão com a própria sombra.' },
-  illusion: { name: 'Ilusão', icon: '🌀', desc: 'Engana a mente: o alvo fica atordoado.' },
+  shadow: { name: 'Sombra', icon: '🌑', desc: 'Uma linha de sombra prende no chão o primeiro inimigo que toca.' },
+  illusion: { name: 'Ilusão', icon: '🌀', desc: 'Engana a mente: todos em volta de você ficam atordoados.' },
   stone: { name: 'Pedra', icon: '⛰', desc: 'Pele de rocha: o próximo golpe perde força.' },
-  fire: { name: 'Fogo', icon: '🔥', desc: 'Explosões em área em volta de você.' },
+  fire: { name: 'Fogo', icon: '🔥', desc: 'Bola de fogo que explode no primeiro inimigo, queimando quem está perto.' },
   water: { name: 'Água', icon: '💧', desc: 'Jatos em cone na direção do alvo.' },
-  taijutsu: { name: 'Taijutsu', icon: '👊', desc: 'Corpo a corpo: socos e chutes devastadores.' },
-  weapons: { name: 'Armas', icon: '🗡️', desc: 'Kunais e shurikens: o atributo Armas aumenta o dano.' },
-  lightning: { name: 'Relâmpago', icon: '⚡', desc: 'Raios certeiros que paralisam por um instante.' },
+  taijutsu: { name: 'Taijutsu', icon: '👊', desc: 'Avança até o inimigo e golpeia: socos e chutes devastadores.' },
+  weapons: { name: 'Armas', icon: '🗡️', desc: 'Kunais em leque: o atributo Armas aumenta o dano.' },
+  lightning: { name: 'Relâmpago', icon: '⚡', desc: 'Raio em linha reta que paralisa o primeiro inimigo por um instante.' },
 };
 
 /** Regras de combate. Os jutsus de classe usam a do tier 1; os da Academia têm as próprias. */
@@ -104,16 +104,23 @@ export const jutsuPower = (level: number) => 1 + 0.1 * (Math.max(1, Math.min(4, 
 
 /** Tier 1 de cada mecânica (os 7 antigos com os MESMOS números de antes). */
 export const BASE_SKILLS: Readonly<Record<Mechanic, SkillConfig>> = {
-  fire: { cost: 20, cooldownMs: 1500, damage: 25, radius: 3 },
+  // Fogo: projétil em linha reta (5 casas) que explode no primeiro alvo (ou na parede/no fim): círculo de 2.
+  fire: { cost: 20, cooldownMs: 1500, damage: 25, range: 5, radius: 2, speed: 12 },
+  // Água: cone de 90° e 4 casas na direção em que o jogador olha (ou no alvo focado).
   water: { cost: 15, cooldownMs: 1000, damage: 20, range: 4, coneDeg: 90 },
-  taijutsu: { cost: 5, cooldownMs: 500, damage: 35, range: 1.5, scaling: 'taijutsu' },
-  illusion: { cost: 30, cooldownMs: 4000, range: 5, stunMs: 3000 },
-  shadow: { cost: 25, cooldownMs: 6000, range: 5, rootMs: 5000 },
+  // Taijutsu: avança até o mais perto (alcance 2,5) e acerta um círculo de 1 casa na frente.
+  taijutsu: { cost: 5, cooldownMs: 500, damage: 35, range: 2.5, radius: 1, scaling: 'taijutsu' },
+  // Ilusão: atordoa todos num círculo de 3 casas em volta do jogador.
+  illusion: { cost: 30, cooldownMs: 4000, radius: 3, stunMs: 3000 },
+  // Sombra: linha de 4 casas; prende o primeiro que ela encosta.
+  shadow: { cost: 25, cooldownMs: 6000, range: 4, rootMs: 5000 },
   stone: { cost: 15, cooldownMs: 6000, reduction: 0.5 },
-  heal: { cost: 30, cooldownMs: 4000, heal: 30 },
-  // Armas: acerta os 3 mais perto no alcance; escala com o atributo Armas (+ a arma equipada).
-  weapons: { cost: 10, cooldownMs: 1200, damage: 18, range: 4, scaling: 'weapons' },
-  // Relâmpago: um alvo (o focado, se no alcance), dano alto e um choque rápido.
+  // Cura: em si mesmo ou num aliado a até 3 casas.
+  heal: { cost: 30, cooldownMs: 4000, heal: 30, radius: 3 },
+  // Armas: 3 kunais em leque de 45°, 4 casas; cada alvo leva no máximo 1 kunai por arremesso.
+  // Escala com o atributo Armas (+ a arma equipada).
+  weapons: { cost: 10, cooldownMs: 1200, damage: 18, range: 4, shots: 3, fanDeg: 45, speed: 16, scaling: 'weapons' },
+  // Relâmpago: linha instantânea de 4,5 casas; o primeiro alvo leva dano alto e um choque rápido.
   lightning: { cost: 20, cooldownMs: 2000, damage: 30, range: 4.5, stunMs: 400 },
   // Academia: o alcance e a recarga reais vêm do NÍVEL do jutsu (teleportRange, substitutionCooldownMs).
   teleport: { cost: 10, cooldownMs: 1500, range: 3 },

@@ -56,8 +56,16 @@ import { IncomingAppearanceSchema, type Appearance } from './appearance.js';
  *   player_appearance { playerId, appearance }             visual novo (sprites: nomes de paleta, appearance.ts)
  *   stats             { hp, maxHp, chakra, maxChakra, shield }   só para o próprio jogador
  *   player_hp         { playerId, hp, maxHp }              vida dos outros (barrinha sobre o boneco)
- *   cast              { playerId, skill, x, y, fx, fy }    habilidade aceita (todos veem a animação)
+ *   cast              { playerId, skill, x, y, fx, fy, tx?, ty? }   habilidade aceita (todos veem a animação);
+ *                                                          tx, ty = onde o efeito acontece (fim da linha do
+ *                                                          Relâmpago/Sombra, golpe do Taijutsu, quem a Cura pegou)
  *   cast_failed       { skill, reason }                    só para quem tentou (SAFE_ZONE = na praça segura)
+ *   projectile        { id, playerId, skill, x, y, fx, fy, speed, range }   Fogo/Kunai saiu voando (o servidor
+ *                                                          anda com ele a cada tick e decide a colisão)
+ *   impact            { id, skill, x, y, r }               o projétil bateu (alvo, parede ou fim do alcance);
+ *                                                          r = raio da explosão (0 = sem área)
+ *   dash              { playerId, fromX, fromY, x, y, a }  avanço do Taijutsu (o servidor moveu o jogador)
+ *   player_status     { playerId, status, ms }             jogador atordoado / preso (PvP)
  *   meditation        { playerId, active, reason? }        entrou/saiu da meditação (todos veem a aura)
  *   hit               { target, id, amount, kind, hp, maxHp, shielded? }   número flutuante
  *   monsters_moved    { m: [[id, x, y], ...] }
@@ -99,13 +107,18 @@ const axis = z.number().finite().min(-1).max(1);
 export const SKILLS = JUTSU_CODES;
 export type Skill = JutsuCode;
 
-/** Mecânicas que miram no alvo focado (Taijutsu é sempre no mais perto; Pedra e Cura são em si mesmo). */
-export const DIRECTED_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'water', 'illusion', 'shadow', 'lightning', 'weapons']);
+/**
+ * Mecânicas que miram no alvo focado. Taijutsu é sempre no mais perto; Ilusão é um círculo em volta
+ * do jogador; Pedra é em si mesmo; a Cura aceita um ALIADO focado (id de jogador).
+ */
+export const DIRECTED_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'water', 'shadow', 'lightning', 'weapons']);
 export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(JUTSUS.filter((j) => DIRECTED_MECHANICS.has(j.mechanic)).map((j) => j.code));
 
 /** Id de monstro como o servidor cria ("m" + número). */
 const monsterId = z.string().regex(/^m\d{1,9}$/);
 const uuid = z.string().uuid();
+/** Alvo focado: um monstro ou um jogador (aliado para a Cura; inimigo com o PvP ligado). */
+const targetId = z.union([monsterId, uuid]);
 /** Visual do personagem (v9: sprites em camadas): nomes de paleta, ver appearance.ts. */
 export { AppearanceSchema, type Appearance } from './appearance.js';
 
@@ -120,12 +133,12 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move'), dx: axis, dy: axis }),
   z.object({ type: z.literal('input'), seq: z.number().int().min(1).max(2_000_000_000), inputs: z.array(z.tuple([axis, axis])).min(1).max(10) }),
   // dir: para onde o Teleporte Curto vai (o joystick do jogador); o ALCANCE é sempre do servidor.
-  z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: monsterId.optional(), dir: z.tuple([axis, axis]).optional() }),
+  z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: targetId.optional(), dir: z.tuple([axis, axis]).optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z][a-z_]{0,23}$/) }),
   z.object({ type: z.literal('missions') }),
-  z.object({ type: z.literal('attack'), targetId: monsterId.optional() }),
+  z.object({ type: z.literal('attack'), targetId: targetId.optional() }),
   z.object({ type: z.literal('run'), active: z.boolean() }),
   z.object({ type: z.literal('switch_kit'), kit: z.enum(['A', 'B']) }),
   z.object({ type: z.literal('set_loadout'), kitA: skillList, kitB: skillList }),
@@ -276,6 +289,8 @@ export interface SkillInfo {
   cost: number;
   cooldownMs: number;
   range?: number;
+  /** Círculo da hitbox (explosão do Fogo, Ilusão, golpe do Taijutsu, Cura), para o efeito na tela. */
+  radius?: number;
 }
 
 /** Missão de sensei como o jogador vê (Sala de Missões). */
@@ -337,7 +352,7 @@ export interface WorldInfo {
   maxLevel: number;
 }
 
-export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED' | 'TUTORIAL_LOCKED';
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED';
 /** Por que a meditação acabou. */
 export type MeditationEnd = 'manual' | 'moved' | 'cast' | 'damaged' | 'died';
 export type MonsterStatus = 'stunned' | 'rooted';
@@ -356,7 +371,11 @@ export type ServerMessage =
   | { type: 'mission_board'; npcId: string; offers: MissionOffer[]; mission: MissionView | null }
   | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean; speed: number; running: boolean }
   | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }
-  | { type: 'cast'; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number }
+  | { type: 'cast'; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number; tx?: number; ty?: number }
+  | { type: 'projectile'; id: number; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number; speed: number; range: number }
+  | { type: 'impact'; id: number; skill: Skill; x: number; y: number; r: number }
+  | { type: 'dash'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }
+  | { type: 'player_status'; playerId: string; status: MonsterStatus; ms: number }
   | { type: 'cast_failed'; skill: Skill; reason: CastFailReason }
   | { type: 'meditation'; playerId: string; active: boolean; reason?: MeditationEnd }
   | { type: 'hit'; target: 'monster' | 'player'; id: string; amount: number; kind: 'damage' | 'heal'; hp: number; maxHp: number; shielded?: boolean }
@@ -374,7 +393,7 @@ export type ServerMessage =
   | { type: 'progress' } & ProgressView
   | { type: 'kit' } & KitView
   | { type: 'attack'; playerId: string; x: number; y: number; fx: number; fy: number }
-  | { type: 'attack_failed'; reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE' }
+  | { type: 'attack_failed'; reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED' }
   | { type: 'player_rank'; playerId: string; rank: RankView; level: number }
   | { type: 'evaluation_request'; missionId: string; trainee: { id: string; username: string }; mission: MissionView }
   | { type: 'sensei_options'; difficulties: SenseiDifficulty[]; quantities: number[] }
