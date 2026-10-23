@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
+import { DEFAULT_APPEARANCE } from '../src/realtime/appearance.js';
 import { sanitizeChat } from '../src/realtime/protocol.js';
 import { FakeConn, setupWorld, withMonsters } from './support/world.js';
 
@@ -24,7 +25,7 @@ describe('GameWorld: entrar e sair', () => {
       {
         id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false, chakra: 100, maxChakra: 100,
         shield: false, xp: 40, rank: { code: 'ACADEMY', name: 'Academia' }, level: 1, speed: 5, running: false, canBeSensei: false,
-        appearance: { skin: '#f1c9a0', hair: '#2b2118', shirt: '#2f5d8a', pants: '#2a2a33', cape: '#8a2b2b' }, dir: 0, appearanceSet: false,
+        appearance: { ...DEFAULT_APPEARANCE }, dir: 0, appearanceSet: false,
         gear: { hand: null, back: null, scroll: null },
       },
     );
@@ -40,7 +41,7 @@ describe('GameWorld: entrar e sair', () => {
     assert.equal(w.ninja.tutorialStep, 4, 'sem ficha do banco: tutorial concluído');
 
     const b = connect('mei');
-    assert.deepEqual(b.conn.of('welcome')[0].players, [{ id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false, rank: { code: 'ACADEMY', name: 'Academia' }, level: 1, appearance: { skin: '#f1c9a0', hair: '#2b2118', shirt: '#2f5d8a', pants: '#2a2a33', cape: '#8a2b2b' }, dir: 0, gear: { hand: null, back: null, scroll: null } }]);
+    assert.deepEqual(b.conn.of('welcome')[0].players, [{ id: a.id, username: 'kaito', x: S.x, y: S.y, hp: 100, maxHp: 100, dead: false, meditating: false, rank: { code: 'ACADEMY', name: 'Academia' }, level: 1, appearance: { ...DEFAULT_APPEARANCE }, dir: 0, gear: { hand: null, back: null, scroll: null } }]);
     assert.deepEqual(a.conn.of('player_joined').map((m) => m.player.username), ['mei']);
     assert.equal(b.conn.of('player_joined').length, 0, 'quem entrou não recebe aviso de si mesmo');
     assert.equal(world.online, 2);

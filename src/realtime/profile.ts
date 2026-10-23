@@ -1,6 +1,7 @@
-import { withTransaction, type Db } from '../db.js';
+import { withTransaction, type Db, type Queryable } from '../db.js';
 import { CONSTRAINT_ERRORS } from '../errors/errorTranslator.js';
 import type { Appearance, Skill } from './protocol.js';
+import { DEFAULT_APPEARANCE } from './appearance.js';
 import { ATTRIBUTE_COLUMNS, type Attribute, type Attributes } from './stats.js';
 
 /*
@@ -54,9 +55,22 @@ export const PROFILE_SQL = {
   saveAppearance: `UPDATE game.players SET appearance = $2::jsonb WHERE id = $1`,
   /** Checagem de boot: a migração v6 foi aplicada? */
   bootCheckV6: `SELECT appearance FROM game.players LIMIT 0`,
+  /** Checagem de boot: a migração v9 foi aplicada? (o banco aceita o visual novo, de sprites) */
+  bootCheckV9: `SELECT game.valid_appearance($1::jsonb) AS ok`,
   /** Checagem de boot: a migração v5 foi aplicada? (LIMIT 0: não lê linha.) */
   bootCheck: `SELECT level, stat_points, attr_taijutsu, attr_ninjutsu, kit_a, kit_b FROM game.players LIMIT 0`,
 } as const;
+
+/** Erro de subida quando falta a migração v9 (o banco ainda recusaria o visual novo). */
+export const MISSING_V9 = 'MISSING_V9';
+
+/** Falha a subida se o banco ainda não aceita o visual novo (v9): o Render mantém a versão anterior. */
+export async function bootCheckV9(db: Queryable): Promise<void> {
+  const row = (await db.query<{ ok: boolean | null }>(PROFILE_SQL.bootCheckV9, [JSON.stringify(DEFAULT_APPEARANCE)])).rows[0];
+  if (row?.ok !== true) {
+    throw Object.assign(new Error('game.valid_appearance ainda não aceita o visual v9 (sprites)'), { code: MISSING_V9 });
+  }
+}
 
 export type SpendResult =
   | { ok: true; statPoints: number; attributes: Attributes }
@@ -99,7 +113,7 @@ export function makeProfile(db: Db): Profile {
       await db.query(PROFILE_SQL.saveLoadout, [playerId, kitA, kitB]);
     },
     async saveAppearance(playerId, appearance) {
-      // Só as 5 cores, já validadas pelo Zod; o banco confere de novo (ck_players_appearance).
+      // Visual novo (nomes de paleta), já validado pelo Zod; o banco confere de novo (ck_players_appearance).
       await db.query(PROFILE_SQL.saveAppearance, [playerId, JSON.stringify(appearance)]);
     },
   };

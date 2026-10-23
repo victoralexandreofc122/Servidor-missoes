@@ -18,6 +18,7 @@ psql "$DATABASE_URL" -f db/schema_v5_atributos.sql      # migração v5: nível,
 psql "$DATABASE_URL" -f db/schema_v6_aparencia.sql      # migração v6: visual do personagem
 psql "$DATABASE_URL" -f db/schema_v7_progressao.sql     # migração v7: níveis 60, classes, Academia, loja
 psql "$DATABASE_URL" -f db/schema_v8_admin_chat.sql     # migração v8: admin, chat, atributo Chakra, Sala de Missões
+psql "$DATABASE_URL" -f db/schema_v9_visual_sprites.sql # migração v9: personagem em sprites (gênero, cabelo, olhos, roupa, vila)
 # opcional, só para testes: deixa a conta "Victor" como Hokage e administradora
 psql "$DATABASE_URL" -f db/promote_victor.sql
 npm run dev
@@ -176,6 +177,26 @@ Regras (em `src/realtime/config.ts`):
 - **Mesma conta:** conectando de novo, derruba a conexão antiga (4000).
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
+
+### v13: personagem em sprites (migração `db/schema_v9_visual_sprites.sql`)
+
+Rodar no Neon depois da v8 (pode rodar de novo). Sem ela o servidor não sobe e o log diz que falta a v9.
+
+O boneco de retângulos virou o **personagem chibi em camadas** de `arte/personagem-chibi/` (LEIAME lá):
+masculino e feminino, 4 direções (o lado direito é o lado esquerdo espelhado) e as animações parado, andar,
+correr (corrida ninja) e ataque (soco e chute alternados; jutsu mostra a guarda).
+
+- **Visual = nomes de paleta, nunca cor livre** (`src/realtime/appearance.ts`): gênero, pele (10 tons reais, do
+  mais escuro ao mais claro), cabelo (espetado ou longo) e cor (16), olhos (com ou sem cílios) e cor (14), vila,
+  roupa (camisa e calça nas 18 cores, ou o **conjunto da vila**), e bandana. Conjunto e bandana têm as cores da
+  vila, travadas. O banco confere o formato (`game.valid_appearance`, v9).
+- **Visual antigo** (5 cores, da v6): continua valendo no banco; o servidor converte para a cor da paleta mais
+  parecida quando o jogador entra (e o cliente em cache que mandar o formato antigo também é aceito).
+- **Cliente** (`public/sprites.js`): 2 atlas pequenos (`public/sprites/chibi_*.png`, mapas de índice) + dados
+  (`public/spriteData.js`, gerado). Cada célula é recolorida uma vez por visual (cache), desenhada plano a plano;
+  escala inteira em pixels do aparelho a partir de 2x (pixel art sem borrar). Até os atlas chegarem, o boneco antigo.
+- **Criador** novo: botões e amostras de cor no lugar dos seletores de cor livre.
+- Regerar a arte: `python3 arte/personagem-chibi/gerador/export.py` e `.../export_game.py` (precisa de numpy e Pillow).
 
 ### v12: polimento, Modo Administrador e Academia nova (migração `db/schema_v8_admin_chat.sql`)
 

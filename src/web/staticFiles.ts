@@ -5,7 +5,7 @@ import type { FastifyInstance } from 'fastify';
 /*
  * Cliente web do jogo (pasta public/), servido pela própria API pública.
  *
- * Lista FECHADA de arquivos, lidos uma vez na subida e servidos da memória: não existe
+ * Lista FECHADA de arquivos (texto e os PNG dos sprites), lidos uma vez na subida e servidos da memória: não existe
  * caminho vindo da URL chegando no disco, então não há "../" nem arquivo escondido para
  * vazar (.env, código). Para muitos arquivos (sprites, sons), trocar por @fastify/static.
  *
@@ -20,7 +20,8 @@ import type { FastifyInstance } from 'fastify';
 
 export interface StaticFile {
   route: string;
-  body: string;
+  /** Texto (HTML, JS, CSS) ou bytes (PNG dos sprites). */
+  body: string | Buffer;
   contentType: string;
   etag: string;
 }
@@ -35,6 +36,11 @@ const FILES = [
   { route: '/movement.js', file: 'movement.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/prediction.js', file: 'prediction.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/styles.css', file: 'styles.css', contentType: 'text/css; charset=utf-8' },
+  // Personagem em sprites (arte/personagem-chibi): o desenhista, os dados e os atlas de cada gênero.
+  { route: '/sprites.js', file: 'sprites.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/spriteData.js', file: 'spriteData.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/sprites/chibi_m.png', file: 'sprites/chibi_m.png', contentType: 'image/png', binary: true },
+  { route: '/sprites/chibi_f.png', file: 'sprites/chibi_f.png', contentType: 'image/png', binary: true },
 ] as const;
 
 /** public/ fica na raiz do projeto: dois níveis acima de src/web/ (dev) e de dist/web/ (Render). */
@@ -53,10 +59,11 @@ export const CONTENT_SECURITY_POLICY = [
 ].join('; ');
 
 export function loadPublicFiles(dir: URL = PUBLIC_DIR): StaticFile[] {
-  return FILES.map(({ route, file, contentType }) => {
-    let body: string;
+  return FILES.map((entry) => {
+    const { route, file, contentType } = entry;
+    let body: string | Buffer;
     try {
-      body = readFileSync(new URL(file, dir), 'utf8');
+      body = 'binary' in entry ? readFileSync(new URL(file, dir)) : readFileSync(new URL(file, dir), 'utf8');
     } catch {
       throw new Error(`Cliente web: arquivo public/${file} não encontrado. Confira se a pasta public/ foi enviada ao GitHub.`);
     }

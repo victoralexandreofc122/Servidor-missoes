@@ -3,6 +3,7 @@ import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
 import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type Mechanic } from './jutsus.js';
 import { ITEM_CODES, type Gear, type ItemDef } from './items.js';
+import { IncomingAppearanceSchema, type Appearance } from './appearance.js';
 
 /*
  * Protocolo do WebSocket: JSON simples, um objeto por mensagem, sempre com `type`.
@@ -22,7 +23,9 @@ import { ITEM_CODES, type Gear, type ItemDef } from './items.js';
  *   { "type": "set_loadout", "kitA": [..], "kitB": [..] }   até 4 habilidades por kit
  *   { "type": "spend_point", "attribute": "vitality" }      gastar 1 ponto de atributo
  *   { "type": "reset_attributes" }              redefinir os atributos (custa ryō; o custo é do servidor)
- *   { "type": "set_appearance", "appearance": { skin, hair, shirt, pants, cape } }   cores "#rrggbb"
+ *   { "type": "set_appearance", "appearance": { v: 2, gender, skin, hairStyle, hairColor, eyeStyle, eyeColor,
+ *                                               outfit, shirtColor, pantsColor, bandana, village } }   nomes de paleta
+ *                                               (appearance.ts); o formato antigo de 5 cores ainda é aceito e convertido
  *   { "type": "create_mission", "traineeId", "difficulty", "quantity" }   sensei (Chunin+) cria missão
  *   { "type": "deliver_mission", "senseiId" }   aprendiz entrega a missão ao sensei (perto dele)
  *   { "type": "evaluate_mission", "missionId", "approved", "score" }      sensei avalia
@@ -50,7 +53,7 @@ import { ITEM_CODES, type Gear, type ItemDef } from './items.js';
  * ninguém vê monstro do outro lado do mundo). `announce` vai para todos.
  *   player_moved      { playerId, x, y, d, a }             d = direção (0 baixo, 1 esquerda, 2 direita, 3 cima);
  *                                                          a = última entrada aplicada (o dono reconcilia)
- *   player_appearance { playerId, appearance }             visual novo (cores do paperdoll)
+ *   player_appearance { playerId, appearance }             visual novo (sprites: nomes de paleta, appearance.ts)
  *   stats             { hp, maxHp, chakra, maxChakra, shield }   só para o próprio jogador
  *   player_hp         { playerId, hp, maxHp }              vida dos outros (barrinha sobre o boneco)
  *   cast              { playerId, skill, x, y, fx, fy }    habilidade aceita (todos veem a animação)
@@ -103,13 +106,8 @@ export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(JUTSUS.filter(
 /** Id de monstro como o servidor cria ("m" + número). */
 const monsterId = z.string().regex(/^m\d{1,9}$/);
 const uuid = z.string().uuid();
-/** Cor "#rrggbb" (o <input type="color"> manda assim); gravada sempre em minúsculas. */
-const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/).transform((c) => c.toLowerCase());
-
-/** Visual do personagem (paperdoll): só cores, 5 partes. Nada além disso entra no banco. */
-export const AppearanceSchema = z.object({ skin: hexColor, hair: hexColor, shirt: hexColor, pants: hexColor, cape: hexColor }).strict();
-export type Appearance = z.infer<typeof AppearanceSchema>;
-export const APPEARANCE_PARTS = ['skin', 'hair', 'shirt', 'pants', 'cape'] as const;
+/** Visual do personagem (v9: sprites em camadas): nomes de paleta, ver appearance.ts. */
+export { AppearanceSchema, type Appearance } from './appearance.js';
 
 /** Direção do boneco: 0 baixo, 1 esquerda, 2 direita, 3 cima. */
 export type Dir = 0 | 1 | 2 | 3;
@@ -132,7 +130,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('switch_kit'), kit: z.enum(['A', 'B']) }),
   z.object({ type: z.literal('set_loadout'), kitA: skillList, kitB: skillList }),
   z.object({ type: z.literal('spend_point'), attribute: z.enum(ATTRIBUTES) }),
-  z.object({ type: z.literal('set_appearance'), appearance: AppearanceSchema }),
+  z.object({ type: z.literal('set_appearance'), appearance: IncomingAppearanceSchema }),
   z.object({ type: z.literal('create_mission'), traineeId: uuid, difficulty: z.string().regex(/^[A-Z][A-Z0-9_]{0,31}$/), quantity: z.number().int() }),
   z.object({ type: z.literal('deliver_mission'), senseiId: uuid }),
   z.object({ type: z.literal('evaluate_mission'), missionId: uuid, approved: z.boolean(), score: z.number().int().min(1).max(5) }),

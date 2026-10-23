@@ -673,37 +673,38 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
 .creator-card h2 { margin: 0; font-size: 22px; color: #ffd23f; }
 .creator-body { display: flex; gap: 14px; align-items: center; }
 .creator-preview { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-#creator-canvas { width: 140px; height: 166px; border-radius: 14px; background: #4f9a3a; image-rendering: pixelated; }
-.creator-colors { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.color-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 15px; color: var(--text); }
-.color-row input {
-  width: 64px;
-  height: 40px;
-  padding: 2px;
+#creator-canvas { width: 128px; height: 192px; border-radius: 14px; background: #4f9a3a; image-rendering: pixelated; }
+/* v9: escolhas em botões (gênero, cabelo, olhos, vila, roupa, bandana) e amostras de cor (pele, cabelo, olhos, roupa) */
+.creator-options { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; align-self: stretch; }
+.opt-row { display: flex; flex-direction: column; gap: 4px; }
+.opt-row[hidden] { display: none; }
+.opt-title { font-size: 13px; color: var(--muted, #b9ad98); }
+.seg, .swatches { display: flex; flex-wrap: wrap; gap: 5px; }
+.seg-btn {
+  min-height: 36px;
+  padding: 0 10px;
   border-radius: 10px;
   border: 1px solid var(--line);
+  border-bottom-width: 3px;
   background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  font-size: 13px;
 }
-.presets { display: flex; gap: 6px; flex-wrap: wrap; }
-.preset {
-  display: flex;
-  gap: 2px;
-  min-width: 48px;
-  min-height: 44px;
-  padding: 6px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.3);
-  align-items: center;
-  justify-content: center;
+.seg-btn[aria-pressed="true"] { background: #ffd23f; color: #14110d; border-color: #ffd23f; }
+.swatch {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.18);
 }
-.preset i { width: 10px; height: 22px; border-radius: 3px; }
+.swatch[aria-pressed="true"] { border-color: #ffd23f; box-shadow: 0 0 0 2px #14110d inset; }
 .creator-actions { display: flex; gap: 8px; }
 .creator-actions > * { flex: 1; min-height: 46px; }
 .small-btn { min-height: 40px; padding: 0 12px; font-size: 14px; }
 @media (max-width: 420px) {
   .creator-body { flex-direction: column; }
-  .creator-colors { width: 100%; }
+  .creator-options { width: 100%; }
 }
 
 /* ------------------------------------------------------------ v6: configurações e modo "Editar layout" */
@@ -752,13 +753,11 @@ body.editing .vitals { pointer-events: auto; outline: 2px dashed #ffd23f; outlin
   .topbar .text-btn { padding: 0 10px; }
 }
 
-/* Criador: cada cor numa linha (rótulo à esquerda, cor à direita); deitado, em 2 colunas. */
-.creator .color-row { flex-direction: row; align-items: center; color: var(--text); font-size: 15px; }
+/* Criador deitado: as escolhas em 2 colunas, a prévia à esquerda. */
 @media (orientation: landscape) {
-  .creator-card { width: min(640px, 100%); padding: 14px 16px; gap: 8px; }
-  .creator-colors { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
-  .creator-colors .presets { grid-column: 1 / -1; }
-  #creator-canvas { width: 120px; height: 142px; }
+  .creator-card { width: min(760px, 100%); padding: 14px 16px; gap: 8px; }
+  .creator-body { align-items: flex-start; }
+  .creator-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
 }
 
 /* Praça da Vila (zona segura): o servidor recusa combate; os botões ficam apagados. */

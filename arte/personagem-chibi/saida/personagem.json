@@ -1,0 +1,1529 @@
+{
+ "versao": 1,
+ "celula": {
+  "largura": 64,
+  "altura": 96
+ },
+ "layout_das_folhas": "3 colunas (frames 0,1,2) x 3 linhas (frente, lado, costas); célula 64x96",
+ "pivo": {
+  "x": 32,
+  "y": 92,
+  "nota": "centro entre os pés; a linha 92 é a última linha da sola (chão)"
+ },
+ "vista_lado": "olhando pra ESQUERDA; pra olhar pra direita espelhe na horizontal (todas as camadas juntas)",
+ "vistas": [
+  "frente",
+  "lado",
+  "costas"
+ ],
+ "planos": {
+  "ordem": [
+   "tras",
+   "corpo",
+   "frente",
+   "topo"
+  ],
+  "nota": "o jogo desenha plano a plano (tras -> corpo -> frente -> topo) e, dentro de cada plano, os slots na ordem de 'slots'"
+ },
+ "slots": [
+  "corpo",
+  "calca",
+  "camisa",
+  "conjunto",
+  "punho",
+  "olhos",
+  "boca",
+  "mascara",
+  "cabelo",
+  "chapeu",
+  "acessorio"
+ ],
+ "regras_slots": {
+  "conjunto": "quando equipado, esconde camisa e calça. O conjunto da vila tem as cores da vila do personagem, travadas (o jogador não troca)",
+  "chapeu": "bandana da vila: cor da faixa = cor da vila (travada); o símbolo da vila é um arquivo à parte (chapeu__simbolo_<vila>), desenhado logo depois da bandana",
+  "camisa": "o logo da vila no peito é um arquivo à parte (camisa__simbolo_<vila>), desenhado logo depois da camisa",
+  "punho": "vazio por enquanto",
+  "mascara": "vazio por enquanto",
+  "acessorio": "vazio por enquanto (capa, aura, corte, asas, auréola...)"
+ },
+ "animacoes": {
+  "parado": {
+   "sequencia": [
+    0,
+    1,
+    2,
+    1
+   ],
+   "duracao_ms": [
+    1200,
+    260,
+    300,
+    260
+   ],
+   "repete": true,
+   "frames": "0 = parado, 1 = solta o ar (tronco/cabeça descem 1 px), 2 = braços abrem levemente"
+  },
+  "andar": {
+   "sequencia": [
+    0,
+    1,
+    2,
+    1
+   ],
+   "duracao_ms": [
+    160,
+    130,
+    160,
+    130
+   ],
+   "repete": true,
+   "frames": "0 = perna de perto/visível na frente, 1 = passagem, 2 = perna de trás na frente"
+  },
+  "correr": {
+   "sequencia": [
+    0,
+    1,
+    2,
+    1
+   ],
+   "duracao_ms": [
+    100,
+    90,
+    100,
+    90
+   ],
+   "repete": true,
+   "frames": "0 = perna de perto na frente, 1 = passagem (apoio), 2 = perna de trás na frente"
+  },
+  "ataque": {
+   "sequencia": [
+    1,
+    0,
+    1,
+    2
+   ],
+   "duracao_ms": [
+    140,
+    220,
+    140,
+    320
+   ],
+   "repete": false,
+   "frames": "0 = soco, 1 = guarda (mão volta pro corpo), 2 = chute alto"
+  }
+ },
+ "canais": {
+  "1": "fixo",
+  "2": "pele",
+  "3": "cabelo",
+  "4": "olho",
+  "5": "cor1",
+  "6": "cor2",
+  "7": "cor3"
+ },
+ "tons": {
+  "fixo": [
+   "contorno",
+   "branco",
+   "rb_brilho",
+   "rb_base",
+   "rb_sombra",
+   "rb_escuro",
+   "aco_escuro",
+   "aco_sombra",
+   "aco_base",
+   "aco_luz",
+   "aco_brilho"
+  ],
+  "pele": [
+   "brilho2",
+   "brilho",
+   "base",
+   "sombra1",
+   "sombra2",
+   "escuro",
+   "linha",
+   "orelha",
+   "boca",
+   "boca_escuro"
+  ],
+  "cabelo": [
+   "escuro",
+   "sombra",
+   "base",
+   "luz",
+   "brilho"
+  ],
+  "olho": [
+   "escuro",
+   "medio",
+   "base",
+   "claro"
+  ],
+  "cor1": [
+   "escuro",
+   "sombra",
+   "base",
+   "luz",
+   "brilho"
+  ],
+  "cor2": [
+   "escuro",
+   "sombra",
+   "base",
+   "luz",
+   "brilho"
+  ],
+  "cor3": [
+   "escuro",
+   "sombra",
+   "base",
+   "luz",
+   "brilho"
+  ]
+ },
+ "mapa_de_indices": "PNG RGBA: R = canal x 32, G = tom x 16, A = 255 onde tem pixel. canal = round(R/32), tom = round(G/16). Cor final = paletas.json[canal][tom] (fixo = lista 'fixo').",
+ "itens": [
+  {
+   "slot": "corpo",
+   "item": "base",
+   "descricao": "corpo + roupa de baixo (canal pele + fixo)",
+   "cores_padrao": {}
+  },
+  {
+   "slot": "olhos",
+   "item": "masculino",
+   "descricao": "olhos sem cílios (some de costas)",
+   "cores_padrao": {}
+  },
+  {
+   "slot": "olhos",
+   "item": "cilios",
+   "descricao": "olhos com cílios (some de costas)",
+   "cores_padrao": {}
+  },
+  {
+   "slot": "boca",
+   "item": "sorriso",
+   "descricao": "boca (some de costas)",
+   "cores_padrao": {}
+  },
+  {
+   "slot": "cabelo",
+   "item": "espetado",
+   "descricao": "cabelo espetado (cor = canal cabelo; tem 1 remendo de pele cobrindo a orelha)",
+   "cores_padrao": {}
+  },
+  {
+   "slot": "cabelo",
+   "item": "longo_lateral",
+   "descricao": "cabelo longo até o meio das costas, franja lateral. De frente e de lado a parte comprida fica no plano 'tras' (atrás do corpo); de costas fica por cima das costas",
+   "cores_padrao": {}
+  },
+  {
+   "slot": "chapeu",
+   "item": "bandana",
+   "descricao": "bandana da vila com a placa LISA: cor1 = faixa (cor da vila), cor2 = placa de metal",
+   "cores_padrao": {
+    "cor1": "azul_marinho",
+    "cor2": "aco"
+   }
+  },
+  {
+   "slot": "chapeu",
+   "item": "simbolo_espiral",
+   "descricao": "símbolo da vila gravado na placa (desenhe logo depois da bandana); 'espiral' é provisório até o símbolo de cada vila ficar pronto",
+   "cores_padrao": {
+    "cor2": "aco"
+   }
+  },
+  {
+   "slot": "conjunto",
+   "item": "vila",
+   "descricao": "conjunto da vila (substitui camisa + calça): cor1 = colete, cor2 = camisa/calça/sandálias, cor3 = faixas e fita do porta-kunai; porta-kunai em aço fixo. Cores travadas por vila",
+   "cores_padrao": {
+    "cor1": "verde_colete",
+    "cor2": "azul_marinho",
+    "cor3": "creme"
+   }
+  },
+  {
+   "slot": "camisa",
+   "item": "basica",
+   "descricao": "camisa de manga longa SEM logo: cor1 = camisa, cor3 = gola e punhos",
+   "cores_padrao": {
+    "cor1": "azul_marinho",
+    "cor2": "vermelho",
+    "cor3": "creme"
+   }
+  },
+  {
+   "slot": "camisa",
+   "item": "simbolo_espiral",
+   "descricao": "logo da vila no peito da camisa (desenhe logo depois da camisa): cor2 = logo",
+   "cores_padrao": {
+    "cor1": "azul_marinho",
+    "cor2": "vermelho"
+   }
+  },
+  {
+   "slot": "calca",
+   "item": "basica",
+   "descricao": "calça ninja folgada presa no tornozelo: cor1 = calça, cor2 = amarração e cordão, cor3 = sandálias",
+   "cores_padrao": {
+    "cor1": "cinza",
+    "cor2": "creme",
+    "cor3": "marrom"
+   }
+  }
+ ],
+ "vilas": {
+  "nota": "cores travadas de cada vila (exemplos provisórios; troque pelos nomes/cores definitivos). Os nomes das cores são as rampas de paletas.json['roupa']",
+  "exemplos": [
+   {
+    "vila": "vila_exemplo_1",
+    "conjunto": {
+     "cor1": "verde_colete",
+     "cor2": "azul_marinho",
+     "cor3": "creme"
+    },
+    "bandana": "azul_marinho",
+    "simbolo": "espiral"
+   },
+   {
+    "vila": "vila_exemplo_2",
+    "conjunto": {
+     "cor1": "cinza",
+     "cor2": "preto",
+     "cor3": "branco"
+    },
+    "bandana": "preto",
+    "simbolo": "espiral"
+   },
+   {
+    "vila": "vila_exemplo_3",
+    "conjunto": {
+     "cor1": "azul_celeste",
+     "cor2": "azul",
+     "cor3": "branco"
+    },
+    "bandana": "azul",
+    "simbolo": "espiral"
+   },
+   {
+    "vila": "vila_exemplo_4",
+    "conjunto": {
+     "cor1": "vinho",
+     "cor2": "preto",
+     "cor3": "creme"
+    },
+    "bandana": "vinho",
+    "simbolo": "espiral"
+   },
+   {
+    "vila": "vila_exemplo_5",
+    "conjunto": {
+     "cor1": "laranja",
+     "cor2": "marrom",
+     "cor3": "creme"
+    },
+    "bandana": "marrom",
+    "simbolo": "espiral"
+   }
+  ]
+ },
+ "arquivos": {
+  "masculino/parado": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/parado/corpo__base__tras.png",
+    "indices": "indices/masculino/parado/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/corpo__base__corpo.png",
+    "indices": "indices/masculino/parado/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/parado/corpo__base__frente.png",
+    "indices": "indices/masculino/parado/corpo__base__frente.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/olhos__masculino__corpo.png",
+    "indices": "indices/masculino/parado/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/olhos__cilios__corpo.png",
+    "indices": "indices/masculino/parado/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/boca__sorriso__corpo.png",
+    "indices": "indices/masculino/parado/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/cabelo__espetado__corpo.png",
+    "indices": "indices/masculino/parado/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/parado/cabelo__longo_lateral__tras.png",
+    "indices": "indices/masculino/parado/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/masculino/parado/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/chapeu__bandana__corpo.png",
+    "indices": "indices/masculino/parado/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/parado/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/parado/conjunto__vila__tras.png",
+    "indices": "indices/masculino/parado/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/conjunto__vila__corpo.png",
+    "indices": "indices/masculino/parado/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/parado/conjunto__vila__frente.png",
+    "indices": "indices/masculino/parado/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/camisa__basica__corpo.png",
+    "indices": "indices/masculino/parado/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/parado/camisa__basica__frente.png",
+    "indices": "indices/masculino/parado/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/parado/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/parado/calca__basica__tras.png",
+    "indices": "indices/masculino/parado/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/calca__basica__corpo.png",
+    "indices": "indices/masculino/parado/calca__basica__corpo.png"
+   }
+  ],
+  "masculino/andar": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/andar/corpo__base__tras.png",
+    "indices": "indices/masculino/andar/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/corpo__base__corpo.png",
+    "indices": "indices/masculino/andar/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/andar/corpo__base__frente.png",
+    "indices": "indices/masculino/andar/corpo__base__frente.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/olhos__masculino__corpo.png",
+    "indices": "indices/masculino/andar/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/olhos__cilios__corpo.png",
+    "indices": "indices/masculino/andar/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/boca__sorriso__corpo.png",
+    "indices": "indices/masculino/andar/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/cabelo__espetado__corpo.png",
+    "indices": "indices/masculino/andar/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/andar/cabelo__longo_lateral__tras.png",
+    "indices": "indices/masculino/andar/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/masculino/andar/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/chapeu__bandana__corpo.png",
+    "indices": "indices/masculino/andar/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/andar/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/andar/conjunto__vila__tras.png",
+    "indices": "indices/masculino/andar/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/conjunto__vila__corpo.png",
+    "indices": "indices/masculino/andar/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/andar/conjunto__vila__frente.png",
+    "indices": "indices/masculino/andar/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/andar/camisa__basica__tras.png",
+    "indices": "indices/masculino/andar/camisa__basica__tras.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/camisa__basica__corpo.png",
+    "indices": "indices/masculino/andar/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/andar/camisa__basica__frente.png",
+    "indices": "indices/masculino/andar/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/andar/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/andar/calca__basica__tras.png",
+    "indices": "indices/masculino/andar/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/calca__basica__corpo.png",
+    "indices": "indices/masculino/andar/calca__basica__corpo.png"
+   }
+  ],
+  "masculino/correr": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/correr/corpo__base__tras.png",
+    "indices": "indices/masculino/correr/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/corpo__base__corpo.png",
+    "indices": "indices/masculino/correr/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/correr/corpo__base__frente.png",
+    "indices": "indices/masculino/correr/corpo__base__frente.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/olhos__masculino__corpo.png",
+    "indices": "indices/masculino/correr/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/olhos__cilios__corpo.png",
+    "indices": "indices/masculino/correr/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/boca__sorriso__corpo.png",
+    "indices": "indices/masculino/correr/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/cabelo__espetado__corpo.png",
+    "indices": "indices/masculino/correr/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/correr/cabelo__longo_lateral__tras.png",
+    "indices": "indices/masculino/correr/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/masculino/correr/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/chapeu__bandana__corpo.png",
+    "indices": "indices/masculino/correr/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/correr/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/correr/conjunto__vila__tras.png",
+    "indices": "indices/masculino/correr/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/conjunto__vila__corpo.png",
+    "indices": "indices/masculino/correr/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/correr/conjunto__vila__frente.png",
+    "indices": "indices/masculino/correr/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/correr/camisa__basica__tras.png",
+    "indices": "indices/masculino/correr/camisa__basica__tras.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/camisa__basica__corpo.png",
+    "indices": "indices/masculino/correr/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/correr/camisa__basica__frente.png",
+    "indices": "indices/masculino/correr/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/correr/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/correr/calca__basica__tras.png",
+    "indices": "indices/masculino/correr/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/calca__basica__corpo.png",
+    "indices": "indices/masculino/correr/calca__basica__corpo.png"
+   }
+  ],
+  "masculino/ataque": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/ataque/corpo__base__tras.png",
+    "indices": "indices/masculino/ataque/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/corpo__base__corpo.png",
+    "indices": "indices/masculino/ataque/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/ataque/corpo__base__frente.png",
+    "indices": "indices/masculino/ataque/corpo__base__frente.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "topo",
+    "arquivo": "camadas/masculino/ataque/corpo__base__topo.png",
+    "indices": "indices/masculino/ataque/corpo__base__topo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/olhos__masculino__corpo.png",
+    "indices": "indices/masculino/ataque/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/olhos__cilios__corpo.png",
+    "indices": "indices/masculino/ataque/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/boca__sorriso__corpo.png",
+    "indices": "indices/masculino/ataque/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/cabelo__espetado__corpo.png",
+    "indices": "indices/masculino/ataque/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/ataque/cabelo__longo_lateral__tras.png",
+    "indices": "indices/masculino/ataque/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/masculino/ataque/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/chapeu__bandana__corpo.png",
+    "indices": "indices/masculino/ataque/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/ataque/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/ataque/conjunto__vila__tras.png",
+    "indices": "indices/masculino/ataque/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/conjunto__vila__corpo.png",
+    "indices": "indices/masculino/ataque/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/ataque/conjunto__vila__frente.png",
+    "indices": "indices/masculino/ataque/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "topo",
+    "arquivo": "camadas/masculino/ataque/conjunto__vila__topo.png",
+    "indices": "indices/masculino/ataque/conjunto__vila__topo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/ataque/camisa__basica__tras.png",
+    "indices": "indices/masculino/ataque/camisa__basica__tras.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/camisa__basica__corpo.png",
+    "indices": "indices/masculino/ataque/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/ataque/camisa__basica__frente.png",
+    "indices": "indices/masculino/ataque/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "topo",
+    "arquivo": "camadas/masculino/ataque/camisa__basica__topo.png",
+    "indices": "indices/masculino/ataque/camisa__basica__topo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/ataque/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/ataque/calca__basica__tras.png",
+    "indices": "indices/masculino/ataque/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/calca__basica__corpo.png",
+    "indices": "indices/masculino/ataque/calca__basica__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/ataque/calca__basica__frente.png",
+    "indices": "indices/masculino/ataque/calca__basica__frente.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "topo",
+    "arquivo": "camadas/masculino/ataque/calca__basica__topo.png",
+    "indices": "indices/masculino/ataque/calca__basica__topo.png"
+   }
+  ],
+  "feminino/parado": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/parado/corpo__base__tras.png",
+    "indices": "indices/feminino/parado/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/corpo__base__corpo.png",
+    "indices": "indices/feminino/parado/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/parado/corpo__base__frente.png",
+    "indices": "indices/feminino/parado/corpo__base__frente.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/olhos__masculino__corpo.png",
+    "indices": "indices/feminino/parado/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/olhos__cilios__corpo.png",
+    "indices": "indices/feminino/parado/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/boca__sorriso__corpo.png",
+    "indices": "indices/feminino/parado/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/cabelo__espetado__corpo.png",
+    "indices": "indices/feminino/parado/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/parado/cabelo__longo_lateral__tras.png",
+    "indices": "indices/feminino/parado/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/feminino/parado/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/chapeu__bandana__corpo.png",
+    "indices": "indices/feminino/parado/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/parado/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/parado/conjunto__vila__tras.png",
+    "indices": "indices/feminino/parado/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/conjunto__vila__corpo.png",
+    "indices": "indices/feminino/parado/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/parado/conjunto__vila__frente.png",
+    "indices": "indices/feminino/parado/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/camisa__basica__corpo.png",
+    "indices": "indices/feminino/parado/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/parado/camisa__basica__frente.png",
+    "indices": "indices/feminino/parado/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/parado/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/parado/calca__basica__tras.png",
+    "indices": "indices/feminino/parado/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/calca__basica__corpo.png",
+    "indices": "indices/feminino/parado/calca__basica__corpo.png"
+   }
+  ],
+  "feminino/andar": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/andar/corpo__base__tras.png",
+    "indices": "indices/feminino/andar/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/corpo__base__corpo.png",
+    "indices": "indices/feminino/andar/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/andar/corpo__base__frente.png",
+    "indices": "indices/feminino/andar/corpo__base__frente.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/olhos__masculino__corpo.png",
+    "indices": "indices/feminino/andar/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/olhos__cilios__corpo.png",
+    "indices": "indices/feminino/andar/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/boca__sorriso__corpo.png",
+    "indices": "indices/feminino/andar/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/cabelo__espetado__corpo.png",
+    "indices": "indices/feminino/andar/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/andar/cabelo__longo_lateral__tras.png",
+    "indices": "indices/feminino/andar/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/feminino/andar/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/chapeu__bandana__corpo.png",
+    "indices": "indices/feminino/andar/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/andar/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/andar/conjunto__vila__tras.png",
+    "indices": "indices/feminino/andar/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/conjunto__vila__corpo.png",
+    "indices": "indices/feminino/andar/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/andar/conjunto__vila__frente.png",
+    "indices": "indices/feminino/andar/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/andar/camisa__basica__tras.png",
+    "indices": "indices/feminino/andar/camisa__basica__tras.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/camisa__basica__corpo.png",
+    "indices": "indices/feminino/andar/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/andar/camisa__basica__frente.png",
+    "indices": "indices/feminino/andar/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/andar/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/andar/calca__basica__tras.png",
+    "indices": "indices/feminino/andar/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/calca__basica__corpo.png",
+    "indices": "indices/feminino/andar/calca__basica__corpo.png"
+   }
+  ],
+  "feminino/correr": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/correr/corpo__base__tras.png",
+    "indices": "indices/feminino/correr/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/corpo__base__corpo.png",
+    "indices": "indices/feminino/correr/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/correr/corpo__base__frente.png",
+    "indices": "indices/feminino/correr/corpo__base__frente.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/olhos__masculino__corpo.png",
+    "indices": "indices/feminino/correr/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/olhos__cilios__corpo.png",
+    "indices": "indices/feminino/correr/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/boca__sorriso__corpo.png",
+    "indices": "indices/feminino/correr/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/cabelo__espetado__corpo.png",
+    "indices": "indices/feminino/correr/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/correr/cabelo__longo_lateral__tras.png",
+    "indices": "indices/feminino/correr/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/feminino/correr/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/chapeu__bandana__corpo.png",
+    "indices": "indices/feminino/correr/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/correr/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/correr/conjunto__vila__tras.png",
+    "indices": "indices/feminino/correr/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/conjunto__vila__corpo.png",
+    "indices": "indices/feminino/correr/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/correr/conjunto__vila__frente.png",
+    "indices": "indices/feminino/correr/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/correr/camisa__basica__tras.png",
+    "indices": "indices/feminino/correr/camisa__basica__tras.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/camisa__basica__corpo.png",
+    "indices": "indices/feminino/correr/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/correr/camisa__basica__frente.png",
+    "indices": "indices/feminino/correr/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/correr/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/correr/calca__basica__tras.png",
+    "indices": "indices/feminino/correr/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/calca__basica__corpo.png",
+    "indices": "indices/feminino/correr/calca__basica__corpo.png"
+   }
+  ],
+  "feminino/ataque": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/ataque/corpo__base__tras.png",
+    "indices": "indices/feminino/ataque/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/corpo__base__corpo.png",
+    "indices": "indices/feminino/ataque/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/ataque/corpo__base__frente.png",
+    "indices": "indices/feminino/ataque/corpo__base__frente.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "topo",
+    "arquivo": "camadas/feminino/ataque/corpo__base__topo.png",
+    "indices": "indices/feminino/ataque/corpo__base__topo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/olhos__masculino__corpo.png",
+    "indices": "indices/feminino/ataque/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/olhos__cilios__corpo.png",
+    "indices": "indices/feminino/ataque/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/boca__sorriso__corpo.png",
+    "indices": "indices/feminino/ataque/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/cabelo__espetado__corpo.png",
+    "indices": "indices/feminino/ataque/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/ataque/cabelo__longo_lateral__tras.png",
+    "indices": "indices/feminino/ataque/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/feminino/ataque/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/chapeu__bandana__corpo.png",
+    "indices": "indices/feminino/ataque/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/ataque/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/ataque/conjunto__vila__tras.png",
+    "indices": "indices/feminino/ataque/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/conjunto__vila__corpo.png",
+    "indices": "indices/feminino/ataque/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/ataque/conjunto__vila__frente.png",
+    "indices": "indices/feminino/ataque/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "topo",
+    "arquivo": "camadas/feminino/ataque/conjunto__vila__topo.png",
+    "indices": "indices/feminino/ataque/conjunto__vila__topo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/ataque/camisa__basica__tras.png",
+    "indices": "indices/feminino/ataque/camisa__basica__tras.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/camisa__basica__corpo.png",
+    "indices": "indices/feminino/ataque/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/ataque/camisa__basica__frente.png",
+    "indices": "indices/feminino/ataque/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "topo",
+    "arquivo": "camadas/feminino/ataque/camisa__basica__topo.png",
+    "indices": "indices/feminino/ataque/camisa__basica__topo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/ataque/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/ataque/calca__basica__tras.png",
+    "indices": "indices/feminino/ataque/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/calca__basica__corpo.png",
+    "indices": "indices/feminino/ataque/calca__basica__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/ataque/calca__basica__frente.png",
+    "indices": "indices/feminino/ataque/calca__basica__frente.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "topo",
+    "arquivo": "camadas/feminino/ataque/calca__basica__topo.png",
+    "indices": "indices/feminino/ataque/calca__basica__topo.png"
+   }
+  ]
+ }
+}

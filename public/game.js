@@ -12,7 +12,11 @@
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
 import { groundAt, inSafeZone, mapName, placements, visibleDeco, visibleWalls } from './world.js';
 import { drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawWall } from './mapArt.js';
-import { DEFAULT_LOOK, dirFrom, drawCharacter, PARTS, PRESETS, safeLook } from './character.js';
+import { dirFrom, drawBackItem, drawCharacter, drawHandItem } from './character.js';
+import {
+  DEFAULT_APPEARANCE, OPTIONS, anchorsOf, drawCell, fallbackColors, loadSprites, normalizeLook, pickFrame, spriteScale,
+  spritesReady, swatchOf, viewOf,
+} from './sprites.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 
 const TOKEN_KEY = 'nin.token';
@@ -41,8 +45,8 @@ const ui = {
   editLayout: $('edit-layout'), editBanner: $('edit-banner'), editDone: $('edit-done'), editReset: $('edit-reset'),
   resetLayout: $('reset-layout'), openCreator: $('open-creator'), vitals: $('vitals'),
   sliders: { btnScale: $('btn-scale'), btnOpacity: $('btn-opacity'), barScale: $('bar-scale'), barOpacity: $('bar-opacity') },
-  creator: $('creator'), creatorCanvas: $('creator-canvas'), creatorTurn: $('creator-turn'), creatorPresets: $('creator-presets'),
-  creatorInputs: [...document.querySelectorAll('#creator input[type=color]')], creatorError: $('creator-error'),
+  creator: $('creator'), creatorCanvas: $('creator-canvas'), creatorTurn: $('creator-turn'), creatorOptions: $('creator-options'),
+  creatorError: $('creator-error'),
   creatorRandom: $('creator-random'), creatorCancel: $('creator-cancel'), creatorSave: $('creator-save'),
   evalPanel: $('eval-panel'), evalText: $('eval-text'), evalStars: $('eval-stars'), evalApprove: $('eval-approve'), evalReject: $('eval-reject'),
   login: $('login'), loginForm: $('login-form'), loginError: $('login-error'), loginSubmit: $('login-submit'),
@@ -353,7 +357,7 @@ function upsertPlayer(p, snap) {
     else pushSnapshot(existing.snaps, performance.now(), p.x, p.y, state.world.tickMs || 50);
     if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; }
     if (p.rank) { existing.rank = p.rank; existing.level = p.level; }
-    if (p.appearance) existing.look = safeLook(p.appearance);
+    if (p.appearance) existing.look = normalizeLook(p.appearance);
     if (p.dir !== undefined) existing.dir = p.dir;
     if (p.gear) existing.gear = safeGear(p.gear);
     return existing;
@@ -365,8 +369,10 @@ function upsertPlayer(p, snap) {
     snaps: [{ t: performance.now(), x: p.x, y: p.y }],
     hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating,
     rank: p.rank || null, level: p.level || 1,
-    // Paperdoll: cores (do servidor), direção (0 baixo, 1 esq, 2 dir, 3 cima) e fase da caminhada.
-    look: safeLook(p.appearance || DEFAULT_LOOK), dir: p.dir ?? 0, walk: 0, moving: false, lastX: p.x, lastY: p.y,
+    // Visual (sprites: nomes de paleta, do servidor), direção (0 baixo, 1 esq, 2 dir, 3 cima), fase da caminhada,
+    // ação em curso (soco/chute/selo) e atraso do "parado" (para os bonecos não respirarem juntos).
+    look: normalizeLook(p.appearance), dir: p.dir ?? 0, walk: 0, moving: false, running: false, act: null,
+    seed: [...p.id].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 9973, 0) * 7, lastX: p.x, lastY: p.y,
     // Equipamento visível (o servidor manda): arma na mão / nas costas e pergaminho nas costas.
     gear: safeGear(p.gear),
     initial: ([...p.username][0] || '?').toUpperCase(),
@@ -419,7 +425,7 @@ function handleMessage(msg) {
         hp: msg.you.hp, maxHp: msg.you.maxHp, chakra: msg.you.chakra, maxChakra: msg.you.maxChakra,
         shield: msg.you.shield, xp: msg.you.xp, rank: msg.you.rank, dead: msg.you.dead, meditating: !!msg.you.meditating,
         speed: msg.you.speed ?? state.world.speed, running: !!msg.you.running, canBeSensei: !!msg.you.canBeSensei,
-        appearanceSet: msg.you.appearanceSet !== false, look: safeLook(msg.you.appearance || DEFAULT_LOOK),
+        appearanceSet: msg.you.appearanceSet !== false, look: normalizeLook(msg.you.appearance),
       });
       // Primeira vez (conta nova ou antes da v6): Criador de Personagem.
       if (!state.me.appearanceSet) openCreator(true);
@@ -540,10 +546,10 @@ function handleMessage(msg) {
     }
     case 'player_appearance': {
       const p = state.players.get(msg.playerId);
-      if (p) p.look = safeLook(msg.appearance);
+      if (p) p.look = normalizeLook(msg.appearance);
       if (msg.playerId === state.meId) {
         state.me.appearanceSet = true;
-        state.me.look = safeLook(msg.appearance);
+        state.me.look = normalizeLook(msg.appearance);
         closeCreator();
       }
       break;
@@ -602,6 +608,8 @@ function handleMessage(msg) {
     case 'attack': {
       state.effects.push({ skill: 'attack', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
       faceTo(msg.playerId, msg.fx, msg.fy);
+      const attacker = state.players.get(msg.playerId);
+      if (attacker) attacker.act = { kind: attacker.act?.kind === 'soco' ? 'chute' : 'soco', start: now };
       if (msg.playerId === state.meId) startCooldown('attack');
       break;
     }
@@ -641,6 +649,8 @@ function handleMessage(msg) {
       const fxKind = mechanicOf(msg.skill);
       if (fxKind !== 'teleport') state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
       faceTo(msg.playerId, msg.fx, msg.fy);
+      const caster = state.players.get(msg.playerId);
+      if (caster) caster.act = { kind: 'selo', start: now };
       if (msg.playerId === state.meId) {
         console.log(`[habilidade] ${msg.skill}`);
         startCooldown(msg.skill);
@@ -1381,18 +1391,19 @@ const SHOP_INFO = {
   clothes: { icon: '👘', name: 'Alfaiataria', greet: '“Um ninja bem vestido assusta antes da luta.”' },
   scrolls: { icon: '📜', name: 'Casa dos Pergaminhos', greet: '“Cada pergaminho guarda um jutsu. A Extração revela qual.”' },
 };
-/** Cores dos lojistas e dos NPCs da Academia (paperdoll). */
+/** Visual dos lojistas e dos NPCs da Academia (sprites: nomes de paleta, como o dos jogadores). */
+const npcLook = (o) => normalizeLook({ ...DEFAULT_APPEARANCE, ...o });
 const SHOPKEEPER_LOOK = {
-  weapons: { skin: '#c68642', hair: '#2b2118', shirt: '#4a4a52', pants: '#2a2a33', cape: '#7a3b1e' },
-  clothes: { skin: '#f1c9a0', hair: '#7a2e5a', shirt: '#c94f7c', pants: '#3b2f6e', cape: '#e8c66a' },
-  scrolls: { skin: '#e0ac69', hair: '#d9d4c7', shirt: '#2f5d8a', pants: '#1f2a44', cape: '#3b6e4f' },
+  weapons: npcLook({ skin: 'canela', hairColor: 'preto', shirtColor: 'cinza', pantsColor: 'preto', bandana: true }),
+  clothes: npcLook({ gender: 'f', hairStyle: 'longo_lateral', eyeStyle: 'cilios', hairColor: 'roxo', eyeColor: 'roxo', shirtColor: 'rosa', pantsColor: 'roxo' }),
+  scrolls: npcLook({ skin: 'mel', hairColor: 'branco', eyeColor: 'cinza', shirtColor: 'azul_marinho', pantsColor: 'marrom', bandana: true }),
 };
 const ACADEMY_LOOK = {
-  tutor_dummies: { skin: '#f1c9a0', hair: '#8a2b2b', shirt: '#3b6e4f', pants: '#2a2a33', cape: '#2f5d8a' },
-  tutor_meditation: { skin: '#c68642', hair: '#d9d4c7', shirt: '#e8c66a', pants: '#7a3b1e', cape: '#e8c66a' },
-  tutor_jutsu: { skin: '#e0ac69', hair: '#2b2118', shirt: '#2f3a52', pants: '#1f2a44', cape: '#9a6be0' },
-  tutor_weapons: { skin: '#f1c9a0', hair: '#1b1410', shirt: '#4a4a52', pants: '#2a2a33', cape: '#8a2b2b' },
-  director: { skin: '#f1c9a0', hair: '#efe9dc', shirt: '#7a2e1e', pants: '#3b2414', cape: '#e8c66a' },
+  tutor_dummies: npcLook({ gender: 'f', hairStyle: 'longo_lateral', eyeStyle: 'cilios', hairColor: 'vermelho', eyeColor: 'verde', outfit: 'vila', bandana: true }),
+  tutor_meditation: npcLook({ skin: 'canela', hairColor: 'branco', shirtColor: 'amarelo', pantsColor: 'marrom' }),
+  tutor_jutsu: npcLook({ gender: 'f', hairStyle: 'longo_lateral', eyeStyle: 'cilios', skin: 'mel', hairColor: 'preto', eyeColor: 'roxo', shirtColor: 'roxo', pantsColor: 'azul_marinho', bandana: true }),
+  tutor_weapons: npcLook({ hairColor: 'preto', outfit: 'vila', bandana: true }),
+  director: npcLook({ hairColor: 'branco', eyeColor: 'cinza', shirtColor: 'vinho', pantsColor: 'marrom', bandana: true }),
 };
 /** A Professora da Sala de Armas mostra a Kunai na mão; o Ferreiro, a Espada Longa nas costas. */
 const NPC_GEAR = {
@@ -2182,16 +2193,28 @@ ui.evalReject.addEventListener('click', () => answerEval(false));
 
 // ------------------------------------------------------------------ Criador de Personagem
 
-let creatorLook = { ...DEFAULT_LOOK };
+let creatorLook = { ...DEFAULT_APPEARANCE };
 let creatorDir = 0;
 let creatorFirst = false;
 let creatorTimer = null;
 
+/** Escolhas do Criador, na ordem da tela: [campo, título, tipo] (seg = botões; swatch = amostras de cor). */
+const CREATOR_FIELDS = [
+  ['gender', 'Gênero', 'seg'], ['skin', 'Pele', 'swatch'], ['hairStyle', 'Cabelo', 'seg'], ['hairColor', 'Cor do cabelo', 'swatch'],
+  ['eyeStyle', 'Olhos', 'seg'], ['eyeColor', 'Cor dos olhos', 'swatch'], ['village', 'Vila', 'seg'], ['outfit', 'Roupa', 'seg'],
+  ['shirtColor', 'Camisa', 'swatch'], ['pantsColor', 'Calça', 'swatch'], ['bandana', 'Bandana da vila', 'seg'],
+];
+const CREATOR_LABEL = {
+  m: 'Masculino', f: 'Feminino', espetado: 'Espetado', longo_lateral: 'Longo', masculino: 'Sem cílios', cilios: 'Com cílios',
+  basica: 'Camisa e calça', vila: 'Conjunto da vila', true: 'Com bandana', false: 'Sem',
+};
+const creatorLabel = (field, v) => (field === 'village' ? `Vila ${String(v).split('_')[1]}` : CREATOR_LABEL[String(v)] || String(v).replace(/_/g, ' '));
+
 function openCreator(first = false) {
   creatorFirst = first;
-  creatorLook = { ...(state.me.look || DEFAULT_LOOK) };
+  creatorLook = { ...(state.me.look || DEFAULT_APPEARANCE) };
   creatorDir = 0;
-  for (const input of ui.creatorInputs) input.value = creatorLook[input.dataset.part];
+  renderCreatorOptions();
   ui.creatorCancel.hidden = first;           // na 1ª vez é obrigatório escolher
   ui.creatorSave.textContent = first ? 'Começar a jogar' : 'Salvar visual';
   ui.creatorError.textContent = '';
@@ -2199,7 +2222,7 @@ function openCreator(first = false) {
   closeSettings();
   clearInterval(creatorTimer);
   let phase = 0;
-  creatorTimer = setInterval(() => { phase += 0.35; drawCreatorPreview(phase); }, 60);   // prévia andando
+  creatorTimer = setInterval(() => { phase += 1.2; drawCreatorPreview(phase); }, 60);   // prévia andando
   drawCreatorPreview(0);
 }
 function closeCreator() {
@@ -2210,39 +2233,68 @@ function closeCreator() {
 function drawCreatorPreview(phase) {
   const c = ui.creatorCanvas;
   const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
   g.clearRect(0, 0, c.width, c.height);
   g.fillStyle = '#8d8a84';
-  g.fillRect(0, c.height - 40, c.width, 40);
-  drawCharacter(g, c.width / 2, c.height - 78, 128, creatorLook, creatorDir, phase, true);
+  g.fillRect(0, c.height - 16, c.width, 16);
+  const [view, flip] = viewOf(creatorDir);
+  const { anim, frame } = pickFrame({ moving: true, walk: phase }, 0);
+  // Canvas 128x192 = a célula 64x96 em escala 2 (pixel art sem borrar). Sem os atlas: o boneco antigo.
+  if (drawCell(g, 0, 0, 2, creatorLook, view, flip, anim, frame) == null) {
+    drawCharacter(g, c.width / 2, c.height - 70, 128, fallbackColors(creatorLook), creatorDir, phase, true);
+  }
 }
-function renderPresets() {
-  ui.creatorPresets.replaceChildren(...PRESETS.map((look, i) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'preset';
-    b.setAttribute('aria-label', `Combinação ${i + 1}`);
-    for (const part of ['hair', 'shirt', 'cape']) {
-      const dot = document.createElement('i');
-      dot.style.background = look[part];
-      b.append(dot);
+function setCreator(field, value) {
+  creatorLook = { ...creatorLook, [field]: value };
+  // Trocar o gênero já sugere os olhos e o cabelo (dá para mudar depois).
+  if (field === 'gender') {
+    creatorLook.eyeStyle = value === 'f' ? 'cilios' : 'masculino';
+    creatorLook.hairStyle = value === 'f' ? 'longo_lateral' : 'espetado';
+  }
+  renderCreatorOptions();
+}
+function renderCreatorOptions() {
+  ui.creatorOptions.replaceChildren(...CREATOR_FIELDS.map(([field, title, kind]) => {
+    const row = document.createElement('div');
+    row.className = 'opt-row';
+    // Camisa e calça só valem com "Camisa e calça" (o conjunto da vila tem as cores da vila).
+    row.hidden = (field === 'shirtColor' || field === 'pantsColor') && creatorLook.outfit === 'vila';
+    const name = document.createElement('span');
+    name.className = 'opt-title';
+    name.textContent = title;
+    const box = document.createElement('div');
+    box.className = kind === 'seg' ? 'seg' : 'swatches';
+    for (const value of OPTIONS[field]) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = kind === 'seg' ? 'seg-btn' : 'swatch';
+      b.setAttribute('aria-pressed', String(creatorLook[field] === value));
+      if (kind === 'swatch') {
+        b.style.background = swatchOf(field, value);
+        b.title = creatorLabel(field, value);
+        b.setAttribute('aria-label', `${title}: ${creatorLabel(field, value)}`);
+      } else {
+        b.textContent = creatorLabel(field, value);
+        if (field === 'village') b.style.borderBottomColor = swatchOf('village', value);
+      }
+      b.addEventListener('click', () => setCreator(field, value));
+      box.append(b);
     }
-    b.addEventListener('click', () => {
-      creatorLook = { ...look };
-      for (const input of ui.creatorInputs) input.value = creatorLook[input.dataset.part];
-    });
-    return b;
+    row.append(name, box);
+    return row;
   }));
 }
-renderPresets();
-for (const input of ui.creatorInputs) {
-  input.addEventListener('input', () => { creatorLook[input.dataset.part] = input.value.toLowerCase(); });
-}
+loadSprites();   // atlas do personagem (2 PNGs pequenos); até chegarem, o jogo desenha o boneco antigo
 ui.creatorTurn.addEventListener('click', () => { creatorDir = [0, 1, 3, 2][(([0, 1, 3, 2].indexOf(creatorDir)) + 1) % 4]; });
 ui.creatorRandom.addEventListener('click', () => {
-  const rnd = () => `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')}`;
-  const skins = ['#ffdbac', '#f1c9a0', '#e0ac69', '#c68642', '#8d5524', '#5c3a1e'];
-  creatorLook = { skin: skins[Math.floor(Math.random() * skins.length)], hair: rnd(), shirt: rnd(), pants: rnd(), cape: rnd() };
-  for (const input of ui.creatorInputs) input.value = creatorLook[input.dataset.part];
+  const pick = (list) => list[Math.floor(Math.random() * list.length)];
+  const gender = pick(OPTIONS.gender);
+  creatorLook = { v: 2 };
+  for (const field of Object.keys(OPTIONS)) creatorLook[field] = pick(OPTIONS[field]);
+  creatorLook.gender = gender;
+  creatorLook.eyeStyle = gender === 'f' ? 'cilios' : 'masculino';
+  if (Math.random() < 0.75) creatorLook.hairStyle = gender === 'f' ? 'longo_lateral' : 'espetado';
+  renderCreatorOptions();
 });
 ui.creatorCancel.addEventListener('click', closeCreator);
 ui.creatorSave.addEventListener('click', () => {
@@ -2989,6 +3041,8 @@ function animateWalk(dt, me) {
     if (d > 2) d = 0;                     // troca de mapa / renascer: não é passo
     p.moving = dt > 0 && d / dt > 0.6;
     if (p.moving) p.walk = (p.walk + d * 4.2) % (Math.PI * 4);
+    // Correndo: o próprio jogador sabe (botão); os outros, pela velocidade (bem acima da de andar).
+    p.running = p.moving && (p.id === state.meId ? !!state.me.running : d / dt > (state.world.speed || 5) * 1.3);
   }
   // O próprio boneco vira na hora para onde o joystick aponta.
   if (me && (dir.x !== 0 || dir.y !== 0) && !state.me.meditating) me.dir = dirFrom(dir.x, dir.y);
@@ -3527,7 +3581,10 @@ function drawShopkeeper(n, sx, sy, T, now) {
     ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 1.7, r * 0.66, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
   }
-  const top = drawCharacter(ctx, sx, sy, T, SHOPKEEPER_LOOK[n.shop] || ACADEMY_LOOK[n.id] || DEFAULT_LOOK, 0, 0, false, NPC_GEAR[n.id]);
+  const look = SHOPKEEPER_LOOK[n.shop] || ACADEMY_LOOK[n.id] || DEFAULT_APPEARANCE;
+  n.anim ||= { dead: false, moving: false, act: null, seed: [...String(n.id)].length * 977 };
+  const top = drawSpriteCharacter(ctx, n.anim, sx, sy, T, look, 0, now, NPC_GEAR[n.id])
+    ?? drawCharacter(ctx, sx, sy, T, fallbackColors(look), 0, 0, false, NPC_GEAR[n.id]);
   const fontSize = Math.max(11, Math.round(T * 0.3));
   ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
   ctx.textAlign = 'center';
@@ -3648,6 +3705,40 @@ function drawFloaters(toScreenX, toScreenY, T, now) {
   ctx.globalAlpha = 1;
 }
 
+/**
+ * Boneco em sprites com os pés em (sx, sy + 0,42·T), como o boneco antigo. Arma na mão e itens nas costas
+ * vão nas âncoras do quadro (atrás do corpo quando o braço está atrás). Devolve o topo da cabeça, ou null
+ * se o atlas do gênero ainda não chegou (o chamador desenha o boneco antigo).
+ */
+function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
+  if (!spritesReady(look.gender)) return null;
+  const s = spriteScale(T, dpr);
+  const [view, flip] = viewOf(dir);
+  const { anim, frame } = pickFrame(p, now);
+  const left = Math.round((sx - 32 * s) * dpr) / dpr;
+  const top = Math.round((sy + T * 0.42 - 93 * s) * dpr) / dpr;
+  let onPlane = null;
+  const an = gear && (gear.hand || gear.back || gear.scroll) ? anchorsOf(look.gender, anim, view, frame) : null;
+  if (an) {
+    const u = (T / 16) * 1.3;
+    const R = (px, py, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(px), Math.round(py), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); };
+    const ax = (x) => (flip ? left + (64 - x) * s : left + x * s);
+    const back = () => {
+      const torsoY = top + an.costas[1] * s - 2.75 * u;
+      drawBackItem(R, ax(an.costas[0]), torsoY, u, dir, gear.back);
+      drawBackItem(R, ax(an.costas[0]), torsoY, u, dir, gear.scroll);
+    };
+    const hand = () => drawHandItem(R, ax(an.mao[0]) - u, top + an.mao[1] * s - 0.6 * u, u, dir === 0 ? 1 : dir, gear.hand);
+    onPlane = (plane) => {
+      if (plane === 0 && dir !== 3) back();                       // de frente e de lado: atrás do corpo
+      if (an.mao && gear.hand && dir !== 3 && plane === (an.mao[2] === 0 ? 0 : 4)) hand();
+      if (plane === 4 && dir === 3) back();                       // de costas: por cima
+    };
+  }
+  const minY = drawCell(g, left, top, s, look, view, flip, anim, frame, onPlane);
+  return minY == null ? null : top + minY * s;
+}
+
 function drawPlayer(p, sx, sy, T, isMe, now) {
   if (p.dead) ctx.globalAlpha = 0.45;
   const r = T * 0.38;
@@ -3666,8 +3757,10 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
     ctx.beginPath(); ctx.arc(sx, sy, r * 1.45, now / 600, now / 600 + Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
   }
-  // Boneco modular: cabeça, cabelo, tronco, braços, pernas e capa nas cores do jogador.
-  const headTop = drawCharacter(ctx, sx, sy, T, look, p.dead ? 0 : p.dir, p.walk, p.moving && !p.dead, p.gear);
+  // Boneco em sprites (camadas recoloridas); enquanto os atlas não chegam, o boneco antigo de retângulos.
+  const dirNow = p.dead ? 0 : p.dir;
+  const headTop = drawSpriteCharacter(ctx, p, sx, sy, T, look, dirNow, now, p.gear)
+    ?? drawCharacter(ctx, sx, sy, T, fallbackColors(look), dirNow, p.walk, p.moving && !p.dead, p.gear);
   if (isMe) {                         // marquinha para achar o próprio boneco no meio dos outros
     ctx.fillStyle = '#ffe2a8';
     ctx.beginPath();

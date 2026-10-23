@@ -306,23 +306,16 @@
     <p id="toast" class="toast" role="status" hidden></p>
   </div>
 
-  <!-- Criador de Personagem: depois do cadastro (e pelo ⚙️ a qualquer hora). Só cores, salvas no servidor. -->
+  <!-- Criador de Personagem: depois do cadastro (e pelo ⚙️ a qualquer hora). Só nomes de paleta, salvos no servidor. -->
   <section id="creator" class="screen creator" hidden aria-labelledby="creator-title">
     <div class="card creator-card">
       <h2 id="creator-title">Crie seu ninja</h2>
       <div class="creator-body">
         <div class="creator-preview">
-          <canvas id="creator-canvas" width="160" height="190" aria-label="Prévia do personagem"></canvas>
+          <canvas id="creator-canvas" width="128" height="192" aria-label="Prévia do personagem"></canvas>
           <button id="creator-turn" type="button" class="secondary small-btn">↻ Girar</button>
         </div>
-        <div class="creator-colors">
-          <div id="creator-presets" class="presets" aria-label="Combinações prontas"></div>
-          <label class="color-row">Pele <input type="color" data-part="skin"></label>
-          <label class="color-row">Cabelo <input type="color" data-part="hair"></label>
-          <label class="color-row">Camisa <input type="color" data-part="shirt"></label>
-          <label class="color-row">Calça <input type="color" data-part="pants"></label>
-          <label class="color-row">Capa <input type="color" data-part="cape"></label>
-        </div>
+        <div id="creator-options" class="creator-options" aria-label="Escolhas do visual"></div>
       </div>
       <p id="creator-error" class="error" role="alert"></p>
       <div class="creator-actions">

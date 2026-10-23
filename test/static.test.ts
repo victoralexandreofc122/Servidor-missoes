@@ -11,8 +11,8 @@ import { FakeFastify } from './support/fakeFastify.js';
 
 const files = loadPublicFiles();
 const byRoute = (route: string) => files.find((f) => f.route === route)!;
-const html = byRoute('/').body;
-const js = byRoute('/game.js').body;
+const html = byRoute('/').body as string;
+const js = byRoute('/game.js').body as string;
 
 function app() {
   const pub = new FakeFastify();
@@ -29,6 +29,21 @@ describe('cliente web servido pelo Fastify', () => {
     assert.equal(r.headers['x-content-type-options'], 'nosniff');
     assert.equal(r.headers['cache-control'], 'no-cache');
     assert.match(String(r.json()), /<canvas id="game"/);
+  });
+
+  it('v9: sprites do personagem (módulos e os 2 atlas PNG) com o tipo certo e ETag', async () => {
+    const pub = app();
+    for (const [url, type] of [['/sprites.js', 'text/javascript; charset=utf-8'], ['/spriteData.js', 'text/javascript; charset=utf-8'],
+      ['/sprites/chibi_m.png', 'image/png'], ['/sprites/chibi_f.png', 'image/png']] as const) {
+      const r = await pub.inject({ method: 'GET', url });
+      assert.equal(r.statusCode, 200, url);
+      assert.equal(r.headers['content-type'], type, url);
+      const again = await pub.inject({ method: 'GET', url, headers: { 'if-none-match': String(r.headers.etag) } });
+      assert.equal(again.statusCode, 304, url);
+    }
+    const png = byRoute('/sprites/chibi_f.png').body;
+    assert.ok(Buffer.isBuffer(png), 'PNG lido como bytes (não como texto)');
+    assert.deepEqual([...(png as Buffer).subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10], 'assinatura PNG intacta');
   });
 
   it('/game.js, /targeting.js, /world.js e /styles.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {
@@ -117,11 +132,14 @@ describe('garantias do cliente (public/)', () => {
     assert.match(p, /replay\(world\.maps, map, sx, sy, this\.pending, \(p\) => p\.dist, this\.gates\)/);
   });
 
-  it('v6: Criador (5 cores), ⚙️ com sliders, modo "Editar layout" que trava o combate, visual só muda pelo servidor', () => {
-    for (const id of ['creator', 'creator-save', 'settings-toggle', 'settings-panel', 'edit-layout', 'edit-banner', 'edit-done', 'btn-scale', 'btn-opacity', 'bar-scale', 'bar-opacity']) {
+  it('v6/v9: Criador (paletas, sem cor livre), ⚙️ com sliders, modo "Editar layout" que trava o combate, visual só muda pelo servidor', () => {
+    for (const id of ['creator', 'creator-save', 'creator-options', 'creator-canvas', 'settings-toggle', 'settings-panel', 'edit-layout', 'edit-banner', 'edit-done', 'btn-scale', 'btn-opacity', 'bar-scale', 'bar-opacity']) {
       assert.match(html, new RegExp(`id="${id}"`), id);
     }
-    for (const part of ['skin', 'hair', 'shirt', 'pants', 'cape']) assert.match(html, new RegExp(`type="color" data-part="${part}"`));
+    assert.doesNotMatch(html, /type="color"/, 'v9: nada de cor livre (só as paletas)');
+    for (const field of ['gender', 'skin', 'hairStyle', 'hairColor', 'eyeStyle', 'eyeColor', 'village', 'outfit', 'shirtColor', 'pantsColor', 'bandana']) {
+      assert.match(js, new RegExp(`\\['${field}', '`), `campo ${field} no Criador`);
+    }
     assert.match(js, /send\(\{ type: 'set_appearance', appearance: \{ \.\.\.creatorLook \} \}\)/);
     // Toque nos botões não faz nada no modo edição (não dá para mexer no layout sem querer, nem atacar arrastando).
     assert.match(js, /if \(hud\.editing\) return;\s+\/\/ modo "Editar layout"/);

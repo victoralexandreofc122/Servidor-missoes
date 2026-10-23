@@ -24,6 +24,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 17 | Atualização v10: lojas com interior, fade entre mapas e Floresta escura, sem SQL | ~5 min |
 | 18 | Atualização v11: progressão (níveis 60, classes, Academia, Extração), com SQL | ~10 min |
 | 19 | Atualização v12: Modo Administrador, atributo Chakra, chat com histórico, Sala de Missões e Academia nova, com SQL | ~15 min |
+| 20 | Atualização v13: personagem em sprites (gênero, cabelo, olhos, roupa e vila), com SQL | ~10 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -702,3 +703,32 @@ SELECT code, xp_reward FROM game.mission_difficulties WHERE code LIKE 'NPC_%';
 6. **Chat:** `/g olá` fala com todos; `/w Nome oi` sussurra. O 🕘 mostra o histórico.
 7. **Admin (conta Victor, depois de sair e entrar):** `/admin giveitem Victor katana 1`, equipe a Espada Longa
    (aparece nas costas) e `/admin spawn slime 3`. Tudo fica em `game.admin_audit_log`.
+
+## Passo 20 — Atualização v13: personagem em sprites
+
+**Banco (obrigatório, ANTES do deploy):** no Neon → **SQL Editor** (confira que o branch é o `production`),
+cole e rode o arquivo `db/schema_v9_visual_sprites.sql` inteiro. Ele só troca a função que confere o visual
+(`game.valid_appearance`): passa a aceitar o visual novo, feito de nomes de paleta, e continua aceitando o antigo
+(5 cores). Nenhum visual gravado muda. Não tem bloco `DO $$` e pode rodar de novo.
+
+Sem a migração, o servidor **não sobe** (o log do Render diz que falta a v9) e a versão anterior continua no ar.
+Se o Render publicar antes de você rodar o SQL, rode e depois toque em **Manual Deploy**.
+
+Conferência (opcional), as duas linhas devem dar `true`:
+
+```sql
+SELECT game.valid_appearance('{"v":2,"gender":"f","skin":"canela","hairStyle":"longo_lateral","hairColor":"preto","eyeStyle":"cilios","eyeColor":"verde","outfit":"vila","shirtColor":"azul_marinho","pantsColor":"cinza","bandana":true,"village":"vila_1"}'::jsonb);
+SELECT game.valid_appearance('{"skin":"#f1c9a0","hair":"#2b2118","shirt":"#2f5d8a","pants":"#2a2a33","cape":"#8a2b2b"}'::jsonb);
+```
+
+### Testar no celular
+
+1. **Conta nova:** o Criador abre com a prévia em sprite. Toque em **Feminino**: os olhos ganham cílios e o cabelo
+   fica longo (dá para trocar). Escolha a pele, o cabelo, os olhos, a vila e a roupa (**Camisa e calça** com as
+   cores que quiser, ou **Conjunto da vila** com as cores da vila) e a bandana. **↻ Girar** mostra os 4 lados.
+2. **Conta antiga:** entra com o visual de antes convertido para as cores mais parecidas (a capa sumiu).
+   Abra ⚙️ → **🎨 Mudar visual** para escolher o novo.
+3. **No mapa:** ande (as pernas acompanham o passo), toque em 🏃 (corrida ninja, braços para trás), ataque
+   (soco e chute alternados) e use um jutsu (mãos no peito). Para a direita, o boneco é o de lado espelhado.
+4. **Outro jogador** (outro celular ou aba anônima) vê o seu visual igual, e a mudança aparece na hora quando você salva no Criador.
+

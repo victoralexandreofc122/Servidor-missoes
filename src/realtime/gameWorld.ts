@@ -17,6 +17,7 @@ import {
   jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
+import { DEFAULT_APPEARANCE } from './appearance.js';
 import {
   damageMultiplier, derivedStats, levelProgress, MAX_LEVEL, NO_ATTRIBUTES, nextPointGains, scaledDamage,
   type Attribute, type Attributes, type DerivedStats,
@@ -91,7 +92,7 @@ export const NEW_KITS: Readonly<Kits> = { A: ['teleport', 'substitution'], B: []
 const DEFAULT_JUTSUS: readonly Skill[] = [...LEGACY_JUTSUS, ...ACADEMY_JUTSUS];
 
 /** Visual de quem ainda não criou o personagem (os outros veem este boneco). */
-export const DEFAULT_APPEARANCE: Readonly<Appearance> = { skin: '#f1c9a0', hair: '#2b2118', shirt: '#2f5d8a', pants: '#2a2a33', cape: '#8a2b2b' };
+export { DEFAULT_APPEARANCE } from './appearance.js';
 
 /** Direção do boneco a partir de para onde ele olha: 0 baixo, 1 esquerda, 2 direita, 3 cima. */
 export function dirOf(fx: number, fy: number): Dir {
@@ -1267,7 +1268,7 @@ export class GameWorld {
   }
 
   /**
-   * Criador de Personagem: grava as 5 cores e TODOS passam a ver o boneco novo.
+   * Criador de Personagem: grava o visual (nomes de paleta) e TODOS passam a ver o boneco novo.
    * O visual só muda depois de gravado (o próprio jogador recebe a confirmação também).
    */
   private setAppearance(session: Session, appearance: Appearance): void {

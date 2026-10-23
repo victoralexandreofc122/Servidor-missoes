@@ -11,7 +11,7 @@ import { CHAT_SQL, makeChatLog } from './realtime/chatLog.js';
 import { attachGameGateway } from './realtime/gateway.js';
 import { makeMissions, MISSIONS_SQL, NPC_MISSION, NPC_SENSEI_ID } from './realtime/missions.js';
 import { makeNinjaStore, NINJA_SQL } from './realtime/ninjaStore.js';
-import { makeProfile, PROFILE_SQL } from './realtime/profile.js';
+import { bootCheckV9, makeProfile, PROFILE_SQL } from './realtime/profile.js';
 import { makeProgression } from './realtime/progression.js';
 import { loadPublicFiles, type StaticFile } from './web/staticFiles.js';
 import { loadConfig, trustProxyWarning, type Config } from './config.js';
@@ -121,6 +121,7 @@ try {
   await db.query(NINJA_SQL.bootCheck);                   // migração v7 (progressão: tutorial, ryō, armas)
   await db.query(PROFILE_SQL.bootCheckV8);               // migração v8 (atributo Chakra, admin, pergaminho nas costas)
   await db.query(CHAT_SQL.bootCheck);                    // migração v8 (histórico do chat)
+  await bootCheckV9(db);                                 // migração v9 (visual em sprites)
   // Migração v4 (NPC Mestre): sem ela o jogo sobe igual, só o Mestre não passa missões.
   const v4 = await db.query(MISSIONS_SQL.bootCheck, [NPC_SENSEI_ID, NPC_MISSION.missionType, NPC_MISSION.difficulty]);
   if (v4.rows.length === 0) publicApp.log.warn('[boot] NPC Mestre sem missões: rode db/schema_v4_npc_missions.sql no SQL Editor do Neon (não precisa reiniciar).');

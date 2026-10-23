@@ -15,7 +15,11 @@ const SK = REALTIME.combat.skills;
 const config: RealtimeConfig = { ...REALTIME, combat: { ...REALTIME.combat, monsters: { ...M, count: 0, stepMs: 1e12 } } };
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 const monsterHp = (world: any, id: string) => world.monsterList().find((m: any) => m.id === id)?.hp;
-const LOOK = { skin: '#8d5524', hair: '#e8c547', shirt: '#ff7700', pants: '#1f2a44', cape: '#2e8b57' };
+// v9: o visual são nomes de paleta (appearance.ts); o formato antigo de 5 cores é testado em v9.test.ts.
+const LOOK = {
+  v: 2, gender: 'f', skin: 'canela', hairStyle: 'longo_lateral', hairColor: 'preto', eyeStyle: 'cilios', eyeColor: 'verde',
+  outfit: 'vila', shirtColor: 'azul_marinho', pantsColor: 'cinza', bandana: true, village: 'vila_2',
+} as const;
 
 class Conn {
   sent: any[] = [];
@@ -90,18 +94,19 @@ describe('v6: visual do personagem e direção', () => {
     assert.deepEqual(b.conn.last('welcome').players[0].appearance, DEFAULT_APPEARANCE);
   });
 
-  it('set_appearance: grava (minúsculo), e todos recebem o boneco novo; cor inválida ou chave extra: recusado', async () => {
+  it('set_appearance: grava, e todos recebem o boneco novo; nome fora da paleta ou chave extra: recusado', async () => {
     const { profile, saved } = fakeProfile();
     const { connect, clock } = setupWorld(config, undefined, undefined, profile);
     const a = connect('kaito');
     const b = connect('mei');
-    a.send({ type: 'set_appearance', appearance: { ...LOOK, skin: '#8D5524' } });
+    a.send({ type: 'set_appearance', appearance: LOOK });
     await flush();
     assert.deepEqual(saved, [LOOK]);
     assert.deepEqual(b.conn.last('player_appearance'), { type: 'player_appearance', playerId: a.id, appearance: LOOK });
     assert.deepEqual(a.conn.last('player_appearance').appearance, LOOK, 'o dono recebe a confirmação');
     clock.advance(1000);
-    for (const bad of [{ ...LOOK, skin: 'red' }, { ...LOOK, hat: '#000000' }, { skin: '#000000' }, { ...LOOK, cape: 'url(javascript:1)' }]) {
+    for (const bad of [{ ...LOOK, skin: 'red' }, { ...LOOK, hat: 'bandana' }, { skin: 'claro' }, { ...LOOK, village: 'url(javascript:1)' },
+      { ...LOOK, bandana: 'sim' }, { ...LOOK, v: 3 }, { ...LOOK, hairColor: '#000000' }]) {
       a.send({ type: 'set_appearance', appearance: bad });
       assert.equal(a.conn.last('error').code, 'INVALID_MESSAGE', JSON.stringify(bad));
     }
@@ -156,7 +161,8 @@ describe('v6 no banco: visual e script do Hokage (PostgreSQL real)', { skip: noD
     assert.equal((await find(id))!.appearance, null);
     await makeProfile(t.db).saveAppearance(id, LOOK);
     assert.deepEqual((await find(id))!.appearance, LOOK);
-    for (const bad of [{ ...LOOK, skin: 'red' }, { ...LOOK, extra: '#000000' }, { skin: '#000000' }, [1], 'texto']) {
+    for (const bad of [{ ...LOOK, skin: 'Red!' }, { ...LOOK, extra: 'x' }, { skin: 'claro' }, { ...LOOK, bandana: 'sim' },
+      { ...LOOK, gender: 'x' }, { ...LOOK, v: 3 }, [1], 'texto']) {
       await assert.rejects(
         t.pool.query('UPDATE game.players SET appearance = $2::jsonb WHERE id = $1', [id, JSON.stringify(bad)]),
         (e: { constraint?: string }) => e.constraint === 'ck_players_appearance',

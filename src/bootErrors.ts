@@ -8,6 +8,10 @@ export function describeBootError(err: unknown): string {
   const code = typeof e.code === 'string' ? e.code : '';
   const message = typeof e.message === 'string' ? e.message : String(err);
 
+  if (code === 'MISSING_V9') {
+    return 'Falta a migração v9 (visual em sprites: gênero, cabelo, olhos, roupa e vila) neste banco. Abra o SQL Editor '
+      + 'do Neon, rode o arquivo db/schema_v9_visual_sprites.sql inteiro e depois faça "Manual Deploy" no Render.';
+  }
   // v8 primeiro: "attr_chakra" também casaria com a regra da v5 (attr_), e chat_logs com a do schema.
   if ((code === '42703' && /attr_chakra|is_admin|equipped_scroll/.test(message)) || (code === '42P01' && /chat_logs/.test(message))) {
     return 'Falta a migração v8 (admin, chat e atributo Chakra) neste banco. Abra o SQL Editor do Neon, rode o arquivo '

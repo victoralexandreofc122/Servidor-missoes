@@ -1,7 +1,7 @@
 import type { Queryable } from '../db.js';
 import { isSkillList, type JoiningPlayer } from './gameWorld.js';
 import { CLASSES, type ClassCode } from './jutsus.js';
-import { AppearanceSchema } from './protocol.js';
+import { normalizeAppearance } from './appearance.js';
 
 const isClass = (c: unknown): c is ClassCode => typeof c === 'string' && (CLASSES as readonly string[]).includes(c);
 
@@ -72,8 +72,8 @@ export function makeFindPlayer(db: Queryable) {
       },
       // O banco já garante (ck_players_kits); a checagem aqui só protege o tipo.
       kits: { A: isSkillList(row.kit_a) ? row.kit_a : [], B: isSkillList(row.kit_b) ? row.kit_b : [] },
-      // NULL = ainda não criou o personagem (o cliente abre o Criador).
-      appearance: row.appearance == null ? null : (AppearanceSchema.safeParse(row.appearance).data ?? null),
+      // NULL = ainda não criou o personagem (o cliente abre o Criador). Visual antigo (5 cores, até a v8): convertido.
+      appearance: row.appearance == null ? null : normalizeAppearance(row.appearance),
       // v7: tutorial, ryō, inventário, classes e jutsus (uso de cada um).
       tutorialStep: row.tutorial_step,
       ryo: Number(row.ryo),

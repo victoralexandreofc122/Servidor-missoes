@@ -63,7 +63,7 @@ const gearLook = (code) => (code && (GEAR_LOOK[code] || (code.startsWith('scroll
  * Item nas costas (espada longa na diagonal, Shuriken Gigante, pergaminho atravessado). Um pouco
  * maior que o tronco: de frente, o cabo e a guarda aparecem sobre o ombro e a ponta no quadril.
  */
-function drawBackItem(R, x, torsoY, u, dir, code) {
+export function drawBackItem(R, x, torsoY, u, dir, code) {
   const gl = gearLook(code);
   if (!gl) return;
   if (gl.kind === 'long') {
@@ -91,7 +91,7 @@ function drawBackItem(R, x, torsoY, u, dir, code) {
 }
 
 /** Arma na mão da frente: lâmina curta saindo da mão, para baixo e um pouco para fora. */
-function drawHandItem(R, handX, handY, u, dir, code) {
+export function drawHandItem(R, handX, handY, u, dir, code) {
   const gl = gearLook(code);
   if (!gl || gl.kind !== 'blade') return;
   const out = dir === 1 ? -1 : 1;
