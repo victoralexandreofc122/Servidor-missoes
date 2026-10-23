@@ -54,6 +54,7 @@ efeitos grandes ficam leves e o "grão" combina com o boneco).
 | `heal` | 8 | Cura, em quem foi curado | — |
 | `stone` | 6 | Pedra, em volta do jogador | — |
 | `kunai` | 2 (repete) | kunai voando (px = 1, a escala da arma) | — |
+| `fuma` | 4 (repete) | Shuriken Gigante voando, girando | linha de 0,8 casa (atravessa) |
 
 Os efeitos com direção são desenhados apontando para a **direita**; o jogo gira (`gira` nos dados). Os de linha
 (`linha`) têm o comprimento máximo e o jogo corta no comprimento real.
@@ -67,7 +68,7 @@ só tem um lugar para ela); o pergaminho é à parte e fica sempre nas costas.
 |---|---|---|
 | `kunai_training`, `kunai`, `tanto` | na mão | `<arma>.png`: 16 ângulos |
 | `katana` | nas costas | `katana.png` (3 vistas), `katana_mao.png` (desembainhada, 16 ângulos), `katana_bainha.png` (bainha vazia, 3 vistas) |
-| `fuma_shuriken` | nas costas | `fuma_shuriken.png` (3 vistas), `fuma_shuriken_mao.png` (na mão, 16 ângulos) |
+| `fuma_shuriken` | nas costas | `fuma_shuriken.png` (3 vistas), `fuma_shuriken_mao.png` (na mão, 16 ângulos); voando: o efeito `fuma` |
 | `scroll` | nas costas | `scroll.png` (3 vistas; todos os pergaminhos de classe usam esta) |
 
 - **Kunai** como nas referências: lâmina escura em folha larga, com uma face clara e outra escura que se encontram
@@ -78,8 +79,11 @@ só tem um lugar para ela); o pergaminho é à parte e fica sempre nas costas.
 - **Ângulo da lâmina:** vem de cada quadro da animação. Parado, andando e correndo, é o antebraço girado 45° para fora
   (a lâmina sai do lado do polegar, apontando para baixo e para fora, como na pose de guarda). No golpe, a pose diz.
 - **Golpe com arma** (animação `golpe` do boneco: prepara, corta, termina): o Ataque Básico com arma equipada usa
-  ela. A espada e a Shuriken Gigante saem das costas para a mão e voltam no fim; a espada deixa a bainha vazia nas
-  costas enquanto isso. Sem arma, o ataque continua sendo soco e chute.
+  ela. A espada sai das costas para a mão e volta no fim, deixando a bainha vazia nas costas enquanto isso. Sem
+  arma, o ataque continua sendo soco e chute.
+- **Shuriken Gigante (arremesso, `lanca` nos dados):** 60 px de ponta a ponta, maior que as costas (de frente, as
+  lâminas saem dos dois lados da cintura). No golpe ela aparece na mão no preparo e sai voando no lançamento
+  (efeito `fuma`, girando); as costas ficam vazias até ela terminar o caminho.
 - **Nas costas:** o meio do desenho vai na âncora das costas mais o deslocamento da vista (`desloc` nos dados). A
   espada longa é grande (~58 px) e vai quase deitada na lombar: de frente o cabo sai de um lado do quadril e a ponta
   do outro; de lado o cabo sai para trás. Essas posições foram medidas na silhueta do boneco (na diagonal, a cabeça

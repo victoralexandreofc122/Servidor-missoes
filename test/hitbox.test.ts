@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { firstOnLine, isInArc, isInCircle, isInCone, lineIntersects, rotate } from '../src/realtime/combat.js';
 import { REALTIME, type CombatConfig, type RealtimeConfig } from '../src/realtime/config.js';
+import { ITEM_BY_CODE } from '../src/realtime/items.js';
 import { placeIn, setupWorld } from './support/world.js';
 
 /*
@@ -279,5 +280,69 @@ describe('hitboxes: PvP (preparado, desligado por padrão)', () => {
     session(world, b.id).tutorial = 3;                             // ainda na Academia
     a.send({ type: 'cast', skill: 'water' });
     assert.equal(session(world, b.id).hp, 100);
+  });
+});
+
+describe('Shuriken Gigante: arma de ARREMESSO (o Ataque Básico vira um lançamento dela)', () => {
+  const FUMA = ITEM_BY_CODE.get('fuma_shuriken')!;
+  const TH = FUMA.throw!;
+
+  /** Kaito com a Shuriken Gigante equipada e monstros com bastante vida (para ver o dano sem matar). */
+  function armed() {
+    const w = setupWorld(config());
+    const a = w.connect('kaito');
+    session(w.world, a.id).equipped = 'fuma_shuriken';
+    const mon = (x: number, y: number) => {
+      const m = w.world.spawnMonster({ x, y });
+      const raw = (w.world as any).monsters.get(m.id);
+      Object.assign(raw, { x, y, hp: 500 });
+      return m.id;
+    };
+    return { ...w, a, mon };
+  }
+
+  it('lança a shuriken (projétil que ATRAVESSA todos no caminho); o dano é (golpe + arma) x 2,5 e chega quando ela passa', () => {
+    const { world, a, run, mon } = armed();
+    const near = mon(S.x + 2, S.y);
+    const far = mon(S.x + 5, S.y);                                  // atrás do primeiro: a shuriken atravessa
+    const wide = mon(S.x + 3.5, S.y + 0.7);                         // 0,7 casa da linha: a hitbox grossa pega
+    const off = mon(S.x + 3.5, S.y + 1.2);                          // longe demais da linha
+    a.send({ type: 'attack' });
+    const atk = a.conn.last('attack');
+    assert.equal(atk.throw, 'fuma_shuriken');
+    assert.equal(atk.cd, BA.cooldownMs * TH.cooldownFactor, 'recarga bem lenta');
+    const shot = a.conn.last('projectile');
+    assert.deepEqual([shot.weapon, shot.skill, shot.speed, shot.range, shot.fx, shot.fy], ['fuma_shuriken', undefined, TH.speed, TH.range, 1, 0]);
+    assert.equal(monsterHp(world, near), 500, 'ainda voando');
+    run(900);
+    const dmg = Math.round((BA.damage + FUMA.damage!) * TH.damageFactor);
+    for (const id of [near, far, wide]) assert.equal(monsterHp(world, id), 500 - dmg, id);
+    assert.equal(monsterHp(world, off), 500);
+    assert.equal(a.conn.of('impact').length, 1, 'um impacto só: no fim do alcance');
+  });
+
+  it('recarga: o segundo arremesso antes do tempo falha (COOLDOWN); alcance de 6 casas; sem ninguém perto: NO_TARGET', () => {
+    const { a, run, mon } = armed();
+    a.send({ type: 'attack' });
+    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET', 'sem alvo não gasta a recarga');
+    mon(S.x + 5.5, S.y);                                            // longe para o corte, perto para o arremesso
+    a.send({ type: 'attack' });
+    assert.equal(a.conn.of('attack').length, 1);
+    run(BA.cooldownMs * 2);
+    a.send({ type: 'attack' });
+    assert.equal(a.conn.last('attack_failed').reason, 'COOLDOWN', 'um corte normal já estaria pronto');
+    run(BA.cooldownMs * TH.cooldownFactor);
+    a.send({ type: 'attack' });
+    assert.equal(a.conn.of('attack').length, 2);
+  });
+
+  it('sem a shuriken, o Ataque Básico continua corpo a corpo (arco), sem projétil', () => {
+    const { world, a, mon } = armed();
+    session(world, a.id).equipped = 'kunai';
+    const m = mon(S.x + 1, S.y);
+    a.send({ type: 'attack' });
+    assert.equal(a.conn.of('projectile').length, 0);
+    assert.equal(a.conn.last('attack').throw, undefined);
+    assert.equal(monsterHp(world, m), 500 - (BA.damage + ITEM_BY_CODE.get('kunai')!.damage!));
   });
 });

@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import {
-  ahead, distance, firstOnLine, isInArc, isInCircle, isInCone, nearest, rotate, shieldedDamage, STEPS, STRIKE_AHEAD, unit, type Point,
+  ahead, distance, firstOnLine, HIT_RADIUS, isInArc, isInCircle, isInCone, lineIntersects, nearest, rotate, shieldedDamage, STEPS, STRIKE_AHEAD,
+  unit, type Point,
 } from './combat.js';
 import { REALTIME, type MonsterType, type RealtimeConfig } from './config.js';
 import {
@@ -286,12 +287,14 @@ type Target =
   | { readonly kind: 'monster'; readonly id: string; readonly x: number; readonly y: number; readonly monster: Monster }
   | { readonly kind: 'player'; readonly id: string; readonly x: number; readonly y: number; readonly session: Session };
 
-/** Fogo e Kunai voando: o tick anda com eles e decide a colisão (stepProjectile). */
+/** Fogo, Kunai e Shuriken Gigante voando: o tick anda com eles e decide a colisão (stepProjectile). */
 interface Projectile {
   readonly id: number;
   readonly owner: Session;
   readonly map: MapId;
-  readonly skill: Skill;
+  /** Jutsu que lançou (Fogo, Kunais) ou a arma lançada no Ataque Básico (Shuriken Gigante). */
+  readonly skill?: Skill;
+  readonly weapon?: string;
   x: number;
   y: number;
   readonly ux: number;
@@ -305,6 +308,25 @@ interface Projectile {
   readonly radius: number;
   /** Kunais do mesmo arremesso: quem já levou uma não leva outra (a kunai passa por ele). */
   readonly volley: Set<string>;
+  /** Meia largura da linha que acerta (casas). */
+  readonly hitRadius: number;
+  /** Atravessa: acerta todos no caminho (cada um uma vez) e só para na parede ou no fim do alcance. */
+  readonly pierce: boolean;
+  readonly source: 'attack' | 'skill';
+}
+
+/** Como um projétil sai: o que é, a força e a forma da hitbox. */
+interface LaunchSpec {
+  skill?: Skill;
+  weapon?: string;
+  speed: number;
+  range: number;
+  damage: number;
+  radius: number;
+  volley: Set<string>;
+  hitRadius?: number;
+  pierce?: boolean;
+  source?: 'attack' | 'skill';
 }
 
 /** Devolvido pelo `join`: o gateway entrega as mensagens e o fechamento desta conexão. */
@@ -1182,7 +1204,7 @@ export class GameWorld {
         for (const x of hits) this.applyStatus(x, 'rooted', cfg.rootMs ?? 0, t);
         break;
       case 'fire':
-        this.launch(session, skill, fx, fy, cfg.speed ?? 12, reach, dmg, cfg.radius ?? 0, new Set());
+        this.launch(session, fx, fy, { skill, speed: cfg.speed ?? 12, range: reach, damage: dmg, radius: cfg.radius ?? 0, volley: new Set() });
         break;
       case 'weapons': {
         // Leque: a do meio primeiro, depois as dos lados (-fan/2 e +fan/2).
@@ -1192,7 +1214,7 @@ export class GameWorld {
         const angles = [0, ...Array.from({ length: n - 1 }, (_, k) => -fan / 2 + (fan * k) / Math.max(1, n - 2))];
         for (const deg of angles) {
           const [ux, uy] = rotate(fx, fy, deg);
-          this.launch(session, skill, ux, uy, cfg.speed ?? 16, reach, dmg, 0, volley);
+          this.launch(session, ux, uy, { skill, speed: cfg.speed ?? 16, range: reach, damage: dmg, radius: 0, volley });
         }
         break;
       }
@@ -1296,20 +1318,25 @@ export class GameWorld {
     this.broadcastMap(s.map, { type: 'dash', playerId: s.id, fromX: round3(from.x), fromY: round3(from.y), x: round3(s.x), y: round3(s.y), a: s.ackSeq });
   }
 
-  /** Um projétil sai do jogador na direção (ux, uy). Todos veem; o tick anda com ele. */
-  private launch(owner: Session, skill: Skill, fx: number, fy: number, speed: number, range: number, damage: number, radius: number, volley: Set<string>): void {
+  /** Um projétil sai do jogador na direção (fx, fy). Todos veem; o tick anda com ele. */
+  private launch(owner: Session, fx: number, fy: number, spec: LaunchSpec): void {
     const [ux, uy] = unit(fx, fy);
-    const p: Projectile = { id: ++this.projectileSeq, owner, map: owner.map, skill, x: owner.x, y: owner.y, ux, uy, speed, left: range, damage, radius, volley };
+    const p: Projectile = {
+      id: ++this.projectileSeq, owner, map: owner.map, skill: spec.skill, weapon: spec.weapon, x: owner.x, y: owner.y, ux, uy,
+      speed: spec.speed, left: spec.range, damage: spec.damage, radius: spec.radius, volley: spec.volley,
+      hitRadius: spec.hitRadius ?? HIT_RADIUS, pierce: spec.pierce ?? false, source: spec.source ?? 'skill',
+    };
     this.projectiles.push(p);
     this.broadcastMap(owner.map, {
-      type: 'projectile', id: p.id, playerId: owner.id, skill, x: round2(p.x), y: round2(p.y), fx: round2(ux), fy: round2(uy), speed, range,
+      type: 'projectile', id: p.id, playerId: owner.id, ...(p.skill ? { skill: p.skill } : { weapon: p.weapon }),
+      x: round2(p.x), y: round2(p.y), fx: round2(ux), fy: round2(uy), speed: spec.speed, range: spec.range,
     });
   }
 
   /**
    * Um tick de um projétil: o trecho que ele anda neste tick é uma LINHA. O primeiro alvo que
-   * ela encosta, a parede ou o fim do alcance param o projétil. Devolve true quando acabou
-   * (bateu, ou o dono saiu do jogo ou do mapa).
+   * ela encosta, a parede ou o fim do alcance param o projétil; o que atravessa (Shuriken Gigante)
+   * acerta todos no trecho e segue. Devolve true quando acabou (bateu, ou o dono saiu do jogo ou do mapa).
    */
   private stepProjectile(p: Projectile, dt: number, t: number): boolean {
     if (p.owner.closed || p.owner.map !== p.map) return true;
@@ -1317,10 +1344,21 @@ export class GameWorld {
     const from = { x: p.x, y: p.y };
     const end = rayEnd(this.layout(p.map), p.x, p.y, p.ux, p.uy, step);
     const wall = distance(from, end) < step - 0.06;
-    const first = firstOnLine(from, end, this.targetsFor(p.owner).filter((x) => !p.volley.has(x.id)));
+    const fresh = this.targetsFor(p.owner).filter((x) => !p.volley.has(x.id));
     p.x = end.x;
     p.y = end.y;
     p.left -= step;
+    if (p.pierce) {
+      for (const x of fresh) {
+        if (!lineIntersects(from, end, x, p.hitRadius)) continue;
+        p.volley.add(x.id);
+        this.hitTarget(x, p.damage, p.owner, t, p.source);
+      }
+      if (!wall && p.left > 1e-9) return false;
+      this.impact(p, end, undefined, t);
+      return true;
+    }
+    const first = firstOnLine(from, end, fresh, p.hitRadius);
     if (first) this.impact(p, first.at, first.target, t);
     else if (wall || p.left <= 1e-9) this.impact(p, end, undefined, t);
     else return false;
@@ -1329,12 +1367,14 @@ export class GameWorld {
 
   /** O projétil bateu: o Fogo explode (círculo); a kunai acerta só quem ela encostou. */
   private impact(p: Projectile, at: Point, hit: Target | undefined, t: number): void {
-    this.broadcastMap(p.map, { type: 'impact', id: p.id, skill: p.skill, x: round2(at.x), y: round2(at.y), r: p.radius });
+    this.broadcastMap(p.map, {
+      type: 'impact', id: p.id, ...(p.skill ? { skill: p.skill } : { weapon: p.weapon }), x: round2(at.x), y: round2(at.y), r: p.radius,
+    });
     if (p.radius > 0) {
-      for (const x of this.targetsFor(p.owner)) if (isInCircle(at, p.radius, x)) this.hitTarget(x, p.damage, p.owner, t, 'skill');
+      for (const x of this.targetsFor(p.owner)) if (isInCircle(at, p.radius, x)) this.hitTarget(x, p.damage, p.owner, t, p.source);
     } else if (hit) {
       p.volley.add(hit.id);
-      this.hitTarget(hit, p.damage, p.owner, t, 'skill');
+      this.hitTarget(hit, p.damage, p.owner, t, p.source);
     }
   }
 
@@ -1421,15 +1461,30 @@ export class GameWorld {
     if (t < session.stunnedUntil) return fail('STUNNED');
     if (this.inSafeZone(session)) return fail('SAFE_ZONE');
     if ((session.cooldowns.attack ?? 0) > t) return fail('COOLDOWN');
+    // Arma de arremesso (Shuriken Gigante): o golpe vira um lançamento dela, com o alcance dela.
+    const weapon = session.equipped ? ITEM_BY_CODE.get(session.equipped) : undefined;
+    const thrown = weapon?.throw;
+    const range = thrown ? thrown.range : cfg.range;
     const targets = this.targetsFor(session);
     const focused = targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined;
-    const aim = focused && distance(session, focused) <= cfg.range ? focused : nearest(session, targets, cfg.range);
+    const aim = focused && distance(session, focused) <= range ? focused : nearest(session, targets, range);
     if (!aim) return fail(focused ? 'OUT_OF_RANGE' : 'NO_TARGET');
     this.faceTo(session, aim);
-    session.cooldowns.attack = t + session.stats.attackCooldownMs;   // Agilidade deixa o ataque mais rápido
-    this.broadcastMap(session.map, { type: 'attack', playerId: session.id, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy) });
+    const cd = Math.round(session.stats.attackCooldownMs * (thrown ? thrown.cooldownFactor : 1));   // Agilidade deixa mais rápido
+    session.cooldowns.attack = t + cd;
+    this.broadcastMap(session.map, {
+      type: 'attack', playerId: session.id, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy), cd,
+      ...(thrown ? { throw: weapon!.code } : {}),
+    });
     // FÍSICO: base x Taijutsu + a arma equipada x Armas (Kunai de Treino: +10).
     const damage = scaledDamage(cfg.damage, session.stats.physicalMultiplier) + scaledDamage(this.weaponDamage(session), session.stats.weaponMultiplier);
+    if (thrown) {
+      this.launch(session, session.fx, session.fy, {
+        weapon: weapon!.code, speed: thrown.speed, range: thrown.range, damage: Math.round(damage * thrown.damageFactor), radius: 0,
+        volley: new Set(), hitRadius: thrown.hitRadius, pierce: true, source: 'attack',
+      });
+      return;
+    }
     const hits = targets.filter((x) => isInArc(session, session.fx, session.fy, x, cfg.range, cfg.arcDeg));
     for (const x of hits) this.hitTarget(x, damage, session, t, 'attack');
     // Etapa 4 (Sala de Armas): acertar o boneco com o Ataque Básico E a arma equipada conclui a Academia.

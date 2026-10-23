@@ -162,43 +162,47 @@ def katana_drawn(u, v, lit):
     return None
 
 
-def shuriken_back(w, h, cx, cy, R=16.0, rot=45):
-    """Shuriken Gigante de frente: 4 lâminas curvas em volta de um anel com furo (`rot` gira a estrela)."""
+SHURIKEN_R = 30.0   # Shuriken Gigante: maior que as costas (60 px de ponta a ponta), as pontas saem em volta do corpo
+
+
+def shuriken_back(w, h, cx, cy, R=SHURIKEN_R, rot=45, squash=1.0):
+    """Shuriken Gigante: 4 lâminas largas e curvas em volta de um anel com furo (`rot` gira a estrela;
+    `squash` < 1 achata na horizontal, para a vista de lado em perspectiva)."""
     import numpy as np
     out = blank(w, h)
     x, y = grid(w, h, cx, cy)
-    r = np.hypot(x, y)
-    phi = np.arctan2(y, x)
+    xs = x / squash
+    r = np.hypot(xs, y)
+    phi = np.arctan2(y, xs)
+    hub_r = max(4.6, R * 0.27)
     for k in range(4):
         base = math.radians(rot + 90 * k)
         d = (phi - base + math.pi) % (2 * math.pi) - math.pi            # -pi..pi em volta da lâmina k
-        swept = d - 0.35 * (r / R)                                       # lâminas curvadas (giram)
-        reach = R * np.clip(1 - np.abs(swept) / 0.62, 0, 1) ** 0.9
-        m = (r <= reach) & (r > 3.4)
+        swept = d - 0.42 * (r / R) ** 1.3                                # lâminas curvadas (giram)
+        # ponta fina e base larga: o lado de ataque (lead) é reto; o de trás, côncavo (gancho)
+        width = np.where(swept < 0, 0.95, 0.72)
+        reach = R * np.clip(1 - np.abs(swept) / width, 0, 1) ** 1.25
+        m = (r <= reach) & (r > hub_r - 1)
         lead = swept < 0
         col = np.where(lead, 3, 1)
-        col = np.where(np.abs(swept) < 0.09, 2, col)
-        col = np.where((r > reach - 1.2) & lead, 4, col)
+        col = np.where(np.abs(swept) < 0.07, 2, col)
+        col = np.where((r > reach - 1.3) & lead, 4, col)
+        col = np.where((r > reach - 1.0) & ~lead, 0, col)
         for i, c in enumerate(ACO):
             out[m & (col == i)] = (*c, 255)
-    hub = (r <= 4.6) & (r > 1.6)
+    hole = R * 0.09 + 0.9
+    hub = (r <= hub_r) & (r > hole)
     out[hub] = (*ACO[2], 255)
     out[hub & (y < -0.5)] = (*ACO[3], 255)
-    out[(r <= 4.6) & (r > 3.6) & (y > 1)] = (*ACO[1], 255)
+    out[(r <= hub_r) & (r > hub_r - 1.1) & (y > 1)] = (*ACO[1], 255)
+    out[(r <= hole + 0.9) & (r > hole)] = (*ACO[0], 255)
     return outline(out)
 
 
-def shuriken_side(w, h, cx, cy, R=16.0):
-    """De lado (de perfil) a estrela vira uma lâmina fina na vertical, com o miolo no meio."""
-    def sample(u, v, lit):
-        if abs(u) > R:
-            return None
-        hw = 1.4 if abs(u) > 3.5 else 2.3
-        hw *= max(0.35, 1 - (abs(u) / R) ** 2 * 0.6)
-        if abs(v) <= hw:
-            return ACO[3] if lit else ACO[1] if abs(v) > 0.5 else ACO[2]
-        return None
-    return outline(rasterize(sample, w, h, cx, cy, 90))
+def shuriken_side(w, h, cx, cy, R=SHURIKEN_R):
+    """De lado (em perspectiva) a estrela fica estreita na horizontal: as pontas de cima e de baixo aparecem
+    bem atrás do ombro e do quadril."""
+    return shuriken_back(w, h, cx, cy, R=R, rot=80, squash=0.32)
 
 
 def scroll_back(w, h, cx, cy):
@@ -246,7 +250,7 @@ def hand_weapon(sample, size):
     return [outline(rasterize(sample, size, size, c, c, k * 22.5)) for k in range(16)]
 
 
-def shuriken_hand(size=52, R=16.0, reach=8.0):
+def shuriken_hand(size=88, R=SHURIKEN_R - 2, reach=12.0):
     """Shuriken Gigante na mão (no golpe): segura pelo miolo, a estrela um pouco para fora, girando com o ângulo."""
     out = []
     for k in range(16):
@@ -255,6 +259,9 @@ def shuriken_hand(size=52, R=16.0, reach=8.0):
         out.append(shuriken_back(size, size, cx, cy, R=R, rot=45 + k * 22.5))
     return out
 
+
+# Armas de arremesso: no golpe saem da mão (no quadro do lançamento) e somem das costas enquanto voam.
+THROWN = {"fuma_shuriken"}
 
 # Na mão: código -> (desenho, tamanho do quadro). A espada longa também tem a versão desembainhada (no golpe).
 HAND = {
@@ -271,7 +278,8 @@ HAND = {
 # do boneco: na diagonal, ela some atrás da cabeça grande e do corpo).
 BACK = {
     "katana": dict(size=(70, 70), views=[dict(ang=-155, off=(-4, 6)), dict(ang=-28, off=(6, 7)), dict(ang=-32, off=(0, 3))]),
-    "fuma_shuriken": dict(size=(38, 38), views=[dict(off=(0, 6), rot=75), dict(off=(5, -2)), dict(off=(0, -2), rot=45)]),
+    # Shuriken Gigante: maior que as costas; de frente, as 4 pontas saem em volta do corpo (giro medido na silhueta).
+    "fuma_shuriken": dict(size=(70, 70), views=[dict(off=(0, 2), rot=75), dict(off=(6, -1)), dict(off=(0, -1), rot=45)]),
     "scroll": dict(size=(40, 16), views=[dict(off=(0, 5)), dict(off=(5, 5)), dict(off=(0, 5))]),
 }
 

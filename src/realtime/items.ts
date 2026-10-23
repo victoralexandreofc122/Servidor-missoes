@@ -28,13 +28,34 @@ export interface ItemDef {
   hold: 'hand' | 'back';
   /** Ocupa as duas mãos (nenhuma arma de mão aparece junto). */
   twoHanded?: boolean;
+  /** Arma de ARREMESSO: troca o Ataque Básico por um lançamento dela (veja ThrowStats). */
+  throw?: ThrowStats;
+}
+
+/**
+ * Arremesso (Shuriken Gigante): o Ataque Básico vira um projétil que atravessa todos no caminho, com a
+ * hitbox mais grossa que a de um projétil comum, e recarga bem mais lenta.
+ */
+export interface ThrowStats {
+  /** Alcance (casas) e velocidade (casas/s). */
+  range: number;
+  speed: number;
+  /** Meia largura da linha que acerta (casas). Kunai e Fogo: 0,5. */
+  hitRadius: number;
+  /** Recarga = a do Ataque Básico (com a Agilidade) x este fator. */
+  cooldownFactor: number;
+  /** Dano = (Ataque Básico + a arma) x este fator. */
+  damageFactor: number;
 }
 
 export const ITEMS: readonly ItemDef[] = [
   { code: 'kunai_training', name: 'Kunai de Treino', kind: 'weapon', icon: '🗡️', damage: 10, price: null, shop: null, hold: 'hand' },
   { code: 'kunai', name: 'Kunai', kind: 'weapon', icon: '🔪', damage: 14, price: 300, shop: 'weapons', hold: 'hand' },
   { code: 'tanto', name: 'Espada Curta', kind: 'weapon', icon: '🗡', damage: 18, price: 600, shop: 'weapons', hold: 'hand' },
-  { code: 'fuma_shuriken', name: 'Shuriken Gigante', kind: 'weapon', icon: '✴️', damage: 22, price: 1200, shop: 'weapons', hold: 'back', twoHanded: true },
+  {
+    code: 'fuma_shuriken', name: 'Shuriken Gigante', kind: 'weapon', icon: '✴️', damage: 22, price: 1200, shop: 'weapons', hold: 'back', twoHanded: true,
+    throw: { range: 6, speed: 9, hitRadius: 0.8, cooldownFactor: 5, damageFactor: 2.5 },
+  },
   { code: 'katana', name: 'Espada Longa', kind: 'weapon', icon: '⚔️', damage: 28, price: 2000, shop: 'weapons', hold: 'back', twoHanded: true },
   ...CLASSES.map((c): ItemDef => ({
     code: `scroll_${c}`, name: `Pergaminho de ${CLASS_INFO[c].name}`, kind: 'scroll', icon: '📜', class: c, price: 150, shop: 'scrolls', hold: 'back',

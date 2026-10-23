@@ -32,7 +32,7 @@ describe('VFX: folhas dos efeitos', () => {
 
   it('todo golpe tem o seu efeito (o cliente toca pelo nome)', () => {
     for (const name of ['slash', 'hit', 'punch', 'dust', 'smoke', 'fireball', 'explosion', 'water', 'lightning', 'spark',
-      'shadow', 'bind', 'illusion', 'heal', 'stone', 'kunai']) assert.ok(VFX.efeitos[name], name);
+      'shadow', 'bind', 'illusion', 'heal', 'stone', 'kunai', 'fuma']) assert.ok(VFX.efeitos[name], name);
     assert.equal(VFX.efeitos.explosion.raio, 2, 'explosão desenhada para o raio da hitbox (2 casas)');
     assert.equal(VFX.efeitos.illusion.raio, 3);
     assert.equal(VFX.efeitos.water.alcance, 4);
@@ -70,6 +70,8 @@ describe('armas no boneco', () => {
     for (const code of ['katana', 'fuma_shuriken']) assert.equal(W.drawnForStrike(code), true, code);
     for (const code of ['scroll_fire', 'kunai', 'tanto']) assert.equal(W.drawnForStrike(code), false, code);
     assert.ok(ARMAS.armas.katana.bainha, 'bainha vazia da espada');
+    // arremesso: a arte marca as mesmas armas que o servidor lança (ItemDef.throw)
+    for (const item of ITEMS) if (item.kind === 'weapon') assert.equal(W.isThrown(item.code), Boolean(item.throw), item.code);
     for (const item of ITEMS) {
       if (item.kind === 'weapon') assert.ok(ARMAS.armas[item.code].mao, `${item.code}: arte na mão (o Ataque Básico é com ela)`);
     }
@@ -85,6 +87,7 @@ describe('armas no boneco', () => {
       }
     }
     assert.ok(ARMAS.armas.katana.costas.quadro[0] >= 64, 'espada longa grande nas costas');
+    assert.ok(ARMAS.armas.fuma_shuriken.costas.quadro[0] >= 64, 'Shuriken Gigante maior que as costas');
   });
 
   it('ângulo -> quadro: o mais perto, de 22,5° em 22,5°, girando para os dois lados', () => {

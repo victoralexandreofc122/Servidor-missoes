@@ -759,4 +759,8 @@ O que muda:
    vira um golpe com ela (recua, estoca, desce). Equipe a Espada Longa: a kunai sai da mão e a espada fica grande na
    lombar; no 🗡️ ela sai das costas para a mão, corta e volta (a bainha vazia fica nas costas). O pergaminho
    continua nas costas com qualquer arma.
-7. **Admin (conta Victor):** `/admin spawn slime 4` em volta, para testar vários de uma vez.
+7. **Shuriken Gigante:** equipada, fica enorme nas costas (de frente, as lâminas saem dos lados da cintura). O 🗡️
+   vira um arremesso: ela sai girando até 6 casas, atravessa todos os slimes na linha (85 de dano em cada) e volta
+   para as costas. A recarga é bem lenta (3 s, contando no botão).
+8. **Admin (conta Victor):** `/admin spawn slime 4` em volta, para testar vários de uma vez;
+   `/admin giveitem Victor fuma_shuriken 1` para ganhar a Shuriken Gigante.

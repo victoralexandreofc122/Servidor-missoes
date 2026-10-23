@@ -66,7 +66,9 @@ def main():
             entry["mao"] = sheet_hand("katana_mao", armas.hand_weapon(sample, size), size)
             entry["bainha"] = sheet_back("katana_bainha", armas.back_views(code, empty=True), spec)
         if code == "fuma_shuriken":
-            entry["mao"] = sheet_hand("fuma_shuriken_mao", armas.shuriken_hand(), 52)
+            entry["mao"] = sheet_hand("fuma_shuriken_mao", armas.shuriken_hand(), 88)
+        if code in armas.THROWN:
+            entry["lanca"] = True
         lista[code] = entry
     for code, e in lista.items():
         print(f"arma {code:14s} {e['onde']}: " + ", ".join(k for k in ("mao", "costas", "bainha") if k in e))
@@ -76,7 +78,7 @@ def main():
                            dict(versao=1, casaPx=92 / 1.5, efeitos=efeitos)))
     with open(os.path.join(PUBLIC, "weaponData.js"), "w") as fh:
         fh.write(js_module("ARMAS", "Armas no boneco: `mao` = 16 ângulos (0° = direita, de 22,5 em 22,5; o centro é o punho); "
-                           "`costas` e `bainha` = 3 vistas (frente, lado, costas). `onde` = onde a arma fica parada.",
+                           "`costas` e `bainha` = 3 vistas (frente, lado, costas). `onde` = onde a arma fica parada; `lanca` = arma de arremesso.",
                            dict(versao=2, armas=lista)))
 
     # prévias

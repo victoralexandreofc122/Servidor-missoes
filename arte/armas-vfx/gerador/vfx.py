@@ -640,9 +640,27 @@ def kunai_flying():
     return frames, dict(quadro=[W, H], ancora=[AX, AY], ms=60, px=1, gira=True)
 
 
+# ------------------------------------------------------------------ Shuriken Gigante voando (girando)
+
+def fuma():
+    S = 44
+    c = S / 2
+    frames = []
+    x, y = grid(S, S, c, c)
+    r = np.hypot(x, y)
+    a = np.arctan2(y, x)
+    for k in range(4):
+        f = armas.shuriken_back(S, S, c, c, R=17.0, rot=45 + k * 22.5)
+        # rastro do giro: arcos claros logo atrás de cada ponta
+        trail = (np.abs(r - 17.5) < 1.0) & (((a - math.radians(45 + k * 22.5)) % (math.pi / 2)) > math.radians(55)) & (f[..., 3] == 0)
+        f[trail] = (214, 220, 232, 255)
+        frames.append(f)
+    return frames, dict(quadro=[S, S], ancora=[S // 2, S // 2], ms=45, px=2)
+
+
 EFFECTS = {
     "slash": slash, "hit": hit, "punch": punch, "dust": dust, "smoke": smoke,
     "fireball": fireball, "explosion": explosion, "water": water,
     "lightning": lightning, "spark": spark, "shadow": shadow, "bind": bind,
-    "illusion": illusion, "heal": heal, "stone": stone, "kunai": kunai_flying,
+    "illusion": illusion, "heal": heal, "stone": stone, "kunai": kunai_flying, "fuma": fuma,
 }

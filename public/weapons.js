@@ -46,6 +46,9 @@ export const weaponSlot = (code) => ARMAS.armas[weaponArt(code)]?.onde;
 /** A arma das costas vai para a mão no golpe? (espada, Shuriken Gigante; o pergaminho, não) */
 export const drawnForStrike = (code) => Boolean(sheetOf(code, 'mao')) && weaponSlot(code) === 'costas';
 
+/** Arma de arremesso (Shuriken Gigante): sai da mão no lançamento e some das costas enquanto voa. */
+export const isThrown = (code) => Boolean(code && ARMAS.armas[weaponArt(code)]?.lanca);
+
 /** Quadro do ângulo mais perto (0° = para a direita, sentido horário na tela). */
 export function angleFrame(deg) {
   return Math.round((((deg % 360) + 360) % 360) / 22.5) % 16;

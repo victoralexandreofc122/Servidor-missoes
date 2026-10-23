@@ -60,9 +60,10 @@ import { IncomingAppearanceSchema, type Appearance } from './appearance.js';
  *                                                          tx, ty = onde o efeito acontece (fim da linha do
  *                                                          Relâmpago/Sombra, golpe do Taijutsu, quem a Cura pegou)
  *   cast_failed       { skill, reason }                    só para quem tentou (SAFE_ZONE = na praça segura)
- *   projectile        { id, playerId, skill, x, y, fx, fy, speed, range }   Fogo/Kunai saiu voando (o servidor
+ *   projectile        { id, playerId, skill | weapon, x, y, fx, fy, speed, range }   Fogo/Kunai (skill) ou a
+ *                                                          Shuriken Gigante (weapon) saiu voando (o servidor
  *                                                          anda com ele a cada tick e decide a colisão)
- *   impact            { id, skill, x, y, r }               o projétil bateu (alvo, parede ou fim do alcance);
+ *   impact            { id, skill | weapon, x, y, r }      o projétil bateu (alvo, parede ou fim do alcance);
  *                                                          r = raio da explosão (0 = sem área)
  *   dash              { playerId, fromX, fromY, x, y, a }  avanço do Taijutsu (o servidor moveu o jogador)
  *   player_status     { playerId, status, ms }             jogador atordoado / preso (PvP)
@@ -81,7 +82,8 @@ import { IncomingAppearanceSchema, type Appearance } from './appearance.js';
  *   mission_reward    { rewards, totalXp, rank, promoted } pergaminho entregue (já gravado no banco)
  *   progress          { level, xpInLevel, xpToNext, statPoints, attributes, derived }   ficha (só o dono)
  *   kit               { active, kits }                     kit ativo e loadout (só o dono)
- *   attack / attack_failed                                 ataque básico (todos veem a animação)
+ *   attack / attack_failed                                 ataque básico (todos veem a animação): cd = recarga
+ *                                                          (ms); throw = a arma lançada (Shuriken Gigante)
  *   evaluation_request { missionId, trainee, mission }     para o sensei: aprendiz entregou
  *   sensei_options    { difficulties, quantities }         opções de missão (só para Chunin+)
  *   notice            { text, tone }                       aviso curto na tela (só para um jogador)
@@ -372,8 +374,8 @@ export type ServerMessage =
   | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean; speed: number; running: boolean }
   | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }
   | { type: 'cast'; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number; tx?: number; ty?: number }
-  | { type: 'projectile'; id: number; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number; speed: number; range: number }
-  | { type: 'impact'; id: number; skill: Skill; x: number; y: number; r: number }
+  | { type: 'projectile'; id: number; playerId: string; skill?: Skill; weapon?: string; x: number; y: number; fx: number; fy: number; speed: number; range: number }
+  | { type: 'impact'; id: number; skill?: Skill; weapon?: string; x: number; y: number; r: number }
   | { type: 'dash'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }
   | { type: 'player_status'; playerId: string; status: MonsterStatus; ms: number }
   | { type: 'cast_failed'; skill: Skill; reason: CastFailReason }
@@ -392,7 +394,7 @@ export type ServerMessage =
   | { type: 'mission_reward'; rewards: MissionRewardView[]; totalXp: number; rank: RankView; promoted: boolean }
   | { type: 'progress' } & ProgressView
   | { type: 'kit' } & KitView
-  | { type: 'attack'; playerId: string; x: number; y: number; fx: number; fy: number }
+  | { type: 'attack'; playerId: string; x: number; y: number; fx: number; fy: number; cd: number; throw?: string }
   | { type: 'attack_failed'; reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED' }
   | { type: 'player_rank'; playerId: string; rank: RankView; level: number }
   | { type: 'evaluation_request'; missionId: string; trainee: { id: string; username: string }; mission: MissionView }

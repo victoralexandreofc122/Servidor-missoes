@@ -53,7 +53,7 @@ const FILES = [
   { route: '/weaponData.js', file: 'weaponData.js', contentType: 'text/javascript; charset=utf-8' },
   ...sheets('vfx', [
     'slash', 'hit', 'punch', 'dust', 'smoke', 'fireball', 'explosion', 'water',
-    'lightning', 'spark', 'shadow', 'bind', 'illusion', 'heal', 'stone', 'kunai',
+    'lightning', 'spark', 'shadow', 'bind', 'illusion', 'heal', 'stone', 'kunai', 'fuma',
   ]),
   ...sheets('weapons', ['kunai_training', 'kunai', 'tanto', 'katana', 'katana_mao', 'katana_bainha', 'fuma_shuriken', 'fuma_shuriken_mao', 'scroll']),
   // Identidade visual (binários): favicon da Folha em Chamas e Pergaminho em Chamas do login.

@@ -19,7 +19,7 @@ import {
 } from './sprites.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
-import { drawBackWeapon, drawHandWeapon, drawnForStrike, loadWeapons, weaponReady } from './weapons.js';
+import { drawBackWeapon, drawHandWeapon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
 
 const TOKEN_KEY = 'nin.token';
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/game`;
@@ -621,7 +621,8 @@ function handleMessage(msg) {
       break;
     case 'attack': {
       // Corte em arco (a hitbox do servidor: 90°, 1,6 casa) na direção do golpe, junto do quadro do corte/soco.
-      if (!vfx.play('slash', msg.x, msg.y, { start: now, delay: 80, angle: Math.atan2(msg.fy, msg.fx) })) {
+      // Arremesso (Shuriken Gigante): sem corte; o efeito é a shuriken voando (mensagem `projectile`).
+      if (!msg.throw && !vfx.play('slash', msg.x, msg.y, { start: now, delay: 80, angle: Math.atan2(msg.fy, msg.fx) })) {
         state.effects.push({ skill: 'attack', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
       }
       faceTo(msg.playerId, msg.fx, msg.fy);
@@ -631,7 +632,7 @@ function handleMessage(msg) {
         const armed = attacker.gear?.hand || attacker.gear?.back;
         attacker.act = { kind: armed ? 'golpe' : attacker.act?.kind === 'soco' ? 'chute' : 'soco', start: now };
       }
-      if (msg.playerId === state.meId) startCooldown('attack');
+      if (msg.playerId === state.meId) startCooldown('attack', msg.cd);
       break;
     }
     case 'attack_failed': {
@@ -680,13 +681,19 @@ function handleMessage(msg) {
       break;
     }
     case 'projectile': {
-      // Fogo / Kunai saiu voando: a tela anda com ele; quem decide onde bate é o servidor (`impact`).
-      const sheet = mechanicOf(msg.skill) === 'fire' ? 'fireball' : 'kunai';
+      // Fogo / Kunai / Shuriken Gigante saiu voando: a tela anda com ele; quem decide onde bate é o servidor (`impact`).
+      const sheet = msg.weapon ? 'fuma' : mechanicOf(msg.skill) === 'fire' ? 'fireball' : 'kunai';
       vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now);
+      const thrower = msg.weapon ? state.players.get(msg.playerId) : null;
+      if (thrower) thrower.thrown = { id: msg.id, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 400 };   // costas vazias enquanto voa
       break;
     }
     case 'impact': {
       vfx.land(msg.id);
+      if (msg.weapon) {                       // a Shuriken Gigante chegou no fim do caminho: volta para as costas
+        for (const p of state.players.values()) if (p.thrown?.id === msg.id) p.thrown = null;
+        break;
+      }
       if (msg.r > 0) {
         if (!vfx.play('explosion', msg.x, msg.y, { start: now, scale: msg.r / 2 })) {
           state.effects.push({ skill: 'fire', x: msg.x, y: msg.y, fx: 0, fy: 0, r: msg.r, start: now });
@@ -1541,7 +1548,7 @@ function renderShopItems() {
     const price = document.createElement('small');
     price.className = 'price';
     const have = state.ninja.items?.[item.code] || 0;
-    price.textContent = `${ryoText(item.price)}${item.damage ? ` · +${item.damage} de dano` : ''}${have ? ` · você tem ${have}` : ''}`;
+    price.textContent = `${ryoText(item.price)}${item.damage ? ` · +${item.damage} de dano` : ''}${item.throw ? ' · de arremesso' : ''}${have ? ` · você tem ${have}` : ''}`;
     n.append(price);
     const b = document.createElement('button');
     b.type = 'button';
@@ -1648,7 +1655,7 @@ function renderInventory() {
     name.textContent = def?.name || code;
     const sub = document.createElement('small');
     sub.className = 'qty';
-    sub.textContent = def?.kind === 'weapon' ? ` · +${def.damage} de dano · ${def.hold === 'back' ? 'nas costas' : 'na mão'}` : ` · ×${qty}`;
+    sub.textContent = def?.kind === 'weapon' ? ` · +${def.damage} de dano · ${weaponWhere(def)}` : ` · ×${qty}`;
     name.append(sub);
     li.append(i, name);
     if (def?.kind === 'weapon') {
@@ -1831,6 +1838,12 @@ function skillInfo(skill) {
   return { ...ui, name: w.name, tier: w.tier, mark: TIER_MARK[w.tier] || '' };
 }
 
+/** Onde a arma fica e como ela ataca (Shuriken Gigante: arremesso, alcance e recarga bem lenta). */
+function weaponWhere(def) {
+  if (def.throw) return `de arremesso: atravessa todos até ${def.throw.range} casas, recarga ${def.throw.cooldownFactor}x mais lenta`;
+  return def.hold === 'back' ? 'nas costas' : 'na mão';
+}
+
 /** skill (ou "attack") -> { until, ms }: quando a recarga acaba. Começa quando o SERVIDOR confirma. */
 const cooldowns = {};
 
@@ -1840,15 +1853,16 @@ function faceTo(playerId, fx, fy) {
   if (p && (fx || fy)) p.dir = dirFrom(fx, fy);
 }
 
-function startCooldown(skill) {
+function startCooldown(skill, serverMs) {
   // Ataque: a recarga já vem com a Agilidade (o servidor calcula, em progress.derived).
   // Substituição: a recarga cai com o nível do jutsu (30 / 25 / 20 / 15 s), igual ao servidor.
   const uses = state.ninja.jutsus?.[skill] ?? 0;
   const level = jutsuLevelOf(uses);
-  const ms = skill === 'attack'
+  // (O servidor manda a recarga do ataque na mensagem: a Shuriken Gigante é 5x mais lenta.)
+  const ms = serverMs ?? (skill === 'attack'
     ? (state.progress?.derived?.attackCooldownMs ?? state.world.basicAttack?.cooldownMs ?? 600)
     : skill === 'substitution' ? (35 - 5 * level) * 1000
-      : (state.world.skills?.[skill]?.cooldownMs ?? 600);
+      : (state.world.skills?.[skill]?.cooldownMs ?? 600));
   cooldowns[skill] = { until: performance.now() + ms, ms };
 }
 
@@ -3827,10 +3841,12 @@ function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
     const R = (px, py, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(px), Math.round(py), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); };
     const backX = ax(an.costas[0]), backY = top + an.costas[1] * s;
     const strike = anim === 'golpe' && an.mao;
-    const inHand = gear.hand || (strike && gear.back && drawnForStrike(gear.back) && weaponReady(gear.back, 'mao') ? gear.back : null);
+    // Arremesso (Shuriken Gigante): na mão só no preparo; some no lançamento e enquanto voa.
+    const thrownGone = gear.back && isThrown(gear.back) && ((strike && frame > 0) || (p.thrown && now < p.thrown.until));
+    const inHand = gear.hand || (strike && !thrownGone && gear.back && drawnForStrike(gear.back) && weaponReady(gear.back, 'mao') ? gear.back : null);
     const back = () => {
       for (const code of [gear.back, gear.scroll]) {
-        if (!code) continue;
+        if (!code || (thrownGone && code === gear.back)) continue;
         if (code === inHand) {
           if (weaponReady(code, 'bainha')) drawBackWeapon(g, code, backX, backY, s, view, flip, dpr, true);
         } else if (weaponReady(code)) {
