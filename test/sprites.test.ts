@@ -72,6 +72,12 @@ describe('v9: sprites do personagem (cliente)', () => {
     assert.deepEqual([1000, 1100, 1300, 2000].map((t) => S.pickFrame({ act }, t)), [
       { anim: 'ataque', frame: 1 }, { anim: 'ataque', frame: 0 }, { anim: 'ataque', frame: 1 }, S.pickFrame({}, 2000)]);
     assert.equal(S.pickFrame({ act: { kind: 'chute', start: 0 } }, 150).frame, 2);
+    // jutsu: preparação (A), lançamento (B) e volta (A); meditando: carregar chakra (quadro 0 do jutsu), parado
+    const cast = { kind: 'jutsu', start: 0 };
+    assert.deepEqual([50, 200, 330, 500].map((t) => S.pickFrame({ act: cast }, t)), [
+      { anim: 'jutsu', frame: 1 }, { anim: 'jutsu', frame: 2 }, { anim: 'jutsu', frame: 1 }, S.pickFrame({}, 500)]);
+    assert.deepEqual(S.pickFrame({ meditating: true }, 1234), { anim: 'jutsu', frame: 0 });
+    assert.deepEqual(S.pickFrame({ meditating: true, act: cast }, 200), { anim: 'jutsu', frame: 2 }, 'o jutsu toca por cima');
     const idle = new Set([0, 1300, 1500, 1800, 2000].map((t) => S.pickFrame({}, t).frame));
     assert.ok(idle.has(0) && idle.has(1), 'parado: o quadro muda com o tempo');
   });

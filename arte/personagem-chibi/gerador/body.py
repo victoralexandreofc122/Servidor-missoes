@@ -381,8 +381,137 @@ def fist_front_mask(limb):
     return (np.abs((PX - cx) / rx) ** 3 + np.abs((PY - cy) / ry) ** 3) <= 1.0
 
 
+# =====================================================================================
+# mãos carimbadas (jutsu): selo do carneiro, mãos juntas e palma aberta. Desenhadas como peça própria no plano
+# TOPO (por cima das mangas). O: contorno; '.': pele (só dentro do contorno); 1: sombra leve; 2: sombra; 3: escuro
+# =====================================================================================
+HAND_STAMPS = {
+    ("front", "seal"): [   # selo do carneiro: indicador+médio das duas mãos juntos pra cima, resto dos dedos enrolados
+        "....OO.......",
+        "...O.2O......",
+        "...O.2O......",
+        "...O..2O.....",
+        "...O..2O.....",
+        "..O...22O....",
+        "..O...22O....",
+        ".O.11..2OO...",
+        "O.1..11O.2O..",
+        "O.111..O..2O.",
+        "O.....1O..22O",
+        "O.111..O..22O",
+        ".O...1O...22O",
+        "..O..O...22O.",
+        "...OOOOOOOO..",
+    ],
+    ("front", "pray"): [   # mãos se juntando (palma com palma, dedos pra cima)
+        ".OOO.OOO.",
+        "O...O..2O",
+        "O.1.O.22O",
+        "O.1.O.22O",
+        "O...O..2O",
+        "O..1O.22O",
+        ".O..O.2O.",
+        "..OOOOO..",
+    ],
+    ("front", "palm"): [   # palma aberta virada pra frente, dedos separados, polegar pro meio (mão esquerda da tela)
+        "..OOOOO....",
+        ".O.....O...",
+        "O..1.1..O..",
+        "O..1.1..O..",
+        "O..1.1..OO.",
+        "O.......O.O",
+        "O.........O",
+        "O........2O",
+        "O.......22O",
+        ".O.....22O.",
+        "..O..222O..",
+        "...OOOOO...",
+    ],
+    ("side", "seal"): [    # de lado (olhando pra esquerda): punho fechado com os 2 dedos pra cima
+        "..OO...",
+        ".O.1O..",
+        ".O..O..",
+        ".O.2O..",
+        ".O..O..",
+        "O...OO.",
+        "O.11.2O",
+        "O....2O",
+        "O.1..2O",
+        "O...22O",
+        ".O..22O",
+        "..OOOO.",
+    ],
+    ("side", "pray"): [    # de lado: as duas palmas juntas parecem uma mão só, de pé
+        ".OOO.",
+        "O.1.O",
+        "O...O",
+        "O.1.O",
+        "O..2O",
+        "O..2O",
+        "O.12O",
+        "O..2O",
+        ".OOO.",
+    ],
+    ("side", "palm"): [    # de lado: palma empurrando pra frente (de quina), dedos pra cima, polegar pra frente
+        "..OO..",
+        ".O.1O.",
+        ".O..O.",
+        ".O..O.",
+        ".O.2O.",
+        "OO..O.",
+        "O.O.2O",
+        "O...2O",
+        ".O..2O",
+        "..O.2O",
+        "..OOO.",
+    ],
+}
+STAMP_TONE = {".": P_BASE, "1": P_L1, "2": P_SH, "3": P_DK, "h": P_HI}
+
+
+def _stamp_inside(rows, i, j):
+    row = rows[j]
+    return "O" in row[:i] and "O" in row[i + 1:]
+
+
+def hand_stamp(fig, limb):
+    """{(x, y): caractere} da mão carimbada do braço (kw stamp = (nome, cx, cy, espelhar?))."""
+    name, cx, cy, mirror = limb.kw["stamp"]
+    rows = HAND_STAMPS[(fig.view, name)]
+    h, w = len(rows), len(rows[0])
+    x0, y0 = int(round(cx - w / 2)), int(round(cy - h / 2))
+    out = {}
+    for j, row in enumerate(rows):
+        for i in range(w):
+            ii = w - 1 - i if mirror else i
+            ch = row[ii]
+            if ch == "." and not _stamp_inside(rows, ii, j):
+                continue
+            if mirror and ch == "2":
+                ch = "1"
+            x, y = x0 + i, y0 + j
+            if 0 <= x < W and 0 <= y < H:
+                out[(x, y)] = ch
+    return out
+
+
+def paint_stamp(fig, limb):
+    def paint(idx, part, vis, interior):
+        for (x, y), ch in hand_stamp(fig, limb).items():
+            if ch == "O":
+                idx.ch[y, x], idx.sh[y, x] = FIXO, F_OUT
+            else:
+                idx.ch[y, x], idx.sh[y, x] = PELE, STAMP_TONE.get(ch, P_BASE)
+        if limb.far:
+            darken_far(idx, part.mask)
+    return paint
+
+
 def arm_mask(fig, limb, hand_scale=1.0):
     j = limb.j
+    if limb.kw.get("hand") in ("none", "stamp"):        # sem mão (escondida, ou a mão é um carimbo à parte)
+        m = seg_mask(fig, limb, "upper") | seg_mask(fig, limb, "fore")
+        return m | ellipse(j["el"][0], j["el"][1], 1.9, 1.9)
     if limb.kw.get("hand") == "fist_front":
         m = seg_mask(fig, limb, "upper") | seg_mask(fig, limb, "fore") | fist_front_mask(limb)
         m |= ellipse(j["el"][0], j["el"][1], 1.9, 1.9)
@@ -839,4 +968,10 @@ def body_parts(fig):
         else:
             z = {TRAS: 2, CORPO: 30, FRENTE: 50, TOPO: 70}[am.plane] + i
         parts.append(Part(f"braco_{am.side}", m, z, am.plane, paint_arm(fig, am), soft=soft))
+        if am.kw.get("hand") == "stamp":                  # mão do jutsu: por cima de tudo (e das mangas)
+            st = blank()
+            for (x, y) in hand_stamp(fig, am):
+                st[y, x] = True
+            parts.append(Part(f"mao_{am.side}", st, 90 + i, TOPO if not am.far else am.plane, paint_stamp(fig, am),
+                              ring=False))
     return parts

@@ -54,7 +54,13 @@ SIDE_BROW = {"masculino": [(24, 30), (25, 30), (26, 30), (27, 30), (28, 30), (23
              "cilios": [(24, 30), (25, 30), (26, 30), (27, 30), (23, 31), (28, 31)]}
 
 
-def eyes_template(view, style):
+# expressão séria (jutsu): pálpebra de cima reta e sobrancelha descendo pro meio (de lado: descendo pra frente)
+SERIOUS_BROW_F = [(9, 22), (10, 22), (11, 22), (11, 23), (12, 23), (13, 23), (13, 24), (14, 24)]
+SERIOUS_LID_F = [(10, 25), (11, 25), (12, 25), (13, 25)]
+SERIOUS_BROW_S = [(27, 30), (28, 30), (25, 31), (26, 31), (23, 32), (24, 32)]
+
+
+def eyes_template(view, style, expr=None):
     idx = Idx(H, W)
     if view == "front":
         rows = [list(s) for s in CB.EYE_L]
@@ -76,6 +82,10 @@ def eyes_template(view, style):
             x, y = ref(c, r)
             idx.ch[y, x], idx.sh[y, x] = v
         brow = CB.BROW_F if style == "cilios" else CB.BROW_M
+        if expr == "serio":
+            brow = SERIOUS_BROW_F
+            for c, r in SERIOUS_LID_F:
+                put_px(idx, [ref(c, r), ref(39 - c, r)], PELE, P_BASE)
         for c, r in brow:
             put_px(idx, [ref(c, r), ref(39 - c, r)], FIXO, F_OUT)
     elif view == "side":
@@ -88,18 +98,32 @@ def eyes_template(view, style):
                 for i, ch in enumerate(s):
                     if ch != ".":
                         idx.ch[y, 22 + i], idx.sh[y, 22 + i] = EYE_CH[ch]
-        put_px(idx, SIDE_BROW[style], FIXO, F_OUT)
+        put_px(idx, SERIOUS_BROW_S if expr == "serio" else SIDE_BROW[style], FIXO, F_OUT)
     return idx
 
 
 def mouth_template(view, style="sorriso"):
+    """sorriso (padrão); reta (séria, no jutsu); grito (boca aberta no golpe do jutsu)."""
     idx = Idx(H, W)
     if view == "front":
-        put_px(idx, [ref(18, 35), ref(21, 35)], PELE, P_MOUTH)
-        put_px(idx, [ref(19, 36), ref(20, 36)], PELE, P_MOUTH_DK)
+        if style == "grito":
+            put_px(idx, [ref(c, 35) for c in (18, 19, 20, 21)] + [ref(18, 36), ref(21, 36)], FIXO, F_OUT)
+            put_px(idx, [ref(19, 36), ref(20, 36)], PELE, P_MOUTH_DK)
+        elif style == "reta":
+            put_px(idx, [ref(18, 35), ref(21, 35)], PELE, P_MOUTH)
+            put_px(idx, [ref(19, 35), ref(20, 35)], PELE, P_MOUTH_DK)
+        else:
+            put_px(idx, [ref(18, 35), ref(21, 35)], PELE, P_MOUTH)
+            put_px(idx, [ref(19, 36), ref(20, 36)], PELE, P_MOUTH_DK)
     elif view == "side":
-        put_px(idx, [(19, 44)], PELE, P_MOUTH_DK)
-        put_px(idx, [(20, 44)], PELE, P_MOUTH)
+        if style == "grito":
+            put_px(idx, [(19, 44), (20, 44), (20, 45)], FIXO, F_OUT)
+            put_px(idx, [(19, 45)], PELE, P_MOUTH_DK)
+        elif style == "reta":
+            put_px(idx, [(19, 44), (20, 44)], PELE, P_MOUTH_DK)
+        else:
+            put_px(idx, [(19, 44)], PELE, P_MOUTH_DK)
+            put_px(idx, [(20, 44)], PELE, P_MOUTH)
     return idx
 
 
@@ -635,7 +659,8 @@ def head_planes(kind, view, style=None):
     if key not in _CACHE:
         if kind in ("olhos", "boca"):
             planes = [Idx(H, W) for _ in range(4)]
-            planes[CORPO] = eyes_template(view, style) if kind == "olhos" else mouth_template(view, style or "sorriso")
+            base, _, expr = (style or "").partition("+")       # "masculino+serio" = estilo + expressão
+            planes[CORPO] = eyes_template(view, base, expr or None) if kind == "olhos" else mouth_template(view, base or "sorriso")
         elif kind == "cabelo":
             planes = compose(hair_template(view, style or "espetado"))
         else:
@@ -663,6 +688,16 @@ def fit_to_pose(planes, fig, body_planes):
 def head_item(kind, view, style=None):
     """Idx (plano CORPO) do item em repouso."""
     return head_planes(kind, view, style)[CORPO]
+
+
+def face_style(kind, style, fig):
+    """Expressão do quadro (a pose pode pedir: fig.face = {"olhos": "serio", "boca": "grito"})."""
+    face = getattr(fig, "face", None) or {}
+    if kind == "olhos" and face.get("olhos"):
+        return "%s+%s" % (style, face["olhos"])
+    if kind == "boca" and face.get("boca"):
+        return face["boca"]
+    return style
 
 
 def follow_head(idx, fig):

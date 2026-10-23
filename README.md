@@ -184,7 +184,8 @@ Rodar no Neon depois da v8 (pode rodar de novo). Sem ela o servidor não sobe e 
 
 O boneco de retângulos virou o **personagem chibi em camadas** de `arte/personagem-chibi/` (LEIAME lá):
 masculino e feminino, 4 direções (o lado direito é o lado esquerdo espelhado) e as animações parado, andar,
-correr (corrida ninja) e ataque (soco e chute alternados; jutsu mostra a guarda).
+correr (corrida ninja), ataque (soco e chute alternados) e jutsu (preparação, lançamento e volta; meditando,
+o boneco fica na pose de carregar chakra, com o selo do carneiro).
 
 - **Visual = nomes de paleta, nunca cor livre** (`src/realtime/appearance.ts`): gênero, pele (10 tons reais, do
   mais escuro ao mais claro), cabelo (espetado ou longo) e cor (16), olhos (com ou sem cílios) e cor (14), vila,

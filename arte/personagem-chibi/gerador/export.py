@@ -26,12 +26,15 @@ ANIMS = [  # (função, nome, sequência de frames, duração de cada passo em m
     (poses.walk, "andar", [0, 1, 2, 1], [160, 130, 160, 130], True),
     (poses.run, "correr", [0, 1, 2, 1], [100, 90, 100, 90], True),
     (poses.attack, "ataque", [1, 0, 1, 2], [140, 220, 140, 320], False),
+    (poses.jutsu, "jutsu", [1, 2, 1], [110, 170, 110], False),
 ]
 ANIM_NOTAS = {
     "parado": "0 = parado, 1 = solta o ar (tronco/cabeça descem 1 px), 2 = braços abrem levemente",
     "andar": "0 = perna de perto/visível na frente, 1 = passagem, 2 = perna de trás na frente",
     "correr": "0 = perna de perto na frente, 1 = passagem (apoio), 2 = perna de trás na frente",
     "ataque": "0 = soco, 1 = guarda (mão volta pro corpo), 2 = chute alto",
+    "jutsu": "0 = carregar chakra (agachado, selo do carneiro; parado em loop na meditação), 1 = A, preparação "
+             "(mãos juntas), 2 = B, lançamento (palmas pra frente, grito). Jutsu: A -> B -> A. Rosto sério",
 }
 
 P = all_palettes()
@@ -119,7 +122,7 @@ def planes_for(fr, fig, spec, cache):
         if fig.view == "back" and kind in ("olhos", "boca"):
             pl = empty4()
         else:
-            pl = [HI.follow_head(p, fig) for p in HI.head_planes(kind, fig.view, style)]
+            pl = [HI.follow_head(p, fig) for p in HI.head_planes(kind, fig.view, HI.face_style(kind, style, fig))]
             if kind == "cabelo":
                 pl = HI.fit_to_pose(pl, fig, fr.layers["corpo"])
     else:
@@ -335,7 +338,7 @@ def previews(data):
     for g, gname in GENEROS:
         for look in LOOKS:
             # prancha: colunas = animações x frames, linhas = vistas
-            W_ = 150 + 4 * (3 * (cw + 6) + 24)
+            W_ = 150 + len(ANIMS) * (3 * (cw + 6) + 24)
             H_ = 110 + 3 * (chh + 14)
             can = Image.new("RGBA", (W_, H_), (248, 248, 252, 255))
             dr = ImageDraw.Draw(can)

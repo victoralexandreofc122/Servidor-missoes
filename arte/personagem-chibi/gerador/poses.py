@@ -276,3 +276,58 @@ def attack(g, view, f):
         else:
             arm_straight(fig, s, (sh[0] + k * 4.0, sh[1] + 17.0), plane=FRENTE)
     return fig
+
+
+# ---------------------------------------------------------------- JUTSU (carregar chakra, preparação e lançamento)
+# 0 = carregar chakra (agachado, selo do carneiro no peito; parado em loop na meditação)
+# 1 = A, preparação (mãos se juntando, corpo sobe um pouco)
+# 2 = B, lançamento (palmas pra frente, corpo desce, grito)
+# Mesma base dos pés nos 3 quadros (o ping-pong A -> B -> A não escorrega). Rosto sério.
+JUTSU_FRONT = {   # braço/perna do lado esquerdo da tela; o direito é o espelho. y do braço/mão sem a queda
+    0: dict(drop=3, head=0, knee=(25.0, 82.5), el=(19.5, 60.5), wr=(26.5, 61.0), hand=("seal", 32.0, 57.0), mouth="reta"),
+    1: dict(drop=1, head=0, knee=(25.4, 81.5), el=(21.5, 59.5), wr=(28.5, 55.5), hand=("pray", 32.0, 53.5), mouth="reta"),
+    2: dict(drop=4, head=1, knee=(24.6, 83.0), el=(18.5, 59.5), wr=(23.5, 58.5), hand=("palm", 24.5, 55.5), mouth="grito"),
+}
+JUTSU_SIDE = {    # olhando pra esquerda: (quadril, inclinação, perna de perto, perna de longe, braço de perto, mão)
+    0: dict(hip=(31.0, 79.0), lean=6, near=((27.5, 81.5), (30.5, 88.5)), far=((31.5, 82.0), (34.0, 88.5)),
+            el=(31.5, 62.5), wr=(26.0, 60.5), hand=("seal", 24.5, 57.5), mouth="reta"),
+    1: dict(hip=(31.0, 77.0), lean=-3, near=((29.5, 81.0), (30.0, 88.5)), far=((33.0, 81.5), (34.0, 88.5)),
+            el=(31.0, 60.0), wr=(26.5, 55.5), hand=("pray", 25.0, 53.0), mouth="reta"),
+    2: dict(hip=(30.0, 80.0), lean=14, near=((24.5, 81.5), (25.5, 88.5)), far=((35.5, 82.5), (39.5, 88.5)),
+            el=(24.5, 60.0), wr=(18.0, 60.0), hand=("palm", 15.0, 58.5), mouth="grito"),
+}
+
+
+def jutsu(g, view, f):
+    if view == "side":
+        P = JUTSU_SIDE[f]
+        fig = Figure(g, "side", hip=P["hip"], lean=P["lean"])
+        fig.face = {"olhos": "serio", "boca": P["mouth"]}
+        name, hx, hy = P["hand"]
+        el, wr = P["el"], P["wr"]
+        fig.arm("far", (wr[0] - 2.0, wr[1]), el=(el[0] - 2.0, el[1]), plane=TRAS, far=True, hand="none")
+        fig.leg("far", P["far"][1], knee=P["far"][0], plane=TRAS, far=True)
+        fig.leg("near", P["near"][1], knee=P["near"][0])
+        fig.arm("near", wr, el=el, plane=FRENTE, hand="stamp", stamp=(name, hx, hy, False))
+        return fig
+    P = JUTSU_FRONT[f]
+    d = P["drop"]
+    fig = Figure(g, view, hip=(32.0, 76.0 + d), head_off=(0, P["head"]))
+    fig.face = {"olhos": "serio", "boca": P["mouth"]}
+    for side in ("L", "R"):
+        m = (lambda p: p) if side == "L" else mirror_pt
+        fig.leg(side, m((24.0, 88.5)), knee=m(P["knee"]))
+    name, hx, hy = P["hand"]
+    for side in ("R", "L"):          # o esquerdo por último: ele carrega o selo (fica por cima)
+        m = (lambda p: p) if side == "L" else mirror_pt
+        el = m((P["el"][0], P["el"][1] + d))
+        wr = m((P["wr"][0], P["wr"][1] + d))
+        if view == "back":           # de costas as mãos ficam na frente do corpo: só os cotovelos aparecem
+            fig.arm(side, wr, el=el, plane=TRAS, hand="none")
+        elif name == "palm":
+            fig.arm(side, wr, el=el, plane=FRENTE, hand="stamp", stamp=("palm", m((hx, 0))[0], hy + d, side == "R"))
+        elif side == "L":
+            fig.arm(side, wr, el=el, plane=FRENTE, hand="stamp", stamp=(name, hx, hy + d, False))
+        else:
+            fig.arm(side, wr, el=el, plane=FRENTE, hand="none")
+    return fig

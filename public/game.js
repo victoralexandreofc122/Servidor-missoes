@@ -650,7 +650,7 @@ function handleMessage(msg) {
       if (fxKind !== 'teleport') state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
       faceTo(msg.playerId, msg.fx, msg.fy);
       const caster = state.players.get(msg.playerId);
-      if (caster) caster.act = { kind: 'selo', start: now };
+      if (caster) caster.act = { kind: 'jutsu', start: now };
       if (msg.playerId === state.meId) {
         console.log(`[habilidade] ${msg.skill}`);
         startCooldown(msg.skill);

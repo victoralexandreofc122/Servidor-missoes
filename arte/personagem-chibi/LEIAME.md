@@ -19,7 +19,7 @@ próprio aparelho.
 | `saida/ferramentas/recolorir.py` | Recolore uma folha a partir do mapa de índices |
 
 - Gêneros: `masculino`, `feminino`
-- Animações: `parado`, `andar`, `correr`, `ataque`, cada uma em arquivos separados
+- Animações: `parado`, `andar`, `correr`, `ataque` e `jutsu`, cada uma em arquivos separados
 
 ## No jogo
 
@@ -49,7 +49,8 @@ Como o jogo escolhe a animação:
 | Andando | `andar` |
 | Correndo (botão 🏃, ou alguém andando bem rápido) | `correr` |
 | Ataque básico | `ataque`, alternando soco e chute |
-| Jutsu | a guarda, com as mãos no peito |
+| Jutsu | `jutsu`: preparação (mãos juntas), lançamento (palmas para frente, grito) e volta |
+| Meditando (🧘) | `jutsu` quadro 0: carregar chakra (agachado, selo do carneiro), parado |
 | Morto | `parado`, quadro 0 |
 
 ## Regerar
@@ -66,6 +67,18 @@ Depois rode `npm test`. O `test/sprites.test.ts` confere três coisas:
 - os atlas e o `spriteData.js` batem;
 - todo item existe em todas as animações, vistas e quadros;
 - o cliente aceita exatamente os mesmos nomes que o servidor.
+
+## Jutsu
+
+| Quadro | Pose | Usado em |
+|---|---|---|
+| 0 | carregar chakra: agachado, selo do carneiro no peito | meditação (parado) |
+| 1 | A, preparação: mãos juntas (palma com palma), corpo sobe | jutsu: A, depois B, depois A (110, 170 e 110 ms) |
+| 2 | B, lançamento: palmas para frente, corpo desce, boca aberta | jutsu |
+
+- O rosto fica sério (olhos `+serio`, boca `reta` ou `grito`): a pose pede com `fig.face`.
+- As mãos são carimbos à parte (`HAND_STAMPS` em `gerador/body.py`), no plano `topo`, por cima das mangas.
+- De costas, as mãos ficam escondidas na frente do corpo e só os cotovelos aparecem.
 
 ## Formato das folhas (`saida/`)
 

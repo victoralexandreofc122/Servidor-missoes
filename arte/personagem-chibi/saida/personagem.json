@@ -110,6 +110,20 @@
    ],
    "repete": false,
    "frames": "0 = soco, 1 = guarda (mão volta pro corpo), 2 = chute alto"
+  },
+  "jutsu": {
+   "sequencia": [
+    1,
+    2,
+    1
+   ],
+   "duracao_ms": [
+    110,
+    170,
+    110
+   ],
+   "repete": false,
+   "frames": "0 = carregar chakra (agachado, selo do carneiro; parado em loop na meditação), 1 = A, preparação (mãos juntas), 2 = B, lançamento (palmas pra frente, grito). Jutsu: A -> B -> A. Rosto sério"
   }
  },
  "canais": {
@@ -929,6 +943,155 @@
     "indices": "indices/masculino/ataque/calca__basica__topo.png"
    }
   ],
+  "masculino/jutsu": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/jutsu/corpo__base__tras.png",
+    "indices": "indices/masculino/jutsu/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/corpo__base__corpo.png",
+    "indices": "indices/masculino/jutsu/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/jutsu/corpo__base__frente.png",
+    "indices": "indices/masculino/jutsu/corpo__base__frente.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "topo",
+    "arquivo": "camadas/masculino/jutsu/corpo__base__topo.png",
+    "indices": "indices/masculino/jutsu/corpo__base__topo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/olhos__masculino__corpo.png",
+    "indices": "indices/masculino/jutsu/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/olhos__cilios__corpo.png",
+    "indices": "indices/masculino/jutsu/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/boca__sorriso__corpo.png",
+    "indices": "indices/masculino/jutsu/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/cabelo__espetado__corpo.png",
+    "indices": "indices/masculino/jutsu/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/jutsu/cabelo__longo_lateral__tras.png",
+    "indices": "indices/masculino/jutsu/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/masculino/jutsu/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/chapeu__bandana__corpo.png",
+    "indices": "indices/masculino/jutsu/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/jutsu/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/jutsu/conjunto__vila__tras.png",
+    "indices": "indices/masculino/jutsu/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/conjunto__vila__corpo.png",
+    "indices": "indices/masculino/jutsu/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/jutsu/conjunto__vila__frente.png",
+    "indices": "indices/masculino/jutsu/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/jutsu/camisa__basica__tras.png",
+    "indices": "indices/masculino/jutsu/camisa__basica__tras.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/camisa__basica__corpo.png",
+    "indices": "indices/masculino/jutsu/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/jutsu/camisa__basica__frente.png",
+    "indices": "indices/masculino/jutsu/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/masculino/jutsu/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/jutsu/calca__basica__tras.png",
+    "indices": "indices/masculino/jutsu/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/calca__basica__corpo.png",
+    "indices": "indices/masculino/jutsu/calca__basica__corpo.png"
+   }
+  ],
   "feminino/parado": [
    {
     "slot": "corpo",
@@ -1523,6 +1686,155 @@
     "plano": "topo",
     "arquivo": "camadas/feminino/ataque/calca__basica__topo.png",
     "indices": "indices/feminino/ataque/calca__basica__topo.png"
+   }
+  ],
+  "feminino/jutsu": [
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/jutsu/corpo__base__tras.png",
+    "indices": "indices/feminino/jutsu/corpo__base__tras.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/corpo__base__corpo.png",
+    "indices": "indices/feminino/jutsu/corpo__base__corpo.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/jutsu/corpo__base__frente.png",
+    "indices": "indices/feminino/jutsu/corpo__base__frente.png"
+   },
+   {
+    "slot": "corpo",
+    "item": "base",
+    "plano": "topo",
+    "arquivo": "camadas/feminino/jutsu/corpo__base__topo.png",
+    "indices": "indices/feminino/jutsu/corpo__base__topo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "masculino",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/olhos__masculino__corpo.png",
+    "indices": "indices/feminino/jutsu/olhos__masculino__corpo.png"
+   },
+   {
+    "slot": "olhos",
+    "item": "cilios",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/olhos__cilios__corpo.png",
+    "indices": "indices/feminino/jutsu/olhos__cilios__corpo.png"
+   },
+   {
+    "slot": "boca",
+    "item": "sorriso",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/boca__sorriso__corpo.png",
+    "indices": "indices/feminino/jutsu/boca__sorriso__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "espetado",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/cabelo__espetado__corpo.png",
+    "indices": "indices/feminino/jutsu/cabelo__espetado__corpo.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/jutsu/cabelo__longo_lateral__tras.png",
+    "indices": "indices/feminino/jutsu/cabelo__longo_lateral__tras.png"
+   },
+   {
+    "slot": "cabelo",
+    "item": "longo_lateral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/cabelo__longo_lateral__corpo.png",
+    "indices": "indices/feminino/jutsu/cabelo__longo_lateral__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "bandana",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/chapeu__bandana__corpo.png",
+    "indices": "indices/feminino/jutsu/chapeu__bandana__corpo.png"
+   },
+   {
+    "slot": "chapeu",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/chapeu__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/jutsu/chapeu__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/jutsu/conjunto__vila__tras.png",
+    "indices": "indices/feminino/jutsu/conjunto__vila__tras.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/conjunto__vila__corpo.png",
+    "indices": "indices/feminino/jutsu/conjunto__vila__corpo.png"
+   },
+   {
+    "slot": "conjunto",
+    "item": "vila",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/jutsu/conjunto__vila__frente.png",
+    "indices": "indices/feminino/jutsu/conjunto__vila__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/jutsu/camisa__basica__tras.png",
+    "indices": "indices/feminino/jutsu/camisa__basica__tras.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/camisa__basica__corpo.png",
+    "indices": "indices/feminino/jutsu/camisa__basica__corpo.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "basica",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/jutsu/camisa__basica__frente.png",
+    "indices": "indices/feminino/jutsu/camisa__basica__frente.png"
+   },
+   {
+    "slot": "camisa",
+    "item": "simbolo_espiral",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/camisa__simbolo_espiral__corpo.png",
+    "indices": "indices/feminino/jutsu/camisa__simbolo_espiral__corpo.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/jutsu/calca__basica__tras.png",
+    "indices": "indices/feminino/jutsu/calca__basica__tras.png"
+   },
+   {
+    "slot": "calca",
+    "item": "basica",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/calca__basica__corpo.png",
+    "indices": "indices/feminino/jutsu/calca__basica__corpo.png"
    }
   ]
  }

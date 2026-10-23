@@ -133,27 +133,32 @@ export function viewOf(dir) {
   return dir === 3 ? [2, false] : dir === 1 ? [1, false] : dir === 2 ? [1, true] : [0, false];
 }
 
-/** Ataques: o básico alterna soco e chute; o jutsu mostra a guarda (mãos juntas no peito). */
+/**
+ * Ações: [animação, quadro, ms]. O ataque básico alterna soco e chute (com a guarda antes e depois); o jutsu
+ * faz a preparação, o lançamento e volta (A -> B -> A, quadros 1 e 2 da animação "jutsu").
+ */
 export const ACTIONS = {
-  soco: [[1, 80], [0, 170], [1, 110]],
-  chute: [[1, 80], [2, 230], [1, 110]],
-  selo: [[1, 380]],
+  soco: [['ataque', 1, 80], ['ataque', 0, 170], ['ataque', 1, 110]],
+  chute: [['ataque', 1, 80], ['ataque', 2, 230], ['ataque', 1, 110]],
+  jutsu: [['jutsu', 1, 110], ['jutsu', 2, 170], ['jutsu', 1, 110]],
 };
 
 /**
- * Animação e quadro do boneco agora. state: { dead, moving, running, walk (fase da caminhada, rad),
- * act: { kind, start } | null, seed (atraso do "parado", para os bonecos não respirarem juntos) }.
+ * Animação e quadro do boneco agora. state: { dead, meditating, moving, running, walk (fase da caminhada,
+ * rad), act: { kind, start } | null, seed (atraso do "parado", para os bonecos não respirarem juntos) }.
+ * Meditando: a pose de carregar chakra (quadro 0 do jutsu), parada.
  */
 export function pickFrame(state, now) {
   if (state.dead) return { anim: 'parado', frame: 0 };
   const act = state.act && ACTIONS[state.act.kind];
   if (act) {
     let t = now - state.act.start;
-    for (const [frame, ms] of act) {
-      if (t < ms) return { anim: 'ataque', frame };
+    for (const [anim, frame, ms] of act) {
+      if (t < ms) return { anim, frame };
       t -= ms;
     }
   }
+  if (state.meditating) return { anim: 'jutsu', frame: 0 };
   if (state.moving) {
     const seq = SPRITES.animacoes.andar.sequencia;
     const step = Math.floor((state.walk || 0) / Math.PI) % seq.length;

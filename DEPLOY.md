@@ -729,6 +729,6 @@ SELECT game.valid_appearance('{"skin":"#f1c9a0","hair":"#2b2118","shirt":"#2f5d8
 2. **Conta antiga:** entra com o visual de antes convertido para as cores mais parecidas (a capa sumiu).
    Abra ⚙️ → **🎨 Mudar visual** para escolher o novo.
 3. **No mapa:** ande (as pernas acompanham o passo), toque em 🏃 (corrida ninja, braços para trás), ataque
-   (soco e chute alternados) e use um jutsu (mãos no peito). Para a direita, o boneco é o de lado espelhado.
+   (soco e chute alternados), use um jutsu (mãos juntas, palmas para frente e volta) e medite (🧘: agachado, com o selo do carneiro). Para a direita, o boneco é o de lado espelhado.
 4. **Outro jogador** (outro celular ou aba anônima) vê o seu visual igual, e a mudança aparece na hora quando você salva no Criador.
 

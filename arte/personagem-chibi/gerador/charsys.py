@@ -53,7 +53,7 @@ class Frame:
             if slot in ("olhos", "boca", "cabelo", "chapeu"):
                 if v == "back" and slot in ("olhos", "boca"):
                     continue
-                pl = [HI.follow_head(p, fig) for p in HI.head_planes(kind, v, style)]
+                pl = [HI.follow_head(p, fig) for p in HI.head_planes(kind, v, HI.face_style(kind, style, fig))]
                 if slot == "cabelo":
                     pl = HI.fit_to_pose(pl, fig, self.layers["corpo"])
                 self.layers[slot] = pl
