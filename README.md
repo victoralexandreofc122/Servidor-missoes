@@ -6,6 +6,9 @@ o servidor valida **quem está chamando** e traduz os erros para português.
 
 **Deploy pelo celular (Neon + GitHub + Render): veja [DEPLOY.md](DEPLOY.md).**
 
+**Design do jogo:** [docs/design-do-jogo.md](docs/design-do-jogo.md) (visão, sistemas, progressão, economia, PvP,
+arte, UI e roadmap) · **História:** [docs/historia/arco-1.md](docs/historia/arco-1.md) (Arco 1).
+
 ## Rodar (com terminal)
 
 ```bash
