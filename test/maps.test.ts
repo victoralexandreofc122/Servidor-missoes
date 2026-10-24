@@ -280,7 +280,7 @@ describe('mapas: servidor (salas)', () => {
     assert.equal(b.conn.of('player_respawned').length, 0);
   });
 
-  it('welcome: mapa atual, layout de todos os mapas e só os jogadores do mesmo mapa', () => {
+  it('welcome: mapa atual, layouts dele e dos vizinhos (os outros chegam ao trocar de mapa) e só os jogadores do mesmo mapa', () => {
     const { world, connect } = setupWorld(quiet);
     const a = connect('kaito');
     placeIn(world, a.id, 'map_2', TRILHA.x, TRILHA.y);

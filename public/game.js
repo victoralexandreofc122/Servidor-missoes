@@ -10,7 +10,7 @@
 // com a posição oficial que chega a cada tick.
 
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
-import { arenaAt, arenaFoes, groundAt, inSafeZone, mapName, placements, visibleDeco, visibleWalls } from './world.js';
+import { arenaAt, arenaFoes, groundAt, inSafeZone, mapName, placements, themeAt, visibleDeco, visibleWalls } from './world.js';
 import { drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawWall } from './mapArt.js';
 import { dirFrom, drawBackItem, drawCharacter, drawHandItem } from './character.js';
 import {
@@ -20,6 +20,7 @@ import {
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
 import { drawBackWeapon, drawHandWeapon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
+import { drawCape, drawRenegadeScratch, egOn, factionStyle, mapAccess, mountEndgameUI, shopFactor, zoneFoe } from './endgame.js';
 
 const TOKEN_KEY = 'nin.token';
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/game`;
@@ -73,7 +74,7 @@ const ui = {
   tabJutsus: $('tab-jutsus'), paneJutsus: $('pane-jutsus'), jutsuList: $('jutsu-list'), kitList: $('kit-list'),
   classPanel: $('class-panel'), classTitle: $('class-title'), classClose: $('class-close'), classGrid: $('class-grid'),
   classDesc: $('class-desc'), classConfirm: $('class-confirm'),
-  hokagePanel: $('hokage-panel'), hokageClose: $('hokage-close'), hokageApply: $('hokage-apply'),
+  kagePanel: $('kage-panel'), kageClose: $('kage-close'), kageApply: $('kage-apply'),
   // v8: histórico do chat, Sala de Missões (cartões) e redefinir atributos
   historyToggle: $('history-toggle'), historyPanel: $('history-panel'), historyClose: $('history-close'),
   historyList: $('history-list'), historyEmpty: $('history-empty'), historyTabs: [...document.querySelectorAll('#history-panel .tab')],
@@ -117,9 +118,11 @@ const state = {
   world: { width: 50, height: 50, speed: 5, tickMs: 50, spawn: { x: 25, y: 25 }, respawnMs: 5000, skills: {}, items: [], classes: [], extraction: [] },
   /**
    * Progressão (v7), SEMPRE a do servidor: passo do tutorial (trava as portas da Academia), ryō,
-   * itens, arma equipada, classes, jutsus aprendidos -> usos (o nível sai do uso) e Hokage.
+   * itens, arma equipada, classes, jutsus aprendidos -> usos (o nível sai do uso) e Kage.
    */
-  ninja: { tutorialStep: 4, ryo: 0, items: {}, equipped: null, equippedScroll: null, classes: { primary: null, secondary: null }, jutsus: {}, hokageCandidate: false, isAdmin: false },
+  ninja: { tutorialStep: 4, ryo: 0, items: {}, equipped: null, equippedScroll: null, classes: { primary: null, secondary: null }, jutsus: {}, kageCandidate: false, isAdmin: false, cape: null, display: { cape: true, weapon: true, scroll: true } },
+  /** Fim de jogo (v16): o estado político que o servidor manda (`endgame`) ou null (módulos desligados / sem a v11). */
+  endgame: null,
   /** Histórico do chat (o servidor manda as últimas 100 ao conectar; as novas entram no fim). */
   chatHistory: [],
   /** Cartões da Sala de Missões (o servidor manda ao falar com o Mestre) ou null. */
@@ -337,7 +340,7 @@ function disconnect() {
   closeMissions();
   closeInventory();
   closeClassChoice();
-  closeHokage();
+  closeKage();
   setFocus(null);
   hideDeath();
 }
@@ -368,6 +371,7 @@ function upsertPlayer(p, snap) {
     if (p.appearance) existing.look = normalizeLook(p.appearance);
     if (p.dir !== undefined) existing.dir = p.dir;
     if (p.gear) existing.gear = safeGear(p.gear);
+    if (p.faction !== undefined) existing.faction = p.faction;
     return existing;
   }
   const color = colorFor(p.id);
@@ -383,6 +387,8 @@ function upsertPlayer(p, snap) {
     seed: [...p.id].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 9973, 0) * 7, lastX: p.x, lastY: p.y,
     // Equipamento visível (o servidor manda): arma na mão / nas costas e pergaminho nas costas.
     gear: safeGear(p.gear),
+    // Fim de jogo (v16): vila, renegado, Kage, Akatsuki, recompensa e capa (o servidor manda; null = módulos desligados).
+    faction: p.faction || null,
     initial: ([...p.username][0] || '?').toUpperCase(),
     initialColor: LIGHT_COLORS.has(color) ? '#14110d' : '#ffffff',
   };
@@ -407,6 +413,7 @@ const CAST_FAIL_TEXT = {
 
 function handleMessage(msg) {
   const now = performance.now();
+  if (eg.handle(msg)) return;            // painéis do fim de jogo (endgame.js)
   switch (msg.type) {
     case 'welcome': {
       state.players.clear();
@@ -441,7 +448,13 @@ function handleMessage(msg) {
       if (msg.progress) state.progress = msg.progress;
       if (msg.kit) state.kit = msg.kit;
       if (msg.ninja) state.ninja = msg.ninja;
+      renderDisplayBoxes();
       pred.gates.tutorial = state.ninja.tutorialStep;   // portas da Academia: o MESMO passo do servidor
+      // Sala compartilhada (loja, Academia): para onde a porta de saída leva (a vila de onde ele entrou).
+      pred.gates.back = msg.you.doorBack ? { ...msg.you.doorBack } : undefined;
+      state.endgame = null;                              // o servidor manda `endgame` logo depois (se houver)
+      updateAccess();
+      eg.refresh();
       renderNinja();
       state.evalQueue = [];
       renderEval();
@@ -460,6 +473,32 @@ function handleMessage(msg) {
       upsertPlayer(msg.player, true);
       updateOnline();
       break;
+    // ---- fim de jogo (v16): o estado político e o lado de cada ninja (o servidor manda; aqui só se mostra)
+    case 'endgame':
+      state.endgame = msg;
+      updateAccess();
+      if (state.mapId) state.npcs = state.allNpcs.filter((n) => n.map === state.mapId && npcVisible(n));
+      eg.refresh();
+      if (state.shop) renderShopItems();
+      break;
+    case 'player_faction': {
+      const p = state.players.get(msg.playerId);
+      if (p) p.faction = msg.faction;
+      if (msg.playerId === state.meId) {
+        updateAccess();
+        eg.refresh();
+      }
+      break;
+    }
+    case 'power': {
+      // Poder da Akatsuki aceito pelo servidor: a animação (o efeito em si já foi aplicado lá).
+      const fxKind = POWER_FX[msg.power];
+      if (fxKind) state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, tx: msg.tx, ty: msg.ty, start: now });
+      const caster = state.players.get(msg.playerId);
+      if (caster) caster.act = { kind: 'jutsu', start: now };
+      if (msg.playerId === state.meId) eg.powerUsed(now);
+      break;
+    }
     case 'shop_open':
       openShop(msg.shop, msg.npcId);
       break;
@@ -473,6 +512,7 @@ function handleMessage(msg) {
       break;
     }
     case 'inventory':
+      if (msg.cape !== undefined) state.ninja.cape = msg.cape;
       Object.assign(state.ninja, { ryo: msg.ryo, items: msg.items, equipped: msg.equipped, equippedScroll: msg.equippedScroll ?? null });
       renderInventory();
       renderResetButton();
@@ -555,6 +595,7 @@ function handleMessage(msg) {
       // novo em si já pode estar na tela (a predição atravessa na hora); aqui chegam os
       // jogadores e monstros de lá. Os do mapa antigo somem.
       state.serverMap = msg.map;
+      if (msg.maps) Object.assign(state.maps, msg.maps);   // o mapa novo e os vizinhos que ainda não tínhamos
       for (const id of [...state.players.keys()]) if (id !== state.meId) state.players.delete(id);
       state.monsters.clear();
       for (const p of msg.players) upsertPlayer(p, true);
@@ -710,7 +751,8 @@ function handleMessage(msg) {
     }
     case 'projectile': {
       // Fogo / Kunai / Shuriken Gigante saiu voando: a tela anda com ele; quem decide onde bate é o servidor (`impact`).
-      const sheet = msg.weapon ? 'fuma' : mechanicOf(msg.skill) === 'fire' ? 'fireball' : 'kunai';
+      // Poderes da Akatsuki: a Argila Viva voa como a bola de fogo; a Chuva de Papel, como kunais.
+      const sheet = msg.power ? (msg.power === 'blast' ? 'fireball' : 'kunai') : msg.weapon ? 'fuma' : mechanicOf(msg.skill) === 'fire' ? 'fireball' : 'kunai';
       vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now);
       const thrower = msg.weapon ? state.players.get(msg.playerId) : null;
       if (thrower) thrower.thrown = { id: msg.id, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 400 };   // costas vazias enquanto voa
@@ -865,9 +907,9 @@ function handleMessage(msg) {
       const npc = state.npcs.find((n) => n.id === msg.npcId);
       if (npc) npc.bubble = { text: msg.text, until: now + 4000 + msg.text.length * 45 };
       addChatLine(npc ? npc.name : 'NPC', msg.text, false, 'npc');
-      // Diretor, nível 60 e ainda sem candidatura: o botão de Hokage aparece.
-      const hokageAt = state.world.rankLevels?.hokage ?? 60;
-      if (msg.npcId === 'director' && (state.progress?.level ?? 1) >= hokageAt && !state.ninja.hokageCandidate) openHokage();
+      // Diretor, nível 60 e ainda sem candidatura: o botão de Kage aparece.
+      const kageAt = state.world.rankLevels?.kage ?? 60;
+      if (msg.npcId === 'director' && (state.progress?.level ?? 1) >= kageAt && !state.ninja.kageCandidate) openKage();
       break;
     }
     case 'mission_reward': {
@@ -1010,13 +1052,14 @@ function enterMap(id, announce) {
   state.overhead = deco.filter((d) => d.k === 'gate_roof');
   state.doors = deco.filter((d) => d.k === 'door');      // Academia: abrem conforme o tutorial (desenho a cada quadro)
   state.fields = layout.fields || [];                     // Sala de Controle: o campo que drena o chakra
-  state.npcs = state.allNpcs.filter((n) => n.map === id);
+  state.npcs = state.allNpcs.filter((n) => n.map === id && npcVisible(n));
   state.nearNpc = null;
   ui.talkBtn.hidden = true;
   const me = state.players.get(state.meId);
   if (me) me.map = id;
   if (changed) {
     closeShop();
+    eg.closeTravel();
     state.effects.length = 0;
     vfx.clear();
     state.floaters.length = 0;
@@ -1187,7 +1230,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'j' || e.key === 'J') (ui.missionsPanel.hidden ? openMissions() : closeMissions());
   if (e.key === 'i' || e.key === 'I') (ui.invPanel.hidden ? openInventory() : closeInventory());
   if (e.key === 'h' || e.key === 'H') (ui.historyPanel.hidden ? openHistory() : closeHistory());
-  if (e.key === 'Escape') { closeShop(); closeInventory(); closeClassChoice(); closeHokage(); closeBoard(); closeHistory(); }
+  if (e.key === 'Escape') { closeShop(); closeInventory(); closeClassChoice(); closeKage(); closeBoard(); closeHistory(); }
 });
 window.addEventListener('keyup', (e) => {
   if (KEYMAP[e.code] && keys.delete(e.code)) keyDirection();
@@ -1274,8 +1317,24 @@ const skillName = (skill) => state.world.skills?.[skill]?.name || skill;
 /** Ninja que pode ser alvo agora: os dois dentro da arena da vila (o servidor confere de novo). */
 function isFoe(p) {
   const me = state.players.get(state.meId);
-  return !!p && p !== me && p.map === state.mapId && arenaFoes(state.maps[state.mapId], me, p);
+  if (!p || p === me || p.map !== state.mapId) return false;
+  const map = state.maps[state.mapId];
+  return arenaFoes(map, me, p) || zoneFoe(state.endgame, map, me, p, (x, y) => inSafeZone(map, x, y));
 }
+
+/** Na Zona de Conflito (PvP livre): o foco e os nomes em vermelho valem para os inimigos. */
+const inConflict = () => !!state.maps[state.mapId]?.conflict && egOn(state.endgame, 'pvp');
+
+/** Posto de Viagem só aparece com o módulo de vilas ligado. */
+const npcVisible = (n) => n.role !== 'travel' || egOn(state.endgame, 'vilas');
+
+/** Acesso aos mapas na PREDIÇÃO: a mesma regra do servidor (vila proibida = parede). */
+function updateAccess() {
+  pred.gates.access = mapAccess(state.endgame, state.players.get(state.meId)?.faction);
+}
+
+/** O efeito na tela de cada poder da Akatsuki (os mesmos desenhos dos jutsus). Argila e Papel: o projétil já é o efeito. */
+const POWER_FX = { pull: 'illusion', crows: 'illusion', strings: 'shadow', hearts: 'stone', mask: 'substitution', roots: 'teleport', drain: 'heal', lifesteal: 'heal' };
 
 /** O alvo focado: um monstro ou, na arena, outro ninja. */
 function focusEntity() {
@@ -1291,7 +1350,7 @@ function cycleFocus() {
   const me = state.players.get(state.meId);
   if (!me || state.me.dead) return;
   const here = [...state.monsters.values()].filter((m) => m.map === state.mapId);
-  if (state.inArena) for (const p of state.players.values()) if (isFoe(p)) here.push(p);
+  if (state.inArena || inConflict()) for (const p of state.players.values()) if (isFoe(p)) here.push(p);
   const id = nextTarget(me, here, state.focusId, FOCUS_RANGE);
   if (!id) {
     setFocus(null);
@@ -1521,7 +1580,7 @@ function updateNpcProximity(me) {
   }
   // Sala de Missões aberta e o jogador se afastou do Mestre: fecha.
   if (!ui.boardPanel.hidden) {
-    const sensei = state.npcs.find((n) => n.id === 'sensei');
+    const sensei = state.npcs.find((n) => n.role === 'sensei');
     if (!me || !sensei || Math.hypot(me.x - sensei.x, me.y - sensei.y) > sensei.range + 0.6) closeBoard();
   }
   // Loja aberta e o jogador se afastou do balcão: fecha.
@@ -1583,7 +1642,11 @@ function renderShopItems() {
   const shop = state.shop;
   if (!shop) return;
   ui.shopRyo.textContent = `Você tem ${ryoText(state.ninja.ryo)}`;
-  const forSale = (state.world.items || []).filter((i) => i.shop === shop.kind);
+  // Capas só com o banco do fim de jogo (v11): sem ele, o servidor nem manda o estado `endgame`.
+  const forSale = (state.world.items || []).filter((i) => i.shop === shop.kind && (i.kind !== 'cape' || state.endgame));
+  // Fim de jogo: guerra deixa as lojas da vila +10%, aliança −5% (o banco cobra o mesmo).
+  const factor = shopFactor(state.endgame, state.players.get(state.meId)?.faction);
+  const priceOf = (item) => Math.ceil(item.price * factor);
   ui.shopItems.replaceChildren(...forSale.map((item) => {
     const li = document.createElement('li');
     const i = document.createElement('span');
@@ -1595,13 +1658,13 @@ function renderShopItems() {
     const price = document.createElement('small');
     price.className = 'price';
     const have = state.ninja.items?.[item.code] || 0;
-    price.textContent = `${ryoText(item.price)}${item.damage ? ` · +${item.damage} de dano` : ''}${item.throw ? ' · de arremesso' : ''}${have ? ` · você tem ${have}` : ''}`;
+    price.textContent = `${ryoText(priceOf(item))}${item.damage ? ` · +${item.damage} de dano` : ''}${item.throw ? ' · de arremesso' : ''}${item.kind === 'cape' ? ' · capa' : ''}${have ? ` · você tem ${have}` : ''}`;
     n.append(price);
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'icon-btn small';
     b.textContent = 'Comprar';
-    b.disabled = (state.ninja.ryo || 0) < item.price;
+    b.disabled = (state.ninja.ryo || 0) < priceOf(item);
     b.addEventListener('click', () => {
       if (!tapGuard(`buy:${item.code}`)) return;
       send({ type: 'buy', item: item.code, qty: 1 });
@@ -1609,7 +1672,8 @@ function renderShopItems() {
     li.append(i, n, b);
     return li;
   }));
-  ui.shopNote.textContent = shop.kind === 'clothes' ? 'Roupas chegam numa próxima versão.' : forSale.length ? '' : 'Nada à venda agora.';
+  ui.shopNote.textContent = factor !== 1 ? `Preços da vila: ${factor > 1 ? '+' : ''}${Math.round((factor - 1) * 100)}% (${factor > 1 ? 'guerra' : 'aliança'}).`
+    : forSale.length ? '' : 'Nada à venda agora.';
   ui.extractBox.hidden = shop.kind !== 'scrolls';
   if (shop.kind === 'scrolls') renderExtraction();
 }
@@ -1728,9 +1792,42 @@ function renderInventory() {
       b.textContent = on ? 'Tirar' : 'Nas costas';
       b.addEventListener('click', () => send({ type: 'equip', item: on ? null : code, slot: 'scroll' }));
       li.append(b);
+    } else if (def?.kind === 'cape') {
+      // Capa (v16): camada do boneco; todos veem (menos se escondida no ⚙️).
+      const on = n.cape === code;
+      if (on) li.classList.add('equipped');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'icon-btn small';
+      b.textContent = on ? 'Tirar' : 'Vestir';
+      b.addEventListener('click', () => send({ type: 'equip', item: on ? null : code, slot: 'cape' }));
+      li.append(b);
     }
     return li;
   }));
+  // Mantos do cargo (Kage, Akatsuki): não ficam no inventário, mas dá para vestir enquanto durar o cargo.
+  const f = state.players.get(state.meId)?.faction;
+  for (const [code, has] of [['manto_kage', !!f?.kage], ['manto_akatsuki', !!f?.akatsuki]]) {
+    if (!has || (n.items || {})[code]) continue;
+    const def = itemDef(code);
+    const li = document.createElement('li');
+    const on = n.cape === code;
+    if (on) li.className = 'equipped';
+    const i = document.createElement('span');
+    i.className = 'ico';
+    i.textContent = def?.icon || '👘';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = def?.name || code;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'icon-btn small';
+    b.textContent = on ? 'Tirar' : 'Vestir';
+    b.addEventListener('click', () => send({ type: 'equip', item: on ? null : code, slot: 'cape' }));
+    li.append(i, name, b);
+    ui.invItems.append(li);
+    ui.invEmpty.hidden = true;
+  }
 }
 function openInventory() {
   closeSettings();
@@ -1751,7 +1848,34 @@ function closeInventory() {
 ui.invToggle.addEventListener('click', () => (ui.invPanel.hidden ? openInventory() : closeInventory()));
 ui.invClose.addEventListener('click', closeInventory);
 
-// ------------------------------------------------------------------ Diretor: classe e Hokage
+// ------------------------------------------------------------------ fim de jogo (v16): painéis em endgame.js
+
+const eg = mountEndgameUI({
+  send,
+  toast: (text) => showToast(text, 3500),
+  view: () => state.endgame,
+  me: () => state.players.get(state.meId),
+  ninja: () => state.ninja,
+  focusId: () => state.focusId,
+  aim: () => (dir.x !== 0 || dir.y !== 0 ? [Math.round(dir.x * 100) / 100, Math.round(dir.y * 100) / 100] : null),
+  closeOthers: () => { closeSettings(); closeStatus(); closeMissions(); closeShop(); closePlayerMenu(); closeBoard(); closeHistory(); closeInventory(); },
+});
+
+// ⚙️ O que os outros veem no boneco (capa, arma, pergaminho): só PEDE; o servidor manda o boneco novo a todos.
+const displayBoxes = { cape: $('show-cape'), weapon: $('show-weapon'), scroll: $('show-scroll') };
+for (const box of Object.values(displayBoxes)) {
+  box.addEventListener('change', () => {
+    const display = { cape: displayBoxes.cape.checked, weapon: displayBoxes.weapon.checked, scroll: displayBoxes.scroll.checked };
+    state.ninja.display = display;
+    send({ type: 'set_display', ...display });
+  });
+}
+function renderDisplayBoxes() {
+  const d = state.ninja.display || { cape: true, weapon: true, scroll: true };
+  for (const [k, box] of Object.entries(displayBoxes)) box.checked = d[k] !== false;
+}
+
+// ------------------------------------------------------------------ Diretor: classe e Kage
 
 let classChoice = { kind: 'primary', picked: null };
 function openClassChoice(kind, classes) {
@@ -1796,14 +1920,14 @@ ui.classConfirm.addEventListener('click', () => {
   send({ type: 'choose_class', class: classChoice.picked });   // o servidor (e o banco) decidem
 });
 
-function openHokage() { ui.hokagePanel.hidden = false; }
-function closeHokage() { ui.hokagePanel.hidden = true; }
-ui.hokageClose.addEventListener('click', closeHokage);
-ui.hokageApply.addEventListener('click', () => {
-  if (!tapGuard('hokage')) return;
-  send({ type: 'hokage_apply' });
-  state.ninja.hokageCandidate = true;   // só esconde o botão; quem registra é o servidor
-  closeHokage();
+function openKage() { ui.kagePanel.hidden = false; }
+function closeKage() { ui.kagePanel.hidden = true; }
+ui.kageClose.addEventListener('click', closeKage);
+ui.kageApply.addEventListener('click', () => {
+  if (!tapGuard('kage')) return;
+  send({ type: 'kage_apply' });
+  state.ninja.kageCandidate = true;   // só esconde o botão; quem registra é o servidor
+  closeKage();
 });
 
 // ------------------------------------------------------------------ tutorial da Academia
@@ -1847,7 +1971,7 @@ function renderNinja() {
   renderInventory();
   renderTutorial();
   closeClassChoice();
-  closeHokage();
+  closeKage();
 }
 
 /** Marcador sobre o NPC: "!" tem missão para dar, "?" dourado = pronta para entregar, "?" cinza = em andamento. */
@@ -1964,6 +2088,7 @@ function drawCooldowns(now) {
   };
   paint(ui.attackBtn, 'attack');
   for (const button of ui.slots) if (button.dataset.skill) paint(button, button.dataset.skill);
+  eg.drawPowerCooldown(now);
 }
 
 /**
@@ -3022,9 +3147,69 @@ function stoneTile(seed) {
   });
 }
 
+/** Calçamento de cada vila (v16): a mesma planta da Folha com a pedra da terra dela. [base, bloco, bloco 2, brilho, pontos]. */
+const STONE_THEMES = {
+  pedra: ['#5d5f63', '#7c7f84', '#73767b', '#8f9297', ['#6a6d72', '#868a8f']],
+  nevoa: ['#8a9ea6', '#b3c6cc', '#a7bcc3', '#c8d8dc', ['#9cb1b8', '#bfd0d5']],
+  nuvem: ['#b3aaa6', '#d6cfca', '#cbc3be', '#e3ddd8', ['#c0b8b3', '#ddd6d1']],
+  areia: ['#b9925e', '#d9b47c', '#cfa970', '#e6c592', ['#c49c66', '#e0bd88']],
+};
+
+/** Terra solta (Zona de Conflito, Refúgio): marrom-acinzentada, com pedrinhas. */
+function dirtTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#6f6150';
+    g.fillRect(0, 0, PIX, PIX);
+    for (let i = 0; i < 20; i++) {
+      g.fillStyle = r() < 0.5 ? '#5f5242' : '#806f5c';
+      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1 + Math.floor(r() * 2), 1);
+    }
+    g.fillStyle = '#8f8a80';
+    g.fillRect(Math.floor(r() * (PIX - 2)), Math.floor(r() * (PIX - 2)), 2, 2);
+  });
+}
+
+/** Cinzas (acampamentos): cinza-escuro com brasas apagadas. */
+function ashTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#4a4744';
+    g.fillRect(0, 0, PIX, PIX);
+    for (let i = 0; i < 18; i++) {
+      g.fillStyle = r() < 0.5 ? '#3b3836' : '#5c5955';
+      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+    }
+    if (r() < 0.4) { g.fillStyle = '#7a3a22'; g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1); }
+  });
+}
+
+/** Calçamento com as cores de uma vila. */
+function themedStoneTile(seed, [base, a, b, light, dots]) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = base;
+    g.fillRect(0, 0, PIX, PIX);
+    const blocks = seed % 2 ? [[0, 0, 8, 7], [8, 0, 8, 7], [0, 8, 5, 8], [5, 8, 11, 8]] : [[0, 0, 6, 8], [6, 0, 10, 8], [0, 8, 9, 8], [9, 8, 7, 8]];
+    for (const [x, y, w, h] of blocks) {
+      g.fillStyle = r() < 0.5 ? a : b;
+      g.fillRect(x, y, w - 1, h - 1);
+      g.fillStyle = light;
+      g.fillRect(x, y, w - 1, 1);
+    }
+    for (let i = 0; i < 6; i++) {
+      g.fillStyle = r() < 0.5 ? dots[0] : dots[1];
+      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+    }
+  });
+}
+
 const TILES = {
   grass: [grassTile(1, false), grassTile(2, false), grassTile(3, false), grassTile(4, true)],
   stone: [lightStoneTile(21), lightStoneTile(22), lightStoneTile(23)],   // ruas e praça: pedra cinza clara
+  themedStone: Object.fromEntries(Object.entries(STONE_THEMES).map(([k, c]) => [k, [themedStoneTile(91, c), themedStoneTile(92, c), themedStoneTile(93, c)]])),
+  dirt: [dirtTile(101), dirtTile(102), dirtTile(103)],
+  ash: [ashTile(111), ashTile(112)],
   sand: [sandTile(41), sandTile(42)],
   arena: [arenaTile(43), arenaTile(44), arenaTile(45)],                                     // terra batida da arena
   bridge: [bridgeTile(51)],
@@ -3048,7 +3233,9 @@ function cellHash(x, y) {
 function tileAt(x, y) {
   const h = cellHash(x, y);
   switch (groundAt(state.places, x, y)) {
-    case 'stone': return TILES.stone[h % 3];                       // Vila: calçamento de pedra cinza clara
+    case 'stone': return (TILES.themedStone[themeAt(state.places, x, y)] || TILES.stone)[h % 3];   // Vila: o calçamento da vila
+    case 'dirt': return TILES.dirt[h % 3];                         // Zona de Conflito, Refúgio: terra solta
+    case 'ash': return TILES.ash[h & 1];                           // acampamentos: cinzas
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
     case 'arena': return TILES.arena[h % 3];                       // arena da vila (terra batida)
@@ -3377,7 +3564,7 @@ function draw(now) {
   // 7. Missão pronta e o Mestre fora da tela: seta na borda apontando para ele.
   const marker = npcMarker();
   if (me && marker && marker.strong && state.mission) {
-    for (const n of state.npcs) if (n.id === 'sensei') drawOffscreenArrow(toScreenX(n.x), toScreenY(n.y), marker, now);
+    for (const n of state.npcs) if (n.role === 'sensei') drawOffscreenArrow(toScreenX(n.x), toScreenY(n.y), marker, now);
   }
 
   drawJoystick();
@@ -3729,8 +3916,8 @@ function drawNpc(n, sx, sy, T, now, me) {
   }
   ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
   ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.92, r * 1.05, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
-  // manto (um pouco mais largo embaixo)
-  ctx.fillStyle = '#3b2f6e';
+  // manto (um pouco mais largo embaixo): o Mestre de roxo, o Posto de Viagem de verde
+  ctx.fillStyle = n.role === 'travel' ? '#2f5a3a' : '#3b2f6e';
   ctx.beginPath();
   ctx.moveTo(sx - r * 0.95, sy + r * 0.75);
   ctx.quadraticCurveTo(sx - r * 1.05, sy - r * 0.2, sx, sy - r * 1.02);
@@ -3743,7 +3930,7 @@ function drawNpc(n, sx, sy, T, now, me) {
   ctx.fillStyle = '#ffe9a8';
   ctx.font = `800 ${Math.round(r * 0.95)}px system-ui, -apple-system, sans-serif`;
   ctx.textBaseline = 'middle';
-  ctx.fillText('師', sx, sy + r * 0.05);
+  ctx.fillText(n.role === 'travel' ? '旅' : '師', sx, sy + r * 0.05);
   // nome
   const fontSize = Math.max(11, Math.round(T * 0.32));
   ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
@@ -3755,8 +3942,8 @@ function drawNpc(n, sx, sy, T, now, me) {
   const nameY = sy - r * 1.05 - 3;
   ctx.strokeText(n.name, sx, nameY);
   ctx.fillText(n.name, sx, nameY);
-  // marcador de missão, pulando
-  const marker = npcMarker();
+  // marcador de missão, pulando (só o Mestre: o Posto de Viagem não passa missão)
+  const marker = n.role === 'travel' ? null : npcMarker();
   if (marker) {
     const size = Math.max(16, Math.round(T * 0.62));
     const bob = Math.sin(now / 220) * T * 0.08;
@@ -3913,6 +4100,7 @@ function drawFloaters(toScreenX, toScreenY, T, now) {
  * vão nas âncoras do quadro (atrás do corpo quando o braço está atrás). Devolve o topo da cabeça, ou null
  * se o atlas do gênero ainda não chegou (o chamador desenha o boneco antigo).
  */
+const VIEW_NAMES = ['frente', 'lado', 'costas'];
 function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
   if (!spritesReady(look.gender)) return null;
   const s = spriteScale(T, dpr);
@@ -3921,13 +4109,18 @@ function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
   const left = Math.round((sx - 32 * s) * dpr) / dpr;
   const top = Math.round((sy + T * 0.42 - 93 * s) * dpr) / dpr;
   let onPlane = null;
-  const an = gear && (gear.hand || gear.back || gear.scroll) ? anchorsOf(look.gender, anim, view, frame) : null;
+  const ax = (x) => (flip ? left + (64 - x) * s : left + x * s);
+  // Fim de jogo (v16): a capa (camada própria) e a bandana riscada do renegado.
+  const cape = p.faction?.cape || null;
+  const capeVillage = p.faction ? (p.faction.village ?? p.faction.renegadeFrom) : look.village;
+  const an = (gear && (gear.hand || gear.back || gear.scroll)) || cape ? anchorsOf(look.gender, anim, view, frame) : null;
   if (an) {
+    gear = gear || { hand: null, back: null, scroll: null };
     // Ordem do paperdoll:
-    //  - costas: atrás do corpo (de frente e de lado) ou por cima de tudo (de costas);
+    //  - capa: atrás do corpo (de frente e de lado) ou por cima do corpo e debaixo do cabelo (de costas);
+    //  - costas: atrás do corpo (de frente e de lado) ou por cima de tudo (de costas), à frente da capa;
     //  - mão: logo ANTES do plano do braço que segura (o punho fecha por cima do cabo); no selo do jutsu, some.
     // No golpe com arma, a espada / Shuriken Gigante sai das costas para a mão (a bainha vazia fica nas costas).
-    const ax = (x) => (flip ? left + (64 - x) * s : left + x * s);
     const u = (T / 16) * 1.3;
     const R = (px, py, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(px), Math.round(py), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); };
     const backX = ax(an.costas[0]), backY = top + an.costas[1] * s;
@@ -3952,12 +4145,15 @@ function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
       else if (dir !== 3) drawHandItem(R, ax(an.mao[0]) - u, top + an.mao[1] * s - 0.6 * u, u, dir === 0 ? 1 : dir, inHand);
     };
     const handPlane = inHand && an.mao && anim !== 'jutsu' ? an.mao[2] : -1;
+    const capePlane = cape ? (dir === 3 ? 3 : 0) : -1;
     onPlane = (plane) => {
+      if (plane === capePlane) drawCape(g, cape, capeVillage, VIEW_NAMES[view], ax, top, s, an.costas);
       if (plane === (dir === 3 ? 4 : 0)) back();
       if (plane === handPlane) hand();
     };
   }
   const minY = drawCell(g, left, top, s, look, view, flip, anim, frame, onPlane);
+  if (p.faction && p.faction.village === null) drawRenegadeScratch(g, VIEW_NAMES[view], ax, top, s);
   return minY == null ? null : top + minY * s;
 }
 
@@ -4009,11 +4205,21 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
   ctx.lineWidth = 3;
   ctx.lineJoin = 'round';            // contorno do texto sem "espinhos" nas quinas
   ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
-  const foe = !isMe && state.inArena && isFoe(p);       // na arena: adversário com o nome em vermelho
-  ctx.fillStyle = isMe ? '#ffe2a8' : foe ? '#ff9a8a' : '#f4ead8';
+  const foe = !isMe && (state.inArena || inConflict()) && isFoe(p);   // arena e Zona de Conflito: adversário em vermelho
+  // Fim de jogo: 👑 Kage, ☁ Akatsuki, renegado em violeta, aliado em verde na Zona e a recompensa pela cabeça.
+  const style = factionStyle(state.endgame, state.players.get(state.meId), p, inConflict());
+  ctx.fillStyle = isMe ? '#ffe2a8' : foe ? (style.color || '#ff9a8a') : style.color || '#f4ead8';
   const nameY = headTop - 5 - (isMe ? 2 : 7);
-  ctx.strokeText(p.username, sx, nameY);
-  ctx.fillText(p.username, sx, nameY);
+  const label = `${style.prefix}${p.username}`;
+  ctx.strokeText(label, sx, nameY);
+  ctx.fillText(label, sx, nameY);
+  if (style.bounty > 0) {
+    ctx.font = `800 ${Math.max(10, Math.round(T * 0.28))}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = '#ffd23f';
+    const by = nameY - fontSize - 1;
+    ctx.strokeText(`💰 ${style.bounty}`, sx, by);
+    ctx.fillText(`💰 ${style.bounty}`, sx, by);
+  }
   // vida dos outros jogadores (a nossa fica nas barras de baixo)
   if (!isMe && !p.dead) drawHpBar(sx, headTop - 9, T * 0.8, p.hp / p.maxHp, foe ? '#ff5a4a' : '#7bd36a');
   ctx.globalAlpha = 1;

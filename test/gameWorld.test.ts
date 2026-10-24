@@ -37,7 +37,7 @@ describe('GameWorld: entrar e sair', () => {
     assert.deepEqual(w.world.spawn, S);
     assert.deepEqual(w.world.skills.fire, { name: 'Fogo', class: 'fire', tier: 1, mechanic: 'fire', cost: 20, cooldownMs: 1500, range: 5, radius: 2 });
     assert.equal(Object.keys(w.world.skills).length, 38, '2 da Academia + 9 classes x 4 tiers');
-    assert.deepEqual(w.world.rankLevels, { genin: 11, chunin: 40, hokage: 60 });
+    assert.deepEqual(w.world.rankLevels, { genin: 11, chunin: 40, kage: 60 });
     assert.equal(w.ninja.tutorialStep, 4, 'sem ficha do banco: tutorial concluído');
 
     const b = connect('mei');

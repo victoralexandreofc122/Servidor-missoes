@@ -8,7 +8,7 @@ import type { Progression } from './gameWorld.js';
  * mortes de monstro ao mesmo tempo não se perdem).
  *
  * v7: o XP NÃO promove mais ninguém. Genin vem da Missão de Genin (nível 11, na Academia),
- * Chunin do Exame Chunin (nível 40, avaliado por um Chunin+) e a candidatura a Hokage do
+ * Chunin do Exame Chunin (nível 40, avaliado por um Chunin+) e a candidatura a Kage do
  * nível 60. `promoted` continua no resultado (sempre false aqui) para o cliente antigo.
  *
  * Nível: o trigger trg_players_level_from_xp recalcula o nível (curva até 60) e dá +1 ponto de

@@ -13,7 +13,7 @@ export const FIND_PLAYER_SQL = `
          p.tutorial_step, p.ryo, p.equipped_weapon, p.equipped_scroll, c.primary_class, c.secondary_class,
          COALESCE((SELECT json_object_agg(j.jutsu_code, j.usage_count) FROM game.player_jutsus j WHERE j.player_id = p.id), '{}'::json) AS jutsus,
          COALESCE((SELECT json_object_agg(i.item_code, i.quantity) FROM game.player_items i WHERE i.player_id = p.id), '{}'::json) AS items,
-         EXISTS (SELECT 1 FROM game.hokage_candidates h WHERE h.player_id = p.id) AS hokage_candidate
+         EXISTS (SELECT 1 FROM game.hokage_candidates h WHERE h.player_id = p.id) AS kage_candidate
     FROM game.players p
     JOIN game.ranks r ON r.id = p.current_rank_id
     LEFT JOIN game.player_classes c ON c.player_id = p.id
@@ -46,7 +46,7 @@ interface Row {
   secondary_class: string | null;
   jutsus: Record<string, number>;
   items: Record<string, number>;
-  hokage_candidate: boolean;
+  kage_candidate: boolean;
 }
 
 export function makeFindPlayer(db: Queryable) {
@@ -84,7 +84,7 @@ export function makeFindPlayer(db: Queryable) {
       isAdmin: row.is_admin,
       classes: { primary: isClass(row.primary_class) ? row.primary_class : null, secondary: isClass(row.secondary_class) ? row.secondary_class : null },
       jutsus: { ...row.jutsus },
-      hokageCandidate: row.hokage_candidate,
+      kageCandidate: row.kage_candidate,
     };
   };
 }

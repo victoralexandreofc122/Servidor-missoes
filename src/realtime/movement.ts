@@ -13,6 +13,8 @@
  * Math.sqrt e não Math.hypot: o hypot pode variar no último dígito entre navegadores.
  */
 
+import { mapAllowed, type MapAccess } from './villages.js';
+
 export interface Box {
   x: number;
   y: number;
@@ -50,18 +52,39 @@ export function stepMove(
   return [nx, ny];
 }
 
+/**
+ * Porta: `back` = onde se volta ao sair (a porta lembra por onde o jogador entrou, em `gates.back`); `toBack` = a
+ * porta de saída de uma sala compartilhada (lojas, Academia) leva de volta para lá (sem `gates.back`: para `map`/`at`).
+ */
+export interface MoveDoor extends Box {
+  dir: 'east' | 'west' | 'north' | 'south';
+  map: string;
+  at: { x: number; y: number };
+  step?: number;
+  back?: { x: number; y: number };
+  toBack?: boolean;
+}
+
 /** O mínimo de um mapa que a movimentação precisa (o layout completo está em maps.ts). */
 export interface MoveMap {
   width: number;
   height: number;
   walls: readonly Box[];
   exits: readonly { edge: 'east' | 'west' | 'north' | 'south'; from: number; to: number; map: string; shift: number; arrive?: number }[];
-  doors?: readonly (Box & { dir: 'east' | 'west' | 'north' | 'south'; map: string; at: { x: number; y: number }; step?: number })[];
+  doors?: readonly MoveDoor[];
+  /** Mapa de vila (só quem é dela ou de vila aliada entra) e o Refúgio (só renegado). */
+  village?: string;
+  refuge?: boolean;
 }
 
-/** O que trava portas para ESTE jogador: o passo do tutorial da Academia (0 a 4). Sem gates = 0. */
+/**
+ * O que trava portas e saídas para ESTE jogador: o passo do tutorial da Academia (0 a 4), as vilas em que ele pode
+ * entrar (sem `access`: todas) e por onde ele entrou na sala em que está (`back`, escrito pela porta).
+ */
 export interface MoveGates {
   tutorial: number;
+  access?: MapAccess;
+  back?: { map: string; x: number; y: number };
 }
 
 /**
@@ -79,9 +102,13 @@ export function useDoor(
     const inward = d.dir === 'north' ? dy < 0 : d.dir === 'south' ? dy > 0 : d.dir === 'east' ? dx > 0 : dx < 0;
     if (!inward) continue;
     if ((d.step ?? 0) > (gates?.tutorial ?? 0)) continue;   // travada: o jogador ainda não chegou nesse passo
-    const dest = maps[d.map];
-    if (!dest || blocked(d.at.x, d.at.y, dest.walls)) continue;
-    return [d.map, d.at.x, d.at.y];
+    // Saída de sala compartilhada: de volta para a vila de onde ele veio (se ainda puder entrar nela).
+    const back = d.toBack ? gates?.back : undefined;
+    const [to, ax, ay] = back && maps[back.map] && mapAllowed(maps[back.map], gates?.access) ? [back.map, back.x, back.y] : [d.map, d.at.x, d.at.y];
+    const dest = maps[to];
+    if (!dest || !mapAllowed(dest, gates?.access) || blocked(ax, ay, dest.walls)) continue;
+    if (d.back && gates) gates.back = { map: mapId, x: d.back.x, y: d.back.y };
+    return [to, ax, ay];
   }
   return null;
 }
@@ -93,7 +120,7 @@ export function useDoor(
  * encostar na borda o jogador já passou pela colisão (stepMove), então só passa pelo portão.
  */
 export function crossExit(
-  maps: Readonly<Record<string, MoveMap>>, mapId: string, x: number, y: number, dx: number, dy: number,
+  maps: Readonly<Record<string, MoveMap>>, mapId: string, x: number, y: number, dx: number, dy: number, gates?: MoveGates,
 ): [string, number, number] | null {
   const m = maps[mapId];
   if (!m) return null;
@@ -106,7 +133,7 @@ export function crossExit(
     else continue;
     if (along < e.from || along > e.to) continue;
     const dest = maps[e.map];
-    if (!dest) continue;
+    if (!dest || !mapAllowed(dest, gates?.access)) continue;   // vila em que ele não entra: a saída é parede
     const a = q3(along + e.shift);
     const far = e.arrive;                 // chegada mais para dentro (ex.: y 75 na Vila), se o mapa pedir
     const [nx, ny] = e.edge === 'east' ? [far ?? 0, a] : e.edge === 'west' ? [far ?? dest.width, a] : e.edge === 'south' ? [a, far ?? 0] : [a, far ?? dest.height];
@@ -123,5 +150,5 @@ export function moveStep(
   const m = maps[mapId];
   if (!m) return [mapId, x, y];
   const [nx, ny] = stepMove(x, y, dx, dy, dist, m.width, m.height, m.walls);
-  return crossExit(maps, mapId, nx, ny, dx, dy) ?? useDoor(maps, mapId, nx, ny, dx, dy, gates) ?? [mapId, nx, ny];
+  return crossExit(maps, mapId, nx, ny, dx, dy, gates) ?? useDoor(maps, mapId, nx, ny, dx, dy, gates) ?? [mapId, nx, ny];
 }

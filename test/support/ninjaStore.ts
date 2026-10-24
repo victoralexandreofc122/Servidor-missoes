@@ -90,8 +90,8 @@ export function fakeNinjaStore(seed: { ryo?: number; items?: Inventory; classes?
       if (slot === 'scroll') state.equippedScroll = item;
       return { ok: true, equipped: item };
     },
-    async applyHokage(id) {
-      calls.push(['applyHokage', id]);
+    async applyKage(id) {
+      calls.push(['applyKage', id]);
       return { ok: true, already: false };
     },
     async addItem(id, item, qty) {

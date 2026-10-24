@@ -31,8 +31,8 @@ const inside = (b, x, y) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b
 /**
  * Chão da casa inteira (x, y), em coordenadas do mapa atual. As `areas` do layout pintam por
  * cima do chão padrão (a última da lista vale): 'stone' (pedra clara: ruas e praça), 'grass',
- * 'sand', 'water', 'bridge', 'path' (terra), 'wood' (assoalho). Padrão: pedra na Vila, grama
- * escura ('darkgrass') na Floresta, assoalho nas lojas.
+ * 'sand', 'water', 'bridge', 'path' (terra), 'wood' (assoalho), 'dirt' (terra solta), 'ash' (cinzas). Padrão: pedra
+ * na Vila, grama escura ('darkgrass') na Floresta, assoalho nas lojas, terra solta na Zona e no Refúgio.
  * 'void' = fora do mundo (desenhado como mata fechada). `places` = placements(maps, mapId).
  */
 export function groundAt(places, x, y) {
@@ -41,9 +41,19 @@ export function groundAt(places, x, y) {
     if (lx < 0 || ly < 0 || lx >= p.map.width || ly >= p.map.height) continue;
     const areas = p.map.areas || [];
     for (let i = areas.length - 1; i >= 0; i--) if (inside(areas[i], lx, ly)) return areas[i].g;
-    return p.map.kind === 'village' ? 'stone' : p.map.kind === 'interior' ? 'wood' : 'darkgrass';
+    return p.map.kind === 'village' ? 'stone' : p.map.kind === 'interior' ? 'wood' : p.map.kind === 'wild' ? 'dirt' : 'darkgrass';
   }
   return 'void';
+}
+
+/** Tema de cores do mapa dono da casa (x, y): 'folha', 'pedra', 'nevoa', 'nuvem', 'areia', 'conflito', 'refugio' ou null. */
+export function themeAt(places, x, y) {
+  for (const p of places) {
+    const lx = x - p.ox, ly = y - p.oy;
+    if (lx < 0 || ly < 0 || lx >= p.map.width || ly >= p.map.height) continue;
+    return p.map.theme || null;
+  }
+  return null;
 }
 
 /** Enfeites (bancos, lanternas...) de todos os mapas visíveis, em coordenadas do mapa atual. */
@@ -70,13 +80,14 @@ export function arenaAt(map, x, y) {
 export function arenaFoes(map, a, b) {
   if (!a || !b || a === b || a.dead || b.dead) return false;
   const arena = arenaAt(map, a.x, a.y);
-  return !!arena && arena === arenaAt(map, b.x, b.y) && a.look?.village === arena.village && b.look?.village === arena.village;
+  const v = (p) => (p.faction ? p.faction.village : p.look?.village);   // fim de jogo: a vila do servidor
+  return !!arena && arena === arenaAt(map, b.x, b.y) && v(a) === arena.village && v(b) === arena.village;
 }
 
 /** Paredes de todos os mapas visíveis, já deslocadas para coordenadas do mapa atual. */
 export function visibleWalls(places) {
   const out = [];
-  for (const p of places) for (const w of p.map.walls) out.push({ x: w.x + p.ox, y: w.y + p.oy, w: w.w, h: w.h, k: w.k, s: w.s });
+  for (const p of places) for (const w of p.map.walls) out.push({ x: w.x + p.ox, y: w.y + p.oy, w: w.w, h: w.h, k: w.k, s: w.s, t: p.map.theme });
   return out;
 }
 

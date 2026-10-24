@@ -2,6 +2,8 @@
 // O cliente usa para prever o próprio movimento na hora; o servidor usa como autoridade.
 // test/movement.test.ts confere que as duas dão exatamente o mesmo resultado.
 
+import { mapAllowed } from './politics.js';
+
 export const PLAYER_RADIUS = 0.3;
 
 export const q3 = (n) => Math.round(n * 1000) / 1000;
@@ -32,7 +34,7 @@ export function stepMove(x, y, dx, dy, dist, width, height, walls) {
  * Atravessar a borda (cópia de crossExit do servidor). Só quem ESTÁ na borda e empurra para
  * fora, dentro do trecho da saída; chega na borda oposta do vizinho (se não estiver bloqueado).
  */
-export function crossExit(maps, mapId, x, y, dx, dy) {
+export function crossExit(maps, mapId, x, y, dx, dy, gates) {
   const m = maps[mapId];
   if (!m) return null;
   for (const e of m.exits) {
@@ -44,7 +46,7 @@ export function crossExit(maps, mapId, x, y, dx, dy) {
     else continue;
     if (along < e.from || along > e.to) continue;
     const dest = maps[e.map];
-    if (!dest) continue;
+    if (!dest || !mapAllowed(dest, gates && gates.access)) continue;   // vila em que ele não entra: a saída é parede
     const a = q3(along + e.shift);
     const far = e.arrive;                 // chegada mais para dentro (ex.: y 75 na Vila), se o mapa pedir
     const [nx, ny] = e.edge === 'east' ? [far ?? 0, a] : e.edge === 'west' ? [far ?? dest.width, a] : e.edge === 'south' ? [a, far ?? 0] : [a, far ?? dest.height];
@@ -63,9 +65,13 @@ export function useDoor(maps, mapId, x, y, dx, dy, gates) {
     const inward = d.dir === 'north' ? dy < 0 : d.dir === 'south' ? dy > 0 : d.dir === 'east' ? dx > 0 : dx < 0;
     if (!inward) continue;
     if ((d.step ?? 0) > ((gates && gates.tutorial) ?? 0)) continue;   // travada (tutorial da Academia)
-    const dest = maps[d.map];
-    if (!dest || blocked(d.at.x, d.at.y, dest.walls)) continue;
-    return [d.map, d.at.x, d.at.y];
+    // Saída de sala compartilhada: de volta para a vila de onde ele veio (se ainda puder entrar nela).
+    const back = d.toBack && gates ? gates.back : undefined;
+    const [to, ax, ay] = back && maps[back.map] && mapAllowed(maps[back.map], gates && gates.access) ? [back.map, back.x, back.y] : [d.map, d.at.x, d.at.y];
+    const dest = maps[to];
+    if (!dest || !mapAllowed(dest, gates && gates.access) || blocked(ax, ay, dest.walls)) continue;
+    if (d.back && gates) gates.back = { map: mapId, x: d.back.x, y: d.back.y };
+    return [to, ax, ay];
   }
   return null;
 }
@@ -75,7 +81,7 @@ export function moveStep(maps, mapId, x, y, dx, dy, dist, gates) {
   const m = maps[mapId];
   if (!m) return [mapId, x, y];
   const [nx, ny] = stepMove(x, y, dx, dy, dist, m.width, m.height, m.walls);
-  return crossExit(maps, mapId, nx, ny, dx, dy) ?? useDoor(maps, mapId, nx, ny, dx, dy, gates) ?? [mapId, nx, ny];
+  return crossExit(maps, mapId, nx, ny, dx, dy, gates) ?? useDoor(maps, mapId, nx, ny, dx, dy, gates) ?? [mapId, nx, ny];
 }
 
 /**

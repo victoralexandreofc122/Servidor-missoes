@@ -211,6 +211,49 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v16: fim de jogo (migração opcional `db/schema_v11_endgame.sql`, [docs/endgame.md](docs/endgame.md))
+
+Seis módulos que ligam **com a população** (jogadores ativos na semana): vilas 30 → PvP 60 → renegados 100 →
+Akatsuki 150 (`config.endgame.thresholds`; `src/realtime/endgame.ts`). Ligou, fica ligado. O admin força com
+`/admin endgame <módulo> <on|off|auto>`. **O banco é a autoridade** de quem é de qual vila, de quem é Kage, das
+guerras, alianças, renegados, ranking e Akatsuki (funções `game.*` da v11, com trava de linha); o mundo guarda uma
+cópia (`politics`, relida a cada mudança e a cada minuto) para decidir na hora mapa, PvP e passivas. **A v11 é
+opcional:** sem ela tudo fica desligado, e aplicar no Neon não precisa reiniciar (a manutenção procura a v11).
+
+- **Vilas** (`villages.ts`): Folha (+10% cura), Pedra (+10% vida), Névoa (+10% velocidade), Nuvem (+10% dano de
+  jutsu), Areia (+10% dano com armas). A vila do jogador (`players.village`) vem do banco no `join` (o gateway lê
+  antes do welcome) e decide onde nasce e renasce. Cada vila tem o seu mapa (a mesma planta, `theme` próprio), o seu
+  Mestre e o seu **Posto de Viagem** (`travel_options` / `travel`: casa, Floresta, Zona, vila aliada por 50 ryō via
+  `game.pay_travel`). Lojas e Academia são salas compartilhadas: a porta de saída leva de volta (`doorBack`).
+  - **Acesso** (`mapAllowed`, a mesma conta no cliente em `politics.js`): vila só para quem é dela ou aliada; Refúgio só
+    para renegado. A saída para um mapa proibido é parede (servidor e predição). Perdeu o acesso dentro do mapa
+    (aliança desfeita, virou renegado): volta para casa (`map_changed` com `reason: 'exiled'`).
+  - **Kage:** candidatura com o Diretor (nível 60), eleição de 7 dias por vila, mandato de 28 dias. O painel 🏯
+    (`village_panel`) mostra eleição, diplomacia e o histórico; o Kage declara guerra, encerra, propõe aliança/paz,
+    responde e desfaz (`kage_action`, `kage_answer`). Guerra: lojas +10% e espólio na Zona; aliança: −5% e viagem.
+  - **Eventos globais** (`/admin evento`): guerra ou trégua forçada com hora para acabar.
+- **PvP e temporadas:** **Zona de Conflito** (110x80, `zona_conflito`) com um acampamento seguro por vila e o dos
+  renegados. PvP livre, menos aliados, trégua e Akatsuki entre si (`conflictHostile`). A vitória vai para
+  `game.pvp_kill` (Elo K=32 global e da temporada, 3 por dupla por dia, nível até 10 de diferença, nada de admin):
+  `pvp_result` para o mapa. Temporadas de 60 dias fecham e abrem sozinhas na manutenção, com títulos, ryō e o Manto
+  do Campeão. Ranking: `ranking` (aba do 🏯). A arena da vila continua treino e não conta.
+- **Renegados:** expulsão do Kage (`kage_exile`, justificativa, 5 por semana), denúncia de rank igual ou maior
+  (`report_player` → `kage_report`) e karma (20 da própria vila na Zona, sem aviso). Irreversível (trigger no banco),
+  menos por `/admin renegado <nome> off`. Renegado mora no **Refúgio** (`refugio`), sem passiva, bandana riscada, e a
+  recompensa pela cabeça aparece sobre o nome na Zona.
+- **Akatsuki** (`akatsuki.ts`): 10 vagas, líder pelo admin, convites só do líder (`akatsuki_invite` / `_answer`,
+  aceitar vira renegado), expulsar e sair. Cada vaga tem um poder (`power`, botão ☁️): Atração do Vazio, Lâmina
+  Sanguessuga, Foice do Pacto, Argila Viva, Fios de Marionete, Corvos da Ilusão, Cinco Corações, Raízes Gêmeas,
+  Chuva de Papel e Máscara Intangível. Membro que derrota um Kage na Zona: 3.000 ryō e anúncio.
+- **Capas e paperdoll** (`endgame.js` no cliente): camada de capa no boneco (3 vistas, segue a âncora das costas em
+  todas as animações): Capa de Viagem e Capa da Vila (Alfaiataria), Manto do Kage, da Akatsuki e do Campeão
+  (`equip` com `slot: 'cape'`). ⚙️ → mostrar ou esconder capa, arma e pergaminho (`set_display`; só o que os outros
+  veem).
+- **Admin** (só `is_admin`, auditado, sem anúncio): `/admin endgame`, `vila`, `kage`, `eleicao`, `evento`,
+  `renegado`, `akatsuki`, `temporada fechar`. Nenhum mexe no MMR.
+- Mensagens novas: `endgame`, `player_faction`, `village_panel`, `travel_options`, `ranking`, `pvp_result`,
+  `akatsuki_invite`, `power` / `power_failed`; `PlayerView.faction` e `SelfView.doorBack`.
+
 ### v15: design geral, nome Vontade do Fogo e arena da vila (migração opcional `db/schema_v10_design.sql`)
 
 Primeira leva do [design geral](docs/design-do-jogo.md). O jogo passou a se chamar **Vontade do Fogo**.

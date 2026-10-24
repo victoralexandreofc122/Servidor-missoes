@@ -8,6 +8,9 @@
  *          (escudo ou item de duas mãos);
  *   back = nas costas, atrás do tronco e à frente da capa (espadas longas, a Shuriken Gigante
  *          e o pergaminho de jutsu levado nas costas).
+ *
+ * Capas (v16, migração v11): camada própria do boneco, por cima das costas. A Capa de Viagem e a da Vila são vendidas na
+ * Alfaiataria; os mantos vêm do cargo (Kage), da Akatsuki ou da temporada PvP (o banco confere quem pode usar).
  */
 import { CLASSES, CLASS_INFO, type ClassCode } from './jutsus.js';
 
@@ -16,7 +19,7 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
 export interface ItemDef {
   code: string;
   name: string;
-  kind: 'weapon' | 'scroll';
+  kind: 'weapon' | 'scroll' | 'cape';
   icon: string;
   /** Arma: dano somado ao Ataque Básico (escala com o atributo Armas). */
   damage?: number;
@@ -86,7 +89,15 @@ export const ITEMS: readonly ItemDef[] = [
   ...CLASSES.map((c): ItemDef => ({
     code: `scroll_${c}`, name: `Pergaminho de ${CLASS_INFO[c].name}`, kind: 'scroll', icon: '📜', class: c, price: 150, shop: 'scrolls', hold: 'back',
   })),
+  { code: 'capa_viagem', name: 'Capa de Viagem', kind: 'cape', icon: '🧥', price: 400, shop: 'clothes', hold: 'back' },
+  { code: 'capa_vila', name: 'Capa da Vila', kind: 'cape', icon: '🧣', price: 900, shop: 'clothes', hold: 'back' },
+  { code: 'manto_kage', name: 'Manto do Kage', kind: 'cape', icon: '👘', price: null, shop: null, hold: 'back' },
+  { code: 'manto_akatsuki', name: 'Manto da Akatsuki', kind: 'cape', icon: '☁️', price: null, shop: null, hold: 'back' },
+  { code: 'manto_campeao', name: 'Manto do Campeão', kind: 'cape', icon: '🏆', price: null, shop: null, hold: 'back' },
 ];
+
+/** Mantos que vêm do cargo (não ficam no inventário): o banco confere se a pessoa ainda pode usar. */
+export const ROLE_CAPES: Readonly<Record<string, 'kage' | 'akatsuki'>> = { manto_kage: 'kage', manto_akatsuki: 'akatsuki' };
 
 export const ITEM_BY_CODE: ReadonlyMap<string, ItemDef> = new Map(ITEMS.map((i) => [i.code, i]));
 export const ITEM_CODES = ITEMS.map((i) => i.code) as unknown as readonly [string, ...string[]];

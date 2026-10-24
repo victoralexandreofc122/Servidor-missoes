@@ -122,14 +122,14 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     await assert.rejects(t.pool.query('UPDATE game.players SET ryo = -1 WHERE id = $1', [id]), rule('ck_players_ryo'));
   });
 
-  it('Hokage: candidatura só no nível 60; registrar de novo não duplica', async () => {
+  it('Kage: candidatura só no nível 60; registrar de novo não duplica', async () => {
     const id = await t.createPlayer('kage');
     const store = makeNinjaStore(t.db);
-    assert.deepEqual(await store.applyHokage(id), { ok: false, text: 'Só um ninja de nível 60 pode se candidatar a Hokage.' });
+    assert.deepEqual(await store.applyKage(id), { ok: false, text: 'Só um ninja de nível 60 pode se candidatar a Kage.' });
     await toLevel(id, 60);
-    assert.deepEqual(await store.applyHokage(id), { ok: true, already: false });
-    assert.deepEqual(await store.applyHokage(id), { ok: true, already: true });
-    assert.equal((await makeFindPlayer(t.db)(id))!.hokageCandidate, true);
+    assert.deepEqual(await store.applyKage(id), { ok: true, already: false });
+    assert.deepEqual(await store.applyKage(id), { ok: true, already: true });
+    assert.equal((await makeFindPlayer(t.db)(id))!.kageCandidate, true);
   });
 
   it('Exame Chunin: só para Genin de nível 40; aprovado por um Chunin+, o aprendiz vira Chunin', async () => {

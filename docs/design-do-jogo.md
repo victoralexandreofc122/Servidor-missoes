@@ -504,15 +504,17 @@ vila só quando ela tiver mapa e conteúdo. Além disso, controla a população:
 incentivo para equilibrar. No jogo, o Criador mostra a Vila 1 e as outras 4 com cadeado ("abre com o Arco 2"), e o
 servidor recusa vila travada (`VILLAGE_LOCKED`). Quem já tinha escolhido outra continua com ela.
 
-**Nomes:** [decidir]. A regra é ter nomes próprios, sem as vilas de outras obras (Folha, Areia, Névoa). A Vila do
-Arco 1 já tem um tema pronto: a chama do Pergaminho em Chamas.
+**Nomes:** decididos pelo Victor (v16): **Folha, Pedra, Névoa, Nuvem e Areia**, cada uma com uma passiva de +10%.
+As outras quatro vilas abrem com o módulo de vilas do fim de jogo (30 jogadores ativos na semana, ou o admin), cada
+uma com o seu mapa, o seu Mestre e o seu Posto de Viagem [existe, v16]. Até lá, a decisão A acima continua valendo.
+Detalhes em [endgame.md](endgame.md).
 
 ### 11.2 PvP em fases
 
 | Fase | Onde | Como | Quando |
 |---|---|---|---|
 | 1. Arena da vila | arena cercada no campo de treino de cada vila | só entre ninjas DA vila; entrar é aceitar; perder não custa nada; placar de vitórias | **[existe, v15]** |
-| 2. Fronteira | mapas de fronteira entre vilas | só Genin+; quem entra é avisado; morrer leva de volta para a vila, sem perder itens | Arco 2 |
+| 2. Zona de Conflito | um mapa de PvP livre, com um acampamento seguro por vila | todos contra todos, menos aliados; ranking por Elo (global e por temporada de 60 dias); morrer leva de volta para a vila, sem perder itens | **[existe, v16]**, liga com 60 ativos ([endgame.md](endgame.md)) |
 | 3. Disputa de vilas | evento semanal com hora marcada | as vilas disputam pontos de controle; recompensa coletiva e cosmética | depois do Arco 2 |
 
 **A arena da vila** (pedido do Victor, v15):
@@ -537,9 +539,13 @@ Arco 1 já tem um tema pronto: a chama do Pergaminho em Chamas.
 3. Quem renasce fica 5 s intocável [existe].
 4. Nível muito diferente (mais de 10) não ganha pontos de disputa ao derrotar alguém mais fraco.
 
-### 11.3 Líder da vila [proposta]
+### 11.3 Líder da vila: o Kage [existe, v16]
 
-A candidatura no nível 60 já existe. A eleição:
+Decidido pelo Victor: o líder se chama **Kage** e tem poder de **diplomacia** (guerra, aliança, paz) e de
+**expulsar** ninjas da vila (viram renegados). Isso muda a recomendação "só prestígio" de antes; para o poder não
+virar abuso, o banco põe limites: justificativa obrigatória, no máximo 5 expulsões por semana por vila, 24 h entre
+mudanças com a mesma vila, mandato de 28 dias, auditoria de tudo e a expulsão só desfeita pelo admin. As regras
+completas estão em [endgame.md](endgame.md). O texto abaixo é a proposta original:
 
 - **Mandato** de 4 semanas por vila.
 - **Votam** os Genin+ da vila, um voto por conta com mais de 7 dias de jogo.
@@ -864,8 +870,8 @@ e-mail ou conversa na telemetria.
 | 0 · Base | o jogo roda | servidor, combate, Academia, lojas, arte chibi, armas e efeitos | [feito] |
 | 1 · Arco 1 jogável | motivo para voltar | sistema de história, diálogo, 8 objetivos, inimigos e mapas do Arco 1, Tsubaki e Kagerō, ícones pixel. **Já feito (v15):** XP por participação, monstros por jogador, armas com jeito próprio, proteção contra azar, teto de controle, vilas travadas, arena da vila | um jogador novo vai do login ao título Guardião da Chama sem ajuda, em 5 a 6 horas |
 | 2 · Social | jogar junto | grupo, amigos, recompensa do sensei, Equipes, ranking da arena gravado, denunciar e silenciar, som | metade dos Genin tem sensei ou grupo na primeira semana |
-| 3 · Arco 2 e vilas | rivalidade | segunda vila e viagem, nomes das vilas, PvP de fronteira, eleição do líder | a primeira eleição acontece e a fronteira tem gente toda semana |
-| 4 · Temporadas | durar | evento semanal da vila, disputa de vilas, loja de cosméticos (se B), mercado | retenção de 30 dias estável por 3 meses |
+| 3 · Arco 2 e vilas | rivalidade | **já feito (v16, liga com a população):** cinco vilas e viagem, Kage eleito, diplomacia, Zona de Conflito, renegados, Akatsuki. Falta: a história do Arco 2 | a primeira eleição acontece e a Zona tem gente toda semana |
+| 4 · Temporadas | durar | **já feito (v16):** temporadas de PvP de 60 dias com recompensas e capas. Falta: evento semanal da vila, disputa de vilas, loja de cosméticos (se B), mercado | retenção de 30 dias estável por 3 meses |
 
 **Antes de abrir para o público:** busca do nome no INPI (seção 22), termos de uso, política de privacidade e
 classificação indicativa.
@@ -877,16 +883,16 @@ classificação indicativa.
 | # | Decisão | Opções | Estado |
 |---|---|---|---|
 | 1 | Nome do jogo | manter "Nin Online Mobile" / nome próprio | **decidido: Vontade do Fogo** (nota na seção 22) |
-| 2 | Título do líder da vila | "Hokage" / título próprio | **aberta.** Recomendação: título próprio (ex.: um nome ligado a cada vila) |
-| 3 | Nomes das 5 vilas | a criar | **aberta.** Recomendação: nomes próprios; a do Arco 1 ligada à chama |
+| 2 | Título do líder da vila | "Hokage" / título próprio | **decidido: Kage** (Victor, v16; risco na seção 22) |
+| 3 | Nomes das 5 vilas | a criar | **decidido: Folha, Pedra, Névoa, Nuvem e Areia** (Victor, v16; risco na seção 22) |
 | 4 | Vila no Criador | A travar / B origem / C ganhar no Arco 1 | **decidido e feito: A** (seção 11.1) |
-| 5 | Modelo de PvP | arena da vila, depois fronteira e disputa / PvP livre / sem PvP | **decidido: arena em cada vila** (feita), fronteira no Arco 2 |
+| 5 | Modelo de PvP | arena da vila, depois fronteira e disputa / PvP livre / sem PvP | **decidido e feito: arena em cada vila (v15) e a Zona de Conflito com ranking e temporadas (v16)** |
 | 6 | Monetização | A / B / C | **decidido: A agora, B depois** |
 | 7 | XP do abate | último golpe / participação | **decidido e feito: participação** |
 | 8 | Troca entre jogadores | livre / nenhuma / mercado depois | **decidido: nenhuma no lançamento; mercado na fase 4** |
 | 9 | Proteção contra azar na Extração | sim / não | **decidido e feito: +10 pontos por falha** (migração v10) |
 | 10 | Identidade das armas | só dano / jeito de lutar | **decidido e feito: jeito de lutar** (seção 7.5) |
-| 11 | Poder do líder da vila | prestígio / poder sobre jogadores | **decidido: só prestígio** |
+| 11 | Poder do líder da vila | prestígio / poder sobre jogadores | **mudou (Victor, v16): diplomacia e expulsão, com limites no banco** (seção 11.3) |
 
 ---
 
@@ -895,7 +901,7 @@ classificação indicativa.
 | Risco | Por que importa | Como reduzir |
 |---|---|---|
 | **Nome** | O nome antigo, "Nin Online", é de um jogo de outra empresa (Hitspark), na Steam desde junho de 2025 ([Steambase](https://steambase.io/games/nin-online/info), [itch.io](https://ninonline.itch.io/nin-online)); por isso virou **Vontade do Fogo**. O nome novo tem um risco menor, mas existe: "Vontade do Fogo" é como a dublagem brasileira de Naruto traduz "Will of Fire", um conceito central da série | antes de abrir ao público, buscar o nome no INPI e, se possível, registrar a marca; evitar no jogo o símbolo e o discurso da "Vontade do Fogo" de Naruto (a nossa vontade é a chama do Pergaminho em Chamas) |
-| **Termos de outras obras** | "Hokage" é um termo criado para Naruto. Genin, Chunin e Jonin são ranks ninja históricos, com menos risco | trocar o título do líder (decisão 2); evitar nomes de vilas, clãs e jutsus de outras obras |
+| **Termos de outras obras** | Kage, Akatsuki, renegado, Folha, Areia, Névoa, Nuvem e Pedra (v16) vêm de Naruto. Genin, Chunin e Jonin são ranks ninja históricos, com menos risco | para jogar entre amigos, sem cobrar, o risco é baixo; antes de abrir ao público, trocar os nomes, que ficam num lugar só (`villages.ts`, `akatsuki.ts` e o catálogo do banco) |
 | **MMO vazio** | com poucos jogadores online, PvP e sensei não acontecem | tudo do Arco 1 dá para fazer sozinho; o NPC luta junto; monstros escalam com o mapa; um servidor só |
 | **Estado em memória** | um deploy derruba todos e a posição volta ao início | publicar fora do horário de pico; avisar no chat antes; no futuro, gravar o mapa e a posição |
 | **Chat e menores** | toxicidade e contato indevido | moderação da seção 10.5 desde a fase 2 |

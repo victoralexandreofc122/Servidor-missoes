@@ -151,7 +151,7 @@ describe('v6: visual do personagem e direção', () => {
 
 const noDatabase = process.env.TEST_DATABASE_URL ? false : 'TEST_DATABASE_URL não definida: integração com PostgreSQL pulada';
 
-describe('v6 no banco: visual e script do Hokage (PostgreSQL real)', { skip: noDatabase }, () => {
+describe('v6 no banco: visual e script do Kage (PostgreSQL real)', { skip: noDatabase }, () => {
   let t: Awaited<ReturnType<typeof createTestDatabase>>;
   before(async () => { t = await createTestDatabase(); });
   after(async () => { await t?.drop(); });
@@ -181,8 +181,8 @@ describe('v6 no banco: visual e script do Hokage (PostgreSQL real)', { skip: noD
       `SELECT r.code, r.can_be_sensei, r.tier = (SELECT max(tier) FROM game.ranks) AS top
          FROM game.players p JOIN game.ranks r ON r.id = p.current_rank_id WHERE p.id = $1`, [id])).rows[0];
     assert.deepEqual(row, { code: 'HOKAGE', can_be_sensei: true, top: true });
-    const hokages = (await t.pool.query(`SELECT count(*)::int AS n FROM game.ranks WHERE code = 'HOKAGE'`)).rows[0].n;
-    assert.equal(hokages, 1);
+    const kages = (await t.pool.query(`SELECT count(*)::int AS n FROM game.ranks WHERE code = 'HOKAGE'`)).rows[0].n;
+    assert.equal(kages, 1);
     const history = (await t.pool.query(
       `SELECT r.code FROM game.player_rank_changes c JOIN game.ranks r ON r.id = c.rank_id WHERE c.player_id = $1 ORDER BY c.changed_at, c.id`, [id])).rows;
     assert.deepEqual(history.map((h) => h.code), ['GENIN', 'HOKAGE']);

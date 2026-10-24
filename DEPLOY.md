@@ -799,3 +799,47 @@ SELECT (SELECT count(*) FROM information_schema.tables WHERE table_schema = 'gam
 5. **Criador** (⚙️ → **🎨 Mudar visual**): só a Vila 1 dá para escolher; as outras têm cadeado.
 6. **Extração** (depois da v10): falhando, a Casa dos Pergaminhos mostra a chance maior na próxima ("40% + 10% de
    sorte acumulada").
+
+## Passo 23 — Atualização v16: fim de jogo (vilas, Kage, PvP, renegados, Akatsuki, capas)
+
+**Banco (opcional, pode ser antes ou depois do deploy):** no Neon → **SQL Editor** (confira que o branch é o
+`production`), cole e rode o arquivo `db/schema_v11_endgame.sql` inteiro. É grande (as regras do fim de jogo moram no
+banco), mas segue as regras de sempre: sem bloco `DO $$`, tudo dentro de `BEGIN; ... COMMIT;`, e pode rodar de novo.
+Ele não apaga nem renomeia nada: só cria tabelas, colunas novas e funções. Todo mundo continua na Folha.
+
+O servidor **sobe sem a migração**: os módulos ficam desligados e o log do Render avisa (`Fim de jogo desligado`).
+Depois de rodar o SQL **não precisa reiniciar**: o servidor confere a cada minuto e liga sozinho.
+
+Conferência (opcional), deve dar `5 | 4 | 5`:
+
+```sql
+SELECT (SELECT count(*) FROM game.villages), (SELECT count(*) FROM game.endgame_modules),
+       (SELECT count(*) FROM game.items WHERE kind = 'cape');
+```
+
+### Os módulos ligam com a população
+
+Cada módulo liga sozinho quando o servidor tem gente ativa na semana (entrou nos últimos 7 dias): **vilas 30**,
+**PvP 60**, **renegados 100**, **Akatsuki 150**. Ligou, fica ligado. Para testar antes (ou desligar), o admin manda no
+chat (só a conta com `is_admin`; tudo vai para a auditoria e ninguém vê anúncio):
+
+- `/admin endgame vilas on` liga as vilas; `/admin endgame akatsuki on` liga os quatro (liga os anteriores junto).
+- `/admin endgame vilas auto` devolve ao automático; `off` desliga (e os que dependem dele).
+
+### Testar no celular (com 2 contas)
+
+1. **Ligar:** com o Victor, `/admin endgame akatsuki on`. Aparece o botão **🏯** no topo.
+2. **Vilas:** com a outra conta, ⚙️ → **🎨 Mudar visual**: agora as cinco vilas abrem. Escolher outra (só 1 troca
+   depois de criado) leva para a praça dela, com o chão e os telhados da vila. A passiva aparece no 🏯.
+3. **Posto de Viagem** (NPC verde 旅, perto do portão de cada vila): Floresta, Zona de Conflito e as vilas aliadas
+   (50 ryō). Quem não é da Folha não entra na Folha a pé: a saída da Floresta vira parede.
+4. **Kage:** `/admin kage folha Victor` (ou a eleição: candidatura com o Diretor no nível 60, voto no 🏯 por 7 dias).
+   No 🏯 → aba **Kage**: declarar guerra, propor aliança, aceitar, desfazer, expulsar e decidir denúncias.
+5. **Zona de Conflito:** pelo Posto. Fora do acampamento é PvP livre (menos aliados). A vitória conta no ranking
+   (🏯 → **Ranking**), menos para contas de admin.
+6. **Renegado:** `/admin renegado <nome> on` (e `off` desfaz: é a única forma). Ele vai para o Refúgio dos Renegados,
+   com a bandana riscada; o Posto de lá só vai para a Zona.
+7. **Akatsuki:** `/admin akatsuki lider <nome>`. O líder convida no 🏯 → **Akatsuki**; o membro ganha o botão ☁️ do
+   poder da vaga (com recarga).
+8. **Capas:** a Alfaiataria vende a Capa de Viagem e a Capa da Vila. 🎒 → **Vestir**. ⚙️ → "O que os outros veem no
+   seu boneco": esconder capa, arma ou pergaminho.

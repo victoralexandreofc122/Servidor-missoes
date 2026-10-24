@@ -4,6 +4,9 @@ import { ITEM_BY_CODE } from './items.js';
 import { JUTSU_BY_CODE } from './jutsus.js';
 import type { Inventory } from './ninjaStore.js';
 import type { Attributes } from './stats.js';
+import type { Village } from './appearance.js';
+import { ENDGAME_MODULES, type EndgameModule } from './endgame.js';
+import { VILLAGE_INFO, villageByName } from './villages.js';
 
 /*
  * Modo Administrador (God Mode): comandos no chat que começam com "/admin".
@@ -13,6 +16,17 @@ import type { Attributes } from './stats.js';
  *   /admin givejutsu <nome> <jutsu> <nível>      ensina o jutsu ou sobe o nível dele (1 a 4)
  *   /admin giveitem <nome> <item> <quantidade>   põe itens no inventário (1 a 999)
  *   /admin resetstats <nome>                     devolve os pontos de atributo (sem custo)
+ *
+ * Fim de jogo (v16, migração v11; docs/endgame.md, seção 6):
+ *   /admin endgame <vilas|pvp|renegados|akatsuki> <on|off|auto>   liga, desliga ou devolve ao automático
+ *   /admin vila <nome> <folha|pedra|nevoa|nuvem|areia>            muda a vila de alguém
+ *   /admin kage <vila> <nome>                                     põe alguém como Kage (mandato de 28 dias)
+ *   /admin eleicao <vila>                                         fecha a eleição da vila agora
+ *   /admin evento <guerra|tregua> <vila|todas> [vila] <horas>     evento global (guerra ou trégua forçada)
+ *   /admin renegado <nome> <on|off>                               torna renegado ou desfaz (a ÚNICA forma de desfazer)
+ *   /admin akatsuki <lider|remover> <nome>                        escolhe o líder ou tira alguém
+ *   /admin temporada fechar                                       fecha a temporada PvP agora
+ * Nenhum deles mexe no MMR nem no ranking (o banco deixa as contas de admin fora do ranking e das recompensas).
  *
  * Restrito: o servidor só aceita de quem entrou com players.is_admin = true, e CADA função do
  * banco (game.admin_*, migração v8) confere is_admin de novo e grava a auditoria
@@ -30,11 +44,29 @@ export type AdminCommand =
   | { cmd: 'givejutsu'; username: string; jutsu: string; level: number }
   | { cmd: 'giveitem'; username: string; item: string; quantity: number }
   | { cmd: 'resetstats'; username: string }
-  | { cmd: 'help' };
+  | { cmd: 'help' }
+  | EndgameAdminCommand;
+
+/** Comandos do fim de jogo (v11). */
+export type EndgameAdminCommand =
+  | { cmd: 'endgame'; module: EndgameModule; mode: 'on' | 'off' | 'auto' }
+  | { cmd: 'vila'; username: string; village: Village }
+  | { cmd: 'kage'; village: Village; username: string }
+  | { cmd: 'eleicao'; village: Village }
+  | { cmd: 'evento'; kind: 'guerra' | 'tregua'; a: Village | null; b: Village | null; hours: number }
+  | { cmd: 'renegado'; username: string; on: boolean }
+  | { cmd: 'akatsuki'; action: 'lider' | 'remover'; username: string }
+  | { cmd: 'temporada' };
+
+export const ENDGAME_ADMIN = new Set(['endgame', 'vila', 'kage', 'eleicao', 'evento', 'renegado', 'akatsuki', 'temporada']);
+export const isEndgameAdmin = (c: AdminCommand): c is EndgameAdminCommand => ENDGAME_ADMIN.has(c.cmd);
 
 export type ParsedAdmin = { ok: true; command: AdminCommand } | { ok: false; command: string; text: string };
 
-export const ADMIN_HELP = 'Admin: /admin level <nome> <nível> · spawn <monstro> <qtd> · givejutsu <nome> <jutsu> <nível> · giveitem <nome> <item> <qtd> · resetstats <nome>';
+export const ADMIN_HELP = 'Admin: /admin level <nome> <nível> · spawn <monstro> <qtd> · givejutsu <nome> <jutsu> <nível> · giveitem <nome> <item> <qtd> · resetstats <nome>'
+  + ' · endgame <módulo> <on|off|auto> · vila <nome> <vila> · kage <vila> <nome> · eleicao <vila> · evento <guerra|tregua> <vila|todas> [vila] <horas>'
+  + ' · renegado <nome> <on|off> · akatsuki <lider|remover> <nome> · temporada fechar';
+const VILLAGE_NAMES = Object.values(VILLAGE_INFO).map((v) => v.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()).join('|');
 
 const USERNAME = /^[A-Za-z0-9_]{3,24}$/;
 const INT = /^\d{1,7}$/;
@@ -92,6 +124,58 @@ export function parseAdminCommand(text: string, monsterTypes: readonly string[])
       if (args.length !== 1 || !username) return bad('resetstats <nome>');
       return { ok: true, command: { cmd, username } };
     }
+    case 'endgame': {
+      const module = (args[0] ?? '').toLowerCase() as EndgameModule;
+      const mode = (args[1] ?? '').toLowerCase();
+      if (args.length !== 2 || !ENDGAME_MODULES.includes(module) || !['on', 'off', 'auto'].includes(mode)) {
+        return bad(`endgame <${ENDGAME_MODULES.join('|')}> <on|off|auto>`);
+      }
+      return { ok: true, command: { cmd, module, mode: mode as 'on' | 'off' | 'auto' } };
+    }
+    case 'vila': {
+      const username = user(args[0]);
+      const village = villageByName(args[1] ?? '');
+      if (args.length !== 2 || !username || !village) return bad(`vila <nome> <${VILLAGE_NAMES}>`);
+      return { ok: true, command: { cmd, username, village } };
+    }
+    case 'kage': {
+      const village = villageByName(args[0] ?? '');
+      const username = user(args[1]);
+      if (args.length !== 2 || !username || !village) return bad(`kage <${VILLAGE_NAMES}> <nome>`);
+      return { ok: true, command: { cmd, village, username } };
+    }
+    case 'eleicao': {
+      const village = villageByName(args[0] ?? '');
+      if (args.length !== 1 || !village) return bad(`eleicao <${VILLAGE_NAMES}>`);
+      return { ok: true, command: { cmd, village } };
+    }
+    case 'evento': {
+      const kind = (args[0] ?? '').toLowerCase();
+      const hours = int(args[args.length - 1], 1, 720);
+      const places = args.slice(1, -1).map((a) => a.toLowerCase());
+      const usage = bad('evento guerra <vila> <vila> <horas 1 a 720> · evento tregua <todas | vila vila> <horas>');
+      if (hours === undefined || (kind !== 'guerra' && kind !== 'tregua')) return usage;
+      if (kind === 'tregua' && places.length === 1 && places[0] === 'todas') return { ok: true, command: { cmd, kind, a: null, b: null, hours } };
+      const [a, b] = places.map((p) => villageByName(p));
+      if (places.length !== 2 || !a || !b || a === b) return usage;
+      return { ok: true, command: { cmd, kind, a, b, hours } };
+    }
+    case 'renegado': {
+      const username = user(args[0]);
+      const on = (args[1] ?? '').toLowerCase();
+      if (args.length !== 2 || !username || (on !== 'on' && on !== 'off')) return bad('renegado <nome> <on|off>');
+      return { ok: true, command: { cmd, username, on: on === 'on' } };
+    }
+    case 'akatsuki': {
+      const action = (args[0] ?? '').toLowerCase();
+      const username = user(args[1]);
+      if (args.length !== 2 || !username || (action !== 'lider' && action !== 'remover')) return bad('akatsuki <lider|remover> <nome>');
+      return { ok: true, command: { cmd, action, username } };
+    }
+    case 'temporada': {
+      if (args.length !== 1 || args[0]!.toLowerCase() !== 'fechar') return bad('temporada fechar');
+      return { ok: true, command: { cmd } };
+    }
     default:
       return { ok: false, command: 'unknown', text: ADMIN_HELP };
   }
@@ -116,6 +200,11 @@ export interface AdminStore {
   resetStats(adminId: string, targetId: string): Promise<AdminOutcome<AdminPlayerState>>;
   /** Auditoria de um comando que não passa por função do banco (spawn) ou que foi recusado. */
   log(adminId: string, command: string, targetId: string | null, args: Record<string, unknown>, ok: boolean, detail: string | null): Promise<void>;
+  /**
+   * Fim de jogo (v11): cada um chama a função game.admin_* (confere is_admin e grava a auditoria na mesma transação).
+   * `target` = o jogador já encontrado pelo nome (os que não têm alvo recebem null).
+   */
+  endgame?(adminId: string, c: EndgameAdminCommand, targetId: string | null): Promise<AdminOutcome<{ result: string | null }>>;
 }
 
 const STATE = `total_xp, level, stat_points, attr_vitality, attr_chakra, attr_agility, attr_taijutsu, attr_ninjutsu, attr_weapons`;
@@ -129,6 +218,15 @@ export const ADMIN_SQL = {
   resetStats: `SELECT game.admin_reset_stats($1, $2)`,
   inventory: `SELECT COALESCE((SELECT json_object_agg(item_code, quantity) FROM game.player_items WHERE player_id = $1), '{}'::json) AS items`,
   log: `SELECT game.admin_log($1, $2, $3, $4::jsonb, $5, $6)`,
+  endgameMode: `SELECT game.admin_endgame_mode($1, $2, $3)::text AS result`,
+  setVillage: `SELECT game.admin_set_village($1, $2, $3)::text AS result`,
+  setKage: `SELECT game.admin_set_kage($1, $2, $3)::text AS result`,
+  closeElection: `SELECT game.admin_close_election($1, $2)::text AS result`,
+  worldEvent: `SELECT game.admin_world_event($1, $2, $3, $4, $5)::text AS result`,
+  renegade: `SELECT game.admin_renegade($1, $2, $3)::text AS result`,
+  akatsukiLeader: `SELECT game.admin_akatsuki_leader($1, $2)::text AS result`,
+  akatsukiRemove: `SELECT game.admin_akatsuki_remove($1, $2)::text AS result`,
+  closeSeason: `SELECT game.admin_close_season($1)::text AS result`,
 } as const;
 
 interface StateRow {
@@ -157,14 +255,15 @@ export function makeAdminStore(db: Db): AdminStore {
   };
 
   /** Roda o comando numa transação; recusa por regra conhecida vira texto e fica na auditoria. */
-  async function run<T>(adminId: string, command: string, targetId: string, args: Record<string, unknown>,
+  async function run<T>(adminId: string, command: string, targetId: string | null, args: Record<string, unknown>,
     fn: (tx: Queryable) => Promise<T>): Promise<AdminOutcome<T>> {
     try {
       return { ok: true, ...(await withTransaction(db, fn)) };
     } catch (err) {
       const e = (typeof err === 'object' && err !== null ? err : {}) as { constraint?: string; code?: string };
       const known = (e.constraint ? CONSTRAINT_ERRORS[e.constraint]?.message : undefined)
-        ?? (e.code === '23503' ? 'Jogador, jutsu ou item inexistente.' : undefined);
+        ?? (e.code === '23503' ? 'Jogador, jutsu ou item inexistente.' : undefined)
+        ?? (e.code === '42883' ? 'Rode a migração v11 (fim de jogo) no Neon primeiro.' : undefined);
       if (!known) throw err;
       // A transação voltou atrás; a recusa fica na auditoria (inclusive admin revogado depois do login).
       await log(adminId, command, targetId, args, false, known).catch(() => undefined);
@@ -200,5 +299,21 @@ export function makeAdminStore(db: Db): AdminStore {
       });
     },
     log,
+    endgame(adminId, c, targetId) {
+      const { cmd, ...args } = c;
+      const [sql, params]: [string, unknown[]] = (() => {
+        switch (c.cmd) {
+          case 'endgame': return [ADMIN_SQL.endgameMode, [adminId, c.module, c.mode]];
+          case 'vila': return [ADMIN_SQL.setVillage, [adminId, targetId, c.village]];
+          case 'kage': return [ADMIN_SQL.setKage, [adminId, c.village, targetId]];
+          case 'eleicao': return [ADMIN_SQL.closeElection, [adminId, c.village]];
+          case 'evento': return [ADMIN_SQL.worldEvent, [adminId, c.kind, c.a, c.b, c.hours]];
+          case 'renegado': return [ADMIN_SQL.renegade, [adminId, targetId, c.on]];
+          case 'akatsuki': return [c.action === 'lider' ? ADMIN_SQL.akatsukiLeader : ADMIN_SQL.akatsukiRemove, [adminId, targetId]];
+          case 'temporada': return [ADMIN_SQL.closeSeason, [adminId]];
+        }
+      })();
+      return run(adminId, cmd, targetId, args, async (tx) => ({ result: (await tx.query<{ result: string | null }>(sql, params)).rows[0]?.result ?? null }));
+    },
   };
 }

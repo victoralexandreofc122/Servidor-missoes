@@ -9,9 +9,12 @@ import {
   type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
   type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
   type Skill, type WorldInfo, type Appearance, type Dir, type MonsterStatus,
+  type EndgameView, type FactionView, type PowerFailReason, type TravelOption,
 } from './protocol.js';
 import { NPC_OFFER_CODES, type Missions, type TalkOutcome } from './missions.js';
-import { ADMIN_HELP, isAdminCommand, parseAdminCommand, type AdminCommand, type AdminPlayerState, type AdminStore } from './admin.js';
+import {
+  ADMIN_HELP, isAdminCommand, isEndgameAdmin, parseAdminCommand, type AdminCommand, type AdminPlayerState, type AdminStore, type EndgameAdminCommand,
+} from './admin.js';
 import { CHAT_HISTORY, memoryChatLog, type ChatLog, type ChatRecord } from './chatLog.js';
 import type { Profile } from './profile.js';
 import type { Classes, Inventory, NinjaStore } from './ninjaStore.js';
@@ -19,14 +22,20 @@ import {
   ACADEMY_JUTSUS, CLASSES, CLASS_INFO, EXTRACTION, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
   jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
-import { ITEMS, ITEM_BY_CODE, KILL_RYO, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
-import { DEFAULT_APPEARANCE, OPEN_VILLAGES, villageAllowed } from './appearance.js';
+import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
+import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
+import { activeModules, dueModules, type EndgameModule } from './endgame.js';
+import { SHOW_ALL, type Display, type EndgamePlayer, type EndgameStore, type KageAction, type Politics, type PvpKill, type TickEvent } from './endgameStore.js';
+import { VILLAGE_INFO, alliesOf, conflictHostile, mapAllowed, type Diplomacy, type Faction, type MapAccess, type PassiveKind } from './villages.js';
+import { POWERS, POWER_BY_SLOT, type PowerDef, type PowerKind } from './akatsuki.js';
 import {
   damageMultiplier, derivedStats, levelProgress, MAX_LEVEL, NO_ATTRIBUTES, nextPointGains, scaledDamage,
   type Attribute, type Attributes, type DerivedStats,
 } from './stats.js';
-import { blocked, moveStep, q3 } from './movement.js';
-import { ACADEMY, academySpawn, arenaAt, crossedGap, inSafeZone, type Arena, type MapId, type MapLayout } from './maps.js';
+import { blocked, moveStep, q3, type MoveGates } from './movement.js';
+import {
+  ACADEMY, REFUGE, TRAVEL_POST, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, type Arena, type CampOwner, type MapId, type MapLayout,
+} from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
 
 /*
@@ -62,6 +71,11 @@ import { TokenBucket } from './tokenBucket.js';
  * v15 (design geral): arena de PvP em cada vila (só entre os ninjas dela; fora da arena a Vila nunca tem
  * PvP), XP do monstro para todos que participaram (20% da vida), monstros a mais quando há mais gente no
  * mapa, teto de atordoar/prender em jogadores e o jeito de lutar de cada arma.
+ *
+ * v16 (fim de jogo, docs/endgame.md, migração v11): módulos que ligam com a população (vilas -> pvp -> renegados ->
+ * akatsuki). O BANCO é a autoridade de quem é de qual vila, de quem é Kage, das guerras, alianças, renegados e da
+ * Akatsuki; o mundo guarda uma cópia (politics, relida a cada mudança e na manutenção) para decidir na hora quem
+ * entra em qual mapa, quem bate em quem na Zona de Conflito e as passivas. Sem a v11 tudo fica desligado.
  */
 
 /** O que o mundo precisa de uma conexão. O WebSocket do `ws` satisfaz isto. */
@@ -128,6 +142,8 @@ export interface WorldOptions {
   chatLog?: ChatLog;
   /** Comandos do administrador no banco (auditados). Sem isto: só o /admin spawn funciona (em memória). */
   admin?: AdminStore;
+  /** Fim de jogo no banco (migração v11). Sem isto, ou sem a v11 aplicada: módulos desligados. */
+  endgame?: EndgameStore;
 }
 
 export interface JoiningPlayer {
@@ -150,11 +166,13 @@ export interface JoiningPlayer {
   classes?: Classes;
   /** Jutsu -> usos já gravados no banco. */
   jutsus?: Record<string, number>;
-  hokageCandidate?: boolean;
+  kageCandidate?: boolean;
   /** v8: pergaminho levado nas costas (só visual). */
   equippedScroll?: string | null;
   /** v8: Modo Administrador (players.is_admin). Sem isto: false. */
   isAdmin?: boolean;
+  /** v16: vila, renegado, Kage, Akatsuki, recompensa e capa (do banco, migração v11). Sem isto: da sessão antiga ou do visual. */
+  endgame?: EndgamePlayer;
 }
 
 /** Estado de um jogador online. É o valor do Map playerId -> estado. */
@@ -204,7 +222,7 @@ interface Session {
   /** Botão 🏃: corre (8) em vez de andar (5). */
   running: boolean;
   /** skill -> instante em que fica pronta de novo */
-  cooldowns: Partial<Record<Skill | 'attack', number>>;
+  cooldowns: Partial<Record<Skill | 'attack' | 'power', number>>;
   xp: number;
   rank: RankView;
   canBeSensei: boolean;
@@ -260,7 +278,7 @@ interface Session {
   /** Usos ainda não gravados (vão em lote). */
   usagePending: Map<string, number>;
   lastUsageFlush: number;
-  hokageCandidate: boolean;
+  kageCandidate: boolean;
   /** Substituição armada até este instante (anula o próximo golpe). */
   substituteUntil: number;
   substituteLevel: number;
@@ -273,7 +291,41 @@ interface Session {
   equippedScroll: string | null;
   /** Último pedido de histórico do chat. */
   lastHistoryAt: number;
+  // ------------------------------------------------ fim de jogo (v16, migração v11)
+  /** Layouts de mapa já enviados a esta conexão (os outros vão no map_changed). */
+  sentMaps: Set<MapId>;
+  /** Vila (null = renegado). O banco é a autoridade; aqui é a cópia lida ao conectar e a cada mudança. */
+  village: Village | null;
+  renegadeFrom: Village | null;
+  bounty: number;
+  kageOf: Village | null;
+  akatsukiSlot: number | null;
+  cape: string | null;
+  display: Display;
+  villageSwitches: number;
+  /** Por onde entrou na sala compartilhada (loja, Academia): a porta de saída leva de volta para lá. */
+  doorBack: { map: string; x: number; y: number } | undefined;
+  /** Akatsuki: golpes que drenam chakra ou curam até `until`; escudo de cargas; intangível; velocidade extra. */
+  powerBuff: { kind: 'drain' | 'lifesteal'; until: number; amount: number } | undefined;
+  hearts: number;
+  heartsCut: number;
+  intangibleUntil: number;
+  hasteUntil: number;
+  haste: number;
+  /** Último pedido de painel (vila, ranking, viagem): toque repetido não vira enxurrada no banco. */
+  lastPanelAt: number;
 }
+
+/** Sem a v11 (ou antes de ler o banco): nenhum módulo, nenhuma relação. */
+const NO_POLITICS: Politics = { modules: [], kages: [], relations: [], events: [], elections: [], akatsuki: [], season: null };
+/** Nome de cada módulo no anúncio de quando ele abre. */
+const MODULE_NAMES: Record<EndgameModule, string> = {
+  vilas: 'as cinco vilas e os Kages', pvp: 'a Zona de Conflito e as temporadas de PvP', renegados: 'os renegados', akatsuki: 'a Akatsuki',
+};
+const villageName = (v: Village) => `Vila da ${VILLAGE_INFO[v].name}`;
+/** Pedidos do fim de jogo que vão ao banco (endgameRequest). */
+type EndgameRequest = 'village_panel' | 'kage_vote' | 'kage_action' | 'kage_answer' | 'kage_exile' | 'report_player' | 'kage_report' | 'ranking'
+  | 'akatsuki_invite' | 'akatsuki_answer' | 'akatsuki_expel' | 'akatsuki_leave';
 
 interface Monster {
   readonly id: string;
@@ -308,6 +360,7 @@ interface Projectile {
   /** Jutsu que lançou (Fogo, Kunais) ou a arma lançada no Ataque Básico (Shuriken Gigante). */
   readonly skill?: Skill;
   readonly weapon?: string;
+  readonly power?: PowerKind;
   x: number;
   y: number;
   readonly ux: number;
@@ -332,6 +385,8 @@ interface Projectile {
 interface LaunchSpec {
   skill?: Skill;
   weapon?: string;
+  /** Poder da Akatsuki (Argila Viva, Chuva de Papel). */
+  power?: PowerKind;
   speed: number;
   range: number;
   damage: number;
@@ -388,6 +443,14 @@ export class GameWorld {
   private readonly arenaRecord = new Map<string, { wins: number; losses: number }>();
   /** Densidade: quando cada mapa de caça pode ganhar ou perder o próximo monstro. */
   private readonly densityAt = new Map<MapId, number>();
+  // ------------------------------------------------ fim de jogo (v16)
+  private readonly endgame: EndgameStore | undefined;
+  /** A migração v11 já foi encontrada (conferida na manutenção: aplicar no Neon não precisa reiniciar). */
+  private endgameReady = false;
+  private politics: Politics = NO_POLITICS;
+  private modules: ReadonlySet<EndgameModule> = new Set();
+  private endgameTimer: NodeJS.Timeout | undefined;
+  private endgameBusy = false;
 
   constructor(
     private readonly config: RealtimeConfig = REALTIME,
@@ -403,6 +466,7 @@ export class GameWorld {
     this.secureRandom = options.secureRandom ?? (() => randomInt(0, 1_000_000) / 1_000_000);
     this.chatLog = options.chatLog ?? memoryChatLog(now);
     this.admin = options.admin;
+    this.endgame = options.endgame;
     for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
     this.lastTick = now();
     for (const layout of this.huntingMaps()) {
@@ -463,6 +527,7 @@ export class GameWorld {
     return {
       ...this.view(s), chakra: Math.floor(s.chakra), maxChakra: s.stats.maxChakra, shield: s.shield > 0, xp: s.xp,
       speed: this.speedOf(s), running: s.running, canBeSensei: s.canBeSensei, appearanceSet: s.appearance !== null,
+      ...(s.doorBack ? { doorBack: { ...s.doorBack } } : {}),
     };
   }
 
@@ -471,12 +536,17 @@ export class GameWorld {
       id: s.id, username: s.username, x: round3(s.x), y: round3(s.y), hp: shownHp(s.hp), maxHp: s.stats.maxHp,
       dead: s.dead, meditating: s.meditating, rank: s.rank, level: s.level,
       appearance: { ...(s.appearance ?? DEFAULT_APPEARANCE) }, dir: dirOf(s.fx, s.fy), gear: this.gear(s),
+      ...(this.on('vilas') ? { faction: this.factionView(s) } : {}),
     };
   }
 
-  /** O que aparece no boneco (todos veem): arma na mão ou nas costas e o pergaminho nas costas. */
+  /**
+   * O que aparece no boneco (todos veem): arma na mão ou nas costas e o pergaminho nas costas. Esconder (⚙️) só muda o
+   * que os outros veem: a arma continua valendo no golpe.
+   */
   private gear(s: Session): Gear {
-    return gearOf(s.equipped, s.equippedScroll);
+    const g = gearOf(s.equipped, s.equippedScroll);
+    return { hand: s.display.weapon ? g.hand : null, back: s.display.weapon ? g.back : null, scroll: s.display.scroll ? g.scroll : null };
   }
 
   /** Equipamento mudou: todos no mapa veem o boneco novo. */
@@ -499,6 +569,15 @@ export class GameWorld {
     return { active: s.activeKit, kits: { A: [...s.kits.A], B: [...s.kits.B] } };
   }
 
+  /** Stats da sessão: os dos atributos com a passiva da vila (Pedra: vida; Névoa: velocidade). */
+  private statsFor(village: Village | null, attributes: Attributes): DerivedStats {
+    const base = this.computeStats(attributes);
+    const hp = this.passiveOf(village, 'hp');
+    const speed = this.passiveOf(village, 'speed');
+    if (hp === 1 && speed === 1) return base;
+    return { ...base, maxHp: Math.round(base.maxHp * hp), walkSpeed: round2(base.walkSpeed * speed), runSpeed: round2(base.runSpeed * speed) };
+  }
+
   private computeStats(attributes: Attributes): DerivedStats {
     const p = this.config.combat.player;
     return derivedStats(
@@ -511,16 +590,34 @@ export class GameWorld {
     );
   }
 
-  /** Velocidade atual (casas/s): andar ou correr, mais a agilidade. */
+  /** Velocidade atual (casas/s): andar ou correr, mais a agilidade (e a passiva da Névoa, já nos stats). Raízes Gêmeas: +20%. */
   private speedOf(s: Session): number {
-    return s.running ? s.stats.runSpeed : s.stats.walkSpeed;
+    const base = s.running ? s.stats.runSpeed : s.stats.walkSpeed;
+    return s.hasteUntil > 0 ? round2(base * (1 + s.haste)) : base;
   }
 
   monsterList(): MonsterView[] {
     return [...this.monsters.values()].map(monsterView);
   }
 
-  private worldInfo(map: MapId): WorldInfo {
+  /**
+   * Layouts que o cliente precisa e ainda não tem: o mapa e os vizinhos dele (saídas e portas: a predição atravessa
+   * na hora, então o vizinho já tem que estar lá). Cada um vai uma vez por conexão.
+   */
+  private layoutsFor(s: Session, map: MapId): Partial<Record<MapId, MapLayout>> {
+    const here = this.layout(map);
+    const want = [map, ...here.exits.map((e) => e.map), ...here.doors.map((d) => d.map)];
+    const out: Partial<Record<MapId, MapLayout>> = {};
+    for (const id of want) {
+      if (s.sentMaps.has(id) || !this.config.maps[id]) continue;
+      s.sentMaps.add(id);
+      out[id] = this.config.maps[id];
+    }
+    return out;
+  }
+
+  private worldInfo(s: Session): WorldInfo {
+    const map = s.map;
     const { speedTilesPerSecond, tickMs, spawn, combat } = this.config;
     const here = this.layout(map);
     const skills = Object.fromEntries(
@@ -541,14 +638,14 @@ export class GameWorld {
       npcs: this.config.npcs.map((n) => ({ ...n })),
       basicAttack: { range: combat.basicAttack.range, cooldownMs: combat.basicAttack.cooldownMs },
       map,
-      maps: this.config.maps as Record<MapId, MapLayout>,
+      maps: this.layoutsFor(s, map),
       attributePerPoint: { ...combat.attributes.perPoint },
       rankLevels: { ...combat.rankLevels },
       classes: CLASSES.map((code) => ({ code, ...CLASS_INFO[code] })),
       items: ITEMS.map((i) => ({ ...i })),
       extraction: EXTRACTION.map((e) => ({ ...e })),
       extractionPityStep: EXTRACTION_PITY_STEP,
-      openVillages: [...OPEN_VILLAGES],
+      openVillages: this.on('vilas') ? [...VILLAGES] : [...OPEN_VILLAGES],
       jutsuLevelUses: [...JUTSU_LEVEL_USES],
       maxLevel: MAX_LEVEL,
     };
@@ -557,7 +654,8 @@ export class GameWorld {
   private ninjaView(s: Session): NinjaView {
     return {
       tutorialStep: s.tutorial, ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll,
-      classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), hokageCandidate: s.hokageCandidate, isAdmin: s.isAdmin,
+      classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin,
+      villageSwitches: s.villageSwitches, cape: s.cape, display: { ...s.display },
     };
   }
 
@@ -571,11 +669,18 @@ export class GameWorld {
     const t = this.now();
     const previous = this.sessions.get(player.id);
     const attributes = { ...(player.attributes ?? previous?.attributes ?? NO_ATTRIBUTES) };
-    const stats = this.computeStats(attributes);
+    let appearance = player.appearance !== undefined ? player.appearance : (previous?.appearance ?? null);
+    // Vila: do banco (v11); sem ele, a da sessão antiga ou a da bandana (o jogo de antes: todos da Folha).
+    const eg = player.endgame;
+    // A bandana mostra a vila do banco (o admin pode ter mudado; o renegado fica com a de onde saiu, riscada).
+    const bandana = eg ? (eg.village ?? eg.renegadeFrom) : null;
+    if (appearance && bandana && appearance.village !== bandana) appearance = { ...appearance, village: bandana };
+    const village: Village | null = eg ? eg.village : previous ? previous.village : (appearance?.village ?? 'vila_1');
+    const stats = this.statsFor(village, attributes);
     const kits: Kits = player.kits ?? previous?.kits ?? DEFAULT_KITS;
     const tutorial = player.tutorialStep ?? previous?.tutorial ?? 4;
-    // Quem não terminou o tutorial nasce na Academia, na sala do passo em que está.
-    const home = tutorial < 4 ? { map: 'academy_interior' as MapId, ...academySpawn(tutorial) } : { map: this.config.startMap, ...this.config.spawn };
+    // Quem não terminou o tutorial nasce na Academia, na sala do passo em que está; os outros, na praça da vila deles.
+    const home = tutorial < 4 ? { map: 'academy_interior' as MapId, ...academySpawn(tutorial) } : this.homeOf(village);
     const jutsus = new Map<string, number>(
       player.jutsus ? Object.entries(player.jutsus) : previous ? [...previous.jutsus] : DEFAULT_JUTSUS.map((j) => [j, 0]),
     );
@@ -619,7 +724,7 @@ export class GameWorld {
       stats,
       kits: { A: [...kits.A], B: [...kits.B] },
       activeKit: previous?.activeKit ?? 'A',
-      appearance: player.appearance !== undefined ? player.appearance : (previous?.appearance ?? null),
+      appearance,
       profileBusy: false,
       lastProfileAt: 0,
       profileQueue: [],
@@ -648,7 +753,7 @@ export class GameWorld {
       jutsus,
       usagePending: new Map(previous?.usagePending ?? []),
       lastUsageFlush: t,
-      hokageCandidate: player.hokageCandidate ?? previous?.hokageCandidate ?? false,
+      kageCandidate: player.kageCandidate ?? previous?.kageCandidate ?? false,
       substituteUntil: previous?.substituteUntil ?? 0,
       stunnedUntil: 0,
       rootedUntil: 0,
@@ -657,7 +762,26 @@ export class GameWorld {
       isAdmin: player.isAdmin ?? previous?.isAdmin ?? false,
       equippedScroll: player.equippedScroll !== undefined ? player.equippedScroll : (previous?.equippedScroll ?? null),
       lastHistoryAt: 0,
+      sentMaps: new Set(),
+      village,
+      renegadeFrom: eg ? eg.renegadeFrom : (previous?.renegadeFrom ?? null),
+      bounty: eg ? eg.bounty : (previous?.bounty ?? 0),
+      kageOf: eg ? eg.kageOf : (previous?.kageOf ?? null),
+      akatsukiSlot: eg ? eg.akatsukiSlot : (previous?.akatsukiSlot ?? null),
+      cape: eg ? eg.cape : (previous?.cape ?? null),
+      display: { ...(eg?.display ?? previous?.display ?? SHOW_ALL) },
+      villageSwitches: eg ? eg.villageSwitches : (previous?.villageSwitches ?? 0),
+      doorBack: previous?.doorBack,
+      powerBuff: previous?.powerBuff,
+      hearts: previous?.hearts ?? 0,
+      heartsCut: previous?.heartsCut ?? 0,
+      intangibleUntil: previous?.intangibleUntil ?? 0,
+      hasteUntil: previous?.hasteUntil ?? 0,
+      haste: previous?.haste ?? 0,
+      lastPanelAt: 0,
     };
+    // Sala compartilhada (Academia, loja) sem saber por onde entrou: a saída leva para a porta da vila dele.
+    if (!session.doorBack) session.doorBack = this.backFor(session, session.map);
     // Sala 2 do tutorial (meditar até encher): quem chega nela começa com o chakra baixo.
     if (!previous && tutorial === 1) session.chakra = Math.floor(session.stats.maxChakra * 0.25);
     if (previous) previous.usagePending.clear();   // passaram para a sessão nova (gravadas uma vez só)
@@ -681,9 +805,10 @@ export class GameWorld {
     }
 
     this.sendTo(session, {
-      type: 'welcome', you: this.selfView(session), players: this.othersIn(session), monsters: this.monstersIn(session.map), world: this.worldInfo(session.map),
+      type: 'welcome', you: this.selfView(session), players: this.othersIn(session), monsters: this.monstersIn(session.map), world: this.worldInfo(session),
       progress: this.progressView(session), kit: this.kitView(session), ninja: this.ninjaView(session),
     });
+    this.joinEndgame(session, !eg);
     this.syncMission(session.id);
     if (session.canBeSensei) this.syncSensei(session.id);
     this.sendChatHistory(session, t);          // ao abrir o jogo: as mensagens anteriores
@@ -755,13 +880,17 @@ export class GameWorld {
     else if (parsed.type === 'choose_class') this.chooseClass(session, parsed.class);
     else if (parsed.type === 'extract') this.extract(session, parsed.class, parsed.level);
     else if (parsed.type === 'buy') this.buy(session, parsed.item, parsed.qty);
-    else if (parsed.type === 'equip') this.equip(session, parsed.item, parsed.slot ?? 'weapon');
-    else if (parsed.type === 'hokage_apply') this.applyHokage(session);
+    else if (parsed.type === 'equip') parsed.slot === 'cape' ? this.equipCape(session, parsed.item) : this.equip(session, parsed.item, parsed.slot ?? 'weapon');
+    else if (parsed.type === 'kage_apply' || parsed.type === 'hokage_apply') this.applyKage(session);
     else if (parsed.type === 'reset_attributes') this.resetAttributes(session);
     else if (parsed.type === 'accept_mission') this.acceptMission(session, parsed.offer, t);
     else if (parsed.type === 'deliver_npc_mission') this.deliverNpcMission(session, t);
     else if (parsed.type === 'chat_history') this.sendChatHistory(session, t);
-    else this.chatMessage(session, parsed.message, t);
+    else if (parsed.type === 'chat') this.chatMessage(session, parsed.message, t);
+    else if (parsed.type === 'power') this.power(session, t, parsed.targetId, parsed.dir);
+    else if (parsed.type === 'set_display') this.setDisplay(session, { cape: parsed.cape, weapon: parsed.weapon, scroll: parsed.scroll });
+    else if (parsed.type === 'travel') this.travel(session, parsed.to, t);
+    else this.endgameRequest(session, parsed, t);
     this.flushKicks();
   }
 
@@ -860,8 +989,11 @@ export class GameWorld {
    * dentro do portão, passa para o mapa vizinho (crossExit). A posição é sempre a do SERVIDOR.
    */
   private step(s: Session, dx: number, dy: number, dist: number): void {
-    // Portas da Academia travadas pelo passo GRAVADO do tutorial (a mesma regra no cliente).
-    const [map, x, y] = moveStep(this.config.maps, s.map, s.x, s.y, dx, dy, dist, { tutorial: s.tutorial });
+    // Portas da Academia travadas pelo passo GRAVADO do tutorial; vilas em que ele não entra viram parede; a porta de
+    // saída da sala compartilhada leva de volta para onde ele entrou (a mesma regra no cliente).
+    const gates: MoveGates = { tutorial: s.tutorial, access: this.accessOf(s), back: s.doorBack };
+    const [map, x, y] = moveStep(this.config.maps, s.map, s.x, s.y, dx, dy, dist, gates);
+    s.doorBack = gates.back;
     if (map === s.map) {
       s.x = x;
       s.y = y;
@@ -886,9 +1018,10 @@ export class GameWorld {
       this.broadcastMap(to, { type: 'player_joined', player: this.view(s) }, s.id);
       this.log.info({ playerId: s.id, from, to }, 'jogador trocou de mapa');
     }
+    const maps = this.layoutsFor(s, to);
     this.sendTo(s, {
       type: 'map_changed', map: to, x: round3(x), y: round3(y), a: s.ackSeq,
-      players: this.othersIn(s), monsters: this.monstersIn(to), reason,
+      players: this.othersIn(s), monsters: this.monstersIn(to), reason, ...(Object.keys(maps).length > 0 ? { maps } : {}),
     });
   }
 
@@ -986,7 +1119,37 @@ export class GameWorld {
     if (c.cmd === 'spawn') return this.adminSpawn(session, c.monster, c.quantity, t);
     const store = this.admin;
     if (!store) return this.sendTo(session, { type: 'notice', text: 'Modo Administrador sem banco: aqui só o /admin spawn funciona.', tone: 'bad' });
+    if (isEndgameAdmin(c)) {
+      if (!this.readyStore() || !store.endgame) return this.sendTo(session, { type: 'notice', text: 'Admin: rode a migração v11 (fim de jogo) no Neon primeiro.', tone: 'bad' });
+      return this.queueTask(session, () => this.runEndgameAdmin(session.id, store, c));
+    }
     this.queueTask(session, () => this.runAdmin(session.id, store, c));
+  }
+
+  /**
+   * Comandos de admin do fim de jogo (v11). O banco confere is_admin e grava a auditoria; aqui só se relê o que mudou.
+   * Sem anúncio para ninguém (só o aviso para o admin e, se for o caso, para o alvo).
+   */
+  private async runEndgameAdmin(adminId: string, store: AdminStore, c: EndgameAdminCommand): Promise<void> {
+    const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
+    let target: { id: string; username: string } | undefined;
+    if ('username' in c) {
+      target = await store.findPlayer(c.username);
+      if (!target) {
+        await store.log(adminId, c.cmd, null, { username: c.username }, false, 'jogador não encontrado');
+        return say(`Admin: jogador "${c.username}" não encontrado.`, 'bad');
+      }
+    }
+    const r = await store.endgame!(adminId, c, target?.id ?? null);
+    if (!r.ok) return say(`Admin: ${r.text}`, 'bad');
+    await this.refreshPolitics();
+    if (target) await this.reloadFaction(target.id);
+    if (c.cmd === 'temporada') for (const id of this.sessions.keys()) await this.reloadFaction(id);
+    say(this.adminEndgameText(c, target?.username ?? '', r.result), 'good');
+    // O alvo (online) fica sabendo só ele: nada de anúncio.
+    const forTarget = target && target.id !== adminId ? this.adminTargetText(c) : null;
+    if (forTarget) this.notice(target!.id, forTarget, 'info');
+    this.log.info({ adminId, command: c.cmd, targetId: target?.id ?? null }, 'comando de admin aplicado');
   }
 
   /** Auditoria sem esperar (spawn e comandos recusados antes do banco). Sem banco: só o log do servidor. */
@@ -1013,8 +1176,33 @@ export class GameWorld {
     this.sendTo(s, { type: 'notice', text: made > 0 ? `Admin: ${made}x ${type} invocado(s) (sem recompensa).` : 'Admin: nenhum espaço livre por perto.', tone: made > 0 ? 'good' : 'bad' });
   }
 
+  /** O aviso para quem o comando mudou (sem anúncio para os outros). */
+  private adminTargetText(c: EndgameAdminCommand): string | null {
+    switch (c.cmd) {
+      case 'vila': return `O administrador mudou a sua vila: agora você é da ${villageName(c.village)}.`;
+      case 'kage': return `Você é o Kage da ${villageName(c.village)}.`;
+      case 'renegado': return c.on ? 'O administrador tornou você renegado.' : 'O administrador devolveu você à sua vila.';
+      case 'akatsuki': return c.action === 'lider' ? 'Você é o líder da Akatsuki.' : 'Você saiu da Akatsuki.';
+      default: return null;
+    }
+  }
+
+  private adminEndgameText(c: EndgameAdminCommand, who: string, result: string | null): string {
+    const name = (x: Village | null) => (x ? VILLAGE_INFO[x].name : 'todas');
+    switch (c.cmd) {
+      case 'endgame': return `Admin: módulo ${c.module} em ${c.mode}. Ligados agora: ${[...this.modules].join(', ') || 'nenhum'}.`;
+      case 'vila': return `Admin: ${who} agora é da ${villageName(c.village)}.`;
+      case 'kage': return `Admin: ${who} é o Kage da ${villageName(c.village)}.`;
+      case 'eleicao': return `Admin: eleição da ${villageName(c.village)} fechada${result ? '' : ' (sem vencedor)'}.`;
+      case 'evento': return `Admin: ${c.kind === 'guerra' ? 'guerra' : 'trégua'} forçada (${name(c.a)}${c.b ? ` x ${name(c.b)}` : ''}) por ${c.hours} h.`;
+      case 'renegado': return c.on ? `Admin: ${who} virou renegado.` : `Admin: ${who} voltou para a vila de antes.`;
+      case 'akatsuki': return c.action === 'lider' ? `Admin: ${who} é o líder da Akatsuki.` : `Admin: ${who} saiu da Akatsuki.`;
+      case 'temporada': return `Admin: temporada ${result ?? ''} fechada.`;
+    }
+  }
+
   /** Comandos de admin no banco. O alvo online vê a ficha nova na hora (sem anúncio, sem XP de abate). */
-  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' }>): Promise<void> {
+  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | EndgameAdminCommand>): Promise<void> {
     const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
     const target = await store.findPlayer(c.username);
     if (!target) {
@@ -1114,7 +1302,8 @@ export class GameWorld {
     // Taijutsu escala com o atributo Taijutsu; Armas com Armas (+ a arma equipada); o resto com Ninjutsu.
     // Nível do jutsu (uso): +10% por nível acima do 1.
     const weaponBonus = mechanic === 'weapons' ? this.weaponDamage(session) : 0;
-    const dmg = scaledDamage((cfg.damage ?? 0) + weaponBonus, damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * jutsuPower(level));
+    // Passiva da Nuvem: +10% no dano dos jutsus.
+    const dmg = scaledDamage((cfg.damage ?? 0) + weaponBonus, damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * jutsuPower(level) * this.passive(session, 'jutsu'));
     const reach = cfg.range ?? cfg.radius ?? 0;
     const targets = this.targetsFor(session);
 
@@ -1250,7 +1439,8 @@ export class GameWorld {
       case 'heal': {
         const h = healed!;
         const before = h.hp;
-        h.hp = Math.min(h.stats.maxHp, h.hp + Math.round((cfg.heal ?? 0) * jutsuPower(level)));
+        // Passiva da Folha: +10% de cura (de quem cura).
+        h.hp = Math.min(h.stats.maxHp, h.hp + Math.round((cfg.heal ?? 0) * jutsuPower(level) * this.passive(session, 'heal')));
         const amount = shownHp(h.hp) - shownHp(before);
         this.broadcastMap(h.map, { type: 'hit', target: 'player', id: h.id, amount, kind: 'heal', hp: shownHp(h.hp), maxHp: h.stats.maxHp });
         h.sentHp = shownHp(h.hp);
@@ -1295,7 +1485,8 @@ export class GameWorld {
    * PvP: `attacker` pode machucar `victim`? Os dois vivos, no mesmo mapa, já fora da Academia, fora da zona
    * segura, e quem apanha não acabou de renascer. Então:
    *  - na ARENA: os dois dentro da mesma arena e os dois da vila dona dela (treino entre os ninjas da vila);
-   *  - fora dela: só com o PvP aberto ligado, e nunca num mapa de vila (nem com alguém dentro de uma arena).
+   *  - na ZONA DE CONFLITO (módulo pvp): todos contra todos, menos aliados, trégua e Akatsuki com Akatsuki;
+   *  - fora delas: só com o PvP aberto ligado, e nunca num mapa de vila (nem com alguém dentro de uma arena).
    */
   private canHurt(attacker: Session, victim: Session, t: number = this.now()): boolean {
     if (attacker === victim || victim.dead || victim.closed || victim.map !== attacker.map) return false;
@@ -1305,8 +1496,12 @@ export class GameWorld {
     const arena = arenaAt(layout, attacker.x, attacker.y);
     const victimArena = arenaAt(layout, victim.x, victim.y);
     if (arena || victimArena) {
-      return arena === victimArena && attacker.appearance?.village === arena!.village && victim.appearance?.village === arena!.village;
+      // Quem ainda não passou pelo Criador de Personagem só assiste.
+      return arena === victimArena && attacker.appearance !== null && victim.appearance !== null
+        && attacker.village === arena!.village && victim.village === arena!.village;
     }
+    // Zona de Conflito (Módulo 2): PvP livre, menos aliados, trégua e Akatsuki entre si (villages.ts).
+    if (layout.conflict) return this.on('pvp') && conflictHostile(this.factionOf(attacker), this.factionOf(victim), this.diplomacy(), t);
     return this.config.combat.pvp && !layout.village;
   }
 
@@ -1326,10 +1521,26 @@ export class GameWorld {
 
   /** Dano de uma hitbox: no monstro (XP para quem matou) ou no jogador (PvP). Quem já morreu no meio do golpe não apanha de novo. */
   private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill'): void {
+    let hurt = false;
     if (target.kind === 'monster') {
-      if (target.monster.hp > 0 && this.monsters.has(target.id)) this.damageMonster(target.monster, amount, attacker, t, source);
+      if (target.monster.hp > 0 && this.monsters.has(target.id)) {
+        this.damageMonster(target.monster, amount, attacker, t, source);
+        hurt = true;
+      }
     } else if (this.canHurt(attacker, target.session, t)) {
       this.damagePlayer(target.session, amount, t, attacker, attacker);
+      hurt = true;
+    }
+    // Akatsuki (Lâmina Sanguessuga / Foice do Pacto): o Ataque Básico drena chakra do ninja atingido ou cura o dono.
+    const buff = attacker.powerBuff;
+    if (hurt && source === 'attack' && buff && t < buff.until && !attacker.dead) {
+      if (buff.kind === 'lifesteal') {
+        attacker.hp = Math.min(attacker.stats.maxHp, attacker.hp + Math.round(amount * buff.amount));
+      } else if (target.kind === 'player') {
+        const got = Math.min(buff.amount, target.session.chakra);
+        target.session.chakra -= got;
+        attacker.chakra = Math.min(attacker.stats.maxChakra, attacker.chakra + got);
+      }
     }
   }
 
@@ -1340,6 +1551,7 @@ export class GameWorld {
   private applyStatus(target: Target, status: MonsterStatus, ms: number, t: number): void {
     const who = target.kind === 'monster' ? target.monster : target.session;
     if (target.kind === 'player') {
+      if (t < target.session.intangibleUntil) return;          // Máscara Intangível: nada de atordoar
       const { windowMs, factors } = this.config.combat.controlDr;
       const dr = target.session.controlDr[status];
       if (t >= dr.until) dr.n = 0;
@@ -1378,13 +1590,13 @@ export class GameWorld {
   private launch(owner: Session, fx: number, fy: number, spec: LaunchSpec): void {
     const [ux, uy] = unit(fx, fy);
     const p: Projectile = {
-      id: ++this.projectileSeq, owner, map: owner.map, skill: spec.skill, weapon: spec.weapon, x: owner.x, y: owner.y, ux, uy,
+      id: ++this.projectileSeq, owner, map: owner.map, skill: spec.skill, weapon: spec.weapon, power: spec.power, x: owner.x, y: owner.y, ux, uy,
       speed: spec.speed, left: spec.range, damage: spec.damage, radius: spec.radius, volley: spec.volley,
       hitRadius: spec.hitRadius ?? HIT_RADIUS, pierce: spec.pierce ?? false, source: spec.source ?? 'skill',
     };
     this.projectiles.push(p);
     this.broadcastMap(owner.map, {
-      type: 'projectile', id: p.id, playerId: owner.id, ...(p.skill ? { skill: p.skill } : { weapon: p.weapon }),
+      type: 'projectile', id: p.id, playerId: owner.id, ...projectileKind(p),
       x: round2(p.x), y: round2(p.y), fx: round2(ux), fy: round2(uy), speed: spec.speed, range: spec.range,
     });
   }
@@ -1424,7 +1636,7 @@ export class GameWorld {
   /** O projétil bateu: o Fogo explode (círculo); a kunai acerta só quem ela encostou. */
   private impact(p: Projectile, at: Point, hit: Target | undefined, t: number): void {
     this.broadcastMap(p.map, {
-      type: 'impact', id: p.id, ...(p.skill ? { skill: p.skill } : { weapon: p.weapon }), x: round2(at.x), y: round2(at.y), r: p.radius,
+      type: 'impact', id: p.id, ...projectileKind(p), x: round2(at.x), y: round2(at.y), r: p.radius,
     });
     if (p.radius > 0) {
       for (const x of this.targetsFor(p.owner)) if (isInCircle(at, p.radius, x)) this.hitTarget(x, p.damage, p.owner, t, p.source);
@@ -1535,7 +1747,9 @@ export class GameWorld {
       ...(thrown ? { throw: weapon!.code } : { r: swing.range, arc: swing.arcDeg }),
     });
     // FÍSICO: base x Taijutsu + a arma equipada x Armas (Kunai de Treino: +10).
-    const damage = scaledDamage(cfg.damage, session.stats.physicalMultiplier) + scaledDamage(this.weaponDamage(session), session.stats.weaponMultiplier);
+    // Passiva da Areia: +10% no que a arma soma.
+    const damage = scaledDamage(cfg.damage, session.stats.physicalMultiplier)
+      + scaledDamage(this.weaponDamage(session) * this.passive(session, 'weapons'), session.stats.weaponMultiplier);
     if (thrown) {
       this.launch(session, session.fx, session.fy, {
         weapon: weapon!.code, speed: thrown.speed, range: thrown.range, damage: Math.round(damage * thrown.damageFactor), radius: 0,
@@ -1582,16 +1796,34 @@ export class GameWorld {
    * Criador de Personagem: grava o visual (nomes de paleta) e TODOS passam a ver o boneco novo.
    * O visual só muda depois de gravado (o próprio jogador recebe a confirmação também).
    */
+  /**
+   * Criador de Personagem. Sem o módulo de vilas: só as vilas abertas (ou a que o jogador já tinha). Com ele, a vila da
+   * bandana É a vila do ninja: escolher outra passa pelo banco (game.choose_village: de graça na criação, depois uma
+   * troca só; renegado não escolhe, a bandana fica a riscada).
+   */
   private setAppearance(session: Session, appearance: Appearance): void {
     const { id } = session;
-    // Só as vilas abertas (ou a que o jogador já tinha): as outras abrem com o Arco 2.
-    if (!villageAllowed(appearance.village, session.appearance?.village)) return this.sendError(session, 'VILLAGE_LOCKED');
-    this.profileTask(session, (profile) => profile.saveAppearance(id, appearance).then(() => {
+    const store = this.readyStore();
+    const membership = this.on('vilas') && store !== undefined;
+    if (membership && session.village === null) appearance = { ...appearance, village: session.renegadeFrom ?? appearance.village };
+    else if (!membership && !villageAllowed(appearance.village, session.appearance?.village)) return this.sendError(session, 'VILLAGE_LOCKED');
+    const choose = membership && session.village !== null && appearance.village !== session.village;
+    this.profileTask(session, async (profile) => {
+      if (choose) {
+        const r = await store!.chooseVillage(id, appearance.village);
+        if (!r.ok) return this.notice(id, r.text, 'bad');
+      }
+      await profile.saveAppearance(id, appearance);
       const current = this.sessions.get(id);
       if (!current) return;
       current.appearance = { ...appearance };
+      if (!this.endgame) current.village = appearance.village;   // sem banco do fim de jogo: a vila é a da bandana
       this.broadcastMap(current.map, { type: 'player_appearance', playerId: id, appearance: { ...appearance } });
-    }));
+      if (choose) {
+        await this.reloadFaction(id);
+        this.notice(id, `Agora você é da ${villageName(appearance.village)}: ${VILLAGE_INFO[appearance.village].passive.text}.`, 'good');
+      }
+    });
   }
 
   /** Gastar 1 ponto: o banco confere se tem ponto (sem teto por atributo; o soft cap é daqui). */
@@ -1637,7 +1869,7 @@ export class GameWorld {
     const before = s.stats;
     s.statPoints = statPoints;
     s.attributes = { ...attributes };
-    s.stats = this.computeStats(s.attributes);
+    s.stats = this.statsFor(s.village, s.attributes);
     if (!s.dead) {
       s.hp = Math.min(s.stats.maxHp, s.hp + Math.max(0, s.stats.maxHp - before.maxHp));
       s.chakra = Math.min(s.stats.maxChakra, s.chakra + Math.max(0, s.stats.maxChakra - before.maxChakra));
@@ -1804,7 +2036,7 @@ export class GameWorld {
   }
 
   private sendInventory(s: Session): void {
-    this.sendTo(s, { type: 'inventory', ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll });
+    this.sendTo(s, { type: 'inventory', ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll, cape: s.cape });
   }
 
   // ---------------------------------------------------------------- tutorial da Academia
@@ -1893,8 +2125,10 @@ export class GameWorld {
     s.dy = 0;
     this.dropInputs(s);                 // as entradas a caminho são confirmadas: o cliente recomeça do lugar novo
     s.substituteUntil = 0;
-    const at = step >= 4 ? this.config.tutorialEnd : academySpawn(step);
-    this.transfer(s, step >= 4 ? this.config.startMap : 'academy_interior', at.x, at.y, 'tutorial');
+    // Fim da Academia: a praça da vila dele (renegado: o Refúgio).
+    const home = this.homeOf(s.village);
+    const at = step < 4 ? academySpawn(step) : home.map === 'refugio' ? home : this.config.tutorialEnd;
+    this.transfer(s, step >= 4 ? home.map : 'academy_interior', at.x, at.y, 'tutorial');
     s.lastUpdate = this.now();
     s.dirty = true;
   }
@@ -1907,9 +2141,14 @@ export class GameWorld {
     return 0;
   }
 
-  // ---------------------------------------------------------------- classes, loja, Extração, arma, Hokage
+  // ---------------------------------------------------------------- classes, loja, Extração, arma, Kage
 
   /** NPC perto (mesmo mapa, no alcance)? Posição do SERVIDOR. */
+  /** O Mestre perto dele (cada vila tem o seu, o mesmo da Sala de Missões). */
+  private senseiNear(session: Session): string | undefined {
+    return this.config.npcs.find((n) => n.role === 'sensei' && this.near(session, n.id))?.id;
+  }
+
   private near(session: Session, npcId: string): boolean {
     const npc = this.config.npcs.find((n) => n.id === npcId);
     return !!npc && !session.dead && npc.map === session.map && distance(session, npc) <= npc.range;
@@ -2047,20 +2286,20 @@ export class GameWorld {
     }));
   }
 
-  /** Candidatura a Hokage: nível 60, com o Diretor. Registrada; a eleição vem numa versão futura. */
-  private applyHokage(session: Session): void {
+  /** Candidatura a Kage: nível 60, com o Diretor. Registrada; a eleição vem numa versão futura. */
+  private applyKage(session: Session): void {
     if (!this.near(session, 'director')) return this.sendError(session, 'DIRECTOR_TOO_FAR');
-    if (session.level < this.config.combat.rankLevels.hokage) {
-      return this.sendTo(session, { type: 'notice', text: `A candidatura a Hokage é no nível ${this.config.combat.rankLevels.hokage}.`, tone: 'bad' });
+    if (session.level < this.config.combat.rankLevels.kage) {
+      return this.sendTo(session, { type: 'notice', text: `A candidatura a Kage é no nível ${this.config.combat.rankLevels.kage}.`, tone: 'bad' });
     }
     const { id, username } = session;
-    this.storeTask(session, (store) => store.applyHokage(id).then((result) => {
+    this.storeTask(session, (store) => store.applyKage(id).then((result) => {
       const current = this.sessions.get(id);
       if (!current) return;
       if (!result.ok) return this.sendTo(current, { type: 'notice', text: result.text, tone: 'bad' });
-      current.hokageCandidate = true;
-      this.sendTo(current, { type: 'notice', text: result.already ? 'Sua candidatura a Hokage já está registrada.' : 'Candidatura a Hokage registrada! Aguarde a eleição.', tone: 'good' });
-      if (!result.already) this.broadcast({ type: 'announce', message: `${username} se candidatou a Hokage!` });
+      current.kageCandidate = true;
+      this.sendTo(current, { type: 'notice', text: result.already ? 'Sua candidatura a Kage já está registrada.' : 'Candidatura a Kage registrada! Aguarde a eleição.', tone: 'good' });
+      if (!result.already) this.broadcast({ type: 'announce', message: `${username} se candidatou a Kage!` });
       return undefined;
     }));
   }
@@ -2101,6 +2340,13 @@ export class GameWorld {
       if (npc.shop === 'scrolls' && this.store) this.storeTask(session, (store) => this.sendExtractOdds(session, store));
       return this.sendTo(session, { type: 'shop_open', shop: npc.shop, npcId: npc.id });
     }
+    if (npc.role === 'travel') {
+      // Posto de Viagem (fim de jogo): os destinos que ele tem agora (o servidor confere de novo ao viajar).
+      if (!this.on('vilas')) return this.sendError(session, 'ENDGAME_OFF');
+      if (t - session.lastMissionAt < this.config.missionRequestEveryMs) return;
+      session.lastMissionAt = t;
+      return this.sendTo(session, { type: 'travel_options', npcId: npc.id, options: this.travelOptions(session) });
+    }
     if (npc.id === 'director' || npc.id.startsWith('tutor_')) {
       if (t - session.lastMissionAt < this.config.missionRequestEveryMs) return;
       session.lastMissionAt = t;
@@ -2117,19 +2363,21 @@ export class GameWorld {
   /** Cartão escolhido na Sala de Missões (perto do Mestre). O banco cria a missão com a recompensa do catálogo. */
   private acceptMission(session: Session, offer: string, t: number): void {
     if (!NPC_OFFER_CODES.includes(offer)) return this.sendError(session, 'INVALID_MISSION_OPTION');
-    if (!this.near(session, 'sensei')) return this.sendError(session, 'SENSEI_TOO_FAR');
+    const npcId = this.senseiNear(session);
+    if (!npcId) return this.sendError(session, 'SENSEI_TOO_FAR');
     const { id, username } = session;
-    this.missionRequest(session, t, (m) => m.talk(id, offer).then((outcome) => this.applyTalk(id, username, 'sensei', outcome)), true);
+    this.missionRequest(session, t, (m) => m.talk(id, offer).then((outcome) => this.applyTalk(id, username, npcId, outcome)), true);
   }
 
   /** Botão "Entregar" da Sala de Missões: o banco confere o objetivo de novo (o cliente só pede). */
   private deliverNpcMission(session: Session, t: number): void {
-    if (!this.near(session, 'sensei')) return this.sendError(session, 'SENSEI_TOO_FAR');
+    const npcId = this.senseiNear(session);
+    if (!npcId) return this.sendError(session, 'SENSEI_TOO_FAR');
     const { id, username } = session;
-    this.missionRequest(session, t, (m) => m.talk(id, null).then((outcome) => this.applyTalk(id, username, 'sensei', outcome)), true);
+    this.missionRequest(session, t, (m) => m.talk(id, null).then((outcome) => this.applyTalk(id, username, npcId, outcome)), true);
   }
 
-  /** Diretor: o que o jogador pode fazer agora (Missão de Genin, classe Secundária, Exame Chunin, Hokage). */
+  /** Diretor: o que o jogador pode fazer agora (Missão de Genin, classe Secundária, Exame Chunin, Kage). */
   private talkDirector(s: Session): void {
     const say = (text: string) => this.sendTo(s, { type: 'npc_say', npcId: 'director', text });
     const lv = this.config.combat.rankLevels;
@@ -2139,8 +2387,8 @@ export class GameWorld {
       say('Chegou a hora da Missão de Genin. Escolha sua classe: ela decide quais jutsus você pode aprender.');
       return this.sendTo(s, { type: 'class_choice', kind: 'primary', classes: [...CLASSES] });
     }
-    if (s.level >= lv.hokage && !s.hokageCandidate) {
-      return say('Poucos chegam tão longe. Se quiser, registre aqui a sua candidatura a Hokage.');
+    if (s.level >= lv.kage && !s.kageCandidate) {
+      return say('Poucos chegam tão longe. Se quiser, registre aqui a sua candidatura a Kage.');
     }
     if (s.rank.code === 'GENIN') {
       if (s.level < lv.chunin) return say(`O Exame Chunin é no nível ${lv.chunin}. Até lá, treine seus jutsus: cada uso conta. (Nível ${s.level})`);
@@ -2150,7 +2398,7 @@ export class GameWorld {
       say('Um Chunin pode dominar uma segunda classe. Escolha a sua classe Secundária.');
       return this.sendTo(s, { type: 'class_choice', kind: 'secondary', classes: CLASSES.filter((c) => c !== s.classes.primary) });
     }
-    return say(s.hokageCandidate ? 'Sua candidatura a Hokage está registrada. A eleição virá em breve.' : 'Continue treinando. A Vila conta com você.');
+    return say(s.kageCandidate ? 'Sua candidatura a Kage está registrada. A eleição virá em breve.' : 'Continue treinando. A Vila conta com você.');
   }
 
   /**
@@ -2398,6 +2646,7 @@ export class GameWorld {
 
   /** Dano num jogador. `by` = outro jogador (arena, PvP aberto): na arena, quem derruba vence a luta. */
   private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session): void {
+    if (t < session.intangibleUntil) return;                    // Máscara Intangível (Akatsuki)
     // Apanhou: a meditação acaba ANTES do dano (não dá para meditar no meio da luta).
     this.stopMeditation(session, 'damaged');
     if (attacker && session.substituteUntil > t) return this.substitute(session, attacker, t);
@@ -2406,6 +2655,10 @@ export class GameWorld {
     if (session.shield > 0) {
       dmg = shieldedDamage(amount, session.shield);
       session.shield = 0;
+      shielded = true;
+    } else if (session.hearts > 0) {                            // Cinco Corações: cada carga corta metade de um golpe
+      dmg = Math.round(amount * (1 - session.heartsCut));
+      session.hearts -= 1;
       shielded = true;
     }
     session.hp = Math.max(0, session.hp - dmg);
@@ -2424,6 +2677,7 @@ export class GameWorld {
       session.shield = 0;
       this.broadcastMap(session.map, { type: 'player_died', playerId: session.id, respawnInMs: session.respawnMs, ...(arena ? { arena: true } : {}) });
       if (arena && by) this.arenaResult(by, session);
+      else if (by && this.layout(session.map).conflict) this.pvpKill(by, session);
     }
     this.sendStats(session, t);
   }
@@ -2501,8 +2755,10 @@ export class GameWorld {
     // Tutorial: renasce na sala do passo em que está (nunca fora da Academia). Arena: na entrada dela.
     const arena = session.diedIn;
     session.diedIn = undefined;
-    const startMap: MapId = session.tutorial < 4 ? 'academy_interior' : arena ? session.map : this.config.startMap;
-    const spawn = session.tutorial < 4 ? academySpawn(session.tutorial) : arena ? arena.respawn : this.config.spawn;
+    // Fora da arena: volta para a própria vila (renegado: o Refúgio).
+    const home = this.homeOf(session.village);
+    const startMap: MapId = session.tutorial < 4 ? 'academy_interior' : arena ? session.map : home.map;
+    const spawn = session.tutorial < 4 ? academySpawn(session.tutorial) : arena ? arena.respawn : home;
     if (session.map !== startMap) this.transfer(session, startMap, spawn.x, spawn.y, 'respawn');   // morreu na Floresta
     session.x = spawn.x;
     session.y = spawn.y;
@@ -2526,16 +2782,16 @@ export class GameWorld {
    */
   spawnMonster(at?: Point, t: number = this.now(), map?: MapId, typeName?: string, fixed = false, admin = false): MonsterView {
     const cfg = this.config.combat.monsters;
-    const type = typeName ?? cfg.type;
-    const stats = this.monsterType(type);
     const mapId: MapId = map ?? (at ? this.config.startMap : (this.huntingMaps()[0]?.id ?? this.config.startMap));
     const layout = this.layout(mapId);
+    const type = typeName ?? layout.huntType ?? cfg.type;          // cada mapa de caça tem o seu monstro
+    const stats = this.monsterType(type);
     const zone = layout.hunt ?? { x: 0, y: 0, w: layout.width, h: layout.height };
     const players = [...(this.mapPlayers.get(mapId) ?? [])];
     let pos = at;
     for (let i = 0; !pos && i < 30; i++) {
       const candidate = { x: Math.floor(zone.x + this.random() * zone.w), y: Math.floor(zone.y + this.random() * zone.h) };
-      if (blocked(candidate.x, candidate.y, layout.walls) && i < 29) continue;
+      if ((blocked(candidate.x, candidate.y, layout.walls) || inSafeZone(layout, candidate.x, candidate.y)) && i < 29) continue;
       const tooClose = players.some((s) => !s.dead && distance(s, candidate) < cfg.minPlayerDistance);
       if (!tooClose || i === 29) pos = candidate;
     }
@@ -2573,7 +2829,8 @@ export class GameWorld {
     for (let attempt = 0; attempt < 4; attempt++) {
       const [sx, sy] = STEPS[Math.floor(this.random() * STEPS.length)]!;
       const next = { x: m.x + sx, y: m.y + sy };
-      if (next.x >= z.x && next.y >= z.y && next.x < z.x + z.w && next.y < z.y + z.h && !blocked(next.x, next.y, layout.walls)) {
+      if (next.x >= z.x && next.y >= z.y && next.x < z.x + z.w && next.y < z.y + z.h && !blocked(next.x, next.y, layout.walls)
+        && !inSafeZone(layout, next.x, next.y)) {                    // monstro não entra em acampamento (zona segura)
         m.x = next.x;
         m.y = next.y;
         return true;
@@ -2620,6 +2877,11 @@ export class GameWorld {
       if (s.tutorial === 1 && s.meditating && s.chakra >= s.stats.maxChakra && s.map === 'academy_interior'
         && s.x >= ACADEMY.room && s.x < ACADEMY.room * 2) this.advanceTutorial(s, 2);
       if (s.usagePending.size > 0 && t - s.lastUsageFlush >= 15_000) void this.flushUsage(s);
+      // Raízes Gêmeas: a velocidade extra acabou (o cliente prevê com a velocidade nova).
+      if (s.hasteUntil > 0 && t >= s.hasteUntil) {
+        s.hasteUntil = 0;
+        this.sendStats(s, t);
+      }
     }
 
     // 1a. Projéteis (Fogo, Kunais): andam e batem (depois de os jogadores andarem neste tick).
@@ -2682,20 +2944,728 @@ export class GameWorld {
       this.chatLog.purge().catch((err: unknown) => this.log.warn({ err }, 'falha ao limpar o histórico do chat'));
     }, CHAT_HISTORY.purgeEveryMs);
     this.purgeTimer.unref();
+    // Fim de jogo: confere a v11, a população e roda a manutenção (eleições, temporadas) a cada minuto.
+    if (this.endgame) {
+      void this.endgameMaintenance();
+      this.endgameTimer = setInterval(() => void this.endgameMaintenance(), this.config.endgame.tickMs);
+      this.endgameTimer.unref();
+    }
   }
 
   /** Para o loop e fecha todo mundo (deploy/reinício do Render). */
   close(): void {
     if (this.timer) clearInterval(this.timer);
     if (this.purgeTimer) clearInterval(this.purgeTimer);
+    if (this.endgameTimer) clearInterval(this.endgameTimer);
     this.timer = undefined;
     this.purgeTimer = undefined;
+    this.endgameTimer = undefined;
     for (const session of this.sessions.values()) {
       session.closed = true;
       safeClose(session.conn, CLOSE.SHUTDOWN);
     }
     this.sessions.clear();
     for (const set of this.mapPlayers.values()) set.clear();
+  }
+
+  // ---------------------------------------------------------------- fim de jogo (v16, docs/endgame.md)
+
+  /** O módulo vale agora? (ele e os anteriores ligados; game.endgame_active no banco) */
+  private on(module: EndgameModule): boolean {
+    return this.modules.has(module);
+  }
+
+  /** O banco do fim de jogo, se a v11 já foi encontrada. */
+  private readyStore(): EndgameStore | undefined {
+    return this.endgameReady ? this.endgame : undefined;
+  }
+
+  private diplomacy(): Diplomacy {
+    return { relations: this.politics.relations, events: this.politics.events };
+  }
+
+  private factionOf(s: Session): Faction {
+    return { village: s.village, akatsuki: s.akatsukiSlot !== null };
+  }
+
+  /** Quem entra em qual mapa: a vila dele e as aliadas (renegado: só o Refúgio). Sem o módulo de vilas: tudo aberto. */
+  private accessOf(s: Session): MapAccess | undefined {
+    if (!this.on('vilas')) return undefined;
+    return { village: s.village, allies: alliesOf(s.village, this.diplomacy(), this.now()) };
+  }
+
+  /** Casa do ninja: a praça da vila dele (renegado: o Refúgio). Sem o módulo: a Vila de sempre. */
+  private homeOf(village: Village | null): { map: MapId; x: number; y: number } {
+    if (!this.on('vilas')) return { map: this.config.startMap, ...this.config.spawn };
+    if (village === null) return { map: 'refugio', ...REFUGE.spawn };
+    return { map: VILLAGE_INFO[village].map as MapId, ...this.config.spawn };
+  }
+
+  /** Passiva da vila: 1 + o bônus no que a vila dá, 1 no resto (renegado não tem; módulo desligado: nada). */
+  private passiveOf(village: Village | null, kind: PassiveKind): number {
+    if (!this.on('vilas') || village === null) return 1;
+    const p = VILLAGE_INFO[village].passive;
+    return p.kind === kind ? 1 + p.bonus : 1;
+  }
+
+  private passive(s: Session, kind: PassiveKind): number {
+    return this.passiveOf(s.village, kind);
+  }
+
+  /**
+   * A porta da vila do ninja que leva à sala `room` (loja, Academia): o ponto de fora, para onde a saída da sala leva.
+   * undefined = não é sala compartilhada.
+   */
+  private backFor(s: Pick<Session, 'village'>, room: MapId): { map: string; x: number; y: number } | undefined {
+    const home = this.homeOf(s.village).map;
+    const door = this.layout(home).doors.find((d) => d.map === room && d.back);
+    return door?.back ? { map: home, x: door.back.x, y: door.back.y } : undefined;
+  }
+
+  /** Como os outros veem o lado dele: vila, renegado, Kage, Akatsuki, recompensa (renegado) e a capa (se mostra). */
+  private factionView(s: Session): FactionView {
+    return {
+      village: s.village,
+      ...(s.village === null && s.renegadeFrom ? { renegadeFrom: s.renegadeFrom } : {}),
+      ...(s.kageOf ? { kage: s.kageOf } : {}),
+      ...(s.akatsukiSlot !== null ? { akatsuki: s.akatsukiSlot } : {}),
+      ...(s.village === null && s.bounty >= this.config.endgame.showBountyFrom ? { bounty: s.bounty } : {}),
+      ...(s.cape && s.display.cape ? { cape: s.cape } : {}),
+    };
+  }
+
+  private broadcastFaction(s: Session): void {
+    if (this.on('vilas')) this.broadcastMap(s.map, { type: 'player_faction', playerId: s.id, faction: this.factionView(s) });
+  }
+
+  /** Estado político que todos recebem. */
+  endgameView(): EndgameView {
+    const p = this.politics;
+    return {
+      modules: [...this.modules],
+      villages: VILLAGES.map((code) => ({ code, name: VILLAGE_INFO[code].name, map: VILLAGE_INFO[code].map as MapId, passive: VILLAGE_INFO[code].passive.text })),
+      kages: p.kages.map((k) => ({ ...k })),
+      relations: p.relations.map((r) => ({ ...r })),
+      events: p.events.map((e) => ({ ...e })),
+      akatsuki: p.akatsuki.map((a) => ({ ...a, power: POWER_BY_SLOT.get(a.slot)?.name ?? '' })),
+      season: p.season ? { ...p.season } : null,
+      allyTravelRyo: this.config.endgame.allyTravelRyo,
+      powers: POWERS.map(({ slot, code, name, text, cooldownMs, cost }) => ({ slot, code, name, text, cooldownMs, cost })),
+    };
+  }
+
+  /**
+   * Lado do jogador no banco, para o gateway pôr no `join` (antes do welcome: ele já nasce na vila certa).
+   * undefined = sem a v11 ou o banco falhou (o mundo relê depois).
+   */
+  async loadEndgamePlayer(playerId: string): Promise<EndgamePlayer | undefined> {
+    const store = this.readyStore();
+    if (!store) return undefined;
+    try {
+      return await store.player(playerId);
+    } catch (err) {
+      this.log.warn({ playerId, err }, 'fim de jogo: falha ao ler o jogador');
+      return undefined;
+    }
+  }
+
+  /** Depois do welcome: estado político, "visto agora" (população ativa), convite da Akatsuki e, se faltou, o lado dele. */
+  private joinEndgame(s: Session, reload: boolean): void {
+    const store = this.readyStore();
+    if (!store) return;
+    this.sendTo(s, { type: 'endgame', ...this.endgameView() });
+    const { id } = s;
+    store.touch(id).catch((err: unknown) => this.log.warn({ playerId: id, err }, 'fim de jogo: falha ao marcar a entrada'));
+    if (reload) void this.reloadFaction(id);
+    else this.enforceAccess(s);
+    if (this.on('akatsuki')) {
+      store.akatsukiInviteOf(id).then((inv) => {
+        const current = this.sessions.get(id);
+        if (current && inv) this.sendTo(current, { type: 'akatsuki_invite', from: inv.from, slot: inv.slot, power: POWER_BY_SLOT.get(inv.slot)?.name ?? '', expiresAt: inv.expiresAt });
+      }).catch((err: unknown) => this.log.warn({ playerId: id, err }, 'fim de jogo: falha ao ler o convite'));
+    }
+  }
+
+  /** Relê do banco o lado do ninja e aplica (passivas, mapa, boneco). Online ou não, nunca lança. */
+  private async reloadFaction(playerId: string): Promise<void> {
+    const store = this.readyStore();
+    if (!store) return;
+    try {
+      const eg = await store.player(playerId);
+      const s = this.sessions.get(playerId);
+      if (s && eg) this.applyFaction(s, eg);
+    } catch (err) {
+      this.log.warn({ playerId, err }, 'fim de jogo: falha ao reler o jogador');
+    }
+    this.flushKicks();
+  }
+
+  private applyFaction(s: Session, eg: EndgamePlayer): void {
+    const before = JSON.stringify(this.factionView(s));
+    const villageBefore = s.village;
+    s.village = eg.village;
+    s.renegadeFrom = eg.renegadeFrom;
+    s.bounty = eg.bounty;
+    s.kageOf = eg.kageOf;
+    s.akatsukiSlot = eg.akatsukiSlot;
+    s.cape = eg.cape;
+    s.display = { ...eg.display };
+    s.villageSwitches = eg.villageSwitches;
+    if (s.village === null) s.powerBuff = s.akatsukiSlot === null ? undefined : s.powerBuff;
+    // A bandana acompanha a vila (o renegado fica com a de onde saiu, riscada).
+    const bandana = s.village ?? s.renegadeFrom;
+    if (s.appearance && bandana && s.appearance.village !== bandana) {
+      s.appearance = { ...s.appearance, village: bandana };
+      this.broadcastMap(s.map, { type: 'player_appearance', playerId: s.id, appearance: { ...s.appearance } });
+    }
+    if (villageBefore !== s.village) this.applyAttributes(s, s.statPoints, s.attributes);   // passiva nova (ou nenhuma)
+    if (JSON.stringify(this.factionView(s)) !== before) this.broadcastFaction(s);
+    this.sendInventory(s);
+    this.enforceAccess(s);
+  }
+
+  /**
+   * Está num mapa em que não pode ficar (virou renegado dentro da vila, a aliança acabou, o módulo desligou)? Volta para
+   * casa. Numa sala compartilhada, a porta de saída passa a levar para a vila dele.
+   */
+  private enforceAccess(s: Session): void {
+    if (s.closed) return;
+    const access = this.accessOf(s);
+    const here = this.layout(s.map);
+    const allowed = (m: MapLayout | undefined) => {
+      if (!m) return false;
+      if (!access) return !m.refuge && !m.conflict && !(m.village && m.village !== 'vila_1');
+      if (m.conflict) return this.on('pvp');
+      return mapAllowed(m, access);
+    };
+    if (s.doorBack && !allowed(this.config.maps[s.doorBack.map as MapId])) s.doorBack = this.backFor(s, s.map);
+    if (here.kind === 'interior' || here.id === 'academy_interior' || s.dead) return;   // morto: o renascer já leva para casa
+    if (allowed(here)) return;
+    const home = s.tutorial < 4 ? { map: 'academy_interior' as MapId, ...academySpawn(s.tutorial) } : this.homeOf(s.village);
+    this.stopMeditation(s, 'manual');
+    s.dx = 0;
+    s.dy = 0;
+    this.dropInputs(s);
+    this.transfer(s, home.map, home.x, home.y, 'exiled');
+    this.sendTo(s, { type: 'notice', text: 'Você não pode ficar neste mapa agora: voltou para casa.', tone: 'bad' });
+  }
+
+  /** Relê o estado político e avisa todos. Kage, Akatsuki e módulos que mudaram: passivas, acessos e o boneco de cada um. */
+  async refreshPolitics(): Promise<void> {
+    const store = this.readyStore();
+    if (!store) return;
+    try {
+      const p = await store.politics();
+      const modulesBefore = [...this.modules].join();
+      this.politics = p;
+      this.modules = activeModules(p.modules);
+      const modulesChanged = modulesBefore !== [...this.modules].join();
+      this.broadcast({ type: 'endgame', ...this.endgameView() });
+      for (const s of this.sessions.values()) {
+        if (s.closed) continue;
+        const before = JSON.stringify(this.factionView(s));
+        s.kageOf = p.kages.find((k) => k.playerId === s.id)?.village ?? null;
+        s.akatsukiSlot = p.akatsuki.find((a) => a.playerId === s.id)?.slot ?? null;
+        if (modulesChanged) {
+          this.applyAttributes(s, s.statPoints, s.attributes);
+          this.broadcastMap(s.map, { type: 'player_faction', playerId: s.id, faction: this.factionView(s) });
+        } else if (JSON.stringify(this.factionView(s)) !== before) this.broadcastFaction(s);
+        this.enforceAccess(s);
+      }
+    } catch (err) {
+      this.log.warn({ err }, 'fim de jogo: falha ao ler o estado político');
+    }
+    this.flushKicks();
+  }
+
+  /**
+   * Manutenção (a cada config.endgame.tickMs): procura a v11 (aplicar no Neon não precisa reiniciar), liga os módulos
+   * que a população alcançou, roda game.endgame_tick (mandatos, eleições, propostas, temporadas) e relê a política.
+   */
+  async endgameMaintenance(): Promise<void> {
+    if (!this.endgame || this.endgameBusy) return;
+    this.endgameBusy = true;
+    try {
+      const store = this.endgame;
+      if (!this.endgameReady) {
+        if (!(await store.available())) return;
+        this.endgameReady = true;
+        this.log.info({}, 'fim de jogo: migração v11 encontrada');
+        await this.refreshPolitics();
+        await Promise.all([...this.sessions.keys()].map((id) => this.reloadFaction(id)));
+        for (const s of this.sessions.values()) this.sendTo(s, { type: 'endgame', ...this.endgameView() });
+      }
+      const cfg = this.config.endgame;
+      const population = await store.population(cfg.populationDays);
+      const rows = (await store.politics()).modules;
+      for (const code of dueModules(rows, population, cfg.thresholds)) {
+        if (await store.activate(code)) {
+          this.broadcast({ type: 'announce', message: `🔥 O mundo cresceu! Abriram ${MODULE_NAMES[code]}.` });
+          this.log.info({ module: code, population }, 'fim de jogo: módulo ativado pela população');
+        }
+      }
+      const events = await store.tick();
+      await this.refreshPolitics();
+      for (const e of events) this.announceTick(e);
+    } catch (err) {
+      this.log.warn({ err }, 'fim de jogo: falha na manutenção');
+    } finally {
+      this.endgameBusy = false;
+      this.flushKicks();
+    }
+  }
+
+  private announceTick(e: TickEvent): void {
+    const name = (id: string | null) => (id ? (this.sessions.get(id)?.username ?? this.politics.kages.find((k) => k.playerId === id)?.username) : undefined);
+    const v = e.village ? villageName(e.village) : '';
+    const season = typeof e.info?.season === 'number' ? e.info.season : '';
+    const text = {
+      kage_fim: `O mandato do Kage da ${v} acabou.`,
+      eleicao_fechada: e.playerId ? `👑 ${name(e.playerId) ?? 'Um ninja'} é o novo Kage da ${v}!` : `A eleição da ${v} terminou sem vencedor: outra vai abrir.`,
+      eleicao_aberta: `🗳️ A eleição para Kage da ${v} abriu (7 dias). Vote no painel da vila.`,
+      temporada_aberta: `⚔️ A Temporada ${season} do PvP começou! Zona de Conflito aberta.`,
+      temporada_fechada: `🏆 A Temporada ${season} do PvP acabou! As recompensas foram entregues.`,
+    }[e.kind];
+    if (text) this.broadcast({ type: 'announce', message: text });
+    if (e.kind === 'temporada_fechada') for (const id of this.sessions.keys()) void this.reloadFaction(id);
+  }
+
+  /** Pedidos do fim de jogo que vão ao banco (painel, Kage, denúncia, ranking, Akatsuki). Um por vez, com ritmo. */
+  private endgameRequest(s: Session, m: Extract<ClientMessage, { type: EndgameRequest }>, t: number): void {
+    const store = this.readyStore();
+    if (!store || !this.on('vilas')) return this.sendError(s, 'ENDGAME_OFF');
+    if (t - s.lastPanelAt < this.config.missionRequestEveryMs) return;
+    s.lastPanelAt = t;
+    const { id, username } = s;
+    const say = (text: string, tone: 'info' | 'good' | 'bad' = 'info') => this.notice(id, text, tone);
+    const refuse = (r: { ok: false; text: string }) => say(r.text, 'bad');
+    const kageVillage = s.kageOf;
+    this.queueTask(s, async () => {
+      switch (m.type) {
+        case 'village_panel':
+          return this.sendPanel(id);
+        case 'kage_vote': {
+          const r = await store.vote(id, m.candidate);
+          if (!r.ok) return refuse(r);
+          say('Voto registrado.', 'good');
+          return this.sendPanel(id);
+        }
+        case 'kage_action': {
+          const r = await store.kageAction(id, m.action, m.village);
+          if (!r.ok) return refuse(r);
+          await this.refreshPolitics();
+          if (kageVillage) this.announceDiplomacy(kageVillage, m.village, m.action);
+          return this.sendPanel(id);
+        }
+        case 'kage_answer': {
+          const r = await store.kageAnswer(id, m.proposal, m.accept);
+          if (!r.ok) return refuse(r);
+          await this.refreshPolitics();
+          say(m.accept ? 'Proposta aceita.' : 'Proposta recusada.', m.accept ? 'good' : 'info');
+          return this.sendPanel(id);
+        }
+        case 'kage_exile': {
+          const r = await store.exile(id, m.name, m.reason);
+          if (!r.ok) return refuse(r);
+          await this.becameRenegade(r.targetId, r.username, kageVillage, `expulso pelo Kage`);
+          return this.sendPanel(id);
+        }
+        case 'report_player': {
+          const r = await store.report(id, m.name, m.reason);
+          if (!r.ok) return refuse(r);
+          say('Denúncia enviada ao Kage da vila.', 'good');
+          const kage = this.politics.kages.find((k) => k.village === s.village);
+          if (kage) this.notice(kage.playerId, `📜 Nova denúncia de ${username} no painel da vila.`, 'info');
+          return;
+        }
+        case 'kage_report': {
+          const r = await store.decideReport(id, m.report, m.approve);
+          if (!r.ok) return refuse(r);
+          if (m.approve) await this.becameRenegade(r.targetId, undefined, kageVillage, 'denúncia aprovada pelo Kage');
+          else say('Denúncia recusada.', 'info');
+          return this.sendPanel(id);
+        }
+        case 'ranking': {
+          if (!this.on('pvp')) return say('O ranking abre com a Zona de Conflito.', 'bad');
+          const r = await store.ranking(id, 50);
+          const current = this.sessions.get(id);
+          if (current) this.sendTo(current, { type: 'ranking', ...r });
+          return;
+        }
+        case 'akatsuki_invite': {
+          const r = await store.akatsukiInvite(id, m.name, m.slot);
+          if (!r.ok) return refuse(r);
+          say(`Convite enviado a ${r.username} (vaga ${m.slot}).`, 'good');
+          const target = this.sessions.get(r.targetId);
+          if (target) {
+            this.sendTo(target, {
+              type: 'akatsuki_invite', from: username, slot: m.slot, power: POWER_BY_SLOT.get(m.slot)?.name ?? '', expiresAt: this.now() + 48 * 3600_000,
+            });
+          }
+          return;
+        }
+        case 'akatsuki_answer': {
+          if (!m.accept) {
+            await store.akatsukiDecline(id);
+            return say('Convite recusado.', 'info');
+          }
+          const r = await store.akatsukiAccept(id);
+          if (!r.ok) return refuse(r);
+          await this.refreshPolitics();
+          await this.reloadFaction(id);
+          this.broadcast({ type: 'announce', message: `☁️ ${username} entrou para a Akatsuki.` });
+          return;
+        }
+        case 'akatsuki_expel': {
+          const r = await store.akatsukiExpel(id, m.name);
+          if (!r.ok) return refuse(r);
+          await this.refreshPolitics();
+          await this.reloadFaction(r.targetId);
+          this.notice(r.targetId, 'Você foi expulso da Akatsuki (continua renegado).', 'bad');
+          return say(`${r.username} saiu da Akatsuki.`, 'info');
+        }
+        case 'akatsuki_leave': {
+          const r = await store.akatsukiLeave(id);
+          if (!r.ok) return refuse(r);
+          await this.refreshPolitics();
+          await this.reloadFaction(id);
+          return say('Você saiu da Akatsuki (continua renegado).', 'info');
+        }
+      }
+    });
+  }
+
+  private async sendPanel(playerId: string): Promise<void> {
+    const store = this.readyStore();
+    const s = this.sessions.get(playerId);
+    if (!store || !s) return;
+    if (s.village === null) return this.notice(playerId, 'Renegado não tem vila.', 'bad');
+    const village = s.village;
+    const isKage = s.kageOf === village;
+    const panel = await store.villagePanel(playerId, village, isKage);
+    const current = this.sessions.get(playerId);
+    if (current) this.sendTo(current, { type: 'village_panel', panel, isKage, passive: VILLAGE_INFO[village].passive.text });
+  }
+
+  private announceDiplomacy(from: Village, to: Village, action: KageAction): void {
+    const a = villageName(from);
+    const b = villageName(to);
+    const text = {
+      guerra: `⚔️ A ${a} declarou guerra à ${b}!`,
+      fim_guerra: `🕊️ A ${a} encerrou a guerra com a ${b}.`,
+      romper: `💔 A aliança entre a ${a} e a ${b} acabou.`,
+      alianca: undefined,
+      paz: undefined,
+    }[action];
+    if (text) return this.broadcast({ type: 'announce', message: text });
+    // Proposta (aliança ou paz): só os dois Kages ficam sabendo.
+    const kage = this.politics.kages.find((k) => k.village === to);
+    if (kage) this.notice(kage.playerId, `📜 A ${a} propôs ${action === 'alianca' ? 'uma aliança' : 'a paz'}: veja no painel da vila.`, 'info');
+    const mine = this.politics.kages.find((k) => k.village === from);
+    if (mine) this.notice(mine.playerId, 'Proposta enviada (vale 48 h).', 'good');
+  }
+
+  /** Alguém virou renegado no banco: o lado dele muda (online, vai para o Refúgio) e todos ficam sabendo. */
+  private async becameRenegade(playerId: string, username: string | undefined, from: Village | null, why: string): Promise<void> {
+    await this.refreshPolitics();
+    await this.reloadFaction(playerId);
+    const s = this.sessions.get(playerId);
+    const who = username ?? s?.username ?? 'Um ninja';
+    if (s) this.notice(playerId, `Você virou renegado (${why}). Sua casa agora é o Refúgio dos Renegados.`, 'bad');
+    this.broadcast({ type: 'announce', message: `🩸 ${who} virou renegado${from ? ` (${VILLAGE_INFO[from].name})` : ''}.` });
+  }
+
+  // ------------------------------------------------ Posto de Viagem
+
+  /** O Posto de Viagem perto dele (no mesmo mapa, no alcance de conversa). */
+  private travelPostNear(s: Session): string | undefined {
+    return this.config.npcs.find((n) => n.role === 'travel' && n.map === s.map && distance(s, n) <= n.range)?.id;
+  }
+
+  /**
+   * Destinos do Posto: a própria casa (vila ou Refúgio), a Floresta (quem tem vila), a Zona de Conflito (módulo pvp,
+   * no acampamento da vila dele) e as vilas aliadas (50 ryō). Renegado: o Refúgio e a Zona.
+   */
+  private travelOptions(s: Session): TravelOption[] {
+    const out: TravelOption[] = [];
+    const home = this.homeOf(s.village);
+    if (home.map !== s.map) out.push({ to: 'casa', name: s.village ? villageName(s.village) : 'Refúgio dos Renegados', cost: 0 });
+    if (s.village !== null && s.map !== 'map_2') out.push({ to: 'map_2', name: 'Floresta', cost: 0 });
+    if (s.map !== 'zona_conflito') {
+      out.push({ to: 'zona_conflito', name: 'Zona de Conflito', cost: 0, ...(this.on('pvp') ? {} : { locked: 'Abre quando o servidor crescer.' }) });
+    }
+    for (const v of alliesOf(s.village, this.diplomacy(), this.now())) {
+      if (VILLAGE_INFO[v].map !== s.map) out.push({ to: v, name: `${villageName(v)} (aliada)`, cost: this.config.endgame.allyTravelRyo });
+    }
+    return out;
+  }
+
+  /** Onde se chega em cada destino. */
+  private arrival(s: Session, to: string): { map: MapId; x: number; y: number } {
+    if (to === 'casa') {
+      const home = this.homeOf(s.village);
+      return home.map === 'refugio' ? home : { map: home.map, x: TRAVEL_POST.x + 2.5, y: TRAVEL_POST.y - 1.5 };
+    }
+    if (to === 'map_2') return { map: 'map_2', x: 44, y: 8 };
+    if (to === 'zona_conflito') return { map: 'zona_conflito', ...conflictCamp((s.village ?? 'renegados') as CampOwner).arrive };
+    return { map: VILLAGE_INFO[to as Village].map as MapId, x: TRAVEL_POST.x + 2.5, y: TRAVEL_POST.y - 1.5 };
+  }
+
+  private travel(s: Session, to: string, t: number): void {
+    if (!this.on('vilas')) return this.sendError(s, 'ENDGAME_OFF');
+    if (s.dead || s.tutorial < 4) return this.sendError(s, 'CANNOT_TALK');
+    if (!this.travelPostNear(s)) return this.sendError(s, 'TRAVEL_TOO_FAR');
+    const option = this.travelOptions(s).find((o) => o.to === to);
+    if (!option) return this.sendTo(s, { type: 'notice', text: 'Esse destino não está aberto para você.', tone: 'bad' });
+    if (option.locked) return this.sendTo(s, { type: 'notice', text: option.locked, tone: 'bad' });
+    if (t - s.lastPanelAt < this.config.missionRequestEveryMs) return;
+    s.lastPanelAt = t;
+    const go = (current: Session) => {
+      if (current.dead || !this.travelPostNear(current)) return;
+      const at = this.arrival(current, to);
+      this.stopMeditation(current, 'manual');
+      current.dx = 0;
+      current.dy = 0;
+      this.dropInputs(current);
+      current.substituteUntil = 0;
+      this.transfer(current, at.map, at.x, at.y, 'travel');
+      current.lastUpdate = this.now();
+      current.dirty = true;
+    };
+    if (option.cost <= 0) return go(s);
+    const store = this.readyStore();
+    if (!store) return this.sendError(s, 'ENDGAME_OFF');
+    const { id } = s;
+    this.queueTask(s, () => store.payTravel(id, to as Village).then((r) => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      if (!r.ok) return this.sendTo(current, { type: 'notice', text: r.text, tone: 'bad' });
+      current.ryo = r.ryo;
+      this.sendInventory(current);
+      go(current);
+      return undefined;
+    }));
+  }
+
+  // ------------------------------------------------ Zona de Conflito: ranking, espólio, karma, recompensa
+
+  /** Vitória na Zona de Conflito: o banco decide ranking, espólio de guerra, karma, recompensa e caça ao Kage. */
+  private pvpKill(winner: Session, loser: Session): void {
+    const map = loser.map;
+    const base = { winnerId: winner.id, winner: winner.username, loserId: loser.id, loser: loser.username };
+    const store = this.readyStore();
+    if (!store) {
+      this.broadcastMap(map, { type: 'pvp_result', ...base, counted: false, winnerDelta: 0, loserDelta: 0, loot: 0, bounty: 0 });
+      return;
+    }
+    const winnerVillage = winner.village;
+    store.pvpKill(winner.id, loser.id).then((r) => this.applyPvpKill(r, base, map, winnerVillage)).catch((err: unknown) => {
+      this.log.warn({ winnerId: winner.id, loserId: loser.id, err }, 'fim de jogo: falha ao gravar a vitória PvP');
+    });
+  }
+
+  private async applyPvpKill(r: PvpKill, base: { winnerId: string; winner: string; loserId: string; loser: string }, map: MapId, winnerVillage: Village | null): Promise<void> {
+    this.broadcastMap(map, { type: 'pvp_result', ...base, counted: r.counted, winnerDelta: r.winnerDelta, loserDelta: r.loserDelta, loot: r.lootRyo, bounty: r.bountyPaid });
+    const w = this.sessions.get(base.winnerId);
+    const l = this.sessions.get(base.loserId);
+    if (w) {
+      if (r.ryoWinner !== w.ryo) {
+        w.ryo = r.ryoWinner;
+        this.sendInventory(w);
+      }
+      if (r.lootRyo > 0) this.notice(w.id, `Espólio de guerra: +${r.lootRyo} ryō.`, 'good');
+      if (r.bountyPaid > 0) this.notice(w.id, `Recompensa pela cabeça de ${base.loser}: +${r.bountyPaid} ryō.`, 'good');
+      if (w.bounty !== r.winnerBounty) {
+        w.bounty = r.winnerBounty;
+        this.broadcastFaction(w);
+      }
+    }
+    if (l && l.bounty !== r.loserBounty) {
+      l.bounty = r.loserBounty;
+      this.broadcastFaction(l);
+    }
+    if (r.kageHunted) {
+      this.broadcast({ type: 'announce', message: `☁️ ${base.winner}, da Akatsuki, derrotou o Kage da ${VILLAGE_INFO[r.kageHunted].name}!` });
+    }
+    if (r.becameRenegade) await this.becameRenegade(base.winnerId, base.winner, winnerVillage, 'karma');
+    else if (r.bountyPaid >= 1000 || r.kageHunted) await this.reloadFaction(base.winnerId);
+  }
+
+  // ------------------------------------------------ capas e o que mostrar no boneco
+
+  /** Capa (item null = tirar): do inventário, ou o manto do cargo. O banco confere quem pode usar. */
+  private equipCape(s: Session, item: string | null): void {
+    if (item !== null && ITEM_BY_CODE.get(item)?.kind !== 'cape') return this.sendError(s, 'NOT_A_CAPE');
+    if (item !== null && !ROLE_CAPES[item] && !((s.items[item] ?? 0) > 0)) return this.sendError(s, 'ITEM_NOT_OWNED');
+    if (item === 'manto_kage' && !s.kageOf) return this.sendTo(s, { type: 'notice', text: 'O Manto do Kage é só do Kage.', tone: 'bad' });
+    if (item === 'manto_akatsuki' && s.akatsukiSlot === null) return this.sendTo(s, { type: 'notice', text: 'O Manto da Akatsuki é só dos membros.', tone: 'bad' });
+    const finish = (current: Session, cape: string | null) => {
+      const before = JSON.stringify(this.factionView(current));
+      current.cape = cape;
+      this.sendInventory(current);
+      if (JSON.stringify(this.factionView(current)) !== before) this.broadcastFaction(current);
+    };
+    if (!this.endgame) return finish(s, item);                 // sem banco: só em memória
+    const store = this.readyStore();
+    if (!store) return this.sendError(s, 'ENDGAME_OFF');
+    const { id } = s;
+    this.queueTask(s, () => store.equipCape(id, item).then((r) => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      if (!r.ok) return this.sendTo(current, { type: 'notice', text: r.text, tone: 'bad' });
+      finish(current, r.cape);
+      return undefined;
+    }));
+  }
+
+  /** Mostrar ou esconder capa, arma e pergaminho (⚙️): só o que os outros veem. */
+  private setDisplay(s: Session, display: Display): void {
+    const gearBefore = JSON.stringify(this.gear(s));
+    const factionBefore = JSON.stringify(this.factionView(s));
+    s.display = { ...display };
+    if (JSON.stringify(this.gear(s)) !== gearBefore) this.broadcastGear(s);
+    if (JSON.stringify(this.factionView(s)) !== factionBefore) this.broadcastFaction(s);
+    const store = this.readyStore();
+    if (!store) return;
+    const { id } = s;
+    store.setDisplay(id, display).catch((err: unknown) => this.log.warn({ playerId: id, err }, 'fim de jogo: falha ao gravar o que mostrar'));
+  }
+
+  // ------------------------------------------------ poderes da Akatsuki
+
+  /**
+   * Poder da vaga (akatsuki.ts). Ordem: membro? vivo? fora da zona segura? recarregou? tem chakra? acha alguém? Só então
+   * cobra, avisa todos (`power`, para a animação) e aplica, com as hitboxes dos jutsus.
+   */
+  private power(s: Session, t: number, targetId?: string, dir?: [number, number]): void {
+    const fail = (reason: PowerFailReason) => this.sendTo(s, { type: 'power_failed', reason });
+    const def = s.akatsukiSlot !== null && this.on('akatsuki') ? POWER_BY_SLOT.get(s.akatsukiSlot) : undefined;
+    if (!def) return fail('NOT_MEMBER');
+    this.stopMeditation(s, 'cast');
+    if (s.dead) return fail('DEAD');
+    if (t < s.stunnedUntil) return fail('STUNNED');
+    if (this.inSafeZone(s)) return fail('SAFE_ZONE');
+    if ((s.cooldowns.power ?? 0) > t) return fail('COOLDOWN');
+    if (s.chakra < def.cost) return fail('NO_CHAKRA');
+    const targets = this.targetsFor(s);
+    const focused = targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined;
+    const dmg = (base: number) => scaledDamage(base, damageMultiplier(s.stats, 'ninjutsu'));
+    const layout = this.layout(s.map);
+    let tx: number | undefined;
+    let ty: number | undefined;
+
+    // Mira: o focado (no alcance) ou o mais perto; sem ninguém, para onde ele olha (ou o joystick).
+    const aimAt = (range: number) => (focused && distance(s, focused) <= range ? focused : nearest(s, targets, range));
+    if (dir && (dir[0] !== 0 || dir[1] !== 0)) [s.fx, s.fy] = unit(dir[0], dir[1]);
+
+    switch (def.code) {
+      case 'pull': {
+        const caught = targets.filter((x) => isInCircle(s, def.radius!, x));
+        if (caught.length === 0) return fail('NO_TARGET');
+        this.spendPower(s, def, t);
+        for (const x of caught) {
+          this.pullTo(x, s, 1.2, t);
+          this.applyStatus(x, 'stunned', def.ms!, t);
+        }
+        break;
+      }
+      case 'drain':
+      case 'lifesteal':
+        this.spendPower(s, def, t);
+        s.powerBuff = { kind: def.code, until: t + def.ms!, amount: def.amount! };
+        break;
+      case 'blast': {
+        const aim = aimAt(def.range!);
+        if (aim) this.faceTo(s, aim);
+        this.spendPower(s, def, t);
+        this.launch(s, s.fx, s.fy, { power: 'blast', speed: 12, range: def.range!, damage: dmg(def.damage!), radius: def.radius!, volley: new Set() });
+        break;
+      }
+      case 'strings': {
+        const aim = aimAt(def.range!);
+        if (aim) this.faceTo(s, aim);
+        const end = rayEnd(layout, s.x, s.y, s.fx, s.fy, def.range!);
+        const first = firstOnLine(s, end, targets, HIT_RADIUS);
+        if (!first) return fail('NO_TARGET');
+        this.spendPower(s, def, t);
+        tx = round2(first.at.x);
+        ty = round2(first.at.y);
+        this.applyStatus(first.target, 'rooted', def.ms!, t);
+        this.pullTo(first.target, s, Math.max(1.2, distance(s, first.target) - def.count!), t);
+        break;
+      }
+      case 'crows': {
+        const caught = targets.filter((x) => isInCircle(s, def.radius!, x));
+        if (caught.length === 0) return fail('NO_TARGET');
+        this.spendPower(s, def, t);
+        for (const x of caught) this.applyStatus(x, 'stunned', def.ms!, t);
+        break;
+      }
+      case 'hearts':
+        this.spendPower(s, def, t);
+        s.hearts = def.count!;
+        s.heartsCut = def.amount!;
+        break;
+      case 'roots': {
+        this.spendPower(s, def, t);
+        const from = { x: s.x, y: s.y };
+        const to = blinkTarget(layout, s.x, s.y, s.fx, s.fy, def.range!);
+        s.x = to.x;
+        s.y = to.y;
+        s.lastUpdate = t;
+        s.dirty = true;
+        s.hasteUntil = t + def.ms!;
+        s.haste = def.amount!;
+        this.broadcastMap(s.map, { type: 'teleport', playerId: s.id, fromX: round3(from.x), fromY: round3(from.y), x: round3(s.x), y: round3(s.y), a: s.ackSeq });
+        break;
+      }
+      case 'paper': {
+        const aim = aimAt(def.range!);
+        if (aim) this.faceTo(s, aim);
+        this.spendPower(s, def, t);
+        const volley = new Set<string>();
+        const n = def.count!;
+        for (let k = 0; k < n; k++) {
+          const [ux, uy] = rotate(s.fx, s.fy, -def.arcDeg! / 2 + (def.arcDeg! * k) / (n - 1));
+          this.launch(s, ux, uy, { power: 'paper', speed: 15, range: def.range!, damage: dmg(def.damage!), radius: 0, volley });
+        }
+        break;
+      }
+      case 'mask':
+        this.spendPower(s, def, t);
+        s.intangibleUntil = t + def.ms!;
+        break;
+    }
+    this.broadcastMap(s.map, {
+      type: 'power', playerId: s.id, power: def.code, x: round2(s.x), y: round2(s.y), fx: round2(s.fx), fy: round2(s.fy),
+      ...(tx !== undefined ? { tx, ty } : {}), ...(def.ms ? { ms: def.ms } : {}),
+    });
+    this.sendStats(s, t);
+  }
+
+  private spendPower(s: Session, def: PowerDef, t: number): void {
+    s.chakra -= def.cost;
+    s.cooldowns.power = t + def.cooldownMs;
+  }
+
+  /** Puxa um alvo até `gap` casas do dono (parando antes da parede). Ninja puxado: o dono dele refaz daqui. */
+  private pullTo(x: Target, owner: Session, gap: number, t: number): void {
+    const who = x.kind === 'monster' ? x.monster : x.session;
+    const d = distance(owner, who);
+    if (d <= gap) return;
+    const [ux, uy] = unit(owner.x - who.x, owner.y - who.y);
+    const to = rayEnd(this.layout(owner.map), who.x, who.y, ux, uy, d - gap);
+    const from = { x: who.x, y: who.y };
+    who.x = q3(to.x);
+    who.y = q3(to.y);
+    if (x.kind === 'monster') {
+      this.broadcastMap(owner.map, { type: 'monsters_moved', m: [[x.id, who.x, who.y]] });
+      return;
+    }
+    const v = x.session;
+    this.dropInputs(v);
+    v.lastUpdate = t;
+    this.broadcastMap(v.map, { type: 'teleport', playerId: v.id, fromX: round3(from.x), fromY: round3(from.y), x: round3(v.x), y: round3(v.y), a: v.ackSeq });
   }
 
   // ---------------------------------------------------------------- envio
@@ -2867,6 +3837,13 @@ export function behind(layout: MapLayout, from: Point, anchor: Point): Point | u
     }
   }
   return undefined;
+}
+
+/** O que voa (para o cliente escolher o desenho): o jutsu, a arma lançada ou o poder da Akatsuki. */
+function projectileKind(p: Projectile): { skill: Skill } | { weapon: string } | { power: PowerKind } {
+  if (p.skill) return { skill: p.skill };
+  if (p.power) return { power: p.power };
+  return { weapon: p.weapon ?? '' };
 }
 
 function monsterView(m: Monster): MonsterView {

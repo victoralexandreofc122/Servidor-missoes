@@ -41,6 +41,10 @@
       <button id="status-toggle" class="mission-btn" type="button" aria-expanded="false" aria-controls="status-panel">
         <span aria-hidden="true">📊</span> <span id="status-badge">Nv 1</span>
       </button>
+      <!-- Fim de jogo (v16): a vila, o Kage, a diplomacia, o ranking e a Akatsuki. Só aparece com o módulo de vilas. -->
+      <button id="village-toggle" class="mission-btn" type="button" hidden aria-expanded="false" aria-controls="village-panel">
+        <span aria-hidden="true">🏯</span> <span id="village-badge">Vila</span>
+      </button>
       <button id="chat-toggle" class="icon-btn" type="button" aria-label="Abrir chat" aria-expanded="false" aria-controls="chat">
         <span aria-hidden="true">💬</span>
       </button>
@@ -167,14 +171,48 @@
       <button id="class-confirm" type="button" class="primary" disabled>Escolher</button>
     </section>
 
-    <!-- Nível 60: candidatura a Hokage (com o Diretor). -->
-    <section id="hokage-panel" class="mission-panel hokage-panel" hidden role="dialog" aria-labelledby="hokage-title">
+    <!-- Nível 60: candidatura a Kage (com o Diretor). -->
+    <section id="kage-panel" class="mission-panel kage-panel" hidden role="dialog" aria-labelledby="kage-title">
       <header class="mission-head">
-        <h2 id="hokage-title">👑 Candidatura a Hokage</h2>
-        <button id="hokage-close" class="icon-btn small" type="button" aria-label="Fechar"><span aria-hidden="true">✕</span></button>
+        <h2 id="kage-title">👑 Candidatura a Kage</h2>
+        <button id="kage-close" class="icon-btn small" type="button" aria-label="Fechar"><span aria-hidden="true">✕</span></button>
       </header>
       <p class="mission-status">Só ninjas de nível 60. A eleição chega numa próxima versão: até lá, a sua candidatura fica registrada.</p>
-      <button id="hokage-apply" type="button" class="primary">Registrar candidatura</button>
+      <button id="kage-apply" type="button" class="primary">Registrar candidatura</button>
+    </section>
+
+    <!-- Fim de jogo (v16): painel da vila (abas), Posto de Viagem e o convite da Akatsuki. -->
+    <section id="village-panel" class="mission-panel village-panel" hidden role="dialog" aria-labelledby="village-title">
+      <header class="mission-head">
+        <h2 id="village-title">🏯 Vila</h2>
+        <button id="village-close" class="icon-btn small" type="button" aria-label="Fechar o painel da vila"><span aria-hidden="true">✕</span></button>
+      </header>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab active" role="tab" aria-selected="true" data-tab="vila">Vila</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="kage" hidden>Kage</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="ranking" hidden>Ranking</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="akatsuki" hidden>Akatsuki</button>
+      </div>
+      <div id="village-body" class="village-body"></div>
+    </section>
+
+    <section id="travel-panel" class="mission-panel travel-panel" hidden role="dialog" aria-labelledby="travel-title">
+      <header class="mission-head">
+        <h2 id="travel-title"><span aria-hidden="true">🧭</span> Posto de Viagem</h2>
+        <button id="travel-close" class="icon-btn small" type="button" aria-label="Fechar o Posto de Viagem"><span aria-hidden="true">✕</span></button>
+      </header>
+      <ul id="travel-list" class="shop-items"></ul>
+    </section>
+
+    <section id="akatsuki-invite" class="mission-panel invite-panel" hidden role="alertdialog" aria-labelledby="akatsuki-invite-title">
+      <header class="mission-head">
+        <h2 id="akatsuki-invite-title">☁️ Convite da Akatsuki</h2>
+      </header>
+      <p id="akatsuki-invite-text" class="mission-status"></p>
+      <div class="eval-actions">
+        <button id="akatsuki-no" type="button" class="secondary">Recusar</button>
+        <button id="akatsuki-yes" type="button" class="primary">Aceitar</button>
+      </div>
     </section>
 
     <!--
@@ -193,6 +231,7 @@
       <button id="kit-btn" type="button" class="cbtn small kit" aria-label="Trocar de kit (ativo: A)"><span class="ico" aria-hidden="true">🔄</span><b id="kit-label" class="kit-label">A</b></button>
       <button id="target-btn" type="button" class="cbtn small target" aria-pressed="false" aria-label="Focar alvo"><span class="ico" aria-hidden="true">🎯</span></button>
       <button id="talk-btn" type="button" class="cbtn small talk" hidden aria-label="Falar"><span class="ico" aria-hidden="true">💬</span></button>
+      <button id="power-btn" type="button" class="cbtn small power" hidden aria-label="Poder da Akatsuki"><span class="ico" aria-hidden="true">☁️</span><i class="cd" aria-hidden="true"></i></button>
     </div>
 
     <!-- Configurações: layout da HUD (só muda no modo "Editar layout", nunca sem querer), tamanho e transparência. -->
@@ -214,6 +253,12 @@
       <label class="slider">Opacidade das barras <output id="bar-opacity-out">100%</output>
         <input id="bar-opacity" type="range" min="30" max="100" step="5" value="100">
       </label>
+      <fieldset id="display-opts" class="display-opts">
+        <legend>O que os outros veem no seu boneco</legend>
+        <label><input id="show-cape" type="checkbox" checked> Capa</label>
+        <label><input id="show-weapon" type="checkbox" checked> Arma</label>
+        <label><input id="show-scroll" type="checkbox" checked> Pergaminho</label>
+      </fieldset>
       <button id="open-creator" type="button" class="secondary">🎨 Mudar visual do personagem</button>
       <button id="reset-layout" type="button" class="link">Restaurar layout padrão</button>
     </section>

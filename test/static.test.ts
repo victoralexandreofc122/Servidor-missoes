@@ -125,8 +125,8 @@ describe('garantias do cliente (public/)', () => {
     assert.ok(SKILLS.length === 38);
   });
 
-  it('v7: Academia, inventário, loja com Extração, classe e Hokage: o cliente só PEDE (sorteio, preço e passo são do servidor)', () => {
-    for (const id of ['tutorial-card', 'inv-toggle', 'inv-panel', 'extract-box', 'extract-go', 'class-panel', 'class-confirm', 'hokage-panel', 'tab-jutsus', 'jutsu-list']) {
+  it('v7: Academia, inventário, loja com Extração, classe e Kage: o cliente só PEDE (sorteio, preço e passo são do servidor)', () => {
+    for (const id of ['tutorial-card', 'inv-toggle', 'inv-panel', 'extract-box', 'extract-go', 'class-panel', 'class-confirm', 'kage-panel', 'tab-jutsus', 'jutsu-list']) {
       assert.match(html, new RegExp(`id="${id}"`), id);
     }
     assert.match(html, /data-attr="weapons"/);
@@ -134,7 +134,7 @@ describe('garantias do cliente (public/)', () => {
     assert.match(js, /send\(\{ type: 'buy', item: item\.code, qty: 1 \}\)/);
     assert.match(js, /send\(\{ type: 'equip', item: on \? null : code \}\)/);
     assert.match(js, /send\(\{ type: 'choose_class', class: classChoice\.picked \}\)/);
-    assert.match(js, /send\(\{ type: 'hokage_apply' \}\)/);
+    assert.match(js, /send\(\{ type: 'kage_apply' \}\)/);
     // Nada de sorteio, chance, preço, passo do tutorial ou uso de jutsu saindo do cliente.
     assert.doesNotMatch(js, /type: '(tutorial|advance_tutorial|jutsu_level|extract_result|set_ryo|learn)'/);
     assert.doesNotMatch(js, /Math\.random\(\)[^\n]*send\(/);

@@ -33,10 +33,10 @@ describe('XP e ryō do combate no banco (PostgreSQL real)', { skip: noDatabase }
     const found = await makeFindPlayer(t.db)(id);
     assert.deepEqual({
       tutorialStep: found!.tutorialStep, jutsus: found!.jutsus, kits: found!.kits, ryo: found!.ryo, items: found!.items,
-      equipped: found!.equipped, classes: found!.classes, hokage: found!.hokageCandidate, weapons: found!.attributes!.weapons,
+      equipped: found!.equipped, classes: found!.classes, kage: found!.kageCandidate, weapons: found!.attributes!.weapons,
     }, {
       tutorialStep: 0, jutsus: { teleport: 0, substitution: 0 }, kits: { A: ['teleport', 'substitution'], B: [] }, ryo: 0, items: {},
-      equipped: null, classes: { primary: null, secondary: null }, hokage: false, weapons: 0,
+      equipped: null, classes: { primary: null, secondary: null }, kage: false, weapons: 0,
     });
   });
 

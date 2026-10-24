@@ -3,7 +3,11 @@ import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
 import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type Mechanic } from './jutsus.js';
 import { ITEM_CODES, type Gear, type ItemDef } from './items.js';
-import { IncomingAppearanceSchema, type Appearance } from './appearance.js';
+import { IncomingAppearanceSchema, VILLAGES, type Appearance, type Village } from './appearance.js';
+import type { EndgameModule } from './endgame.js';
+import type { Display, RankRow, VillagePanel } from './endgameStore.js';
+import type { RelationRow, WorldEvent } from './villages.js';
+import type { PowerKind } from './akatsuki.js';
 
 /*
  * Protocolo do WebSocket: JSON simples, um objeto por mensagem, sempre com `type`.
@@ -34,12 +38,29 @@ import { IncomingAppearanceSchema, type Appearance } from './appearance.js';
  *   { "type": "buy", "item": "kunai", "qty": 1 }  compra (perto do lojista que vende; preço do banco)
  *   { "type": "equip", "item": "kunai" }         equipar arma do inventário (null = desequipar)
  *   { "type": "equip", "item": "scroll_fire", "slot": "scroll" }   pergaminho nas costas (item null = tirar)
- *   { "type": "hokage_apply" }                   candidatura a Hokage (nível 60, com o Diretor)
+ *   { "type": "kage_apply" }                     candidatura a Kage (nível 60, com o Diretor)
  *   { "type": "accept_mission", "offer": "NPC_EASY" }   escolher um cartão da Sala de Missões (perto do Mestre)
  *   { "type": "deliver_npc_mission" }            botão "Entregar" da Sala de Missões (perto do Mestre)
  *   { "type": "chat_history" }                   pedir o histórico do chat (últimas 100, 24 h)
  *   { "type": "chat", "message": "Olá!" }        fala local (o mapa); "/g texto" = global; "/w Nome texto" = sussurro;
  *                                               "/admin ..." = comandos do administrador (nunca vira chat)
+ *
+ * Fim de jogo (v16, docs/endgame.md; só valem com o módulo ligado, e o BANCO confere cada regra de novo):
+ *   { "type": "village_panel" }                  painel da vila (eleição, diplomacia, denúncias para o Kage)
+ *   { "type": "kage_vote", "candidate": uuid }   voto na eleição da própria vila
+ *   { "type": "kage_action", "action": "guerra", "village": "vila_2" }   guerra, fim_guerra, alianca, paz, romper
+ *   { "type": "kage_answer", "proposal": 3, "accept": true }   responder proposta de aliança ou de paz
+ *   { "type": "kage_exile", "name": "Fulano", "reason": ".." }   Kage expulsa da vila (vira renegado)
+ *   { "type": "report_player", "name": "Fulano", "reason": ".." }   denúncia (rank igual ou maior)
+ *   { "type": "kage_report", "report": 7, "approve": false }   Kage decide a denúncia
+ *   { "type": "travel", "to": "vila_nevoa" }     Posto de Viagem (perto dele): para onde ir
+ *   { "type": "ranking" }                        ranking PvP (temporada e global)
+ *   { "type": "akatsuki_invite", "name": "Fulano", "slot": 4 }   o líder convida
+ *   { "type": "akatsuki_answer", "accept": true } aceitar (vira renegado, irreversível) ou recusar
+ *   { "type": "akatsuki_expel", "name": "Fulano" } o líder expulsa; { "type": "akatsuki_leave" } sair
+ *   { "type": "power", "targetId": "..", "dir": [1, 0] }   poder da vaga na Akatsuki
+ *   { "type": "equip", "item": "capa_viagem", "slot": "cape" }   capa (item null = tirar)
+ *   { "type": "set_display", "cape": true, "weapon": false, "scroll": true }   o que os outros veem no boneco
  *
  * Servidor -> cliente
  *   welcome           { you, players, monsters, world }    ao conectar (players = os OUTROS do MESMO mapa;
@@ -100,6 +121,17 @@ import { IncomingAppearanceSchema, type Appearance } from './appearance.js';
  *   mission_board     { npcId, offers, mission }           Sala de Missões: cartões do Mestre e a missão atual
  *   chat_history      { messages }                         histórico do chat (só para quem pediu)
  *   chat / error                                           como antes
+ *
+ * Fim de jogo (v16):
+ *   endgame           { modules, villages, kages, relations, events, akatsuki, season }   estado político (todos)
+ *   player_faction    { playerId, faction }                vila, renegado, Kage, Akatsuki, recompensa, capa de alguém
+ *   village_panel     { panel, ... }                       painel da vila (só para quem pediu)
+ *   travel_options    { npcId, options }                   destinos do Posto de Viagem
+ *   ranking           { season, top, global, me }          ranking PvP
+ *   pvp_result        { winner, loser, winnerDelta, ... }  alguém venceu na Zona de Conflito (o mapa vê)
+ *   akatsuki_invite   { from, slot, power, expiresAt }     convite do líder
+ *   power             { playerId, power, x, y, fx, fy, tx?, ty? }   poder da Akatsuki aceito (animação)
+ *   power_failed      { reason }
  */
 
 /** Direção de -1 a 1 em cada eixo; vetor maior que 1 (diagonal) é normalizado pelo servidor. */
@@ -128,6 +160,12 @@ export { AppearanceSchema, type Appearance } from './appearance.js';
 export type Dir = 0 | 1 | 2 | 3;
 const skillList = z.array(z.enum(SKILLS)).max(4).refine((l) => new Set(l).size === l.length, 'habilidade repetida no kit');
 
+/** Ações do Kage no painel (as regras de cada uma estão no banco, game.kage_*). */
+export const KAGE_ACTIONS = ['guerra', 'fim_guerra', 'alianca', 'paz', 'romper'] as const;
+const username = z.string().regex(/^[A-Za-z0-9_]{3,24}$/);
+/** Justificativa (banimento, denúncia): o banco confere o tamanho (10 a 300) e mostra ao Kage. */
+const reason = z.string().max(300);
+
 export type KitName = 'A' | 'B';
 export type Kits = Record<KitName, Skill[]>;
 
@@ -152,13 +190,30 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('choose_class'), class: z.enum(CLASSES) }),
   z.object({ type: z.literal('extract'), class: z.enum(CLASSES), level: z.number().int().min(1).max(4) }),
   z.object({ type: z.literal('buy'), item: z.enum(ITEM_CODES), qty: z.number().int().min(1).max(99) }),
-  z.object({ type: z.literal('equip'), item: z.enum(ITEM_CODES).nullable(), slot: z.enum(['weapon', 'scroll']).optional() }),
-  z.object({ type: z.literal('hokage_apply') }),
+  z.object({ type: z.literal('equip'), item: z.enum(ITEM_CODES).nullable(), slot: z.enum(['weapon', 'scroll', 'cape']).optional() }),
+  z.object({ type: z.literal('kage_apply') }),
+  z.object({ type: z.literal('hokage_apply') }),   // nome antigo (cliente em cache, até a v15)
   z.object({ type: z.literal('reset_attributes') }),
   z.object({ type: z.literal('accept_mission'), offer: z.string().regex(/^NPC_[A-Z]{1,24}$/) }),
   z.object({ type: z.literal('deliver_npc_mission') }),
   z.object({ type: z.literal('chat_history') }),
   z.object({ type: z.literal('chat'), message: z.string() }),
+  // ------------------------------------------------ fim de jogo (v16)
+  z.object({ type: z.literal('village_panel') }),
+  z.object({ type: z.literal('kage_vote'), candidate: uuid }),
+  z.object({ type: z.literal('kage_action'), action: z.enum(KAGE_ACTIONS), village: z.enum(VILLAGES) }),
+  z.object({ type: z.literal('kage_answer'), proposal: z.number().int().min(1), accept: z.boolean() }),
+  z.object({ type: z.literal('kage_exile'), name: username, reason }),
+  z.object({ type: z.literal('report_player'), name: username, reason }),
+  z.object({ type: z.literal('kage_report'), report: z.number().int().min(1), approve: z.boolean() }),
+  z.object({ type: z.literal('travel'), to: z.string().regex(/^[a-z][a-z0-9_]{0,23}$/) }),
+  z.object({ type: z.literal('ranking') }),
+  z.object({ type: z.literal('akatsuki_invite'), name: username, slot: z.number().int().min(2).max(10) }),
+  z.object({ type: z.literal('akatsuki_answer'), accept: z.boolean() }),
+  z.object({ type: z.literal('akatsuki_expel'), name: username }),
+  z.object({ type: z.literal('akatsuki_leave') }),
+  z.object({ type: z.literal('power'), targetId: targetId.optional(), dir: z.tuple([axis, axis]).optional() }),
+  z.object({ type: z.literal('set_display'), cape: z.boolean(), weapon: z.boolean(), scroll: z.boolean() }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
 
@@ -183,6 +238,24 @@ export interface PlayerView {
   dir: Dir;
   /** Equipamento visível no boneco (arma na mão ou nas costas, pergaminho nas costas). */
   gear: Gear;
+  /** Fim de jogo (só com o módulo de vilas ligado): vila, renegado, Kage, Akatsuki, recompensa e capa. */
+  faction?: FactionView;
+}
+
+/** O lado de um ninja na política, como todos veem (o banco é a autoridade; o servidor manda). */
+export interface FactionView {
+  /** null = renegado (sem vila). */
+  village: Village | null;
+  /** Renegado: a vila de onde saiu (a bandana aparece riscada). */
+  renegadeFrom?: Village;
+  /** Kage desta vila. */
+  kage?: Village;
+  /** Vaga na Akatsuki (1 = líder). */
+  akatsuki?: number;
+  /** Recompensa pela cabeça (renegado), em ryō. */
+  bounty?: number;
+  /** Capa no boneco (null/ausente = sem capa ou escondida). */
+  cape?: string;
 }
 
 export interface SelfView extends PlayerView {
@@ -196,6 +269,8 @@ export interface SelfView extends PlayerView {
   canBeSensei: boolean;
   /** false = ainda não passou pelo Criador de Personagem (o cliente abre a tela de criação). */
   appearanceSet: boolean;
+  /** Dentro de uma sala compartilhada (loja, Academia): para onde a porta de saída leva (a predição usa). */
+  doorBack?: { map: string; x: number; y: number };
 }
 
 /** Ficha do jogador: nível, XP do nível (zera a cada nível), pontos e o que os atributos dão. */
@@ -233,6 +308,8 @@ export interface NpcView {
   name: string;
   /** Mapa onde ele fica (o cliente só desenha os do mapa atual: lojista só dentro da loja). */
   map: MapId;
+  /** O que ele faz: Mestre (Sala de Missões), Posto de Viagem, lojista, professor ou o Diretor da Academia. */
+  role: 'sensei' | 'travel' | 'shop' | 'tutor' | 'director';
   /** Lojista: falar com ele abre a loja (shop_open). */
   shop?: ShopKind;
   x: number;
@@ -252,9 +329,13 @@ export interface NinjaView {
   classes: { primary: ClassCode | null; secondary: ClassCode | null };
   /** Jutsus aprendidos -> quantas vezes o servidor contou o uso (o nível sai daí). */
   jutsus: Record<string, number>;
-  hokageCandidate: boolean;
+  kageCandidate: boolean;
   /** Modo Administrador: o cliente mostra a dica dos comandos /admin (o servidor confere sempre). */
   isAdmin: boolean;
+  /** Fim de jogo: trocas de vila já usadas (só 1), capa equipada e o que os outros veem no boneco. */
+  villageSwitches: number;
+  cape: string | null;
+  display: Display;
 }
 
 /** Cartão da Sala de Missões (o Mestre): título, descrição, recompensa e dificuldade. */
@@ -339,19 +420,22 @@ export interface WorldInfo {
   meditationRegenMultiplier: number;
   npcs: NpcView[];
   basicAttack: { range: number; cooldownMs: number };
-  /** Mapa onde o jogador está agora e o layout de TODOS os mapas (paredes, saídas, chão). */
+  /**
+   * Mapa onde o jogador está agora e os layouts (paredes, saídas, chão) dele e dos vizinhos (saídas e portas). Os
+   * outros chegam no `map_changed`, quando o jogador se aproxima deles.
+   */
   map: MapId;
-  maps: Record<MapId, MapLayout>;
+  maps: Partial<Record<MapId, MapLayout>>;
   attributePerPoint: Attributes;
-  /** Níveis dos ranks: Genin (Missão de Genin), Chunin (Exame Chunin), Hokage (candidatura). */
-  rankLevels: { genin: number; chunin: number; hokage: number };
+  /** Níveis dos ranks: Genin (Missão de Genin), Chunin (Exame Chunin), Kage (candidatura). */
+  rankLevels: { genin: number; chunin: number; kage: number };
   classes: { code: ClassCode; name: string; icon: string; desc: string }[];
   items: ItemDef[];
   /** Extração: pergaminhos e chance por nível (1 a 4). Só informativo: o sorteio é do servidor. */
   extraction: { level: number; scrolls: number; chance: number }[];
   /** Proteção contra azar (v10): + isto na chance por falha seguida (as falhas vêm em `extract_odds`). */
   extractionPityStep: number;
-  /** Vilas que o Criador deixa escolher (as outras aparecem travadas até o Arco 2). */
+  /** Vilas que o Criador deixa escolher (todas com o módulo de vilas ligado; senão só a primeira). */
   openVillages: string[];
   /** Usos para cada nível do jutsu (índice = nível - 1). */
   jutsuLevelUses: number[];
@@ -367,7 +451,8 @@ export type ServerMessage =
   | { type: 'welcome'; you: SelfView; players: PlayerView[]; monsters: MonsterView[]; world: WorldInfo; progress: ProgressView; kit: KitView; ninja: NinjaView }
   | { type: 'player_joined'; player: PlayerView }
   | { type: 'shop_open'; shop: ShopKind; npcId: string }
-  | { type: 'map_changed'; map: MapId; x: number; y: number; a: number; players: PlayerView[]; monsters: MonsterView[]; reason: MapChangeReason }
+  /** maps: layouts que o cliente ainda não tinha (o mapa novo e os vizinhos dele). */
+  | { type: 'map_changed'; map: MapId; x: number; y: number; a: number; players: PlayerView[]; monsters: MonsterView[]; reason: MapChangeReason; maps?: Partial<Record<MapId, MapLayout>> }
   | { type: 'player_moved'; playerId: string; x: number; y: number; d: Dir; a: number }
   | { type: 'player_appearance'; playerId: string; appearance: Appearance }
   | { type: 'player_left'; playerId: string }
@@ -378,8 +463,8 @@ export type ServerMessage =
   | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean; speed: number; running: boolean }
   | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }
   | { type: 'cast'; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number; tx?: number; ty?: number }
-  | { type: 'projectile'; id: number; playerId: string; skill?: Skill; weapon?: string; x: number; y: number; fx: number; fy: number; speed: number; range: number }
-  | { type: 'impact'; id: number; skill?: Skill; weapon?: string; x: number; y: number; r: number }
+  | { type: 'projectile'; id: number; playerId: string; skill?: Skill; weapon?: string; power?: PowerKind; x: number; y: number; fx: number; fy: number; speed: number; range: number }
+  | { type: 'impact'; id: number; skill?: Skill; weapon?: string; power?: PowerKind; x: number; y: number; r: number }
   | { type: 'dash'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }
   | { type: 'player_status'; playerId: string; status: MonsterStatus; ms: number }
   | { type: 'cast_failed'; skill: Skill; reason: CastFailReason }
@@ -410,7 +495,7 @@ export type ServerMessage =
   | { type: 'sensei_options'; difficulties: SenseiDifficulty[]; quantities: number[] }
   | { type: 'notice'; text: string; tone: 'info' | 'good' | 'bad' }
   | { type: 'tutorial'; step: number }
-  | { type: 'inventory'; ryo: number; items: Record<string, number>; equipped: string | null; equippedScroll: string | null }
+  | { type: 'inventory'; ryo: number; items: Record<string, number>; equipped: string | null; equippedScroll: string | null; cape?: string | null }
   | { type: 'classes'; primary: ClassCode | null; secondary: ClassCode | null }
   | { type: 'jutsus'; jutsus: Record<string, number> }
   | { type: 'jutsu_level'; skill: Skill; level: number }
@@ -420,7 +505,58 @@ export type ServerMessage =
   | { type: 'extract_odds'; failures: Partial<Record<ClassCode, Record<number, number>>> }
   | { type: 'teleport'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }
   | { type: 'substitution'; playerId: string; logX: number; logY: number; x: number; y: number; a: number }
-  | { type: 'error'; code: RealtimeErrorCode; message: string };
+  | { type: 'error'; code: RealtimeErrorCode; message: string }
+  // ------------------------------------------------ fim de jogo (v16)
+  | ({ type: 'endgame' } & EndgameView)
+  | { type: 'player_faction'; playerId: string; faction: FactionView }
+  | ({ type: 'village_panel' } & VillagePanelView)
+  | { type: 'travel_options'; npcId: string; options: TravelOption[] }
+  | ({ type: 'ranking' } & RankingView)
+  | { type: 'pvp_result'; winnerId: string; winner: string; loserId: string; loser: string; counted: boolean; winnerDelta: number; loserDelta: number; loot: number; bounty: number }
+  | { type: 'akatsuki_invite'; from: string; slot: number; power: string; expiresAt: number }
+  | { type: 'power'; playerId: string; power: PowerKind; x: number; y: number; fx: number; fy: number; tx?: number; ty?: number; ms?: number }
+  | { type: 'power_failed'; reason: PowerFailReason };
+
+export type PowerFailReason = 'NOT_MEMBER' | 'COOLDOWN' | 'NO_CHAKRA' | 'NO_TARGET' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED';
+
+/** Estado político que todos recebem (welcome e cada mudança). Instantes em ms. */
+export interface EndgameView {
+  /** Módulos ligados agora (vilas -> pvp -> renegados -> akatsuki). */
+  modules: EndgameModule[];
+  villages: { code: Village; name: string; map: MapId; passive: string }[];
+  kages: { village: Village; playerId: string; username: string; termEndsAt: number }[];
+  relations: RelationRow[];
+  events: WorldEvent[];
+  akatsuki: { slot: number; playerId: string; username: string; power: string }[];
+  season: { id: number; startsAt: number; endsAt: number } | null;
+  /** Viagem para vila aliada (ryō). */
+  allyTravelRyo: number;
+  /** Poderes da Akatsuki por vaga (nome, texto e recarga) para o botão. */
+  powers: { slot: number; code: PowerKind; name: string; text: string; cooldownMs: number; cost: number }[];
+}
+
+export interface VillagePanelView {
+  panel: VillagePanel;
+  /** Quem pediu é o Kage desta vila (o cliente mostra as ações; o banco confere de novo). */
+  isKage: boolean;
+  /** Texto da passiva da vila. */
+  passive: string;
+}
+
+/** Um destino do Posto de Viagem. `cost` em ryō; `locked` = por que não dá agora. */
+export interface TravelOption {
+  to: string;
+  name: string;
+  cost: number;
+  locked?: string;
+}
+
+export interface RankingView {
+  season: { id: number; startsAt: number; endsAt: number } | null;
+  top: RankRow[];
+  global: RankRow[];
+  me: { mmr: number; wins: number; losses: number; seasonMmr: number | null; seasonWins: number; seasonLosses: number; position: number | null };
+}
 
 /** Placar de arena de um ninja (desde que o servidor subiu). */
 export interface ArenaRecord {
@@ -429,7 +565,7 @@ export interface ArenaRecord {
 }
 
 /** Por que o jogador trocou de mapa: andou, renasceu ou foi levado pelo tutorial (sala seguinte / Praça). */
-export type MapChangeReason = 'walk' | 'respawn' | 'tutorial';
+export type MapChangeReason = 'walk' | 'respawn' | 'tutorial' | 'travel' | 'exiled';
 
 export interface SenseiDifficulty {
   code: string;
@@ -463,6 +599,9 @@ export const REALTIME_ERRORS = {
   SENSEI_TOO_FAR: 'Fale com o Mestre, na avenida da Vila, para escolher ou entregar missões.',
   TUTORIAL_LOCKED: 'Termine esta etapa da Academia primeiro.',
   VILLAGE_LOCKED: 'Essa vila ainda não abriu. Por enquanto, todos os ninjas são da primeira vila.',
+  ENDGAME_OFF: 'Isso ainda não abriu no servidor (chega quando houver mais ninjas).',
+  TRAVEL_TOO_FAR: 'Fale com o Posto de Viagem.',
+  NOT_A_CAPE: 'Isso não é uma capa.',
 } as const;
 export type RealtimeErrorCode = keyof typeof REALTIME_ERRORS;
 

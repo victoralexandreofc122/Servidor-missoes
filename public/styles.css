@@ -520,6 +520,7 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
 .cbtn.kit { --x: 70.7; --y: -70.7; }
 .cbtn.target { --x: 102.5; --y: 177.5; }
 .cbtn.talk { --x: 177.5; --y: 102.5; --c: rgba(110, 80, 10, 0.9); border-color: #ffd23f; animation: badge-pop 0.45s ease-out; }
+.cbtn.power { --size: 56; --x: 177.5; --y: 30; --c: rgba(90, 14, 18, 0.92); border-color: #e8574a; }
 
 .cbtn.skill.empty { opacity: 0.35; border-style: dashed; }
 .cbtn.skill.no-chakra { filter: grayscale(0.85) brightness(0.6); }
@@ -869,9 +870,9 @@ body.safe-zone #attack-btn {
 .class-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .class-grid .chip { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 58px; font-size: 12px; }
 .class-grid .chip .ico { font-size: 20px; }
-.class-panel, .hokage-panel, .inv-panel { display: flex; flex-direction: column; gap: 8px; }
-.class-panel .primary, .hokage-panel .primary { min-height: 46px; }
-.hokage-panel { border-color: #ffd23f; }
+.class-panel, .kage-panel, .inv-panel { display: flex; flex-direction: column; gap: 8px; }
+.class-panel .primary, .kage-panel .primary { min-height: 46px; }
+.kage-panel { border-color: #ffd23f; }
 /* Tier do jutsu (II, III, IV) no canto do botão. */
 .cbtn.skill[data-tier="2"]::before, .cbtn.skill[data-tier="3"]::before, .cbtn.skill[data-tier="4"]::before {
   position: absolute; right: 6px; bottom: 4px; font: 900 10px/1 system-ui, sans-serif; color: #ffe2a8; text-shadow: 0 1px 2px #000;
@@ -889,9 +890,9 @@ body.safe-zone #attack-btn {
   body.tutorial .chat-feed { top: calc(var(--safe-top) + 140px); }
   body.tutorial .toast { top: calc(var(--safe-top) + 140px); }
 }
-/* Loja, inventário, classe e Hokage abertos: o aviso some (o próprio painel mostra o resultado). */
+/* Loja, inventário, classe e Kage abertos: o aviso some (o próprio painel mostra o resultado). */
 #shop-panel:not([hidden]) ~ .toast, #inv-panel:not([hidden]) ~ .toast,
-#class-panel:not([hidden]) ~ .toast, #hokage-panel:not([hidden]) ~ .toast { display: none; }
+#class-panel:not([hidden]) ~ .toast, #kage-panel:not([hidden]) ~ .toast { display: none; }
 /* Em pé, com o 🎒 a barra de cima ganhou um botão: espaços menores para caber em 360 px. */
 @media (orientation: portrait) {
   .topbar { gap: 4px; }
@@ -964,3 +965,35 @@ body.safe-zone #attack-btn {
 body.tut-no-skills #combat .cbtn.skill, body.tut-no-skills #kit-btn { display: none; }
 body.tut-no-meditate #meditate-btn { display: none; }
 body.tut-bag #inv-toggle { animation: ready-glow 1.4s ease-in-out infinite; border-color: #ffd23f; }
+
+/* ------------------------------------------------------------------ fim de jogo (v16): painel da vila, viagem, convite */
+.village-panel { max-height: calc(100vh - var(--safe-top) - 90px); overflow-y: auto; }
+.village-panel .tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.village-panel .tab[hidden] { display: none; }
+.village-body h3 { margin: 12px 0 6px; font-size: 14px; color: #e8c66a; }
+.eg-list, .eg-log, .eg-rank { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.eg-list li, .eg-rank li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; color: #f4ead8; }
+.eg-list small, .eg-rank small { color: #b8ad98; }
+.eg-rank li.me { color: #ffe2a8; font-weight: 700; }
+.eg-rank li b { margin-left: auto; color: #ffd23f; }
+.eg-log li { font-size: 12px; color: #b8ad98; }
+.eg-chip { padding: 2px 8px; border-radius: 999px; background: var(--c, #555); color: #fff; font-weight: 700; font-size: 13px; }
+.eg-rel { margin-left: auto; padding: 1px 8px; border-radius: 6px; font-size: 12px; background: rgba(255, 255, 255, 0.08); color: #e9dcbc; }
+.eg-rel.guerra { background: rgba(200, 50, 30, 0.35); color: #ffb4a8; }
+.eg-rel.alianca { background: rgba(80, 170, 80, 0.3); color: #b8f0b0; }
+.eg-rel.tregua { background: rgba(90, 150, 220, 0.3); color: #c4defa; }
+.eg-actions { display: flex; gap: 6px; width: 100%; justify-content: flex-end; }
+.eg-actions .icon-btn.small, .eg-row .icon-btn.small, .eg-list .icon-btn.small { width: auto; padding: 0 10px; font-size: 13px; }
+.eg-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0; font-size: 13px; color: #f4ead8; }
+.eg-row span { flex: 1 1 100%; }
+.eg-form { display: grid; gap: 6px; }
+.eg-form input, .eg-form textarea, .eg-form select {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(232, 198, 106, 0.35);
+  background: #14110d; color: #f4ead8; font: inherit; font-size: 14px;
+}
+.travel-panel .shop-items .icon-btn.small { width: auto; padding: 0 14px; }
+.invite-panel { border-color: #c8261e; }
+.display-opts { margin: 10px 0; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(232, 198, 106, 0.3); color: #f4ead8; font-size: 14px; }
+.display-opts legend { padding: 0 6px; color: #e8c66a; font-size: 13px; }
+.display-opts label { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; min-height: 36px; }
+.display-opts input { width: 20px; height: 20px; }

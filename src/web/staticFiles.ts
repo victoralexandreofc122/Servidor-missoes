@@ -39,6 +39,8 @@ const FILES = [
   { route: '/mapArt.js', file: 'mapArt.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/character.js', file: 'character.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/movement.js', file: 'movement.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/politics.js', file: 'politics.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/endgame.js', file: 'endgame.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/prediction.js', file: 'prediction.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/styles.css', file: 'styles.css', contentType: 'text/css; charset=utf-8' },
   // Personagem em sprites (arte/personagem-chibi): o desenhista, os dados e os atlas de cada gênero.

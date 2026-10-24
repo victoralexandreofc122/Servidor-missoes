@@ -9,6 +9,7 @@ import type { Profile } from './profile.js';
 import type { NinjaStore } from './ninjaStore.js';
 import type { AdminStore } from './admin.js';
 import type { ChatLog } from './chatLog.js';
+import type { EndgameStore } from './endgameStore.js';
 
 /*
  * Endpoint WebSocket: wss://<servidor>/game
@@ -44,6 +45,8 @@ export interface GatewayDeps {
   chatLog?: ChatLog;
   /** v8: comandos do administrador no banco (auditados). */
   admin?: AdminStore;
+  /** v16: fim de jogo no banco (migração v11, opcional: sem ela os módulos ficam desligados). */
+  endgame?: EndgameStore;
   /** Sorteio dos monstros (testes). */
   random?: () => number;
   log: WorldLogger & { error(obj: object, msg?: string): void };
@@ -94,6 +97,7 @@ export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
     ...(deps.store ? { store: deps.store } : {}),
     ...(deps.chatLog ? { chatLog: deps.chatLog } : {}),
     ...(deps.admin ? { admin: deps.admin } : {}),
+    ...(deps.endgame ? { endgame: deps.endgame } : {}),
   });
   const wss = new WebSocketServer({
     noServer: true,
@@ -135,6 +139,9 @@ export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
         deps.log.info({ playerId: request.player!.id }, 'websocket recusado: jogador não existe');
         return reject(socket, 401);
       }
+      // Fim de jogo (v11): a vila dele antes do welcome (já nasce na vila certa). Sem a v11 ou com falha: depois.
+      const endgame = await world.loadEndgamePlayer(player.id);
+      if (endgame) player = { ...player, endgame };
       if (socket.destroyed) return;
 
       socket.removeListener('error', onSocketError);

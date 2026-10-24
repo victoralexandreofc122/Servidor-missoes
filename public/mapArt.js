@@ -114,6 +114,14 @@ const ROOF = {
   leader: ['#5e1712', '#a3302a', '#c2463b'],         // [sombra, telhado, brilho]
   default: ['#4a1411', '#7d2420', '#94342c'],
 };
+/** Telhados de cada vila (v16): a mesma planta, cores diferentes. [sombra, telhado, brilho]; leader = a sede. */
+const THEME_ROOF = {
+  pedra: { default: ['#22252b', '#3d434d', '#56606c'], leader: ['#2a2d33', '#505864', '#6c7684'] },
+  nevoa: { default: ['#1b3a48', '#2f6378', '#4a8aa2'], leader: ['#173544', '#3a7a92', '#5aa2bd'] },
+  nuvem: { default: ['#3b1520', '#6b2836', '#86404c'], leader: ['#2e1018', '#7e2f3e', '#9c4a58'] },
+  areia: { default: ['#7a4a1e', '#b9773a', '#d39a55'], leader: ['#6e3f18', '#c8863e', '#e0aa62'] },
+  refugio: { default: ['#2a2018', '#4a3a2a', '#5e4a36'], leader: ['#2a2018', '#4a3a2a', '#5e4a36'] },
+};
 const WALLS = { wood: ['#5c3a1c', '#9b6a3c'], beige: ['#7a5c36', '#d9c49a'] };
 
 /** Placa sobre a porta: ícone simples do que o prédio é. */
@@ -137,9 +145,9 @@ function drawSign(g, cx, y, style) {
  * Prédio em 3/4: telhado (vermelho-escuro; a sede em vermelho vivo e com 2 andares) em cima e
  * a fachada (bege, ou madeira nas cabanas) embaixo, com porta, janelas, vigas e placa.
  */
-function drawBuilding(g, x, y, w, h, style, seed) {
+function drawBuilding(g, x, y, w, h, style, seed, theme) {
   const r = rng(seed);
-  const [shade, roof, light] = ROOF[style === 'leader' ? 'leader' : 'default'];
+  const [shade, roof, light] = (THEME_ROOF[theme] || ROOF)[style === 'leader' ? 'leader' : 'default'];
   const [beam, wallc] = style === 'hut' || style === 'home' ? WALLS.wood : WALLS.beige;
   const rh = Math.round(h * 0.6), fh = h - rh;
   rect(g, 'rgba(0,0,0,0.25)', x + 4, y + 6, w, h);                                    // sombra
@@ -394,7 +402,7 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     case 'wall': return drawRampart(g, x, y, w, h);
     case 'gatepost': return drawGatePost(g, x, y, w, h);
     case 'rock': return drawRock(g, x, y, w, h, seed);
-    case 'house': return drawBuilding(g, x, y, w, h, wall.s || 'home', seed);
+    case 'house': return drawBuilding(g, x, y, w, h, wall.s || 'home', seed, wall.t);
     case 'tree': return drawTrees(g, x, y, w, h, Math.abs(seed) % 97, tile);
     case 'dummy': return drawDummy(g, x, y, w, h);
     case 'iwall': return drawInteriorWall(g, x, y, w, h, tile);
@@ -403,8 +411,23 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     case 'pit': return drawPit(g, x, y, w, h);
     case 'fence': return drawFence(g, x, y, w, h, tile);
     case 'pillar': return drawPillar(g, x, y, w, h);
+    case 'gate': return drawClosedGate(g, x, y, w, h);
     default: return undefined;
   }
+}
+
+/** Portão fechado (as vilas sem saída a pé): duas folhas de madeira escura com cintas de ferro e a tranca. */
+function drawClosedGate(g, x, y, w, h) {
+  rect(g, 'rgba(0,0,0,0.3)', x + 2, y + 4, w, h);
+  rect(g, '#2b1a0e', x, y, w, h);
+  rect(g, '#5c3a1c', x + 1, y + 1, w - 2, h - 2);
+  g.fillStyle = '#4a2e17';
+  for (let px = x + 5; px < x + w - 2; px += 6) g.fillRect(px, y + 1, 1, h - 2);          // tábuas
+  rect(g, '#3a3a40', x + 1, y + Math.round(h * 0.25), w - 2, 3);                          // cintas de ferro
+  rect(g, '#3a3a40', x + 1, y + Math.round(h * 0.7), w - 2, 3);
+  rect(g, '#1d1208', x + w / 2 - 1, y + 1, 2, h - 2);                                     // emenda das folhas
+  rect(g, '#8a6a2a', x + w / 2 - 6, y + h / 2 - 2, 12, 4);                                // tranca
+  rect(g, '#c9a24a', x + w / 2 - 6, y + h / 2 - 2, 12, 1);
 }
 
 /** Vão no chão da Academia (Sala de Jutsus): bordas de madeira quebrada e o fundo escuro. Só o Teleporte passa. */
@@ -520,6 +543,36 @@ export function drawDeco(g, d, x, y, w, h) {
       g.fillStyle = '#efe4c8';
       for (const dx of [-w / 4, w / 4]) g.fillRect(Math.round(cx + dx) - 1, Math.round(cy) - 8, 2, 16);
       g.globalAlpha = 1;
+      return;
+    }
+    case 'fire': {                                    // fogueira (acampamentos da Zona, Refúgio): pedras em roda, lenha e chama
+      const cx = Math.round(x + w / 2), cy = Math.round(y + h / 2);
+      rect(g, 'rgba(0,0,0,0.25)', cx - 9, cy + 3, 18, 5);
+      g.fillStyle = '#6d6a64';
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        g.fillRect(Math.round(cx + Math.cos(a) * 8) - 2, Math.round(cy + Math.sin(a) * 5) - 1, 4, 3);
+      }
+      rect(g, '#5c3a1c', cx - 6, cy - 1, 12, 2);
+      rect(g, '#4a2e17', cx - 1, cy - 4, 2, 7);
+      rect(g, '#e8572f', cx - 4, cy - 7, 8, 6);
+      rect(g, '#ffb13b', cx - 2, cy - 9, 4, 6);
+      rect(g, '#fff1a8', cx - 1, cy - 6, 2, 3);
+      return;
+    }
+    case 'bones': {                                   // ossos espalhados (Zona de Conflito, Refúgio)
+      g.fillStyle = '#e9e1cc';
+      const bone = (bx, by, len, vertical) => {
+        if (vertical) { g.fillRect(bx, by, 2, len); g.fillRect(bx - 1, by, 4, 2); g.fillRect(bx - 1, by + len - 2, 4, 2); }
+        else { g.fillRect(bx, by, len, 2); g.fillRect(bx, by - 1, 2, 4); g.fillRect(bx + len - 2, by - 1, 2, 4); }
+      };
+      bone(Math.round(x + 3), Math.round(y + h / 2), Math.round(w * 0.45), false);
+      bone(Math.round(x + w * 0.62), Math.round(y + 2), Math.round(h * 0.7), true);
+      g.fillStyle = '#d8cfb6';
+      g.fillRect(Math.round(x + w * 0.8), Math.round(y + h * 0.6), 5, 4);                  // crânio pequeno
+      g.fillStyle = '#3a332a';
+      g.fillRect(Math.round(x + w * 0.8) + 1, Math.round(y + h * 0.6) + 1, 1, 1);
+      g.fillRect(Math.round(x + w * 0.8) + 3, Math.round(y + h * 0.6) + 1, 1, 1);
       return;
     }
     case 'banner': {                                  // estandarte vermelho na entrada da arena

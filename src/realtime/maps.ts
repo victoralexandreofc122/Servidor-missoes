@@ -20,7 +20,10 @@ import type { Village } from './appearance.js';
 import type { Box } from './movement.js';
 
 export type Edge = 'east' | 'west' | 'north' | 'south';
-export type MapId = 'map_1' | 'map_2' | 'interior_weapons' | 'interior_clothes' | 'interior_scrolls' | 'academy_interior';
+export type MapId = 'map_1' | 'map_2' | 'interior_weapons' | 'interior_clothes' | 'interior_scrolls' | 'academy_interior'
+  | 'vila_pedra' | 'vila_nevoa' | 'vila_nuvem' | 'vila_areia' | 'zona_conflito' | 'refugio';
+/** Tema de cores do mapa (chão, telhados e enfeites; ver public/mapArt.js). */
+export type MapTheme = 'folha' | 'pedra' | 'nevoa' | 'nuvem' | 'areia' | 'conflito' | 'refugio';
 /** As 3 lojas com interior (o NPC lojista manda `shop_open` com isto). */
 export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
 
@@ -31,9 +34,10 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
  *  iwall = parede de interior · counter = balcão · furniture = móvel (s = qual)
  *  pit = vão no chão (Academia): ninguém atravessa andando, mas o Teleporte Curto salta por cima
  *  fence = cerca de madeira da arena · pillar = pilar de pedra (cobertura dentro da arena)
+ *  gate = portão fechado (vilas sem saída a pé: só pelo Posto de Viagem)
  */
 export interface Wall extends Box {
-  k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit' | 'fence' | 'pillar';
+  k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit' | 'fence' | 'pillar' | 'gate';
   /**
    * Estilo do prédio (sede, hospital, academia, lojas, casa, cabana) ou do móvel do interior
    * (suporte de espadas, de lanças, de escudos, manequim, prateleira de roupas, estante de
@@ -43,9 +47,12 @@ export interface Wall extends Box {
     | 'sword_rack' | 'spear_rack' | 'shield_rack' | 'mannequin' | 'cloth_shelf' | 'scroll_shelf' | 'scroll_table' | 'barrel';
 }
 
-/** Chão pintado (só desenho): stone = pedra clara, grass, sand, water, bridge, path (terra), wood (assoalho), arena (terra batida). */
+/**
+ * Chão pintado (só desenho): stone = pedra clara, grass, sand, water, bridge, path (terra), wood (assoalho), arena
+ * (terra batida), dirt (chão de pedra solta da Zona de Conflito), ash (cinzas do Refúgio).
+ */
 export interface Area extends Box {
-  g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood' | 'arena';
+  g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood' | 'arena' | 'dirt' | 'ash';
 }
 
 /**
@@ -53,7 +60,7 @@ export interface Area extends Box {
  * cima), tapete, capacho de porta, estandarte (entrada da arena) e o círculo pintado no chão da arena.
  */
 export interface Deco extends Box {
-  k: 'bench' | 'rosette' | 'lamp' | 'plant' | 'gate_roof' | 'rug' | 'mat' | 'door' | 'cushion' | 'board' | 'banner' | 'ring';
+  k: 'bench' | 'rosette' | 'lamp' | 'plant' | 'gate_roof' | 'rug' | 'mat' | 'door' | 'cushion' | 'board' | 'banner' | 'ring' | 'fire' | 'bones';
   /** Porta da Academia: desenhada FECHADA enquanto o passo do tutorial do jogador for menor que este. */
   step?: number;
 }
@@ -67,6 +74,10 @@ export interface Door extends Box {
   dir: Edge;
   map: MapId;
   at: { x: number; y: number };
+  /** Porta de uma vila para uma sala compartilhada: ao sair da sala, volta aqui (gates.back no movimento). */
+  back?: { x: number; y: number };
+  /** Saída de sala compartilhada (lojas, Academia): volta para onde o jogador entrou (sem isso: map/at). */
+  toBack?: boolean;
   /**
    * Trava do tutorial da Academia: a porta só funciona para quem já chegou neste passo (0 a 4).
    * Sem `step`, abre para todos. O servidor confere com o passo GRAVADO do jogador.
@@ -105,12 +116,18 @@ export interface Arena extends Box {
 export interface MapLayout {
   id: MapId;
   name: string;
-  /** Mapa de vila: a vila dona (a arena é dela; nunca há PvP aberto aqui). */
+  /** Mapa de vila: a vila dona (a arena é dela; só quem é dela ou de vila aliada entra; nunca há PvP aberto aqui). */
   village?: Village;
+  /** Refúgio dos Renegados: só renegado entra. */
+  refuge?: boolean;
+  /** Zona de Conflito: PvP livre (menos aliados), com ranking. */
+  conflict?: boolean;
+  /** Tema de cores (desenho). */
+  theme?: MapTheme;
   /** Arenas de treino de PvP (área de luta, DENTRO da cerca). */
   arenas?: Arena[];
-  /** Estilo e chão padrão: 'village' = pedra clara; 'forest' = grama. */
-  kind: 'village' | 'forest' | 'interior';
+  /** Estilo e chão padrão: 'village' = pedra clara; 'forest' = grama; 'wild' = pedra solta; 'interior' = assoalho. */
+  kind: 'village' | 'forest' | 'interior' | 'wild';
   width: number;
   height: number;
   /** Mapa seguro: sem monstros. */
@@ -126,6 +143,8 @@ export interface MapLayout {
   safeZones: Box[];
   /** Onde os monstros nascem e andam (mapas de caça). */
   hunt?: Box;
+  /** Tipo de monstro de caça do mapa (sem isto: o slime). */
+  huntType?: string;
   /** Monstros FIXOS (bonecos da Academia): tipo e lugar; renascem no mesmo ponto. */
   spawns?: { type: string; x: number; y: number }[];
   /** Campos que drenam chakra de quem está dentro (Sala de Controle da Academia), por segundo. */
@@ -253,7 +272,21 @@ export function shopDoor(b: Box): { door: Box; outside: { x: number; y: number }
  * Ruas e becos com 2 a 4 casas de largura entre as colisões (o teste mede); o portão e a
  * praça não têm colisão nenhuma.
  */
-function village(): MapLayout {
+/** Cada vila: o mapa, o nome que aparece, a vila dona, o tema e se o portão sul abre (só a Folha, para a Floresta). */
+interface VillageMapDef { id: MapId; name: string; village: Village; theme: MapTheme; gate: boolean }
+
+export const VILLAGE_MAPS: readonly VillageMapDef[] = [
+  { id: 'map_1', name: 'Vila da Folha', village: 'vila_1', theme: 'folha', gate: true },
+  { id: 'vila_pedra', name: 'Vila da Pedra', village: 'vila_2', theme: 'pedra', gate: false },
+  { id: 'vila_nevoa', name: 'Vila da Névoa', village: 'vila_3', theme: 'nevoa', gate: false },
+  { id: 'vila_nuvem', name: 'Vila da Nuvem', village: 'vila_4', theme: 'nuvem', gate: false },
+  { id: 'vila_areia', name: 'Vila da Areia', village: 'vila_5', theme: 'areia', gate: false },
+];
+
+/** Posto de Viagem de cada vila: dentro da praça, perto do portão. */
+export const TRAVEL_POST = { x: 36.5, y: 73.5 } as const;
+
+function village(def: VillageMapDef = VILLAGE_MAPS[0]!): MapLayout {
   const W = 80, H = 80;
   const G = VILLAGE_GATE;
   const walls: Wall[] = [
@@ -263,9 +296,10 @@ function village(): MapLayout {
     wall('wall', W - 2, 2, 2, H - 4),
     wall('wall', 0, H - 2, G.from, 2),
     wall('wall', G.to, H - 2, W - G.to, 2),
-    // Pilares do portão (fora da abertura: o vão x 35..45 fica livre).
+    // Pilares do portão (fora da abertura: o vão x 35..45 fica livre). Sem saída a pé: o portão fica fechado.
     wall('gatepost', G.from - 2, H - 4, 2, 2),
     wall('gatepost', G.to, H - 4, 2, 2),
+    ...(def.gate ? [] : [wall('gate', G.from, H - 2, G.to - G.from, 2)]),
     // Montanha no topo (paredão de rocha atrás da sede).
     wall('rock', 18, 2, 44, 10),
     // Prédios.
@@ -327,23 +361,24 @@ function village(): MapLayout {
     deco('banner', VILLAGE_ARENA.fence.x - 1.7, VILLAGE_ARENA.west.from - 1.2), deco('banner', VILLAGE_ARENA.fence.x - 1.7, VILLAGE_ARENA.west.to + 0.2),
     deco('bench', 60, 74.6, 3, 1), deco('bench', 66, 74.6, 3, 1), deco('bench', 72, 74.6, 2, 1),
   ];
+  // Lojas e Academia são salas compartilhadas pelas cinco vilas: a porta lembra de onde o jogador veio (`back`).
   const doors: Door[] = SHOPS.map((sh) => {
-    const { door } = shopDoor(sh.building);
+    const { door, outside } = shopDoor(sh.building);
     decos.push(deco('mat', door.x + 0.5, door.y, 2, 0.6));        // capacho na porta
-    return { ...door, dir: 'north' as const, map: sh.map, at: { ...ROOM.arrive } };
+    return { ...door, dir: 'north' as const, map: sh.map, at: { ...ROOM.arrive }, back: { ...outside } };
   });
   // Academia: a porta do prédio leva à sala 4 (onde fica o Diretor e a Missão de Genin).
-  const academyDoor = shopDoor(ACADEMY.building).door;
-  decos.push(deco('mat', academyDoor.x + 0.5, academyDoor.y, 2, 0.6));
-  doors.push({ ...academyDoor, dir: 'north', map: 'academy_interior', at: { ...ACADEMY.arrive } });
+  const academy = shopDoor(ACADEMY.building);
+  decos.push(deco('mat', academy.door.x + 0.5, academy.door.y, 2, 0.6));
+  doors.push({ ...academy.door, dir: 'north', map: 'academy_interior', at: { ...ACADEMY.arrive }, back: { ...academy.outside } });
   return {
-    id: 'map_1', name: 'Vila', kind: 'village', village: 'vila_1', width: W, height: H, safe: true, walls,
-    exits: [{ edge: 'south', from: G.from, to: G.to, map: 'map_2', shift: G.shift }],
+    id: def.id, name: def.name, kind: 'village', village: def.village, theme: def.theme, width: W, height: H, safe: true, walls,
+    exits: def.gate ? [{ edge: 'south', from: G.from, to: G.to, map: 'map_2', shift: G.shift }] : [],
     doors,
     areas, deco: decos,
     // Praça social logo acima do portão: sem combate.
     safeZones: [{ x: 28, y: 55, w: 24, h: 23 }],
-    arenas: [{ ...arenaFightBox(), village: 'vila_1', respawn: { ...VILLAGE_ARENA.respawn } }],
+    arenas: [{ ...arenaFightBox(), village: def.village, respawn: { ...VILLAGE_ARENA.respawn } }],
   };
 }
 
@@ -453,7 +488,7 @@ function interior(sh: (typeof SHOPS)[number]): MapLayout {
   return {
     id: sh.map, name: sh.name, kind: 'interior', width: W, height: H, safe: true, walls,
     exits: [],
-    doors: [{ ...ROOM.exit, dir: 'south', map: 'map_1', at: { ...back } }],
+    doors: [{ ...ROOM.exit, dir: 'south', map: 'map_1', at: { ...back }, toBack: true }],
     areas: [area('wood', 0, 0, W, H)],
     deco: [deco('rug', 4.5, 8.6, 6, 3.4), deco('mat', ROOM.doorFrom, ROOM.exit.y, ROOM.doorTo - ROOM.doorFrom, H - ROOM.exit.y)],
     safeZones: [{ x: 0, y: 0, w: W, h: H }],         // dentro da loja não tem combate
@@ -490,7 +525,7 @@ function academy(): MapLayout {
     }
   }
   // Saída: o capacho inteiro (como nas lojas, ninguém fica preso no canto). Só no passo 4.
-  doors.push({ x: 54.5, y: H - 1.6, w: 3, h: 1.6, dir: 'south', map: 'map_1', at: shopDoor(ACADEMY.building).outside, step: 4 });
+  doors.push({ x: 54.5, y: H - 1.6, w: 3, h: 1.6, dir: 'south', map: 'map_1', at: shopDoor(ACADEMY.building).outside, step: 4, toBack: true });
   decos.push({ ...deco('door', 54.5, H - 1, 3, 1), step: 4 }, deco('mat', 55, H - 1.6, 2, 0.6));
   // Etapa 3: o vão de parede a parede (Teleporte por cima). Colide como parede para quem anda.
   const g = ACADEMY.gap;
@@ -519,11 +554,121 @@ function academy(): MapLayout {
   };
 }
 
+/**
+ * Zona de Conflito (110 x 80): planalto de pedra solta, com mesas de rocha e árvores secas espalhadas e uma ruína no
+ * meio (pilares que servem de cobertura). PvP livre (menos aliados) e monstros mais fortes (lodo sombrio). Cada vila e
+ * os renegados têm um ACAMPAMENTO na borda (zona segura onde se chega pelo Posto de Viagem, com o Posto para voltar).
+ *
+ *   Folha ──────────── Pedra ──────────── Névoa
+ *     │                  ruína               │
+ *   Nuvem ──────────── Renegados ────────── Areia
+ */
+export const CONFLICT = {
+  width: 110, height: 80,
+  camps: [
+    { who: 'vila_1', x: 4, y: 4 }, { who: 'vila_2', x: 50, y: 3 }, { who: 'vila_3', x: 96, y: 4 },
+    { who: 'vila_4', x: 4, y: 68 }, { who: 'vila_5', x: 96, y: 68 }, { who: 'renegados', x: 50, y: 69 },
+  ] as const,
+  camp: { w: 10, h: 8 },
+  ruin: { x: 47, y: 32, w: 16, h: 16 },
+} as const;
+export type CampOwner = (typeof CONFLICT.camps)[number]['who'];
+
+/** Acampamento de quem chega: a área (zona segura), onde se chega e onde fica o Posto de Viagem. */
+export function conflictCamp(who: CampOwner): { box: Box; arrive: { x: number; y: number }; post: { x: number; y: number } } {
+  const c = CONFLICT.camps.find((k) => k.who === who)!;
+  const { w, h } = CONFLICT.camp;
+  return { box: { x: c.x, y: c.y, w, h }, arrive: { x: c.x + w / 2, y: c.y + h / 2 + 1 }, post: { x: c.x + 2, y: c.y + 2 } };
+}
+
+function conflictZone(): MapLayout {
+  const { width: W, height: H } = CONFLICT;
+  const walls: Wall[] = [
+    wall('rock', 0, 0, W, 2), wall('rock', 0, H - 2, W, 2), wall('rock', 0, 2, 2, H - 4), wall('rock', W - 2, 2, 2, H - 4),
+  ];
+  const camps = CONFLICT.camps.map((c) => conflictCamp(c.who).box);
+  const ruin = CONFLICT.ruin;
+  // A ruína do meio: quatro pilares nos cantos e dois no meio dos lados (sobra espaço entre eles para passar).
+  for (const [px, py] of [[0, 0], [14, 0], [0, 14], [14, 14], [7, 0], [7, 14], [0, 7], [14, 7]] as const) {
+    walls.push(wall('pillar', ruin.x + px, ruin.y + py, 2, 2));
+  }
+  const rnd = seeded(7077);
+  for (let gx = 6; gx < W - 8; gx += 7) {
+    for (let gy = 6; gy < H - 8; gy += 7) {
+      if (rnd() > 0.5) continue;
+      const big = rnd() < 0.35;
+      const t: Wall = big
+        ? wall('rock', gx + Math.floor(rnd() * 3), gy + Math.floor(rnd() * 3), 3 + Math.floor(rnd() * 2), 2 + Math.floor(rnd() * 2))
+        : wall('tree', gx + Math.floor(rnd() * 4), gy + Math.floor(rnd() * 4), 2, 2);
+      if (camps.some((c) => overlaps(t, c, 3)) || overlaps(t, ruin, 2) || walls.some((w) => overlaps(t, w, 1))) continue;
+      walls.push(t);
+    }
+  }
+  const decos: Deco[] = [];
+  for (const c of CONFLICT.camps) {
+    const { box } = conflictCamp(c.who);
+    decos.push(deco('banner', box.x + box.w - 2, box.y + 1), deco('fire', box.x + box.w / 2 - 0.5, box.y + box.h / 2 - 1.5));
+  }
+  decos.push(deco('bones', 30, 40, 2, 1), deco('bones', 80, 22, 2, 1), deco('bones', 72, 58, 2, 1));
+  return {
+    id: 'zona_conflito', name: 'Zona de Conflito', kind: 'wild', theme: 'conflito', conflict: true, width: W, height: H, safe: false, walls,
+    exits: [], doors: [],
+    areas: [
+      ...camps.map((c) => area('ash', c.x, c.y, c.w, c.h)),
+      area('stone', ruin.x + 2, ruin.y + 2, ruin.w - 2, ruin.h - 2),
+    ],
+    deco: decos,
+    safeZones: camps,
+    hunt: { x: 4, y: 14, w: W - 8, h: H - 28 },
+    huntType: 'lodo_sombrio',
+  };
+}
+
+/**
+ * Refúgio dos Renegados (48 x 40): acampamento escondido entre rochas, com cinzas no chão, barracas, uma fogueira, a
+ * Armaria e a Casa dos Pergaminhos dos renegados (as mesmas salas das vilas) e o Posto de Viagem. Só renegado entra.
+ * Inteiro seguro (é a casa deles).
+ */
+export const REFUGE = {
+  width: 48, height: 40,
+  spawn: { x: 24, y: 28 },
+  post: { x: 20, y: 31 },
+  weapons: { x: 6, y: 5, w: 10, h: 7 },
+  scrolls: { x: 32, y: 5, w: 10, h: 7 },
+} as const;
+
+function refuge(): MapLayout {
+  const { width: W, height: H } = REFUGE;
+  const walls: Wall[] = [
+    wall('rock', 0, 0, W, 3), wall('rock', 0, H - 2, W, 2), wall('rock', 0, 3, 2, H - 5), wall('rock', W - 2, 3, 2, H - 5),
+    wall('house', REFUGE.weapons.x, REFUGE.weapons.y, REFUGE.weapons.w, REFUGE.weapons.h, 'shop_weapon'),
+    wall('house', REFUGE.scrolls.x, REFUGE.scrolls.y, REFUGE.scrolls.w, REFUGE.scrolls.h, 'shop_scroll'),
+    wall('house', 4, 22, 6, 5, 'hut'), wall('house', 38, 22, 6, 5, 'hut'), wall('house', 5, 31, 5, 4, 'hut'),
+    tree(14, 33), tree(42, 32), wall('rock', 20, 15, 3, 2),
+  ];
+  const doors: Door[] = [];
+  const decos: Deco[] = [deco('fire', 23, 22, 2, 2), deco('bones', 30, 33, 2, 1), deco('bones', 12, 18, 2, 1)];
+  for (const [b, map] of [[REFUGE.weapons, 'interior_weapons'], [REFUGE.scrolls, 'interior_scrolls']] as const) {
+    const { door, outside } = shopDoor(b);
+    decos.push(deco('mat', door.x + 0.5, door.y, 2, 0.6));
+    doors.push({ ...door, dir: 'north', map, at: { ...ROOM.arrive }, back: { ...outside } });
+  }
+  return {
+    id: 'refugio', name: 'Refúgio dos Renegados', kind: 'wild', theme: 'refugio', refuge: true, width: W, height: H, safe: true, walls,
+    exits: [], doors,
+    areas: [area('ash', 2, 3, W - 4, H - 5), area('path', 21, 12, 6, 20)],
+    deco: decos,
+    safeZones: [{ x: 0, y: 0, w: W, h: H }],
+  };
+}
+
 /** Todos os mapas, por id. */
 export function buildMaps(): Record<MapId, MapLayout> {
   const [weapons, clothes, scrolls] = SHOPS;
   return {
-    map_1: village(), map_2: forest(),
+    map_1: village(VILLAGE_MAPS[0]), map_2: forest(),
+    vila_pedra: village(VILLAGE_MAPS[1]), vila_nevoa: village(VILLAGE_MAPS[2]), vila_nuvem: village(VILLAGE_MAPS[3]), vila_areia: village(VILLAGE_MAPS[4]),
+    zona_conflito: conflictZone(), refugio: refuge(),
     interior_weapons: interior(weapons), interior_clothes: interior(clothes), interior_scrolls: interior(scrolls),
     academy_interior: academy(),
   };

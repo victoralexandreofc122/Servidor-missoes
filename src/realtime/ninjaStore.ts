@@ -5,7 +5,7 @@ import type { RankView } from './protocol.js';
 
 /*
  * Progressão do ninja no banco (migração v7): uso de jutsus, tutorial da Academia, classes,
- * Extração (gacha), loja, arma equipada e candidatura a Hokage.
+ * Extração (gacha), loja, arma equipada e candidatura a Kage.
  *
  * As REGRAS ficam no banco (funções game.* da v7, com travas de linha): o servidor só chama.
  * O cliente nunca manda preço, chance, sorteio, uso ou nível: o sorteio da Extração sai do
@@ -56,7 +56,7 @@ export interface NinjaStore {
   buy(playerId: string, item: string, qty: number): Promise<StoreResult<{ ryo: number; items: Inventory }>>;
   /** Arma (slot weapon) ou pergaminho nas costas (slot scroll). O banco confere que o jogador tem o item. */
   equip(playerId: string, item: string | null, slot?: 'weapon' | 'scroll'): Promise<StoreResult<{ equipped: string | null }>>;
-  applyHokage(playerId: string): Promise<StoreResult<{ already: boolean }>>;
+  applyKage(playerId: string): Promise<StoreResult<{ already: boolean }>>;
   /** Item ganho em combate (pergaminho que caiu do monstro). */
   addItem(playerId: string, item: string, qty: number): Promise<Inventory>;
   /** Rank atual (depois do Exame Chunin aprovado). */
@@ -89,7 +89,7 @@ export const NINJA_SQL = {
                                   THEN p.equipped_scroll END
      WHERE p.id = $1
     RETURNING p.equipped_scroll`,
-  hokage: `INSERT INTO game.hokage_candidates (player_id) VALUES ($1) ON CONFLICT (player_id) DO NOTHING RETURNING player_id`,
+  kage: `INSERT INTO game.hokage_candidates (player_id) VALUES ($1) ON CONFLICT (player_id) DO NOTHING RETURNING player_id`,
   addItem: `
     INSERT INTO game.player_items (player_id, item_code, quantity) VALUES ($1, $2, $3)
     ON CONFLICT (player_id, item_code) DO UPDATE SET quantity = game.player_items.quantity + EXCLUDED.quantity`,
@@ -106,7 +106,7 @@ interface PgError {
 }
 
 /** Regra conhecida do banco vira recusa com texto; o resto sobe (erro do servidor). */
-function refuse(err: unknown): { ok: false; text: string } {
+export function refuse(err: unknown): { ok: false; text: string } {
   const e = (typeof err === 'object' && err !== null ? err : {}) as PgError;
   const known = e.constraint ? CONSTRAINT_ERRORS[e.constraint] : undefined;
   if (known) return { ok: false, text: known.message };
@@ -211,9 +211,9 @@ export function makeNinjaStore(db: Db): NinjaStore {
       }
     },
 
-    async applyHokage(playerId) {
+    async applyKage(playerId) {
       try {
-        const inserted = (await db.query(NINJA_SQL.hokage, [playerId])).rows.length > 0;
+        const inserted = (await db.query(NINJA_SQL.kage, [playerId])).rows.length > 0;
         return { ok: true, already: !inserted };
       } catch (err) {
         return refuse(err);

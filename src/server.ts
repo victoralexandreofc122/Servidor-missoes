@@ -7,6 +7,7 @@ import { makeRequireServiceToken } from './auth/requireServiceToken.js';
 import { describeBootError } from './bootErrors.js';
 import { makeFindPlayer } from './realtime/findPlayer.js';
 import { makeAdminStore } from './realtime/admin.js';
+import { ENDGAME_SQL, makeEndgameStore } from './realtime/endgameStore.js';
 import { CHAT_SQL, makeChatLog } from './realtime/chatLog.js';
 import { attachGameGateway } from './realtime/gateway.js';
 import { makeMissions, MISSIONS_SQL, NPC_MISSION, NPC_SENSEI_ID } from './realtime/missions.js';
@@ -80,6 +81,7 @@ const gateway = attachGameGateway(publicApp.server, {
   store: makeNinjaStore(db),                                      // jutsus, tutorial, classes, loja, Extração (v7)
   chatLog: makeChatLog(db),                                       // histórico do chat, 24 h (v8)
   admin: makeAdminStore(db),                                      // comandos /admin auditados (v8)
+  endgame: makeEndgameStore(db),                                  // vilas, Kage, PvP, renegados, Akatsuki (v11, opcional)
   log: publicApp.log,
 });
 const internalApp = buildInternalApp({ db, requireServiceToken: makeRequireServiceToken(config.SERVICE_TOKEN) }, settings);
@@ -125,6 +127,10 @@ try {
   // Migração v10 (proteção contra azar na Extração): opcional, sem ela a Extração usa a chance de sempre.
   const v10 = await db.query<{ ok: boolean }>(NINJA_SQL.bootCheckV10);
   if (!v10.rows[0]?.ok) publicApp.log.warn('[boot] Extração sem a proteção contra azar: rode db/schema_v10_design.sql no SQL Editor do Neon (não precisa reiniciar).');
+  // Migração v11 (fim de jogo): opcional; sem ela vilas, PvP, renegados e Akatsuki ficam desligados. O servidor confere
+  // de novo a cada minuto: aplicar no Neon não precisa reiniciar.
+  const v11 = await db.query<{ ok: boolean }>(ENDGAME_SQL.available);
+  if (!v11.rows[0]?.ok) publicApp.log.warn('[boot] Fim de jogo desligado: rode db/schema_v11_endgame.sql no SQL Editor do Neon (não precisa reiniciar).');
   // Migração v4 (NPC Mestre): sem ela o jogo sobe igual, só o Mestre não passa missões.
   const v4 = await db.query(MISSIONS_SQL.bootCheck, [NPC_SENSEI_ID, NPC_MISSION.missionType, NPC_MISSION.difficulty]);
   if (v4.rows.length === 0) publicApp.log.warn('[boot] NPC Mestre sem missões: rode db/schema_v4_npc_missions.sql no SQL Editor do Neon (não precisa reiniciar).');
