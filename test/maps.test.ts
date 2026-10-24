@@ -312,14 +312,15 @@ describe('mapas: desenho no cliente (world.js)', async () => {
     assert.equal(W.groundAt(fromVila, 40, 83), 'path');
   });
 
-  it('chão da Vila: pedra clara nas ruas e praça, gramados, rio com pontes, areia no campo de treino', () => {
+  it('chão da Vila: pedra clara nas ruas e praça, gramados, rio com pontes, areia no campo de treino e a arena de terra batida', () => {
     const v = W.placements(maps, 'map_1');
     assert.equal(W.groundAt(v, 40, 66), 'stone', 'praça');
     assert.equal(W.groundAt(v, 25, 33), 'stone', 'rua principal');
     assert.equal(W.groundAt(v, 14, 18), 'grass', 'gramado do hospital');
     assert.equal(W.groundAt(v, 7, 50), 'water', 'rio');
     assert.equal(W.groundAt(v, 7, 43), 'bridge', 'ponte');
-    assert.equal(W.groundAt(v, 65, 60), 'sand', 'campo de treino');
+    assert.equal(W.groundAt(v, 57, 70), 'sand', 'campo de treino');
+    assert.equal(W.groundAt(v, 65, 60), 'arena', 'arena no meio do campo de treino');
     assert.equal(W.groundAt(v, -3, 10), 'void');
     assert.equal(W.groundAt(W.placements(maps, 'map_2'), 60, 30), 'darkgrass', 'Floresta: grama escura');
     assert.equal(W.groundAt(W.placements(maps, 'interior_weapons'), 7, 9), 'wood', 'loja: assoalho');

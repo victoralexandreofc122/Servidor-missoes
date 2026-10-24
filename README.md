@@ -1,5 +1,7 @@
 # servidor-missoes
 
+Servidor e cliente web do **Vontade do Fogo**, um MMORPG ninja 2D em pixel art para o celular.
+
 API do ciclo de missões de sensei (Fastify + TypeScript + `pg`, SQL puro).
 O banco (`db/schema_ranks_missoes_sensei.sql`, v2) valida as regras de negócio;
 o servidor valida **quem está chamando** e traduz os erros para português.
@@ -22,6 +24,7 @@ psql "$DATABASE_URL" -f db/schema_v6_aparencia.sql      # migração v6: visual 
 psql "$DATABASE_URL" -f db/schema_v7_progressao.sql     # migração v7: níveis 60, classes, Academia, loja
 psql "$DATABASE_URL" -f db/schema_v8_admin_chat.sql     # migração v8: admin, chat, atributo Chakra, Sala de Missões
 psql "$DATABASE_URL" -f db/schema_v9_visual_sprites.sql # migração v9: personagem em sprites (gênero, cabelo, olhos, roupa, vila)
+psql "$DATABASE_URL" -f db/schema_v10_design.sql        # migração v10: proteção contra azar na Extração (opcional)
 # opcional, só para testes: deixa a conta "Victor" como Hokage e administradora
 psql "$DATABASE_URL" -f db/promote_victor.sql
 npm run dev
@@ -150,7 +153,7 @@ Cada golpe tem uma **hitbox geométrica** (`src/realtime/combat.ts`: `isInArc`, 
 
 | Habilidade | Chakra | Recarga | Hitbox | Efeito |
 |---|---|---|---|---|
-| Ataque Básico | 0 | 0,6 s | arco de 90° e 1,6 casa na direção do alvo | 12 de dano + a arma equipada, em todos no arco |
+| Ataque Básico | 0 | 0,6 s (x a arma) | arco na direção do alvo: 90° e 1,6 casa sem arma (cada arma tem o seu, veja a v15) | 12 de dano + a arma equipada, em todos no arco |
 | Ataque Básico com a Shuriken Gigante | 0 | 3 s (5x) | arremesso: projétil de 6 casas (9 casas/s) que atravessa todos, linha de 0,8 casa | (12 + 22) x 2,5 = 85 em cada um |
 | Fogo (`fire`) | 20 | 1,5 s | projétil reto (5 casas, 12 casas/s) + círculo de 2 casas onde ele bate | 25 de dano na explosão |
 | Água (`water`) | 15 | 1 s | cone de 90° e 4 casas, para onde o jogador olha (ou no alvo focado) | 20 de dano |
@@ -167,14 +170,14 @@ Cada golpe tem uma **hitbox geométrica** (`src/realtime/combat.ts`: `isInArc`, 
   para onde o jogador olha e o Fogo sem ninguém por perto sai reto para a frente.
 - **Paredes:** linhas e projéteis param na parede (árvore, casa). Uma parede entre o jogador e o alvo dá
   `BLOCKED` sem gastar chakra. O avanço do Taijutsu também para antes de vão no chão.
-- **PvP (preparado, desligado):** com `combat.pvp: true` em `src/realtime/config.ts`, as mesmas hitboxes
-  acertam outros jogadores (fora da zona segura e fora da Academia). Atordoado não anda nem ataca
-  (`STUNNED`); preso não anda. Desligado, todo jogador é aliado e a Cura pega quem estiver perto.
+- **PvP:** só na **arena de cada vila** (v15), entre os ninjas dela. O PvP aberto (`combat.pvp`, para a fronteira
+  do Arco 2) continua desligado e nunca vale em mapa de vila. Atordoado não anda nem ataca (`STUNNED`); preso não
+  anda. Fora da arena, todo jogador é aliado e a Cura pega quem estiver perto.
 
 - **Jogador:** 100 de vida (regenera 1/s) e 100 de chakra (regenera 5/s). Sem alvo, com vida cheia ou com
   escudo ativo, a habilidade falha sem gastar chakra.
-- **Monstros:** 10 sempre vivos na Floresta (`slime`, 60 de vida), fora das árvores e da clareira de
-  entrada; a Vila é área segura. Andam 1 casa por ~1 s e batem 10 em quem estiver a até 1,2 casa, a cada 2 s.
+- **Monstros:** 10 vivos na Floresta (`slime`, 60 de vida), mais 3 por jogador lá (até 40), fora das árvores e da
+  clareira de entrada; a Vila é área segura. Andam 1 casa por ~1 s e batem 10 em quem estiver a até 1,2 casa, a cada 2 s.
   Num mapa sem ninguém, os monstros esperam (nada a calcular nem a enviar).
 - **Derrota:** com vida 0, o jogador não anda nem usa habilidade. Depois de 5 s pode pedir `respawn` e
   volta à avenida da Vila, em frente à sede, com vida e chakra cheios (de qualquer mapa). Reconectar não cura.
@@ -193,7 +196,7 @@ Cada golpe tem uma **hitbox geométrica** (`src/realtime/combat.ts`: `isInArc`, 
   `projectile` com `weapon`.
 - **Meditação** (`{"type":"meditate","active":true}`): parado, chakra 3x mais rápido (15/s). Tentar andar,
   tentar usar habilidade ou apanhar de monstro encerra na hora (`meditation` com `reason`). Morto não medita.
-- **XP:** cada monstro dá 20 de XP para quem deu o último golpe. O XP é gravado em `game.players.total_xp`
+- **XP:** cada monstro dá 20 de XP para quem deu o último golpe e para quem tirou pelo menos 20% da vida dele (v15). O XP é gravado em `game.players.total_xp`
   num SQL atômico (`src/realtime/progression.ts`). Aos 100 XP, Academia sobe para Genin no banco, com
   histórico em `player_rank_changes` e aviso para todos.
 
@@ -207,6 +210,36 @@ Regras (em `src/realtime/config.ts`):
 - **Mesma conta:** conectando de novo, derruba a conexão antiga (4000).
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
+
+### v15: design geral, nome Vontade do Fogo e arena da vila (migração opcional `db/schema_v10_design.sql`)
+
+Primeira leva do [design geral](docs/design-do-jogo.md). O jogo passou a se chamar **Vontade do Fogo**.
+
+- **Arena da Vila** (`VILLAGE_ARENA` em `maps.ts`): o campo de treino virou uma arena de terra batida com cerca de
+  madeira, entradas ao norte e a oeste, dois pilares de pedra (cobertura: param linhas e projéteis), estandartes e
+  bancos. Dentro da cerca, os ninjas **da vila dona da arena** lutam entre si (`canHurt`); quem é de outra vila só
+  assiste. Fora da arena, a Vila nunca tem PvP, nem com `pvp: true`.
+  - Perder é treino: sem custo, renasce em 3 s na entrada oeste (`combat.arena.respawnMs`), com vida e chakra cheios.
+  - Quem renasce (em qualquer lugar) fica 5 s sem apanhar de jogador (`combat.arena.protectMs`).
+  - Placar em memória: `arena_result {winnerId, winner, loserId, loser, winnerRecord, loserRecord}` para todos no
+    mapa; o cliente mostra no chat e o placar de quem lutou no topo.
+  - Cliente: o topo mostra "⚔️ arena"; o 🎯 foca os ninjas da vila; nomes e barras deles em vermelho; a derrota avisa
+    que se volta na entrada da arena. `player_died` traz `arena: true`.
+- **XP por participação:** o último golpe e todo jogador que tirou pelo menos 20% da vida do monstro (`combat.participation`)
+  ganham XP, ryō (cada um o seu), chance de pergaminho e o abate da missão.
+- **Monstros por jogador:** `10 + 3 x jogadores no mapa`, até 40 (`monsters.perPlayer`, `maxCount`). Falta: nasce 1 por
+  segundo. Sobra: some 1 por segundo, só com a vida cheia e longe de todos (`monster_gone`). `count: 0` desliga.
+- **Teto de controle em jogadores** (`combat.controlDr`): atordoar ou prender o mesmo jogador de novo em 8 s dura a
+  metade, depois um quarto, e na 4ª não pega. Monstros não têm teto.
+- **Jeito de lutar de cada arma** (`ItemDef.swing`): Kunai (e a de Treino) recarga 0,85x, arco de 70°, 1,5 casa;
+  Espada Curta 0,9x, 90°, 1,6; Espada Longa 1,15x, 140°, 2 casas. O `attack` traz `r` e `arc` (o corte é desenhado
+  desse tamanho).
+- **Vilas travadas no Criador** (`OPEN_VILLAGES`): só a Vila 1 até o Arco 2; as outras aparecem com cadeado e o
+  servidor recusa (`VILLAGE_LOCKED`). Quem já tinha outra continua com ela.
+- **Proteção contra azar na Extração** (migração v10): cada falha seguida na mesma classe e no mesmo tier soma +10
+  pontos na chance (`game.player_extraction_pity`, `game.extraction_failures`). A Casa dos Pergaminhos mostra a
+  chance de verdade (`extract_odds`). **A v10 é opcional:** sem ela o servidor sobe, avisa no log e a Extração usa a
+  chance de sempre.
 
 ### v13: personagem em sprites (migração `db/schema_v9_visual_sprites.sql`)
 

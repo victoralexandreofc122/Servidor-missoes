@@ -30,6 +30,20 @@ export interface ItemDef {
   twoHanded?: boolean;
   /** Arma de ARREMESSO: troca o Ataque Básico por um lançamento dela (veja ThrowStats). */
   throw?: ThrowStats;
+  /** Jeito do golpe com esta arma (sem isto: o Ataque Básico de config.ts, arco de 90° e 1,6 casa). */
+  swing?: SwingStats;
+}
+
+/**
+ * Golpe com a arma (design 7.5): cada arma muda o JEITO de lutar, não só o dano. A kunai é rápida e estreita;
+ * a espada curta, equilibrada; a espada longa, lenta, larga e com mais alcance.
+ */
+export interface SwingStats {
+  /** Recarga = a do Ataque Básico (com a Agilidade) x este fator. */
+  cooldownFactor: number;
+  /** Abertura do arco (graus) e alcance (casas). */
+  arcDeg: number;
+  range: number;
 }
 
 /**
@@ -49,14 +63,26 @@ export interface ThrowStats {
 }
 
 export const ITEMS: readonly ItemDef[] = [
-  { code: 'kunai_training', name: 'Kunai de Treino', kind: 'weapon', icon: '🗡️', damage: 10, price: null, shop: null, hold: 'hand' },
-  { code: 'kunai', name: 'Kunai', kind: 'weapon', icon: '🔪', damage: 14, price: 300, shop: 'weapons', hold: 'hand' },
-  { code: 'tanto', name: 'Espada Curta', kind: 'weapon', icon: '🗡', damage: 18, price: 600, shop: 'weapons', hold: 'hand' },
+  {
+    code: 'kunai_training', name: 'Kunai de Treino', kind: 'weapon', icon: '🗡️', damage: 10, price: null, shop: null, hold: 'hand',
+    swing: { cooldownFactor: 0.85, arcDeg: 70, range: 1.5 },
+  },
+  {
+    code: 'kunai', name: 'Kunai', kind: 'weapon', icon: '🔪', damage: 14, price: 300, shop: 'weapons', hold: 'hand',
+    swing: { cooldownFactor: 0.85, arcDeg: 70, range: 1.5 },
+  },
+  {
+    code: 'tanto', name: 'Espada Curta', kind: 'weapon', icon: '🗡', damage: 18, price: 600, shop: 'weapons', hold: 'hand',
+    swing: { cooldownFactor: 0.9, arcDeg: 90, range: 1.6 },
+  },
   {
     code: 'fuma_shuriken', name: 'Shuriken Gigante', kind: 'weapon', icon: '✴️', damage: 22, price: 1200, shop: 'weapons', hold: 'back', twoHanded: true,
     throw: { range: 6, speed: 9, hitRadius: 0.8, cooldownFactor: 5, damageFactor: 2.5 },
   },
-  { code: 'katana', name: 'Espada Longa', kind: 'weapon', icon: '⚔️', damage: 28, price: 2000, shop: 'weapons', hold: 'back', twoHanded: true },
+  {
+    code: 'katana', name: 'Espada Longa', kind: 'weapon', icon: '⚔️', damage: 28, price: 2000, shop: 'weapons', hold: 'back', twoHanded: true,
+    swing: { cooldownFactor: 1.15, arcDeg: 140, range: 2 },
+  },
   ...CLASSES.map((c): ItemDef => ({
     code: `scroll_${c}`, name: `Pergaminho de ${CLASS_INFO[c].name}`, kind: 'scroll', icon: '📜', class: c, price: 150, shop: 'scrolls', hold: 'back',
   })),

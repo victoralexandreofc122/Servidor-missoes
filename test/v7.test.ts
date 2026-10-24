@@ -379,8 +379,9 @@ describe('v7: Armas, loja, Extração e classe (servidor)', () => {
     Object.assign(s, { x: npc.x, y: npc.y + 3 });
     p.send({ type: 'extract', class: 'fire', level: 1, roll: 0, success: true });   // "roll" do cliente: ignorado
     await flush(); await flush();
-    assert.deepEqual(fake.calls.at(-1), ['extract', p.id, 'fire', 1, 0.95, 0.1]);
+    assert.deepEqual(fake.calls.filter((c) => c[0] === 'extract').at(-1), ['extract', p.id, 'fire', 1, 0.95, 0.1]);
     assert.equal(p.conn.last('extract_result').outcome, 'failed', '0,95 >= 80%: falhou e gastou o pergaminho');
+    assert.deepEqual(p.conn.last('extract_odds').failures, { fire: { 1: 1 } }, 'v10: a próxima tem +10 pontos (proteção contra azar)');
     await new Promise((r) => setTimeout(r, 300));
     p.send({ type: 'extract', class: 'fire', level: 1 });
     await new Promise((r) => setTimeout(r, 300));

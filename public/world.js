@@ -58,6 +58,21 @@ export function inSafeZone(map, x, y) {
   return !!map && (map.safeZones || []).some((z) => x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h);
 }
 
+/** A arena (área de luta, dentro da cerca) em que o ponto está, ou null. A mesma regra do servidor (maps.ts). */
+export function arenaAt(map, x, y) {
+  return (map && (map.arenas || []).find((a) => x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h)) || null;
+}
+
+/**
+ * Dois ninjas do mapa podem lutar? Só dentro da MESMA arena e os dois da vila dona dela (`look.village`).
+ * Fora das arenas, nunca. O servidor confere de novo (inclusive os 5 s de quem acabou de renascer).
+ */
+export function arenaFoes(map, a, b) {
+  if (!a || !b || a === b || a.dead || b.dead) return false;
+  const arena = arenaAt(map, a.x, a.y);
+  return !!arena && arena === arenaAt(map, b.x, b.y) && a.look?.village === arena.village && b.look?.village === arena.village;
+}
+
 /** Paredes de todos os mapas visíveis, já deslocadas para coordenadas do mapa atual. */
 export function visibleWalls(places) {
   const out = [];

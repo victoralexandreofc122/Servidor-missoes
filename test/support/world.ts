@@ -26,9 +26,12 @@ export class FakeConn implements Connection {
   }
 }
 
-/** Config com N monstros (0 = mundo sem monstros, para testes de movimento e chat). */
+/**
+ * Config com N monstros em cada mapa de caça (0 = mundo sem monstros, para testes de movimento e chat), sem a
+ * densidade por jogador: o número não muda com quem entra.
+ */
 export function withMonsters(count: number, base: RealtimeConfig = REALTIME): RealtimeConfig {
-  return { ...base, combat: { ...base.combat, monsters: { ...base.combat.monsters, count } } };
+  return { ...base, combat: { ...base.combat, monsters: { ...base.combat.monsters, count, perPlayer: 0 } } };
 }
 
 /** Sorteio previsível (LCG) para os testes. */

@@ -16,17 +16,17 @@ import { CHAT_HISTORY, memoryChatLog, type ChatLog, type ChatRecord } from './ch
 import type { Profile } from './profile.js';
 import type { Classes, Inventory, NinjaStore } from './ninjaStore.js';
 import {
-  ACADEMY_JUTSUS, CLASSES, CLASS_INFO, EXTRACTION, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
+  ACADEMY_JUTSUS, CLASSES, CLASS_INFO, EXTRACTION, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
   jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
-import { DEFAULT_APPEARANCE } from './appearance.js';
+import { DEFAULT_APPEARANCE, OPEN_VILLAGES, villageAllowed } from './appearance.js';
 import {
   damageMultiplier, derivedStats, levelProgress, MAX_LEVEL, NO_ATTRIBUTES, nextPointGains, scaledDamage,
   type Attribute, type Attributes, type DerivedStats,
 } from './stats.js';
 import { blocked, moveStep, q3 } from './movement.js';
-import { ACADEMY, academySpawn, crossedGap, inSafeZone, type MapId, type MapLayout } from './maps.js';
+import { ACADEMY, academySpawn, arenaAt, crossedGap, inSafeZone, type Arena, type MapId, type MapLayout } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
 
 /*
@@ -58,6 +58,10 @@ import { TokenBucket } from './tokenBucket.js';
  * "/w" sussurro) e histórico de 24 h, Sala de Missões com cartões, redefinição de atributos,
  * equipamento visível no boneco e o tutorial linear da Academia (o servidor leva o jogador de
  * uma etapa para a outra e, no fim, para a Praça da Vila).
+ *
+ * v15 (design geral): arena de PvP em cada vila (só entre os ninjas dela; fora da arena a Vila nunca tem
+ * PvP), XP do monstro para todos que participaram (20% da vida), monstros a mais quando há mais gente no
+ * mapa, teto de atordoar/prender em jogadores e o jeito de lutar de cada arma.
  */
 
 /** O que o mundo precisa de uma conexão. O WebSocket do `ws` satisfaz isto. */
@@ -186,8 +190,15 @@ interface Session {
   /** PvP: atordoado (não anda nem ataca) e preso (não anda) até estes instantes. */
   stunnedUntil: number;
   rootedUntil: number;
+  /** Teto de controle (config.controlDr): quantas vezes já foi atordoado/preso na janela, e até quando ela vale. */
+  controlDr: Record<MonsterStatus, { n: number; until: number }>;
+  /** Acabou de renascer: nenhum jogador o machuca até este instante. */
+  protectedUntil: number;
   dead: boolean;
   deadAt: number;
+  /** Quanto espera para renascer desta morte (na arena é mais curto) e onde ela aconteceu (arena: renasce na entrada). */
+  respawnMs: number;
+  diedIn: Arena | undefined;
   /** Meditando: parado, sem habilidades, chakra 3x mais rápido. Mover, atacar ou apanhar cancela. */
   meditating: boolean;
   /** Botão 🏃: corre (8) em vez de andar (5). */
@@ -276,6 +287,8 @@ interface Monster {
   nextAttackAt: number;
   stunnedUntil: number;
   rootedUntil: number;
+  /** Dano de cada jogador neste monstro: quem passou de `participation` da vida ganha o abate junto. */
+  readonly damageBy: Map<string, number>;
   /** Boneco fixo do mapa: renasce neste ponto. */
   readonly home?: Point;
   /** Invocado por /admin spawn: não dá XP, ryō, drop, missão nem tutorial, e não renasce. */
@@ -338,6 +351,9 @@ export interface SessionHandle {
 const silent: WorldLogger = { info() {}, warn() {} };
 const DEFAULT_RANK: RankView = { code: 'ACADEMY', name: 'Academia' };
 
+/** Até onde um jogador vê (casas): a densidade só tira monstro que ninguém está vendo. */
+const VIEW_RADIUS = 16;
+
 /** Posição na rede com 2 casas decimais: mensagens curtas. */
 const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Posição de JOGADOR com 3 casas: a mesma precisão da função de movimento (o cliente refaz a conta igual). */
@@ -368,6 +384,10 @@ export class GameWorld {
   /** Projéteis no ar (Fogo, Kunais), na ordem em que saíram. */
   private readonly projectiles: Projectile[] = [];
   private projectileSeq = 0;
+  /** Placar da arena (vitórias e derrotas desde que o servidor subiu; não vai para o banco). */
+  private readonly arenaRecord = new Map<string, { wins: number; losses: number }>();
+  /** Densidade: quando cada mapa de caça pode ganhar ou perder o próximo monstro. */
+  private readonly densityAt = new Map<MapId, number>();
 
   constructor(
     private readonly config: RealtimeConfig = REALTIME,
@@ -527,6 +547,8 @@ export class GameWorld {
       classes: CLASSES.map((code) => ({ code, ...CLASS_INFO[code] })),
       items: ITEMS.map((i) => ({ ...i })),
       extraction: EXTRACTION.map((e) => ({ ...e })),
+      extractionPityStep: EXTRACTION_PITY_STEP,
+      openVillages: [...OPEN_VILLAGES],
       jutsuLevelUses: [...JUTSU_LEVEL_USES],
       maxLevel: MAX_LEVEL,
     };
@@ -583,6 +605,10 @@ export class GameWorld {
       meditating: false,
       running: previous?.running ?? false,
       deadAt: previous?.deadAt ?? 0,
+      respawnMs: previous?.respawnMs ?? this.config.combat.player.respawnMs,
+      diedIn: previous?.diedIn,
+      controlDr: { stunned: { n: 0, until: 0 }, rooted: { n: 0, until: 0 } },
+      protectedUntil: previous?.protectedUntil ?? 0,
       cooldowns: { ...(previous?.cooldowns ?? {}) },
       xp: player.xp ?? previous?.xp ?? 0,
       rank: player.rank ?? previous?.rank ?? DEFAULT_RANK,
@@ -1265,19 +1291,36 @@ export class GameWorld {
 
   // ---------------------------------------------------------------- hitboxes: alvos, projéteis, efeitos
 
-  /** PvP: `attacker` pode machucar `victim`? Só com o PvP ligado, os dois vivos, fora da zona segura e já fora da Academia. */
-  private canHurt(attacker: Session, victim: Session): boolean {
-    return this.config.combat.pvp && attacker !== victim && !victim.dead && !victim.closed && victim.map === attacker.map
-      && attacker.tutorial >= 4 && victim.tutorial >= 4 && !this.inSafeZone(attacker) && !this.inSafeZone(victim);
+  /**
+   * PvP: `attacker` pode machucar `victim`? Os dois vivos, no mesmo mapa, já fora da Academia, fora da zona
+   * segura, e quem apanha não acabou de renascer. Então:
+   *  - na ARENA: os dois dentro da mesma arena e os dois da vila dona dela (treino entre os ninjas da vila);
+   *  - fora dela: só com o PvP aberto ligado, e nunca num mapa de vila (nem com alguém dentro de uma arena).
+   */
+  private canHurt(attacker: Session, victim: Session, t: number = this.now()): boolean {
+    if (attacker === victim || victim.dead || victim.closed || victim.map !== attacker.map) return false;
+    if (attacker.tutorial < 4 || victim.tutorial < 4 || t < victim.protectedUntil) return false;
+    if (this.inSafeZone(attacker) || this.inSafeZone(victim)) return false;
+    const layout = this.layout(attacker.map);
+    const arena = arenaAt(layout, attacker.x, attacker.y);
+    const victimArena = arenaAt(layout, victim.x, victim.y);
+    if (arena || victimArena) {
+      return arena === victimArena && attacker.appearance?.village === arena!.village && victim.appearance?.village === arena!.village;
+    }
+    return this.config.combat.pvp && !layout.village;
   }
 
-  /** O que as hitboxes de `s` podem acertar agora: os monstros vivos do mapa e, com o PvP ligado, os outros jogadores. */
+  /** A arena (dentro da cerca) em que o jogador está agora. */
+  private arenaOf(s: Session): Arena | undefined {
+    return arenaAt(this.layout(s.map), s.x, s.y);
+  }
+
+  /** O que as hitboxes de `s` podem acertar agora: os monstros vivos do mapa e os jogadores que ele pode machucar (arena, PvP aberto). */
   private targetsFor(s: Session): Target[] {
     const out: Target[] = [];
+    const t = this.now();
     for (const m of this.monsters.values()) if (m.hp > 0 && m.map === s.map) out.push({ kind: 'monster', id: m.id, x: m.x, y: m.y, monster: m });
-    if (this.config.combat.pvp) {
-      for (const o of this.mapPlayers.get(s.map) ?? []) if (this.canHurt(s, o)) out.push({ kind: 'player', id: o.id, x: o.x, y: o.y, session: o });
-    }
+    for (const o of this.mapPlayers.get(s.map) ?? []) if (this.canHurt(s, o, t)) out.push({ kind: 'player', id: o.id, x: o.x, y: o.y, session: o });
     return out;
   }
 
@@ -1285,14 +1328,27 @@ export class GameWorld {
   private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill'): void {
     if (target.kind === 'monster') {
       if (target.monster.hp > 0 && this.monsters.has(target.id)) this.damageMonster(target.monster, amount, attacker, t, source);
-    } else if (this.canHurt(attacker, target.session)) {
-      this.damagePlayer(target.session, amount, t, attacker);
+    } else if (this.canHurt(attacker, target.session, t)) {
+      this.damagePlayer(target.session, amount, t, attacker, attacker);
     }
   }
 
-  /** Atordoar ou prender um alvo (todos veem). */
+  /**
+   * Atordoar ou prender um alvo (todos veem). Em JOGADOR vale o teto de controle: de novo dentro da janela,
+   * dura a metade, depois um quarto, e depois nada (imune até a janela passar).
+   */
   private applyStatus(target: Target, status: MonsterStatus, ms: number, t: number): void {
     const who = target.kind === 'monster' ? target.monster : target.session;
+    if (target.kind === 'player') {
+      const { windowMs, factors } = this.config.combat.controlDr;
+      const dr = target.session.controlDr[status];
+      if (t >= dr.until) dr.n = 0;
+      const factor = factors[Math.min(dr.n, factors.length - 1)] ?? 0;
+      dr.n += 1;
+      dr.until = t + windowMs;
+      ms = Math.round(ms * factor);
+      if (ms <= 0) return;
+    }
     if (status === 'stunned') who.stunnedUntil = Math.max(who.stunnedUntil, t + ms);
     else who.rootedUntil = Math.max(who.rootedUntil, t + ms);
     if (target.kind === 'monster') this.broadcastMap(target.monster.map, { type: 'monster_status', id: target.id, status, ms });
@@ -1462,19 +1518,21 @@ export class GameWorld {
     if (this.inSafeZone(session)) return fail('SAFE_ZONE');
     if ((session.cooldowns.attack ?? 0) > t) return fail('COOLDOWN');
     // Arma de arremesso (Shuriken Gigante): o golpe vira um lançamento dela, com o alcance dela.
+    // As outras mudam o JEITO do golpe (items.ts, `swing`): a kunai é rápida e estreita, a espada longa lenta e larga.
     const weapon = session.equipped ? ITEM_BY_CODE.get(session.equipped) : undefined;
     const thrown = weapon?.throw;
-    const range = thrown ? thrown.range : cfg.range;
+    const swing = weapon?.swing ?? { cooldownFactor: 1, arcDeg: cfg.arcDeg, range: cfg.range };
+    const range = thrown ? thrown.range : swing.range;
     const targets = this.targetsFor(session);
     const focused = targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined;
     const aim = focused && distance(session, focused) <= range ? focused : nearest(session, targets, range);
     if (!aim) return fail(focused ? 'OUT_OF_RANGE' : 'NO_TARGET');
     this.faceTo(session, aim);
-    const cd = Math.round(session.stats.attackCooldownMs * (thrown ? thrown.cooldownFactor : 1));   // Agilidade deixa mais rápido
+    const cd = Math.round(session.stats.attackCooldownMs * (thrown ? thrown.cooldownFactor : swing.cooldownFactor));   // Agilidade deixa mais rápido
     session.cooldowns.attack = t + cd;
     this.broadcastMap(session.map, {
       type: 'attack', playerId: session.id, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy), cd,
-      ...(thrown ? { throw: weapon!.code } : {}),
+      ...(thrown ? { throw: weapon!.code } : { r: swing.range, arc: swing.arcDeg }),
     });
     // FÍSICO: base x Taijutsu + a arma equipada x Armas (Kunai de Treino: +10).
     const damage = scaledDamage(cfg.damage, session.stats.physicalMultiplier) + scaledDamage(this.weaponDamage(session), session.stats.weaponMultiplier);
@@ -1485,7 +1543,7 @@ export class GameWorld {
       });
       return;
     }
-    const hits = targets.filter((x) => isInArc(session, session.fx, session.fy, x, cfg.range, cfg.arcDeg));
+    const hits = targets.filter((x) => isInArc(session, session.fx, session.fy, x, swing.range, swing.arcDeg));
     for (const x of hits) this.hitTarget(x, damage, session, t, 'attack');
     // Etapa 4 (Sala de Armas): acertar o boneco com o Ataque Básico E a arma equipada conclui a Academia.
     if (session.tutorial === 3 && session.map === 'academy_interior' && hits.some((x) => x.kind === 'monster' && x.monster.type === 'dummy')) {
@@ -1526,6 +1584,8 @@ export class GameWorld {
    */
   private setAppearance(session: Session, appearance: Appearance): void {
     const { id } = session;
+    // Só as vilas abertas (ou a que o jogador já tinha): as outras abrem com o Arco 2.
+    if (!villageAllowed(appearance.village, session.appearance?.village)) return this.sendError(session, 'VILLAGE_LOCKED');
     this.profileTask(session, (profile) => profile.saveAppearance(id, appearance).then(() => {
       const current = this.sessions.get(id);
       if (!current) return;
@@ -1636,14 +1696,17 @@ export class GameWorld {
   }
 
   private damageMonster(m: Monster, amount: number, attacker: Session, t: number, source: 'attack' | 'skill'): void {
+    m.damageBy.set(attacker.id, (m.damageBy.get(attacker.id) ?? 0) + Math.min(amount, m.hp));   // só o que tirou de verdade
     m.hp = Math.max(0, m.hp - amount);
     this.broadcastMap(m.map, { type: 'hit', target: 'monster', id: m.id, amount, kind: 'damage', hp: m.hp, maxHp: m.maxHp });
     if (m.hp === 0) this.killMonster(m, attacker, t, source);
   }
 
   /**
-   * Último golpe ganha o XP e o ryō (sorteados aqui). Monstro de caça: um novo nasce na hora no
-   * mesmo mapa. Boneco fixo (Academia): renasce no mesmo lugar depois de um tempo.
+   * XP, ryō, chance de pergaminho e o abate da missão para quem PARTICIPOU: o último golpe e todo jogador
+   * (ainda online, no mesmo mapa) que tirou pelo menos `participation` da vida dele. Cada um sorteia o seu
+   * ryō. Monstro de caça: um novo nasce na hora se o mapa estiver abaixo do alvo de densidade. Boneco fixo
+   * (Academia): renasce no mesmo lugar depois de um tempo.
    */
   private killMonster(m: Monster, killer: Session, t: number, source: 'attack' | 'skill'): void {
     this.monsters.delete(m.id);
@@ -1653,7 +1716,7 @@ export class GameWorld {
       this.respawns.push({ type: m.type, map: m.map, home: m.home, at: t + type.respawnMs });
     } else if (!m.admin) {
       const layout = this.layout(m.map);
-      if (!layout.safe && layout.hunt && this.monstersIn(m.map).length < this.config.combat.monsters.count) this.spawnMonster(undefined, t, m.map);
+      if (!layout.safe && layout.hunt && this.huntCount(m.map) < this.densityTarget(m.map)) this.spawnMonster(undefined, t, m.map);
     }
     // Invocado pelo admin: nada de XP, ryō, drop, missão nem tutorial (e não renasce).
     if (m.admin) return;
@@ -1663,10 +1726,65 @@ export class GameWorld {
       this.tutorialProgress(killer);
     }
     if (type.xp <= 0) return;                                    // boneco de treino: sem XP, sem ryō
-    const ryo = KILL_RYO.min + Math.floor(this.random() * (KILL_RYO.max - KILL_RYO.min + 1));
-    this.awardXp(killer, type.xp, ryo);
-    this.trackKill(killer, m.type);
-    this.maybeDropScroll(killer);
+    for (const who of this.participants(m, killer)) {
+      const ryo = KILL_RYO.min + Math.floor(this.random() * (KILL_RYO.max - KILL_RYO.min + 1));
+      this.awardXp(who, type.xp, ryo);
+      this.trackKill(who, m.type);
+      this.maybeDropScroll(who);
+    }
+  }
+
+  /** Quem ganha o abate: o último golpe primeiro, depois quem tirou `participation` da vida (online, no mapa). */
+  private participants(m: Monster, killer: Session): Session[] {
+    const min = m.maxHp * this.config.combat.participation;
+    const out = [killer];
+    for (const [id, dmg] of m.damageBy) {
+      const s = this.sessions.get(id);
+      if (s && s !== killer && !s.closed && s.map === m.map && dmg >= min - 1e-9) out.push(s);
+    }
+    return out;
+  }
+
+  /** Monstros de caça de um mapa (sem os bonecos fixos e os do admin). */
+  private huntCount(map: MapId): number {
+    let n = 0;
+    for (const m of this.monsters.values()) if (m.map === map && !m.home && !m.admin) n += 1;
+    return n;
+  }
+
+  /** Quantos monstros o mapa de caça deve ter agora: a base + `perPlayer` por jogador lá, até o teto. Base 0 = sem caça (testes). */
+  private densityTarget(map: MapId): number {
+    const cfg = this.config.combat.monsters;
+    if (cfg.count <= 0) return 0;
+    const players = this.mapPlayers.get(map)?.size ?? 0;
+    return Math.min(Math.max(cfg.count, cfg.maxCount ?? cfg.count), cfg.count + (cfg.perPlayer ?? 0) * players);
+  }
+
+  /**
+   * Densidade, 1 passo a cada `spawnEveryMs` por mapa de caça: faltando monstro, nasce um (longe de todos);
+   * sobrando (gente saiu), some um que esteja com a vida cheia e longe de todos (ninguém vê sumir).
+   */
+  private adjustDensity(t: number): void {
+    const cfg = this.config.combat.monsters;
+    for (const layout of this.huntingMaps()) {
+      if ((this.densityAt.get(layout.id) ?? 0) > t) continue;
+      const want = this.densityTarget(layout.id);
+      const have = this.huntCount(layout.id);
+      if (have === want) continue;
+      this.densityAt.set(layout.id, t + (cfg.spawnEveryMs ?? 1000));
+      if (have < want) {
+        this.spawnMonster(undefined, t, layout.id);
+        continue;
+      }
+      const players = [...(this.mapPlayers.get(layout.id) ?? [])];
+      for (const m of this.monsters.values()) {
+        if (m.map !== layout.id || m.home || m.admin || m.hp < m.maxHp) continue;
+        if (players.some((p) => distance(p, m) < VIEW_RADIUS)) continue;
+        this.monsters.delete(m.id);
+        this.broadcastMap(m.map, { type: 'monster_gone', id: m.id });
+        break;
+      }
+    }
   }
 
   /** Genin ou acima: às vezes o monstro deixa 1 pergaminho de uma classe do jogador. */
@@ -1861,8 +1979,16 @@ export class GameWorld {
         consumed: result.consumed, scrollsLeft: result.scrollsLeft,
       });
       this.sendInventory(current);
-      return undefined;
+      return this.sendExtractOdds(current, store);
     }));
+  }
+
+  /** Falhas seguidas na Extração (proteção contra azar): a Casa dos Pergaminhos mostra a chance de verdade. */
+  private async sendExtractOdds(s: Session, store: NinjaStore): Promise<void> {
+    const { id } = s;
+    const failures = await store.extractionFailures(id);
+    const current = this.sessions.get(id);
+    if (current) this.sendTo(current, { type: 'extract_odds', failures });
   }
 
   /** Compra: perto do lojista que VENDE o item. Preço e saldo: o banco. */
@@ -1972,6 +2098,7 @@ export class GameWorld {
       // Lojista: abre a loja. Mesmo ritmo dos pedidos de missão (toque repetido não vira enxurrada).
       if (t - session.lastMissionAt < this.config.missionRequestEveryMs) return;
       session.lastMissionAt = t;
+      if (npc.shop === 'scrolls' && this.store) this.storeTask(session, (store) => this.sendExtractOdds(session, store));
       return this.sendTo(session, { type: 'shop_open', shop: npc.shop, npcId: npc.id });
     }
     if (npc.id === 'director' || npc.id.startsWith('tutor_')) {
@@ -2269,7 +2396,8 @@ export class GameWorld {
     }
   }
 
-  private damagePlayer(session: Session, amount: number, t: number, attacker?: Point): void {
+  /** Dano num jogador. `by` = outro jogador (arena, PvP aberto): na arena, quem derruba vence a luta. */
+  private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session): void {
     // Apanhou: a meditação acaba ANTES do dano (não dá para meditar no meio da luta).
     this.stopMeditation(session, 'damaged');
     if (attacker && session.substituteUntil > t) return this.substitute(session, attacker, t);
@@ -2285,15 +2413,36 @@ export class GameWorld {
     this.broadcastMap(session.map, { type: 'hit', target: 'player', id: session.id, amount: dmg, kind: 'damage', hp: shownHp(session.hp), maxHp, ...(shielded ? { shielded: true } : {}) });
     session.sentHp = shownHp(session.hp);
     if (session.hp <= 0) {
+      const arena = this.arenaOf(session);
       session.dead = true;
       session.deadAt = t;
+      session.diedIn = arena;
+      session.respawnMs = arena ? this.config.combat.arena.respawnMs : this.config.combat.player.respawnMs;
       session.dx = 0;
       session.dy = 0;
       this.dropInputs(session);           // morto não anda: entradas na fila só são confirmadas
       session.shield = 0;
-      this.broadcastMap(session.map, { type: 'player_died', playerId: session.id, respawnInMs: this.config.combat.player.respawnMs });
+      this.broadcastMap(session.map, { type: 'player_died', playerId: session.id, respawnInMs: session.respawnMs, ...(arena ? { arena: true } : {}) });
+      if (arena && by) this.arenaResult(by, session);
     }
     this.sendStats(session, t);
+  }
+
+  /** Luta de arena acabou: placar (em memória) e aviso para todos no mapa. Sem XP nem ryō: é treino. */
+  private arenaResult(winner: Session, loser: Session): void {
+    const rec = (id: string) => {
+      let r = this.arenaRecord.get(id);
+      if (!r) this.arenaRecord.set(id, (r = { wins: 0, losses: 0 }));
+      return r;
+    };
+    const w = rec(winner.id);
+    const l = rec(loser.id);
+    w.wins += 1;
+    l.losses += 1;
+    this.broadcastMap(winner.map, {
+      type: 'arena_result', winnerId: winner.id, winner: winner.username, loserId: loser.id, loser: loser.username,
+      winnerRecord: { ...w }, loserRecord: { ...l },
+    });
   }
 
   /**
@@ -2302,7 +2451,8 @@ export class GameWorld {
    */
   private substitute(s: Session, attacker: Point, t: number): void {
     s.substituteUntil = 0;
-    const focus = s.substituteLevel >= 4 && s.substituteFocus ? this.monsters.get(s.substituteFocus) : undefined;
+    const focusId = s.substituteLevel >= 4 ? s.substituteFocus : undefined;
+    const focus = focusId ? (this.monsters.get(focusId) ?? this.sessions.get(focusId)) : undefined;   // monstro ou ninja (arena)
     const anchor = focus && focus.hp > 0 && focus.map === s.map ? focus : attacker;
     const log = { x: s.x, y: s.y };
     const spot = behind(this.layout(s.map), s, anchor);
@@ -2326,11 +2476,13 @@ export class GameWorld {
     }
   }
 
-  /** Renascer: só morto e só depois do tempo. Volta à praça da Vila (ou à sala da Academia) com vida e chakra cheios. */
+  /**
+   * Renascer: só morto e só depois do tempo. Volta à avenida da Vila (ou à sala da Academia; perdeu na arena:
+   * na entrada dela) com vida e chakra cheios, e fica uns segundos sem apanhar de outro jogador.
+   */
   private respawn(session: Session, t: number): void {
-    const p = this.config.combat.player;
     const { maxHp, maxChakra } = session.stats;
-    if (!session.dead || t - session.deadAt < p.respawnMs) {
+    if (!session.dead || t - session.deadAt < session.respawnMs) {
       this.sendError(session, 'RESPAWN_NOT_READY');
       return;
     }
@@ -2345,9 +2497,12 @@ export class GameWorld {
     session.dy = 0;
     this.dropInputs(session);             // teleporte para a praça: o cliente recomeça daqui
     session.substituteUntil = 0;
-    // Tutorial: renasce na sala do passo em que está (nunca fora da Academia).
-    const startMap: MapId = session.tutorial < 4 ? 'academy_interior' : this.config.startMap;
-    const spawn = session.tutorial < 4 ? academySpawn(session.tutorial) : this.config.spawn;
+    session.protectedUntil = t + this.config.combat.arena.protectMs;
+    // Tutorial: renasce na sala do passo em que está (nunca fora da Academia). Arena: na entrada dela.
+    const arena = session.diedIn;
+    session.diedIn = undefined;
+    const startMap: MapId = session.tutorial < 4 ? 'academy_interior' : arena ? session.map : this.config.startMap;
+    const spawn = session.tutorial < 4 ? academySpawn(session.tutorial) : arena ? arena.respawn : this.config.spawn;
     if (session.map !== startMap) this.transfer(session, startMap, spawn.x, spawn.y, 'respawn');   // morreu na Floresta
     session.x = spawn.x;
     session.y = spawn.y;
@@ -2396,6 +2551,7 @@ export class GameWorld {
       nextAttackAt: t,
       stunnedUntil: 0,
       rootedUntil: 0,
+      damageBy: new Map(),
       ...(fixed ? { home: { x: pos!.x, y: pos!.y } } : {}),
       ...(admin ? { admin: true } : {}),
     };
@@ -2473,7 +2629,8 @@ export class GameWorld {
       this.projectiles.length = alive;
     }
 
-    // 1b. Bonecos fixos que renascem.
+    // 1b. Densidade dos mapas de caça (mais gente, mais monstros) e bonecos fixos que renascem.
+    this.adjustDensity(t);
     for (let i = this.respawns.length - 1; i >= 0; i--) {
       const r = this.respawns[i]!;
       if (t < r.at) continue;

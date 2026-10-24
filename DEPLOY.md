@@ -25,6 +25,8 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 18 | Atualização v11: progressão (níveis 60, classes, Academia, Extração), com SQL | ~10 min |
 | 19 | Atualização v12: Modo Administrador, atributo Chakra, chat com histórico, Sala de Missões e Academia nova, com SQL | ~15 min |
 | 20 | Atualização v13: personagem em sprites (gênero, cabelo, olhos, roupa e vila), com SQL | ~10 min |
+| 21 | Atualização v14: hitboxes, efeitos dos golpes e armas no boneco, sem SQL | ~10 min |
+| 22 | Atualização v15: nome Vontade do Fogo, arena da vila e design geral, com SQL opcional | ~10 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -764,3 +766,36 @@ O que muda:
    para as costas. A recarga é bem lenta (3 s, contando no botão).
 8. **Admin (conta Victor):** `/admin spawn slime 4` em volta, para testar vários de uma vez;
    `/admin giveitem Victor fuma_shuriken 1` para ganhar a Shuriken Gigante.
+
+
+## Passo 22 — Atualização v15: Vontade do Fogo, arena da vila e o design geral
+
+**Banco (opcional, pode ser antes ou depois do deploy):** no Neon → **SQL Editor** (confira que o branch é o
+`production`), cole e rode o arquivo `db/schema_v10_design.sql` inteiro. Ele cria a tabela das falhas seguidas na
+Extração e troca a função da Extração pela versão com a proteção contra azar. Não tem bloco `DO $$`, fica dentro de
+`BEGIN; ... COMMIT;` e pode rodar de novo.
+
+Desta vez o servidor **sobe sem a migração**: a Extração só fica sem a proteção contra azar, e o log do Render avisa
+(`Extração sem a proteção contra azar`). Depois de rodar o SQL não precisa reiniciar.
+
+Conferência (opcional), deve dar `2`:
+
+```sql
+SELECT (SELECT count(*) FROM information_schema.tables WHERE table_schema = 'game' AND table_name = 'player_extraction_pity')
+     + (SELECT count(*) FROM pg_proc WHERE proname = 'extraction_failures');
+```
+
+### Testar no celular
+
+1. **Nome:** a tela de login mostra **Vontade do Fogo**. Adicionando à tela inicial, o atalho também.
+2. **Arena:** na Vila, desça a avenida, siga a rua de baixo para a direita e entre pela abertura da cerca de madeira
+   (no antigo campo de treino). O topo mostra **⚔️ arena**. Com outra conta da mesma vila lá dentro, toque em 🎯: o
+   foco vai nela (nome vermelho) e o 🗡️ e os jutsus acertam. Quem perde volta em 3 s na entrada oeste, sem perder
+   nada, e todos na Vila veem no chat "⚔️ Arena: fulano venceu ciclano.". Fora da cerca, ninguém acerta ninguém.
+3. **Floresta com 2 contas:** batam juntos no mesmo slime: os dois ganham o XP (quem tirou pelo menos 20% da vida).
+   Com mais gente na Floresta, aparecem mais slimes.
+4. **Armas:** com a Kunai, o 🗡️ recarrega mais rápido (e o corte é menor); com a Espada Longa, mais devagar, com um
+   corte maior que pega quem está do lado.
+5. **Criador** (⚙️ → **🎨 Mudar visual**): só a Vila 1 dá para escolher; as outras têm cadeado.
+6. **Extração** (depois da v10): falhando, a Casa dos Pergaminhos mostra a chance maior na próxima ("40% + 10% de
+   sorte acumulada").

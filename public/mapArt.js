@@ -341,6 +341,52 @@ function drawFurniture(g, x, y, w, h, kind, seed) {
   }
 }
 
+// ------------------------------------------------------------------ arena da vila
+
+/**
+ * Cerca de madeira da arena (meia casa de espessura). Deitada (w > h): postes a cada casa subindo acima da
+ * faixa (vista em 3/4) e duas travessas. Em pé (h > w): uma travessa comprida com os postes vistos de cima.
+ */
+function drawFence(g, x, y, w, h, tile) {
+  const dark = '#3b2414', wood = '#7a5230', light = '#a8713a';
+  if (w >= h) {
+    rect(g, 'rgba(0,0,0,0.25)', x, y + h - 1, w, 3);                       // sombra no chão
+    for (const ry of [y - 4, y + 1]) {                                     // travessas
+      rect(g, dark, x, ry, w, 4);
+      rect(g, wood, x, ry + 1, w, 2);
+      rect(g, light, x, ry + 1, w, 1);
+    }
+    for (let px = x + 1; px < x + w - 2; px += tile) {                     // postes
+      rect(g, dark, px, y - 8, 5, h + 8);
+      rect(g, wood, px + 1, y - 7, 3, h + 6);
+      rect(g, light, px + 1, y - 7, 3, 1);
+    }
+    rect(g, dark, x + w - 5, y - 8, 5, h + 8);                             // poste da ponta
+    rect(g, wood, x + w - 4, y - 7, 3, h + 6);
+    return;
+  }
+  rect(g, 'rgba(0,0,0,0.25)', x + 2, y + 2, w, h);
+  rect(g, dark, x, y, w, h);
+  rect(g, wood, x + 1, y, w - 2, h);
+  rect(g, light, x + 1, y, 1, h);
+  for (let py = y; py < y + h - 2; py += tile) {                           // postes vistos de cima
+    rect(g, dark, x - 1, py, w + 2, 5);
+    rect(g, light, x, py + 1, w, 2);
+  }
+}
+
+/** Pilar de pedra (cobertura dentro da arena): sobe acima da casa (3/4), com o topo mais claro e rachaduras. */
+function drawPillar(g, x, y, w, h) {
+  rect(g, 'rgba(0,0,0,0.3)', x + 2, y + h - 3, w, 5);
+  rect(g, '#3e3b37', x, y - 10, w, h + 10);
+  rect(g, '#8d8a84', x + 1, y - 5, w - 2, h + 4);
+  rect(g, '#6d6a64', x + 1, y + h - 4, w - 2, 3);                          // base
+  rect(g, '#b8b4aa', x + 1, y - 9, w - 2, 4);                              // topo
+  rect(g, '#d8d4ca', x + 2, y - 9, w - 4, 1);
+  g.fillStyle = '#5d5a55';
+  g.fillRect(x + 4, y - 2, 1, 5); g.fillRect(x + 5, y + 3, 2, 1); g.fillRect(x + w - 5, y + 1, 1, 4);
+}
+
 /** Desenha uma parede (colisão) conforme o tipo. Água fica só no chão (o tile já é o rio). */
 export function drawWall(g, wall, x, y, w, h, tile) {
   const seed = (wall.x * 73856093) ^ (wall.y * 19349663);
@@ -355,6 +401,8 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     case 'counter': return drawCounter(g, x, y, w, h);
     case 'furniture': return drawFurniture(g, x, y, w, h, wall.s, Math.abs(seed));
     case 'pit': return drawPit(g, x, y, w, h);
+    case 'fence': return drawFence(g, x, y, w, h, tile);
+    case 'pillar': return drawPillar(g, x, y, w, h);
     default: return undefined;
   }
 }
@@ -460,6 +508,30 @@ export function drawDeco(g, d, x, y, w, h) {
       g.fillStyle = '#3b2f6e'; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
       g.fillStyle = '#5a4aa0'; g.beginPath(); g.arc(cx, cy, r - 3, 0, Math.PI * 2); g.fill();
       rect(g, '#e8c66a', cx - 1, cy - 1, 2, 2);
+      return;
+    }
+    case 'ring': {                                    // arena: círculo pintado com cal e as marcas de início
+      const cx = x + w / 2, cy = y + h / 2;
+      g.globalAlpha = 0.5;
+      g.strokeStyle = '#efe4c8';
+      g.lineWidth = 2;
+      g.beginPath(); g.ellipse(Math.round(cx), Math.round(cy), w / 2 - 14, h / 2 - 14, 0, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.ellipse(Math.round(cx), Math.round(cy), 22, 18, 0, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = '#efe4c8';
+      for (const dx of [-w / 4, w / 4]) g.fillRect(Math.round(cx + dx) - 1, Math.round(cy) - 8, 2, 16);
+      g.globalAlpha = 1;
+      return;
+    }
+    case 'banner': {                                  // estandarte vermelho na entrada da arena
+      const px = Math.round(x + w / 2);
+      rect(g, 'rgba(0,0,0,0.3)', px - 3, y + h - 2, 8, 3);
+      rect(g, '#3b2414', px - 1, y - 12, 3, h + 12);                         // mastro
+      rect(g, '#d9a441', px - 2, y - 14, 5, 3);                              // ponta dourada
+      rect(g, '#4a0f0a', px + 2, y - 11, 10, 14);                            // pano (contorno)
+      rect(g, '#b33a22', px + 3, y - 10, 8, 11);
+      rect(g, '#e8572f', px + 3, y - 10, 8, 2);
+      g.fillStyle = '#f4ead8';                                               // duas lâminas cruzadas
+      for (let i = 0; i < 6; i++) { g.fillRect(px + 4 + i, y - 8 + i, 1, 1); g.fillRect(px + 9 - i, y - 8 + i, 1, 1); }
       return;
     }
     case 'board': {                                   // quadro de lições pendurado na parede

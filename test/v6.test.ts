@@ -18,7 +18,7 @@ const monsterHp = (world: any, id: string) => world.monsterList().find((m: any) 
 // v9: o visual são nomes de paleta (appearance.ts); o formato antigo de 5 cores é testado em v9.test.ts.
 const LOOK = {
   v: 2, gender: 'f', skin: 'canela', hairStyle: 'longo_lateral', hairColor: 'preto', eyeStyle: 'cilios', eyeColor: 'verde',
-  outfit: 'vila', shirtColor: 'azul_marinho', pantsColor: 'cinza', bandana: true, village: 'vila_2',
+  outfit: 'vila', shirtColor: 'azul_marinho', pantsColor: 'cinza', bandana: true, village: 'vila_1',
 } as const;
 
 class Conn {

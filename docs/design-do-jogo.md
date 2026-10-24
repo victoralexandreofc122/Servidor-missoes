@@ -1,4 +1,4 @@
-# Nin Online Mobile: design geral do jogo
+# Vontade do Fogo: design geral do jogo
 
 Este é o documento de design (GDD) do jogo. Ele diz **o que** o jogo é, **por que** cada sistema existe e **para
 onde** ele vai. Os detalhes técnicos ficam em outros lugares:
@@ -17,6 +17,10 @@ onde** ele vai. Os detalhes técnicos ficam em outros lugares:
 - **[proposta]**: o design recomenda, mas ainda não está feito.
 - **[decidir]**: precisa de uma decisão do Victor (lista completa na seção 21).
 
+**v15 (24/10/2026):** o Victor aprovou as ideias, escolheu o nome **Vontade do Fogo** e pediu uma **arena em cada
+vila** para os ninjas da mesma vila treinarem PvP. O que entrou no jogo nessa versão está marcado como [existe]
+(veja também o README, seção v15).
+
 ---
 
 ## 1. Em uma frase
@@ -30,7 +34,7 @@ sobe de rank com cerimônia, aprende com outros jogadores e ensina os novatos, a
 
 | | |
 |---|---|
-| **Nome** | Nin Online Mobile (provisório: veja o risco do nome na seção 22) |
+| **Nome** | **Vontade do Fogo** (decidido; veja a nota sobre o nome na seção 22) |
 | **Gênero** | MMORPG de ação 2D, combate em tempo real, progressão por rank |
 | **Plataforma principal** | navegador no celular, **deitado** (paisagem) |
 | **Outras plataformas** | computador no navegador (teclado já mapeado); app nativo no futuro, com o mesmo protocolo (o servidor já aceita `Authorization: Bearer`) |
@@ -40,7 +44,7 @@ sobe de rank com cerimônia, aprende com outros jogadores e ensina os novatos, a
 | **Classificação indicativa alvo** | 12 anos: luta com fantasia, sem sangue, com chat entre jogadores [proposta] |
 | **Idioma** | português do Brasil primeiro |
 | **Referência principal** | Nin Online (Hitspark): mundo em salas, vilas, ranks ninja e título de líder da vila |
-| **Monetização** | a decidir (seção 16) |
+| **Monetização** | sem venda por enquanto; loja só de cosméticos mais tarde (seção 16) |
 
 ---
 
@@ -54,12 +58,14 @@ Os problemas que este documento resolve:
 
 1. **Um único lugar de caça.** A Floresta com slimes é a única fonte de XP do nível 1 ao 60.
 2. **A curva de XP não tem fontes que a acompanhem.** O nível 40 pede 572.000 XP, e um slime dá 20 (seção 8).
-3. **XP só para quem dá o último golpe.** Num MMO isso gera roubo de abate e briga pelos 10 slimes.
+3. **XP só para quem dá o último golpe.** Num MMO isso gera roubo de abate e briga pelos 10 slimes. *(Resolvido na
+   v15: XP por participação e monstros por jogador, seção 8.4.)*
 4. **O maior diferencial não recompensa quem o faz.** A missão de sensei dá XP, título e pergaminho ao aprendiz.
    O sensei não ganha nada além de ajudar, então haverá poucos senseis.
 5. **A escolha de vila não tem consequência.** O Criador oferece 5 vilas, mas todos nascem na mesma Vila, e o
-   Arco 1 trata o jogador como cria dela.
-6. **O PvP está pronto no código, mas não tem lugar nem regra** no design.
+   Arco 1 trata o jogador como cria dela. *(Resolvido na v15: as outras 4 ficam travadas até o Arco 2, seção 11.1.)*
+6. **O PvP está pronto no código, mas não tem lugar nem regra** no design. *(Resolvido na v15: a arena de cada
+   vila, seção 11.2.)*
 7. **O ryō tem poucas saídas e nenhum plano.** Sem plano, a moeda perde valor ou fica sem uso.
 8. **O nome e alguns termos têm risco de propriedade intelectual** (seção 22).
 
@@ -183,9 +189,15 @@ novatos e hoje a vila confia em mim."*
 | Ranks e títulos | [existe] | banco | 7.7 |
 | Chat local, global e sussurro, com histórico | [existe] | `chatLog.ts` | 10 |
 | Modo Administrador com auditoria | [existe] | `admin.ts` | n/a |
+| Arena de treino de PvP na Vila (só entre ninjas da vila) | [existe] v15 | `maps.ts` (`VILLAGE_ARENA`), `canHurt` | 11.2 |
+| XP por participação e monstros por jogador no mapa | [existe] v15 | `killMonster`, `adjustDensity` | 8.4 |
+| Teto de atordoar e prender em jogadores | [existe] v15 | `applyStatus`, `config.controlDr` | 7.2 |
+| Jeito de lutar de cada arma | [existe] v15 | `items.ts` (`swing`) | 7.5 |
+| Proteção contra azar na Extração | [existe] v15 | banco v10, `extractionChance` | 7.3 |
+| Vilas travadas no Criador até o Arco 2 | [existe] v15 | `OPEN_VILLAGES` | 11.1 |
 | Missões de história (arcos) | [proposta] | roteiro em `historia/` | 12 |
 | Grupo, amigos e Equipes | [proposta] | n/a | 10 |
-| Vilas com identidade e PvP entre vilas | [proposta] | `canHurt` pronto, `pvp: false` | 11 |
+| Vilas com identidade e PvP entre vilas (fronteira) | [proposta] | `canHurt` pronto, `pvp: false` | 11 |
 | Eleição do líder da vila | [proposta] | candidatura [existe] | 11 |
 | Som | [proposta] | não há áudio hoje | 15 |
 
@@ -226,8 +238,9 @@ sozinho também se vira.
 2. **Tempo para matar no PvE:** monstro comum cai em 3 a 6 golpes no nível certo. Chefe, em 60 a 120 segundos.
 3. **Tempo para matar no PvP:** de 6 a 10 segundos entre jogadores do mesmo nível, sem golpe que mate de uma vez.
    Assim dá tempo de usar a Substituição, fugir ou contra-atacar.
-4. **Status com teto:** atordoar ou prender o mesmo alvo de novo em menos de 8 s dura a metade. Sem isso, dois
-   jogadores de controle prendem alguém para sempre.
+4. **Status com teto** [existe, em jogadores]: atordoar ou prender o mesmo jogador de novo em menos de 8 s dura a
+   metade, depois um quarto, e na 4ª vez não pega até a janela passar. Sem isso, dois jogadores de controle prendem
+   alguém para sempre. Monstros não têm teto: o controle no PvE vale inteiro.
 5. **Cada inimigo ensina uma coisa.** O Lodo ensina a bater; o Batedor das Cinzas, a desviar de kunai; o Eco de
    Kagerō, que nem tudo é real.
 
@@ -251,10 +264,12 @@ sozinho também se vira.
 **Problema:** no tier 4, um em cada três jogadores falha 5 vezes seguidas e perde 40 pergaminhos sem nada. É o tipo
 de azar que faz alguém desistir do jogo.
 
-**Recomendação** [proposta]: **proteção contra azar.** Cada falha soma +10 pontos percentuais à próxima tentativa
+**Proteção contra azar** [existe, migração v10]: cada falha soma +10 pontos percentuais à próxima tentativa
 do mesmo tier, e o bônus zera quando acerta. No tier 4, isso garante o jutsu em no máximo 9 tentativas, e a média
 cai de 5 para cerca de 3 tentativas (de 40 para 24 pergaminhos). Se o tier 4 ficar barato demais, sobe o número
-de pergaminhos por tentativa; o que importa é o pior caso deixar de ser sem fim.
+de pergaminhos por tentativa; o que importa é o pior caso deixar de ser sem fim. A conta vale por classe e por tier,
+mora no banco (`game.extract_jutsu`), e a Casa dos Pergaminhos mostra a chance de verdade ("40% + 20% de sorte
+acumulada").
 
 **Regra fixa:** pergaminho e Extração **nunca** são vendidos por dinheiro de verdade. Um sorteio pago vira caixa
 de recompensa, proibida pelo ECA Digital (seção 16).
@@ -269,25 +284,20 @@ menos duas distribuições de pontos diferentes precisam ser boas.
 
 ### 7.5 Armas e equipamento
 
-| Arma | Dano | Preço | Onde fica | Como ataca hoje |
-|---|---|---|---|---|
-| Kunai de Treino | 10 | Academia | mão | arco de 90°, 1,6 casa |
-| Kunai | 14 | 300 | mão | arco |
-| Espada Curta | 18 | 600 | mão | arco |
-| Shuriken Gigante | 22 | 1.200 | costas, enorme | arremesso: 6 casas, atravessa todos, dano 2,5x, recarga 5x |
-| Espada Longa | 28 | 2.000 | cintura e costas | arco |
+Cada arma muda o **jeito** de lutar, não só o dano [existe, v15]. Antes, fora a Shuriken, a arma só mudava o dano,
+e a melhor era sempre a mais cara.
+
+| Arma | Dano | Preço | Onde fica | Golpe | Dano por segundo num alvo (sem atributos) |
+|---|---|---|---|---|---|
+| Sem arma | 0 | n/a | n/a | soco: recarga 0,6 s, arco de 90°, 1,6 casa | 20 |
+| Kunai de Treino | 10 | Academia | mão | rápida: recarga 0,85x, arco de 70°, 1,5 casa | 43 |
+| Kunai | 14 | 300 | mão | rápida: recarga 0,85x, arco de 70°, 1,5 casa | 51 |
+| Espada Curta | 18 | 600 | mão | equilibrada: recarga 0,9x, arco de 90°, 1,6 casa | 56 |
+| Espada Longa | 28 | 2.000 | cintura e costas | lenta e larga: recarga 1,15x, arco de 140°, 2 casas | 58 (e pega mais gente) |
+| Shuriken Gigante | 22 | 1.200 | costas, enorme | arremesso: 6 casas, atravessa todos, dano 2,5x, recarga 5x | 28 (em cada um da linha) |
 
 - Uma arma de Ataque Básico por vez; o pergaminho fica à parte [existe].
-- **Problema:** hoje, fora a Shuriken, a arma só muda o dano. Então a melhor arma é sempre a mais cara, e a escolha
-  acaba na loja.
-- **Recomendação** [proposta]: cada arma muda o **jeito** de lutar, não só o dano.
-
-| Arma | Identidade proposta |
-|---|---|
-| Kunai | rápida: recarga 0,8x, arco estreito (70°) |
-| Espada Curta | equilibrada: o arco de hoje |
-| Espada Longa | lenta e larga: recarga 1,3x, arco de 140° e 2 casas |
-| Shuriken Gigante | arremesso (como já é) |
+- O corte é desenhado do tamanho do golpe de cada arma (o servidor manda o alcance e a abertura no `attack`).
 
 - **Roupas** (Alfaiataria) são só visuais [existe o visual; a loja é proposta]. Roupa nunca dá atributo, para que a
   aparência seja livre.
@@ -377,13 +387,15 @@ os primeiros níveis precisam ser rápidos. Um monstro de zona 30 daria 60; de z
 
 A conta: um abate a cada 15 s, contando a caminhada, a 80% do ritmo da tabela 8.2.
 
-### 8.4 Caça justa num MMO [proposta]
+### 8.4 Caça justa num MMO [existe, v15]
 
-- **XP por participação, não pelo último golpe.** Quem causou pelo menos 20% do dano ganha o XP inteiro; em grupo,
-  divide com bônus (seção 10). Hoje o XP vai para quem dá o último golpe, o que estimula roubar abate.
-- **Monstros por jogador.** Mapa de caça com N jogadores tem `10 + 3·N` monstros (com teto). Os 10 slimes de hoje
-  bastam para 2 ou 3 pessoas, não para 20.
-- **Ryō e pergaminho** seguem a mesma regra do XP.
+- **XP por participação, não pelo último golpe.** O último golpe e todo jogador (ainda no mapa) que tirou pelo
+  menos 20% da vida do monstro ganham o XP inteiro, cada um com o seu ryō, a sua chance de pergaminho e o abate da
+  missão. Antes, o XP ia só para quem dava o último golpe, o que estimulava roubar abate. O bônus de grupo vem com o
+  sistema de grupo (seção 10).
+- **Monstros por jogador.** Mapa de caça com N jogadores tem `10 + 3·N` monstros, até 40. Faltando, nasce 1 por
+  segundo; quando o mapa esvazia, some 1 por segundo, só monstro com a vida cheia e longe de todo mundo (ninguém vê
+  sumir).
 
 ---
 
@@ -487,28 +499,42 @@ Vila. Quando o PvP entre vilas chegar, os jogadores já terão escolhido sem sab
 - **C (experimental):** a vila não é escolhida no Criador. O jogador ganha a vila no fim do Arco 1, conforme as
   escolhas que fez.
 
-**Recomendação: A.** É a mais simples de explicar e de fazer, combina com o Arco 1 e permite abrir cada vila só
-quando ela tiver mapa e conteúdo. Além disso, controla a população: quem abrir a segunda vila pode ganhar um
-incentivo para equilibrar.
+**Decidido: A** [existe, v15]. É a mais simples de explicar e de fazer, combina com o Arco 1 e permite abrir cada
+vila só quando ela tiver mapa e conteúdo. Além disso, controla a população: quem abrir a segunda vila pode ganhar um
+incentivo para equilibrar. No jogo, o Criador mostra a Vila 1 e as outras 4 com cadeado ("abre com o Arco 2"), e o
+servidor recusa vila travada (`VILLAGE_LOCKED`). Quem já tinha escolhido outra continua com ela.
 
 **Nomes:** [decidir]. A regra é ter nomes próprios, sem as vilas de outras obras (Folha, Areia, Névoa). A Vila do
 Arco 1 já tem um tema pronto: a chama do Pergaminho em Chamas.
 
-### 11.2 PvP em fases [proposta]
+### 11.2 PvP em fases
 
 | Fase | Onde | Como | Quando |
 |---|---|---|---|
-| 1. Duelo | Campo de Treino da Vila | convite e aceite; ninguém perde nada; placar de vitórias | com o sistema de grupo |
+| 1. Arena da vila | arena cercada no campo de treino de cada vila | só entre ninjas DA vila; entrar é aceitar; perder não custa nada; placar de vitórias | **[existe, v15]** |
 | 2. Fronteira | mapas de fronteira entre vilas | só Genin+; quem entra é avisado; morrer leva de volta para a vila, sem perder itens | Arco 2 |
 | 3. Disputa de vilas | evento semanal com hora marcada | as vilas disputam pontos de controle; recompensa coletiva e cosmética | depois do Arco 2 |
 
+**A arena da vila** (pedido do Victor, v15):
+
+- **Onde:** o campo de treino da Vila virou uma arena de terra batida, com cerca de madeira, duas entradas (norte e
+  oeste), dois pilares de pedra que servem de cobertura (param linhas e projéteis), estandartes e bancos para quem
+  assiste. Cada vila nova terá a sua.
+- **Quem luta:** só os ninjas da vila dona da arena, os dois dentro da cerca. Ninja de outra vila (ou quem ainda não
+  criou o personagem) entra e assiste, sem bater nem apanhar. Ninguém acerta através da cerca.
+- **Perder:** é treino. Sem XP, sem ryō, sem perder nada. Quem perde volta em 3 s (e não 5) na entrada oeste, com
+  vida e chakra cheios, e fica 5 s sem apanhar de jogador.
+- **Placar:** todos no mapa veem "⚔️ Arena: Kaito venceu Sakura." no chat, e quem lutou vê as vitórias e derrotas
+  no topo da tela (desde que o servidor subiu; um ranking gravado no banco fica para depois).
+- **Na tela:** entrando, o topo mostra "⚔️ arena", o 🎯 passa a focar os ninjas da vila, e os nomes e as barras de
+  vida deles ficam vermelhos.
+
 **Regras fixas:**
 
-1. Fora do duelo, a Vila, a Academia e as lojas nunca têm PvP. Hoje o código protege a Praça (zona segura), as
-   lojas e a Academia; com `pvp: true`, o resto da Vila ficaria aberto ao PvP. Antes de ligar, a Vila inteira
-   precisa virar zona sem PvP (mas com o duelo valendo no Campo de Treino).
-2. Ninguém perde item, ryō ou XP por morrer em PvP.
-3. Quem renasce fica 5 s intocável.
+1. Fora da arena, a Vila, a Academia e as lojas nunca têm PvP [existe]. Mesmo com o PvP aberto ligado
+   (`pvp: true`, para a fronteira do Arco 2), mapa de vila não tem PvP.
+2. Ninguém perde item, ryō ou XP por morrer em PvP [existe].
+3. Quem renasce fica 5 s intocável [existe].
 4. Nível muito diferente (mais de 10) não ganha pontos de disputa ao derrotar alguém mais fraco.
 
 ### 11.3 Líder da vila [proposta]
@@ -836,31 +862,31 @@ e-mail ou conversa na telemetria.
 | Fase | Objetivo | Conteúdo | Pronto quando |
 |---|---|---|---|
 | 0 · Base | o jogo roda | servidor, combate, Academia, lojas, arte chibi, armas e efeitos | [feito] |
-| 1 · Arco 1 jogável | motivo para voltar | sistema de história, diálogo, 8 objetivos, inimigos e mapas do Arco 1, Tsubaki e Kagerō, XP por participação, monstros por jogador, ícones pixel | um jogador novo vai do login ao título Guardião da Chama sem ajuda, em 5 a 6 horas |
-| 2 · Social | jogar junto | grupo, amigos, recompensa do sensei, Equipes, duelo no Campo de Treino, denunciar e silenciar, som | metade dos Genin tem sensei ou grupo na primeira semana |
+| 1 · Arco 1 jogável | motivo para voltar | sistema de história, diálogo, 8 objetivos, inimigos e mapas do Arco 1, Tsubaki e Kagerō, ícones pixel. **Já feito (v15):** XP por participação, monstros por jogador, armas com jeito próprio, proteção contra azar, teto de controle, vilas travadas, arena da vila | um jogador novo vai do login ao título Guardião da Chama sem ajuda, em 5 a 6 horas |
+| 2 · Social | jogar junto | grupo, amigos, recompensa do sensei, Equipes, ranking da arena gravado, denunciar e silenciar, som | metade dos Genin tem sensei ou grupo na primeira semana |
 | 3 · Arco 2 e vilas | rivalidade | segunda vila e viagem, nomes das vilas, PvP de fronteira, eleição do líder | a primeira eleição acontece e a fronteira tem gente toda semana |
 | 4 · Temporadas | durar | evento semanal da vila, disputa de vilas, loja de cosméticos (se B), mercado | retenção de 30 dias estável por 3 meses |
 
-**Antes de abrir para o público:** nome próprio, termos de uso, política de privacidade e classificação
-indicativa.
+**Antes de abrir para o público:** busca do nome no INPI (seção 22), termos de uso, política de privacidade e
+classificação indicativa.
 
 ---
 
-## 21. Decisões em aberto
+## 21. Decisões
 
-| # | Decisão | Opções | Recomendação |
+| # | Decisão | Opções | Estado |
 |---|---|---|---|
-| 1 | Nome do jogo | manter "Nin Online Mobile" / nome próprio | **nome próprio** antes de qualquer lançamento (seção 22) |
-| 2 | Título do líder da vila | "Hokage" / título próprio | **título próprio** (ex.: um nome ligado a cada vila) |
-| 3 | Nomes das 5 vilas | a criar | nomes próprios; a do Arco 1 ligada à chama |
-| 4 | Vila no Criador | A travar / B origem / C ganhar no Arco 1 | **A** (seção 11.1) |
-| 5 | Modelo de PvP | as 3 fases da seção 11.2 / PvP livre / sem PvP | **3 fases** |
-| 6 | Monetização | A / B / C | **A, depois B** |
-| 7 | XP do abate | último golpe / participação | **participação** |
-| 8 | Troca entre jogadores | livre / nenhuma / mercado depois | **nenhuma no lançamento; mercado na fase 4** |
-| 9 | Proteção contra azar na Extração | sim / não | **sim, +10 pontos por falha** |
-| 10 | Identidade das armas | só dano / jeito de lutar | **jeito de lutar** (seção 7.5) |
-| 11 | Poder do líder da vila | prestígio / poder sobre jogadores | **só prestígio** |
+| 1 | Nome do jogo | manter "Nin Online Mobile" / nome próprio | **decidido: Vontade do Fogo** (nota na seção 22) |
+| 2 | Título do líder da vila | "Hokage" / título próprio | **aberta.** Recomendação: título próprio (ex.: um nome ligado a cada vila) |
+| 3 | Nomes das 5 vilas | a criar | **aberta.** Recomendação: nomes próprios; a do Arco 1 ligada à chama |
+| 4 | Vila no Criador | A travar / B origem / C ganhar no Arco 1 | **decidido e feito: A** (seção 11.1) |
+| 5 | Modelo de PvP | arena da vila, depois fronteira e disputa / PvP livre / sem PvP | **decidido: arena em cada vila** (feita), fronteira no Arco 2 |
+| 6 | Monetização | A / B / C | **decidido: A agora, B depois** |
+| 7 | XP do abate | último golpe / participação | **decidido e feito: participação** |
+| 8 | Troca entre jogadores | livre / nenhuma / mercado depois | **decidido: nenhuma no lançamento; mercado na fase 4** |
+| 9 | Proteção contra azar na Extração | sim / não | **decidido e feito: +10 pontos por falha** (migração v10) |
+| 10 | Identidade das armas | só dano / jeito de lutar | **decidido e feito: jeito de lutar** (seção 7.5) |
+| 11 | Poder do líder da vila | prestígio / poder sobre jogadores | **decidido: só prestígio** |
 
 ---
 
@@ -868,7 +894,7 @@ indicativa.
 
 | Risco | Por que importa | Como reduzir |
 |---|---|---|
-| **Nome** | "Nin Online" é um jogo de outra empresa (Hitspark), em acesso antecipado na Steam desde junho de 2025, com cerca de 100 mil jogadores ([Steambase](https://steambase.io/games/nin-online/info), [itch.io](https://ninonline.itch.io/nin-online)). Usar o nome pode gerar problema de marca e confunde quem procura o jogo | escolher um nome próprio na fase 1 |
+| **Nome** | O nome antigo, "Nin Online", é de um jogo de outra empresa (Hitspark), na Steam desde junho de 2025 ([Steambase](https://steambase.io/games/nin-online/info), [itch.io](https://ninonline.itch.io/nin-online)); por isso virou **Vontade do Fogo**. O nome novo tem um risco menor, mas existe: "Vontade do Fogo" é como a dublagem brasileira de Naruto traduz "Will of Fire", um conceito central da série | antes de abrir ao público, buscar o nome no INPI e, se possível, registrar a marca; evitar no jogo o símbolo e o discurso da "Vontade do Fogo" de Naruto (a nossa vontade é a chama do Pergaminho em Chamas) |
 | **Termos de outras obras** | "Hokage" é um termo criado para Naruto. Genin, Chunin e Jonin são ranks ninja históricos, com menos risco | trocar o título do líder (decisão 2); evitar nomes de vilas, clãs e jutsus de outras obras |
 | **MMO vazio** | com poucos jogadores online, PvP e sensei não acontecem | tudo do Arco 1 dá para fazer sozinho; o NPC luta junto; monstros escalam com o mapa; um servidor só |
 | **Estado em memória** | um deploy derruba todos e a posição volta ao início | publicar fora do horário de pico; avisar no chat antes; no futuro, gravar o mapa e a posição |

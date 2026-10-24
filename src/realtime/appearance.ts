@@ -96,6 +96,17 @@ export const EYE_STYLES = ['masculino', 'cilios'] as const;
 export const OUTFITS = ['basica', 'vila'] as const;
 /** Vilas provisórias (nomes e cores definitivos ainda vão ser escolhidos). */
 export const VILLAGES = ['vila_1', 'vila_2', 'vila_3', 'vila_4', 'vila_5'] as const;
+export type Village = (typeof VILLAGES)[number];
+/**
+ * Vilas que dá para escolher no Criador (design, seção 11.1): só a do Arco 1 até o Arco 2 abrir as outras,
+ * cada uma com o seu mapa. Quem já tinha escolhido outra continua com ela.
+ */
+export const OPEN_VILLAGES: readonly Village[] = ['vila_1'];
+
+/** A vila pode ir no visual? Aberta, ou a que o jogador já tinha (escolhida antes de travar). */
+export function villageAllowed(village: Village, current: Village | undefined): boolean {
+  return OPEN_VILLAGES.includes(village) || village === current;
+}
 
 export const AppearanceSchema = z.object({
   v: z.literal(2),

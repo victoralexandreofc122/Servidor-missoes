@@ -3,7 +3,7 @@
  * SAÍDAS nas bordas. Andar até uma saída leva ao mapa vizinho, na borda oposta.
  *
  *   map_1  Vila      80 x 80   muralha em volta, PORTÃO no sul (x 35..45), sede, hospital,
- *                              academia, lojas, rio com pontes, praça segura e campo de treino
+ *                              academia, lojas, rio com pontes, praça segura e a ARENA (no campo de treino)
  *   map_2  Floresta 100 x 100  grama escura, árvores (paredes), monstros; entrada no NORTE (x 35..45)
  *   interior_weapons / interior_clothes / interior_scrolls   salas 15 x 15 das lojas: assoalho,
  *                              paredes, balcão no meio e o lojista atrás dele; porta de saída embaixo
@@ -16,6 +16,7 @@
  * lanternas...) são só desenho. A regra de atravessar a borda fica em movement.ts e
  * public/movement.js: a mesma conta nos dois.
  */
+import type { Village } from './appearance.js';
 import type { Box } from './movement.js';
 
 export type Edge = 'east' | 'west' | 'north' | 'south';
@@ -29,9 +30,10 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
  *  tree = árvore · water = rio/canal · dummy = boneco de treino
  *  iwall = parede de interior · counter = balcão · furniture = móvel (s = qual)
  *  pit = vão no chão (Academia): ninguém atravessa andando, mas o Teleporte Curto salta por cima
+ *  fence = cerca de madeira da arena · pillar = pilar de pedra (cobertura dentro da arena)
  */
 export interface Wall extends Box {
-  k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit';
+  k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit' | 'fence' | 'pillar';
   /**
    * Estilo do prédio (sede, hospital, academia, lojas, casa, cabana) ou do móvel do interior
    * (suporte de espadas, de lanças, de escudos, manequim, prateleira de roupas, estante de
@@ -41,17 +43,17 @@ export interface Wall extends Box {
     | 'sword_rack' | 'spear_rack' | 'shield_rack' | 'mannequin' | 'cloth_shelf' | 'scroll_shelf' | 'scroll_table' | 'barrel';
 }
 
-/** Chão pintado (só desenho): stone = pedra clara, grass, sand, water, bridge, path (terra), wood (assoalho). */
+/** Chão pintado (só desenho): stone = pedra clara, grass, sand, water, bridge, path (terra), wood (assoalho), arena (terra batida). */
 export interface Area extends Box {
-  g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood';
+  g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood' | 'arena';
 }
 
 /**
  * Enfeite sem colisão: banco, rosa dos ventos no chão, lanterna, vaso, telhado do portão (por
- * cima), tapete e capacho de porta.
+ * cima), tapete, capacho de porta, estandarte (entrada da arena) e o círculo pintado no chão da arena.
  */
 export interface Deco extends Box {
-  k: 'bench' | 'rosette' | 'lamp' | 'plant' | 'gate_roof' | 'rug' | 'mat' | 'door' | 'cushion' | 'board';
+  k: 'bench' | 'rosette' | 'lamp' | 'plant' | 'gate_roof' | 'rug' | 'mat' | 'door' | 'cushion' | 'board' | 'banner' | 'ring';
   /** Porta da Academia: desenhada FECHADA enquanto o passo do tutorial do jogador for menor que este. */
   step?: number;
 }
@@ -90,9 +92,23 @@ export interface Exit {
   arrive?: number;
 }
 
+/**
+ * ARENA de treino de PvP (uma em cada vila). Dentro da cerca, os ninjas DA VILA DONA lutam entre si; os de
+ * outra vila (e quem ainda não criou o personagem) só assistem, sem bater nem apanhar. Fora dela, a Vila
+ * nunca tem PvP. Perder não custa nada: renasce em `respawn` (fora da cerca) com vida e chakra cheios.
+ */
+export interface Arena extends Box {
+  village: Village;
+  respawn: { x: number; y: number };
+}
+
 export interface MapLayout {
   id: MapId;
   name: string;
+  /** Mapa de vila: a vila dona (a arena é dela; nunca há PvP aberto aqui). */
+  village?: Village;
+  /** Arenas de treino de PvP (área de luta, DENTRO da cerca). */
+  arenas?: Arena[];
   /** Estilo e chão padrão: 'village' = pedra clara; 'forest' = grama. */
   kind: 'village' | 'forest' | 'interior';
   width: number;
@@ -182,6 +198,29 @@ export function academySpawn(step: number): { x: number; y: number } {
 /** Praça da Vila (zona segura): onde o tutorial termina. */
 export const VILLAGE_PLAZA = { x: 40, y: 66 } as const;
 
+/**
+ * Arena da Vila, no campo de treino (canto de baixo à direita). Cerca de madeira de meia casa de espessura
+ * com duas entradas de 3 casas: ao norte (de frente para a rua de baixo) e a oeste (do lado da praça).
+ * Dois pilares de pedra dentro servem de cobertura (param linhas e projéteis).
+ */
+export const VILLAGE_ARENA = {
+  /** Cerca, de fora a fora. A área de luta é o que fica dentro dela (`fightBox`). */
+  fence: { x: 58, y: 57, w: 17, h: 16 },
+  thickness: 0.5,
+  /** Vão de entrada no lado de cima (x) e no lado esquerdo (y). */
+  north: { from: 64.5, to: 67.5 },
+  west: { from: 63, to: 66 },
+  pillars: [{ x: 62, y: 61 }, { x: 70, y: 68 }],
+  /** Quem perde renasce aqui: fora da cerca, ao lado da entrada oeste. */
+  respawn: { x: 56.6, y: 64.5 },
+} as const;
+
+/** A área de luta: dentro da cerca. */
+export function arenaFightBox(a: typeof VILLAGE_ARENA = VILLAGE_ARENA): Box {
+  const t = a.thickness;
+  return { x: a.fence.x + t, y: a.fence.y + t, w: a.fence.w - 2 * t, h: a.fence.h - 2 * t };
+}
+
 /** O Teleporte atravessou o vão da Sala de Jutsus (de um lado para o outro)? */
 export function crossedGap(from: { x: number; y: number }, to: { x: number; y: number }): boolean {
   const g = ACADEMY.gap;
@@ -249,14 +288,14 @@ function village(): MapLayout {
     wall('water', 21, 35, 14, 1),
     wall('water', 44, 35, 14, 1),
     wall('water', 61, 35, 15, 1),
-    // Boneco de madeira no campo de treino.
-    wall('dummy', 65, 65, 1, 1),
+    // Boneco de madeira no campo de treino, ao lado da arena (a arena é para lutar entre ninjas).
+    wall('dummy', 76, 75, 1, 1),
+    ...arenaWalls(),
     // Árvores (só nos gramados; nenhuma na rua, na praça ou no portão).
     tree(12, 3), tree(14, 8), tree(11, 12, 1), tree(63, 3), tree(65, 8), tree(66, 12, 1),
     tree(10, 22, 1), tree(28, 22, 1), tree(51, 22, 1), tree(67, 25, 1),
     tree(21, 47), tree(33, 47), tree(44, 47), tree(56, 47), tree(61, 47), tree(74, 47),
     tree(22, 58), tree(25, 67), tree(13, 70), tree(19, 74), tree(53, 62), tree(53, 70),
-    tree(72, 58, 1), tree(58, 72, 1),
   ];
   const areas: Area[] = [
     // Gramados (o resto é pedra clara: ruas e praça).
@@ -267,8 +306,9 @@ function village(): MapLayout {
     // Rio e canais, pontes de madeira.
     area('water', 6, 31, 3, 47), area('water', 21, 35, 14, 1), area('water', 44, 35, 14, 1), area('water', 61, 35, 15, 1),
     area('bridge', 5, 42, 5, 3), area('bridge', 5, 62, 5, 3),
-    // Campo de treino (areia) no canto inferior direito.
+    // Campo de treino (areia) no canto inferior direito, com a arena de terra batida no meio.
     area('sand', 56, 56, 20, 18),
+    area('arena', VILLAGE_ARENA.fence.x, VILLAGE_ARENA.fence.y, VILLAGE_ARENA.fence.w, VILLAGE_ARENA.fence.h),
     // Avenida e praça em pedra (por cima dos gramados vizinhos).
     area('stone', 38, 31, 4, 24), area('stone', 28, 55, 24, 23),
   ];
@@ -281,6 +321,11 @@ function village(): MapLayout {
     deco('lamp', 35, 32), deco('lamp', 44, 32), deco('lamp', 36, 52), deco('lamp', 43, 52),
     deco('lamp', 33, 75), deco('lamp', 46, 75),
     deco('gate_roof', G.from - 2, H - 5, G.to - G.from + 4, 2),       // telhado do portão (desenhado por cima)
+    // Arena: o círculo pintado no chão, estandartes nas duas entradas e bancos para quem assiste.
+    deco('ring', arenaFightBox().x, arenaFightBox().y, arenaFightBox().w, arenaFightBox().h),
+    deco('banner', VILLAGE_ARENA.north.from - 1.2, VILLAGE_ARENA.fence.y - 1.2), deco('banner', VILLAGE_ARENA.north.to + 0.2, VILLAGE_ARENA.fence.y - 1.2),
+    deco('banner', VILLAGE_ARENA.fence.x - 1.7, VILLAGE_ARENA.west.from - 1.2), deco('banner', VILLAGE_ARENA.fence.x - 1.7, VILLAGE_ARENA.west.to + 0.2),
+    deco('bench', 60, 74.6, 3, 1), deco('bench', 66, 74.6, 3, 1), deco('bench', 72, 74.6, 2, 1),
   ];
   const doors: Door[] = SHOPS.map((sh) => {
     const { door } = shopDoor(sh.building);
@@ -292,13 +337,28 @@ function village(): MapLayout {
   decos.push(deco('mat', academyDoor.x + 0.5, academyDoor.y, 2, 0.6));
   doors.push({ ...academyDoor, dir: 'north', map: 'academy_interior', at: { ...ACADEMY.arrive } });
   return {
-    id: 'map_1', name: 'Vila', kind: 'village', width: W, height: H, safe: true, walls,
+    id: 'map_1', name: 'Vila', kind: 'village', village: 'vila_1', width: W, height: H, safe: true, walls,
     exits: [{ edge: 'south', from: G.from, to: G.to, map: 'map_2', shift: G.shift }],
     doors,
     areas, deco: decos,
     // Praça social logo acima do portão: sem combate.
     safeZones: [{ x: 28, y: 55, w: 24, h: 23 }],
+    arenas: [{ ...arenaFightBox(), village: 'vila_1', respawn: { ...VILLAGE_ARENA.respawn } }],
   };
+}
+
+/** Cerca da arena (4 lados, com os vãos das entradas) e os pilares de dentro. */
+function arenaWalls(): Wall[] {
+  const { fence: f, thickness: t, north: n, west: w } = VILLAGE_ARENA;
+  return [
+    wall('fence', f.x, f.y, n.from - f.x, t),                       // cima, à esquerda da entrada norte
+    wall('fence', n.to, f.y, f.x + f.w - n.to, t),                  // cima, à direita
+    wall('fence', f.x, f.y + f.h - t, f.w, t),                      // baixo
+    wall('fence', f.x, f.y + t, t, w.from - f.y - t),               // esquerda, acima da entrada oeste
+    wall('fence', f.x, w.to, t, f.y + f.h - t - w.to),              // esquerda, abaixo
+    wall('fence', f.x + f.w - t, f.y + t, t, f.h - 2 * t),          // direita
+    ...VILLAGE_ARENA.pillars.map((p) => wall('pillar', p.x, p.y, 1, 1)),
+  ];
 }
 
 /** Sorteio com semente (mulberry32): a floresta sai igual em todo servidor e todo boot. */
@@ -474,4 +534,9 @@ export const WORLD_MAPS: Readonly<Record<MapId, MapLayout>> = buildMaps();
 /** O ponto está numa zona segura do mapa? (posição do SERVIDOR) */
 export function inSafeZone(layout: MapLayout, x: number, y: number): boolean {
   return layout.safeZones.some((z) => x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h);
+}
+
+/** A arena em que o ponto está (dentro da cerca), se houver. */
+export function arenaAt(layout: MapLayout, x: number, y: number): Arena | undefined {
+  return layout.arenas?.find((a) => x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h);
 }

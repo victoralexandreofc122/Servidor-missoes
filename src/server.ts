@@ -122,6 +122,9 @@ try {
   await db.query(PROFILE_SQL.bootCheckV8);               // migração v8 (atributo Chakra, admin, pergaminho nas costas)
   await db.query(CHAT_SQL.bootCheck);                    // migração v8 (histórico do chat)
   await bootCheckV9(db);                                 // migração v9 (visual em sprites)
+  // Migração v10 (proteção contra azar na Extração): opcional, sem ela a Extração usa a chance de sempre.
+  const v10 = await db.query<{ ok: boolean }>(NINJA_SQL.bootCheckV10);
+  if (!v10.rows[0]?.ok) publicApp.log.warn('[boot] Extração sem a proteção contra azar: rode db/schema_v10_design.sql no SQL Editor do Neon (não precisa reiniciar).');
   // Migração v4 (NPC Mestre): sem ela o jogo sobe igual, só o Mestre não passa missões.
   const v4 = await db.query(MISSIONS_SQL.bootCheck, [NPC_SENSEI_ID, NPC_MISSION.missionType, NPC_MISSION.difficulty]);
   if (v4.rows.length === 0) publicApp.log.warn('[boot] NPC Mestre sem missões: rode db/schema_v4_npc_missions.sql no SQL Editor do Neon (não precisa reiniciar).');

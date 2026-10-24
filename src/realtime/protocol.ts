@@ -349,6 +349,10 @@ export interface WorldInfo {
   items: ItemDef[];
   /** Extração: pergaminhos e chance por nível (1 a 4). Só informativo: o sorteio é do servidor. */
   extraction: { level: number; scrolls: number; chance: number }[];
+  /** Proteção contra azar (v10): + isto na chance por falha seguida (as falhas vêm em `extract_odds`). */
+  extractionPityStep: number;
+  /** Vilas que o Criador deixa escolher (as outras aparecem travadas até o Arco 2). */
+  openVillages: string[];
   /** Usos para cada nível do jutsu (índice = nível - 1). */
   jutsuLevelUses: number[];
   maxLevel: number;
@@ -385,7 +389,11 @@ export type ServerMessage =
   | { type: 'monster_spawned'; monster: MonsterView }
   | { type: 'monster_status'; id: string; status: MonsterStatus; ms: number }
   | { type: 'monster_died'; id: string; killerId: string }
-  | { type: 'player_died'; playerId: string; respawnInMs: number }
+  /** Densidade: o mapa esvaziou e este monstro (longe de todos) sumiu. */
+  | { type: 'monster_gone'; id: string }
+  /** arena: perdeu uma luta de treino (renasce na entrada da arena, mais rápido). */
+  | { type: 'player_died'; playerId: string; respawnInMs: number; arena?: boolean }
+  | { type: 'arena_result'; winnerId: string; winner: string; loserId: string; loser: string; winnerRecord: ArenaRecord; loserRecord: ArenaRecord }
   | { type: 'player_respawned'; playerId: string; x: number; y: number; hp: number; maxHp: number }
   | { type: 'xp'; gained: number; totalXp: number; rank: RankView; promoted: boolean }
   | { type: 'announce'; message: string }
@@ -394,7 +402,8 @@ export type ServerMessage =
   | { type: 'mission_reward'; rewards: MissionRewardView[]; totalXp: number; rank: RankView; promoted: boolean }
   | { type: 'progress' } & ProgressView
   | { type: 'kit' } & KitView
-  | { type: 'attack'; playerId: string; x: number; y: number; fx: number; fy: number; cd: number; throw?: string }
+  /** r e arc: alcance e abertura do golpe com a arma (o corte é desenhado desse tamanho); throw: arma lançada. */
+  | { type: 'attack'; playerId: string; x: number; y: number; fx: number; fy: number; cd: number; throw?: string; r?: number; arc?: number }
   | { type: 'attack_failed'; reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED' }
   | { type: 'player_rank'; playerId: string; rank: RankView; level: number }
   | { type: 'evaluation_request'; missionId: string; trainee: { id: string; username: string }; mission: MissionView }
@@ -407,9 +416,17 @@ export type ServerMessage =
   | { type: 'jutsu_level'; skill: Skill; level: number }
   | { type: 'class_choice'; kind: 'primary' | 'secondary'; classes: ClassCode[] }
   | { type: 'extract_result'; class: ClassCode; level: number; outcome: 'success' | 'failed' | 'no_scrolls' | 'all_learned'; jutsu: Skill | null; consumed: number; scrollsLeft: number }
+  /** Falhas seguidas na Extração por classe e tier (proteção contra azar): o cliente soma à chance. */
+  | { type: 'extract_odds'; failures: Partial<Record<ClassCode, Record<number, number>>> }
   | { type: 'teleport'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }
   | { type: 'substitution'; playerId: string; logX: number; logY: number; x: number; y: number; a: number }
   | { type: 'error'; code: RealtimeErrorCode; message: string };
+
+/** Placar de arena de um ninja (desde que o servidor subiu). */
+export interface ArenaRecord {
+  wins: number;
+  losses: number;
+}
 
 /** Por que o jogador trocou de mapa: andou, renasceu ou foi levado pelo tutorial (sala seguinte / Praça). */
 export type MapChangeReason = 'walk' | 'respawn' | 'tutorial';
@@ -445,6 +462,7 @@ export const REALTIME_ERRORS = {
   NOT_A_SCROLL: 'Só pergaminhos vão nas costas.',
   SENSEI_TOO_FAR: 'Fale com o Mestre, na avenida da Vila, para escolher ou entregar missões.',
   TUTORIAL_LOCKED: 'Termine esta etapa da Academia primeiro.',
+  VILLAGE_LOCKED: 'Essa vila ainda não abriu. Por enquanto, todos os ninjas são da primeira vila.',
 } as const;
 export type RealtimeErrorCode = keyof typeof REALTIME_ERRORS;
 

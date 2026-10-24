@@ -719,6 +719,8 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
   font-size: 13px;
 }
 .seg-btn[aria-pressed="true"] { background: #ffd23f; color: #14110d; border-color: #ffd23f; }
+/* vila travada (abre com o Arco 2): apagada, com cadeado no texto */
+.seg-btn.locked { opacity: 0.45; cursor: not-allowed; border-bottom-style: dashed; }
 .swatch {
   width: 30px;
   height: 30px;

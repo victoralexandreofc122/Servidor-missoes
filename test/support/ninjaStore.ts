@@ -1,5 +1,5 @@
 import type { NinjaStore, Inventory, Classes } from '../../src/realtime/ninjaStore.js';
-import { EXTRACTION, JUTSUS, type ClassCode } from '../../src/realtime/jutsus.js';
+import { EXTRACTION, JUTSUS, extractionChance, type ClassCode } from '../../src/realtime/jutsus.js';
 import { ITEM_BY_CODE } from '../../src/realtime/items.js';
 
 /**
@@ -17,6 +17,8 @@ export function fakeNinjaStore(seed: { ryo?: number; items?: Inventory; classes?
     usage: new Map<string, number>(),
     xp: 0,
     equippedScroll: null as string | null,
+    /** Falhas seguidas por "classe/tier" (proteção contra azar da v10). */
+    pity: new Map<string, number>(),
   };
   const store: NinjaStore = {
     async flushUsage(id, uses) {
@@ -54,10 +56,24 @@ export function fakeNinjaStore(seed: { ryo?: number; items?: Inventory; classes?
       if (have < rule.scrolls) return { ok: true, outcome: 'no_scrolls', jutsu: null, consumed: 0, scrollsLeft: have, items: { ...state.items }, equippedScroll: back() };
       state.items[`scroll_${cls}`] = have - rule.scrolls;
       if (state.items[`scroll_${cls}`] === 0) delete state.items[`scroll_${cls}`];
-      if (roll >= rule.chance) return { ok: true, outcome: 'failed', jutsu: null, consumed: rule.scrolls, scrollsLeft: have - rule.scrolls, items: { ...state.items }, equippedScroll: back() };
+      const key = `${cls}/${level}`;
+      if (roll >= extractionChance(level, state.pity.get(key) ?? 0)) {
+        state.pity.set(key, (state.pity.get(key) ?? 0) + 1);
+        return { ok: true, outcome: 'failed', jutsu: null, consumed: rule.scrolls, scrollsLeft: have - rule.scrolls, items: { ...state.items }, equippedScroll: back() };
+      }
+      state.pity.delete(key);
       const code = pool[Math.floor(pick * pool.length)]!.code;
       state.learned.add(code);
       return { ok: true, outcome: 'success', jutsu: code, consumed: rule.scrolls, scrollsLeft: have - rule.scrolls, items: { ...state.items }, equippedScroll: back() };
+    },
+    async extractionFailures(id) {
+      calls.push(['extractionFailures', id]);
+      const out: Record<string, Record<number, number>> = {};
+      for (const [key, n] of state.pity) {
+        const [cls, tier] = key.split('/');
+        (out[cls!] ??= {})[Number(tier)] = n;
+      }
+      return out;
     },
     async buy(id, item, qty) {
       calls.push(['buy', id, item, qty]);

@@ -59,10 +59,26 @@ export interface CombatConfig {
    */
   basicAttack: { damage: number; range: number; arcDeg: number; cooldownMs: number };
   /**
-   * PvP: as hitboxes também acertam outros jogadores (fora da zona segura e fora da Academia).
-   * Desligado, só monstros apanham e todo jogador é aliado (a Cura pega os outros).
+   * PvP ABERTO (os mapas de fronteira do Arco 2): as hitboxes também acertam outros jogadores fora da zona
+   * segura e fora da Academia. Nunca vale em mapa de vila. Desligado, fora das arenas todo jogador é aliado
+   * (a Cura pega os outros).
    */
   pvp: boolean;
+  /**
+   * Arena de cada vila (maps.ts): ali o PvP de treino vale sempre, só entre os ninjas da vila dona.
+   * Perder renasce na entrada depois de `respawnMs`; quem renasce (em qualquer lugar) fica `protectMs` sem apanhar de jogador.
+   */
+  arena: { respawnMs: number; protectMs: number };
+  /**
+   * Teto de controle em jogadores (design 7.2): atordoar ou prender o MESMO jogador de novo dentro de
+   * `windowMs` da última vez dura a metade, depois um quarto, e na 4ª ele fica imune até a janela passar.
+   */
+  controlDr: { windowMs: number; factors: readonly number[] };
+  /**
+   * XP por participação (design 8.4): quem causou pelo menos esta fração da vida do monstro ganha o XP, o
+   * ryō, a chance de pergaminho e o abate da missão (quem deu o último golpe ganha sempre).
+   */
+  participation: number;
   /** Quanto cada ponto de atributo vale (com rendimento decrescente) e o custo de redefinir. */
   attributes: AttributeRules;
   monsters: {
@@ -70,6 +86,13 @@ export interface CombatConfig {
     attackRange: number; attackDamage: number; attackEveryMs: number;
     /** `count` = monstros em CADA mapa de caça (os que têm `hunt`); nascem longe dos jogadores. */
     minPlayerDistance: number;
+    /**
+     * Densidade (design 8.4): com N jogadores no mapa, o alvo é `count + perPlayer x N`, até `maxCount`. Faltando,
+     * nasce 1 a cada `spawnEveryMs`; sobrando (gente saiu), some 1 a cada `spawnEveryMs`, longe de todo mundo.
+     */
+    perPlayer: number;
+    maxCount: number;
+    spawnEveryMs: number;
   };
   /** Bonecos da Academia (tipos além do slime, que usa `monsters`). */
   monsterTypes: Readonly<Record<string, MonsterType>>;
@@ -182,6 +205,9 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 1, chakraRegenPerSec: 5, respawnMs: 5000, meditationRegenMultiplier: 3 },
     basicAttack: { damage: 12, range: 1.6, arcDeg: 90, cooldownMs: 600 },
     pvp: false,
+    arena: { respawnMs: 3000, protectMs: 5000 },
+    controlDr: { windowMs: 8000, factors: [1, 0.5, 0.25, 0] },
+    participation: 0.2,
     attributes: {
       // Sem teto de pontos (v8): o ponto investido com n pontos já no atributo vale base / (1 + n x 0,05).
       // Vitalidade: 1º ponto +10 de vida, 10º +6,9, 50º +2,9 (59 pontos = +279, e não +590).
@@ -199,10 +225,11 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       resetCostRyo: 500,
     },
     monsters: {
-      // 10 slimes na Floresta; a Vila é área segura (nenhum monstro).
+      // 10 slimes na Floresta (+3 por jogador lá, até 40); a Vila é área segura (nenhum monstro).
       count: 10, type: 'slime', maxHp: 60, xp: 20, stepMs: 1000,
       attackRange: 1.2, attackDamage: 10, attackEveryMs: 2000,
       minPlayerDistance: 3,
+      perPlayer: 3, maxCount: 40, spawnEveryMs: 1000,
     },
     monsterTypes: {
       // Sala 1: destruir 3 com o Ataque Básico (2 golpes cada). Não batem.

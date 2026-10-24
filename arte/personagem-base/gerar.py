@@ -1,4 +1,4 @@
-# Gera as peças-base do personagem (pixel art) para o Nin Online Mobile.
+# Gera as peças-base do personagem (pixel art) para o Vontade do Fogo.
 # Cada peça é desenhada como uma MÁSCARA de cores (letras) num quadro de 32x48 px.
 # O contorno (1 px) e o sombreado (luz em cima/esquerda, sombra embaixo/direita) são
 # calculados aqui, peça por peça: assim todas têm o mesmo acabamento e cada uma fica
@@ -453,7 +453,7 @@ def main():
     for name in WEAPONS:
         weapon_img(name).save(f'{OUT}/armas/{name}.png')
     manifest = {
-        'jogo': 'Nin Online Mobile',
+        'jogo': 'Vontade do Fogo',
         'quadro': {'largura': W, 'altura': H, 'pixel_art': True, 'escala_sugerida': 'inteira (x2, x3, x4), sem suavizar'},
         'direcoes': DIRS,
         'folhas': 'folhas/<peca>.png: 4 quadros lado a lado, na ordem de "direcoes"',

@@ -1,4 +1,4 @@
-# Nin Online Mobile: servidor-missoes
+# Vontade do Fogo: servidor-missoes
 
 ## Migrações de banco (`db/*.sql`)
 

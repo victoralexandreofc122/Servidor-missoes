@@ -1,4 +1,4 @@
-"""Exporta o personagem em camadas para o cliente do jogo (Nin Online Mobile).
+"""Exporta o personagem em camadas para o cliente do jogo (Vontade do Fogo).
 
 Saída (pasta public/ do servidor):
   sprites/chibi_m.png, sprites/chibi_f.png  atlas com os MAPAS DE ÍNDICE (canal + tom) de cada célula 64x96,

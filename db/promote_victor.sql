@@ -1,5 +1,5 @@
 -- =====================================================================
--- Nin Online Mobile: SCRIPT DE TESTE (não é migração do jogo)
+-- Vontade do Fogo: SCRIPT DE TESTE (não é migração do jogo)
 --
 -- Deixa a conta "Victor" no rank máximo (Hokage) para testar o lado social:
 -- criar missões de sensei para outros jogadores, avaliar, etc.

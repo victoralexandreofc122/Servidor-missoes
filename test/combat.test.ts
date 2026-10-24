@@ -73,7 +73,7 @@ describe('combate: geometria', () => {
 });
 
 describe('combate: monstros', () => {
-  it('Floresta com 10 monstros na zona de caça (fora das árvores e da clareira); a Vila não tem nenhum', () => {
+  it('Floresta com 10 monstros na zona de caça (+3 por jogador lá, fora das árvores e da clareira); a Vila não tem nenhum', () => {
     const { world, connect, run } = setupWorld(REALTIME);
     const a = connect('kaito');
     assert.equal(a.conn.of('welcome')[0].monsters.length, 0, 'na Vila (área segura) não há monstros');
@@ -86,7 +86,7 @@ describe('combate: monstros', () => {
     const before = hunt();
     run(30_000);
     const after = hunt();
-    assert.equal(after.length, M.count);
+    assert.equal(after.length, M.count + M.perPlayer, 'os 10 de base + 3 pelo jogador que chegou (1 a cada segundo)');
     for (const m of after) {
       assert.ok(m.x >= zone.x && m.y >= zone.y && m.x < zone.x + zone.w && m.y < zone.y + zone.h, `monstro fora da zona: ${m.x},${m.y}`);
       assert.ok(!blocked(m.x, m.y, forest.walls), `monstro dentro de árvore: ${m.x},${m.y}`);

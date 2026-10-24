@@ -172,3 +172,15 @@ export const EXTRACTION = [
   { level: 3, scrolls: 4, chance: 0.4 },
   { level: 4, scrolls: 8, chance: 0.2 },
 ] as const;
+
+/**
+ * Proteção contra azar (v10, design 7.3): cada falha seguida na mesma classe e no mesmo tier soma isto à
+ * chance da próxima; acertou, zera. A MESMA conta está em game.extract_jutsu (db/schema_v10_design.sql).
+ */
+export const EXTRACTION_PITY_STEP = 0.1;
+
+/** Chance da próxima Extração do tier `level` depois de `failures` falhas seguidas (0 a 1). */
+export function extractionChance(level: number, failures: number): number {
+  const base = EXTRACTION.find((e) => e.level === level)?.chance ?? 0;
+  return Math.min(1, base + EXTRACTION_PITY_STEP * Math.max(0, failures));
+}

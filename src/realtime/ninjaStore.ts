@@ -39,6 +39,9 @@ export interface ExtractResult {
   equippedScroll: string | null;
 }
 
+/** Falhas seguidas na Extração (v10): classe -> tier -> falhas. Sem a v10 no banco: vazio. */
+export type ExtractionFailures = Partial<Record<ClassCode, Record<number, number>>>;
+
 export interface NinjaStore {
   /** Soma os usos contados pelo servidor (lote). O nível do jutsu é calculado pelo banco. */
   flushUsage(playerId: string, uses: readonly [string, number][]): Promise<void>;
@@ -48,6 +51,8 @@ export interface NinjaStore {
   chooseSecondary(playerId: string, cls: ClassCode): Promise<StoreResult<{ classes: Classes }>>;
   /** roll e pick: sorteios do SERVIDOR, de 0 a 1. */
   extract(playerId: string, cls: ClassCode, level: number, roll: number, pick: number): Promise<StoreResult<ExtractResult & { items: Inventory }>>;
+  /** Falhas seguidas (proteção contra azar, v10): a chance mostrada na Casa dos Pergaminhos sai daqui. */
+  extractionFailures(playerId: string): Promise<ExtractionFailures>;
   buy(playerId: string, item: string, qty: number): Promise<StoreResult<{ ryo: number; items: Inventory }>>;
   /** Arma (slot weapon) ou pergaminho nas costas (slot scroll). O banco confere que o jogador tem o item. */
   equip(playerId: string, item: string | null, slot?: 'weapon' | 'scroll'): Promise<StoreResult<{ equipped: string | null }>>;
@@ -73,6 +78,7 @@ export const NINJA_SQL = {
   classes: `SELECT primary_class, secondary_class FROM game.player_classes WHERE player_id = $1`,
   rank: `SELECT r.code, r.name, r.can_be_sensei FROM game.players p JOIN game.ranks r ON r.id = p.current_rank_id WHERE p.id = $1`,
   extract: `SELECT outcome, jutsu_code, consumed, scrolls_left FROM game.extract_jutsu($1, $2, $3, $4, $5)`,
+  extractionFailures: `SELECT class_code, tier, failures FROM game.extraction_failures($1)`,
   buy: `SELECT game.buy_item($1, $2, $3) AS ryo`,
   equip: `UPDATE game.players SET equipped_weapon = $2 WHERE id = $1 RETURNING equipped_weapon AS equipped`,
   equipScroll: `UPDATE game.players SET equipped_scroll = $2 WHERE id = $1 RETURNING equipped_scroll AS equipped`,
@@ -90,6 +96,8 @@ export const NINJA_SQL = {
   inventory: `SELECT ${INVENTORY} AS items`,
   /** Checagem de boot: a migração v7 foi aplicada? (LIMIT 0: não lê linha.) */
   bootCheck: `SELECT tutorial_step, ryo, equipped_weapon, attr_weapons FROM game.players LIMIT 0`,
+  /** A v10 (proteção contra azar) é opcional: sem ela o jogo sobe e o boot só avisa. */
+  bootCheckV10: `SELECT to_regprocedure('game.extraction_failures(uuid)') IS NOT NULL AS ok`,
 } as const;
 
 interface PgError {
@@ -167,6 +175,18 @@ export function makeNinjaStore(db: Db): NinjaStore {
         });
       } catch (err) {
         return refuse(err);
+      }
+    },
+
+    async extractionFailures(playerId) {
+      try {
+        const rows = (await db.query<{ class_code: ClassCode; tier: number; failures: number }>(NINJA_SQL.extractionFailures, [playerId])).rows;
+        const out: ExtractionFailures = {};
+        for (const r of rows) (out[r.class_code] ??= {})[r.tier] = r.failures;
+        return out;
+      } catch (err) {
+        if ((err as PgError).code === '42883') return {};      // sem a v10: a função ainda não existe
+        throw err;
       }
     },
 

@@ -1,4 +1,4 @@
-// MMO Ninja — cliente web (JavaScript puro, sem bibliotecas).
+// Vontade do Fogo — cliente web (JavaScript puro, sem bibliotecas).
 //
 // O SERVIDOR DECIDE TUDO no combate: este cliente só pede ("usa Fogo", "renascer") e
 // desenha o que o servidor responde (acertos, dano, vida, chakra, morte, XP).
@@ -10,7 +10,7 @@
 // com a posição oficial que chega a cada tick.
 
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
-import { groundAt, inSafeZone, mapName, placements, visibleDeco, visibleWalls } from './world.js';
+import { arenaAt, arenaFoes, groundAt, inSafeZone, mapName, placements, visibleDeco, visibleWalls } from './world.js';
 import { drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawWall } from './mapArt.js';
 import { dirFrom, drawBackItem, drawCharacter, drawHandItem } from './character.js';
 import {
@@ -140,6 +140,12 @@ const state = {
   shop: null,
   /** O próprio jogador está numa zona segura (praça): botões de combate apagados. */
   inSafeZone: false,
+  /** Dentro da arena da vila (PvP de treino): os ninjas da vila viram alvo e o topo avisa. */
+  inArena: false,
+  /** Placar da arena deste jogador ({ wins, losses }, desde que o servidor subiu). */
+  arenaRecord: null,
+  /** Extração: falhas seguidas por classe e tier (proteção contra azar, vem do servidor). */
+  extractFailures: {},
   /** Barras do próprio jogador (vêm do servidor). */
   me: {
     hp: 100, maxHp: 100, chakra: 100, maxChakra: 100, shield: false, xp: 0, rank: { code: 'ACADEMY', name: 'Academia' },
@@ -392,7 +398,7 @@ function upsertMonster(m, now) {
 }
 
 const CAST_FAIL_TEXT = {
-  NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum monstro perto',
+  NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum alvo perto',
   FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
   NOT_EQUIPPED: 'Fora do kit ativo', SAFE_ZONE: 'Zona segura: sem combate',
   NOT_LEARNED: 'Jutsu não aprendido', BLOCKED: 'Caminho bloqueado', TUTORIAL_LOCKED: 'Primeiro, o Ataque Básico',
@@ -495,6 +501,26 @@ function handleMessage(msg) {
       break;
     case 'extract_result':
       showExtractResult(msg);
+      break;
+    case 'extract_odds':
+      state.extractFailures = msg.failures || {};
+      if (state.shop?.kind === 'scrolls') renderExtraction();
+      break;
+    case 'arena_result': {
+      // Luta de treino na arena: todo mundo no mapa vê no chat; quem lutou vê o placar.
+      const line = `⚔️ Arena: ${msg.winner} venceu ${msg.loser}.`;
+      addSystemLine(line);
+      if (msg.winnerId === state.meId || msg.loserId === state.meId) {
+        const mine = msg.winnerId === state.meId ? msg.winnerRecord : msg.loserRecord;
+        state.arenaRecord = mine;
+        showToast(`${msg.winnerId === state.meId ? 'Vitória' : 'Derrota'} na arena · ${mine.wins}V ${mine.losses}D`, 3500);
+        updateOnline();
+      }
+      break;
+    }
+    case 'monster_gone':
+      state.monsters.delete(msg.id);           // o mapa esvaziou e ele sumiu longe de todos
+      if (state.focusId === msg.id) setFocus(null);
       break;
     case 'teleport': {
       // Teleporte Curto: o SERVIDOR decidiu o lugar (alcance pelo nível, parando antes da parede).
@@ -622,7 +648,9 @@ function handleMessage(msg) {
     case 'attack': {
       // Corte em arco (a hitbox do servidor: 90°, 1,6 casa) na direção do golpe, junto do quadro do corte/soco.
       // Arremesso (Shuriken Gigante): sem corte; o efeito é a shuriken voando (mensagem `projectile`).
-      if (!msg.throw && !vfx.play('slash', msg.x, msg.y, { start: now, delay: 80, angle: Math.atan2(msg.fy, msg.fx) })) {
+      // O corte tem o tamanho do golpe da arma (kunai curta, espada longa maior: `r` do servidor).
+      const reach = (msg.r || state.world.basicAttack?.range || 1.6) / 1.6;
+      if (!msg.throw && !vfx.play('slash', msg.x, msg.y, { start: now, delay: 80, angle: Math.atan2(msg.fy, msg.fx), scale: reach })) {
         state.effects.push({ skill: 'attack', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
       }
       faceTo(msg.playerId, msg.fx, msg.fy);
@@ -782,7 +810,7 @@ function handleMessage(msg) {
         renderVitals();
         keys.clear();
         setDirection(0, 0);
-        showDeath(msg.respawnInMs);
+        showDeath(msg.respawnInMs, msg.arena);
       }
       break;
     }
@@ -854,6 +882,7 @@ function handleMessage(msg) {
     }
     case 'error':
       if (msg.code === 'CHAT_RATE_LIMITED' || msg.code === 'CHAT_INVALID') addSystemLine(msg.message);
+      else if (msg.code === 'VILLAGE_LOCKED') ui.creatorError.textContent = msg.message;
       else if (['NPC_TOO_FAR', 'CANNOT_TALK', 'UNKNOWN_NPC', 'MISSIONS_UNAVAILABLE', 'NO_POINTS', 'ATTRIBUTE_MAXED',
         'PROFILE_UNAVAILABLE', 'PROFILE_BUSY', 'PLAYER_NOT_FOUND', 'PLAYER_TOO_FAR', 'INVALID_MISSION_OPTION',
         'NOT_LEARNED', 'SHOP_TOO_FAR', 'DIRECTOR_TOO_FAR', 'ITEM_NOT_OWNED', 'NOT_A_WEAPON', 'NOT_A_SCROLL', 'SENSEI_TOO_FAR',
@@ -921,8 +950,9 @@ function jumpPlayer(playerId, x, y, ack) {
 // ---- derrota e renascimento
 
 let deathTimer = null;
-function showDeath(ms) {
+function showDeath(ms, arena = false) {
   ui.death.hidden = false;
+  ui.death.classList.toggle('arena', !!arena);
   ui.respawn.disabled = true;
   closeChat();
   const until = performance.now() + (ms || 0);
@@ -930,9 +960,9 @@ function showDeath(ms) {
   const tickDeath = () => {
     const left = Math.ceil((until - performance.now()) / 1000);
     if (left > 0) {
-      ui.deathTimer.textContent = `Você poderá renascer em ${left} s`;
+      ui.deathTimer.textContent = arena ? `Derrota no treino. Você volta na entrada da arena em ${left} s` : `Você poderá renascer em ${left} s`;
     } else {
-      ui.deathTimer.textContent = 'Pronto para voltar ao centro do mapa.';
+      ui.deathTimer.textContent = arena ? 'Pronto para voltar à entrada da arena.' : 'Pronto para voltar ao centro do mapa.';
       ui.respawn.disabled = false;
       clearInterval(deathTimer);
     }
@@ -954,7 +984,8 @@ function updateOnline() {
   let n = 0;
   for (const p of state.players.values()) if (p.map === state.mapId || p.id === state.meId) n += 1;
   const where = mapName(state.maps, state.mapId);
-  const zone = state.inSafeZone ? 'zona segura · ' : '';
+  const rec = state.arenaRecord;
+  const zone = state.inSafeZone ? 'zona segura · ' : state.inArena ? `⚔️ arena${rec ? ` ${rec.wins}V ${rec.losses}D` : ''} · ` : '';
   setStatus(`online · ${where ? `${where} · ` : ''}${zone}${n} ${n === 1 ? 'jogador' : 'jogadores'}`, 'ok');
 }
 
@@ -1240,11 +1271,27 @@ const skillName = (skill) => state.world.skills?.[skill]?.name || skill;
 
 // ------------------------------------------------------------------ foco (🎯) e meditação (🧘)
 
-/** Botão 🎯: foca o mais perto; com foco, passa para o próximo mais perto (ciclo). */
+/** Ninja que pode ser alvo agora: os dois dentro da arena da vila (o servidor confere de novo). */
+function isFoe(p) {
+  const me = state.players.get(state.meId);
+  return !!p && p !== me && p.map === state.mapId && arenaFoes(state.maps[state.mapId], me, p);
+}
+
+/** O alvo focado: um monstro ou, na arena, outro ninja. */
+function focusEntity() {
+  if (!state.focusId) return null;
+  const m = state.monsters.get(state.focusId);
+  if (m) return m;
+  const p = state.players.get(state.focusId);
+  return isFoe(p) ? p : null;
+}
+
+/** Botão 🎯: foca o mais perto; com foco, passa para o próximo mais perto (ciclo). Na arena, os ninjas da vila também. */
 function cycleFocus() {
   const me = state.players.get(state.meId);
   if (!me || state.me.dead) return;
   const here = [...state.monsters.values()].filter((m) => m.map === state.mapId);
+  if (state.inArena) for (const p of state.players.values()) if (isFoe(p)) here.push(p);
   const id = nextTarget(me, here, state.focusId, FOCUS_RANGE);
   if (!id) {
     setFocus(null);
@@ -1599,7 +1646,11 @@ function renderExtraction() {
   if (!owned.length) {
     ui.extractInfo.textContent = 'Você ainda não tem classe. Faça a Missão de Genin com o Diretor da Academia (nível 11).';
   } else if (rule) {
-    ui.extractInfo.textContent = `Custa ${rule.scrolls} ${rule.scrolls === 1 ? 'pergaminho' : 'pergaminhos'} · chance de ${Math.round(rule.chance * 100)}% · jutsu do Tier ${rule.level}. Você tem ${have}.`;
+    // Proteção contra azar: cada falha seguida nesta classe e neste tier soma pontos na chance (o servidor conta).
+    const fails = extractChoice.cls ? state.extractFailures?.[extractChoice.cls]?.[rule.level] || 0 : 0;
+    const chance = Math.min(1, rule.chance + (state.world.extractionPityStep || 0) * fails);
+    const luck = fails > 0 ? ` (${Math.round(rule.chance * 100)}% + ${Math.round((chance - rule.chance) * 100)}% de sorte acumulada)` : '';
+    ui.extractInfo.textContent = `Custa ${rule.scrolls} ${rule.scrolls === 1 ? 'pergaminho' : 'pergaminhos'} · chance de ${Math.round(chance * 100)}%${luck} · jutsu do Tier ${rule.level}. Você tem ${have}.`;
   }
   ui.extractGo.disabled = !owned.length || !rule || have < rule.scrolls;
 }
@@ -2317,10 +2368,16 @@ const CREATOR_LABEL = {
   basica: 'Camisa e calça', vila: 'Conjunto da vila', true: 'Com bandana', false: 'Sem',
 };
 const creatorLabel = (field, v) => (field === 'village' ? `Vila ${String(v).split('_')[1]}` : CREATOR_LABEL[String(v)] || String(v).replace(/_/g, ' '));
+/**
+ * Vila que dá para escolher: as abertas (o servidor manda) ou a que o jogador já tinha. As outras aparecem
+ * travadas até o Arco 2 (o servidor recusa do mesmo jeito: VILLAGE_LOCKED).
+ */
+const villageOpen = (v) => (state.world.openVillages || ['vila_1']).includes(v) || (state.me.appearanceSet && state.me.look?.village === v);
 
 function openCreator(first = false) {
   creatorFirst = first;
   creatorLook = { ...(state.me.look || DEFAULT_APPEARANCE) };
+  if (!villageOpen(creatorLook.village)) creatorLook.village = (state.world.openVillages || ['vila_1'])[0];
   creatorDir = 0;
   renderCreatorOptions();
   ui.creatorCancel.hidden = first;           // na 1ª vez é obrigatório escolher
@@ -2385,6 +2442,13 @@ function renderCreatorOptions() {
         b.textContent = creatorLabel(field, value);
         if (field === 'village') b.style.borderBottomColor = swatchOf('village', value);
       }
+      if (field === 'village' && !villageOpen(value)) {
+        b.disabled = true;
+        b.classList.add('locked');
+        b.textContent = `🔒 ${creatorLabel(field, value)}`;
+        b.title = 'Abre com o Arco 2';
+        b.setAttribute('aria-label', `${creatorLabel(field, value)}: travada, abre com o Arco 2`);
+      }
       b.addEventListener('click', () => setCreator(field, value));
       box.append(b);
     }
@@ -2401,6 +2465,7 @@ ui.creatorRandom.addEventListener('click', () => {
   const gender = pick(OPTIONS.gender);
   creatorLook = { v: 2 };
   for (const field of Object.keys(OPTIONS)) creatorLook[field] = pick(OPTIONS[field]);
+  creatorLook.village = pick(OPTIONS.village.filter(villageOpen));      // só entre as vilas abertas
   creatorLook.gender = gender;
   creatorLook.eyeStyle = gender === 'f' ? 'cilios' : 'masculino';
   if (Math.random() < 0.75) creatorLook.hairStyle = gender === 'f' ? 'longo_lateral' : 'espetado';
@@ -2885,6 +2950,21 @@ function sandTile(seed) {
   });
 }
 
+/** Terra batida da arena: mais escura e avermelhada que a areia, com pedrinhas e marcas de pé. */
+function arenaTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#b48558';
+    g.fillRect(0, 0, PIX, PIX);
+    for (let i = 0; i < 18; i++) {
+      g.fillStyle = r() < 0.5 ? '#a2764c' : '#c49568';
+      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1 + Math.floor(r() * 2), 1);
+    }
+    g.fillStyle = '#8f6741';
+    g.fillRect(Math.floor(r() * (PIX - 2)), Math.floor(r() * (PIX - 2)), 2, 1);
+  });
+}
+
 /** Ponte de madeira: tábuas atravessadas e corrimão nas pontas. */
 function bridgeTile() {
   return makeTile((g) => {
@@ -2946,6 +3026,7 @@ const TILES = {
   grass: [grassTile(1, false), grassTile(2, false), grassTile(3, false), grassTile(4, true)],
   stone: [lightStoneTile(21), lightStoneTile(22), lightStoneTile(23)],   // ruas e praça: pedra cinza clara
   sand: [sandTile(41), sandTile(42)],
+  arena: [arenaTile(43), arenaTile(44), arenaTile(45)],                                     // terra batida da arena
   bridge: [bridgeTile(51)],
   river: [riverTile(61), riverTile(62)],
   path: [pathTile(7), pathTile(8)],
@@ -2970,6 +3051,7 @@ function tileAt(x, y) {
     case 'stone': return TILES.stone[h % 3];                       // Vila: calçamento de pedra cinza clara
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
+    case 'arena': return TILES.arena[h % 3];                       // arena da vila (terra batida)
     case 'water': return TILES.river[h & 1];                       // rio e canais
     case 'bridge': return TILES.bridge[0];                         // pontes
     case 'darkgrass': return TILES.darkGrass[h % 31 === 0 ? 3 : h % 3];   // Floresta: grama escura
@@ -3078,6 +3160,15 @@ function update(dt) {
         document.body.classList.toggle('safe-zone', safe);
         updateOnline();
       }
+      // Arena da vila: PvP de treino entre os ninjas dela. Entrando, avisa; saindo, solta o foco num ninja.
+      const arena = !!arenaAt(state.maps[state.mapId], vx, vy);
+      if (arena !== state.inArena) {
+        state.inArena = arena;
+        document.body.classList.toggle('arena-zone', arena);
+        if (arena) showToast('Arena: aqui os ninjas da sua vila treinam luta. Perder não custa nada.', 3500);
+        if (!arena && state.focusId && state.players.has(state.focusId)) setFocus(null);
+        updateOnline();
+      }
     }
   }
   for (const p of state.players.values()) {
@@ -3093,7 +3184,7 @@ function update(dt) {
     m.y += (m.ty - m.y) * k;
   }
   // Foco perdido: alvo morreu/sumiu ou o jogador andou para longe (mais de 12 casas).
-  if (state.focusId && me && !keepFocus(me, state.monsters.get(state.focusId))) setFocus(null);
+  if (state.focusId && me && !keepFocus(me, focusEntity())) setFocus(null);
   if (me) updateCamera(dt, me);
   updateNpcProximity(me);
 }
@@ -3162,7 +3253,7 @@ function animateWalk(dt, me) {
 // e afasta o zoom só o necessário para os dois caberem; sem alvo, volta suave para o jogador.
 const cam = { ox: 0, oy: 0, scale: 1 };
 function updateCamera(dt, me) {
-  const target = state.focusId ? state.monsters.get(state.focusId) : null;
+  const target = focusEntity();
   const want = frameCamera(me, target, viewW, viewH, tile, CAMERA);
   const k = smoothing(dt, CAMERA.followRate);
   cam.ox += (want.ox - cam.ox) * k;
@@ -3242,7 +3333,7 @@ function draw(now) {
   vfx.draw(ctx, 'ground', toScreenX, toScreenY, T, dpr, now);
 
   // Linha pontilhada do jogador até o alvo focado.
-  const focused = state.focusId ? state.monsters.get(state.focusId) : null;
+  const focused = focusEntity();
   if (me && focused) {
     ctx.save();
     ctx.globalAlpha = 0.45;
@@ -3918,13 +4009,15 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
   ctx.lineWidth = 3;
   ctx.lineJoin = 'round';            // contorno do texto sem "espinhos" nas quinas
   ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
-  ctx.fillStyle = isMe ? '#ffe2a8' : '#f4ead8';
+  const foe = !isMe && state.inArena && isFoe(p);       // na arena: adversário com o nome em vermelho
+  ctx.fillStyle = isMe ? '#ffe2a8' : foe ? '#ff9a8a' : '#f4ead8';
   const nameY = headTop - 5 - (isMe ? 2 : 7);
   ctx.strokeText(p.username, sx, nameY);
   ctx.fillText(p.username, sx, nameY);
   // vida dos outros jogadores (a nossa fica nas barras de baixo)
-  if (!isMe && !p.dead) drawHpBar(sx, headTop - 9, T * 0.8, p.hp / p.maxHp, '#7bd36a');
+  if (!isMe && !p.dead) drawHpBar(sx, headTop - 9, T * 0.8, p.hp / p.maxHp, foe ? '#ff5a4a' : '#7bd36a');
   ctx.globalAlpha = 1;
+  if (!isMe && p.id === state.focusId && foe) drawFocusMarker(sx, sy, r, T, now);
 
   // balão de chat
   if (p.bubble && now < p.bubble.until) {
