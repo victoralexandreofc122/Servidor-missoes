@@ -292,7 +292,8 @@ describe('mapas: servidor (salas)', () => {
     assert.equal(w.world.maps.map_2.walls.length, FLORESTA.walls.length);
     assert.deepEqual(w.world.maps.map_1.safeZones, VILA.safeZones);
     assert.deepEqual(w.players, [], 'kaito está na Floresta: não aparece na Vila');
-    assert.ok(JSON.stringify(w).length < 32_000, `welcome leve (${JSON.stringify(w).length} bytes)`);   // a Floresta do Arco 1 é maior
+    // a Floresta do Arco 1 é maior (trilhas e riacho em curvas) e o céu vem junto (clima)
+    assert.ok(JSON.stringify(w).length < 34_000, `welcome leve (${JSON.stringify(w).length} bytes)`);
   });
 });
 
@@ -308,8 +309,8 @@ describe('mapas: desenho no cliente (world.js)', async () => {
     // a mesma casa do mundo vista dos dois lados: a praça da Vila
     assert.equal(W.groundAt(fromVila, 40, 70), 'stone');
     assert.equal(W.groundAt(fromFloresta, 40, 70 - 80), 'stone');
-    // e a trilha da Floresta logo depois do portão, vista da Vila
-    assert.equal(W.groundAt(fromVila, 40, 83), 'path');
+    // e a trilha da Floresta logo depois do portão, vista da Vila (a faixa curva por cima da grama)
+    assert.equal(W.groundAt(fromVila, 40, 83), 'trail');
   });
 
   it('chão da Vila: pedra clara nas ruas e praça, gramados, rio com pontes, areia no campo de treino e a arena de terra batida', () => {
