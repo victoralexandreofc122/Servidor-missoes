@@ -715,3 +715,21 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
   .equip-stats { gap: 5px; }
   .eq-attrs li { font-size: 15px; }
 }
+
+/* ------------------------------------------------------------ o céu nos botões: ▲ mais forte agora, ▼ mais fraco */
+
+.cbtn.sky-up::before, .cbtn.sky-down::before {
+  content: "▲";
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+  font: 700 11px / 1 var(--ui-font);
+  color: #8dff9a;
+  text-shadow: var(--text-outline);
+  z-index: 2;
+  pointer-events: none;
+}
+.cbtn.sky-down::before { content: "▼"; color: #ff8a7a; }
+.cbtn.skill.sky-up { box-shadow: 0 0 0 1px #1d1408, 0 0 0 3px #7be35a, 0 0 0 4px rgba(190, 255, 160, 0.6), 0 0 14px rgba(125, 255, 138, 0.55), 0 4px 10px rgba(0, 0, 0, 0.55); }
+.buffs li { cursor: pointer; pointer-events: auto; }

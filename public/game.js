@@ -431,6 +431,12 @@ function handleMessage(msg) {
   const now = performance.now();
   if (eg.handle(msg)) return;            // painéis do fim de jogo (endgame.js)
   switch (msg.type) {
+    case 'sky': {
+      // O céu mudou (para todos): a fase do dia e/ou o clima. Avisa na tela o que mudou nos jutsus.
+      setSky(msg.sky);
+      announceSky(msg.changed);
+      break;
+    }
     case 'welcome': {
       state.players.clear();
       state.monsters.clear();
@@ -438,6 +444,7 @@ function handleMessage(msg) {
       if (msg.world) {
         const w = msg.world;
         state.world = w;
+        if (w.sky) setSky(w.sky);
         // Layouts de todos os mapas: paredes (casas e árvores), saídas e chão. São os MESMOS
         // que o servidor usa para colidir e trocar de mapa.
         state.maps = w.maps || {};
@@ -984,22 +991,34 @@ function renderVitals() {
 function renderBuffs() {
   const m = state.me;
   const list = [];
+  const clock = skyClock(), fx = skyHere();
+  if (clock && fx) {                                  // o céu (ao ar livre): a hora e o clima, com o bônus
+    const fxText = skyEffectsText(fx);
+    list.push([PHASE_ICONS[clock.phase], `${PHASE_NAMES[clock.phase]}${clock.phase === 'noite' && fxText ? ` · ${fxText}` : ''}`]);
+    if (state.sky.weather !== 'normal') list.push([SKY_ICONS[state.sky.weather], `${SKY_NAMES[state.sky.weather]}${fxText ? ` · ${fxText}` : ''}`]);
+  }
   if (m.meditating) list.push(['🧘', 'Meditando']);
   if (m.shield) list.push(['🛡️', 'Escudo de Pedra']);
   if (m.running) list.push(['🏃', 'Correndo']);
   if (state.inSafeZone) list.push(['🕊️', 'Zona segura']);
   if (state.inArena) list.push(['⚔️', 'Arena']);
-  const key = list.map((b) => b[0]).join('');
+  const key = list.map((b) => b.join('')).join('|');
   if (key === renderBuffs.key) return;
   renderBuffs.key = key;
   ui.buffs.replaceChildren(...list.map(([icon, label]) => {
     const li = document.createElement('li');
     li.textContent = icon;
     li.title = label;
+    li.dataset.info = `${icon} ${label}`;
     li.setAttribute('aria-label', label);
     return li;
   }));
 }
+// Tocar num efeito mostra o que ele é (no celular não há "passar o mouse").
+ui.buffs.addEventListener('click', (e) => {
+  const li = e.target.closest('li');
+  if (li?.dataset.info) showToast(li.dataset.info, 3000);
+});
 
 /** Nome de cada monstro na janela do alvo. */
 const MONSTER_NAMES = { slime: 'Slime', lodo_escuro: 'Lodo Escuro', lodo_sombrio: 'Lodo Sombrio', dummy: 'Boneco de Treino', sparring: 'Boneco de Treino' };
@@ -2467,9 +2486,15 @@ function renderKit() {
 
 /** Botão apagado sem chakra; recarga desenhada no quadro (frame). */
 function renderSlots() {
+  const fx = skyHere();
   for (const button of ui.slots) {
-    const cost = state.world.skills?.[button.dataset.skill]?.cost ?? 0;
+    const info = state.world.skills?.[button.dataset.skill];
+    const cost = info?.cost ?? 0;
     button.classList.toggle('no-chakra', !!button.dataset.skill && (state.me.chakra < cost || state.me.dead));
+    // Clima e hora: ▲ o jutsu está mais forte agora, ▼ mais fraco (só ao ar livre).
+    const k = fx && info ? (fx.damage[info.mechanic] ?? 1) * (fx.status[info.mechanic] ?? 1) : 1;
+    button.classList.toggle('sky-up', k > 1.001);
+    button.classList.toggle('sky-down', k < 0.999);
   }
 }
 
@@ -4167,6 +4192,7 @@ function draw(now) {
   updateTargetWindow(focused);
   updatePortrait();
   drawMinimap(now);
+  if (now - (draw.skyAt || 0) > 1000) { draw.skyAt = now; renderBuffs(); renderSlots(); }
   drawEquipFigure(now);
   if (me && focused) {
     ctx.save();
@@ -4221,6 +4247,7 @@ function draw(now) {
 
   // O ar do mapa (sombras das copas, sol, pólen, brasas, vinheta) e, na caverna, o escuro em volta do jogador.
   drawAtmosphere(toScreenX, toScreenY, T, now);
+  drawSky(toScreenX, toScreenY, T, now, me);
   if (me && state.maps[state.mapId]?.kind === 'cave') drawCaveDark(toScreenX(me.x), toScreenY(me.y), T);
 
   // 6. Números flutuantes (dano, cura, XP, avisos) e falas do NPC.
@@ -4578,6 +4605,189 @@ function drawAtmosphere(toScreenX, toScreenY, T, now) {
     g.addColorStop(1, mood.vig);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, viewW, viewH);
+  }
+  ctx.restore();
+}
+
+// ------------------------------------------------------------------ o céu: hora e clima (servidor: weather.ts)
+
+/** O céu que o servidor mandou e quando chegou (a hora anda sozinha daqui em diante). */
+function setSky(sky) {
+  state.sky = { ...sky, recvAt: performance.now() };
+  renderSlots();
+  renderBuffs();
+}
+
+/** Onde o ciclo está agora (0..1) e a fase, pelo relógio do servidor. */
+function skyClock() {
+  const s = state.sky;
+  if (!s) return null;
+  const t = s.serverNow + s.offsetMs + (performance.now() - s.recvAt);
+  const progress = (((t % s.cycleMs) + s.cycleMs) % s.cycleMs) / s.cycleMs;
+  let phase = 'amanhecer';
+  for (const p of ['amanhecer', 'dia', 'entardecer', 'noite']) if (progress >= s.phaseStarts[p]) phase = p;
+  return { progress, phase };
+}
+
+const smooth = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+/** Escuridão (0 de dia, ~1 de noite) e o tom quente do amanhecer e do entardecer, suaves entre as fases. */
+function skyLight(progress) {
+  const st = state.sky.phaseStarts;
+  const dusk = smooth(st.entardecer, st.noite, progress), dawn = 1 - smooth(st.amanhecer, st.dia, progress);
+  const dark = progress >= st.noite ? 1 : progress >= st.entardecer ? dusk : progress < st.dia ? dawn : 0;
+  const warm = progress >= st.entardecer && progress < st.noite ? Math.sin(dusk * Math.PI)
+    : progress < st.dia ? Math.sin((1 - dawn) * Math.PI) : 0;
+  return { dark, warm };
+}
+
+/** O que o céu muda nos jutsus AQUI (null dentro de casa e na caverna, como no servidor). */
+function skyHere() {
+  const kind = state.maps[state.mapId]?.kind;
+  if (!state.sky || !['village', 'forest', 'wild'].includes(kind)) return null;
+  return state.sky.effects;
+}
+
+const SKY_NAMES = { normal: 'Céu limpo', quente: 'Dia quente', chuva: 'Chuva', neblina: 'Neblina' };
+const PHASE_NAMES = { amanhecer: 'Amanhecer', dia: 'Dia', entardecer: 'Entardecer', noite: 'Noite' };
+const SKY_ICONS = { normal: '', quente: '🌡️', chuva: '🌧️', neblina: '🌫️' };
+const PHASE_ICONS = { amanhecer: '🌅', dia: '☀️', entardecer: '🌇', noite: '🌙' };
+const MECH_NAMES = { fire: 'Fogo', water: 'Água', lightning: 'Raio', illusion: 'Ilusão', shadow: 'Sombra' };
+
+/** "Água +20%, Raio +15%, Fogo −20%" (dano) e "Ilusão atordoa +30%" (tempo dos efeitos). */
+function skyEffectsText(fx) {
+  const pct = (v) => `${v > 1 ? '+' : '−'}${Math.round(Math.abs(v - 1) * 100)}%`;
+  const dmg = Object.entries(fx.damage).map(([m, v]) => `${MECH_NAMES[m] || m} ${pct(v)}`);
+  const st = Object.entries(fx.status).map(([m, v]) => `${MECH_NAMES[m] || m} ${m === 'shadow' ? 'prende' : 'atordoa'} ${pct(v)}`);
+  return [...dmg, ...st].join(', ');
+}
+
+/** Aviso quando muda: "🌧️ Começou a chover: Água +20%...". */
+function announceSky(changed) {
+  const s = state.sky;
+  if (!s) return;
+  const fx = skyEffectsText(s.effects);
+  const head = changed === 'phase' ? `${PHASE_ICONS[s.phase]} ${PHASE_NAMES[s.phase]}` : `${SKY_ICONS[s.weather] || PHASE_ICONS[s.phase]} ${SKY_NAMES[s.weather]}`;
+  showToast(fx ? `${head}: ${fx} (ao ar livre).` : `${head}.`, 4000);
+}
+
+/**
+ * O céu na tela (só ao ar livre): o tom quente do dia quente, o cinza da chuva com as gotas, os respingos e um
+ * relâmpago de vez em quando, a neblina passando, o laranja do amanhecer e do entardecer, e a noite: uma camada
+ * escura com buracos de luz em volta do jogador, dos outros, das lanternas, dos postes e das Pedras-Selo acesas.
+ */
+const nightLayer = document.createElement('canvas');
+function drawSky(toScreenX, toScreenY, T, now, me) {
+  const kind = state.maps[state.mapId]?.kind;
+  const clock = skyClock();
+  if (!clock || !['village', 'forest', 'wild'].includes(kind)) return;
+  const { dark, warm } = skyLight(clock.progress);
+  const weather = state.sky.weather;
+  const t = now / 1000;
+  const ox = toScreenX(0), oy = toScreenY(0);
+  const x0 = -ox / T, y0 = -oy / T, x1 = x0 + viewW / T, y1 = y0 + viewH / T;
+  ctx.save();
+  if (weather === 'quente') {
+    ctx.fillStyle = 'rgba(255, 186, 80, 0.1)';
+    ctx.fillRect(0, 0, viewW, viewH);
+  } else if (weather === 'chuva') {
+    ctx.fillStyle = 'rgba(34, 48, 72, 0.24)';
+    ctx.fillRect(0, 0, viewW, viewH);
+    // respingos no chão (presos ao mundo): um anel que abre e some
+    ctx.strokeStyle = 'rgba(210, 228, 255, 0.5)';
+    ctx.lineWidth = 1;
+    for (let gy = Math.floor(y0) - 1; gy <= Math.ceil(y1); gy++) {
+      for (let gx = Math.floor(x0) - 1; gx <= Math.ceil(x1); gx++) {
+        const h = cellHash(gx * 11 + 5, gy * 13 + 7);
+        if (h % 3) continue;
+        const ph = ((t * 1.6 + (h % 100) / 100) % 1);
+        const sx = toScreenX(gx + (h % 89) / 89), sy = toScreenY(gy + ((h >> 8) % 89) / 89);
+        ctx.globalAlpha = 1 - ph;
+        ctx.beginPath(); ctx.ellipse(sx, sy, 1 + ph * T * 0.14, (1 + ph * T * 0.14) * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    // as gotas caindo (na tela, inclinadas pelo vento)
+    ctx.strokeStyle = 'rgba(200, 220, 255, 0.42)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    const n = Math.round((viewW * viewH) / 5200);
+    for (let i = 0; i < n; i++) {
+      const h = cellHash(i * 7 + 3, i * 3 + 11);
+      const speed = 0.9 + (h % 50) / 100;
+      const y = ((h % 1000) / 1000 * (viewH + 60) + t * 620 * speed) % (viewH + 60) - 30;
+      const x = (((h >> 10) % 1000) / 1000 * (viewW + 80) - t * 90 * speed % (viewW + 80) + viewW + 80) % (viewW + 80) - 40;
+      ctx.moveTo(x, y); ctx.lineTo(x - 4, y + 15);
+    }
+    ctx.stroke();
+    // relâmpago: dois clarões rápidos, de ~30 em ~30 s
+    const cyc = t % 31;
+    if (cyc < 0.09 || (cyc > 0.18 && cyc < 0.24)) { ctx.fillStyle = 'rgba(235, 240, 255, 0.28)'; ctx.fillRect(0, 0, viewW, viewH); }
+  } else if (weather === 'neblina') {
+    ctx.fillStyle = 'rgba(200, 210, 222, 0.2)';
+    ctx.fillRect(0, 0, viewW, viewH);
+    const S = 6;
+    for (let gy = Math.floor(y0 / S) - 1; gy <= Math.ceil(y1 / S) + 1; gy++) {
+      for (let gx = Math.floor(x0 / S) - 2; gx <= Math.ceil(x1 / S) + 1; gx++) {
+        const h = cellHash(gx * 19 + 2, gy * 29 + 4);
+        const cx = (gx + (h % 100) / 100) * S + ((t * 0.25 + (h % 31)) % (S * 2)) - S, cy = (gy + ((h >> 8) % 100) / 100) * S;
+        const r = (3.5 + ((h >> 16) % 100) / 30) * T, sx = toScreenX(cx), sy = toScreenY(cy);
+        if (sx + r < 0 || sx - r > viewW || sy + r < 0 || sy - r > viewH) continue;
+        const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+        g.addColorStop(0, 'rgba(225, 232, 240, 0.32)');
+        g.addColorStop(1, 'rgba(225, 232, 240, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.ellipse(sx, sy, r, r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+  if (warm > 0.01) {                                  // amanhecer e entardecer: o laranja
+    ctx.fillStyle = `rgba(255, 128, 60, ${(0.16 * warm).toFixed(3)})`;
+    ctx.fillRect(0, 0, viewW, viewH);
+  }
+  if (dark > 0.01) {                                  // a noite, com os buracos de luz
+    const k = 0.5;                                    // meia resolução: luz macia e barata
+    const w = Math.ceil(viewW * k), h = Math.ceil(viewH * k);
+    if (nightLayer.width !== w || nightLayer.height !== h) { nightLayer.width = w; nightLayer.height = h; }
+    const g = nightLayer.getContext('2d');
+    g.globalCompositeOperation = 'source-over';
+    g.clearRect(0, 0, w, h);
+    const alpha = Math.min(0.95, dark * (weather === 'chuva' || weather === 'neblina' ? 0.92 : 0.86));
+    g.fillStyle = `rgba(26, 38, 92, ${alpha.toFixed(3)})`;      // azul-noite (multiplica: escurece e esfria)
+    g.fillRect(0, 0, w, h);
+    g.globalCompositeOperation = 'destination-out';
+    const hole = (wx, wy, rTiles, strength = 1) => {
+      const sx = toScreenX(wx) * k, sy = toScreenY(wy) * k, r = rTiles * T * k;
+      if (sx + r < 0 || sx - r > w || sy + r < 0 || sy - r > h) return;
+      const gr = g.createRadialGradient(sx, sy, 0, sx, sy, r);
+      gr.addColorStop(0, `rgba(0, 0, 0, ${strength})`);
+      gr.addColorStop(0.55, `rgba(0, 0, 0, ${strength * 0.6})`);
+      gr.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      g.fillStyle = gr;
+      g.fillRect(sx - r, sy - r, r * 2, r * 2);
+    };
+    if (me) hole(me.x, me.y - 0.3, 4.6, 0.95);
+    for (const p of state.players.values()) if (p.id !== state.meId) hole(p.x, p.y - 0.3, 1.8, 0.6);
+    for (const l of state.lights || []) hole(l.x, l.y - 0.6, 3, 0.9);
+    for (const d of state.deco) {
+      if (d.k === 'lamp') hole(d.x + d.w / 2, d.y + d.h / 2, 3.2, 0.9);
+      else if (d.k === 'embers' || d.k === 'fire') hole(d.x + d.w / 2, d.y + d.h / 2, 2.4, 0.7);
+    }
+    for (const s of state.glows || []) hole(s.x + s.w / 2, s.y + s.h / 2, 2.6, 0.8);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.drawImage(nightLayer, 0, 0, viewW, viewH);
+    ctx.globalCompositeOperation = 'source-over';
+    // o brilho quente dos postes da vila (de dia não aparece)
+    ctx.globalCompositeOperation = 'lighter';
+    for (const d of state.deco) {
+      if (d.k !== 'lamp') continue;
+      const sx = toScreenX(d.x + d.w / 2), sy = toScreenY(d.y + d.h * 0.35), r = T * 1.6;
+      if (sx + r < 0 || sx - r > viewW || sy + r < 0 || sy - r > viewH) continue;
+      const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+      gr.addColorStop(0, `rgba(255, 200, 110, ${(0.35 * dark).toFixed(3)})`);
+      gr.addColorStop(1, 'rgba(255, 160, 60, 0)');
+      ctx.fillStyle = gr;
+      ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
+    }
   }
   ctx.restore();
 }

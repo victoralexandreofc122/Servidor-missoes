@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto';
+import { SKY, dayPhase, offsetFor, outdoors, pickWeather, skyEffects, weatherFits, type DayPhase, type SkyEffects, type Weather } from './weather.js';
 import {
   ahead, distance, firstOnLine, HIT_RADIUS, isInArc, isInCircle, isInCone, lineIntersects, nearest, rotate, shieldedDamage, STEPS, STRIKE_AHEAD,
   unit, type Point,
@@ -9,7 +10,7 @@ import {
   type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
   type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
   type Skill, type WorldInfo, type Appearance, type Dir, type MonsterStatus,
-  type EndgameView, type FactionView, type PowerFailReason, type TravelOption,
+  type EndgameView, type FactionView, type PowerFailReason, type TravelOption, type SkyView,
 } from './protocol.js';
 import { NPC_OFFER_CODES, type Missions, type TalkOutcome } from './missions.js';
 import {
@@ -424,6 +425,8 @@ export class GameWorld {
   private readonly monsters = new Map<string, Monster>();
   private readonly pendingKicks: { session: Session; close: { code: number; reason: string } }[] = [];
   private readonly random: () => number;
+  /** O céu: o clima agora, até quando ele dura, o ajuste do relógio (admin "hora") e a última fase avisada. */
+  private sky: { weather: Weather; until: number; offsetMs: number; phase: DayPhase };
   private readonly progression: Progression | undefined;
   private readonly missions: Missions | undefined;
   private readonly profile: Profile | undefined;
@@ -472,6 +475,8 @@ export class GameWorld {
     this.endgame = options.endgame;
     for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
     this.lastTick = now();
+    // Começa sempre com o clima normal; o primeiro sorteio vem depois do tempo mínimo de um clima.
+    this.sky = { weather: 'normal', until: this.lastTick + SKY.weatherMinMs, offsetMs: 0, phase: dayPhase(this.lastTick).phase };
     for (const layout of this.huntingMaps()) {
       while (this.monstersIn(layout.id).length < this.config.combat.monsters.count) this.spawnMonster(undefined, this.lastTick, layout.id);
     }
@@ -640,6 +645,7 @@ export class GameWorld {
       meditationRegenMultiplier: combat.player.meditationRegenMultiplier,
       npcs: this.config.npcs.map((n) => ({ ...n })),
       basicAttack: { range: combat.basicAttack.range, cooldownMs: combat.basicAttack.cooldownMs },
+      sky: this.skyView(this.now()),
       map,
       maps: this.layoutsFor(s, map),
       attributePerPoint: { ...combat.attributes.perPoint },
@@ -1121,6 +1127,7 @@ export class GameWorld {
     if (c.cmd === 'help') return this.sendTo(session, { type: 'notice', text: ADMIN_HELP, tone: 'info' });
     if (c.cmd === 'spawn') return this.adminSpawn(session, c.monster, c.quantity, t);
     if (c.cmd === 'ir') return this.adminGo(session, c.map as MapId, c.x, c.y);
+    if (c.cmd === 'clima' || c.cmd === 'hora') return this.adminSky(session, c, t);
     const store = this.admin;
     if (!store) return this.sendTo(session, { type: 'notice', text: 'Modo Administrador sem banco: aqui só o /admin spawn funciona.', tone: 'bad' });
     if (isEndgameAdmin(c)) {
@@ -1189,6 +1196,64 @@ export class GameWorld {
     this.sendTo(s, { type: 'notice', text: `Admin: ${layout.name} (${at.x}, ${at.y}).`, tone: 'good' });
   }
 
+  // ---------------------------------------------------------------- o céu (weather.ts)
+
+  /** O que o céu muda nos jutsus no mapa `map` agora; null dentro de casa e na caverna. */
+  private skyEffectsAt(map: MapId): SkyEffects | null {
+    return outdoors(this.layout(map).kind) ? skyEffects(this.sky.phase, this.sky.weather) : null;
+  }
+
+  private skyView(t: number): SkyView {
+    const { phase } = dayPhase(t, this.sky.offsetMs);
+    return {
+      serverNow: t, cycleMs: SKY.cycleMs, offsetMs: this.sky.offsetMs, phaseStarts: { ...SKY.phaseStarts },
+      phase, weather: this.sky.weather, effects: skyEffects(phase, this.sky.weather),
+    };
+  }
+
+  /**
+   * A cada tick: virou a fase do dia (escureceu: o dia quente vira normal) ou acabou o tempo do clima (sorteia o
+   * próximo)? Avisa todos. O sorteio só acontece aqui, quando o clima vence.
+   */
+  private updateSky(t: number): void {
+    const { phase } = dayPhase(t, this.sky.offsetMs);
+    const phaseChanged = phase !== this.sky.phase;
+    this.sky.phase = phase;
+    let weatherChanged = false;
+    if (t >= this.sky.until) {
+      this.sky.weather = pickWeather(this.random, phase, this.sky.weather);
+      this.sky.until = t + SKY.weatherMinMs + Math.floor(this.random() * (SKY.weatherMaxMs - SKY.weatherMinMs));
+      weatherChanged = true;
+    } else if (!weatherFits(this.sky.weather, phase)) {
+      this.sky.weather = 'normal';
+      weatherChanged = true;
+    }
+    if (phaseChanged || weatherChanged) {
+      this.broadcast({ type: 'sky', sky: this.skyView(t), changed: phaseChanged && weatherChanged ? 'both' : phaseChanged ? 'phase' : 'weather' });
+    }
+  }
+
+  /** Admin: "/admin clima chuva 10" (por N minutos) ou "/admin hora noite" (o ciclo pula para o começo da fase). */
+  private adminSky(s: Session, c: { cmd: 'clima'; weather: Weather; minutes: number } | { cmd: 'hora'; phase: DayPhase }, t: number): void {
+    if (c.cmd === 'hora') {
+      this.sky.offsetMs = offsetFor(c.phase, t);
+      if (!weatherFits(this.sky.weather, c.phase)) this.sky.weather = 'normal';
+      this.audit(s.id, 'hora', null, { phase: c.phase }, true, null);
+    } else {
+      const { phase } = dayPhase(t, this.sky.offsetMs);
+      if (!weatherFits(c.weather, phase)) {
+        this.audit(s.id, 'clima', null, { weather: c.weather }, false, 'dia quente só de dia');
+        return this.sendTo(s, { type: 'notice', text: 'Admin: dia quente só de dia (use /admin hora dia antes).', tone: 'bad' });
+      }
+      this.sky.weather = c.weather;
+      this.sky.until = t + c.minutes * 60_000;
+      this.audit(s.id, 'clima', null, { weather: c.weather, minutes: c.minutes }, true, null);
+    }
+    this.sky.phase = dayPhase(t, this.sky.offsetMs).phase;
+    this.broadcast({ type: 'sky', sky: this.skyView(t), changed: c.cmd === 'hora' ? 'phase' : 'weather' });
+    this.sendTo(s, { type: 'notice', text: c.cmd === 'hora' ? `Admin: agora é ${c.phase}.` : `Admin: clima ${c.weather} por ${c.minutes} min.`, tone: 'good' });
+  }
+
   /** Invoca monstros em volta do admin (casas livres do mapa dele). Não dão recompensa nenhuma. */
   private adminSpawn(s: Session, type: string, quantity: number, t: number): void {
     const layout = this.layout(s.map);
@@ -1233,7 +1298,7 @@ export class GameWorld {
   }
 
   /** Comandos de admin no banco. O alvo online vê a ficha nova na hora (sem anúncio, sem XP de abate). */
-  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | EndgameAdminCommand>): Promise<void> {
+  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | { cmd: 'clima' } | { cmd: 'hora' } | EndgameAdminCommand>): Promise<void> {
     const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
     const target = await store.findPlayer(c.username);
     if (!target) {
@@ -1334,7 +1399,11 @@ export class GameWorld {
     // Nível do jutsu (uso): +10% por nível acima do 1.
     const weaponBonus = mechanic === 'weapons' ? this.weaponDamage(session) : 0;
     // Passiva da Nuvem: +10% no dano dos jutsus.
-    const dmg = scaledDamage((cfg.damage ?? 0) + weaponBonus, damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * jutsuPower(level) * this.passive(session, 'jutsu'));
+    // Clima e hora (ao ar livre): Fogo no dia quente, Água e Raio na chuva... (weather.ts).
+    const sky = this.skyEffectsAt(session.map);
+    const dmg = scaledDamage((cfg.damage ?? 0) + weaponBonus,
+      damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * jutsuPower(level) * this.passive(session, 'jutsu') * (sky?.damage[mechanic] ?? 1));
+    const lasting = (ms: number) => Math.round(ms * (sky?.status[mechanic] ?? 1));
     const reach = cfg.range ?? cfg.radius ?? 0;
     const targets = this.targetsFor(session);
 
@@ -1444,10 +1513,10 @@ export class GameWorld {
         }
         break;
       case 'illusion':
-        for (const x of hits) this.applyStatus(x, 'stunned', cfg.stunMs ?? 0, t);
+        for (const x of hits) this.applyStatus(x, 'stunned', lasting(cfg.stunMs ?? 0), t);
         break;
       case 'shadow':
-        for (const x of hits) this.applyStatus(x, 'rooted', cfg.rootMs ?? 0, t);
+        for (const x of hits) this.applyStatus(x, 'rooted', lasting(cfg.rootMs ?? 0), t);
         break;
       case 'fire':
         this.launch(session, fx, fy, { skill, speed: cfg.speed ?? 12, range: reach, damage: dmg, radius: cfg.radius ?? 0, volley: new Set() });
@@ -2929,6 +2998,9 @@ export class GameWorld {
         this.sendStats(s, t);
       }
     }
+
+    // 0. O céu: virou a fase do dia ou o clima? (avisa todos)
+    this.updateSky(t);
 
     // 1a. Projéteis (Fogo, Kunais): andam e batem (depois de os jogadores andarem neste tick).
     if (this.projectiles.length > 0) {

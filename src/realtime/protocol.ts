@@ -1,3 +1,4 @@
+import type { DayPhase, SkyEffects, Weather } from './weather.js';
 import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
@@ -407,6 +408,20 @@ export interface MissionRewardView {
 export type MissionReason = 'sync' | 'assigned' | 'progress' | 'ready' | 'completed';
 
 /** O que o cliente precisa saber do mundo para desenhar, prever o movimento e montar os botões. */
+/**
+ * O céu (weather.ts, docs/clima.md): a hora (o cliente acompanha sozinho a partir de `serverNow`, `cycleMs`,
+ * `offsetMs` e `phaseStarts`), o clima e o que eles mudam nos jutsus agora (só ao ar livre).
+ */
+export interface SkyView {
+  serverNow: number;
+  cycleMs: number;
+  offsetMs: number;
+  phaseStarts: Record<DayPhase, number>;
+  phase: DayPhase;
+  weather: Weather;
+  effects: SkyEffects;
+}
+
 export interface WorldInfo {
   width: number;
   height: number;
@@ -420,6 +435,7 @@ export interface WorldInfo {
   meditationRegenMultiplier: number;
   npcs: NpcView[];
   basicAttack: { range: number; cooldownMs: number };
+  sky: SkyView;
   /**
    * Mapa onde o jogador está agora e os layouts (paredes, saídas, chão) dele e dos vizinhos (saídas e portas). Os
    * outros chegam no `map_changed`, quando o jogador se aproxima deles.
@@ -494,6 +510,8 @@ export type ServerMessage =
   | { type: 'evaluation_request'; missionId: string; trainee: { id: string; username: string }; mission: MissionView }
   | { type: 'sensei_options'; difficulties: SenseiDifficulty[]; quantities: number[] }
   | { type: 'notice'; text: string; tone: 'info' | 'good' | 'bad' }
+  /** Mudou a fase do dia ou o clima (para todos). `changed`: o que mudou (o cliente avisa na tela). */
+  | { type: 'sky'; sky: SkyView; changed: 'phase' | 'weather' | 'both' }
   | { type: 'tutorial'; step: number }
   | { type: 'inventory'; ryo: number; items: Record<string, number>; equipped: string | null; equippedScroll: string | null; cape?: string | null }
   | { type: 'classes'; primary: ClassCode | null; secondary: ClassCode | null }

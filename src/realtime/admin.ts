@@ -7,6 +7,7 @@ import type { Attributes } from './stats.js';
 import type { Village } from './appearance.js';
 import { ENDGAME_MODULES, type EndgameModule } from './endgame.js';
 import { VILLAGE_INFO, villageByName } from './villages.js';
+import { DAY_PHASES, WEATHERS, type DayPhase, type Weather } from './weather.js';
 
 /*
  * Modo Administrador (God Mode): comandos no chat que começam com "/admin".
@@ -17,6 +18,8 @@ import { VILLAGE_INFO, villageByName } from './villages.js';
  *   /admin giveitem <nome> <item> <quantidade>   põe itens no inventário (1 a 999)
  *   /admin resetstats <nome>                     devolve os pontos de atributo (sem custo)
  *   /admin ir <mapa> [x y]                       leva o próprio admin a um mapa (inclusive os lacrados), para testar
+ *   /admin clima <normal|quente|chuva|neblina> [minutos]   muda o clima agora (para todos; padrão: 10 min)
+ *   /admin hora <amanhecer|dia|entardecer|noite>           pula o ciclo para o começo dessa fase (para todos)
  *
  * Fim de jogo (v16, migração v11; docs/endgame.md, seção 6):
  *   /admin endgame <vilas|pvp|renegados|akatsuki> <on|off|auto>   liga, desliga ou devolve ao automático
@@ -47,6 +50,8 @@ export type AdminCommand =
   | { cmd: 'resetstats'; username: string }
   | { cmd: 'help' }
   | { cmd: 'ir'; map: string; x?: number; y?: number }
+  | { cmd: 'clima'; weather: Weather; minutes: number }
+  | { cmd: 'hora'; phase: DayPhase }
   | EndgameAdminCommand;
 
 /** Comandos do fim de jogo (v11). */
@@ -66,6 +71,7 @@ export const isEndgameAdmin = (c: AdminCommand): c is EndgameAdminCommand => END
 export type ParsedAdmin = { ok: true; command: AdminCommand } | { ok: false; command: string; text: string };
 
 export const ADMIN_HELP = 'Admin: /admin level <nome> <nível> · spawn <monstro> <qtd> · givejutsu <nome> <jutsu> <nível> · giveitem <nome> <item> <qtd> · resetstats <nome> · ir <mapa> [x y]'
+  + ' · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite>'
   + ' · endgame <módulo> <on|off|auto> · vila <nome> <vila> · kage <vila> <nome> · eleicao <vila> · evento <guerra|tregua> <vila|todas> [vila] <horas>'
   + ' · renegado <nome> <on|off> · akatsuki <lider|remover> <nome> · temporada fechar';
 const VILLAGE_NAMES = Object.values(VILLAGE_INFO).map((v) => v.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()).join('|');
@@ -111,6 +117,17 @@ export function parseAdminCommand(text: string, monsterTypes: readonly string[],
         return bad(`ir <${mapIds.join('|')}> [x y]`);
       }
       return { ok: true, command: x !== undefined && y !== undefined ? { cmd, map, x, y } : { cmd, map } };
+    }
+    case 'clima': {
+      const weather = (args[0] ?? '').toLowerCase() as Weather;
+      const minutes = int(args[1] ?? '10', 1, 120);
+      if (args.length < 1 || args.length > 2 || !WEATHERS.includes(weather) || minutes === undefined) return bad(`clima <${WEATHERS.join('|')}> [minutos 1 a 120]`);
+      return { ok: true, command: { cmd, weather, minutes } };
+    }
+    case 'hora': {
+      const phase = (args[0] ?? '').toLowerCase() as DayPhase;
+      if (args.length !== 1 || !DAY_PHASES.includes(phase)) return bad(`hora <${DAY_PHASES.join('|')}>`);
+      return { ok: true, command: { cmd, phase } };
     }
     case 'givejutsu': {
       const username = user(args[0]);
