@@ -16,6 +16,7 @@ import { DAY_PHASES, WEATHERS, type DayPhase, type Weather } from './weather.js'
  *   /admin spawn <monstro> <quantidade>          invoca monstros em volta do admin (1 a 20)
  *   /admin givejutsu <nome> <jutsu> <nível>      ensina o jutsu ou sobe o nível dele (1 a 4)
  *   /admin giveitem <nome> <item> <quantidade>   põe itens no inventário (1 a 999)
+ *   /admin ryo <nome> <quantidade>               dá ryō ao jogador (1 a 1.000.000; "giveryo" também vale; migração v12)
  *   /admin resetstats <nome>                     devolve os pontos de atributo (sem custo)
  *   /admin ir <mapa> [x y]                       leva o próprio admin a um mapa (inclusive os lacrados), para testar
  *   /admin clima <normal|quente|chuva|neblina> [minutos]   muda o clima agora (para todos; padrão: 10 min)
@@ -40,13 +41,14 @@ import { DAY_PHASES, WEATHERS, type DayPhase, type Weather } from './weather.js'
  * Quem não é admin e digita "/admin" recebe só "Comando desconhecido" (e o servidor registra no log).
  */
 
-export const ADMIN_LIMITS = { maxLevel: 60, maxSpawn: 20, maxJutsuLevel: 4, maxItems: 999 } as const;
+export const ADMIN_LIMITS = { maxLevel: 60, maxSpawn: 20, maxJutsuLevel: 4, maxItems: 999, maxRyo: 1_000_000 } as const;
 
 export type AdminCommand =
   | { cmd: 'level'; username: string; level: number }
   | { cmd: 'spawn'; monster: string; quantity: number }
   | { cmd: 'givejutsu'; username: string; jutsu: string; level: number }
   | { cmd: 'giveitem'; username: string; item: string; quantity: number }
+  | { cmd: 'giveryo'; username: string; amount: number }
   | { cmd: 'resetstats'; username: string }
   | { cmd: 'help' }
   | { cmd: 'ir'; map: string; x?: number; y?: number }
@@ -70,7 +72,7 @@ export const isEndgameAdmin = (c: AdminCommand): c is EndgameAdminCommand => END
 
 export type ParsedAdmin = { ok: true; command: AdminCommand } | { ok: false; command: string; text: string };
 
-export const ADMIN_HELP = 'Admin: /admin level <nome> <nível> · spawn <monstro> <qtd> · givejutsu <nome> <jutsu> <nível> · giveitem <nome> <item> <qtd> · resetstats <nome> · ir <mapa> [x y]'
+export const ADMIN_HELP = 'Admin: /admin level <nome> <nível> · spawn <monstro> <qtd> · givejutsu <nome> <jutsu> <nível> · giveitem <nome> <item> <qtd> · ryo <nome> <qtd> · resetstats <nome> · ir <mapa> [x y]'
   + ' · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite>'
   + ' · endgame <módulo> <on|off|auto> · vila <nome> <vila> · kage <vila> <nome> · eleicao <vila> · evento <guerra|tregua> <vila|todas> [vila] <horas>'
   + ' · renegado <nome> <on|off> · akatsuki <lider|remover> <nome> · temporada fechar';
@@ -146,6 +148,13 @@ export function parseAdminCommand(text: string, monsterTypes: readonly string[],
         return bad(`giveitem <nome> <item, ex.: kunai> <quantidade 1 a ${ADMIN_LIMITS.maxItems}>`);
       }
       return { ok: true, command: { cmd, username, item, quantity } };
+    }
+    case 'ryo':
+    case 'giveryo': {
+      const username = user(args[0]);
+      const amount = int(args[1], 1, ADMIN_LIMITS.maxRyo);
+      if (args.length !== 2 || !username || amount === undefined) return bad('ryo <nome> <quantidade 1 a 1000000>');
+      return { ok: true, command: { cmd: 'giveryo', username, amount } };
     }
     case 'resetstats': {
       const username = user(args[0]);
@@ -225,6 +234,8 @@ export interface AdminStore {
   setLevel(adminId: string, targetId: string, level: number): Promise<AdminOutcome<AdminPlayerState>>;
   giveJutsu(adminId: string, targetId: string, jutsu: string, level: number): Promise<AdminOutcome<{ uses: number }>>;
   giveItem(adminId: string, targetId: string, item: string, quantity: number): Promise<AdminOutcome<{ items: Inventory }>>;
+  /** Dá ryō (v12). Devolve o saldo novo do alvo. */
+  giveRyo(adminId: string, targetId: string, amount: number): Promise<AdminOutcome<{ ryo: number }>>;
   resetStats(adminId: string, targetId: string): Promise<AdminOutcome<AdminPlayerState>>;
   /** Auditoria de um comando que não passa por função do banco (spawn) ou que foi recusado. */
   log(adminId: string, command: string, targetId: string | null, args: Record<string, unknown>, ok: boolean, detail: string | null): Promise<void>;
@@ -243,6 +254,7 @@ export const ADMIN_SQL = {
   setLevel: `SELECT game.admin_set_level($1, $2, $3)`,
   giveJutsu: `SELECT game.admin_give_jutsu($1, $2, $3, $4) AS uses`,
   giveItem: `SELECT game.admin_give_item($1, $2, $3, $4) AS quantity`,
+  giveRyo: `SELECT game.admin_give_ryo($1, $2, $3)::text AS ryo`,
   resetStats: `SELECT game.admin_reset_stats($1, $2)`,
   inventory: `SELECT COALESCE((SELECT json_object_agg(item_code, quantity) FROM game.player_items WHERE player_id = $1), '{}'::json) AS items`,
   log: `SELECT game.admin_log($1, $2, $3, $4::jsonb, $5, $6)`,
@@ -319,6 +331,11 @@ export function makeAdminStore(db: Db): AdminStore {
         await tx.query(ADMIN_SQL.giveItem, [adminId, targetId, item, quantity]);
         return { items: (await tx.query<{ items: Inventory }>(ADMIN_SQL.inventory, [targetId])).rows[0]?.items ?? {} };
       });
+    },
+    giveRyo(adminId, targetId, amount) {
+      return run(adminId, 'giveryo', targetId, { amount }, async (tx) => ({
+        ryo: Number((await tx.query<{ ryo: string }>(ADMIN_SQL.giveRyo, [adminId, targetId, amount])).rows[0]!.ryo),
+      }));
     },
     resetStats(adminId, targetId) {
       return run(adminId, 'resetstats', targetId, {}, async (tx) => {

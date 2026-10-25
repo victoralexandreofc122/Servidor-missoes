@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { parseAdminCommand } from '../src/realtime/admin.js';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
-import { SKY, dayPhase, offsetFor, outdoors, pickWeather, skyEffects, weatherFits } from '../src/realtime/weather.js';
+import { DAY_PHASES, SKY, SKY_CAP, WEATHERS, dayPhase, offsetFor, outdoors, pickWeather, skyEffects, weatherFits } from '../src/realtime/weather.js';
 import { placeIn, seededRandom, setupWorld } from './support/world.js';
 
 /*
@@ -75,9 +75,14 @@ describe('clima: a hora e o sorteio (weather.ts)', () => {
 
   it('os bônus: clima e noite multiplicam; ao ar livre só (vila, Floresta, mapas abertos)', () => {
     assert.deepEqual(skyEffects('dia', 'normal'), { damage: {}, status: {} });
-    assert.deepEqual(skyEffects('dia', 'quente').damage, { fire: 1.2, water: 0.9 });
-    assert.deepEqual(skyEffects('dia', 'chuva').damage, { water: 1.2, lightning: 1.15, fire: 0.8 });
-    assert.deepEqual(skyEffects('noite', 'neblina').status, { illusion: 1.5, shadow: 1.3 });
+    assert.deepEqual(skyEffects('dia', 'quente').damage, { fire: 1.05, water: 0.95 });
+    assert.deepEqual(skyEffects('dia', 'chuva').damage, { water: 1.05, lightning: 1.05, fire: 0.95 });
+    assert.deepEqual(skyEffects('noite', 'neblina').status, { illusion: 1.05, shadow: 1.05 });
+    // nenhum bônus passa de 5%, em nenhuma combinação de clima e hora
+    for (const phase of DAY_PHASES) for (const weather of WEATHERS) {
+      const e = skyEffects(phase, weather);
+      for (const v of [...Object.values(e.damage), ...Object.values(e.status)]) assert.ok(Math.abs(v - 1) <= SKY_CAP + 1e-9, `${phase}/${weather}: ${v}`);
+    }
     assert.ok(outdoors('forest') && outdoors('village') && outdoors('wild'));
     assert.ok(!outdoors('interior') && !outdoors('cave'));
   });
@@ -107,7 +112,7 @@ describe('clima no jogo: o servidor aplica nos jutsus e avisa todos', () => {
     assert.equal(msg.changed, 'weather');
   });
 
-  it('chuva: a Água bate 20% mais forte; dia quente: o Fogo também; dentro de casa, nada muda', () => {
+  it('chuva: a Água bate 5% mais forte; dia quente: 5% mais fraca; dentro de casa, nada muda', () => {
     const normal = duel();
     normal.a.send({ type: 'cast', skill: 'water' });
     const base = normal.b.conn.last('hit').amount;
@@ -116,18 +121,18 @@ describe('clima no jogo: o servidor aplica nos jutsus e avisa todos', () => {
     const rain = duel();
     Object.assign((rain.world as any).sky, { weather: 'chuva' });
     rain.a.send({ type: 'cast', skill: 'water' });
-    assert.equal(rain.b.conn.last('hit').amount, Math.round(SK.water.damage! * 1.2));
+    assert.equal(rain.b.conn.last('hit').amount, Math.round(SK.water.damage! * 1.05));
 
     const hot = duel();
     Object.assign((hot.world as any).sky, { weather: 'quente' });
     hot.a.send({ type: 'cast', skill: 'water' });
-    assert.equal(hot.b.conn.last('hit').amount, Math.round(SK.water.damage! * 0.9));
+    assert.equal(hot.b.conn.last('hit').amount, Math.round(SK.water.damage! * 0.95));
 
     assert.equal((rain.world as any).skyEffectsAt('academy_interior'), null, 'dentro de casa o clima não vale');
     assert.ok((rain.world as any).skyEffectsAt('map_2'));
   });
 
-  it('noite: a Sombra prende 30% mais; e quando escurece o dia quente vira normal (para todos)', () => {
+  it('noite: a Sombra prende 5% mais; e quando escurece o dia quente vira normal (para todos)', () => {
     const { world, a, b, clock, run } = duel();
     const w = world as any;
     Object.assign(w.sky, { weather: 'quente', until: clock.now() + 3_600_000 });
@@ -141,6 +146,6 @@ describe('clima no jogo: o servidor aplica nos jutsus e avisa todos', () => {
     learn(world, a.id, 'shadow');
     session(world, a.id).chakra = 100;
     a.send({ type: 'cast', skill: 'shadow', targetId: b.id });
-    assert.deepEqual(b.conn.last('player_status'), { type: 'player_status', playerId: b.id, status: 'rooted', ms: Math.round(SK.shadow.rootMs! * 1.3) });
+    assert.deepEqual(b.conn.last('player_status'), { type: 'player_status', playerId: b.id, status: 'rooted', ms: Math.round(SK.shadow.rootMs! * 1.05) });
   });
 });

@@ -32,12 +32,13 @@ Os bônus valem só **ao ar livre**: vilas, Floresta e mapas abertos. Dentro de 
 
 | Quando | Efeito |
 |---|---|
-| Dia quente | Fogo +20% de dano, Água −10% |
-| Chuva | Água +20%, Raio +15%, Fogo −20% |
-| Neblina | Ilusão: o atordoamento dura 30% a mais |
-| Noite | Sombra: prende 30% a mais. Ilusão: atordoa 15% a mais |
+| Dia quente | Fogo +5% de dano, Água −5% |
+| Chuva | Água +5%, Raio +5%, Fogo −5% |
+| Neblina | Ilusão: o atordoamento dura 5% a mais |
+| Noite | Sombra: prende 5% a mais |
 
-Clima e noite se somam (multiplicam). Por exemplo, Ilusão na neblina à noite atordoa 50% a mais.
+Nenhum bônus passa de **5%**, para cima ou para baixo. Clima e noite se somam, mas a soma também para em 5%
+(`SKY_CAP` em `weather.ts`).
 
 **No HUD:**
 - Embaixo das barras ficam o ícone da fase (🌅 ☀️ 🌇 🌙) e o do clima (🌡️ 🌧️ 🌫️). Tocar mostra o bônus.

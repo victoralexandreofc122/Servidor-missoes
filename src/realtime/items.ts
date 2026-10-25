@@ -11,6 +11,10 @@
  *
  * Capas (v16, migração v11): camada própria do boneco, por cima das costas. A Capa de Viagem e a da Vila são vendidas na
  * Alfaiataria; os mantos vêm do cargo (Kage), da Akatsuki ou da temporada PvP (o banco confere quem pode usar).
+ *
+ * Sapatos (v18, migração v12): equipamento dos pés, camada própria do boneco ("sapato" nos sprites). Todo ninja começa
+ * com a Sandália Ninja calçada; sem sapato, o pé fica descalço. `look` diz o desenho (sandália ou bota) e as 3 cores
+ * (public/sprites.js tem a mesma tabela; o teste confere).
  */
 import { CLASSES, CLASS_INFO, type ClassCode } from './jutsus.js';
 
@@ -19,7 +23,7 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
 export interface ItemDef {
   code: string;
   name: string;
-  kind: 'weapon' | 'scroll' | 'cape';
+  kind: 'weapon' | 'scroll' | 'cape' | 'shoes';
   icon: string;
   /** Arma: dano somado ao Ataque Básico (escala com o atributo Armas). */
   damage?: number;
@@ -28,13 +32,21 @@ export interface ItemDef {
   price: number | null;
   shop: ShopKind | null;
   /** Onde aparece no boneco quando equipado. */
-  hold: 'hand' | 'back';
+  hold: 'hand' | 'back' | 'feet';
+  /** Sapato: o desenho no boneco e as cores (nomes das rampas de roupa dos sprites). */
+  look?: ShoeLook;
   /** Ocupa as duas mãos (nenhuma arma de mão aparece junto). */
   twoHanded?: boolean;
   /** Arma de ARREMESSO: troca o Ataque Básico por um lançamento dela (veja ThrowStats). */
   throw?: ThrowStats;
   /** Jeito do golpe com esta arma (sem isto: o Ataque Básico de config.ts, arco de 90° e 1,6 casa). */
   swing?: SwingStats;
+}
+
+/** Desenho de um sapato: o item da camada "sapato" dos sprites e as cores 1, 2 e 3. */
+export interface ShoeLook {
+  sprite: 'sandalia' | 'bota';
+  colors: readonly [string, string, string];
 }
 
 /**
@@ -94,7 +106,26 @@ export const ITEMS: readonly ItemDef[] = [
   { code: 'manto_kage', name: 'Manto do Kage', kind: 'cape', icon: '👘', price: null, shop: null, hold: 'back' },
   { code: 'manto_akatsuki', name: 'Manto da Akatsuki', kind: 'cape', icon: '☁️', price: null, shop: null, hold: 'back' },
   { code: 'manto_campeao', name: 'Manto do Campeão', kind: 'cape', icon: '🏆', price: null, shop: null, hold: 'back' },
+  {
+    code: 'sandalia_ninja', name: 'Sandália Ninja', kind: 'shoes', icon: '🩴', price: 80, shop: 'clothes', hold: 'feet',
+    look: { sprite: 'sandalia', colors: ['azul_marinho', 'creme', 'preto'] },
+  },
+  {
+    code: 'sandalia_couro', name: 'Sandália de Couro', kind: 'shoes', icon: '🩴', price: 250, shop: 'clothes', hold: 'feet',
+    look: { sprite: 'sandalia', colors: ['marrom', 'creme', 'preto'] },
+  },
+  {
+    code: 'botas_viagem', name: 'Botas de Viagem', kind: 'shoes', icon: '🥾', price: 500, shop: 'clothes', hold: 'feet',
+    look: { sprite: 'bota', colors: ['marrom', 'creme', 'preto'] },
+  },
+  {
+    code: 'botas_ninja', name: 'Botas Ninja', kind: 'shoes', icon: '👢', price: 900, shop: 'clothes', hold: 'feet',
+    look: { sprite: 'bota', colors: ['preto', 'cinza', 'marrom'] },
+  },
 ];
+
+/** O sapato com que todo ninja começa (a migração v12 dá e calça). */
+export const STARTER_SHOES = 'sandalia_ninja';
 
 /** Mantos que vêm do cargo (não ficam no inventário): o banco confere se a pessoa ainda pode usar. */
 export const ROLE_CAPES: Readonly<Record<string, 'kage' | 'akatsuki'>> = { manto_kage: 'kage', manto_akatsuki: 'akatsuki' };
@@ -109,21 +140,24 @@ export const KILL_RYO = { min: 5, max: 15 } as const;
 export const SCROLL_DROP_CHANCE = 0.04;
 
 /**
- * O que aparece no boneco (todos veem): arma na mão, item nas costas e o pergaminho nas costas.
+ * O que aparece no boneco (todos veem): arma na mão, item nas costas, o pergaminho nas costas e o sapato (null = descalço).
  * Arma de mão só aparece com a outra mão livre (sem escudo e sem item de duas mãos).
  */
 export interface Gear {
   hand: string | null;
   back: string | null;
   scroll: string | null;
+  feet: string | null;
 }
 
-export function gearOf(weapon: string | null, scroll: string | null): Gear {
+export function gearOf(weapon: string | null, scroll: string | null, shoes: string | null = null): Gear {
   const w = weapon ? ITEM_BY_CODE.get(weapon) : undefined;
   const s = scroll ? ITEM_BY_CODE.get(scroll) : undefined;
+  const f = shoes ? ITEM_BY_CODE.get(shoes) : undefined;
   return {
     hand: w && w.kind === 'weapon' && w.hold === 'hand' && !w.twoHanded ? w.code : null,
     back: w && w.kind === 'weapon' && w.hold === 'back' ? w.code : null,
     scroll: s && s.kind === 'scroll' ? s.code : null,
+    feet: f && f.kind === 'shoes' ? f.code : null,
   };
 }

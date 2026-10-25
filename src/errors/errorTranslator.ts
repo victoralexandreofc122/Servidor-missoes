@@ -56,6 +56,9 @@ export const CONSTRAINT_ERRORS: Readonly<Record<string, PublicError>> = {
   rule_nothing_to_reset: { status: 409, code: 'NOTHING_TO_RESET', message: 'Você ainda não investiu nenhum ponto.' },
   rule_reset_cost: { status: 422, code: 'INVALID_INPUT', message: 'Custo inválido.' },
   rule_equip_scroll_owned: { status: 409, code: 'ITEM_NOT_OWNED', message: 'Só dá para levar nas costas um pergaminho do seu inventário.' },
+  // v12: sapatos e /admin ryo
+  rule_admin_ryo: { status: 422, code: 'INVALID_INPUT', message: 'O ryō vai de 1 a 1.000.000.' },
+  rule_equip_shoes_owned: { status: 409, code: 'ITEM_NOT_OWNED', message: 'Só dá para calçar um sapato do seu inventário.' },
   rule_admin_only: { status: 403, code: 'ADMIN_ONLY', message: 'Comando restrito ao administrador.' },
 
   // v11: fim de jogo (vilas, Kage, diplomacia, PvP, renegados, Akatsuki, capas)

@@ -9,7 +9,8 @@ Cada peça vai no MESMO plano do membro que ela veste, e é recortada pelas part
 dela no mesmo plano (ex.: a cabeça na frente da gola; a mão na frente da barra da camisa).
 
 Cores por canal: COR1, COR2, COR3 (+ FIXO pro aço e contorno, PELE pros dedos de fora da sandália).
-Itens: conjunto_vila (conjunto da vila), camisa_basica (com logo) / camisa_basica_lisa, calca_basica.
+Itens: conjunto_vila (conjunto da vila), camisa_basica (com logo) / camisa_basica_lisa, calca_basica, e os sapatos
+(slot próprio, equipamento dos pés): sandalia e bota. Sem sapato, o pé fica descalço (o corpo já desenha o pé).
 """
 import numpy as np
 
@@ -312,7 +313,7 @@ def wrap_paint(fig, ch, seam_rows):
 
 
 # =====================================================================================
-# CONJUNTO DA VILA (cor 1 = colete, cor 2 = camisa/calça/sandálias, cor 3 = faixas e fita)
+# CONJUNTO DA VILA (cor 1 = colete, cor 2 = camisa/calça, cor 3 = faixas e fita)
 # cada vila tem as cores dela, travadas (o jogador não troca)
 # =====================================================================================
 COLLAR_F = {47: (24, 39), 48: (24, 39), 49: (24, 39), 50: (24, 39), 51: (25, 38)}
@@ -364,7 +365,6 @@ def conjunto_ninja(fig, frame):
         return {"thigh": R(th), "shin": R(sh)}
     b.limb("leg", "calca", pants_spec, 5, cloth_limb_paint(fig, COR2, pants_extra))
     b.limb("leg", "faixa", lambda lb: {"shin": R(sel(fig.R.leg_rows, 84, 88))}, 3, wrap_paint(fig, COR3, (86, 85)))
-    b.limb("leg", "sandalia", lambda lb: sole_or_foot(fig, lb), 1, sandal_paint(fig, COR2))
 
     def tape_paint(lb):
         def paint(idx, part, vis, interior):
@@ -546,7 +546,7 @@ def camisa_basica(fig, frame, symbol="espiral"):
 
 
 # =====================================================================================
-# CALÇA BÁSICA (cor 1 = calça, cor 2 = amarração do tornozelo e cordão, cor 3 = sandálias)
+# CALÇA BÁSICA (cor 1 = calça, cor 2 = amarração do tornozelo e cordão)
 # =====================================================================================
 def calca_basica(fig, frame):
     b = Build(fig, frame)
@@ -582,13 +582,82 @@ def calca_basica(fig, frame):
         idx.put(interior & Lm(fig, lb, {"thigh": P(pts_t), "shin": P(pts_s)}), COR1, K_SH)   # dobras
     b.limb("leg", "calca", leg_spec, 5, cloth_limb_paint(fig, COR1, pants_extra))
     b.limb("leg", "amarracao", lambda lb: {"shin": R(sel(fig.R.leg_rows, 86, 88))}, 3, wrap_paint(fig, COR2, (88, 88)))
-    b.limb("leg", "sandalia", lambda lb: sole_or_foot(fig, lb), 1, sandal_paint(fig, COR3))
+    return b.done()
+
+
+# =====================================================================================
+# SAPATOS (slot "sapato", desenhado depois da roupa: a bota cobre a barra da calça e as faixas)
+# =====================================================================================
+def sandalia(fig, frame):
+    """Sandália ninja aberta: cor 1 = sandália; os dedos ficam de fora (pele)."""
+    b = Build(fig, frame)
+    b.limb("leg", "sandalia", lambda lb: sole_or_foot(fig, lb), 1, sandal_paint(fig, COR1))
+    return b.done()
+
+
+def bota(fig, frame):
+    """Bota de cano médio: cor 1 = couro, cor 2 = dobra do cano, cor 3 = sola."""
+    b = Build(fig, frame)
+    leg = fig.R.leg_rows
+    fl = front_like(fig)
+    shin_rows = grow(sel(leg, 84, 88), 1, 0 if fl else 1)
+    foot_rows = grow(sel(leg, 89, 92), 1 if fl else 0, 0 if fl else 1)
+
+    def spec(lb):
+        foot = lb.kw.get("foot", "flat")
+        m = Lm(fig, lb, {"shin": R(shin_rows)})
+        if foot == "sole":
+            return m | sole_stamp(lb)[0]
+        if foot == "none":
+            return m
+        return m | Lm(fig, lb, {"foot": R(foot_rows)})
+
+    def make(lb):
+        pb = posed_bones(fig, lb)
+        foot = lb.kw.get("foot", "flat")
+
+        def paint(idx, part, vis, interior):
+            idx.put(part.mask, COR1, K_BASE)
+            shade_limb(idx, interior, [pb["shin"], pb["foot"]], COR1, rim_of(part))
+            cuff = interior & Lm(fig, lb, {"shin": full_rows((84, 85))})
+            idx.put(cuff, COR2, K_BASE)
+            idx.put(cuff & Lm(fig, lb, {"shin": full_rows((84,))}), COR2, K_LT)
+            idx.put(interior & Lm(fig, lb, {"shin": full_rows((86,))}), COR1, K_SH)     # sombra embaixo da dobra
+            if foot == "sole":                      # chute de frente: bico e sola virados pra câmera
+                sm, px = sole_stamp(lb)
+                rows = {}
+                for (x, y) in px:
+                    rows.setdefault(y, []).append(x)
+                top = min(rows)
+                for (x, y), c in px.items():
+                    edge = x in (min(rows[y]), max(rows[y])) or y == top
+                    if c == "O" and edge:
+                        idx.ch[y, x], idx.sh[y, x] = FIXO, F_OUT
+                    elif y - top <= 3:              # bico da bota (sem dedos)
+                        idx.ch[y, x], idx.sh[y, x] = COR1, K_LT if y - top == 1 else (K_SH if c == "O" else K_BASE)
+                    elif c == "e" or c == "O":
+                        idx.ch[y, x], idx.sh[y, x] = COR3, K_SH
+                    else:
+                        idx.ch[y, x], idx.sh[y, x] = COR3, K_BASE
+            elif foot != "none":
+                A, B = pb["foot"]
+                t, s = bone_ts(A, B)
+                idx.put(interior & Lm(fig, lb, {"foot": full_rows((89,))}), COR1, K_SH)     # vinco do tornozelo
+                idx.put(interior & Lm(fig, lb, {"foot": full_rows((92,))}), COR3, K_DK)     # sola
+                if fig.view == "front":
+                    idx.put(interior & (t > 0.55) & (t < 0.85) & ~edge_band(interior, (1, 0), 2), COR1, K_LT)   # brilho no bico
+                elif fig.view == "side":
+                    idx.put(interior & (s < -3.0) & (t > 0.40) & (t < 0.80), COR1, K_LT)
+            if lb.far:
+                far_tone(idx, part.mask)
+        return paint
+    b.limb("leg", "bota", spec, 1, make)
     return b.done()
 
 
 ITEMS = {"conjunto_vila": conjunto_ninja, "conjunto_ninja": conjunto_ninja,
          "camisa_basica": camisa_basica, "camisa_basica_lisa": lambda fig, frame: camisa_basica(fig, frame, None),
-         "calca_basica": calca_basica}
+         "calca_basica": calca_basica, "sandalia": sandalia, "bota": bota}
 
 
 def build(kind, fig, frame):

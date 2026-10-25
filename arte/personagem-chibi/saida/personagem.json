@@ -30,6 +30,7 @@
   "calca",
   "camisa",
   "conjunto",
+  "sapato",
   "punho",
   "olhos",
   "boca",
@@ -42,6 +43,7 @@
   "conjunto": "quando equipado, esconde camisa e calça. O conjunto da vila tem as cores da vila do personagem, travadas (o jogador não troca)",
   "chapeu": "bandana da vila: cor da faixa = cor da vila (travada); o símbolo da vila é um arquivo à parte (chapeu__simbolo_<vila>), desenhado logo depois da bandana",
   "camisa": "o logo da vila no peito é um arquivo à parte (camisa__simbolo_<vila>), desenhado logo depois da camisa",
+  "sapato": "equipamento dos pés, camada própria (sem sapato o pé fica descalço); desenhado depois da roupa, então a bota cobre a barra da calça",
   "punho": "vazio por enquanto",
   "mascara": "vazio por enquanto",
   "acessorio": "vazio por enquanto (capa, aura, corte, asas, auréola...)"
@@ -268,7 +270,7 @@
   {
    "slot": "conjunto",
    "item": "vila",
-   "descricao": "conjunto da vila (substitui camisa + calça): cor1 = colete, cor2 = camisa/calça/sandálias, cor3 = faixas e fita do porta-kunai; porta-kunai em aço fixo. Cores travadas por vila",
+   "descricao": "conjunto da vila (substitui camisa + calça): cor1 = colete, cor2 = camisa/calça, cor3 = faixas e fita do porta-kunai; porta-kunai em aço fixo. Cores travadas por vila",
    "cores_padrao": {
     "cor1": "verde_colete",
     "cor2": "azul_marinho",
@@ -297,11 +299,29 @@
   {
    "slot": "calca",
    "item": "basica",
-   "descricao": "calça ninja folgada presa no tornozelo: cor1 = calça, cor2 = amarração e cordão, cor3 = sandálias",
+   "descricao": "calça ninja folgada presa no tornozelo: cor1 = calça, cor2 = amarração e cordão",
    "cores_padrao": {
     "cor1": "cinza",
     "cor2": "creme",
     "cor3": "marrom"
+   }
+  },
+  {
+   "slot": "sapato",
+   "item": "sandalia",
+   "descricao": "sandália ninja aberta (equipamento dos pés): cor1 = sandália; os dedos ficam de fora (pele)",
+   "cores_padrao": {
+    "cor1": "azul_marinho"
+   }
+  },
+  {
+   "slot": "sapato",
+   "item": "bota",
+   "descricao": "bota de cano médio (equipamento dos pés), por cima da barra da calça: cor1 = couro, cor2 = dobra do cano, cor3 = sola",
+   "cores_padrao": {
+    "cor1": "marrom",
+    "cor2": "creme",
+    "cor3": "preto"
    }
   }
  ],
@@ -494,6 +514,34 @@
     "plano": "corpo",
     "arquivo": "camadas/masculino/parado/calca__basica__corpo.png",
     "indices": "indices/masculino/parado/calca__basica__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/parado/sapato__sandalia__tras.png",
+    "indices": "indices/masculino/parado/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/sapato__sandalia__corpo.png",
+    "indices": "indices/masculino/parado/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/parado/sapato__bota__tras.png",
+    "indices": "indices/masculino/parado/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/parado/sapato__bota__corpo.png",
+    "indices": "indices/masculino/parado/sapato__bota__corpo.png"
    }
   ],
   "masculino/andar": [
@@ -636,6 +684,34 @@
     "plano": "corpo",
     "arquivo": "camadas/masculino/andar/calca__basica__corpo.png",
     "indices": "indices/masculino/andar/calca__basica__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/andar/sapato__sandalia__tras.png",
+    "indices": "indices/masculino/andar/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/sapato__sandalia__corpo.png",
+    "indices": "indices/masculino/andar/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/andar/sapato__bota__tras.png",
+    "indices": "indices/masculino/andar/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/andar/sapato__bota__corpo.png",
+    "indices": "indices/masculino/andar/sapato__bota__corpo.png"
    }
   ],
   "masculino/correr": [
@@ -778,6 +854,34 @@
     "plano": "corpo",
     "arquivo": "camadas/masculino/correr/calca__basica__corpo.png",
     "indices": "indices/masculino/correr/calca__basica__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/correr/sapato__sandalia__tras.png",
+    "indices": "indices/masculino/correr/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/sapato__sandalia__corpo.png",
+    "indices": "indices/masculino/correr/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/correr/sapato__bota__tras.png",
+    "indices": "indices/masculino/correr/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/correr/sapato__bota__corpo.png",
+    "indices": "indices/masculino/correr/sapato__bota__corpo.png"
    }
   ],
   "masculino/ataque": [
@@ -955,6 +1059,62 @@
     "plano": "topo",
     "arquivo": "camadas/masculino/ataque/calca__basica__topo.png",
     "indices": "indices/masculino/ataque/calca__basica__topo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/ataque/sapato__sandalia__tras.png",
+    "indices": "indices/masculino/ataque/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/sapato__sandalia__corpo.png",
+    "indices": "indices/masculino/ataque/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/ataque/sapato__sandalia__frente.png",
+    "indices": "indices/masculino/ataque/sapato__sandalia__frente.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "topo",
+    "arquivo": "camadas/masculino/ataque/sapato__sandalia__topo.png",
+    "indices": "indices/masculino/ataque/sapato__sandalia__topo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/ataque/sapato__bota__tras.png",
+    "indices": "indices/masculino/ataque/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/ataque/sapato__bota__corpo.png",
+    "indices": "indices/masculino/ataque/sapato__bota__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "frente",
+    "arquivo": "camadas/masculino/ataque/sapato__bota__frente.png",
+    "indices": "indices/masculino/ataque/sapato__bota__frente.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "topo",
+    "arquivo": "camadas/masculino/ataque/sapato__bota__topo.png",
+    "indices": "indices/masculino/ataque/sapato__bota__topo.png"
    }
   ],
   "masculino/jutsu": [
@@ -1104,6 +1264,34 @@
     "plano": "corpo",
     "arquivo": "camadas/masculino/jutsu/calca__basica__corpo.png",
     "indices": "indices/masculino/jutsu/calca__basica__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/jutsu/sapato__sandalia__tras.png",
+    "indices": "indices/masculino/jutsu/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/sapato__sandalia__corpo.png",
+    "indices": "indices/masculino/jutsu/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/jutsu/sapato__bota__tras.png",
+    "indices": "indices/masculino/jutsu/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/jutsu/sapato__bota__corpo.png",
+    "indices": "indices/masculino/jutsu/sapato__bota__corpo.png"
    }
   ],
   "masculino/golpe": [
@@ -1246,6 +1434,34 @@
     "plano": "corpo",
     "arquivo": "camadas/masculino/golpe/calca__basica__corpo.png",
     "indices": "indices/masculino/golpe/calca__basica__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/golpe/sapato__sandalia__tras.png",
+    "indices": "indices/masculino/golpe/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/sapato__sandalia__corpo.png",
+    "indices": "indices/masculino/golpe/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/masculino/golpe/sapato__bota__tras.png",
+    "indices": "indices/masculino/golpe/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/masculino/golpe/sapato__bota__corpo.png",
+    "indices": "indices/masculino/golpe/sapato__bota__corpo.png"
    }
   ],
   "feminino/parado": [
@@ -1381,6 +1597,34 @@
     "plano": "corpo",
     "arquivo": "camadas/feminino/parado/calca__basica__corpo.png",
     "indices": "indices/feminino/parado/calca__basica__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/parado/sapato__sandalia__tras.png",
+    "indices": "indices/feminino/parado/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/sapato__sandalia__corpo.png",
+    "indices": "indices/feminino/parado/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/parado/sapato__bota__tras.png",
+    "indices": "indices/feminino/parado/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/parado/sapato__bota__corpo.png",
+    "indices": "indices/feminino/parado/sapato__bota__corpo.png"
    }
   ],
   "feminino/andar": [
@@ -1523,6 +1767,34 @@
     "plano": "corpo",
     "arquivo": "camadas/feminino/andar/calca__basica__corpo.png",
     "indices": "indices/feminino/andar/calca__basica__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/andar/sapato__sandalia__tras.png",
+    "indices": "indices/feminino/andar/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/sapato__sandalia__corpo.png",
+    "indices": "indices/feminino/andar/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/andar/sapato__bota__tras.png",
+    "indices": "indices/feminino/andar/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/andar/sapato__bota__corpo.png",
+    "indices": "indices/feminino/andar/sapato__bota__corpo.png"
    }
   ],
   "feminino/correr": [
@@ -1665,6 +1937,34 @@
     "plano": "corpo",
     "arquivo": "camadas/feminino/correr/calca__basica__corpo.png",
     "indices": "indices/feminino/correr/calca__basica__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/correr/sapato__sandalia__tras.png",
+    "indices": "indices/feminino/correr/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/sapato__sandalia__corpo.png",
+    "indices": "indices/feminino/correr/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/correr/sapato__bota__tras.png",
+    "indices": "indices/feminino/correr/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/correr/sapato__bota__corpo.png",
+    "indices": "indices/feminino/correr/sapato__bota__corpo.png"
    }
   ],
   "feminino/ataque": [
@@ -1842,6 +2142,62 @@
     "plano": "topo",
     "arquivo": "camadas/feminino/ataque/calca__basica__topo.png",
     "indices": "indices/feminino/ataque/calca__basica__topo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/ataque/sapato__sandalia__tras.png",
+    "indices": "indices/feminino/ataque/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/sapato__sandalia__corpo.png",
+    "indices": "indices/feminino/ataque/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/ataque/sapato__sandalia__frente.png",
+    "indices": "indices/feminino/ataque/sapato__sandalia__frente.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "topo",
+    "arquivo": "camadas/feminino/ataque/sapato__sandalia__topo.png",
+    "indices": "indices/feminino/ataque/sapato__sandalia__topo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/ataque/sapato__bota__tras.png",
+    "indices": "indices/feminino/ataque/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/ataque/sapato__bota__corpo.png",
+    "indices": "indices/feminino/ataque/sapato__bota__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "frente",
+    "arquivo": "camadas/feminino/ataque/sapato__bota__frente.png",
+    "indices": "indices/feminino/ataque/sapato__bota__frente.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "topo",
+    "arquivo": "camadas/feminino/ataque/sapato__bota__topo.png",
+    "indices": "indices/feminino/ataque/sapato__bota__topo.png"
    }
   ],
   "feminino/jutsu": [
@@ -1991,6 +2347,34 @@
     "plano": "corpo",
     "arquivo": "camadas/feminino/jutsu/calca__basica__corpo.png",
     "indices": "indices/feminino/jutsu/calca__basica__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/jutsu/sapato__sandalia__tras.png",
+    "indices": "indices/feminino/jutsu/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/sapato__sandalia__corpo.png",
+    "indices": "indices/feminino/jutsu/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/jutsu/sapato__bota__tras.png",
+    "indices": "indices/feminino/jutsu/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/jutsu/sapato__bota__corpo.png",
+    "indices": "indices/feminino/jutsu/sapato__bota__corpo.png"
    }
   ],
   "feminino/golpe": [
@@ -2133,6 +2517,34 @@
     "plano": "corpo",
     "arquivo": "camadas/feminino/golpe/calca__basica__corpo.png",
     "indices": "indices/feminino/golpe/calca__basica__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/golpe/sapato__sandalia__tras.png",
+    "indices": "indices/feminino/golpe/sapato__sandalia__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "sandalia",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/sapato__sandalia__corpo.png",
+    "indices": "indices/feminino/golpe/sapato__sandalia__corpo.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "tras",
+    "arquivo": "camadas/feminino/golpe/sapato__bota__tras.png",
+    "indices": "indices/feminino/golpe/sapato__bota__tras.png"
+   },
+   {
+    "slot": "sapato",
+    "item": "bota",
+    "plano": "corpo",
+    "arquivo": "camadas/feminino/golpe/sapato__bota__corpo.png",
+    "indices": "indices/feminino/golpe/sapato__bota__corpo.png"
    }
   ]
  }

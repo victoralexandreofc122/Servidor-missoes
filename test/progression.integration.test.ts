@@ -28,15 +28,15 @@ describe('XP e ryō do combate no banco (PostgreSQL real)', { skip: noDatabase }
     assert.deepEqual(history.rows.map((r) => r.code), ['ACADEMY'], 'nenhuma promoção pelo XP');
   });
 
-  it('conta nova (v7): tutorial no passo 0, os 2 jutsus da Academia no kit, sem ryō e sem classe', async () => {
+  it('conta nova (v7): tutorial no passo 0, os 2 jutsus da Academia no kit, sem ryō e sem classe, de Sandália Ninja (v12)', async () => {
     const id = await t.createPlayer('novato');
     const found = await makeFindPlayer(t.db)(id);
     assert.deepEqual({
       tutorialStep: found!.tutorialStep, jutsus: found!.jutsus, kits: found!.kits, ryo: found!.ryo, items: found!.items,
-      equipped: found!.equipped, classes: found!.classes, kage: found!.kageCandidate, weapons: found!.attributes!.weapons,
+      equipped: found!.equipped, shoes: found!.equippedShoes, classes: found!.classes, kage: found!.kageCandidate, weapons: found!.attributes!.weapons,
     }, {
-      tutorialStep: 0, jutsus: { teleport: 0, substitution: 0 }, kits: { A: ['teleport', 'substitution'], B: [] }, ryo: 0, items: {},
-      equipped: null, classes: { primary: null, secondary: null }, kage: false, weapons: 0,
+      tutorialStep: 0, jutsus: { teleport: 0, substitution: 0 }, kits: { A: ['teleport', 'substitution'], B: [] }, ryo: 0, items: { sandalia_ninja: 1 },
+      equipped: null, shoes: 'sandalia_ninja', classes: { primary: null, secondary: null }, kage: false, weapons: 0,
     });
   });
 

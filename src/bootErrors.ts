@@ -8,6 +8,10 @@ export function describeBootError(err: unknown): string {
   const code = typeof e.code === 'string' ? e.code : '';
   const message = typeof e.message === 'string' ? e.message : String(err);
 
+  if (code === '42703' && /equipped_shoes/.test(message)) {
+    return 'Falta a migração v12 (sapatos: equipamento dos pés) neste banco. Abra o SQL Editor do Neon, rode o arquivo '
+      + 'db/schema_v12_sapatos.sql inteiro e depois faça "Manual Deploy" no Render.';
+  }
   if (code === 'MISSING_V9') {
     return 'Falta a migração v9 (visual em sprites: gênero, cabelo, olhos, roupa e vila) neste banco. Abra o SQL Editor '
       + 'do Neon, rode o arquivo db/schema_v9_visual_sprites.sql inteiro e depois faça "Manual Deploy" no Render.';

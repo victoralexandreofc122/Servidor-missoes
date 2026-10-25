@@ -1,7 +1,7 @@
 // Personagem em sprites (arte/personagem-chibi): camadas em mapa de índices, recoloridas no aparelho.
 //
 // Cada célula 64x96 (vista x quadro) de cada item (corpo, olhos, boca, cabelo, chapéu, conjunto, camisa,
-// calça) está no atlas do gênero, recortada no que tem pixel. Cada pixel do atlas guarda canal + tom; a cor
+// calça, sapato) está no atlas do gênero, recortada no que tem pixel. Cada pixel do atlas guarda canal + tom; a cor
 // vem das paletas (spriteData.js). A cor final de cada célula é montada UMA vez por visual e fica em cache.
 //
 // Ordem de desenho (igual à do jogo): plano a plano (trás, corpo, frente, topo) e, dentro do plano, os slots
@@ -35,6 +35,19 @@ export const DEFAULT_APPEARANCE = Object.freeze({
   v: 2, gender: 'm', skin: 'claro', hairStyle: 'espetado', hairColor: 'castanho_escuro', eyeStyle: 'masculino',
   eyeColor: 'castanho', outfit: 'basica', shirtColor: 'azul_marinho', pantsColor: 'cinza', bandana: false, village: 'vila_1',
 });
+
+/**
+ * Sapatos (equipamento dos pés, camada "sapato"): o item calçado -> desenho e cores 1-3. Mesma tabela do servidor
+ * (`look` em src/realtime/items.ts; o teste confere). Sem sapato (null), o pé fica descalço.
+ */
+export const SHOES = {
+  sandalia_ninja: { sprite: 'sandalia', colors: ['azul_marinho', 'creme', 'preto'] },
+  sandalia_couro: { sprite: 'sandalia', colors: ['marrom', 'creme', 'preto'] },
+  botas_viagem: { sprite: 'bota', colors: ['marrom', 'creme', 'preto'] },
+  botas_ninja: { sprite: 'bota', colors: ['preto', 'cinza', 'marrom'] },
+};
+/** O sapato de quem não diz o que calça (NPCs, prévia do Criador): o mesmo com que todo ninja começa. */
+export const DEFAULT_SHOES = 'sandalia_ninja';
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const rgbOf = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
@@ -80,10 +93,14 @@ export function fallbackColors(look) {
   };
 }
 
-/** Itens de cada slot para este visual (o símbolo da vila vai por cima da bandana e da camisa). */
+/**
+ * Itens de cada slot para este visual (o símbolo da vila vai por cima da bandana e da camisa). `look.shoes` é o
+ * sapato calçado (código do item; null = descalço), que vem do equipamento, não do Criador.
+ */
 export function itemsFor(look) {
   const vila = VILAS[look.village] || VILAS.vila_1;
   const basic = look.outfit !== 'vila';
+  const shoe = SHOES[look.shoes];
   return {
     corpo: ['base'],
     olhos: [look.eyeStyle],
@@ -93,6 +110,7 @@ export function itemsFor(look) {
     conjunto: basic ? [] : ['vila'],
     camisa: basic ? ['basica', `simbolo_${vila.simbolo}`] : [],
     calca: basic ? ['basica'] : [],
+    sapato: shoe ? [shoe.sprite] : [],
   };
 }
 
@@ -107,6 +125,7 @@ export function rampsFor(look, slot) {
     conjunto: vila.conjunto,
     camisa: [look.shirtColor, vila.logo, 'creme'],
     calca: [look.pantsColor, 'creme', 'marrom'],
+    sapato: SHOES[look.shoes]?.colors,
   }[slot] || ['cinza', 'cinza', 'cinza'];
   return {
     1: P.fixo, 2: P.pele[look.skin], 3: P.cabelo[look.hairColor], 4: P.olho[look.eyeColor],
@@ -124,6 +143,7 @@ export function colorKey(look, slot) {
     case 'chapeu': case 'conjunto': return `${look.skin}|${vila}`;
     case 'camisa': return `${look.skin}|${look.shirtColor}|${vila}`;
     case 'calca': return `${look.skin}|${look.pantsColor}`;
+    case 'sapato': return `${look.skin}|${look.shoes}`;
     default: return look.skin;
   }
 }
@@ -293,6 +313,35 @@ export function drawCell(g, left, top, scale, look, view, flip, anim, frame, onP
   }
   if (onPlane) onPlane(4);
   return minY;
+}
+
+/**
+ * Ícone de um sapato: a própria camada "sapato" do boneco (de lado, parado), recortada e ampliada em escala inteira.
+ * false = não é sapato ou o atlas ainda não chegou (quem chama desenha outra coisa).
+ */
+export function drawShoeIcon(g, code, w, h) {
+  const shoe = SHOES[code];
+  const gender = 'm';
+  if (!shoe || !atlases[gender]) return false;
+  const look = { ...DEFAULT_APPEARANCE, shoes: code };
+  const cells = SPRITES.generos[gender].celulas;
+  const parts = [];
+  let x0 = 64, y0 = 96, x1 = 0, y1 = 0;
+  for (let plane = 0; plane < 4; plane++) {
+    const key = `parado/sapato/${shoe.sprite}/${plane}/1/0`;
+    const rect = cells[key];
+    if (!rect) continue;
+    const [, , rw, rh, ox, oy] = rect;
+    parts.push([cellCanvas(gender, key, rect, rampsFor(look, 'sapato'), colorKey(look, 'sapato')), ox, oy]);
+    x0 = Math.min(x0, ox); y0 = Math.min(y0, oy); x1 = Math.max(x1, ox + rw); y1 = Math.max(y1, oy + rh);
+  }
+  if (!parts.length) return false;
+  const bw = x1 - x0, bh = y1 - y0;
+  const s = Math.max(1, Math.floor(Math.min((w * 0.8) / bw, (h * 0.8) / bh)));
+  const left = Math.round((w - bw * s) / 2), top = Math.round((h - bh * s) / 2);
+  g.imageSmoothingEnabled = false;
+  for (const [c, ox, oy] of parts) g.drawImage(c, left + (ox - x0) * s, top + (oy - y0) * s, c.width * s, c.height * s);
+  return true;
 }
 
 /** Cor da amostra de uma opção do Criador (o tom do meio da rampa; vila = cor da bandana). */

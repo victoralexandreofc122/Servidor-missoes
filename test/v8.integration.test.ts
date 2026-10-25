@@ -18,6 +18,7 @@ const noDatabase = process.env.TEST_DATABASE_URL
   ? false
   : 'TEST_DATABASE_URL não definida: integração com PostgreSQL pulada';
 const V8 = readFileSync(new URL('../db/schema_v8_admin_chat.sql', import.meta.url), 'utf8');
+const V12 = readFileSync(new URL('../db/schema_v12_sapatos.sql', import.meta.url), 'utf8');
 const rule = (name: string) => (e: { constraint?: string }) => e.constraint === name;
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -217,6 +218,7 @@ describe('v8 no banco: migração sobre quem já jogava (Chakra Máximo + Regen 
     await t.pool.query(`UPDATE game.players SET stat_points = stat_points - 5, attr_chakra_max = 2, attr_chakra_regen = 3 WHERE id = $1`, [id]);
     await t.pool.query(V8);
     await t.pool.query(V8);
+    await t.pool.query(V12);                                              // findPlayer lê a coluna do sapato (v12)
     const found = await makeFindPlayer(t.db)(id);
     assert.equal(found!.attributes!.chakra, 5);
     assert.equal(found!.statPoints, 2);

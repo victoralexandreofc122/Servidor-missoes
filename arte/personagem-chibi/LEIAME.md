@@ -104,7 +104,7 @@ Depois rode `npm test`. O `test/sprites.test.ts` confere três coisas:
 
 ```
 para plano em [tras, corpo, frente, topo]:
-    para slot em [corpo, calca, camisa, conjunto, punho, olhos, boca, mascara, cabelo, chapeu, acessorio]:
+    para slot em [corpo, calca, camisa, conjunto, sapato, punho, olhos, boca, mascara, cabelo, chapeu, acessorio]:
         desenhar(slot, plano)      # e logo depois o símbolo da vila do mesmo slot
 ```
 
@@ -129,13 +129,16 @@ De frente, o cabelo longo fica atrás dos braços que vão para trás. É o caso
 | cabelo | `espetado`, `longo_lateral` | cabelo |
 | chapeu | `bandana` | cor1 = faixa (cor da vila), cor2 = placa de metal (lisa) |
 | chapeu | `simbolo_espiral` | símbolo da vila na placa (provisório) |
-| conjunto | `vila` | cor1 = colete, cor2 = camisa, calça e sandálias, cor3 = faixas. Cores da vila, travadas |
+| conjunto | `vila` | cor1 = colete, cor2 = camisa e calça, cor3 = faixas. Cores da vila, travadas |
 | camisa | `basica` | cor1 = camisa, cor3 = gola e punhos |
 | camisa | `simbolo_espiral` | logo da vila no peito (cor2) |
-| calca | `basica` | cor1 = calça folgada, cor2 = amarração e cordão, cor3 = sandálias |
+| calca | `basica` | cor1 = calça folgada, cor2 = amarração e cordão |
+| sapato | `sandalia` | sandália aberta: cor1 = sandália (os dedos ficam de fora, na pele) |
+| sapato | `bota` | bota de cano médio, por cima da barra da calça: cor1 = couro, cor2 = dobra do cano, cor3 = sola |
 | punho, mascara, acessorio | — | vazios por enquanto |
 
 - O conjunto da vila esconde a camisa e a calça.
+- O sapato é o equipamento dos pés, uma camada própria: sem sapato, o pé fica descalço (o corpo já desenha o pé).
 - O canal **pele** vale em qualquer camada: os dedos de fora da sandália e o remendo da orelha no cabelo usam a pele do personagem.
 
 ## Vilas

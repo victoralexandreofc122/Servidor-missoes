@@ -17,8 +17,8 @@ import {
 } from './mapArt.js';
 import { dirFrom, drawBackItem, drawCharacter, drawHandItem } from './character.js';
 import {
-  DEFAULT_APPEARANCE, OPTIONS, anchorsOf, drawCell, fallbackColors, loadSprites, normalizeLook, pickFrame, spriteScale,
-  spritesReady, swatchOf, viewOf,
+  DEFAULT_APPEARANCE, DEFAULT_SHOES, OPTIONS, anchorsOf, drawCell, drawShoeIcon, fallbackColors, loadSprites, normalizeLook,
+  pickFrame, spriteScale, spritesReady, swatchOf, viewOf,
 } from './sprites.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
@@ -135,7 +135,7 @@ const state = {
    * Progressão (v7), SEMPRE a do servidor: passo do tutorial (trava as portas da Academia), ryō,
    * itens, arma equipada, classes, jutsus aprendidos -> usos (o nível sai do uso) e Kage.
    */
-  ninja: { tutorialStep: 4, ryo: 0, items: {}, equipped: null, equippedScroll: null, classes: { primary: null, secondary: null }, jutsus: {}, kageCandidate: false, isAdmin: false, cape: null, display: { cape: true, weapon: true, scroll: true } },
+  ninja: { tutorialStep: 4, ryo: 0, items: {}, equipped: null, equippedScroll: null, equippedShoes: null, classes: { primary: null, secondary: null }, jutsus: {}, kageCandidate: false, isAdmin: false, cape: null, display: { cape: true, weapon: true, scroll: true } },
   /** Fim de jogo (v16): o estado político que o servidor manda (`endgame`) ou null (módulos desligados / sem a v11). */
   endgame: null,
   /** Histórico do chat (o servidor manda as últimas 100 ao conectar; as novas entram no fim). */
@@ -206,7 +206,7 @@ const state = {
 /** Gear vindo da rede: só códigos curtos (o desenho ignora o que não conhece). */
 const safeGear = (g) => {
   const ok = (c) => (typeof c === 'string' && /^[a-z][a-z0-9_]{0,31}$/.test(c) ? c : null);
-  return { hand: ok(g?.hand), back: ok(g?.back), scroll: ok(g?.scroll) };
+  return { hand: ok(g?.hand), back: ok(g?.back), scroll: ok(g?.scroll), feet: ok(g?.feet) };
 };
 
 // ------------------------------------------------------------------ login / cadastro
@@ -537,7 +537,7 @@ function handleMessage(msg) {
     }
     case 'inventory':
       if (msg.cape !== undefined) state.ninja.cape = msg.cape;
-      Object.assign(state.ninja, { ryo: msg.ryo, items: msg.items, equipped: msg.equipped, equippedScroll: msg.equippedScroll ?? null });
+      Object.assign(state.ninja, { ryo: msg.ryo, items: msg.items, equipped: msg.equipped, equippedScroll: msg.equippedScroll ?? null, equippedShoes: msg.equippedShoes ?? null });
       renderInventory();
       renderResetButton();
       renderShopItems();
@@ -1940,7 +1940,7 @@ function renderShopItems() {
     const price = document.createElement('small');
     price.className = 'price';
     const have = state.ninja.items?.[item.code] || 0;
-    price.textContent = `${ryoText(priceOf(item))}${item.damage ? ` · +${item.damage} de dano` : ''}${item.throw ? ' · de arremesso' : ''}${item.kind === 'cape' ? ' · capa' : ''}${have ? ` · você tem ${have}` : ''}`;
+    price.textContent = `${ryoText(priceOf(item))}${item.damage ? ` · +${item.damage} de dano` : ''}${item.throw ? ' · de arremesso' : ''}${item.kind === 'cape' ? ' · capa' : item.kind === 'shoes' ? ' · sapato' : ''}${have ? ` · você tem ${have}` : ''}`;
     n.append(price);
     const b = document.createElement('button');
     b.type = 'button';
@@ -2044,7 +2044,10 @@ const EQUIP_KIND = {
   weapon: { slot: 'weapon', current: (n) => n.equipped, send: (code) => ({ type: 'equip', item: code }), on: 'Guardar', off: 'Equipar' },
   scroll: { slot: 'scroll', current: (n) => n.equippedScroll, send: (code) => ({ type: 'equip', item: code, slot: 'scroll' }), on: 'Tirar', off: 'Nas costas' },
   cape: { slot: 'cape', current: (n) => n.cape, send: (code) => ({ type: 'equip', item: code, slot: 'cape' }), on: 'Tirar', off: 'Vestir' },
+  shoes: { slot: 'feet', current: (n) => n.equippedShoes, send: (code) => ({ type: 'equip', item: code, slot: 'feet' }), on: 'Descalçar', off: 'Calçar' },
 };
+/** O que está no espaço `slot` da tela (arma, pergaminho, capa ou sapato). */
+const slotItem = (n, slot) => Object.values(EQUIP_KIND).find((k) => k.slot === slot)?.current(n) ?? null;
 const ATTR_ROWS = [['vitality', '❤️', 'Vitalidade'], ['chakra', '💧', 'Chakra'], ['agility', '💨', 'Agilidade'],
   ['taijutsu', '👊', 'Taijutsu'], ['ninjutsu', '🌀', 'Ninjutsu'], ['weapons', '🗡️', 'Armas']];
 
@@ -2109,11 +2112,12 @@ const CLASS_TINT = {
   shadow: '#5a4f83', stone: '#8a6a45', heal: '#4fbf6a', weapons: '#b8b8c8',
 };
 
-/** O ícone de um item num canvas: a pixel art da arma, do pergaminho (com o selo da classe) ou da capa. */
+/** O ícone de um item num canvas: a pixel art da arma, do pergaminho (com o selo da classe), da capa ou do sapato. */
 function drawItemIcon(c, code) {
   const g = c.getContext('2d');
   g.clearRect(0, 0, c.width, c.height);
   g.imageSmoothingEnabled = false;
+  if (drawShoeIcon(g, code, c.width, c.height)) return;   // o sapato é a própria camada do boneco
   const cape = capeIcon(code);
   if (cape) {
     const s = Math.floor(Math.min(c.width, c.height) / 32);
@@ -2211,10 +2215,7 @@ function renderInventory() {
   for (const el of ui.invPanel.querySelectorAll('.eq-slot')) {
     const slot = el.dataset.slot, c = el.querySelector('canvas');
     if (el.classList.contains('locked')) { el.title = 'Em breve'; continue; }
-    let code = null;
-    if (slot === 'weapon') code = n.equipped;
-    else if (slot === 'scroll') code = n.equippedScroll;
-    else if (slot === 'cape') code = n.cape;
+    const code = slotItem(n, slot);
     el.classList.toggle('filled', !!code || ['head', 'chest', 'legs'].includes(slot));
     let sub = el.querySelector('.eq-sub');
     if (code) {
@@ -2225,7 +2226,7 @@ function renderInventory() {
       el.title = 'Visual: toque para mudar no Criador';
     } else {
       c.getContext('2d').clearRect(0, 0, c.width, c.height);
-      el.title = 'Vazio';
+      el.title = slot === 'feet' ? 'Descalço' : 'Vazio';
     }
     if (slot === 'weapon') {                      // o nome da arma embaixo, como no desenho
       if (!sub) { sub = document.createElement('span'); sub.className = 'eq-sub'; el.append(sub); }
@@ -2293,7 +2294,8 @@ ui.equipInfo.addEventListener('click', () => {
   name.textContent = def?.name || eqSel;
   const more = def?.kind === 'weapon' ? ` · arma · +${def.damage} de dano · ${weaponWhere(def)}`
     : def?.kind === 'scroll' ? ' · pergaminho (pode ir nas costas)'
-      : def?.kind === 'cape' ? ' · capa (todos veem; dá para esconder no ⚙️)' : ` · ×${qty}`;
+      : def?.kind === 'cape' ? ' · capa (todos veem; dá para esconder no ⚙️)'
+        : def?.kind === 'shoes' ? ' · sapato (vai nos pés; todos veem)' : ` · ×${qty}`;
   ui.equipDetail.replaceChildren(name, document.createTextNode(more));
 });
 ui.equipTurn.addEventListener('click', () => { eqDir = [0, 1, 3, 2][([0, 1, 3, 2].indexOf(eqDir) + 1) % 4]; drawEquipFigure(performance.now(), true); });
@@ -2302,8 +2304,9 @@ for (const el of ui.invPanel.querySelectorAll('.eq-slot')) {
     const slot = el.dataset.slot, n = state.ninja;
     if (el.classList.contains('locked')) { ui.equipDetail.textContent = 'Este espaço chega numa próxima versão.'; return; }
     if (['head', 'chest', 'legs'].includes(slot)) { closeInventory(); openCreator(false); return; }
-    const code = slot === 'weapon' ? n.equipped : slot === 'scroll' ? n.equippedScroll : slot === 'cape' ? n.cape : null;
+    const code = slotItem(n, slot);
     if (code) { eqSel = code; renderInventory(); }
+    else if (slot === 'feet') ui.equipDetail.textContent = 'Descalço. Os sapatos são vendidos na Alfaiataria.';
   });
 }
 for (const tab of ui.invPanel.querySelectorAll('.eq-tab')) {
@@ -3049,7 +3052,9 @@ function drawCreatorPreview(phase) {
   const [view, flip] = viewOf(creatorDir);
   const { anim, frame } = pickFrame({ moving: true, walk: phase }, 0);
   // Canvas 128x192 = a célula 64x96 em escala 2 (pixel art sem borrar). Sem os atlas: o boneco antigo.
-  if (drawCell(g, 0, 0, 2, creatorLook, view, flip, anim, frame) == null) {
+  const gear = state.players.get(state.meId)?.gear;
+  const shoes = gear && 'feet' in gear ? gear.feet : DEFAULT_SHOES;     // o sapato que ele calça (não muda no Criador)
+  if (drawCell(g, 0, 0, 2, { ...creatorLook, shoes }, view, flip, anim, frame) == null) {
     drawCharacter(g, c.width / 2, c.height - 70, 128, fallbackColors(creatorLook), creatorDir, phase, true);
   }
 }
@@ -4844,7 +4849,7 @@ function skyEffectsText(fx) {
   return [...dmg, ...st].join(', ');
 }
 
-/** Aviso quando muda: "🌧️ Começou a chover: Água +20%...". */
+/** Aviso quando muda: "🌧️ Chuva: Água +5%...". */
 function announceSky(changed) {
   const s = state.sky;
   if (!s) return;
@@ -5706,6 +5711,8 @@ function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
   const top = Math.round((sy + T * 0.42 - 93 * s) * dpr) / dpr;
   let onPlane = null;
   const ax = (x) => (flip ? left + (64 - x) * s : left + x * s);
+  // O sapato (camada própria): o que o servidor diz que ele calça (null = descalço); NPC e prévia, a sandália de sempre.
+  const shod = { ...look, shoes: gear && 'feet' in gear ? gear.feet : DEFAULT_SHOES };
   // Fim de jogo (v16): a capa (camada própria) e a bandana riscada do renegado.
   const cape = p.faction?.cape || null;
   const capeVillage = p.faction ? (p.faction.village ?? p.faction.renegadeFrom) : look.village;
@@ -5748,7 +5755,7 @@ function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
       if (plane === handPlane) hand();
     };
   }
-  const minY = drawCell(g, left, top, s, look, view, flip, anim, frame, onPlane);
+  const minY = drawCell(g, left, top, s, shod, view, flip, anim, frame, onPlane);
   if (p.faction && p.faction.village === null) drawRenegadeScratch(g, VIEW_NAMES[view], ax, top, s);
   return minY == null ? null : top + minY * s;
 }

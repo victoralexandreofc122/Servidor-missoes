@@ -42,10 +42,10 @@ describe('v9: sprites do personagem (cliente)', () => {
     ]) assert.deepEqual(S.normalizeLook(old), fromLegacy(old), JSON.stringify(old));
   });
 
-  it('itens: camisa e calça só sem o conjunto; o símbolo da vila vai junto da bandana e da camisa', () => {
+  it('itens: camisa e calça só sem o conjunto; o símbolo da vila vai junto da bandana e da camisa; sapato só calçado', () => {
     assert.deepEqual(S.itemsFor(LOOK), {
       corpo: ['base'], olhos: ['cilios'], boca: ['sorriso'], cabelo: ['longo_lateral'],
-      chapeu: ['bandana', 'simbolo_espiral'], conjunto: ['vila'], camisa: [], calca: [],
+      chapeu: ['bandana', 'simbolo_espiral'], conjunto: ['vila'], camisa: [], calca: [], sapato: [],
     });
     const basic = S.itemsFor({ ...LOOK, outfit: 'basica', bandana: false });
     assert.deepEqual([basic.chapeu, basic.conjunto, basic.camisa, basic.calca], [[], [], ['basica', 'simbolo_espiral'], ['basica']]);

@@ -15,6 +15,7 @@ const noDatabase = process.env.TEST_DATABASE_URL
   : 'TEST_DATABASE_URL não definida: integração com PostgreSQL pulada';
 const V7 = readFileSync(new URL('../db/schema_v7_progressao.sql', import.meta.url), 'utf8');
 const V8 = readFileSync(new URL('../db/schema_v8_admin_chat.sql', import.meta.url), 'utf8');
+const V12 = readFileSync(new URL('../db/schema_v12_sapatos.sql', import.meta.url), 'utf8');
 const rule = (name: string) => (e: { constraint?: string }) => e.constraint === name;
 
 describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () => {
@@ -67,7 +68,7 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     assert.equal((await store.advanceTutorial(id, 1))!.step, 1);
     assert.equal(await store.advanceTutorial(id, 1), null, 'não repete');
     await store.advanceTutorial(id, 2);
-    assert.deepEqual((await store.advanceTutorial(id, 3))!.items, { kunai_training: 1 });
+    assert.deepEqual((await store.advanceTutorial(id, 3))!.items, { kunai_training: 1, sandalia_ninja: 1 });
     const done = await store.advanceTutorial(id, 4);
     assert.deepEqual([done!.step, done!.ryo, done!.totalXp], [4, 100, 50]);
     await assert.rejects(t.pool.query('UPDATE game.players SET tutorial_step = 9 WHERE id = $1', [id]), rule('ck_players_tutorial'));
@@ -82,7 +83,7 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     await toLevel(id, 11);
     const r = await store.becomeGenin(id, 'fire');
     assert.ok(r.ok);
-    assert.deepEqual([r.rank, r.classes, r.items], [{ code: 'GENIN', name: 'Genin' }, { primary: 'fire', secondary: null }, { kunai_training: 1, scroll_fire: 1 }]);
+    assert.deepEqual([r.rank, r.classes, r.items], [{ code: 'GENIN', name: 'Genin' }, { primary: 'fire', secondary: null }, { kunai_training: 1, sandalia_ninja: 1, scroll_fire: 1 }]);
     assert.equal((await store.becomeGenin(id, 'water')).ok, false, 'uma vez só');
     const found = await makeFindPlayer(t.db)(id);
     assert.deepEqual(found!.classes, { primary: 'fire', secondary: null });
@@ -115,7 +116,7 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     const store = makeNinjaStore(t.db);
     assert.deepEqual(await store.buy(id, 'kunai', 1), { ok: false, text: 'Ryō insuficiente.' });
     await makeProgression(t.db).grantXp(id, 0, 500);
-    assert.deepEqual(await store.buy(id, 'kunai', 1), { ok: true, ryo: 200, items: { kunai: 1 } });
+    assert.deepEqual(await store.buy(id, 'kunai', 1), { ok: true, ryo: 200, items: { kunai: 1, sandalia_ninja: 1 } });
     assert.deepEqual(await store.buy(id, 'kunai_training', 1), { ok: false, text: 'Esse item não está à venda.' });
     assert.deepEqual(await store.equip(id, 'fuma_shuriken'), { ok: false, text: 'Só dá para equipar uma arma do seu inventário.' });
     assert.deepEqual(await store.equip(id, 'kunai'), { ok: true, equipped: 'kunai' });
@@ -163,7 +164,8 @@ describe('v7 no banco: migração sobre quem já jogava', { skip: noDatabase }, 
     await t.pool.query(V7);
     const novo = await t.createPlayer('novato');
     await t.pool.query(V7);                                                                       // de novo: sem erro
-    await t.pool.query(V8);                                                                       // e a v8 (findPlayer lê as colunas dela)
+    await t.pool.query(V8);                                                                       // e a v8 e a v12 (findPlayer lê as colunas delas)
+    await t.pool.query(V12);
     const found = await makeFindPlayer(t.db)(id);
     assert.equal(found!.tutorialStep, 4);
     assert.equal(found!.level, levelForXp(5000));

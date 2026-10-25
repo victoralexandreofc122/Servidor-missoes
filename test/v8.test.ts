@@ -70,10 +70,10 @@ function memoryLogger() {
 /** AdminStore em memória: as MESMAS regras das funções game.admin_* (simplificadas) + a auditoria. */
 function fakeAdmin(players: Record<string, { id: string; admin?: boolean }>) {
   const audit: { adminId: string; command: string; targetId: string | null; ok: boolean }[] = [];
-  const state = new Map<string, { totalXp: number; level: number; statPoints: number; attributes: Attributes; items: Record<string, number>; jutsus: Record<string, number> }>();
+  const state = new Map<string, { totalXp: number; level: number; statPoints: number; attributes: Attributes; items: Record<string, number>; jutsus: Record<string, number>; ryo: number }>();
   const of = (id: string) => {
     let s = state.get(id);
-    if (!s) state.set(id, (s = { totalXp: 0, level: 1, statPoints: 0, attributes: { ...NO_ATTRIBUTES }, items: {}, jutsus: {} }));
+    if (!s) state.set(id, (s = { totalXp: 0, level: 1, statPoints: 0, attributes: { ...NO_ATTRIBUTES }, items: {}, jutsus: {}, ryo: 0 }));
     return s;
   };
   const isAdmin = (id: string) => Object.values(players).some((p) => p.id === id && p.admin);
@@ -107,6 +107,13 @@ function fakeAdmin(players: Record<string, { id: string; admin?: boolean }>) {
       s.items[item] = (s.items[item] ?? 0) + quantity;
       audit.push({ adminId, command: 'giveitem', targetId, ok: true });
       return { ok: true, items: { ...s.items } };
+    },
+    async giveRyo(adminId, targetId, amount) {
+      if (!isAdmin(adminId)) return refuse(adminId, 'giveryo', targetId);
+      const s = of(targetId);
+      s.ryo += amount;
+      audit.push({ adminId, command: 'giveryo', targetId, ok: true });
+      return { ok: true, ryo: s.ryo };
     },
     async resetStats(adminId, targetId) {
       if (!isAdmin(adminId)) return refuse(adminId, 'resetstats', targetId);
@@ -239,8 +246,11 @@ describe('v8: Modo Administrador', () => {
     assert.deepEqual(parseAdminCommand('/admin givejutsu kaito fire_2 4', types), { ok: true, command: { cmd: 'givejutsu', username: 'kaito', jutsu: 'fire_2', level: 4 } });
     assert.deepEqual(parseAdminCommand('/admin giveitem kaito kunai 2', types), { ok: true, command: { cmd: 'giveitem', username: 'kaito', item: 'kunai', quantity: 2 } });
     assert.deepEqual(parseAdminCommand('/admin resetstats kaito', types), { ok: true, command: { cmd: 'resetstats', username: 'kaito' } });
+    assert.deepEqual(parseAdminCommand('/admin ryo kaito 2500', types), { ok: true, command: { cmd: 'giveryo', username: 'kaito', amount: 2500 } });
+    assert.deepEqual(parseAdminCommand('/admin giveryo kaito 1000000', types), { ok: true, command: { cmd: 'giveryo', username: 'kaito', amount: 1_000_000 } });
     assert.deepEqual(parseAdminCommand('/admin', types), { ok: true, command: { cmd: 'help' } });
     for (const bad of [
+      '/admin ryo kaito 0', '/admin ryo kaito 1000001', '/admin ryo kaito -5', '/admin ryo kaito', '/admin ryo kaito 10 extra',
       '/admin level kaito 61', '/admin level kaito 0', '/admin level ka 5', "/admin level kaito' 5", '/admin level kaito 5 extra',
       '/admin spawn dragao 1', '/admin spawn slime 21', '/admin spawn slime -1',
       '/admin givejutsu kaito rasengan 1', '/admin givejutsu kaito fire 5',
@@ -291,7 +301,7 @@ describe('v8: Modo Administrador', () => {
     assert.equal(other.conn.of('chat').length, 0);
   });
 
-  it('admin: givejutsu, giveitem e resetstats chegam ao alvo online; jogador inexistente e erro de uso também auditados', async () => {
+  it('admin: givejutsu, giveitem, ryo e resetstats chegam ao alvo online; jogador inexistente e erro de uso também auditados', async () => {
     const admin = fakeAdmin({ Victor: { id: 'v1', admin: true }, kaito: { id: 'k1' } });
     const { join, sess, run } = setup({ admin: admin.store });
     const v = join('Victor', { id: 'v1', isAdmin: true });
@@ -307,6 +317,11 @@ describe('v8: Modo Administrador', () => {
     await go('/admin giveitem kaito katana 1');
     assert.equal(sess('k1').items.katana, 1);
     assert.equal(k.conn.last('inventory').items.katana, 1);
+    await go('/admin ryo kaito 5000');
+    assert.equal(sess('k1').ryo, 5000);
+    assert.equal(k.conn.last('inventory').ryo, 5000);
+    assert.match(k.conn.last('notice').text, /Você recebeu 5\.000 ryō/);
+    assert.match(v.conn.last('notice').text, /5\.000 ryō para kaito/);
     await go('/admin resetstats kaito');
     assert.equal(k.conn.last('progress').attributes.vitality, 0);
     await go('/admin level ninguem_aqui 5');
@@ -314,7 +329,7 @@ describe('v8: Modo Administrador', () => {
     await go('/admin level kaito 99');
     assert.match(v.conn.last('notice').text, /^Uso: \/admin level/);
     assert.deepEqual(admin.audit.map((a) => [a.command, a.ok]), [
-      ['givejutsu', true], ['giveitem', true], ['resetstats', true], ['level', false], ['level', false],
+      ['givejutsu', true], ['giveitem', true], ['giveryo', true], ['resetstats', true], ['level', false], ['level', false],
     ]);
   });
 
@@ -452,12 +467,12 @@ describe('v8: chat com canais e histórico persistente', () => {
 
 describe('v8: equipamento visível no boneco (paperdoll)', () => {
   it('gearOf: kunai e espada curta na mão; espada longa e Shuriken Gigante nas costas; pergaminho nas costas', () => {
-    assert.deepEqual(gearOf('kunai', null), { hand: 'kunai', back: null, scroll: null });
-    assert.deepEqual(gearOf('tanto', 'scroll_fire'), { hand: 'tanto', back: null, scroll: 'scroll_fire' });
-    assert.deepEqual(gearOf('katana', null), { hand: null, back: 'katana', scroll: null });
-    assert.deepEqual(gearOf('fuma_shuriken', null), { hand: null, back: 'fuma_shuriken', scroll: null }, 'duas mãos: nada na mão');
-    assert.deepEqual(gearOf('scroll_fire', 'kunai'), { hand: null, back: null, scroll: null }, 'tipos trocados não aparecem');
-    assert.deepEqual(gearOf(null, null), { hand: null, back: null, scroll: null });
+    assert.deepEqual(gearOf('kunai', null), { hand: 'kunai', back: null, scroll: null, feet: null });
+    assert.deepEqual(gearOf('tanto', 'scroll_fire'), { hand: 'tanto', back: null, scroll: 'scroll_fire', feet: null });
+    assert.deepEqual(gearOf('katana', null), { hand: null, back: 'katana', scroll: null, feet: null });
+    assert.deepEqual(gearOf('fuma_shuriken', null), { hand: null, back: 'fuma_shuriken', scroll: null, feet: null }, 'duas mãos: nada na mão');
+    assert.deepEqual(gearOf('scroll_fire', 'kunai'), { hand: null, back: null, scroll: null, feet: null }, 'tipos trocados não aparecem');
+    assert.deepEqual(gearOf(null, null), { hand: null, back: null, scroll: null, feet: null });
   });
 
   it('equipar muda o boneco para TODOS no mapa (player_gear) e quem chega depois já vê', async () => {
@@ -467,18 +482,18 @@ describe('v8: equipamento visível no boneco (paperdoll)', () => {
     const b = join('mei');
     a.send({ type: 'equip', item: 'kunai' });
     await flush();
-    assert.deepEqual(b.conn.last('player_gear'), { type: 'player_gear', playerId: a.id, gear: { hand: 'kunai', back: null, scroll: null } });
+    assert.deepEqual(b.conn.last('player_gear'), { type: 'player_gear', playerId: a.id, gear: { hand: 'kunai', back: null, scroll: null, feet: null } });
     a.send({ type: 'equip', item: 'scroll_fire', slot: 'scroll' });
     await new Promise((r) => setTimeout(r, 300));
-    assert.deepEqual(b.conn.last('player_gear').gear, { hand: 'kunai', back: null, scroll: 'scroll_fire' });
+    assert.deepEqual(b.conn.last('player_gear').gear, { hand: 'kunai', back: null, scroll: 'scroll_fire', feet: null });
     assert.equal(a.conn.last('inventory').equippedScroll, 'scroll_fire');
     a.send({ type: 'equip', item: 'katana' });
     await new Promise((r) => setTimeout(r, 300));
     // Uma arma de ataque por vez: a espada longa TIRA a kunai da mão (nunca as duas); o pergaminho não é arma.
-    assert.deepEqual(b.conn.last('player_gear').gear, { hand: null, back: 'katana', scroll: 'scroll_fire' });
+    assert.deepEqual(b.conn.last('player_gear').gear, { hand: null, back: 'katana', scroll: 'scroll_fire', feet: null });
     assert.equal(a.conn.last('inventory').equipped, 'katana');
     const c = join('rin');
-    assert.deepEqual(c.conn.last('welcome').players.find((p: any) => p.id === a.id).gear, { hand: null, back: 'katana', scroll: 'scroll_fire' });
+    assert.deepEqual(c.conn.last('welcome').players.find((p: any) => p.id === a.id).gear, { hand: null, back: 'katana', scroll: 'scroll_fire', feet: null });
   });
 
   it('slot errado ou item que não tem: recusado sem tocar no banco', async () => {

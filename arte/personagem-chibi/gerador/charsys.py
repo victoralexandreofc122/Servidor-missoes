@@ -10,7 +10,7 @@ from pal import (CABELO, COR1, COR2, COR3, EYE_DEFAULT, FIXO, HAIR_DEFAULT, Idx,
                  colorize)
 
 # ordem dos slots dentro de cada plano (do fundo pra frente)
-SLOTS = ["corpo", "calca", "camisa", "conjunto", "punho", "olhos", "boca", "mascara", "cabelo", "chapeu", "acessorio"]
+SLOTS = ["corpo", "calca", "camisa", "conjunto", "sapato", "punho", "olhos", "boca", "mascara", "cabelo", "chapeu", "acessorio"]
 
 
 def breath_shift(idx, cut=63):

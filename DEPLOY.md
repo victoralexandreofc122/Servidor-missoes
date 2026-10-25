@@ -27,6 +27,8 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 20 | Atualização v13: personagem em sprites (gênero, cabelo, olhos, roupa e vila), com SQL | ~10 min |
 | 21 | Atualização v14: hitboxes, efeitos dos golpes e armas no boneco, sem SQL | ~10 min |
 | 22 | Atualização v15: nome Vontade do Fogo, arena da vila e design geral, com SQL opcional | ~10 min |
+| 23 | Atualização v16: fim de jogo (vilas, Kage, PvP, renegados, Akatsuki, capas), com SQL opcional | ~15 min |
+| 24 | Atualização v18: sapatos (equipamento dos pés), tela de equipamentos e `/admin ryo`, com SQL **antes** do deploy | ~10 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -843,3 +845,36 @@ chat (só a conta com `is_admin`; tudo vai para a auditoria e ninguém vê anún
    poder da vaga (com recarga).
 8. **Capas:** a Alfaiataria vende a Capa de Viagem e a Capa da Vila. 🎒 → **Vestir**. ⚙️ → "O que os outros veem no
    seu boneco": esconder capa, arma ou pergaminho.
+
+## Passo 24 — Atualização v18: sapatos, tela de equipamentos e `/admin ryo`
+
+**Banco (OBRIGATÓRIO e ANTES do deploy):** no Neon → **SQL Editor** (confira que o branch é o `production`), cole e
+rode o arquivo `db/schema_v12_sapatos.sql` inteiro. Segue as regras de sempre (sem bloco `DO $$`, tudo dentro de
+`BEGIN; ... COMMIT;`) e pode rodar de novo. Ele:
+
+- cria os sapatos no catálogo (Sandália Ninja, Sandália de Couro, Botas de Viagem e Botas Ninja, na Alfaiataria);
+- cria a coluna do sapato calçado e dá a **Sandália Ninja** (no inventário e calçada) a todo mundo que já existe e a
+  toda conta nova;
+- cria a função do `/admin ryo`.
+
+Só **depois** publique o código na `main`. Sem a migração, o servidor novo não sobe: o log do Render diz
+`Falta a migração v12` e o Render mantém a versão anterior no ar (aí é só rodar o SQL e fazer "Manual Deploy").
+
+Conferência (opcional), deve dar `4 | 0`:
+
+```sql
+SELECT (SELECT count(*) FROM game.items WHERE kind = 'shoes'),
+       (SELECT count(*) FROM game.players WHERE equipped_shoes IS NULL);
+```
+
+### Testar no celular
+
+1. **Sapato:** todo mundo aparece de Sandália Ninja. 🎒 → espaço **Pés**. Na Alfaiataria, comprar as **Botas de
+   Viagem**; na 🎒, escolher as botas na grade e tocar em **Calçar**. O boneco troca para todos no mapa. **Descalçar**
+   deixa o pé de fora.
+2. **Tela de equipamentos:** não tem mais Pescoço, Anéis e Brincos. No lugar: **Máscara** e **Acessório** (com
+   cadeado até chegarem os itens) e o **Pés** funcionando.
+3. **`/admin ryo <nome> <quantidade>`** (de 1 a 1.000.000): o ryō chega na hora (o jogador online vê o aviso) e fica
+   na auditoria (`game.admin_audit_log`, comando `giveryo`).
+4. **Clima:** os bônus agora são de no máximo **5%** (Fogo +5% no dia quente, Água +5% na chuva, Sombra +5% de
+   noite...). `/admin clima chuva` e tocar no ícone 🌧️ embaixo das barras mostra o bônus.

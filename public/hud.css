@@ -591,8 +591,6 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
 .equip-doll { display: grid; grid-template-columns: auto auto auto; grid-template-rows: auto auto; align-content: start; gap: 6px 10px; align-items: start; }
 .eq-col { display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .eq-row { grid-column: 1 / span 3; display: flex; justify-content: space-between; gap: 6px; }
-.eq-pair { display: grid; grid-template-columns: auto auto; gap: 4px 6px; justify-items: center; }
-.eq-pair > .eq-label { grid-column: 1 / span 2; }
 .eq-slot { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0; border: 0; background: none; color: inherit; }
 .eq-label { font: 600 14px / 1 var(--ui-font); color: #efe3c4; text-shadow: var(--text-outline); white-space: nowrap; }
 .eq-label:empty { display: none; }
@@ -697,7 +695,6 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
   .equip-panel.show-stats .equip-inv { display: none; }
   .equip-doll { gap: 2px 6px; }
   .eq-col { gap: 2px; }
-  .eq-pair { gap: 2px 4px; }
   .eq-slot { gap: 1px; }
   .eq-box { width: 34px; height: 34px; }
   .eq-box canvas { width: 28px; height: 28px; }

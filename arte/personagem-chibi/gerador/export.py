@@ -60,6 +60,8 @@ ITEMS = [
     ("camisa", "simbolo_espiral", ("dif", ("camisa_basica", None), ("camisa_basica_lisa", None)),
      {COR1: "azul_marinho", COR2: "vermelho"}),
     ("calca", "basica", ("calca_basica", None), {COR1: "cinza", COR2: "creme", COR3: "marrom"}),
+    ("sapato", "sandalia", ("sandalia", None), {COR1: "azul_marinho"}),
+    ("sapato", "bota", ("bota", None), {COR1: "marrom", COR2: "creme", COR3: "preto"}),
 ]
 ITEM_INFO = {
     ("corpo", "base"): "corpo + roupa de baixo (canal pele + fixo)",
@@ -72,12 +74,14 @@ ITEM_INFO = {
     ("chapeu", "bandana"): "bandana da vila com a placa LISA: cor1 = faixa (cor da vila), cor2 = placa de metal",
     ("chapeu", "simbolo_espiral"): "símbolo da vila gravado na placa (desenhe logo depois da bandana); "
                                    "'espiral' é provisório até o símbolo de cada vila ficar pronto",
-    ("conjunto", "vila"): "conjunto da vila (substitui camisa + calça): cor1 = colete, cor2 = camisa/calça/sandálias, "
+    ("conjunto", "vila"): "conjunto da vila (substitui camisa + calça): cor1 = colete, cor2 = camisa/calça, "
                           "cor3 = faixas e fita do porta-kunai; porta-kunai em aço fixo. Cores travadas por vila",
     ("camisa", "basica"): "camisa de manga longa SEM logo: cor1 = camisa, cor3 = gola e punhos",
     ("camisa", "simbolo_espiral"): "logo da vila no peito da camisa (desenhe logo depois da camisa): cor2 = logo",
-    ("calca", "basica"): "calça ninja folgada presa no tornozelo: cor1 = calça, cor2 = amarração e cordão, "
-                         "cor3 = sandálias",
+    ("calca", "basica"): "calça ninja folgada presa no tornozelo: cor1 = calça, cor2 = amarração e cordão",
+    ("sapato", "sandalia"): "sandália ninja aberta (equipamento dos pés): cor1 = sandália; os dedos ficam de fora (pele)",
+    ("sapato", "bota"): "bota de cano médio (equipamento dos pés), por cima da barra da calça: cor1 = couro, "
+                        "cor2 = dobra do cano, cor3 = sola",
 }
 # cores de cada vila (travadas: o jogador não troca). Exemplos provisórios até as vilas serem definidas.
 VILAS = [
@@ -243,6 +247,8 @@ def write_meta(files):
                                  "à parte (chapeu__simbolo_<vila>), desenhado logo depois da bandana",
                           camisa="o logo da vila no peito é um arquivo à parte (camisa__simbolo_<vila>), desenhado "
                                  "logo depois da camisa",
+                          sapato="equipamento dos pés, camada própria (sem sapato o pé fica descalço); desenhado "
+                                 "depois da roupa, então a bota cobre a barra da calça",
                           punho="vazio por enquanto", mascara="vazio por enquanto",
                           acessorio="vazio por enquanto (capa, aura, corte, asas, auréola...)"),
         animacoes={a: dict(sequencia=seq, duracao_ms=ms, repete=loop, frames=ANIM_NOTAS[a])
@@ -291,9 +297,9 @@ PANEL = (234, 236, 243, 255)
 
 LOOKS = {   # visual: itens por slot (o símbolo vai por cima do item base do mesmo slot)
     "vila": {"corpo": ["base"], "olhos": [], "boca": ["sorriso"], "cabelo": ["espetado"],
-             "chapeu": ["bandana", "simbolo_espiral"], "conjunto": ["vila"]},
+             "chapeu": ["bandana", "simbolo_espiral"], "conjunto": ["vila"], "sapato": ["sandalia"]},
     "basica": {"corpo": ["base"], "olhos": [], "boca": ["sorriso"], "cabelo": ["espetado"],
-               "camisa": ["basica", "simbolo_espiral"], "calca": ["basica"]},
+               "camisa": ["basica", "simbolo_espiral"], "calca": ["basica"], "sapato": ["bota"]},
 }
 
 
@@ -320,6 +326,9 @@ def look_colors(look, vila=None):
     c = {}
     for slot, iid, spec, d in ITEMS:
         c.setdefault(slot, item_colors(d))
+    for slot, iid, spec, d in ITEMS:                 # as cores padrão do item que o visual usa no slot
+        if LOOKS[look].get(slot, [None])[:1] == [iid]:
+            c[slot] = item_colors(d)
     if vila:
         k = vila["conjunto"]
         c["conjunto"].update({COR1: PAL["roupa"][k["cor1"]], COR2: PAL["roupa"][k["cor2"]], COR3: PAL["roupa"][k["cor3"]]})
@@ -460,6 +469,8 @@ def variety(data):
                                 COR3: PAL["roupa"][cl[(i * 3 + 2) % 18]]})
             c["calca"].update({COR1: PAL["roupa"][cl[(i * 5 + 11) % 18]], COR2: PAL["roupa"]["creme"],
                                COR3: PAL["roupa"]["marrom"]})
+            c["sapato"].update({COR1: PAL["roupa"][cl[(i * 7 + 5) % 18]], COR2: PAL["roupa"]["creme"],
+                                COR3: PAL["roupa"]["preto"]})
             row.append(frame_img(data[(g, "parado")], 0, 0, look, g, sc, c))
         rows.append(row)
     can = Image.new("RGBA", (20 + 10 * (cw + 8), 70 + 2 * (chh + 12)), (248, 248, 252, 255))

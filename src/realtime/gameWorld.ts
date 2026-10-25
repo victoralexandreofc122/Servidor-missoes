@@ -171,6 +171,8 @@ export interface JoiningPlayer {
   kageCandidate?: boolean;
   /** v8: pergaminho levado nas costas (só visual). */
   equippedScroll?: string | null;
+  /** v18 (migração v12): sapato calçado (null = descalço). Sem isto (testes): o da sessão antiga, ou descalço. */
+  equippedShoes?: string | null;
   /** v8: Modo Administrador (players.is_admin). Sem isto: false. */
   isAdmin?: boolean;
   /** v16: vila, renegado, Kage, Akatsuki, recompensa e capa (do banco, migração v11). Sem isto: da sessão antiga ou do visual. */
@@ -291,6 +293,8 @@ interface Session {
   readonly isAdmin: boolean;
   /** Pergaminho levado nas costas (só visual). */
   equippedScroll: string | null;
+  /** Sapato calçado (equipamento dos pés; null = descalço). */
+  equippedShoes: string | null;
   /** Último pedido de histórico do chat. */
   lastHistoryAt: number;
   // ------------------------------------------------ fim de jogo (v16, migração v11)
@@ -549,12 +553,15 @@ export class GameWorld {
   }
 
   /**
-   * O que aparece no boneco (todos veem): arma na mão ou nas costas e o pergaminho nas costas. Esconder (⚙️) só muda o
-   * que os outros veem: a arma continua valendo no golpe.
+   * O que aparece no boneco (todos veem): arma na mão ou nas costas, o pergaminho nas costas e o sapato. Esconder (⚙️) só
+   * muda o que os outros veem: a arma continua valendo no golpe. O sapato sempre aparece.
    */
   private gear(s: Session): Gear {
-    const g = gearOf(s.equipped, s.equippedScroll);
-    return { hand: s.display.weapon ? g.hand : null, back: s.display.weapon ? g.back : null, scroll: s.display.scroll ? g.scroll : null };
+    const g = gearOf(s.equipped, s.equippedScroll, s.equippedShoes);
+    return {
+      hand: s.display.weapon ? g.hand : null, back: s.display.weapon ? g.back : null, scroll: s.display.scroll ? g.scroll : null,
+      feet: g.feet,
+    };
   }
 
   /** Equipamento mudou: todos no mapa veem o boneco novo. */
@@ -663,7 +670,7 @@ export class GameWorld {
   private ninjaView(s: Session): NinjaView {
     return {
       tutorialStep: s.tutorial, ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll,
-      classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin,
+      equippedShoes: s.equippedShoes, classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin,
       villageSwitches: s.villageSwitches, cape: s.cape, display: { ...s.display },
     };
   }
@@ -770,6 +777,7 @@ export class GameWorld {
       substituteFocus: previous?.substituteFocus,
       isAdmin: player.isAdmin ?? previous?.isAdmin ?? false,
       equippedScroll: player.equippedScroll !== undefined ? player.equippedScroll : (previous?.equippedScroll ?? null),
+      equippedShoes: player.equippedShoes !== undefined ? player.equippedShoes : (previous?.equippedShoes ?? null),
       lastHistoryAt: 0,
       sentMaps: new Set(),
       village,
@@ -1333,6 +1341,18 @@ export class GameWorld {
           this.sendInventory(s);
         }
         say(`Admin: ${c.quantity}x ${ITEM_BY_CODE.get(c.item)?.name ?? c.item} para ${target.username}.`, 'good');
+        break;
+      }
+      case 'giveryo': {
+        const r = await store.giveRyo(adminId, target.id, c.amount);
+        if (!r.ok) return say(`Admin: ${r.text}`, 'bad');
+        const s = this.sessions.get(target.id);
+        if (s) {
+          s.ryo = r.ryo;
+          this.sendInventory(s);
+          if (s.id !== adminId) this.notice(s.id, `Você recebeu ${c.amount.toLocaleString('pt-BR')} ryō.`, 'good');
+        }
+        say(`Admin: ${c.amount.toLocaleString('pt-BR')} ryō para ${target.username} (saldo: ${r.ryo.toLocaleString('pt-BR')}).`, 'good');
         break;
       }
       case 'resetstats': {
@@ -2136,7 +2156,10 @@ export class GameWorld {
   }
 
   private sendInventory(s: Session): void {
-    this.sendTo(s, { type: 'inventory', ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll, cape: s.cape });
+    this.sendTo(s, {
+      type: 'inventory', ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll,
+      equippedShoes: s.equippedShoes, cape: s.cape,
+    });
   }
 
   // ---------------------------------------------------------------- tutorial da Academia
@@ -2350,24 +2373,28 @@ export class GameWorld {
   }
 
   /**
-   * Equipar do inventário (item null = guardar): arma (slot weapon) ou pergaminho nas costas
-   * (slot scroll). O boneco muda para TODOS (player_gear). Etapa 4 da Academia: equipar a arma é o
-   * primeiro passo; acertar o boneco com ela conclui.
+   * Equipar do inventário (item null = guardar): arma (slot weapon), pergaminho nas costas (slot scroll) ou
+   * sapato (slot feet; null = descalço). O boneco muda para TODOS (player_gear). Etapa 4 da Academia: equipar a
+   * arma é o primeiro passo; acertar o boneco com ela conclui.
    */
-  private equip(session: Session, item: string | null, slot: 'weapon' | 'scroll'): void {
+  private equip(session: Session, item: string | null, slot: 'weapon' | 'scroll' | 'feet'): void {
     if (item !== null) {
       const kind = ITEM_BY_CODE.get(item)?.kind;
       if (slot === 'weapon' && kind !== 'weapon') return this.sendError(session, 'NOT_A_WEAPON');
       if (slot === 'scroll' && kind !== 'scroll') return this.sendError(session, 'NOT_A_SCROLL');
+      if (slot === 'feet' && kind !== 'shoes') return this.sendError(session, 'NOT_SHOES');
       if (!((session.items[item] ?? 0) > 0)) return this.sendError(session, 'ITEM_NOT_OWNED');
     }
     const finish = (current: Session, equipped: string | null) => {
       const before = this.gear(current);
       if (slot === 'scroll') current.equippedScroll = equipped;
+      else if (slot === 'feet') current.equippedShoes = equipped;
       else current.equipped = equipped;
       this.sendInventory(current);
       const after = this.gear(current);
-      if (before.hand !== after.hand || before.back !== after.back || before.scroll !== after.scroll) this.broadcastGear(current);
+      if (before.hand !== after.hand || before.back !== after.back || before.scroll !== after.scroll || before.feet !== after.feet) {
+        this.broadcastGear(current);
+      }
       if (slot === 'weapon' && equipped && current.tutorial === 3) {
         this.sendTo(current, { type: 'notice', text: 'Arma equipada! Agora acerte o boneco com o 🗡️ Ataque Básico.', tone: 'good' });
       }

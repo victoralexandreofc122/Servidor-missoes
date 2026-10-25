@@ -211,6 +211,24 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v18: sapatos, tela de equipamentos e `/admin ryo` (migração `db/schema_v12_sapatos.sql`, ANTES do deploy)
+
+- **Sapatos (equipamento dos pés):** o sapato saiu da roupa e virou uma camada própria do boneco (`sapato` nos
+  sprites, desenhada depois da roupa: a bota cobre a barra da calça). Sem sapato, o pé fica descalço.
+  - Itens do tipo `shoes` na Alfaiataria: Sandália Ninja (80), Sandália de Couro (250), Botas de Viagem (500) e
+    Botas Ninja (900). O desenho e as cores de cada um ficam em `items.ts` (`look`) e em `public/sprites.js`
+    (`SHOES`); o teste confere que são iguais.
+  - Todo ninja tem a Sandália Ninja calçada (a migração dá a quem já existe; o banco dá a toda conta nova).
+  - `{ type: "equip", item, slot: "feet" }` (item null = descalçar). O banco só deixa calçar um sapato que o jogador
+    tem (`rule_equip_shoes_owned`). Todos veem (`gear.feet`); esconder a arma no ⚙️ não tira o sapato.
+- **Tela de equipamentos:** sem Pescoço, Anéis e Brincos. No lugar, **Máscara** e **Acessório** (com cadeado até os
+  itens chegarem) e o espaço **Pés** funcionando.
+- **`/admin ryo <nome> <quantidade>`** (ou `giveryo`): dá de 1 a 1.000.000 ryō, pela função `game.admin_give_ryo`
+  (confere `is_admin` e grava a auditoria).
+- **Clima:** cada bônus de clima e de hora do dia vale no máximo **5%** (e a soma também; `SKY_CAP`).
+- **Deploy:** a migração v12 é obrigatória. O servidor novo não sobe sem ela (o log do Render avisa) e o Render mantém
+  a versão anterior no ar. Rodar no Neon primeiro, depois a `main` (DEPLOY.md, passo 24).
+
 ### v17: arte nova, HUD do desenho, mapas do Arco 1 e clima (sem migração)
 
 - **Direção de arte** ([docs/arte.md](docs/arte.md)):
@@ -240,8 +258,8 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Vila:** telhados japoneses, fachadas com janelas de papel, cerejeiras, lanternas de pedra e montanha com mata.
 - **Ciclo de dia e noite e clima** ([docs/clima.md](docs/clima.md), `src/realtime/weather.ts`):
   - o servidor decide a hora (48 min por dia) e o clima (normal, dia quente, chuva, neblina), iguais para todos;
-  - ao ar livre, dão bônus aos elementos: Fogo no dia quente, Água e Raio na chuva, Ilusão na neblina, Sombra de
-    noite;
+  - ao ar livre, dão bônus de no máximo 5% aos elementos: Fogo no dia quente, Água e Raio na chuva, Ilusão na
+    neblina, Sombra de noite;
   - noite com luz em volta do jogador, das lanternas e das janelas;
   - `/admin clima` e `/admin hora`;
   - mensagem nova: `sky` (e `WorldInfo.sky`).
@@ -353,6 +371,7 @@ Rodar no Neon depois da v7 (pode rodar de novo). Sem ela o servidor não sobe e 
 | `/admin spawn <slime\|dummy\|sparring> <qtd>` | 1 a 20 monstros em volta do admin |
 | `/admin givejutsu <nome> <jutsu> <nível>` | ensina o jutsu ou sobe o uso até o nível 1 a 4 (o uso nunca desce) |
 | `/admin giveitem <nome> <item> <qtd>` | 1 a 999 itens no inventário |
+| `/admin ryo <nome> <qtd>` | dá de 1 a 1.000.000 ryō (v18, migração v12) |
 | `/admin resetstats <nome>` | devolve os pontos de atributo, sem custo |
 
 - **Restrito:** o servidor só aceita de quem entrou com `is_admin`; cada função do banco (`game.admin_*`)

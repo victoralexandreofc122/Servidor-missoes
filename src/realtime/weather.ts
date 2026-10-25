@@ -8,11 +8,12 @@
  *     neblina sai mais de madrugada e de noite. Quando escurece, o dia quente vira normal.
  *
  * Bônus (só AO AR LIVRE: vilas, Floresta, mapas abertos; dentro de casa e na caverna não vale):
- *   dia quente  Fogo +20% de dano, Água −10%
- *   chuva       Água +20%, Raio +15%, Fogo −20%
- *   neblina     Ilusão: o atordoamento dura 30% a mais
- *   noite       Sombra: prende 30% a mais; Ilusão: atordoa 15% a mais
- * Os de dano multiplicam o dano do jutsu (antes do alvo); os de efeito, o tempo de atordoar e de prender.
+ *   dia quente  Fogo +5% de dano, Água −5%
+ *   chuva       Água +5%, Raio +5%, Fogo −5%
+ *   neblina     Ilusão: o atordoamento dura 5% a mais
+ *   noite       Sombra: prende 5% a mais
+ * Os de dano multiplicam o dano do jutsu (antes do alvo); os de efeito, o tempo de atordoar e de prender. Nenhum
+ * bônus passa de 5% para cima ou para baixo, nem somando clima e hora (SKY_CAP).
  */
 
 import type { Mechanic } from './jutsus.js';
@@ -80,25 +81,31 @@ export interface SkyEffects {
   status: Partial<Record<Mechanic, number>>;
 }
 
+/** O máximo que o clima e a hora mudam um jutsu, para cima ou para baixo (5%). */
+export const SKY_CAP = 0.05;
+
 const WEATHER_EFFECTS: Readonly<Record<Weather, SkyEffects>> = {
   normal: { damage: {}, status: {} },
-  quente: { damage: { fire: 1.2, water: 0.9 }, status: {} },
-  chuva: { damage: { water: 1.2, lightning: 1.15, fire: 0.8 }, status: {} },
-  neblina: { damage: {}, status: { illusion: 1.3 } },
+  quente: { damage: { fire: 1.05, water: 0.95 }, status: {} },
+  chuva: { damage: { water: 1.05, lightning: 1.05, fire: 0.95 }, status: {} },
+  neblina: { damage: {}, status: { illusion: 1.05 } },
 };
 const PHASE_EFFECTS: Readonly<Record<DayPhase, SkyEffects>> = {
   amanhecer: { damage: {}, status: {} },
   dia: { damage: {}, status: {} },
   entardecer: { damage: {}, status: {} },
-  noite: { damage: {}, status: { shadow: 1.3, illusion: 1.15 } },
+  noite: { damage: {}, status: { shadow: 1.05 } },
 };
 
-/** Clima + hora juntos (os dois multiplicam, arredondado em 2 casas). */
+/** Clima + hora juntos (os dois multiplicam, arredondado em 2 casas, e nunca além de ±SKY_CAP). */
 export function skyEffects(phase: DayPhase, weather: Weather): SkyEffects {
   const out: SkyEffects = { damage: {}, status: {} };
   for (const part of ['damage', 'status'] as const) {
     for (const src of [WEATHER_EFFECTS[weather][part], PHASE_EFFECTS[phase][part]]) {
-      for (const [k, v] of Object.entries(src) as [Mechanic, number][]) out[part][k] = Math.round((out[part][k] ?? 1) * v * 100) / 100;
+      for (const [k, v] of Object.entries(src) as [Mechanic, number][]) {
+        const m = Math.min(1 + SKY_CAP, Math.max(1 - SKY_CAP, (out[part][k] ?? 1) * v));
+        out[part][k] = Math.round(m * 100) / 100;
+      }
     }
   }
   return out;
