@@ -93,3 +93,40 @@ export function drawBackWeapon(g, code, x, y, s, view, flip, dpr, empty = false)
 }
 
 const snap = (v, dpr) => Math.round(v * dpr) / dpr;
+
+/**
+ * Ícone do item (inventário e espaços do equipamento): a arma na diagonal (ou o pergaminho de frente), recortada no
+ * que tem desenho e ampliada por um número inteiro (o pixel art não borra), no meio de w x h. false: ainda sem arte.
+ */
+const iconCache = new Map();
+export function drawWeaponIcon(g, code, w, h) {
+  let icon = iconCache.get(weaponArt(code));
+  if (!icon) {
+    const a = sheetOf(code, 'mao') || sheetOf(code, 'costas');
+    const img = a && imgs[a.arquivo];
+    if (!img) return false;
+    const [fw, fh] = a.quadro;
+    const frame = a.angulos ? angleFrame(315) : 0;
+    const tmp = document.createElement('canvas');
+    tmp.width = fw;
+    tmp.height = fh;
+    const t = tmp.getContext('2d');
+    t.drawImage(img, frame * fw, 0, fw, fh, 0, 0, fw, fh);
+    const px = t.getImageData(0, 0, fw, fh).data;
+    let x0 = fw, y0 = fh, x1 = -1, y1 = -1;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      if (px[(y * fw + x) * 4 + 3] < 16) continue;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+    if (x1 < 0) return false;
+    icon = { canvas: tmp, x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+    iconCache.set(weaponArt(code), icon);
+  }
+  const s = Math.max(1, Math.floor(Math.min(w / icon.w, h / icon.h)));
+  g.imageSmoothingEnabled = false;
+  g.drawImage(icon.canvas, icon.x, icon.y, icon.w, icon.h, Math.round((w - icon.w * s) / 2), Math.round((h - icon.h * s) / 2), icon.w * s, icon.h * s);
+  return true;
+}

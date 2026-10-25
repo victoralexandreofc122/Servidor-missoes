@@ -132,7 +132,9 @@ describe('garantias do cliente (public/)', () => {
     assert.match(html, /data-attr="weapons"/);
     assert.match(js, /send\(\{ type: 'extract', class: extractChoice\.cls, level: extractChoice\.level \}\)/);
     assert.match(js, /send\(\{ type: 'buy', item: item\.code, qty: 1 \}\)/);
-    assert.match(js, /send\(\{ type: 'equip', item: on \? null : code \}\)/);
+    // Equipamentos de Shinobi: equipar/guardar só pede o item (ou null) ao servidor.
+    assert.match(js, /weapon: \{[^\n]*send: \(code\) => \(\{ type: 'equip', item: code \}\)/);
+    assert.match(js, /send\(kind\.send\(kind\.current\(state\.ninja\) === eqSel \? null : eqSel\)\)/);
     assert.match(js, /send\(\{ type: 'choose_class', class: classChoice\.picked \}\)/);
     assert.match(js, /send\(\{ type: 'kage_apply' \}\)/);
     // Nada de sorteio, chance, preço, passo do tutorial ou uso de jutsu saindo do cliente.

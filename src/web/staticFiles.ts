@@ -43,6 +43,7 @@ const FILES = [
   { route: '/endgame.js', file: 'endgame.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/prediction.js', file: 'prediction.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/styles.css', file: 'styles.css', contentType: 'text/css; charset=utf-8' },
+  { route: '/hud.css', file: 'hud.css', contentType: 'text/css; charset=utf-8' },
   // Personagem em sprites (arte/personagem-chibi): o desenhista, os dados e os atlas de cada gênero.
   { route: '/sprites.js', file: 'sprites.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/spriteData.js', file: 'spriteData.js', contentType: 'text/javascript; charset=utf-8' },

@@ -17,6 +17,7 @@
   <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
   <link rel="preload" href="/fonts/barlow-condensed-600.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/hud.css">
   <script type="module" src="/game.js"></script>
 </head>
 <body>
@@ -27,37 +28,71 @@
 
   <!-- HUD: aparece depois do login -->
   <div id="hud" hidden>
-    <div class="topbar">
-      <span id="status" class="pill">conectando…</span>
-      <span class="spacer"></span>
-      <!-- Sala de Missões: o rótulo vira o progresso (ex.: 2/5) quando há missão. -->
-      <button id="missions-toggle" class="mission-btn" type="button" aria-expanded="false" aria-controls="missions-panel">
-        <span aria-hidden="true">📜</span> <span id="missions-badge">Missões</span>
-      </button>
-      <!-- Inventário: ryō, armas (equipar) e pergaminhos de classe. -->
-      <button id="inv-toggle" class="mission-btn" type="button" aria-expanded="false" aria-controls="inv-panel">
-        <span aria-hidden="true">🎒</span> <span id="inv-badge">0 ryō</span>
-      </button>
-      <!-- Ficha: nível e pontos de atributo; o "+" aparece quando há ponto para gastar. -->
-      <button id="status-toggle" class="mission-btn" type="button" aria-expanded="false" aria-controls="status-panel">
-        <span aria-hidden="true">📊</span> <span id="status-badge">Nv 1</span>
-      </button>
-      <!-- Fim de jogo (v16): a vila, o Kage, a diplomacia, o ranking e a Akatsuki. Só aparece com o módulo de vilas. -->
-      <button id="village-toggle" class="mission-btn" type="button" hidden aria-expanded="false" aria-controls="village-panel">
-        <span aria-hidden="true">🏯</span> <span id="village-badge">Vila</span>
-      </button>
-      <button id="chat-toggle" class="icon-btn" type="button" aria-label="Abrir chat" aria-expanded="false" aria-controls="chat">
-        <span aria-hidden="true">💬</span>
-      </button>
-      <!-- Histórico do chat: últimas 100 mensagens (24 h) do servidor. -->
-      <button id="history-toggle" class="icon-btn" type="button" aria-label="Histórico do chat" aria-expanded="false" aria-controls="history-panel">
-        <span aria-hidden="true">🕘</span>
-      </button>
-      <button id="settings-toggle" class="icon-btn" type="button" aria-label="Configurações" aria-expanded="false" aria-controls="settings-panel">
-        <span aria-hidden="true">⚙️</span>
-      </button>
-      <button id="logout" class="text-btn" type="button">Sair</button>
+    <!--
+      HUD (desenho do jogador, azul-noite e bronze): retrato e barras em cima à esquerda, o alvo no meio, o minimapa
+      em cima à direita com as missões embaixo, o chat à esquerda e o menu em ícones redondos. No celular, o menu abre
+      no ☰ e as missões ficam na aba do chat (o arco de combate ocupa a direita).
+    -->
+    <!-- Você: retrato, nível, vida, chakra, ryō e os efeitos ativos. Arrastável no "Editar layout". -->
+    <div id="vitals" class="hud-me" aria-label="Você">
+      <div class="portrait">
+        <canvas id="portrait" width="128" height="128" aria-hidden="true"></canvas>
+        <b id="level-badge" class="level-badge" aria-label="Nível">1</b>
+      </div>
+      <div class="me-info">
+        <div class="me-row">
+          <span class="me-label">Vida</span>
+          <span class="money" aria-label="ryō"><i class="coin" aria-hidden="true"></i><b id="ryo-text">0</b> ryō</span>
+        </div>
+        <div class="bar bar-hp" role="meter" aria-label="Vida" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+          <span class="fill" id="hp-fill"></span><b id="hp-text">100 / 100</b>
+        </div>
+        <span class="me-label small">Chakra</span>
+        <div class="bar bar-chakra" role="meter" aria-label="Chakra" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+          <span class="fill" id="chakra-fill"></span><b id="chakra-text">100 / 100</b>
+        </div>
+        <ul id="buffs" class="buffs" aria-label="Efeitos ativos"></ul>
+      </div>
     </div>
+
+    <!-- O alvo focado (🎯): retrato, nome e vida. -->
+    <div id="target-window" class="target-window" hidden>
+      <div class="portrait foe"><canvas id="target-portrait" width="96" height="96" aria-hidden="true"></canvas></div>
+      <div class="target-info">
+        <b id="target-name" class="target-name">Alvo</b>
+        <div class="bar bar-foe" role="meter" aria-label="Vida do alvo"><span class="fill" id="target-fill"></span><b id="target-hp">0 / 0</b></div>
+      </div>
+    </div>
+
+    <!-- Minimapa (com a moldura dourada) e, embaixo, onde você está. O ☰ abre o menu no celular. -->
+    <div class="mm-wrap">
+      <button id="menu-toggle" class="round-btn menu-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="menu-grid"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <div id="minimap" class="minimap" aria-label="Minimapa">
+        <canvas id="minimap-canvas" width="176" height="176" aria-hidden="true"></canvas>
+        <i class="mm-pin n" aria-hidden="true"></i><i class="mm-pin e" aria-hidden="true"></i><i class="mm-pin s" aria-hidden="true"></i><i class="mm-pin w" aria-hidden="true"></i>
+      </div>
+      <span id="status" class="pill">conectando…</span>
+    </div>
+
+    <!-- Missões em andamento (no celular, na aba "Missões" do chat). -->
+    <section id="tracker" class="tracker" aria-label="Missões em andamento">
+      <h3><i class="diamond" aria-hidden="true"></i> Missão Principal</h3>
+      <ul id="tracker-main" class="tracker-list"></ul>
+      <h3><i class="diamond" aria-hidden="true"></i> Missões Secundárias</h3>
+      <ul id="tracker-side" class="tracker-list"></ul>
+    </section>
+
+    <!-- Menu: ícones redondos com nome. -->
+    <nav id="menu-grid" class="menu-grid" aria-label="Menu">
+      <button id="inv-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="inv-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 7V5.5a3.5 3.5 0 0 1 7 0V7"/><path d="M6 7h12a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V9a2 2 0 0 1 2-2z"/><path d="M9 13h6v4H9z"/></svg><span>Mochila</span><b id="inv-badge" class="menu-badge" hidden></b></button>
+      <button id="status-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="status-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.4-6 8-6s6.5 2 8 6"/></svg><span>Perfil</span><b id="status-badge" class="menu-badge"></b></button>
+      <button id="missions-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="missions-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/><path d="M7 4a2 2 0 0 0-2 2v12a2 2 0 0 0 4 0V6a2 2 0 0 0-2-2z"/><path d="M12 9h4M12 13h4M12 17h2"/></svg><span>Missões</span><b id="missions-badge" class="menu-badge"></b></button>
+      <button id="settings-toggle" class="menu-btn" type="button" aria-label="Configurações" aria-expanded="false" aria-controls="settings-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Config.</span></button>
+      <button id="village-toggle" class="menu-btn" type="button" hidden aria-expanded="false" aria-controls="village-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5c3 .8 15 .8 18 0"/><path d="M4.5 4c4 1 11 1 15 0"/><path d="M5.5 10.5h13"/><path d="M8 6.5V21M16 6.5V21"/></svg><span id="village-badge">Vila</span></button>
+      <button id="history-toggle" class="menu-btn" type="button" aria-label="Histórico do chat" aria-expanded="false" aria-controls="history-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><span>Histórico</span></button>
+      <button id="chat-toggle" class="menu-btn" type="button" aria-label="Escrever no chat" aria-expanded="false" aria-controls="chat"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M8 9.5h8M8 12.5h5"/></svg><span>Chat</span></button>
+      <button id="logout" class="menu-btn" type="button"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h5v16h-5"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/></svg><span>Sair</span></button>
+    </nav>
 
     <!-- Tutorial da Academia: o que fazer na sala atual (o SERVIDOR confere e abre a porta). -->
     <div id="tutorial-card" class="tutorial-card" hidden role="status" aria-live="polite">
@@ -65,14 +100,22 @@
       <span id="tutorial-text"></span>
     </div>
 
-    <!-- Mensagens do chat na tela: somem sozinhas depois de alguns segundos. -->
-    <ol id="chat-feed" class="chat-feed" aria-live="polite" aria-label="Mensagens do chat"></ol>
-
-    <!-- O botão 💬 abre só esta barra de digitação. -->
-    <form id="chat" class="chat-bar" hidden autocomplete="off" aria-label="Chat">
-      <input id="chat-input" name="message" maxlength="200" placeholder="Mensagem… (/g global · /w Nome sussurro)" enterkeyhint="send" aria-label="Mensagem do chat">
-      <button type="submit">Enviar</button>
-    </form>
+    <!-- Chat: as últimas mensagens num painel (abas Chat e Missões) e a linha de digitar embaixo. -->
+    <section id="chat-box" class="chat-box" aria-label="Chat">
+      <header class="chat-head">
+        <span class="chat-title"><i class="bubble" aria-hidden="true"></i> Chat</span>
+        <button id="chat-min" class="chat-min" type="button" aria-label="Recolher o chat" aria-expanded="true">–</button>
+      </header>
+      <ol id="chat-feed" class="chat-feed" aria-live="polite" aria-label="Mensagens do chat"></ol>
+      <div id="chat-missions-pane" class="chat-missions" hidden></div>
+      <div class="chat-foot">
+        <form id="chat" class="chat-bar" autocomplete="off" aria-label="Escrever no chat">
+          <input id="chat-input" name="message" maxlength="200" placeholder="Chat" enterkeyhint="send" aria-label="Mensagem do chat (/g global · /w Nome sussurro)">
+          <button type="submit" aria-label="Enviar">➤</button>
+        </form>
+        <button id="chat-tab-missions" class="chat-tab" type="button" aria-pressed="false">Missões</button>
+      </div>
+    </section>
 
     <!-- Sala de Missões: missão ativa, progresso e recompensa (o servidor manda; o cliente só mostra). -->
     <section id="missions-panel" class="mission-panel" hidden role="dialog" aria-labelledby="missions-title">
@@ -148,16 +191,71 @@
       <p id="shop-note" class="shop-soon"></p>
     </section>
 
-    <!-- Inventário: ryō, armas e pergaminhos. Equipar só pede; vale quando o servidor confirma. -->
-    <section id="inv-panel" class="mission-panel inv-panel" hidden role="dialog" aria-labelledby="inv-title">
-      <header class="mission-head">
-        <h2 id="inv-title"><span aria-hidden="true">🎒</span> Inventário</h2>
-        <button id="inv-close" class="icon-btn small" type="button" aria-label="Fechar o inventário"><span aria-hidden="true">✕</span></button>
+    <!--
+      Equipamentos de Shinobi (desenho do jogador; abre na 🎒 Mochila): o boneco no meio com os espaços em volta, o
+      nível, os atributos e as barras no meio, e a grade do inventário à direita. Os espaços que o jogo ainda não tem
+      (pescoço, luvas, anéis, brincos, pés, segunda arma) aparecem travados. Equipar só PEDE: vale quando o servidor
+      confirma (inventory).
+    -->
+    <section id="inv-panel" class="equip-panel" hidden role="dialog" aria-labelledby="inv-title">
+      <header class="equip-head">
+        <h2 id="inv-title" class="equip-title">Equipamentos de Shinobi</h2>
       </header>
-      <p id="inv-ryo" class="points-line">0 ryō</p>
-      <p id="inv-class" class="mission-sensei"></p>
-      <ul id="inv-items" class="shop-items"></ul>
-      <p id="inv-empty" class="mission-empty">Nada aqui ainda. Monstros deixam ryō e, para Genin, pergaminhos da classe.</p>
+      <button id="inv-close" class="equip-close" type="button" aria-label="Fechar os equipamentos">✕</button>
+      <p id="equip-level" class="equip-level">Nível 1</p>
+      <div class="equip-tabs" role="tablist">
+        <button type="button" class="eq-tab active" role="tab" aria-selected="true" data-eqtab="inv">Inventário</button>
+        <button type="button" class="eq-tab" role="tab" aria-selected="false" data-eqtab="stats">Atributos</button>
+      </div>
+      <div class="equip-body">
+        <div class="equip-doll">
+          <div class="eq-col">
+            <button type="button" class="eq-slot" data-slot="head"><span class="eq-label">Cabeça</span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button>
+            <button type="button" class="eq-slot locked" data-slot="neck"><span class="eq-label">Pescoço</span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button>
+            <button type="button" class="eq-slot" data-slot="chest"><span class="eq-label">Peito</span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button>
+            <button type="button" class="eq-slot" data-slot="legs"><span class="eq-label">Pernas</span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button>
+          </div>
+          <div class="eq-figure">
+            <canvas id="equip-figure" width="192" height="288" aria-label="Seu ninja"></canvas>
+            <button id="equip-turn" class="eq-turn" type="button" aria-label="Girar o boneco">↻</button>
+          </div>
+          <div class="eq-col">
+            <button type="button" class="eq-slot" data-slot="cape"><span class="eq-label">Capa</span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button>
+            <button type="button" class="eq-slot locked" data-slot="gloves"><span class="eq-label">Luvas</span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button>
+            <div class="eq-pair"><span class="eq-label">Anéis</span><button type="button" class="eq-slot locked" data-slot="ring1"><span class="eq-label"></span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button><button type="button" class="eq-slot locked" data-slot="ring2"><span class="eq-label"></span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button></div>
+            <div class="eq-pair"><span class="eq-label">Brincos</span><button type="button" class="eq-slot locked" data-slot="ear1"><span class="eq-label"></span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button><button type="button" class="eq-slot locked" data-slot="ear2"><span class="eq-label"></span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button></div>
+          </div>
+          <div class="eq-row">
+            <button type="button" class="eq-slot wide" data-slot="weapon"><span class="eq-label">Arma Principal</span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button>
+            <button type="button" class="eq-slot locked" data-slot="feet"><span class="eq-label">Pés</span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button>
+            <button type="button" class="eq-slot locked" data-slot="weapon2"><span class="eq-label">Arma Secundária</span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button>
+            <button type="button" class="eq-slot" data-slot="scroll"><span class="eq-label">Item Especial</span><span class="eq-box"><canvas width="96" height="96" aria-hidden="true"></canvas></span></button>
+          </div>
+        </div>
+        <div class="equip-stats" data-eqpane="stats">
+          <div class="eq-score"><i class="eq-ico shield" aria-hidden="true"></i><span>Rank</span><b id="equip-rank">Academia</b></div>
+          <ul id="equip-attrs" class="eq-attrs"></ul>
+          <div class="eq-bars">
+            <div class="eq-bar hp"><span>HP</span><i><b id="equip-hp-fill"></b></i><em id="equip-hp">0/0</em></div>
+            <div class="eq-bar ch"><span>Chakra</span><i><b id="equip-ch-fill"></b></i><em id="equip-ch">0/0</em></div>
+            <div class="eq-bar xp"><span>XP</span><i><b id="equip-xp-fill"></b></i><em id="equip-xp">0/0</em></div>
+          </div>
+          <p id="inv-class" class="eq-class"></p>
+          <p id="inv-ryo" class="eq-ryo">0 ryō</p>
+        </div>
+        <div class="equip-inv" data-eqpane="inv">
+          <h3 class="eq-inv-title">Inventário de Equipamentos</h3>
+          <ul id="inv-items" class="eq-grid" role="listbox" aria-label="Itens"></ul>
+          <p id="inv-empty" class="eq-empty">Nada aqui ainda. Monstros deixam ryō e, para Genin, pergaminhos da classe.</p>
+          <p id="equip-detail" class="eq-detail" aria-live="polite"></p>
+          <div class="eq-actions">
+            <button id="equip-do" type="button" class="eq-btn green" disabled>Equipar</button>
+            <button type="button" class="eq-btn gold" disabled title="Em breve">Aprimorar</button>
+            <button id="equip-info" type="button" class="eq-btn blue" disabled>Detalhes</button>
+            <button type="button" class="eq-btn red" disabled title="Em breve">Vender</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- Diretor da Academia: escolha de classe (Missão de Genin / classe Secundária). -->
@@ -254,6 +352,9 @@
       <label class="slider">Opacidade das barras <output id="bar-opacity-out">100%</output>
         <input id="bar-opacity" type="range" min="30" max="100" step="5" value="100">
       </label>
+      <label class="slider">Distância da câmera <output id="cam-dist-out">100%</output>
+        <input id="cam-dist" type="range" min="80" max="140" step="5" value="100">
+      </label>
       <fieldset id="display-opts" class="display-opts">
         <legend>O que os outros veem no seu boneco</legend>
         <label><input id="show-cape" type="checkbox" checked> Capa</label>
@@ -341,16 +442,9 @@
       </div>
     </section>
 
-    <!-- Vida e chakra (parte de baixo da tela) + rank e XP. Atualizados pelo servidor em tempo real. -->
-    <div id="vitals" class="vitals" aria-label="Vida e chakra">
-      <div class="bar bar-hp" role="meter" aria-label="Vida" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
-        <span class="fill" id="hp-fill"></span><b id="hp-text">100 / 100</b>
-      </div>
-      <div class="bar bar-chakra" role="meter" aria-label="Chakra" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
-        <span class="fill" id="chakra-fill"></span><b id="chakra-text">100 / 100</b>
-      </div>
-      <p id="xp-line" class="xp-line">Academia · 0 XP</p>
-    </div>
+    <!-- XP do nível: a faixa fina embaixo de tudo, com o rank e o nível. -->
+    <div class="xp-strip" aria-hidden="true"><span id="xp-strip-fill" class="fill"></span></div>
+    <p id="xp-line" class="xp-line">Academia · 0 XP</p>
 
     <div id="hurt" class="hurt" aria-hidden="true"></div>
     <p id="toast" class="toast" role="status" hidden></p>

@@ -21,7 +21,7 @@ import {
 } from './sprites.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
-import { drawBackWeapon, drawHandWeapon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
+import { drawBackWeapon, drawHandWeapon, drawWeaponIcon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
 import { drawCape, drawRenegadeScratch, egOn, factionStyle, mapAccess, mountEndgameUI, shopFactor, zoneFoe } from './endgame.js';
 
 const TOKEN_KEY = 'nin.token';
@@ -49,7 +49,7 @@ const ui = {
   settingsToggle: $('settings-toggle'), settingsPanel: $('settings-panel'), settingsClose: $('settings-close'),
   editLayout: $('edit-layout'), editBanner: $('edit-banner'), editDone: $('edit-done'), editReset: $('edit-reset'),
   resetLayout: $('reset-layout'), openCreator: $('open-creator'), vitals: $('vitals'),
-  sliders: { btnScale: $('btn-scale'), btnOpacity: $('btn-opacity'), barScale: $('bar-scale'), barOpacity: $('bar-opacity') },
+  sliders: { btnScale: $('btn-scale'), btnOpacity: $('btn-opacity'), barScale: $('bar-scale'), barOpacity: $('bar-opacity'), camDist: $('cam-dist') },
   creator: $('creator'), creatorCanvas: $('creator-canvas'), creatorTurn: $('creator-turn'), creatorOptions: $('creator-options'),
   creatorError: $('creator-error'),
   creatorRandom: $('creator-random'), creatorCancel: $('creator-cancel'), creatorSave: $('creator-save'),
@@ -83,6 +83,18 @@ const ui = {
   boardPanel: $('board-panel'), boardClose: $('board-close'), boardCards: $('board-cards'), boardCurrent: $('board-current'),
   boardTitle: $('board-mission-title'), boardProgress: $('board-mission-progress'), boardDeliver: $('board-deliver'), boardHint: $('board-hint'),
   resetAttrs: $('reset-attrs'),
+  // HUD do desenho: retrato, efeitos, alvo, minimapa, menu, missões em andamento, chat em painel e XP
+  portrait: $('portrait'), levelBadge: $('level-badge'), ryoText: $('ryo-text'), buffs: $('buffs'),
+  targetWindow: $('target-window'), targetPortrait: $('target-portrait'), targetName: $('target-name'),
+  targetFill: $('target-fill'), targetHp: $('target-hp'),
+  minimap: $('minimap'), minimapCanvas: $('minimap-canvas'), menuToggle: $('menu-toggle'), menuGrid: $('menu-grid'),
+  trackerMain: $('tracker-main'), trackerSide: $('tracker-side'), chatBox: $('chat-box'), chatMin: $('chat-min'),
+  chatMissionsPane: $('chat-missions-pane'), chatTabMissions: $('chat-tab-missions'), xpStripFill: $('xp-strip-fill'),
+  // Equipamentos de Shinobi
+  equipLevel: $('equip-level'), equipRank: $('equip-rank'), equipAttrs: $('equip-attrs'), equipFigure: $('equip-figure'),
+  equipTurn: $('equip-turn'), equipDo: $('equip-do'), equipInfo: $('equip-info'), equipDetail: $('equip-detail'),
+  equipHpFill: $('equip-hp-fill'), equipHp: $('equip-hp'), equipChFill: $('equip-ch-fill'), equipCh: $('equip-ch'),
+  equipXpFill: $('equip-xp-fill'), equipXp: $('equip-xp'),
 };
 
 // ------------------------------------------------------------------ token
@@ -961,7 +973,237 @@ function renderVitals() {
   ui.xpLine.textContent = pr
     ? `${m.rank ? m.rank.name : ''} · Nv ${pr.level} · ${pr.xpInLevel} / ${pr.xpToNext} XP`
     : `${m.rank ? m.rank.name : ''} · ${m.xp} XP`;
+  if (pr) ui.xpStripFill.style.transform = `scaleX(${pr.xpToNext ? Math.min(1, pr.xpInLevel / pr.xpToNext) : 1})`;
+  renderBuffs();
   renderSlots();
+}
+
+// ---- HUD do desenho: efeitos, retrato, alvo, minimapa e missões em andamento
+
+/** Efeitos ativos embaixo das barras (quadradinhos com moldura). Só refaz quando a lista muda. */
+function renderBuffs() {
+  const m = state.me;
+  const list = [];
+  if (m.meditating) list.push(['🧘', 'Meditando']);
+  if (m.shield) list.push(['🛡️', 'Escudo de Pedra']);
+  if (m.running) list.push(['🏃', 'Correndo']);
+  if (state.inSafeZone) list.push(['🕊️', 'Zona segura']);
+  if (state.inArena) list.push(['⚔️', 'Arena']);
+  const key = list.map((b) => b[0]).join('');
+  if (key === renderBuffs.key) return;
+  renderBuffs.key = key;
+  ui.buffs.replaceChildren(...list.map(([icon, label]) => {
+    const li = document.createElement('li');
+    li.textContent = icon;
+    li.title = label;
+    li.setAttribute('aria-label', label);
+    return li;
+  }));
+}
+
+/** Nome de cada monstro na janela do alvo. */
+const MONSTER_NAMES = { slime: 'Slime', lodo_escuro: 'Lodo Escuro', lodo_sombrio: 'Lodo Sombrio', dummy: 'Boneco de Treino', sparring: 'Boneco de Treino' };
+
+/** Busto do boneco (cabeça e ombros, de frente) num canvas quadrado: a célula 64x96 em escala 2, sem borrar. */
+function drawBust(c, look) {
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, c.width, c.height);
+  g.imageSmoothingEnabled = false;
+  const s = 2;
+  const [view, flip] = viewOf(0);
+  const { anim, frame } = pickFrame({ moving: false }, 0);
+  return drawCell(g, (c.width - 64 * s) / 2, -4 * s, s, look, view, flip, anim, frame) != null;
+}
+
+/** O retrato do canto: refeito quando o visual muda (ou quando os desenhos do boneco terminam de carregar). */
+function updatePortrait() {
+  const look = state.me.look || state.players.get(state.meId)?.look;
+  if (!look) return;
+  const key = `${JSON.stringify(look)}:${spritesReady(look.gender)}`;
+  if (key === updatePortrait.key) return;
+  if (drawBust(ui.portrait, look)) updatePortrait.key = key;
+}
+
+const targetView = { id: null, text: '' };
+/** Janela do alvo (🎯): retrato, nome e vida. Escondida sem alvo; vermelha para inimigo. */
+function updateTargetWindow(f) {
+  if (!f) {
+    if (!ui.targetWindow.hidden) ui.targetWindow.hidden = true;
+    targetView.id = null;
+    return;
+  }
+  ui.targetWindow.hidden = false;
+  if (targetView.id !== f.id) {
+    targetView.id = f.id;
+    targetView.text = '';
+    ui.targetName.textContent = f.type ? (MONSTER_NAMES[f.type] || f.type) : f.username;
+    const c = ui.targetPortrait, g = c.getContext('2d');
+    g.clearRect(0, 0, c.width, c.height);
+    if (f.type === 'dummy' || f.type === 'sparring') {
+      g.font = `${Math.round(c.width * 0.55)}px system-ui, sans-serif`;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText('🎯', c.width / 2, c.height / 2 + 2);
+    } else if (f.type) {
+      drawSlime(g, c.width / 2, c.height * 0.5, c.width * 0.27, MONSTER_LOOK[f.type] || MONSTER_LOOK.slime, 0, 0, 0, f.id);
+    } else if (f.look) {
+      drawBust(c, f.look);
+    }
+  }
+  const max = f.maxHp || 1, hp = Math.max(0, Math.round(f.hp ?? max));
+  const text = `${hp} / ${max}`;
+  if (text !== targetView.text) {
+    targetView.text = text;
+    ui.targetHp.textContent = text;
+    ui.targetFill.style.transform = `scaleX(${Math.max(0, Math.min(1, hp / max))})`;
+  }
+}
+
+/*
+ * Minimapa: uma imagem do mapa inteiro (3 px por casa: o chão e as paredes em cores chapadas), feita ao entrar no
+ * mapa; a cada ~120 ms, o pedaço em volta do jogador num círculo, com monstros (vermelho), NPCs (dourado), outros
+ * ninjas (verde), portas e saídas (roxo) e a seta do jogador no meio.
+ */
+const MM_GROUND = {
+  stone: '#8d8a84', grass: '#4f9a3a', darkgrass: '#2a5a2c', sand: '#d9c08a', water: '#3a8ad0', bridge: '#8b5a2b',
+  path: '#b8935c', trail: '#2a5a2c', wood: '#7a5230', arena: '#3e4761', dirt: '#6f6150', ash: '#4a4744', cave: '#2a2236',
+  burnt: '#3a2e26', pebbles: '#8a8478', lodo: '#5e2a86', void: '#0b1020',
+};
+const MM_WALL = {
+  tree: '#173a1c', water: '#3a8ad0', house: '#9a6a3a', rock: '#5a5550', cliff: '#6d645a', wall: '#6b6760', gatepost: '#6b6760',
+  fence: '#5b6585', pillar: '#4c5677', pit: '#05060a', cave: '#1a1520', deadtree: '#3a2e26', tent: '#b9a684', oak: '#2f6a33',
+  seal: '#ffcf6b', logs: '#5c3a1c', sink: '#16324e', pool: '#5e2a86', gate: '#5c3a1c', iwall: '#3b2a1c', counter: '#5c3a1c',
+  furniture: '#5c3a1c', dummy: '#b48558',
+};
+const minimap = { mapId: null, tex: null, at: 0, S: 3 };
+function buildMinimap() {
+  const map = state.maps[state.mapId];
+  if (!map) return;
+  const S = minimap.S, c = document.createElement('canvas');
+  c.width = map.width * S;
+  c.height = map.height * S;
+  const g = c.getContext('2d');
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      g.fillStyle = MM_GROUND[groundAt(state.places, x, y)] || '#2a4a2c';
+      g.fillRect(x * S, y * S, S, S);
+    }
+  }
+  for (const w of state.walls) {
+    const color = MM_WALL[w.k];
+    if (!color) continue;
+    g.fillStyle = color;
+    g.fillRect(w.x * S, w.y * S, Math.max(1, w.w * S), Math.max(1, w.h * S));
+  }
+  minimap.tex = c;
+  minimap.mapId = state.mapId;
+}
+function drawMinimap(now) {
+  if (now - minimap.at < 120) return;
+  minimap.at = now;
+  const me = state.players.get(state.meId);
+  if (!me) return;
+  if (minimap.mapId !== state.mapId || !minimap.tex) buildMinimap();
+  const tex = minimap.tex;
+  if (!tex) return;
+  const c = ui.minimapCanvas, g = c.getContext('2d'), W = c.width, R = 20, k = W / (R * 2), S = minimap.S;
+  g.save();
+  g.fillStyle = '#0b1020';
+  g.fillRect(0, 0, W, W);
+  g.beginPath(); g.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); g.clip();
+  g.imageSmoothingEnabled = false;
+  // o pedaço do mapa em volta (só a parte que existe: fora do mapa fica o fundo)
+  const x0 = me.x - R, y0 = me.y - R;
+  const sx = Math.max(0, x0), sy = Math.max(0, y0), ex = Math.min(tex.width / S, x0 + 2 * R), ey = Math.min(tex.height / S, y0 + 2 * R);
+  if (ex > sx && ey > sy) g.drawImage(tex, sx * S, sy * S, (ex - sx) * S, (ey - sy) * S, (sx - x0) * k, (sy - y0) * k, (ex - sx) * k, (ey - sy) * k);
+  const at = (x, y) => [W / 2 + (x - me.x) * k, W / 2 + (y - me.y) * k];
+  const dot = (x, y, r, fill, stroke) => {
+    const [px, py] = at(x, y);
+    if (Math.hypot(px - W / 2, py - W / 2) > W / 2 - 3) return;
+    g.fillStyle = fill;
+    g.beginPath(); g.arc(px, py, r, 0, Math.PI * 2); g.fill();
+    if (stroke) { g.strokeStyle = stroke; g.lineWidth = 1.5; g.stroke(); }
+  };
+  for (const d of state.doors || []) dot(d.x + d.w / 2, d.y + d.h / 2, 3.5, '#b98ae6', '#2a1238');
+  for (const m of state.monsters.values()) if (m.map === state.mapId && !m.diedAt) dot(m.x, m.y, 2.6, '#ff5a4a', '#3a0a08');
+  for (const p of state.players.values()) if (p.id !== state.meId) dot(p.x, p.y, 3, '#8fe07a', '#0d2a0a');
+  for (const n of state.npcs) dot(n.x, n.y, 4, '#ffd76a', '#3a2610');
+  // a seta do jogador, apontando para onde ele olha
+  const ang = [Math.PI / 2, Math.PI, 0, -Math.PI / 2][me.dir ?? 0] ?? Math.PI / 2;   // 0 baixo, 1 esquerda, 2 direita, 3 cima
+  g.translate(W / 2, W / 2);
+  g.rotate(ang - Math.PI / 2);
+  g.fillStyle = '#ffffff';
+  g.strokeStyle = '#3a2610';
+  g.lineWidth = 2;
+  g.beginPath(); g.moveTo(0, 7); g.lineTo(5.5, -5); g.lineTo(0, -2); g.lineTo(-5.5, -5); g.closePath();
+  g.stroke(); g.fill();
+  g.restore();
+  // sombra por dentro da moldura
+  const grad = g.createRadialGradient(W / 2, W / 2, W * 0.36, W / 2, W / 2, W / 2);
+  grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0.55)');
+  g.fillStyle = grad;
+  g.beginPath(); g.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); g.fill();
+}
+
+/**
+ * Missões em andamento (à direita no computador; na aba "Missões" do chat no celular). Principal: o tutorial, depois
+ * o caminho até Genin (nível 11 e o Diretor), depois o Arco 1. Secundária: a missão da Sala de Missões.
+ */
+function renderTracker() {
+  const main = [], side = [];
+  const step = state.ninja.tutorialStep ?? 4;
+  const level = state.progress?.level ?? 1;
+  if (step < 4) {
+    const [title, text] = TUTORIAL_STEPS[step];
+    main.push({ label: `${title}:`, text });
+  } else if (!state.ninja.classes?.primary) {
+    if (level < 11) main.push({ label: 'Rumo a Genin:', text: `treine até o nível 11 (você está no ${level}) e fale com o Diretor da Academia.`, meter: level / 11 });
+    else main.push({ label: 'Missão de Genin:', text: 'fale com o Diretor da Academia.', ready: true });
+  } else {
+    main.push({ label: 'Arco 1:', text: 'a história chega em breve. Explore a Floresta e fique mais forte.' });
+  }
+  const m = state.mission;
+  if (m) {
+    const done = Math.min(m.progress, m.target.quantity);
+    side.push({
+      label: m.ready ? 'Pronta!' : `${done}/${m.target.quantity}`, text: `${missionTitle(m)}${m.ready ? ' · entregue ao Mestre' : ''}`,
+      meter: m.target.quantity ? done / m.target.quantity : 0, ready: m.ready,
+    });
+  } else {
+    side.push({ label: 'Sala de Missões:', text: 'fale com o Mestre para um treino.' });
+  }
+  const key = JSON.stringify([main, side]);
+  if (key === renderTracker.key) return;
+  renderTracker.key = key;
+  const items = (list) => list.map((it) => {
+    const li = document.createElement('li');
+    if (it.ready) li.className = 'ready';
+    const b = document.createElement('b');
+    b.textContent = it.label;
+    li.append(b, document.createTextNode(` ${it.text}`));
+    if (it.meter != null) {
+      const bar = document.createElement('span');
+      bar.className = 'meter';
+      const fill = document.createElement('i');
+      fill.style.width = `${Math.round(Math.max(0, Math.min(1, it.meter)) * 100)}%`;
+      bar.append(fill);
+      li.append(bar);
+    }
+    return li;
+  });
+  ui.trackerMain.replaceChildren(...items(main));
+  ui.trackerSide.replaceChildren(...items(side));
+  // a mesma coisa na aba "Missões" do chat
+  const head = (text) => {
+    const h = document.createElement('h3');
+    const d = document.createElement('i');
+    d.className = 'diamond';
+    h.append(d, document.createTextNode(` ${text}`));
+    return h;
+  };
+  const ul = (list) => { const u = document.createElement('ul'); u.className = 'tracker-list'; u.append(...items(list)); return u; };
+  ui.chatMissionsPane.replaceChildren(head('Missão Principal'), ul(main), head('Missões Secundárias'), ul(side));
 }
 
 function addFloater(x, y, text, color, size = 1) {
@@ -1232,11 +1474,11 @@ window.addEventListener('keydown', (e) => {
   if (hud.editing || !ui.creator.hidden) return;   // editando o layout ou criando o personagem: sem combate
   if (KEYMAP[e.code]) { keys.add(e.code); keyDirection(); e.preventDefault(); }
   if (e.key >= '1' && e.key <= '4') castSlot(Number(e.key) - 1);
-  if (e.key === ' ' && ui.chat.hidden) { basicAttack(); e.preventDefault(); }
+  if (e.key === ' ') { basicAttack(); e.preventDefault(); }
   if (e.key === 'q' || e.key === 'Q') switchKit();
   if (e.key === 'r' || e.key === 'R') toggleRun();
   if (e.key === 'c' || e.key === 'C') (ui.statusPanel.hidden ? openStatus() : closeStatus());
-  if (e.key === 'Enter' && ui.chat.hidden && !ui.hud.hidden) { openChat(); e.preventDefault(); }
+  if (e.key === 'Enter' && !ui.hud.hidden) { openChat(); e.preventDefault(); }
   if (e.key === 't' || e.key === 'T' || e.key === 'Tab') { cycleFocus(); e.preventDefault(); }
   if (e.key === 'm' || e.key === 'M') toggleMeditation();
   if (e.key === 'e' || e.key === 'E') talkToNpc();
@@ -1436,6 +1678,7 @@ function missionStatusText(m) {
 
 /** Sala de Missões e o botão 📜 (que mostra o progresso, ex.: 2/5). Tudo com textContent. */
 function renderMission() {
+  renderTracker();
   const m = state.mission;
   ui.missionCard.hidden = !m;
   ui.missionEmpty.hidden = !!m;
@@ -1761,87 +2004,231 @@ ui.shopClose.addEventListener('click', closeShop);
 
 // ------------------------------------------------------------------ inventário (🎒)
 
+/*
+ * Equipamentos de Shinobi (a 🎒 Mochila): o boneco com o que está vestido, os espaços em volta, os atributos e a
+ * grade do inventário. Escolher um item na grade e tocar em Equipar (ou tocar duas vezes no item) só PEDE ao
+ * servidor; a tela muda quando ele confirma (inventory).
+ */
+let eqSel = null;            // código do item escolhido na grade
+let eqDir = 0;               // para onde o boneco grande olha (o ↻ gira)
+let eqFigureAt = 0;
+
+/** Como cada tipo de item vai no boneco: o espaço, o pedido ao servidor e o nome do botão. */
+const EQUIP_KIND = {
+  weapon: { slot: 'weapon', current: (n) => n.equipped, send: (code) => ({ type: 'equip', item: code }), on: 'Guardar', off: 'Equipar' },
+  scroll: { slot: 'scroll', current: (n) => n.equippedScroll, send: (code) => ({ type: 'equip', item: code, slot: 'scroll' }), on: 'Tirar', off: 'Nas costas' },
+  cape: { slot: 'cape', current: (n) => n.cape, send: (code) => ({ type: 'equip', item: code, slot: 'cape' }), on: 'Tirar', off: 'Vestir' },
+};
+const ATTR_ROWS = [['vitality', '❤️', 'Vitalidade'], ['chakra', '💧', 'Chakra'], ['agility', '💨', 'Agilidade'],
+  ['taijutsu', '👊', 'Taijutsu'], ['ninjutsu', '🌀', 'Ninjutsu'], ['weapons', '🗡️', 'Armas']];
+
+/** O ícone de um item num canvas: a pixel art da arma (ou do pergaminho); sem ela, o desenho do item. */
+function drawItemIcon(c, code) {
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, c.width, c.height);
+  if (drawWeaponIcon(g, code, c.width, c.height)) return;
+  const def = itemDef(code);
+  g.font = `${Math.round(c.width * 0.62)}px system-ui, sans-serif`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(def?.icon || '📦', c.width / 2, c.height / 2 + c.height * 0.04);
+}
+
+/** Pedaço do próprio boneco (cabeça com a bandana, a roupa, a calça) para os espaços do visual. */
+const LOOK_CROPS = { head: [10, 2, 44, 44], chest: [14, 44, 36, 26], legs: [16, 64, 32, 30] };
+function drawLookIcon(c, look, part) {
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, c.width, c.height);
+  const tmp = document.createElement('canvas');
+  tmp.width = 64;
+  tmp.height = 96;
+  const [view, flip] = viewOf(0);
+  const { anim, frame } = pickFrame({ moving: false }, 0);
+  if (drawCell(tmp.getContext('2d'), 0, 0, 1, look, view, flip, anim, frame) == null) return;
+  const [x, y, w, h] = LOOK_CROPS[part];
+  const s = Math.min(c.width / w, c.height / h);
+  g.imageSmoothingEnabled = false;
+  g.drawImage(tmp, x, y, w, h, (c.width - w * s) / 2, (c.height - h * s) / 2, w * s, h * s);
+}
+
+/** Itens que dá para escolher na grade: os do inventário e os mantos do cargo (Kage, Akatsuki), que não ficam nele. */
+function equipEntries() {
+  const n = state.ninja;
+  const list = Object.entries(n.items || {}).filter(([, q]) => q > 0);
+  const f = state.players.get(state.meId)?.faction;
+  for (const [code, has] of [['manto_kage', !!f?.kage], ['manto_akatsuki', !!f?.akatsuki]]) if (has && !(n.items || {})[code]) list.push([code, 1]);
+  return list;
+}
+
 function renderInventory() {
   const n = state.ninja;
   ui.invBadge.textContent = ryoText(n.ryo);
-  ui.invToggle.setAttribute('aria-label', `Inventário: ${ryoText(n.ryo)}`);
+  ui.ryoText.textContent = ryoText(n.ryo).replace(/\s*ryō$/, '');
+  ui.invToggle.setAttribute('aria-label', `Equipamentos e inventário: ${ryoText(n.ryo)}`);
   ui.invRyo.textContent = ryoText(n.ryo);
   const cls = (code) => state.world.classes?.find((c) => c.code === code);
   const p = cls(n.classes?.primary), s2 = cls(n.classes?.secondary);
   ui.invClass.textContent = p ? `Classe: ${p.icon} ${p.name}${s2 ? ` · ${s2.icon} ${s2.name}` : ''}` : 'Sem classe (Missão de Genin no nível 11)';
-  const entries = Object.entries(n.items || {}).filter(([, q]) => q > 0);
+  if (ui.invPanel.hidden) return;                 // o resto só com a tela aberta
+  const entries = equipEntries();
+  if (eqSel && !entries.some(([code]) => code === eqSel)) eqSel = null;
   ui.invEmpty.hidden = entries.length > 0;
   ui.invItems.replaceChildren(...entries.map(([code, qty]) => {
     const def = itemDef(code);
+    const kind = EQUIP_KIND[def?.kind];
     const li = document.createElement('li');
-    if (n.equipped === code) li.className = 'equipped';
-    const i = document.createElement('span');
-    i.className = 'ico';
-    i.textContent = def?.icon || '📦';
-    const name = document.createElement('span');
-    name.className = 'name';
-    name.textContent = def?.name || code;
-    const sub = document.createElement('small');
-    sub.className = 'qty';
-    sub.textContent = def?.kind === 'weapon' ? ` · +${def.damage} de dano · ${weaponWhere(def)}` : ` · ×${qty}`;
-    name.append(sub);
-    li.append(i, name);
-    if (def?.kind === 'weapon') {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'icon-btn small';
-      const on = n.equipped === code;
-      b.textContent = on ? 'Guardar' : 'Equipar';
-      // Só PEDE: a arma equipada muda quando o servidor confirma (inventory).
-      b.addEventListener('click', () => send({ type: 'equip', item: on ? null : code }));
-      li.append(b);
-    } else if (def?.kind === 'scroll') {
-      // Pergaminho de jutsu: dá para levar nas costas (só visual; o boneco muda para todos).
-      if (n.equippedScroll === code) li.classList.add('equipped');
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'icon-btn small';
-      const on = n.equippedScroll === code;
-      b.textContent = on ? 'Tirar' : 'Nas costas';
-      b.addEventListener('click', () => send({ type: 'equip', item: on ? null : code, slot: 'scroll' }));
-      li.append(b);
-    } else if (def?.kind === 'cape') {
-      // Capa (v16): camada do boneco; todos veem (menos se escondida no ⚙️).
-      const on = n.cape === code;
-      if (on) li.classList.add('equipped');
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'icon-btn small';
-      b.textContent = on ? 'Tirar' : 'Vestir';
-      b.addEventListener('click', () => send({ type: 'equip', item: on ? null : code, slot: 'cape' }));
-      li.append(b);
-    }
-    return li;
-  }));
-  // Mantos do cargo (Kage, Akatsuki): não ficam no inventário, mas dá para vestir enquanto durar o cargo.
-  const f = state.players.get(state.meId)?.faction;
-  for (const [code, has] of [['manto_kage', !!f?.kage], ['manto_akatsuki', !!f?.akatsuki]]) {
-    if (!has || (n.items || {})[code]) continue;
-    const def = itemDef(code);
-    const li = document.createElement('li');
-    const on = n.cape === code;
-    if (on) li.className = 'equipped';
-    const i = document.createElement('span');
-    i.className = 'ico';
-    i.textContent = def?.icon || '👘';
-    const name = document.createElement('span');
-    name.className = 'name';
-    name.textContent = def?.name || code;
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'icon-btn small';
-    b.textContent = on ? 'Tirar' : 'Vestir';
-    b.addEventListener('click', () => send({ type: 'equip', item: on ? null : code, slot: 'cape' }));
-    li.append(i, name, b);
-    ui.invItems.append(li);
-    ui.invEmpty.hidden = true;
+    b.className = 'eq-cell';
+    b.setAttribute('role', 'option');
+    b.setAttribute('aria-selected', String(code === eqSel));
+    b.setAttribute('aria-label', `${def?.name || code}${qty > 1 ? `, ${qty}` : ''}`);
+    b.title = def?.name || code;
+    if (kind && kind.current(n) === code) b.classList.add('equipped');
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    drawItemIcon(c, code);
+    b.append(c);
+    if (qty > 1 || (def && !kind)) {
+      const q = document.createElement('span');
+      q.className = 'eq-qty';
+      q.textContent = `x${qty}`;
+      b.append(q);
+    }
+    b.addEventListener('click', () => { eqSel = code; renderInventory(); });
+    b.addEventListener('dblclick', () => { eqSel = code; equipSelected(); });
+    li.append(b);
+    return li;
+  }));
+  // os espaços em volta do boneco
+  const look = state.me.look || state.players.get(state.meId)?.look;
+  for (const el of ui.invPanel.querySelectorAll('.eq-slot')) {
+    const slot = el.dataset.slot, c = el.querySelector('canvas');
+    if (el.classList.contains('locked')) { el.title = 'Em breve'; continue; }
+    let code = null;
+    if (slot === 'weapon') code = n.equipped;
+    else if (slot === 'scroll') code = n.equippedScroll;
+    else if (slot === 'cape') code = n.cape;
+    el.classList.toggle('filled', !!code || ['head', 'chest', 'legs'].includes(slot));
+    let sub = el.querySelector('.eq-sub');
+    if (code) {
+      drawItemIcon(c, code);
+      el.title = itemDef(code)?.name || code;
+    } else if (look && ['head', 'chest', 'legs'].includes(slot)) {
+      drawLookIcon(c, look, slot);
+      el.title = 'Visual: toque para mudar no Criador';
+    } else {
+      c.getContext('2d').clearRect(0, 0, c.width, c.height);
+      el.title = 'Vazio';
+    }
+    if (slot === 'weapon') {                      // o nome da arma embaixo, como no desenho
+      if (!sub) { sub = document.createElement('span'); sub.className = 'eq-sub'; el.append(sub); }
+      sub.textContent = code ? (itemDef(code)?.name || code) : 'Mãos vazias';
+    }
+  }
+  // nível, rank, atributos e barras
+  const pr = state.progress, m = state.me;
+  ui.equipLevel.textContent = pr ? `Nível ${pr.level}` : 'Nível 1';
+  ui.equipRank.textContent = m.rank?.name || 'Academia';
+  const rows = ATTR_ROWS.map(([key, icon, name]) => {
+    const li = document.createElement('li');
+    const i = document.createElement('i');
+    i.className = 'eq-ico';
+    i.textContent = icon;
+    const label = document.createElement('span');
+    label.textContent = name;
+    const val = document.createElement('b');
+    val.textContent = String(pr?.attributes?.[key] ?? 0);
+    li.append(i, label, val);
+    return li;
+  });
+  if (pr?.statPoints > 0) {
+    const li = document.createElement('li');
+    li.className = 'points';
+    const i = document.createElement('i');
+    i.className = 'eq-ico';
+    i.textContent = '✨';
+    const label = document.createElement('span');
+    label.textContent = 'Pontos livres (Perfil)';
+    const val = document.createElement('b');
+    val.textContent = String(pr.statPoints);
+    li.append(i, label, val);
+    rows.push(li);
+  }
+  ui.equipAttrs.replaceChildren(...rows);
+  const bar = (fill, text, v, max) => {
+    fill.style.transform = `scaleX(${max ? Math.max(0, Math.min(1, v / max)) : 0})`;
+    text.textContent = `${v}/${max}`;
+  };
+  bar(ui.equipHpFill, ui.equipHp, m.hp ?? 0, m.maxHp ?? 0);
+  bar(ui.equipChFill, ui.equipCh, m.chakra ?? 0, m.maxChakra ?? 0);
+  bar(ui.equipXpFill, ui.equipXp, pr?.xpInLevel ?? 0, pr?.xpToNext ?? 0);
+  // os botões do item escolhido
+  const def = eqSel && itemDef(eqSel), kind = def && EQUIP_KIND[def.kind];
+  ui.equipDo.disabled = !kind;
+  ui.equipDo.textContent = kind && kind.current(n) === eqSel ? kind.on : kind ? kind.off : 'Equipar';
+  ui.equipInfo.disabled = !eqSel;
+  if (!eqSel) ui.equipDetail.textContent = entries.length ? 'Escolha um item na grade.' : '';
+  drawEquipFigure(performance.now(), true);
+}
+
+/** Equipar / guardar o item escolhido (só pede ao servidor). */
+function equipSelected() {
+  const def = eqSel && itemDef(eqSel), kind = def && EQUIP_KIND[def.kind];
+  if (!kind || !state.connected) return;
+  send(kind.send(kind.current(state.ninja) === eqSel ? null : eqSel));
+}
+ui.equipDo.addEventListener('click', equipSelected);
+ui.equipInfo.addEventListener('click', () => {
+  const def = eqSel && itemDef(eqSel);
+  if (!eqSel) return;
+  const qty = (state.ninja.items || {})[eqSel] ?? 1;
+  const name = document.createElement('b');
+  name.textContent = def?.name || eqSel;
+  const more = def?.kind === 'weapon' ? ` · arma · +${def.damage} de dano · ${weaponWhere(def)}`
+    : def?.kind === 'scroll' ? ' · pergaminho (pode ir nas costas)'
+      : def?.kind === 'cape' ? ' · capa (todos veem; dá para esconder no ⚙️)' : ` · ×${qty}`;
+  ui.equipDetail.replaceChildren(name, document.createTextNode(more));
+});
+ui.equipTurn.addEventListener('click', () => { eqDir = [0, 1, 3, 2][([0, 1, 3, 2].indexOf(eqDir) + 1) % 4]; drawEquipFigure(performance.now(), true); });
+for (const el of ui.invPanel.querySelectorAll('.eq-slot')) {
+  el.addEventListener('click', () => {
+    const slot = el.dataset.slot, n = state.ninja;
+    if (el.classList.contains('locked')) { ui.equipDetail.textContent = 'Este espaço chega numa próxima versão.'; return; }
+    if (['head', 'chest', 'legs'].includes(slot)) { closeInventory(); openCreator(false); return; }
+    const code = slot === 'weapon' ? n.equipped : slot === 'scroll' ? n.equippedScroll : slot === 'cape' ? n.cape : null;
+    if (code) { eqSel = code; renderInventory(); }
+  });
+}
+for (const tab of ui.invPanel.querySelectorAll('.eq-tab')) {
+  tab.addEventListener('click', () => {
+    const stats = tab.dataset.eqtab === 'stats';
+    ui.invPanel.classList.toggle('show-stats', stats);
+    for (const t of ui.invPanel.querySelectorAll('.eq-tab')) {
+      t.classList.toggle('active', t === tab);
+      t.setAttribute('aria-selected', String(t === tab));
+    }
+  });
+}
+
+/** O boneco grande da tela (com a arma, o pergaminho e a capa), respirando parado. Redesenha a cada ~150 ms aberto. */
+function drawEquipFigure(now, force = false) {
+  if (ui.invPanel.hidden || (!force && now - eqFigureAt < 150)) return;
+  eqFigureAt = now;
+  const me = state.players.get(state.meId);
+  if (!me) return;
+  const look = state.me.look || me.look;
+  const c = ui.equipFigure, g = c.getContext('2d');
+  g.clearRect(0, 0, c.width, c.height);
+  const saved = dpr;
+  dpr = 1;                                        // canvas próprio, 1:1: escala 3 inteira (T = 184)
+  try {
+    drawSpriteCharacter(g, { ...me, moving: false, act: null, meditating: false, thrown: null }, c.width / 2, 196, 184, look, eqDir, now, me.gear);
+  } finally {
+    dpr = saved;
   }
 }
+
 function openInventory() {
   closeSettings();
   closeStatus();
@@ -1850,9 +2237,9 @@ function openInventory() {
   closePlayerMenu();
   closeBoard();
   closeHistory();
-  renderInventory();
   ui.invPanel.hidden = false;
   ui.invToggle.setAttribute('aria-expanded', 'true');
+  renderInventory();
 }
 function closeInventory() {
   ui.invPanel.hidden = true;
@@ -1965,6 +2352,9 @@ function renderTutorial() {
   document.body.classList.toggle('tut-bag', step === 3 && !state.ninja.equipped);
   ui.tutorialCard.hidden = !inAcademy;
   document.body.classList.toggle('tutorial', inAcademy);
+  renderTracker();
+  // Na Academia, antes de acabar o tutorial: a aba "Missões" do chat abre sozinha (uma vez), com o passo da vez.
+  if (inAcademy && step < 4 && !chatTabTouched) showChatMissions(true);
   if (!inAcademy) return;
   const done = step >= 4;
   ui.tutorialCard.classList.toggle('done', done);
@@ -2195,7 +2585,11 @@ let draftKits = null;   // kits sendo montados na aba Kits (só valem depois de 
 function renderStatus() {
   const pr = state.progress;
   if (!pr) return;
-  ui.statusBadge.textContent = pr.statPoints > 0 ? `Nv ${pr.level} +${pr.statPoints}` : `Nv ${pr.level}`;
+  ui.statusBadge.textContent = pr.statPoints > 0 ? `+${pr.statPoints}` : '';
+  ui.levelBadge.textContent = String(pr.level);
+  ui.statusToggle.setAttribute('aria-label', `Perfil: nível ${pr.level}${pr.statPoints > 0 ? `, ${pr.statPoints} pontos para gastar` : ''}`);
+  ui.xpStripFill.style.transform = `scaleX(${pr.xpToNext ? Math.min(1, pr.xpInLevel / pr.xpToNext) : 1})`;
+  renderTracker();
   ui.statusToggle.classList.toggle('ready', pr.statPoints > 0);
   ui.statusLevel.textContent = `Nível ${pr.level}`;
   const ratio = pr.xpToNext ? Math.min(1, pr.xpInLevel / pr.xpToNext) : 1;
@@ -2625,7 +3019,7 @@ ui.creatorSave.addEventListener('click', () => {
  * o combate parado: não dá para mover nada sem querer no meio da luta.
  */
 const HUD_KEY = 'nin.hud.v1';
-const HUD_DEFAULT = { btnScale: 1, btnOpacity: 1, barScale: 1, barOpacity: 1, layouts: { landscape: {}, portrait: {} } };
+const HUD_DEFAULT = { btnScale: 1, btnOpacity: 1, barScale: 1, barOpacity: 1, camDist: 1, layouts: { landscape: {}, portrait: {} } };
 const hud = loadHud();
 hud.editing = false;
 
@@ -2636,7 +3030,7 @@ function loadHud() {
       const num = (v, min, max, d) => (typeof v === 'number' && v >= min && v <= max ? v : d);
       return {
         btnScale: num(raw.btnScale, 0.7, 1.3, 1), btnOpacity: num(raw.btnOpacity, 0.3, 1, 1),
-        barScale: num(raw.barScale, 0.7, 1.3, 1), barOpacity: num(raw.barOpacity, 0.3, 1, 1),
+        barScale: num(raw.barScale, 0.7, 1.3, 1), barOpacity: num(raw.barOpacity, 0.3, 1, 1), camDist: num(raw.camDist, 0.8, 1.4, 1),
         layouts: { landscape: raw.layouts?.landscape || {}, portrait: raw.layouts?.portrait || {} },
       };
     }
@@ -2646,7 +3040,7 @@ function loadHud() {
 function saveHud() {
   try {
     localStorage.setItem(HUD_KEY, JSON.stringify({
-      btnScale: hud.btnScale, btnOpacity: hud.btnOpacity, barScale: hud.barScale, barOpacity: hud.barOpacity, layouts: hud.layouts,
+      btnScale: hud.btnScale, btnOpacity: hud.btnOpacity, barScale: hud.barScale, barOpacity: hud.barOpacity, camDist: hud.camDist, layouts: hud.layouts,
     }));
   } catch { /* sem armazenamento: vale só até fechar */ }
 }
@@ -2680,13 +3074,14 @@ function applyHud() {
     $(`${input.id}-out`).textContent = `${input.value}%`;
   }
   layoutJoystick(viewW || innerWidth, viewH || innerHeight);
+  if (viewW) computeTile();
 }
 
 /** Depois de arrastar: não deixa nada sair da tela (nem ficar embaixo do notch). */
 function clampIntoView(el, off) {
   el.style.translate = `${off[0]}px ${off[1]}px`;
   const r = el.getBoundingClientRect();
-  const minX = safe.left + 4, maxX = innerWidth - safe.right - 4, minY = safe.top + 56, maxY = innerHeight - safe.bottom - 4;
+  const minX = safe.left + 4, maxX = innerWidth - safe.right - 4, minY = safe.top + 4, maxY = innerHeight - safe.bottom - 4;
   if (r.left < minX) off[0] += minX - r.left;
   if (r.right > maxX) off[0] -= r.right - maxX;
   if (r.top < minY) off[1] += minY - r.top;
@@ -2762,7 +3157,7 @@ ui.editLayout.addEventListener('click', startEditing);
 ui.editDone.addEventListener('click', stopEditing);
 ui.editReset.addEventListener('click', resetLayout);
 ui.resetLayout.addEventListener('click', () => {
-  Object.assign(hud, { btnScale: 1, btnOpacity: 1, barScale: 1, barOpacity: 1 });
+  Object.assign(hud, { btnScale: 1, btnOpacity: 1, barScale: 1, barOpacity: 1, camDist: 1 });
   resetLayout();
 });
 ui.openCreator.addEventListener('click', () => openCreator(false));
@@ -2779,19 +3174,63 @@ matchMedia('(orientation: portrait)').addEventListener?.('change', () => setTime
 
 // O botão 💬 abre a barra de digitação. As mensagens aparecem na tela (canto superior
 // esquerdo) e somem sozinhas depois de ~6 s (animação CSS); também viram balão sobre o boneco.
-const FEED_MAX = 6;
+const FEED_MAX = 40;
 
+// O chat fica num painel (desenho do HUD): a linha de digitar está sempre ali; o 💬 do menu só a seleciona.
 function openChat() {
-  ui.chat.hidden = false;
+  showChatMissions(false);
+  ui.chatBox.classList.remove('min');
   ui.chatToggle.setAttribute('aria-expanded', 'true');
   ui.chatInput.focus();
 }
 function closeChat() {
-  ui.chat.hidden = true;
   ui.chatToggle.setAttribute('aria-expanded', 'false');
   ui.chatInput.blur();
 }
-ui.chatToggle.addEventListener('click', () => (ui.chat.hidden ? openChat() : closeChat()));
+ui.chatToggle.addEventListener('click', () => (document.activeElement === ui.chatInput ? closeChat() : openChat()));
+ui.chatInput.addEventListener('blur', () => ui.chatToggle.setAttribute('aria-expanded', 'false'));
+
+/** Aba "Missões" do chat (no celular, as missões em andamento ficam aqui). */
+let chatTabTouched = false;
+function showChatMissions(on) {
+  ui.chatMissionsPane.hidden = !on;
+  ui.chatFeed.hidden = on;
+  ui.chatTabMissions.setAttribute('aria-pressed', String(on));
+}
+ui.chatTabMissions.addEventListener('click', () => {
+  chatTabTouched = true;
+  ui.chatBox.classList.remove('min');
+  showChatMissions(ui.chatMissionsPane.hidden);
+});
+const CHAT_MIN_KEY = 'nin.chat.min';
+function setChatMin(min) {
+  ui.chatBox.classList.toggle('min', min);
+  ui.chatMin.textContent = min ? '+' : '–';
+  ui.chatMin.setAttribute('aria-expanded', String(!min));
+  try { localStorage.setItem(CHAT_MIN_KEY, min ? '1' : ''); } catch { /* modo privado */ }
+}
+try { if (localStorage.getItem(CHAT_MIN_KEY)) setChatMin(true); } catch { /* modo privado */ }
+ui.chatMin.addEventListener('click', () => setChatMin(!ui.chatBox.classList.contains('min')));
+
+/** Menu (☰ no celular): abre a grade de ícones; escolher qualquer um fecha. */
+ui.menuToggle.addEventListener('click', () => {
+  const open = !document.body.classList.contains('menu-open');
+  document.body.classList.toggle('menu-open', open);
+  ui.menuToggle.setAttribute('aria-expanded', String(open));
+});
+ui.menuGrid.addEventListener('click', (e) => {
+  if (!e.target.closest('.menu-btn')) return;
+  document.body.classList.remove('menu-open');
+  ui.menuToggle.setAttribute('aria-expanded', 'false');
+});
+
+/** Cor fixa por nome no chat (cada um com a sua, como no desenho). */
+const CHAT_COLORS = ['#8fe07a', '#ffd76a', '#f48ac8', '#7fd0ff', '#ffb067', '#c9a6ff'];
+function nameColor(name) {
+  let h = 0;
+  for (const ch of String(name)) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return CHAT_COLORS[h % CHAT_COLORS.length];
+}
 
 ui.chat.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -2810,6 +3249,7 @@ function addChatLine(username, message, mine, kind = '') {
   const who = document.createElement('span');
   who.className = 'who';
   who.textContent = `${username}: `;            // textContent: texto nunca vira HTML
+  if (!mine && !kind) who.style.color = nameColor(username);
   li.append(who, document.createTextNode(message));
   appendLine(li);
 }
@@ -2824,6 +3264,7 @@ function appendLine(li) {
   li.addEventListener('animationend', (e) => { if (e.animationName === 'feed-out') li.remove(); });
   ui.chatFeed.append(li);
   while (ui.chatFeed.children.length > FEED_MAX) ui.chatFeed.firstElementChild.remove();
+  ui.chatFeed.scrollTop = ui.chatFeed.scrollHeight;     // a mais nova sempre à vista
 }
 
 // ---- canais e histórico (v8). Local: o mapa. "/g texto": global. "/w Nome texto": sussurro.
@@ -2923,14 +3364,23 @@ function readSafeArea() {
 }
 
 /** Canvas na resolução real da tela (até 2x, para não pesar em celular simples). */
+/**
+ * Tamanho da casa na tela. Casas no lado menor: 14 no celular (a câmera fica mais longe e se vê mais em volta) e 11
+ * nas telas grandes; o jogador ainda afasta ou aproxima no ⚙️ ("Distância da câmera").
+ */
+function computeTile() {
+  const short = Math.min(viewW, viewH);
+  const base = short / (short < 560 ? 14 : 11);
+  tile = Math.round(Math.max(20, Math.min(64, base / (hud.camDist || 1))));
+}
+
 function resize() {
   viewW = canvas.clientWidth || innerWidth;
   viewH = canvas.clientHeight || innerHeight;
   dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = Math.round(viewW * dpr);
   canvas.height = Math.round(viewH * dpr);
-  // ~11 casas no lado menor da tela: personagem do mesmo tamanho em qualquer celular.
-  tile = Math.round(Math.max(28, Math.min(64, Math.min(viewW, viewH) / 11)));
+  computeTile();
   readSafeArea();
   layoutJoystick(viewW, viewH);
   checkOrientation();
@@ -3712,8 +4162,12 @@ function draw(now) {
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   vfx.draw(ctx, 'ground', toScreenX, toScreenY, T, dpr, now);
 
-  // Linha pontilhada do jogador até o alvo focado.
+  // Linha pontilhada do jogador até o alvo focado (e a janela do alvo, o retrato e o minimapa do HUD).
   const focused = focusEntity();
+  updateTargetWindow(focused);
+  updatePortrait();
+  drawMinimap(now);
+  drawEquipFigure(now);
   if (me && focused) {
     ctx.save();
     ctx.globalAlpha = 0.45;
@@ -4391,84 +4845,84 @@ const MONSTER_LOOK = {
  * Slime chibi: corpo em gota (base achatada, topo redondo) que respira, degradê de cima para baixo, contorno escuro,
  * brilho na cabeça, olhos grandes com reflexo. Os Lodos têm a sobrancelha brava e escorrem. Morrendo, vira poça.
  */
-function drawSlime(sx, sy, r, c, wobble, dying, now, monsterId) {
+function drawSlime(g, sx, sy, r, c, wobble, dying, now, monsterId) {
   const id = typeof monsterId === 'number' ? monsterId : Number.parseInt(String(monsterId).replace(/\D/g, ''), 10) || 0;   // "m12" -> 12
   const squash = dying ? 1 - dying * 0.75 : 1;
   const w = r * (1.08 + wobble) * (1 + (1 - squash) * 0.5), h = r * (1.02 - wobble) * squash;
   const base = sy + r * 0.82, top = base - h * 1.75;
   const body = () => {
-    ctx.beginPath();
-    ctx.moveTo(sx - w, base);
-    ctx.bezierCurveTo(sx - w * 1.08, base - h * 0.9, sx - w * 0.62, top, sx, top);
-    ctx.bezierCurveTo(sx + w * 0.62, top, sx + w * 1.08, base - h * 0.9, sx + w, base);
-    ctx.quadraticCurveTo(sx, base + h * 0.22, sx - w, base);
-    ctx.closePath();
+    g.beginPath();
+    g.moveTo(sx - w, base);
+    g.bezierCurveTo(sx - w * 1.08, base - h * 0.9, sx - w * 0.62, top, sx, top);
+    g.bezierCurveTo(sx + w * 0.62, top, sx + w * 1.08, base - h * 0.9, sx + w, base);
+    g.quadraticCurveTo(sx, base + h * 0.22, sx - w, base);
+    g.closePath();
   };
-  const g = ctx.createLinearGradient(0, top, 0, base);
-  g.addColorStop(0, dying ? c.dead : c.top);
-  g.addColorStop(0.55, dying ? c.dead : c.mid);
-  g.addColorStop(1, dying ? c.edge : c.low);
-  ctx.fillStyle = g;
+  const grad = g.createLinearGradient(0, top, 0, base);
+  grad.addColorStop(0, dying ? c.dead : c.top);
+  grad.addColorStop(0.55, dying ? c.dead : c.mid);
+  grad.addColorStop(1, dying ? c.edge : c.low);
+  g.fillStyle = grad;
   body();
-  ctx.fill();
-  ctx.lineWidth = Math.max(2, r * 0.12);
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = c.edge;
-  ctx.stroke();
+  g.fill();
+  g.lineWidth = Math.max(2, r * 0.12);
+  g.lineJoin = 'round';
+  g.strokeStyle = c.edge;
+  g.stroke();
   if (dying > 0.6) return;
   // brilho de gelatina e bolhas por dentro
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-  ctx.beginPath(); ctx.ellipse(sx - w * 0.42, top + h * 0.42, w * 0.2, h * 0.16, -0.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-  ctx.beginPath(); ctx.arc(sx - w * 0.2, top + h * 0.28, Math.max(1.5, r * 0.06), 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+  g.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  g.beginPath(); g.ellipse(sx - w * 0.42, top + h * 0.42, w * 0.2, h * 0.16, -0.5, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  g.beginPath(); g.arc(sx - w * 0.2, top + h * 0.28, Math.max(1.5, r * 0.06), 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255, 255, 255, 0.16)';
   const bob = (now / 900 + (id % 7) / 7) % 1;
-  ctx.beginPath(); ctx.arc(sx + w * 0.42, base - h * (0.3 + bob * 0.7), r * 0.08, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(sx + w * 0.22, base - h * (0.2 + ((bob + 0.5) % 1) * 0.6), r * 0.05, 0, Math.PI * 2); ctx.fill();
+  g.beginPath(); g.arc(sx + w * 0.42, base - h * (0.3 + bob * 0.7), r * 0.08, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.arc(sx + w * 0.22, base - h * (0.2 + ((bob + 0.5) % 1) * 0.6), r * 0.05, 0, Math.PI * 2); g.fill();
   // olhos (piscam de vez em quando)
   const blink = ((now + (id % 11) * 397) % 3600) < 120;
   const ey = base - h * 0.92, ex = w * 0.33, er = r * 0.17;
   for (const side of [-1, 1]) {
     const x = sx + side * ex;
     if (blink) {
-      ctx.fillStyle = c.edge;
-      ctx.fillRect(x - er, ey, er * 2, Math.max(1.5, r * 0.06));
+      g.fillStyle = c.edge;
+      g.fillRect(x - er, ey, er * 2, Math.max(1.5, r * 0.06));
       continue;
     }
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.ellipse(x, ey, er, er * 1.2, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#1a0f14';
-    ctx.beginPath(); ctx.ellipse(x + side * er * 0.15, ey + er * 0.15, er * 0.68, er * 0.9, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(x - er * 0.2, ey - er * 0.3, er * 0.3, 0, Math.PI * 2); ctx.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath(); g.ellipse(x, ey, er, er * 1.2, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#1a0f14';
+    g.beginPath(); g.ellipse(x + side * er * 0.15, ey + er * 0.15, er * 0.68, er * 0.9, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath(); g.arc(x - er * 0.2, ey - er * 0.3, er * 0.3, 0, Math.PI * 2); g.fill();
     if (c.angry) {                                        // sobrancelha brava
-      ctx.strokeStyle = c.edge;
-      ctx.lineWidth = Math.max(2, r * 0.09);
-      ctx.beginPath(); ctx.moveTo(x + side * er * 1.1, ey - er * 1.8); ctx.lineTo(x - side * er * 0.9, ey - er * 1.1); ctx.stroke();
+      g.strokeStyle = c.edge;
+      g.lineWidth = Math.max(2, r * 0.09);
+      g.beginPath(); g.moveTo(x + side * er * 1.1, ey - er * 1.8); g.lineTo(x - side * er * 0.9, ey - er * 1.1); g.stroke();
     }
   }
   if (c.cheek) {                                          // bochechas
-    ctx.fillStyle = c.cheek;
-    ctx.globalAlpha *= 0.55;
-    for (const side of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sx + side * ex * 1.55, ey + er * 1.4, er * 0.7, er * 0.38, 0, 0, Math.PI * 2); ctx.fill(); }
-    ctx.globalAlpha /= 0.55;
+    g.fillStyle = c.cheek;
+    g.globalAlpha *= 0.55;
+    for (const side of [-1, 1]) { g.beginPath(); g.ellipse(sx + side * ex * 1.55, ey + er * 1.4, er * 0.7, er * 0.38, 0, 0, Math.PI * 2); g.fill(); }
+    g.globalAlpha /= 0.55;
   }
-  ctx.strokeStyle = c.edge;                               // boca
-  ctx.lineWidth = Math.max(1.5, r * 0.06);
-  ctx.beginPath();
-  if (c.angry) { ctx.moveTo(sx - er * 0.8, ey + er * 2); ctx.lineTo(sx + er * 0.8, ey + er * 1.8); }
-  else ctx.arc(sx, ey + er * 1.3, er * 0.6, 0.2, Math.PI - 0.2);
-  ctx.stroke();
+  g.strokeStyle = c.edge;                               // boca
+  g.lineWidth = Math.max(1.5, r * 0.06);
+  g.beginPath();
+  if (c.angry) { g.moveTo(sx - er * 0.8, ey + er * 2); g.lineTo(sx + er * 0.8, ey + er * 1.8); }
+  else g.arc(sx, ey + er * 1.3, er * 0.6, 0.2, Math.PI - 0.2);
+  g.stroke();
   if (c.drip) {                                           // o lodo escorre na base
-    ctx.fillStyle = c.low;
+    g.fillStyle = c.low;
     for (const k of [-0.55, 0.15, 0.62]) {
       const dy = (Math.sin(now / 400 + k * 9 + id) * 0.5 + 0.5) * r * 0.25;
-      ctx.beginPath(); ctx.ellipse(sx + w * k, base + r * 0.06 + dy * 0.4, r * 0.08, r * 0.1 + dy * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+      g.beginPath(); g.ellipse(sx + w * k, base + r * 0.06 + dy * 0.4, r * 0.08, r * 0.1 + dy * 0.4, 0, 0, Math.PI * 2); g.fill();
     }
-    ctx.fillStyle = c.drip;
-    ctx.globalAlpha *= 0.6;
-    ctx.beginPath(); ctx.arc(sx + w * 0.5, top + h * 0.5, r * 0.05, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha /= 0.6;
+    g.fillStyle = c.drip;
+    g.globalAlpha *= 0.6;
+    g.beginPath(); g.arc(sx + w * 0.5, top + h * 0.5, r * 0.05, 0, Math.PI * 2); g.fill();
+    g.globalAlpha /= 0.6;
   }
 }
 
@@ -4492,7 +4946,7 @@ function drawMonster(m, sx, sy, T, now) {
   }
   if (m.id === state.focusId && !dying) drawFocusMarker(sx, sy, r, T, now, 'ring');   // o anel fica no chão, embaixo
   // Cada tipo com a sua cor (docs/mapas.md): o perigo se lê pela cor.
-  drawSlime(sx, sy, r, MONSTER_LOOK[m.type] || MONSTER_LOOK.slime, wobble, dying, now, m.id);
+  drawSlime(ctx, sx, sy, r, MONSTER_LOOK[m.type] || MONSTER_LOOK.slime, wobble, dying, now, m.id);
   if (stunned) {                      // Ilusão: estrelinhas girando
     ctx.fillStyle = '#ffe066';
     for (let k = 0; k < 3; k++) {
@@ -5010,8 +5464,14 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
+/** Computador (mouse, sem toque ainda): o joystick some (anda-se no teclado); o primeiro toque na tela o traz de volta. */
+const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
+let touchSeen = false;
+window.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') touchSeen = true; }, { capture: true, passive: true });
+
 function drawJoystick() {
   if (ui.hud.hidden) return;
+  if (finePointer && !touchSeen && !hud.editing) return;
   const active = joy.pointerId !== null;
   ctx.globalAlpha = (active ? 0.9 : 0.5) * (hud.editing ? 1 : hud.btnOpacity);
   if (hud.editing) {                  // modo edição: contorno tracejado mostra que dá para arrastar
