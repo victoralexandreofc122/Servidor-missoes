@@ -733,3 +733,6 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
 .cbtn.sky-down::before { content: "▼"; color: #ff8a7a; }
 .cbtn.skill.sky-up { box-shadow: 0 0 0 1px #1d1408, 0 0 0 3px #7be35a, 0 0 0 4px rgba(190, 255, 160, 0.6), 0 0 14px rgba(125, 255, 138, 0.55), 0 4px 10px rgba(0, 0, 0, 0.55); }
 .buffs li { cursor: pointer; pointer-events: auto; }
+
+/* ícones em pixel art na loja */
+.shop-items .ico canvas.ico-px { width: 34px; height: 34px; image-rendering: pixelated; vertical-align: middle; }

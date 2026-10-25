@@ -1927,7 +1927,11 @@ function renderShopItems() {
     const li = document.createElement('li');
     const i = document.createElement('span');
     i.className = 'ico';
-    i.textContent = item.icon;
+    const ic = document.createElement('canvas');           // o mesmo ícone em pixel art da Mochila
+    ic.width = ic.height = 64;
+    ic.className = 'ico-px';
+    drawItemIcon(ic, item.code);
+    i.append(ic);
     const n = document.createElement('span');
     n.className = 'name';
     n.textContent = item.name;
@@ -2042,11 +2046,91 @@ const EQUIP_KIND = {
 const ATTR_ROWS = [['vitality', '❤️', 'Vitalidade'], ['chakra', '💧', 'Chakra'], ['agility', '💨', 'Agilidade'],
   ['taijutsu', '👊', 'Taijutsu'], ['ninjutsu', '🌀', 'Ninjutsu'], ['weapons', '🗡️', 'Armas']];
 
-/** O ícone de um item num canvas: a pixel art da arma (ou do pergaminho); sem ela, o desenho do item. */
+/*
+ * Ícones das capas em pixel art (32 x 32, ampliados sem borrar): a mesma capa vista de frente, com a gola, a abertura
+ * do meio e a barra ondulada; cada uma com as suas cores e o seu desenho (a folha da vila, as chamas do Kage, as
+ * nuvens da Akatsuki, o louro do Campeão).
+ */
+const CAPE_ICONS = {
+  capa_viagem: { base: '#8a6a44', light: '#a8865a', dark: '#5e4628', edge: '#2e2012', lining: '#3e2c18', trim: '#c9a46a' },
+  capa_vila: { base: '#2f6a3a', light: '#3f8a4c', dark: '#1f4a28', edge: '#0e2414', lining: '#16321c', trim: '#d9b25a', motif: 'leaf' },
+  manto_kage: { base: '#ece6da', light: '#ffffff', dark: '#c9c0b0', edge: '#5a5048', lining: '#a8302a', trim: '#c8261e', motif: 'flames' },
+  manto_akatsuki: { base: '#1a1a24', light: '#2c2c3a', dark: '#0c0c12', edge: '#000000', lining: '#5a1414', trim: '#c8261e', motif: 'clouds' },
+  manto_campeao: { base: '#4a2a7a', light: '#6a42a0', dark: '#2e1850', edge: '#140a24', lining: '#d9b25a', trim: '#f2d58c', motif: 'laurel' },
+};
+const capeIconCache = new Map();
+function capeIcon(code) {
+  if (capeIconCache.has(code)) return capeIconCache.get(code);
+  const P = CAPE_ICONS[code];
+  if (!P) return null;
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const g = c.getContext('2d');
+  const px = (x, y, color) => { g.fillStyle = color; g.fillRect(x, y, 1, 1); };
+  const half = (y) => (y < 8 ? 4 : Math.min(11, 4 + Math.round((y - 7) * 0.62)));
+  for (let y = 5; y <= 28; y++) {                       // o corpo, com a beira escura
+    const hw = half(y), hem = y >= 27 ? 1 : 0;
+    for (let x = 16 - hw; x < 16 + hw; x++) {
+      if (y === 28 && (x % 2 === 0)) continue;           // barra ondulada
+      const edge = x === 16 - hw || x === 16 + hw - 1 || y === 28 || (y === 27 && x % 2 === 0);
+      px(x, y, edge ? P.edge : x < 16 - hw + 3 ? P.light : x > 16 + hw - 4 ? P.dark : P.base);
+    }
+    void hem;
+  }
+  for (let y = 9; y <= 27; y++) {                       // a abertura do meio (o forro aparece)
+    const w = y < 20 ? 1 : 2;
+    for (let x = 16 - w; x < 16 + w; x++) px(x, y, P.lining);
+  }
+  for (let x = 12; x < 20; x++) { px(x, 4, P.edge); px(x, 5, P.trim); px(x, 6, P.trim); }   // a gola
+  px(11, 5, P.edge); px(20, 5, P.edge); px(11, 6, P.edge); px(20, 6, P.edge);
+  px(15, 7, P.trim); px(16, 7, P.trim);                 // o broche
+  if (P.motif === 'leaf') {                             // a folha da vila no peito
+    for (const [x, y] of [[11, 12], [12, 11], [12, 12], [12, 13], [13, 12], [13, 13], [14, 14]]) px(x, y, P.trim);
+  } else if (P.motif === 'flames') {                    // chamas vermelhas na barra
+    for (let x = 6; x < 26; x += 3) for (let k = 0; k < 4; k++) px(x + (k % 2), 26 - k, P.trim);
+  } else if (P.motif === 'clouds') {                    // nuvens vermelhas com borda branca
+    for (const [cx, cy] of [[11, 14], [20, 20], [10, 23]]) {
+      for (const [dx, dy] of [[-1, 0], [0, -1], [1, -1], [2, 0], [1, 0], [0, 0]]) px(cx + dx, cy + dy, P.trim);
+      for (const [dx, dy] of [[-2, 0], [-1, -1], [0, -2], [1, -2], [2, -1], [3, 0]]) px(cx + dx, cy + dy, '#f4ecd8');
+    }
+  } else if (P.motif === 'laurel') {                    // o louro dourado e a barra dourada
+    for (let y = 10; y < 26; y += 2) { px(9 + Math.round((y - 10) * -0.1), y, P.trim); px(22, y, P.trim); }
+    for (let x = 6; x < 26; x++) if (x % 2) px(x, 27, P.trim);
+  }
+  capeIconCache.set(code, c);
+  return c;
+}
+
+/** Cor da classe (o selo no pergaminho de classe). */
+const CLASS_TINT = {
+  fire: '#e8572f', water: '#3c9be0', lightning: '#f2d25a', taijutsu: '#d9a441', illusion: '#9a6be0',
+  shadow: '#5a4f83', stone: '#8a6a45', heal: '#4fbf6a', weapons: '#b8b8c8',
+};
+
+/** O ícone de um item num canvas: a pixel art da arma, do pergaminho (com o selo da classe) ou da capa. */
 function drawItemIcon(c, code) {
   const g = c.getContext('2d');
   g.clearRect(0, 0, c.width, c.height);
-  if (drawWeaponIcon(g, code, c.width, c.height)) return;
+  g.imageSmoothingEnabled = false;
+  const cape = capeIcon(code);
+  if (cape) {
+    const s = Math.floor(Math.min(c.width, c.height) / 32);
+    g.drawImage(cape, 0, 0, 32, 32, (c.width - 32 * s) / 2, (c.height - 32 * s) / 2, 32 * s, 32 * s);
+    return;
+  }
+  if (drawWeaponIcon(g, code, c.width, c.height)) {
+    const cls = code.startsWith('scroll_') ? code.slice(7) : null;
+    if (cls && CLASS_TINT[cls]) {                       // o selo da classe no meio do pergaminho
+      const r = c.width * 0.075;
+      g.fillStyle = '#1a120a';
+      g.beginPath(); g.arc(c.width / 2, c.height / 2, r + 2, 0, Math.PI * 2); g.fill();
+      g.fillStyle = CLASS_TINT[cls];
+      g.beginPath(); g.arc(c.width / 2, c.height / 2, r, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      g.beginPath(); g.arc(c.width / 2 - r * 0.3, c.height / 2 - r * 0.3, r * 0.35, 0, Math.PI * 2); g.fill();
+    }
+    return;
+  }
   const def = itemDef(code);
   g.font = `${Math.round(c.width * 0.62)}px system-ui, sans-serif`;
   g.textAlign = 'center';
