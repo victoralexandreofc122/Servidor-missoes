@@ -20,11 +20,11 @@ export const CLASS_INFO: Readonly<Record<ClassCode, { name: string; icon: string
   shadow: { name: 'Sombra', icon: '🌑', desc: 'Uma linha de sombra prende no chão o primeiro inimigo que toca.' },
   illusion: { name: 'Ilusão', icon: '🌀', desc: 'Engana a mente: todos em volta de você ficam atordoados.' },
   stone: { name: 'Pedra', icon: '⛰', desc: 'Pele de rocha: o próximo golpe perde força.' },
-  fire: { name: 'Fogo', icon: '🔥', desc: 'Bola de fogo que explode no primeiro inimigo, queimando quem está perto.' },
-  water: { name: 'Água', icon: '💧', desc: 'Jatos em cone na direção do alvo.' },
+  fire: { name: 'Fogo', icon: '🔥', desc: 'Bola de fogo de longo alcance que explode no primeiro inimigo, queimando quem está perto.' },
+  water: { name: 'Água', icon: '💧', desc: 'Jatos em cone que empurram e deixam o inimigo molhado (o Relâmpago num alvo molhado bate mais forte).' },
   taijutsu: { name: 'Taijutsu', icon: '👊', desc: 'Avança até o inimigo e golpeia: socos e chutes devastadores.' },
   weapons: { name: 'Armas', icon: '🗡️', desc: 'Kunais em leque: o atributo Armas aumenta o dano.' },
-  lightning: { name: 'Relâmpago', icon: '⚡', desc: 'Raio em linha reta que paralisa o primeiro inimigo por um instante.' },
+  lightning: { name: 'Relâmpago', icon: '⚡', desc: 'Raio em linha reta que paralisa o primeiro inimigo por um instante. Num alvo molhado: combo, 30% a mais.' },
 };
 
 /** Regras de combate. Os jutsus de classe usam a do tier 1; os da Academia têm as próprias. */

@@ -243,6 +243,16 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Compensação de lag no PvP** ([docs/netcode.md](docs/netcode.md)): o servidor mede o ping de cada um (`sync` a
   cada 2 s; aparece no topo) e confere os golpes instantâneos onde o outro ninja estava na tela de quem bateu
   (ping + 100 ms de interpolação, teto de 300 ms). Projéteis continuam em tempo real.
+- **Monstros com estados** (`monsterAi.ts`, docs/netcode.md):
+  - param, notam quem chega no raio de aggro (ou quem bate neles) e perseguem; aparece um "!" vermelho;
+  - batem quando encostam;
+  - fugir além da corda faz o monstro desistir e voltar para a zona, onde recupera a vida toda;
+  - slime: aggro 3,5 casas, 2,5 casas/s; Lodo Escuro: 5 e 3; lodo sombrio: 6 e 3,4. O ninja anda a 5.
+- **Efeitos com tempo** (`effects.ts`, [docs/habilidades.md](docs/habilidades.md)): molhado, queimadura, regeneração,
+  silêncio, sono (acorda ao apanhar), ferida (metade da cura) e lentidão, em ninjas e monstros, com ícone em cima da
+  cabeça.
+  - No jogo já: a **Água molha** e o **Relâmpago num alvo molhado** dá combo, 30% a mais ("Combo! ⚡💧").
+  - Os outros efeitos são a base dos próximos jutsus; o admin testa com `/admin efeito <nome> <efeito|limpar> [seg]`.
 - **Deploy:** a migração v12 é obrigatória. O servidor novo não sobe sem ela (o log do Render avisa) e o Render mantém
   a versão anterior no ar. Rodar no Neon primeiro, depois a `main` (DEPLOY.md, passo 24).
 

@@ -59,13 +59,16 @@ entre dois pings, que o texto aponta como o maior problema de sincronização.
 
 ## PvE
 
-- **Monstros hoje:** andam ao acaso dentro da zona de caça (1 casa por ~1 s), atacam quem está colado, no ritmo do
-  tipo, e atordoados ou presos param. Só "pensam" quando há jogador no mapa.
-- **Falta (próximo passo):** máquina de estados de verdade. **Ocioso** (anda na zona) → **Perseguindo** (alguém
-  entrou no raio de aggro) → **Atacando** → **Voltando** (o jogador fugiu além da corda, ou o monstro saiu da zona;
-  volta curando). O caminho é recalculado a cada ~500 ms, não a cada tick.
-- **Falta:** chefe com fases, disparadas uma vez só no limiar da vida (ex.: 65% e 30%), cada uma com o seu conjunto de
-  golpes.
+- **Máquina de estados (v18, `monsterAi.ts`):**
+  - **parado:** anda à toa na zona de caça;
+  - **persegue:** alguém entrou no raio de aggro, ou bateu nele (o alvo é quem mais bateu);
+  - **ataca:** encostou;
+  - **volta:** o jogador fugiu além da corda, morreu, saiu do mapa ou entrou em zona segura. O monstro volta sem ouvir
+    ninguém e, chegando, recupera a vida toda e zera quem participou.
+- **Leve:** o monstro "pensa" (alvo e direção) a cada 500 ms e só anda no tick; o passo desvia de parede (reto, ±45°,
+  ±90°). Monstro de mapa vazio não pensa. Números por tipo em `config.ts` (`ai`), detalhes em docs/habilidades.md.
+- **Falta:** golpe telegrafado e chefe com fases, disparadas uma vez só no limiar da vida (ex.: 65% e 30%), cada uma
+  com o seu conjunto de golpes (proposta em docs/habilidades.md).
 
 ## Anti-cheat
 
@@ -76,8 +79,7 @@ entre dois pings, que o texto aponta como o maior problema de sincronização.
 
 ## Ordem sugerida para o que falta
 
-1. **PvE com máquina de estados** (aggro, perseguir, corda, voltar). Muda como a caça é jogada, então precisa da sua
-   aprovação.
-2. **Chefe com fases** (o Lodo Escuro pode ser o primeiro).
+1. ~~PvE com máquina de estados~~ (feito na v18).
+2. **Golpe telegrafado e chefe com fases** (docs/habilidades.md, seção 5).
 3. **Métricas de PvP** por classe e jutsu (painel do admin) e *dampening* na arena.
 4. **Contador de anomalias** por jogador.

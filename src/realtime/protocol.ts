@@ -1,4 +1,5 @@
 import type { DayPhase, SkyEffects, Weather } from './weather.js';
+import type { EffectCode } from './effects.js';
 import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
@@ -123,6 +124,9 @@ import type { PowerKind } from './akatsuki.js';
  *   player_gear       { playerId, gear }                   arma na mão / nas costas e pergaminho nas costas (todos veem)
  *   pushed            { playerId, fromX, fromY, x, y, a }  a Água empurrou o ninja (o dono dele refaz a predição dali)
  *   sync              { id, rtt }                          a cada 2 s: o cliente devolve o id na hora; rtt = o ping medido (ms)
+ *   monster_aggro     { id, targetId }                     o monstro notou alguém e persegue (null = desistiu)
+ *   effect            { target, id, effect, ms }           efeito com tempo (effects.ts) começou ou renovou; ms 0 = acabou
+ *   combo             { target, id, combo }                combo de elementos (Água molha + Relâmpago = eletrocutado)
  *   mission_board     { npcId, offers, mission }           Sala de Missões: cartões do Mestre e a missão atual
  *   chat_history      { messages }                         histórico do chat (só para quem pediu)
  *   chat / error                                           como antes
@@ -246,6 +250,8 @@ export interface PlayerView {
   gear: Gear;
   /** Fim de jogo (só com o módulo de vilas ligado): vila, renegado, Kage, Akatsuki, recompensa e capa. */
   faction?: FactionView;
+  /** Efeitos valendo (effects.ts): código -> ms que faltam. */
+  fx?: Partial<Record<EffectCode, number>>;
 }
 
 /** O lado de um ninja na política, como todos veem (o banco é a autoridade; o servidor manda). */
@@ -306,6 +312,8 @@ export interface MonsterView {
   y: number;
   hp: number;
   maxHp: number;
+  /** Efeitos valendo (effects.ts): código -> ms que faltam. */
+  fx?: Partial<Record<EffectCode, number>>;
 }
 
 /** NPC parado no mapa. `range` = distância máxima para conversar (casas). */
@@ -430,6 +438,8 @@ export interface SkyView {
 }
 
 export interface WorldInfo {
+  /** Catálogo dos efeitos com tempo (effects.ts): o cliente mostra o ícone e o nome. */
+  effects: Record<EffectCode, { name: string; icon: string; kind: 'buff' | 'debuff' | 'cc' }>;
   width: number;
   height: number;
   speed: number;
@@ -465,7 +475,7 @@ export interface WorldInfo {
   maxLevel: number;
 }
 
-export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED';
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED' | 'SILENCED' | 'ASLEEP';
 /** Por que a meditação acabou. */
 export type MeditationEnd = 'manual' | 'moved' | 'cast' | 'damaged' | 'died';
 export type MonsterStatus = 'stunned' | 'rooted';
@@ -484,6 +494,9 @@ export type ServerMessage =
   | { type: 'player_gear'; playerId: string; gear: Gear }
   | { type: 'pushed'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }
   | { type: 'sync'; id: number; rtt: number }
+  | { type: 'monster_aggro'; id: string; targetId: string | null }
+  | { type: 'effect'; target: 'player' | 'monster'; id: string; effect: EffectCode; ms: number }
+  | { type: 'combo'; target: 'player' | 'monster'; id: string; combo: 'eletrocutado' }
   | { type: 'mission_board'; npcId: string; offers: MissionOffer[]; mission: MissionView | null }
   | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean; speed: number; running: boolean }
   | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }
@@ -514,7 +527,7 @@ export type ServerMessage =
   | { type: 'kit' } & KitView
   /** r e arc: alcance e abertura do golpe com a arma (o corte é desenhado desse tamanho); throw: arma lançada. */
   | { type: 'attack'; playerId: string; x: number; y: number; fx: number; fy: number; cd: number; throw?: string; r?: number; arc?: number }
-  | { type: 'attack_failed'; reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED' }
+  | { type: 'attack_failed'; reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED' | 'ASLEEP' }
   | { type: 'player_rank'; playerId: string; rank: RankView; level: number }
   | { type: 'evaluation_request'; missionId: string; trainee: { id: string; username: string }; mission: MissionView }
   | { type: 'sensei_options'; difficulties: SenseiDifficulty[]; quantities: number[] }
@@ -544,7 +557,7 @@ export type ServerMessage =
   | { type: 'power'; playerId: string; power: PowerKind; x: number; y: number; fx: number; fy: number; tx?: number; ty?: number; ms?: number }
   | { type: 'power_failed'; reason: PowerFailReason };
 
-export type PowerFailReason = 'NOT_MEMBER' | 'COOLDOWN' | 'NO_CHAKRA' | 'NO_TARGET' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED';
+export type PowerFailReason = 'NOT_MEMBER' | 'COOLDOWN' | 'NO_CHAKRA' | 'NO_TARGET' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED' | 'SILENCED' | 'ASLEEP';
 
 /** Estado político que todos recebem (welcome e cada mudança). Instantes em ms. */
 export interface EndgameView {

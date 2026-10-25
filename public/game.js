@@ -389,6 +389,7 @@ function upsertPlayer(p, snap) {
     if (p.dir !== undefined) existing.dir = p.dir;
     if (p.gear) existing.gear = safeGear(p.gear);
     if (p.faction !== undefined) existing.faction = p.faction;
+    if (p.fx) existing.fx = fxFrom(p.fx);
     return existing;
   }
   const color = colorFor(p.id);
@@ -406,6 +407,8 @@ function upsertPlayer(p, snap) {
     gear: safeGear(p.gear),
     // Fim de jogo (v16): vila, renegado, Kage, Akatsuki, recompensa e capa (o servidor manda; null = módulos desligados).
     faction: p.faction || null,
+    // Efeitos com tempo (molhado, queimadura, sono...): código -> até quando (relógio da página).
+    fx: fxFrom(p.fx),
     initial: ([...p.username][0] || '?').toUpperCase(),
     initialColor: LIGHT_COLORS.has(color) ? '#14110d' : '#ffffff',
   };
@@ -416,12 +419,42 @@ function upsertPlayer(p, snap) {
 function upsertMonster(m, now) {
   state.monsters.set(m.id, {
     id: m.id, type: m.type, map: state.serverMap, x: m.x, y: m.y, tx: m.x, ty: m.y, hp: m.hp, maxHp: m.maxHp,
-    stunnedUntil: 0, rootedUntil: 0, bornAt: now, diedAt: 0,
+    stunnedUntil: 0, rootedUntil: 0, bornAt: now, diedAt: 0, fx: fxFrom(m.fx), aggro: null,
   });
 }
 
+/** Efeitos que vêm do servidor (código -> ms que faltam) -> código -> até quando, no relógio da página. */
+function fxFrom(raw) {
+  const out = {};
+  const now = performance.now();
+  if (raw && typeof raw === 'object') for (const [code, ms] of Object.entries(raw)) if (typeof ms === 'number' && ms > 0) out[code] = now + ms;
+  return out;
+}
+
+/** Os ícones dos efeitos valendo agora (molhado, queimadura...), na ordem do catálogo. */
+function fxIcons(e, now) {
+  const catalog = state.world.effects || {};
+  const out = [];
+  for (const [code, until] of Object.entries(e.fx || {})) {
+    if (until > now && catalog[code]) out.push(catalog[code].icon);
+  }
+  return out;
+}
+
+/** Linha de ícones de efeito em cima da cabeça (ninja ou monstro). */
+function drawFxIcons(e, sx, y, T, now) {
+  const icons = fxIcons(e, now);
+  if (!icons.length) return;
+  ctx.save();
+  ctx.font = `${Math.max(11, Math.round(T * 0.3))}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(icons.join(''), sx, y);
+  ctx.restore();
+}
+
 const CAST_FAIL_TEXT = {
-  NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum alvo perto',
+  NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum alvo perto', SILENCED: 'Silenciado!', ASLEEP: 'Dormindo…',
   FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
   NOT_EQUIPPED: 'Fora do kit ativo', SAFE_ZONE: 'Zona segura: sem combate',
   NOT_LEARNED: 'Jutsu não aprendido', BLOCKED: 'Caminho bloqueado', TUTORIAL_LOCKED: 'Primeiro, o Ataque Básico',
@@ -595,6 +628,32 @@ function handleMessage(msg) {
         vfx.play('smoke', msg.x, msg.y, { start: now, delay: 60 });
       }
       jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
+      break;
+    }
+    case 'effect': {
+      // Efeito com tempo (molhado, queimadura, sono...): o servidor diz quanto falta; ms 0 = acabou.
+      const e = msg.target === 'monster' ? state.monsters.get(msg.id) : state.players.get(msg.id);
+      if (e) {
+        e.fx = e.fx || {};
+        if (msg.ms > 0) e.fx[msg.effect] = now + msg.ms;
+        else delete e.fx[msg.effect];
+      }
+      if (msg.id === state.meId) renderBuffs();
+      break;
+    }
+    case 'combo': {
+      // Combo de elementos: Água molhou, o Relâmpago eletrocutou (30% a mais).
+      const e = msg.target === 'monster' ? state.monsters.get(msg.id) : state.players.get(msg.id);
+      if (e) addFloater(e.x, e.y - 1.5, 'Combo! ⚡💧', '#7fd8ff', 1.15);
+      break;
+    }
+    case 'monster_aggro': {
+      // O monstro notou alguém: "!" vermelho em cima dele (null = desistiu e volta para a zona).
+      const m = state.monsters.get(msg.id);
+      if (m) {
+        if (msg.targetId && !m.aggro) addFloater(m.x, m.y - 1.1, '!', '#ff5a4a', 1.2);
+        m.aggro = msg.targetId;
+      }
       break;
     }
     case 'sync': {
@@ -1020,6 +1079,10 @@ function renderBuffs() {
   if (m.running) list.push(['🏃', 'Correndo']);
   if (state.inSafeZone) list.push(['🕊️', 'Zona segura']);
   if (state.inArena) list.push(['⚔️', 'Arena']);
+  const me = state.players.get(state.meId), catalog = state.world.effects || {}, t = performance.now();
+  for (const [code, until] of Object.entries(me?.fx || {})) {          // efeitos com tempo: molhado, silêncio, sono...
+    if (until > t && catalog[code]) list.push([catalog[code].icon, `${catalog[code].name} (${Math.ceil((until - t) / 1000)} s)`]);
+  }
   const key = list.map((b) => b.join('')).join('|');
   if (key === renderBuffs.key) return;
   renderBuffs.key = key;
@@ -5396,6 +5459,7 @@ function drawMonster(m, sx, sy, T, now) {
   }
   if (!dying) drawHpBar(sx, sy - r - Math.max(6, T * 0.16), T * 0.8, m.hp / m.maxHp, '#ff5a4a');
   ctx.restore();
+  if (!dying) drawFxIcons(m, sx, sy - r - Math.max(9, T * 0.24), T, now);   // molhado, queimadura, sono...
   if (m.id === state.focusId && !dying) drawFocusMarker(sx, sy, r, T, now, 'arrow');
 }
 
@@ -5873,6 +5937,7 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
   ctx.fillStyle = isMe ? '#f2d58c' : foe ? (style.color || '#ff9a8a') : style.color || '#f4ecd8';
   ctx.strokeText(label, sx, nameY);
   ctx.fillText(label, sx, nameY);
+  if (!p.dead) drawFxIcons(p, sx, nameY - fontSize - (style.bounty > 0 ? fontSize + 4 : 3), T, now);   // efeitos com tempo
   if (style.bounty > 0) {
     ctx.font = `800 ${Math.max(10, Math.round(T * 0.28))}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = '#ffd23f';

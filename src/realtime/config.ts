@@ -34,7 +34,19 @@ export interface SkillConfig {
 }
 
 /** Tipo de monstro. O slime é o de caça; os bonecos da Academia ficam parados e renascem rápido. */
+/**
+ * IA do monstro (monsterAi.ts): raio em que nota um jogador, velocidade perseguindo (casas/s; o jogador anda 5) e a
+ * corda: quantas casas ele vai além da zona de caça antes de desistir e voltar curando.
+ */
+export interface MonsterAiConfig {
+  aggroRange: number;
+  chaseSpeed: number;
+  leashRange: number;
+}
+
 export interface MonsterType {
+  /** Sem isto: não persegue (anda à toa e só bate em quem encosta). */
+  ai?: MonsterAiConfig;
   maxHp: number;
   xp: number;
   attackRange: number;
@@ -88,6 +100,8 @@ export interface CombatConfig {
   monsters: {
     count: number; type: string; maxHp: number; xp: number; stepMs: number;
     attackRange: number; attackDamage: number; attackEveryMs: number;
+    /** IA do slime (os outros tipos têm a sua em `monsterTypes`). */
+    ai?: MonsterAiConfig;
     /** `count` = monstros em CADA mapa de caça (os que têm `hunt`); nascem longe dos jogadores. */
     minPlayerDistance: number;
     /**
@@ -104,6 +118,8 @@ export interface CombatConfig {
   rankLevels: { genin: number; chunin: number; kage: number };
   /** HP e chakra do próprio jogador: no máximo 1 atualização a cada X ms (regeneração). */
   statsEveryMs: number;
+  /** De quanto em quanto tempo cada monstro "pensa" (escolhe o alvo e a direção). O passo é a cada tick. */
+  monsterThinkMs: number;
   /** Todos os jutsus (catálogo em jutsus.ts): números de combate + a mecânica. */
   skills: Readonly<Record<JutsuCode, SkillConfig & { mechanic: Mechanic }>>;
 }
@@ -262,6 +278,8 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       // 10 slimes na Floresta (+3 por jogador lá, até 40); a Vila é área segura (nenhum monstro).
       count: 10, type: 'slime', maxHp: 60, xp: 20, stepMs: 1000,
       attackRange: 1.2, attackDamage: 10, attackEveryMs: 2000,
+      // Nota quem chega a 3,5 casas (ou quem bate nele) e persegue a 2,5 casas/s; mais de 8 casas fora da zona, volta.
+      ai: { aggroRange: 3.5, chaseSpeed: 2.5, leashRange: 8 },
       minPlayerDistance: 3,
       perPlayer: 3, maxCount: 40, spawnEveryMs: 1000,
     },
@@ -271,12 +289,19 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       // Sala de Jutsus: ARMADILHA de lâminas que bate (fraco) em quem chega perto: treina a Substituição.
       sparring: { maxHp: 400, xp: 0, attackRange: 1.6, attackDamage: 6, attackEveryMs: 1800, stationary: true, respawnMs: 2500 },
       // Zona de Conflito: lodo sombrio, mais forte que o slime (para quem já é Chunin).
-      lodo_sombrio: { maxHp: 150, xp: 60, attackRange: 1.3, attackDamage: 18, attackEveryMs: 1800, stationary: false, respawnMs: 0 },
+      lodo_sombrio: {
+        maxHp: 150, xp: 60, attackRange: 1.3, attackDamage: 18, attackEveryMs: 1800, stationary: false, respawnMs: 0,
+        ai: { aggroRange: 6, chaseSpeed: 3.4, leashRange: 12 },
+      },
       // Floresta (o fundo, perto das pedras) e a Caverna do Lodo: o Lodo Escuro do Arco 1, para os níveis 8 a 13.
-      lodo_escuro: { maxHp: 110, xp: 45, attackRange: 1.25, attackDamage: 14, attackEveryMs: 1900, stationary: false, respawnMs: 0 },
+      lodo_escuro: {
+        maxHp: 110, xp: 45, attackRange: 1.25, attackDamage: 14, attackEveryMs: 1900, stationary: false, respawnMs: 0,
+        ai: { aggroRange: 5, chaseSpeed: 3, leashRange: 10 },
+      },
     },
     rankLevels: { genin: 11, chunin: 40, kage: 60 },
     statsEveryMs: 200,
+    monsterThinkMs: 500,
     // 38 jutsus (9 classes x 4 tiers + 2 da Academia): números gerados do catálogo em jutsus.ts.
     skills: buildSkills(),
   },
