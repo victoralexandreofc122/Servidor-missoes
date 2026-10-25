@@ -543,9 +543,9 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     // Arco 1 (docs/mapas.md)
     case 'seal': return drawSeal(g, x, y, w, h, wall.s !== 'out');
     case 'oak': return drawOakTrunk(g, x, y, w, h);
-    case 'cliff': return wall.s === 'fall' ? drawDryFall(g, x, y, w, h, seed) : drawCliff(g, x, y, w, h, seed);
+    case 'cliff': return wall.s === 'fall' ? drawDryFall(g, x, y, w, h, seed) : drawCliff(g, x, y, w, h, Math.abs(seed));
     case 'tent': return drawTent(g, x, y, w, h, Math.abs(seed));
-    case 'cave': return drawCaveWall(g, x, y, w, h, Math.abs(seed));
+    case 'cave': return wall.s === 'mouth' ? drawCaveMouth(g, x, y, w, h, Math.abs(seed)) : drawCaveWall(g, x, y, w, h, Math.abs(seed));
     case 'deadtree': return drawDeadTrees(g, x, y, w, h, Math.abs(seed), tile);
     case 'logs': return drawLogs(g, x, y, w, h);
     case 'sink': return drawSink(g, x, y, w, h);
@@ -568,6 +568,7 @@ export function propExtent(wall) {
     case 'deadtree': return { left: 0.4, right: 0.4, top: 1.4, bottom: 0.3 };
     case 'oak': return { left: 0.6, right: 0.6, top: 0.6, bottom: 0.4 };
     case 'seal': return { left: 0.3, right: 0.3, top: 1.0, bottom: 0.3 };
+    case 'tent': return { left: 0.4, right: 0.5, top: 0.3, bottom: 0.45 };
     default: return { left: 0.2, right: 0.2, top: 0.5, bottom: 0.3 };
   }
 }
@@ -761,24 +762,182 @@ export function drawOakCanopy(g, w, h) {
   }
 }
 
-/** Paredão de rocha em camadas: face de cima mais clara, frente escura com estratos e rachaduras. */
-function drawCliff(g, x, y, w, h, seed) {
+/** Caminho de retângulo com cantos redondos (raio por canto: cima-esq, cima-dir, baixo-dir, baixo-esq). */
+function roundedPath(g, x, y, w, h, r1, r2 = r1, r3 = r2, r4 = r1) {
+  g.beginPath();
+  g.moveTo(x + r1, y);
+  g.lineTo(x + w - r2, y); g.quadraticCurveTo(x + w, y, x + w, y + r2);
+  g.lineTo(x + w, y + h - r3); g.quadraticCurveTo(x + w, y + h, x + w - r3, y + h);
+  g.lineTo(x + r4, y + h); g.quadraticCurveTo(x, y + h, x, y + h - r4);
+  g.lineTo(x, y + r1); g.quadraticCurveTo(x, y, x + r1, y);
+  g.closePath();
+}
+
+/** Pedregulho redondo com luz em cima à esquerda e contorno escuro (pé do paredão, cortinas da fresta). */
+function boulder(g, cx, cy, rx, ry, pal = ROCK_WARM) {
+  g.fillStyle = 'rgba(12, 16, 10, 0.35)';
+  g.beginPath(); g.ellipse(cx + 1, cy + ry * 0.7, rx * 1.05, ry * 0.45, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = pal.edge;
+  g.beginPath(); g.ellipse(cx, cy, rx + 0.6, ry + 0.6, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = pal.dark;
+  g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = pal.mid;
+  g.beginPath(); g.ellipse(cx - rx * 0.12, cy - ry * 0.16, rx * 0.82, ry * 0.74, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = pal.light;
+  g.beginPath(); g.ellipse(cx - rx * 0.35, cy - ry * 0.42, rx * 0.36, ry * 0.24, -0.3, 0, Math.PI * 2); g.fill();
+}
+
+/** Pedra da Floresta: cinza quente (o roxo fica para a caverna). */
+const ROCK_WARM = { edge: '#211d19', dark: '#4f4740', mid: '#6d645a', light: '#948a7c', crack: '#2c2723' };
+const GRASS_TOP = { back: '#24502a', base: '#2f6a33', light: '#3f8040', tip: '#6aa85a', dark: '#1f4a24' };
+
+/**
+ * Paredão de pedra (vista de cima em 3/4): em cima, o platô de grama com a beirada caindo por cima da rocha; na
+ * frente, colunas de pedra arredondadas (luz da esquerda), fendas escuras entre elas, musgo e cipós descendo, e
+ * pedregulhos no pé. Os cantos são redondos: de longe, um morro de pedra, não uma caixa. Caixas pequenas (as
+ * cortinas da fresta) viram um monte de pedregulhos.
+ */
+function drawCliff(g, x, y, w, h, seed, opts = {}) {
   const r = rng(seed);
-  const topH = Math.max(6, Math.round(h * 0.32));
-  rect(g, 'rgba(0,0,0,0.3)', x + 2, y + h - 2, w, 6);
-  rect(g, '#2e2a26', x, y, w, h);
-  rect(g, '#7a7066', x + 1, y + 1, w - 2, topH);                                   // topo iluminado
-  rect(g, '#8e8478', x + 1, y + 1, w - 2, 2);
-  rect(g, '#5a5149', x + 1, y + topH + 1, w - 2, h - topH - 2);                   // frente
-  g.fillStyle = '#4a423b';
-  for (let ly = y + topH + 6; ly < y + h - 2; ly += 6) g.fillRect(x + 1, ly, w - 2, 1);                // estratos
-  g.fillStyle = '#2a2420';
-  for (let i = 0; i < w / 20; i++) {                                               // rachaduras
-    let cx = x + 4 + r() * (w - 8), cy = y + topH + 2;
-    for (let k = 0; k < (h - topH) / 4; k++) { g.fillRect(Math.round(cx), Math.round(cy), 1, 3); cx += r() < 0.5 ? -1 : 1; cy += 3; }
+  if (w * h <= 16 * 16 * 3) {                                                       // cortina: pedregulhos
+    const n = Math.max(2, Math.round(w / 12));
+    for (let i = 0; i < n; i++) boulder(g, x + (i + 0.5) * (w / n) + (r() - 0.5) * 2, y + h * 0.35 + r() * 2, w / n * 0.62, Math.min(h * 0.75, 7) + r() * 2);
+    return;
   }
-  g.fillStyle = '#3b5a2a';
-  for (let i = 0; i < w / 24; i++) g.fillRect(Math.round(x + r() * (w - 6)), y + 1, 5, 2);                // musgo no alto
+  const face = Math.min(h * 0.6, opts.face ?? 56), top = h - face, fy = y + top;
+  const rad = Math.min(opts.round ?? 12, w / 2.5, h / 2.5);
+  // sombra no pé
+  g.fillStyle = 'rgba(10, 14, 8, 0.32)';
+  roundedPath(g, x + 2, y + h - 4, w - 2, 9, 4); g.fill();
+  g.save();
+  roundedPath(g, x, y, w, h + 3, rad, rad, rad * 0.6, rad * 0.6);
+  g.clip();
+  g.fillStyle = ROCK_WARM.edge;
+  g.fillRect(x, y, w, h + 3);
+  // a face: colunas de pedra com o pé arredondado
+  let cx = x + 0.5;
+  while (cx < x + w - 1) {
+    const cw = Math.min(x + w - 0.5 - cx, 13 + r() * 13);
+    const bottom = y + h - 1 - r() * 2.5, tone = [ROCK_WARM.mid, '#665d54', '#736a5f'][Math.floor(r() * 3)];
+    g.fillStyle = tone;
+    roundedPath(g, cx, fy - 3, cw - 1.2, bottom - fy + 3, 3, 3, 5, 5); g.fill();
+    fr(g, ROCK_WARM.light, cx + 0.8, fy - 1, 2, bottom - fy - 3);                   // luz na quina esquerda
+    fr(g, '#5a524a', cx + cw - 4.2, fy, 3, bottom - fy - 2);                         // sombra na direita
+    for (let k = 0; k < 2; k++) {                                                    // rachaduras deitadas
+      const ky = fy + 6 + r() * (bottom - fy - 12);
+      fr(g, ROCK_WARM.crack, cx + 3 + r() * 3, ky, cw * (0.3 + r() * 0.35), FINE * 2);
+    }
+    for (let k = 0; k < cw / 4; k++) fr(g, r() < 0.5 ? '#7e7468' : '#5c544c', cx + 2 + r() * (cw - 5), fy + 2 + r() * (bottom - fy - 6), FINE * 2, FINE * 2);
+    if (r() < 0.55) {                                                                // musgo no alto da coluna
+      g.fillStyle = 'rgba(70, 120, 50, 0.75)';
+      g.beginPath(); g.ellipse(cx + cw * (0.3 + r() * 0.4), fy + 3 + r() * 4, 2.5 + r() * 3, 1.6 + r(), 0, 0, Math.PI * 2); g.fill();
+    }
+    cx += cw;
+  }
+  // o platô de grama em cima, mais escuro no fundo
+  const grad = g.createLinearGradient(0, y, 0, fy);
+  grad.addColorStop(0, GRASS_TOP.back);
+  grad.addColorStop(1, GRASS_TOP.base);
+  g.fillStyle = grad;
+  g.fillRect(x, y, w, top);
+  for (let i = 0; i < (w * top) / 22; i++) {
+    const px = x + r() * w, py = y + r() * top;
+    fr(g, r() < 0.5 ? GRASS_TOP.light : GRASS_TOP.dark, px, py, FINE, FINE * (2 + Math.floor(r() * 3)));
+  }
+  if (top > 40) {                                                                   // platô alto: a borda dos lados também é pedra
+    fr(g, ROCK_WARM.dark, x, y + rad, 2.5, top - rad);
+    fr(g, ROCK_WARM.dark, x + w - 2.5, y + rad, 2.5, top - rad);
+    fr(g, ROCK_WARM.light, x + 0.5, y + rad, FINE * 2, top - rad);
+  }
+  // a beirada: a grama cai por cima da pedra, com sombra embaixo
+  for (let bx = x - 2; bx < x + w + 2; bx += 4 + r() * 3) {
+    const rr = 2.6 + r() * 2.4;
+    g.fillStyle = 'rgba(15, 12, 8, 0.5)';
+    g.beginPath(); g.ellipse(bx, fy + rr * 0.9, rr, rr * 0.7, 0, 0, Math.PI * 2); g.fill();
+  }
+  for (let bx = x - 2; bx < x + w + 2; bx += 4 + r() * 3) {
+    const rr = 2.6 + r() * 2.4;
+    g.fillStyle = GRASS_TOP.base;
+    g.beginPath(); g.ellipse(bx, fy - 0.5 + rr * 0.3, rr, rr * 0.75, 0, 0, Math.PI * 2); g.fill();
+    fr(g, GRASS_TOP.tip, bx - rr * 0.4, fy - rr * 0.3, FINE * 2, FINE * 3);
+  }
+  for (let i = 0; i < w / 34; i++) {                                                  // cipós descendo
+    let vx = x + 6 + r() * (w - 12), vy = fy + 1;
+    const len = 8 + r() * (face * 0.45), pts = [[vx, vy]];
+    for (let t = 0; t < len; t += 3) { vx += Math.sin(t * 0.7 + i) * 0.8; vy += 3; pts.push([vx, vy]); }
+    g.strokeStyle = '#2b5226'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (const q of pts) g.lineTo(q[0], q[1]); g.stroke();
+    for (let k = 1; k < pts.length; k++) {
+      g.fillStyle = r() < 0.5 ? '#4a8a3a' : '#3b6e2f';
+      g.beginPath(); g.ellipse(pts[k][0] + (k % 2 ? -1.3 : 1.3), pts[k][1], 1.4, 0.8, k % 2 ? 0.5 : -0.5, 0, Math.PI * 2); g.fill();
+    }
+  }
+  g.restore();
+  // pedregulhos e capim no pé
+  for (let bx = x + 5; bx < x + w - 4; bx += 10 + r() * 12) {
+    if (r() < 0.55) boulder(g, bx, y + h - 1 + r() * 1.5, 2.4 + r() * 2.6, 1.8 + r() * 1.6);
+    else for (let k = -1; k <= 1; k++) fr(g, k ? '#3d6b2a' : '#5c9a44', bx + k * 1.1, y + h - 2.8 + Math.abs(k), FINE * 2, 3 - Math.abs(k));
+  }
+}
+
+/**
+ * Boca da Caverna do Lodo: o morro de pedra (paredão de cantos bem redondos) com um arco escuro no meio da face,
+ * pedras em volta do arco, dentes de pedra pendurados, o brilho roxo do lodo lá no fundo e uma poça escorrendo para
+ * fora. A porta é exatamente o arco (x do meio, 3 casas).
+ */
+function drawCaveMouth(g, x, y, w, h, seed) {
+  drawCliff(g, x, y, w, h, seed, { round: 26, face: 60 });
+  const r = rng(seed + 7);
+  const ax = x + w / 2, aw = 23, ab = y + h, atop = ab - 46;
+  const arch = (grow) => {
+    g.beginPath();
+    g.moveTo(ax - aw - grow, ab + 1);
+    g.lineTo(ax - aw - grow, atop + aw);
+    g.arc(ax, atop + aw, aw + grow, Math.PI, 0);
+    g.lineTo(ax + aw + grow, ab + 1);
+    g.closePath();
+  };
+  // as pedras da moldura (um anel de blocos em volta do arco)
+  for (let a = Math.PI * 1.02; a <= Math.PI * 1.98; a += 0.24) {
+    const px = ax + Math.cos(a) * (aw + 4), py = atop + aw + Math.sin(a) * (aw + 4);
+    boulder(g, px, py, 4.2, 3.4);
+  }
+  for (const side of [-1, 1]) for (let py = atop + aw + 3; py < ab - 2; py += 7) boulder(g, ax + side * (aw + 4), py, 3.6, 3.6);
+  // a escuridão de dentro, com o roxo do lodo no fundo
+  arch(0);
+  const dark = g.createRadialGradient(ax, ab - 4, 2, ax, ab - 14, 52);
+  dark.addColorStop(0, '#4a1d66');
+  dark.addColorStop(0.35, '#1c0b28');
+  dark.addColorStop(1, '#050308');
+  g.fillStyle = dark;
+  g.fill();
+  arch(-5);                                                                           // a segunda curva, mais funda
+  g.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  g.fill();
+  g.fillStyle = 'rgba(190, 120, 255, 0.22)';                                          // o brilho no chão de dentro
+  g.beginPath(); g.ellipse(ax, ab - 5, aw * 0.75, 5, 0, 0, Math.PI * 2); g.fill();
+  for (let i = 0; i < 7; i++) {                                                       // dentes de pedra pendurados
+    const t = (i + 0.5) / 7, a = Math.PI + t * Math.PI;
+    const px = ax + Math.cos(a) * (aw - 1), py = atop + aw + Math.sin(a) * (aw - 1);
+    const len = 3 + r() * 5;
+    g.fillStyle = ROCK_WARM.dark;
+    g.beginPath(); g.moveTo(px - 2, py); g.lineTo(px + 2, py); g.lineTo(px + (r() - 0.5), py + len); g.closePath(); g.fill();
+    fr(g, ROCK_WARM.mid, px - 1.5, py, FINE * 2, len * 0.6);
+  }
+  g.fillStyle = '#d7a8ff';                                                            // dois olhinhos lá no fundo
+  for (const dx of [-3, 3]) { g.beginPath(); g.ellipse(ax + 5 + dx, ab - 20, 1.1, 0.7, 0, 0, Math.PI * 2); g.fill(); }
+  // lodo escorrendo pela borda do arco e a poça na soleira
+  for (const [dx, len] of [[-aw + 2, 7], [-aw * 0.3, 4], [aw * 0.55, 6]]) {
+    g.fillStyle = '#5e2a86';
+    fr(g, '#5e2a86', ax + dx, atop + aw - Math.sqrt(Math.max(0, aw * aw - dx * dx)) + 1, 1.6, len);
+    g.beginPath(); g.ellipse(ax + dx + 0.8, atop + aw - Math.sqrt(Math.max(0, aw * aw - dx * dx)) + 1 + len, 1.4, 1.8, 0, 0, Math.PI * 2); g.fill();
+  }
+  g.fillStyle = '#3b1856';
+  g.beginPath(); g.ellipse(ax + 2, ab + 2.5, aw * 0.9, 4.2, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#6e3a96';
+  g.beginPath(); g.ellipse(ax, ab + 2, aw * 0.7, 3, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(215, 168, 255, 0.7)';
+  g.beginPath(); g.ellipse(ax - aw * 0.3, ab + 1.2, 3, 0.8, 0, 0, Math.PI * 2); g.fill();
 }
 
 /**
@@ -839,25 +998,51 @@ function drawCaveWall(g, x, y, w, h, seed) {
   }
 }
 
-/** Barraca de lona (vista em 3/4), rasgada e queimada: estrutura de varas, buracos pretos e bordas chamuscadas. */
+/**
+ * Barraca de lona (vista de cima em 3/4): as duas águas do telhado subindo para o fundo, o triângulo da frente com a
+ * entrada aberta e a aba solta, a vara na ponta, cordas até as estacas. Queimada: fuligem embaixo, buracos com a
+ * borda chamuscada e um rasgo.
+ */
 function drawTent(g, x, y, w, h, seed) {
   const r = rng(seed);
-  rect(g, 'rgba(0,0,0,0.3)', x + 3, y + h - 3, w, 5);
-  g.fillStyle = '#4a3a2a';
-  g.beginPath(); g.moveTo(x, y + h); g.lineTo(x + w / 2, y + 2); g.lineTo(x + w, y + h); g.closePath(); g.fill();
-  g.fillStyle = '#8a7a62';
-  g.beginPath(); g.moveTo(x + 3, y + h - 1); g.lineTo(x + w / 2, y + 5); g.lineTo(x + w - 3, y + h - 1); g.closePath(); g.fill();
-  g.fillStyle = '#6e6250';
-  g.beginPath(); g.moveTo(x + w / 2, y + 5); g.lineTo(x + w - 3, y + h - 1); g.lineTo(x + w / 2, y + h - 1); g.closePath(); g.fill();   // lado na sombra
-  rect(g, '#2a1d12', x + w / 2 - 4, y + h - 10, 8, 9);                              // entrada
-  for (let i = 0; i < 4; i++) {                                                      // queimaduras
-    const bx = x + 6 + r() * (w - 12), by = y + h * 0.35 + r() * h * 0.45;
-    g.fillStyle = '#1a1410';
-    g.beginPath(); g.arc(bx, by, 2 + r() * 3, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#5a2a14';
-    g.fillRect(Math.round(bx) - 1, Math.round(by) - 4, 2, 1);
+  const cx = x + w / 2, D = h * 0.38, F = { x: cx, y: y + D }, B = { x: cx, y: y };
+  const base = y + h - 1;
+  g.fillStyle = 'rgba(10, 8, 4, 0.35)';
+  g.beginPath(); g.ellipse(cx + 3, base + 1, w / 2 + 3, 5, 0, 0, Math.PI * 2); g.fill();
+  const poly = (pts, color) => { g.fillStyle = color; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (const q of pts.slice(1)) g.lineTo(q[0], q[1]); g.closePath(); g.fill(); };
+  poly([[B.x, B.y - 1], [x - 1, base - D], [x - 1, base + 0.5], [F.x, F.y - 1]], '#2a2016');               // contorno
+  poly([[B.x, B.y - 1], [x + w + 1, base - D], [x + w + 1, base + 0.5], [F.x, F.y - 1]], '#2a2016');
+  poly([[B.x, B.y], [x, base - D], [x, base], [F.x, F.y]], '#b9a684');                                       // água da esquerda (luz)
+  poly([[B.x, B.y], [x + w, base - D], [x + w, base], [F.x, F.y]], '#8d7c60');                               // água da direita (sombra)
+  g.strokeStyle = 'rgba(60, 45, 30, 0.45)'; g.lineWidth = FINE * 2;                                          // costuras da lona
+  for (const t of [0.33, 0.66]) {
+    g.beginPath(); g.moveTo(B.x + (x - B.x) * t, B.y + (base - D - B.y) * t); g.lineTo(F.x + (x - F.x) * t, F.y + (base - F.y) * t); g.stroke();
+    g.beginPath(); g.moveTo(B.x + (x + w - B.x) * t, B.y + (base - D - B.y) * t); g.lineTo(F.x + (x + w - F.x) * t, F.y + (base - F.y) * t); g.stroke();
   }
-  rect(g, '#3a2614', x + w / 2 - 1, y, 2, 4);                                         // ponta da vara
+  poly([[F.x, F.y], [x + 1.5, base], [x + w - 1.5, base]], '#a8956f');                                       // a frente
+  poly([[F.x, F.y + 4], [cx - w * 0.2, base], [cx + w * 0.2, base]], '#1b130c');                             // a entrada
+  poly([[F.x, F.y + 4], [cx + w * 0.2, base], [cx + w * 0.3, base - 2]], '#c8b693');                         // a aba dobrada
+  fr(g, '#5a3a1e', F.x - 0.8, F.y - 3, 1.6, 4);                                                               // vara
+  fr(g, '#3a2614', F.x - 0.4, F.y - 4, 0.8, 1.2);
+  g.strokeStyle = 'rgba(70, 55, 35, 0.8)'; g.lineWidth = FINE * 2;                                           // cordas e estacas
+  for (const [sx, ex] of [[x + 2, x - 4], [x + w - 2, x + w + 4]]) {
+    g.beginPath(); g.moveTo(sx, base - D * 0.5); g.lineTo(ex, base + 1); g.stroke();
+    fr(g, '#4a3420', ex - 0.6, base, 1.2, 2);
+  }
+  // queimado: fuligem subindo da base, buracos e um rasgo
+  const soot = g.createLinearGradient(0, base - h * 0.6, 0, base);
+  soot.addColorStop(0, 'rgba(25, 18, 12, 0)');
+  soot.addColorStop(1, 'rgba(25, 18, 12, 0.55)');
+  poly([[B.x, B.y + D * 0.6], [x, base - D * 0.6], [x, base], [x + w, base], [x + w, base - D * 0.6]], soot);
+  for (let i = 0; i < 4; i++) {
+    const bx = x + 5 + r() * (w - 10), by = y + D * 0.6 + r() * (h - D - 4), br = 1.6 + r() * 2.2;
+    g.fillStyle = '#6a3a18';
+    g.beginPath(); g.ellipse(bx, by, br + 0.9, br * 0.8 + 0.8, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#140d08';
+    g.beginPath(); g.ellipse(bx, by, br, br * 0.8, 0, 0, Math.PI * 2); g.fill();
+  }
+  g.strokeStyle = '#140d08'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(x + w * 0.72, base - D * 0.9); g.lineTo(x + w * 0.78, base - D * 0.5); g.lineTo(x + w * 0.74, base - 2); g.stroke();
 }
 
 /** Árvores mortas (Clareira Queimada): troncos cinzentos e galhos secos, sem folha. */
@@ -1346,6 +1531,60 @@ export function drawDeco(g, d, x, y, w, h) {
       for (const [dx, dy] of [[-0.2, 0.1], [0.15, -0.15], [0.05, 0.2], [0.3, 0.05]]) g.fillRect(Math.round(cx + dx * w), Math.round(cy + dy * h), 2, 2);
       g.fillStyle = '#ffb13b';
       g.fillRect(Math.round(cx), Math.round(cy), 1, 1);
+      return;
+    }
+    case 'crate': {                                   // caixote de madeira chamuscado, com uma tábua quebrada
+      const H = h * 0.35;
+      fr(g, 'rgba(10, 8, 4, 0.35)', x + 1.5, y + h - 1, w, 2.5);
+      fr(g, '#2a1a0e', x - 0.5, y - 0.5, w + 1, h + 1);
+      fr(g, '#8a6438', x, y, w, h - H);                                         // tampo
+      for (let py = y + 3.5; py < y + h - H - 1; py += 3.5) fr(g, '#6e4e2a', x, py, w, FINE * 2);
+      fr(g, '#a8804c', x, y, w, FINE * 2);
+      fr(g, '#5c3e20', x, y + h - H, w, H);                                     // frente
+      fr(g, '#3e2a16', x + 1.5, y + h - H + 1, FINE * 2, H - 2);
+      fr(g, '#3e2a16', x + w - 2, y + h - H + 1, FINE * 2, H - 2);
+      fr(g, '#1a120a', x + w * 0.45, y + 1, w * 0.3, 2.4);                       // a tábua quebrada (buraco)
+      g.fillStyle = 'rgba(20, 14, 8, 0.55)';                                    // fuligem
+      g.beginPath(); g.ellipse(x + w * 0.25, y + h - 3, w * 0.3, 3, 0, 0, Math.PI * 2); g.fill();
+      return;
+    }
+    case 'pot': {                                     // panela de ferro no tripé, perto da fogueira
+      const cx = x + w / 2, by = y + h;
+      fr(g, 'rgba(10, 8, 4, 0.35)', cx - 7, by - 2, 14, 3);
+      g.strokeStyle = '#3a2614'; g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(cx, y); g.lineTo(cx - 8, by); g.moveTo(cx, y); g.lineTo(cx + 8, by); g.moveTo(cx, y); g.lineTo(cx + 1, by + 1); g.stroke();
+      fr(g, '#2a2a2e', cx - 0.4, y + 1, 0.8, 5);                                 // a corrente
+      g.fillStyle = '#16161a';
+      g.beginPath(); g.ellipse(cx, y + h * 0.62, 6, 5.2, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#2e2e34';
+      g.beginPath(); g.ellipse(cx - 1, y + h * 0.58, 4.6, 3.8, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#0c0c0e';                                                   // a boca da panela
+      g.beginPath(); g.ellipse(cx, y + h * 0.4, 5.4, 1.6, 0, 0, Math.PI * 2); g.fill();
+      fr(g, '#6a6a74', cx - 3.5, y + h * 0.5, 2, FINE * 2);
+      return;
+    }
+    case 'bedroll': {                                 // esteira de dormir enrolada pela metade, com a ponta queimada
+      fr(g, 'rgba(10, 8, 4, 0.3)', x + 1, y + h - 1, w, 2);
+      g.fillStyle = '#6e3a2a';
+      roundedPath(g, x, y + 1, w * 0.72, h - 2, 2); g.fill();
+      for (let px = x + 2; px < x + w * 0.7; px += 4) fr(g, '#8e5040', px, y + 1.5, 1.4, h - 3);
+      g.fillStyle = '#4a2418';                                                    // o rolo
+      g.beginPath(); g.ellipse(x + w * 0.8, y + h / 2, w * 0.14, h / 2, 0, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = '#8e5040'; g.lineWidth = FINE * 2;
+      g.beginPath(); g.ellipse(x + w * 0.8, y + h / 2, w * 0.07, h / 4, 0, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = '#1a120c';                                                    // a ponta queimada
+      g.beginPath(); g.moveTo(x, y + 1); g.lineTo(x + 5, y + 1); g.lineTo(x + 3, y + h / 2); g.lineTo(x + 6, y + h - 1); g.lineTo(x, y + h - 1); g.closePath(); g.fill();
+      fr(g, '#a8501c', x + 4.5, y + h / 2 - 1, 1, 1);
+      return;
+    }
+    case 'scroll_drop': {                             // pergaminho caído, meio aberto, com a fita vermelha
+      fr(g, 'rgba(10, 8, 4, 0.3)', x + 1, y + h - 1, w, 1.6);
+      fr(g, '#e8dcb8', x + 2, y + 1, w - 5, h - 3);
+      for (let ly = y + 2.5; ly < y + h - 3; ly += 2) fr(g, '#8a7a5a', x + 4, ly, (w - 9) * (0.6 + ((ly * 7) % 4) / 10), FINE * 2);
+      fr(g, '#6a4a2a', x, y, 3, h - 1);                                          // o rolo
+      fr(g, '#8a6a42', x + 0.8, y, 1, h - 1);
+      fr(g, '#b3261e', x + w - 4, y + 1, 2.2, h - 2);                             // a fita
+      fr(g, '#e0453a', x + w - 4, y + 1, 0.8, h - 2);
       return;
     }
     case 'stream': return drawStream(g, d, x, y, w);

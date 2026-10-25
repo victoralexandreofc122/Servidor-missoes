@@ -3765,7 +3765,8 @@ function draw(now) {
     } else drawGateRoof(ctx, x, y, w, h);
   }
 
-  // Caverna: escuro em volta do jogador, com uma luz no meio (o lugar mais tenso do arco antes do chefe).
+  // O ar do mapa (sombras das copas, sol, pólen, brasas, vinheta) e, na caverna, o escuro em volta do jogador.
+  drawAtmosphere(toScreenX, toScreenY, T, now);
   if (me && state.maps[state.mapId]?.kind === 'cave') drawCaveDark(toScreenX(me.x), toScreenY(me.y), T);
 
   // 6. Números flutuantes (dano, cura, XP, avisos) e falas do NPC.
@@ -4034,6 +4035,99 @@ function drawScatter(g, x, y, ux, uy) {
 }
 
 /** Escuro da caverna: tudo escurece, menos um círculo de luz em volta do jogador (raio de ~6 casas). */
+/**
+ * O clima de cada mapa (estilo da prova de arte: luz e cor contam onde se está). `canopy`: sombras das copas passando
+ * com o vento; `shafts`: faixas de sol na diagonal; `motes`: partículas no ar (pólen, brasas, esporos), com cor, quanto
+ * sobem e quantas; `vig`: a cor das bordas da tela. Tudo preso ao mundo (anda com o mapa, não com a câmera).
+ */
+const ATMOS = {
+  forest: { canopy: 0.2, shafts: [255, 236, 170, 0.05], motes: { rgb: [255, 246, 190], rise: 0.08, cell: 3, glow: true }, vig: 'rgba(4, 18, 14, 0.42)' },
+  clareira_queimada: { motes: { rgb: [255, 150, 60], rise: 0.7, cell: 2, glow: true }, vig: 'rgba(48, 10, 2, 0.5)', haze: 'rgba(120, 50, 20, 0.07)' },
+  cave: { motes: { rgb: [205, 150, 255], rise: 0.05, cell: 3, glow: true }, vig: null },
+  village: { motes: { rgb: [255, 240, 210], rise: 0.04, cell: 5, glow: false }, vig: 'rgba(36, 20, 8, 0.2)' },
+  wild: { motes: { rgb: [230, 210, 170], rise: 0.03, cell: 4, glow: false }, vig: 'rgba(24, 14, 6, 0.32)' },
+};
+
+function drawAtmosphere(toScreenX, toScreenY, T, now) {
+  const map = state.maps[state.mapId];
+  const mood = map && (ATMOS[map.id] || ATMOS[map.kind]);
+  if (!mood) return;
+  const ox = toScreenX(0), oy = toScreenY(0);
+  const x0 = -ox / T, y0 = -oy / T, x1 = x0 + viewW / T, y1 = y0 + viewH / T;   // o pedaço do mundo na tela (casas)
+  const t = now / 1000;
+  ctx.save();
+  if (mood.canopy) {                                  // sombras das copas, andando devagar com o vento
+    const S = 7;
+    for (let gy = Math.floor(y0 / S) - 1; gy <= Math.ceil(y1 / S) + 1; gy++) {
+      for (let gx = Math.floor(x0 / S) - 2; gx <= Math.ceil(x1 / S) + 1; gx++) {
+        const h = cellHash(gx * 13 + 3, gy * 7 + 5);
+        if (h % 3 === 0) continue;
+        const cx = (gx + 0.2 + (h % 100) / 160) * S + ((t * 0.18 + (h % 37)) % (S * 2)) - S * 0.5 + Math.sin(t * 0.3 + h) * 0.6;
+        const cy = (gy + 0.2 + ((h >> 8) % 100) / 160) * S + Math.cos(t * 0.25 + h) * 0.4;
+        const r = (2.4 + ((h >> 16) % 100) / 45) * T, sx = toScreenX(cx), sy = toScreenY(cy);
+        if (sx + r < 0 || sx - r > viewW || sy + r < 0 || sy - r > viewH) continue;
+        const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+        g.addColorStop(0, `rgba(6, 22, 16, ${mood.canopy})`);
+        g.addColorStop(1, 'rgba(6, 22, 16, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.ellipse(sx, sy, r, r * 0.75, 0.4, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+  if (mood.haze) { ctx.fillStyle = mood.haze; ctx.fillRect(0, 0, viewW, viewH); }
+  ctx.globalCompositeOperation = 'lighter';
+  if (mood.shafts) {                                  // faixas de sol na diagonal
+    const [r, g, b, a] = mood.shafts, SP = 16;
+    for (let k = Math.floor(x0 / SP) - 1; k <= Math.ceil(x1 / SP) + 1; k++) {
+      const h = cellHash(k * 31 + 7, 11);
+      const bx = toScreenX(k * SP + (h % 9) + Math.sin(t * 0.2 + k) * 0.8), bw = (1.4 + (h % 5) * 0.4) * T;
+      const pulse = 0.7 + 0.3 * Math.sin(t * 0.5 + k * 1.3);
+      const gr = ctx.createLinearGradient(bx - bw, 0, bx + bw, 0);
+      gr.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0)`);
+      gr.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${a * pulse})`);
+      gr.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+      ctx.fillStyle = gr;
+      const skew = viewH * 0.45;
+      ctx.beginPath();
+      ctx.moveTo(bx - bw + skew, 0); ctx.lineTo(bx + bw + skew, 0); ctx.lineTo(bx + bw - skew, viewH); ctx.lineTo(bx - bw - skew, viewH);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  if (mood.motes) {                                   // pólen, brasas, esporos: um por célula, subindo e balançando
+    const { rgb: [r, g, b], rise, cell: C, glow } = mood.motes;
+    const ps = Math.max(1.5, T * 0.045);
+    for (let gy = Math.floor(y0 / C) - 1; gy <= Math.ceil(y1 / C) + 1; gy++) {
+      for (let gx = Math.floor(x0 / C) - 1; gx <= Math.ceil(x1 / C) + 1; gx++) {
+        const h = cellHash(gx * 17 + 1, gy * 23 + 9);
+        if (h % 2) continue;
+        const life = 6 + (h % 5);                         // segundos para subir o caminho todo e recomeçar
+        const ph = ((t + (h % 1000) / 100) % life) / life;
+        const px = (gx + (h % 97) / 97) * C + Math.sin(t * 0.8 + h) * 0.35;
+        const py = (gy + ((h >> 7) % 97) / 97) * C - ph * rise * life;
+        const sx = toScreenX(px), sy = toScreenY(py);
+        if (sx < -8 || sx > viewW + 8 || sy < -8 || sy > viewH + 8) continue;
+        const a = Math.sin(ph * Math.PI) * (0.55 + 0.45 * Math.sin(t * 3 + h));
+        if (glow) {
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${(a * 0.25).toFixed(3)})`;
+          ctx.beginPath(); ctx.arc(sx, sy, ps * 2.6, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${(a * 0.9).toFixed(3)})`;
+        ctx.fillRect(Math.round(sx - ps / 2), Math.round(sy - ps / 2), Math.ceil(ps), Math.ceil(ps));
+      }
+    }
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  if (mood.vig) {                                     // as bordas da tela na cor do lugar
+    const d = Math.hypot(viewW, viewH) / 2;
+    const g = ctx.createRadialGradient(viewW / 2, viewH / 2, d * 0.55, viewW / 2, viewH / 2, d);
+    g.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    g.addColorStop(1, mood.vig);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, viewW, viewH);
+  }
+  ctx.restore();
+}
+
 function drawCaveDark(sx, sy, T) {
   const r = T * 6.5;
   const grad = ctx.createRadialGradient(sx, sy, T * 1.5, sx, sy, r);

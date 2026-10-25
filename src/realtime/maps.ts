@@ -82,7 +82,9 @@ export interface Deco extends Box {
     // do Velho Carvalho (POR CIMA dos jogadores, como o telhado do portão), estalagmite, pegadas e a escada do poço.
     | 'signpost' | 'roots' | 'kunai' | 'embers' | 'grate' | 'well_lid' | 'oak_canopy' | 'stalagmite' | 'footprints' | 'ladder' | 'scorch'
     // o riacho e o leito seco, desenhados como uma faixa que segue a linha `p` (largura 2 × `r`)
-    | 'stream' | 'drybed';
+    | 'stream' | 'drybed'
+    // o que sobrou no Acampamento Queimado: caixote quebrado, panela no tripé, esteira e um pergaminho caído
+    | 'crate' | 'pot' | 'bedroll' | 'scroll_drop';
   /** Linha do riacho/leito: x0, y0, x1, y1... em casas, a partir do canto (x, y) do enfeite. */
   p?: number[];
   /** Meia largura da faixa, em casas. */
@@ -615,6 +617,9 @@ function forest(): MapLayout {
       deco('kunai', 13, 70), deco('kunai', 21, 68.4), deco('kunai', 27.4, 72.6), deco('kunai', 19, 77),
       deco('scorch', 12.5, 67, 10, 7),                // o chão chamuscado em volta da fogueira
       deco('embers', 16, 70, 3, 2),                   // a fogueira apagada do acampamento
+      deco('pot', 19.3, 69.6, 1.3, 1.4), deco('bedroll', 11.6, 72.6, 2.2, 1), deco('bedroll', 20.6, 74.2, 2.2, 1),
+      deco('crate', 29, 67.6, 1.3, 1.3), deco('crate', 30.4, 68.8, 1.1, 1.1), deco('crate', 6.6, 69.6, 1.3, 1.3),
+      deco('scroll_drop', 23.2, 71.4, 1.2, 0.7),
       deco('footprints', 63.4, 78.6, 3, 3),            // as pegadas param na beira do abismo
       deco('embers', 39, 89, 2, 1.4), deco('embers', 44, 88, 2, 1.4),
     ],
