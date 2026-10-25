@@ -130,7 +130,7 @@ describe('hitboxes no jogo (monstros)', () => {
     const far = world.spawnMonster({ x: S.x + 8, y: S.y });
     ready(world, a.id);
     a.send({ type: 'cast', skill: 'taijutsu' });
-    assert.equal(a.conn.last('cast_failed').reason, 'NO_TARGET', 'alcance 2,5');
+    assert.equal(a.conn.last('cast_failed'), undefined, 'longe (alcance 2,5): avança e erra');
     assert.equal(monsterHp(world, far.id), M.maxHp);
   });
 
@@ -147,7 +147,7 @@ describe('hitboxes no jogo (monstros)', () => {
     assert.deepEqual([a.conn.last('cast').tx, a.conn.last('cast').ty], [S.x + 2, S.y]);
   });
 
-  it('linha e projétil param na parede: Relâmpago atrás da árvore = BLOCKED (sem gastar); o Fogo explode no tronco', () => {
+  it('linha e projétil param na parede: Relâmpago atrás da árvore bate no tronco e erra (gasta); o Fogo explode no tronco', () => {
     const { world, connect, run } = setupWorld(config());
     const a = connect('kaito');
     learn(world, a.id, 'lightning');
@@ -159,8 +159,10 @@ describe('hitboxes no jogo (monstros)', () => {
     placeIn(world, a.id, 'map_2', tree.x - 1.5, cy);
     const m = world.spawnMonster({ x: tree.x + 3, y: cy }, undefined, 'map_2');
     a.send({ type: 'cast', skill: 'lightning' });
-    assert.equal(a.conn.last('cast_failed').reason, 'BLOCKED');
-    assert.equal(a.conn.of('stats').length, 0, 'nada cobrado');
+    const bolt = a.conn.last('cast');
+    assert.equal(bolt.skill, 'lightning');
+    assert.ok(bolt.tx < tree.x + 0.01, `a linha para no tronco: ${bolt.tx}`);
+    assert.equal(monsterHp(world, m.id), M.maxHp, 'atrás da árvore: não acerta');
     a.send({ type: 'cast', skill: 'fire', targetId: m.id });
     run(500);
     const boom = a.conn.last('impact');
@@ -234,7 +236,7 @@ describe('hitboxes: PvP (preparado, desligado por padrão)', () => {
     a.send({ type: 'cast', skill: 'water' });
     a.send({ type: 'attack', targetId: b.id });
     assert.equal(session(world, b.id).hp, 100);
-    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET');
+    assert.equal(a.conn.last('attack').playerId, a.id, 'o golpe sai (e erra)');
   });
 
   it('ligado: cone, arco, projétil e linha acertam o outro jogador (com escudo, morte e tudo)', () => {
@@ -326,19 +328,19 @@ describe('Shuriken Gigante: arma de ARREMESSO (o Ataque Básico vira um lançame
     assert.equal(a.conn.of('impact').length, 1, 'um impacto só: no fim do alcance');
   });
 
-  it('recarga: o segundo arremesso antes do tempo falha (COOLDOWN); alcance de 6 casas; sem ninguém perto: NO_TARGET', () => {
+  it('recarga: o segundo arremesso antes do tempo falha (COOLDOWN); alcance de 6 casas; sem ninguém perto, sai e erra', () => {
     const { a, run, mon } = armed();
     a.send({ type: 'attack' });
-    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET', 'sem alvo não gasta a recarga');
-    mon(S.x + 5.5, S.y);                                            // longe para o corte, perto para o arremesso
-    a.send({ type: 'attack' });
-    assert.equal(a.conn.of('attack').length, 1);
+    assert.equal(a.conn.of('attack').length, 1, 'sem alvo: a shuriken sai assim mesmo (e gasta a recarga)');
+    assert.equal(a.conn.of('projectile').length, 1);
     run(BA.cooldownMs * 2);
     a.send({ type: 'attack' });
     assert.equal(a.conn.last('attack_failed').reason, 'COOLDOWN', 'um corte normal já estaria pronto');
     run(BA.cooldownMs * TH.cooldownFactor);
+    mon(S.x + 5.5, S.y);                                            // longe para o corte, perto para o arremesso
     a.send({ type: 'attack' });
     assert.equal(a.conn.of('attack').length, 2);
+    assert.deepEqual([a.conn.last('projectile').fx, a.conn.last('projectile').fy], [1, 0], 'mirou no de 5,5 casas');
   });
 
   it('sem a shuriken, o Ataque Básico continua corpo a corpo (arco), sem projétil', () => {

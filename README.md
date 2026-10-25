@@ -155,21 +155,25 @@ Cada golpe tem uma **hitbox geométrica** (`src/realtime/combat.ts`: `isInArc`, 
 |---|---|---|---|---|
 | Ataque Básico | 0 | 0,6 s (x a arma) | arco na direção do alvo: 90° e 1,6 casa sem arma (cada arma tem o seu, veja a v15) | 12 de dano + a arma equipada, em todos no arco |
 | Ataque Básico com a Shuriken Gigante | 0 | 3 s (5x) | arremesso: projétil de 6 casas (9 casas/s) que atravessa todos, linha de 0,8 casa | (12 + 22) x 2,5 = 85 em cada um |
-| Fogo (`fire`) | 20 | 1,5 s | projétil reto (5 casas, 12 casas/s) + círculo de 2 casas onde ele bate | 25 de dano na explosão |
-| Água (`water`) | 15 | 1 s | cone de 90° e 4 casas, para onde o jogador olha (ou no alvo focado) | 20 de dano |
+| Fogo (`fire`) | 20 | 1,5 s | projétil reto na direção do inimigo (9 casas, 14 casas/s) + círculo de 2 casas onde ele bate | 25 de dano na explosão |
+| Água (`water`) | 15 | 1 s | cone de 90° e 4 casas, para onde o jogador olha (ou no alvo focado) | 20 de dano e empurra 1,5 casa |
 | Taijutsu (`taijutsu`) | 5 | 0,5 s | avanço até o mais perto (alcance 2,5) + círculo de 1 casa na frente | 35 de dano |
 | Ilusão (`illusion`) | 30 | 4 s | círculo de 3 casas em volta do jogador | atordoa todos por 3 s |
 | Sombra (`shadow`) | 25 | 6 s | linha instantânea de 4 casas: o primeiro que ela encosta | prende por 5 s (não anda, mas ataca) |
 | Relâmpago (`lightning`) | 20 | 2 s | linha instantânea de 4,5 casas: o primeiro que ela encosta | 30 de dano e choque de 0,4 s |
 | Armas (`weapons`) | 10 | 1,2 s | 3 kunais (projéteis) em leque de 45°, 4 casas | 18 + arma em cada alvo (no máximo 1 kunai por alvo) |
 | Pedra (`stone`) | 15 | 6 s | em si mesmo | escudo: o próximo dano cai pela metade |
-| Cura (`heal`) | 30 | 4 s | em si mesmo ou num aliado a até 3 casas | +30 de vida |
+| Cura (`heal`) | 30 | 4 s | no aliado focado (até 3 casas), em si mesmo ou no aliado mais ferido perto | +30 de vida |
 
 - **Mira:** com alvo focado, Fogo, Água, Sombra, Relâmpago e Armas mandam `targetId` e o servidor vira o
-  jogador para ele. Sem foco, as formas estreitas (linha, avanço, projétil) miram o mais perto; a Água vai
-  para onde o jogador olha e o Fogo sem ninguém por perto sai reto para a frente.
-- **Paredes:** linhas e projéteis param na parede (árvore, casa). Uma parede entre o jogador e o alvo dá
-  `BLOCKED` sem gastar chakra. O avanço do Taijutsu também para antes de vão no chão.
+  jogador para ele, mesmo longe (o jutsu sai na direção dele e pode não chegar). Sem foco, as formas estreitas
+  (linha, avanço, projétil) miram o mais perto no alcance; a Água vai para onde o jogador olha.
+- **Sem alvo, o golpe sai assim mesmo (v18):** Ataque Básico, Taijutsu, Ilusão, Sombra, Relâmpago e Kunais não
+  dependem de ter alguém perto. Saem para a frente, gastam chakra e recarga e podem errar: no PvP, acertar é
+  questão de apertar na hora certa. Só a Cura (ninguém ferido), a Pedra e a Substituição já ativas e o Teleporte
+  sem espaço falham sem gastar.
+- **Paredes:** linhas e projéteis param na parede (árvore, casa): atrás dela, o golpe erra. O avanço do
+  Taijutsu e o empurrão da Água também param antes de vão no chão.
 - **PvP:** só na **arena de cada vila** (v15), entre os ninjas dela. O PvP aberto (`combat.pvp`, para a fronteira
   do Arco 2) continua desligado e nunca vale em mapa de vila. Atordoado não anda nem ataca (`STUNNED`); preso não
   anda. Fora da arena, todo jogador é aliado e a Cura pega quem estiver perto.
@@ -226,6 +230,16 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **`/admin ryo <nome> <quantidade>`** (ou `giveryo`): dá de 1 a 1.000.000 ryō, pela função `game.admin_give_ryo`
   (confere `is_admin` e grava a auditoria).
 - **Clima:** cada bônus de clima e de hora do dia vale no máximo **5%** (e a soma também; `SKY_CAP`).
+- **Combate:**
+  - o Ataque Básico, o Taijutsu e a Ilusão (e a Sombra, o Relâmpago e as Kunais) saem mesmo sem ninguém perto e
+    podem errar; no PvP, acertar é questão de tempo;
+  - o **Fogo** vai a 9 casas (eram 5) na direção do inimigo;
+  - a **Água** empurra quem ela acerta (1,5 casa; mais no tier 2 em diante), parando antes da parede. Boneco de treino
+    não sai do lugar; o ninja empurrado recebe `pushed` e todos veem ele escorregar;
+  - na **zona segura** o Ataque Básico anima, sem dano (os jutsus continuam recusados);
+  - o **🎯 foca aliados** também: primeiro os inimigos (monstros e, na arena e na Zona de Conflito, os ninjas
+    inimigos), do mais perto ao mais longe; depois os aliados (anel e ficha verdes). Com um aliado focado, a **Cura**
+    vai nele (longe demais: `OUT_OF_RANGE`, sem gastar).
 - **Deploy:** a migração v12 é obrigatória. O servidor novo não sobe sem ela (o log do Render avisa) e o Render mantém
   a versão anterior no ar. Rodar no Neon primeiro, depois a `main` (DEPLOY.md, passo 24).
 
@@ -514,8 +528,9 @@ O `map_1` foi refeito a partir da arte de referência (`village()` em `src/realt
 - **Rio** à esquerda com duas pontes de madeira; **campo de treino** de areia no canto inferior
   direito, com um boneco de madeira (colisão).
 - **Praça social (zona segura)** logo acima do portão (x 28 a 52, y 55 a 78):
-  - `safeZones` no layout; nenhuma habilidade nem ataque (nem cura) sai ali;
-  - o servidor responde `cast_failed`/`attack_failed` com `SAFE_ZONE`, sem cobrar chakra;
+  - `safeZones` no layout; nenhum jutsu (nem cura) sai ali: o servidor responde `cast_failed` com `SAFE_ZONE`, sem
+    cobrar chakra;
+  - o Ataque Básico sai (todos veem o golpe), mas não acerta ninguém (v18);
   - monstro não bate em quem está na zona;
   - o cliente apaga os botões e o topo mostra "zona segura";
   - bancos, vasos e a rosa dos ventos são só desenho.

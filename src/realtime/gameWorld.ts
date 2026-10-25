@@ -1427,24 +1427,20 @@ export class GameWorld {
     const reach = cfg.range ?? cfg.radius ?? 0;
     const targets = this.targetsFor(session);
 
-    // 1. Mira. Jutsu que mira + alvo focado: o focado, dentro do alcance. Sem foco, as formas
-    //    estreitas (linha, avanço, projétil) procuram o mais perto; a Água vai para onde o
-    //    jogador olha, e o Fogo sem ninguém por perto sai reto para a frente.
-    let aim: Target | undefined;
-    if (targetId !== undefined && DIRECTED_SKILLS.has(skill)) {
-      aim = targets.find((x) => x.id === targetId);
-      if (!aim) return fail('NO_TARGET');
-      if (distance(session, aim) > reach) return fail('OUT_OF_RANGE');
-    } else if (mechanic === 'taijutsu' || mechanic === 'shadow' || mechanic === 'lightning' || mechanic === 'weapons' || mechanic === 'fire') {
+    // 1. Mira. Jutsu que mira + inimigo focado: vai na direção dele, MESMO LONGE (pode não chegar). Sem foco, as formas
+    //    estreitas (linha, avanço, projétil) procuram o mais perto no alcance; a Água vai para onde o jogador olha.
+    //    Ninguém por perto: o jutsu sai assim mesmo, para a frente, e pode errar (no PvP, acertar é questão de tempo).
+    let aim: Target | undefined = targetId !== undefined && DIRECTED_SKILLS.has(skill) ? targets.find((x) => x.id === targetId) : undefined;
+    if (!aim && (mechanic === 'taijutsu' || mechanic === 'shadow' || mechanic === 'lightning' || mechanic === 'weapons' || mechanic === 'fire')) {
       aim = nearest(session, targets, reach);
-      if (!aim && mechanic !== 'fire') return fail('NO_TARGET');
     }
     // Mira: o servidor vira o jogador para o alvo (mesmo que ele estivesse olhando para o outro lado).
     if (aim) this.faceTo(session, aim);
     const o: Point = { x: session.x, y: session.y };
     const { fx, fy } = session;
 
-    // 2. Hitbox, ANTES de cobrar: sem ninguém para acertar, falha sem gastar nada.
+    // 2. Hitbox, ANTES de cobrar. Errar (ninguém na hitbox) também gasta: só a Cura sem ninguém ferido, a Pedra e a
+    //    Substituição já ativas e o Teleporte sem espaço falham sem gastar nada.
     let hits: Target[] = [];
     let to: Point | undefined;            // onde o efeito acontece (vai no `cast`, para a animação)
     let dashTo: Point | undefined;
@@ -1456,34 +1452,36 @@ export class GameWorld {
         break;
       case 'illusion':
         hits = targets.filter((x) => isInCircle(o, cfg.radius ?? 0, x));
-        if (hits.length === 0) return fail('NO_TARGET');
         break;
       case 'lightning':
       case 'shadow': {
+        // Linha instantânea para a frente: acerta o primeiro que ela encosta; parede ou ninguém, sai e erra.
         const end = rayEnd(this.layout(session.map), o.x, o.y, fx, fy, reach);
         const first = firstOnLine(o, end, targets);
-        if (!first) return fail('BLOCKED');            // uma parede entre o jogador e o alvo
-        hits = [first.target];
-        to = first.at;
+        hits = first ? [first.target] : [];
+        to = first ? first.at : end;
         break;
       }
       case 'taijutsu': {
-        // Avança até ficar colado no alvo (para antes de parede e de vão), e golpeia um círculo na frente.
+        // Avança até ficar colado no alvo (ou, sem alvo, o avanço inteiro para a frente), parando antes de parede e de
+        // vão, e golpeia um círculo na frente.
         const r = cfg.radius ?? 1;
-        const dash = Math.max(0, Math.min(distance(o, aim!) - STRIKE_AHEAD, reach - r));
+        const dash = Math.max(0, aim ? Math.min(distance(o, aim) - STRIKE_AHEAD, reach - r) : reach - r);
         dashTo = dash > 0.05 ? rayEnd(this.layout(session.map), o.x, o.y, fx, fy, dash, true) : o;
         to = ahead(dashTo, fx, fy, STRIKE_AHEAD);
         hits = targets.filter((x) => isInCircle(to!, r, x));
-        if (hits.length === 0) return fail('BLOCKED');
         break;
       }
       case 'heal': {
-        // O aliado FOCADO (perto); senão em si mesmo; senão o aliado mais ferido por perto.
+        // O aliado FOCADO (no alcance: longe, avisa); senão em si mesmo; senão o aliado mais ferido por perto.
         const hurt = (p: Session) => !p.dead && !p.closed && p.hp < p.stats.maxHp;
-        const allies = [...(this.mapPlayers.get(session.map) ?? [])]
-          .filter((p) => p !== session && hurt(p) && !this.canHurt(session, p) && isInCircle(o, cfg.radius ?? 0, p))
-          .sort((a, b) => a.hp / a.stats.maxHp - b.hp / b.stats.maxHp);
-        healed = (targetId !== undefined ? allies.find((p) => p.id === targetId) : undefined) ?? (hurt(session) ? session : allies[0]);
+        const ally = (p: Session) => p !== session && !p.dead && !p.closed && !this.canHurt(session, p);
+        const near = (p: Session) => isInCircle(o, cfg.radius ?? 0, p);
+        const players = [...(this.mapPlayers.get(session.map) ?? [])];
+        const focused = targetId !== undefined ? players.find((p) => p.id === targetId && ally(p)) : undefined;
+        if (focused && hurt(focused) && !near(focused)) return fail('OUT_OF_RANGE');
+        const allies = players.filter((p) => ally(p) && hurt(p) && near(p)).sort((a, b) => a.hp / a.stats.maxHp - b.hp / b.stats.maxHp);
+        healed = (focused && hurt(focused) ? focused : undefined) ?? (hurt(session) ? session : allies[0]);
         if (!healed) return fail('FULL_HP');
         if (healed !== session) to = { x: healed.x, y: healed.y };
         break;
@@ -1520,7 +1518,13 @@ export class GameWorld {
 
     switch (mechanic) {
       case 'water':
-        for (const x of hits) this.hitTarget(x, dmg, session, t, 'skill');
+        // Dano e o empurrão (para longe de quem lançou). Quem trocou de lugar com a Substituição não é empurrado.
+        for (const x of hits) {
+          const who = x.kind === 'monster' ? x.monster : x.session;
+          const at = { x: who.x, y: who.y };
+          this.hitTarget(x, dmg, session, t, 'skill');
+          if (who.x === at.x && who.y === at.y) this.pushAway(x, session, o, cfg.push ?? 0, t);
+        }
         break;
       case 'taijutsu':
         if (dashTo && distance(o, dashTo) > 0.01) this.dash(session, dashTo, t);
@@ -1847,19 +1851,21 @@ export class GameWorld {
     this.stopMeditation(session, 'cast');
     if (session.dead) return fail('DEAD');
     if (t < session.stunnedUntil) return fail('STUNNED');
-    if (this.inSafeZone(session)) return fail('SAFE_ZONE');
     if ((session.cooldowns.attack ?? 0) > t) return fail('COOLDOWN');
+    // Zona segura (praça, lojas): o golpe sai (todos veem o movimento), mas não acerta ninguém.
+    const safe = this.inSafeZone(session);
     // Arma de arremesso (Shuriken Gigante): o golpe vira um lançamento dela, com o alcance dela.
     // As outras mudam o JEITO do golpe (items.ts, `swing`): a kunai é rápida e estreita, a espada longa lenta e larga.
     const weapon = session.equipped ? ITEM_BY_CODE.get(session.equipped) : undefined;
     const thrown = weapon?.throw;
     const swing = weapon?.swing ?? { cooldownFactor: 1, arcDeg: cfg.arcDeg, range: cfg.range };
     const range = thrown ? thrown.range : swing.range;
-    const targets = this.targetsFor(session);
+    const targets = safe ? [] : this.targetsFor(session);
+    // Mira: o focado (no alcance) ou o mais perto no alcance. Ninguém: o golpe sai assim mesmo, para o focado (longe)
+    // ou para onde ele olha, e erra. No PvP, acertar é questão de tempo.
     const focused = targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined;
-    const aim = focused && distance(session, focused) <= range ? focused : nearest(session, targets, range);
-    if (!aim) return fail(focused ? 'OUT_OF_RANGE' : 'NO_TARGET');
-    this.faceTo(session, aim);
+    const aim = (focused && distance(session, focused) <= range ? focused : nearest(session, targets, range)) ?? focused;
+    if (aim) this.faceTo(session, aim);
     const cd = Math.round(session.stats.attackCooldownMs * (thrown ? thrown.cooldownFactor : swing.cooldownFactor));   // Agilidade deixa mais rápido
     session.cooldowns.attack = t + cd;
     this.broadcastMap(session.map, {
@@ -1868,6 +1874,7 @@ export class GameWorld {
     });
     // FÍSICO: base x Taijutsu + a arma equipada x Armas (Kunai de Treino: +10).
     // Passiva da Areia: +10% no que a arma soma.
+    if (safe) return;
     const damage = scaledDamage(cfg.damage, session.stats.physicalMultiplier)
       + scaledDamage(this.weaponDamage(session) * this.passive(session, 'weapons'), session.stats.weaponMultiplier);
     if (thrown) {
@@ -3791,6 +3798,35 @@ export class GameWorld {
   private spendPower(s: Session, def: PowerDef, t: number): void {
     s.chakra -= def.cost;
     s.cooldowns.power = t + def.cooldownMs;
+  }
+
+  /**
+   * Empurra um alvo `dist` casas para longe de `from` (a Água), parando antes da parede e do vão. Boneco de treino não
+   * sai do lugar; ninja só se ainda dá para acertar (PvP, sem proteção). Ninja empurrado: o dono dele refaz daqui.
+   */
+  private pushAway(x: Target, owner: Session, from: Point, dist: number, t: number): void {
+    if (dist <= 0) return;
+    if (x.kind === 'monster') {
+      if (x.monster.hp <= 0 || !this.monsters.has(x.id) || this.monsterType(x.monster.type).stationary) return;
+    } else if (x.session.dead || !this.canHurt(owner, x.session, t)) {
+      return;
+    }
+    const who = x.kind === 'monster' ? x.monster : x.session;
+    const [ux, uy] = Math.hypot(who.x - from.x, who.y - from.y) > 0.05 ? unit(who.x - from.x, who.y - from.y) : unit(owner.fx, owner.fy);
+    const to = rayEnd(this.layout(owner.map), who.x, who.y, ux, uy, dist, true);
+    if (Math.hypot(to.x - who.x, to.y - who.y) < 0.05) return;
+    const before = { x: who.x, y: who.y };
+    who.x = q3(to.x);
+    who.y = q3(to.y);
+    if (x.kind === 'monster') {
+      this.broadcastMap(owner.map, { type: 'monsters_moved', m: [[x.id, who.x, who.y]] });
+      return;
+    }
+    const v = x.session;
+    this.dropInputs(v);
+    v.lastUpdate = t;
+    v.dirty = true;
+    this.broadcastMap(v.map, { type: 'pushed', playerId: v.id, fromX: round3(before.x), fromY: round3(before.y), x: round3(v.x), y: round3(v.y), a: v.ackSeq });
   }
 
   /** Puxa um alvo até `gap` casas do dono (parando antes da parede). Ninja puxado: o dono dele refaz daqui. */

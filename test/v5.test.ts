@@ -148,15 +148,20 @@ describe('v5: Ataque Básico (físico) vs jutsus', () => {
     assert.equal(monsterHp(world, near.id), M.maxHp - BA.damage);
   });
 
-  it('sem monstro no alcance: NO_TARGET; focado longe: OUT_OF_RANGE (sem gastar recarga)', () => {
-    const { world, connect } = setupWorld(config);
+  it('sem ninguém no alcance o golpe sai assim mesmo (e erra); focado longe: vira para ele e erra; a recarga vale', () => {
+    const { world, connect, clock } = setupWorld(config);
     const a = connect('kaito');
     a.send({ type: 'attack' });
-    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET');
+    assert.equal(a.conn.last('attack_failed'), undefined);
+    assert.deepEqual([a.conn.last('attack').fx, a.conn.last('attack').fy], [0, 1], 'para onde ele olha');
+    a.send({ type: 'attack' });
+    assert.equal(a.conn.last('attack_failed').reason, 'COOLDOWN');
+    clock.advance(REALTIME.combat.basicAttack.cooldownMs);
     const far = world.spawnMonster({ x: S.x + 5, y: S.y });
     a.send({ type: 'attack', targetId: far.id });
-    assert.equal(a.conn.last('attack_failed').reason, 'OUT_OF_RANGE');
-    assert.equal(a.conn.of('attack').length, 0);
+    assert.deepEqual([a.conn.last('attack').fx, a.conn.last('attack').fy], [1, 0], 'virou para o focado');
+    assert.equal(monsterHp(world, far.id), M.maxHp, 'longe: errou');
+    assert.equal(a.conn.of('attack').length, 2);
   });
 
   it('Taijutsu sobe SÓ o Ataque Básico; Ninjutsu sobe SÓ os jutsus', () => {

@@ -17,6 +17,7 @@ export interface SkillConfig {
   radius?: number;         // círculo (casas): a explosão do Fogo, a Ilusão em volta, o golpe do Taijutsu, a Cura
   range?: number;          // alcance (casas): até onde a linha, o projétil ou o cone vão
   coneDeg?: number;        // abertura do cone
+  push?: number;           // Água: quantas casas empurra quem ela acerta (para longe de quem lançou)
   /** Projétil (Fogo, Kunais): velocidade em casas/s. Sem `speed`, a linha é instantânea. */
   speed?: number;
   /** Kunais: quantos projéteis e a abertura total do leque (graus). */

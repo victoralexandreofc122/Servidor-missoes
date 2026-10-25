@@ -39,6 +39,21 @@ export function nextTarget(me, monsters, currentId, range = FOCUS_RANGE) {
   return list[(i + 1) % list.length].id;
 }
 
+/**
+ * Próximo foco com aliados: primeiro os inimigos (do mais perto para o mais longe), depois os aliados (idem), em ciclo.
+ * Assim o primeiro toque pega o inimigo mais perto, e quem quer curar continua tocando até chegar no aliado.
+ */
+export function nextFocus(me, foes, allies, currentId, range = FOCUS_RANGE) {
+  const near = (list) => list
+    .filter((m) => alive(m) && distance(me, m) <= range)
+    .map((m) => ({ id: m.id, d: distance(me, m) }))
+    .sort((a, b) => a.d - b.d || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const list = [...near(foes), ...near(allies)];
+  if (list.length === 0) return null;
+  const i = list.findIndex((e) => e.id === currentId);
+  return list[(i + 1) % list.length].id;
+}
+
 /** O foco continua valendo? (alvo vivo e não mais longe que `loseRange`) */
 export function keepFocus(me, monster, loseRange = LOSE_RANGE) {
   return alive(monster) && distance(me, monster) <= loseRange;

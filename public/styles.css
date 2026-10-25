@@ -791,9 +791,8 @@ body.editing .vitals { pointer-events: auto; outline: 2px dashed #ffd23f; outlin
   .creator-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
 }
 
-/* Praça da Vila (zona segura): o servidor recusa combate; os botões ficam apagados. */
-body.safe-zone .cbtn.skill,
-body.safe-zone #attack-btn {
+/* Praça da Vila (zona segura): o servidor recusa os jutsus (os botões ficam apagados). O Ataque Básico sai, sem dano. */
+body.safe-zone .cbtn.skill {
   filter: grayscale(0.85);
   opacity: 0.5;
 }

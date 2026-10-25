@@ -876,5 +876,8 @@ SELECT (SELECT count(*) FROM game.items WHERE kind = 'shoes'),
    cadeado até chegarem os itens) e o **Pés** funcionando.
 3. **`/admin ryo <nome> <quantidade>`** (de 1 a 1.000.000): o ryō chega na hora (o jogador online vê o aviso) e fica
    na auditoria (`game.admin_audit_log`, comando `giveryo`).
-4. **Clima:** os bônus agora são de no máximo **5%** (Fogo +5% no dia quente, Água +5% na chuva, Sombra +5% de
+4. **Combate:** sem nenhum monstro perto, o 🗡️, o 👊 e a Ilusão saem assim mesmo (e erram). O 🔥 vai bem mais
+   longe (9 casas). O 💧 empurra o monstro. Na praça (zona segura) o 🗡️ anima, sem dano. Com outro ninja perto, o
+   🎯 foca ele também (anel verde), e a Cura vai nele.
+5. **Clima:** os bônus agora são de no máximo **5%** (Fogo +5% no dia quente, Água +5% na chuva, Sombra +5% de
    noite...). `/admin clima chuva` e tocar no ícone 🌧️ embaixo das barras mostra o bônus.

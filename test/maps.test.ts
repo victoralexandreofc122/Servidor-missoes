@@ -208,19 +208,21 @@ describe('mapas: servidor (salas)', () => {
     assert.equal(a.conn.of('map_changed').length, 0);
   });
 
-  it('ZONA SEGURA (praça): nenhuma habilidade nem ataque, sem gastar chakra; fora dela, tudo normal', () => {
+  it('ZONA SEGURA (praça): nenhum jutsu, sem gastar chakra; o Ataque Básico sai (todos veem) mas não acerta; fora dela, tudo normal', () => {
     const { world, connect, run } = setupWorld(quiet);
     const a = connect('kaito');
     Object.assign(sess(world, a.id), { x: 40, y: 70 });     // praça, acima do portão
-    world.spawnMonster({ x: 40.8, y: 70 });
+    const m = world.spawnMonster({ x: 40.8, y: 70 });
     for (const skill of ['fire', 'water', 'taijutsu', 'heal']) {
       a.send({ type: 'cast', skill });
       assert.deepEqual(a.conn.last('cast_failed'), { type: 'cast_failed', skill, reason: 'SAFE_ZONE' }, skill);
     }
-    a.send({ type: 'attack' });
-    assert.equal(a.conn.last('attack_failed').reason, 'SAFE_ZONE');
+    a.send({ type: 'attack', targetId: m.id });
+    assert.equal(a.conn.last('attack_failed'), undefined);
+    assert.equal(a.conn.of('attack').length, 1, 'o golpe sai (a animação)');
+    assert.equal((world as any).monsters.get(m.id).hp, m.hp, 'mas não acerta ninguém');
     assert.equal(sess(world, a.id).chakra, 100, 'nada foi cobrado');
-    assert.equal(a.conn.of('cast').length + a.conn.of('attack').length + a.conn.of('hit').length, 0);
+    assert.equal(a.conn.of('cast').length + a.conn.of('hit').length, 0);
     run(5000);
     assert.equal(a.conn.of('hit').length, 0, 'monstro também não bate em quem está na praça');
     Object.assign(sess(world, a.id), { x: 40, y: 53 });     // rua de baixo: fora da praça
@@ -243,10 +245,11 @@ describe('mapas: servidor (salas)', () => {
     // Monstro da Floresta exatamente na mesma posição de quem está na Vila: não dá para bater nele.
     const m = world.monsterList()[0]!;
     Object.assign((world as any).monsters.get(m.id), { x: sess(world, a.id).x + 1, y: sess(world, a.id).y });
+    const hp = (world as any).monsters.get(m.id).hp;
     a.send({ type: 'attack', targetId: m.id });
-    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET');
     a.send({ type: 'cast', skill: 'taijutsu' });
-    assert.equal(a.conn.last('cast_failed').reason, 'NO_TARGET');
+    assert.equal((world as any).monsters.get(m.id).hp, hp, 'golpe e Taijutsu saem na Vila, mas não acertam o monstro da Floresta');
+    assert.equal(a.conn.of('hit').length, 0);
     (world as any).applyXp(b.id, 'mei', 20, { totalXp: 100, rank: { code: 'GENIN', name: 'Genin' }, promoted: true });
     assert.equal(a.conn.last('announce').message, 'mei subiu para Genin!', 'promoção é aviso geral');
   });

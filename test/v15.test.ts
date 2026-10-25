@@ -118,8 +118,9 @@ describe('v15: arena da Vila (PvP de treino)', () => {
     at(a, 'map_1', STREET.x, STREET.y);
     at(b, 'map_1', STREET.x + 1, STREET.y);
     ready(w, a.id);
+    const hpOutside = session(w, b.id).hp;
     a.send({ type: 'attack', targetId: b.id });
-    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET');
+    assert.equal(session(w, b.id).hp, hpOutside, 'fora da cerca o golpe sai, mas não acerta');
   });
 
   it('um dentro e outro fora da cerca: ninguém acerta ninguém (nem atravessando a cerca)', () => {
@@ -131,9 +132,7 @@ describe('v15: arena da Vila (PvP de treino)', () => {
     at(b, 'map_1', f.x - 0.4, IN.y - 3);                       // fora, do outro lado da cerca
     Object.assign(session(w, a.id), { fx: -1, fy: 0 });
     a.send({ type: 'attack', targetId: b.id });
-    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET');
     b.send({ type: 'attack', targetId: a.id });
-    assert.equal(b.conn.last('attack_failed').reason, 'NO_TARGET');
     assert.deepEqual([session(w, a.id).hp, session(w, b.id).hp], [100, 100]);
   });
 
@@ -146,13 +145,11 @@ describe('v15: arena da Vila (PvP de treino)', () => {
     at(guest, 'map_1', IN.x + 1, IN.y);
     at(blank, 'map_1', IN.x, IN.y + 1);
     a.send({ type: 'attack', targetId: guest.id });
-    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET');
     guest.send({ type: 'attack', targetId: a.id });
-    assert.equal(guest.conn.last('attack_failed').reason, 'NO_TARGET');
+    assert.equal(session(w, a.id).hp, 100);
     ready(w, a.id);
     Object.assign(session(w, a.id), { fx: 0, fy: 1 });
     a.send({ type: 'attack', targetId: blank.id });
-    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET');
     assert.deepEqual([guest, blank].map((p) => session(w, p.id).hp), [100, 100]);
   });
 
@@ -186,7 +183,7 @@ describe('v15: arena da Vila (PvP de treino)', () => {
     at(b, 'map_1', IN.x + 1, IN.y);
     ready(w, a.id);
     a.send({ type: 'attack', targetId: b.id });
-    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET', 'acabou de renascer');
+    assert.equal(session(w, b.id).hp, 100, 'acabou de renascer: protegido');
     clock.advance(REALTIME.combat.arena.protectMs);
     ready(w, a.id);
     a.send({ type: 'attack', targetId: b.id });

@@ -125,7 +125,7 @@ describe('combate: habilidades', () => {
     a.send({ type: 'cast', skill: 'fire' });
     assert.deepEqual(b.conn.last('cast'), { type: 'cast', playerId: a.id, skill: 'fire', x: S.x, y: S.y, fx: 1, fy: 0 });
     const shot = b.conn.last('projectile');
-    assert.deepEqual({ ...shot, id: 0 }, { type: 'projectile', id: 0, playerId: a.id, skill: 'fire', x: S.x, y: S.y, fx: 1, fy: 0, speed: 12, range: 5 });
+    assert.deepEqual({ ...shot, id: 0 }, { type: 'projectile', id: 0, playerId: a.id, skill: 'fire', x: S.x, y: S.y, fx: 1, fy: 0, speed: 14, range: 9 });
     assert.equal(monsterHp(world, near.id), M.maxHp, 'ainda voando: nada de dano');
     assert.equal(a.conn.last('stats').chakra, 100 - SK.fire.cost);
     run(400);
@@ -145,9 +145,9 @@ describe('combate: habilidades', () => {
     const a = connect('kaito');
     a.send({ type: 'cast', skill: 'fire' });                    // olhando para baixo (0, 1)
     assert.deepEqual([a.conn.last('projectile').fx, a.conn.last('projectile').fy], [0, 1]);
-    run(600);
+    run(900);
     const boom = a.conn.last('impact');
-    assert.ok(boom.x === S.x && boom.y > S.y && boom.y <= S.y + 5.001, `${boom.x},${boom.y}`);
+    assert.ok(boom.x === S.x && boom.y > S.y && boom.y <= S.y + SK.fire.range! + 0.001, `${boom.x},${boom.y}`);
     assert.equal(a.conn.of('hit').length, 0);
   });
 
@@ -168,18 +168,21 @@ describe('combate: habilidades', () => {
     assert.equal(a.conn.last('cast').fx, 1);
   });
 
-  it('Taijutsu (5 chakra): golpe num círculo de 1 casa na frente, mirando o mais perto; quem está atrás não apanha; sem alvo não gasta chakra', () => {
-    const { world, connect } = setupWorld(config());
+  it('Taijutsu (5 chakra): golpe num círculo de 1 casa na frente, mirando o mais perto; quem está atrás não apanha; sem alvo avança e erra', () => {
+    const { world, connect, clock, pos } = setupWorld(config());
     const a = connect('kaito');
-    a.send({ type: 'cast', skill: 'taijutsu' });
-    assert.deepEqual(a.conn.last('cast_failed'), { type: 'cast_failed', skill: 'taijutsu', reason: 'NO_TARGET' });
-    assert.equal(a.conn.of('stats').length, 0, 'nada foi cobrado');
-    const m1 = world.spawnMonster({ x: S.x + 1, y: S.y });
-    const m2 = world.spawnMonster({ x: S.x - 1, y: S.y + 1 });   // 1,41: mais longe
+    a.send({ type: 'cast', skill: 'taijutsu' });                 // ninguém perto: avança para onde olha (baixo) e erra
+    assert.equal(a.conn.last('cast_failed'), undefined);
+    assert.equal(a.conn.last('cast').skill, 'taijutsu');
+    assert.equal(a.conn.last('stats').chakra, 95, 'errar também gasta');
+    assert.ok(pos(a.id).y > S.y + 1, `avançou: ${pos(a.id).y}`);
+    clock.advance(SK.taijutsu.cooldownMs);
+    const m1 = world.spawnMonster({ x: pos(a.id).x + 1, y: pos(a.id).y });
+    const m2 = world.spawnMonster({ x: pos(a.id).x - 1, y: pos(a.id).y + 1 });   // 1,41: mais longe
     a.send({ type: 'cast', skill: 'taijutsu' });
     assert.equal(monsterHp(world, m1.id), M.maxHp - SK.taijutsu.damage!);
     assert.equal(monsterHp(world, m2.id), M.maxHp);
-    assert.equal(a.conn.last('stats').chakra, 95);
+    assert.equal(a.conn.last('stats').chakra, 90);
   });
 
   it('Ilusão (30 chakra): atordoa por 3 s, o monstro não anda nem ataca; depois volta', () => {
@@ -412,21 +415,22 @@ describe('jutsus direcionados (targetId)', () => {
     assert.equal(cast.fy, 0);
   });
 
-  it('alcance continua valendo: alvo longe demais = OUT_OF_RANGE, sem gastar chakra nem recarga', () => {
-    const { world, connect } = setupWorld(config());
+  it('alvo focado longe demais: o jutsu sai NA DIREÇÃO dele e não chega (gasta); o Fogo vai bem mais longe (9 casas)', () => {
+    const { world, connect, run } = setupWorld(config());
     const a = connect('kaito');
-    const far = world.spawnMonster({ x: S.x + 6, y: S.y });  // Água 4, Sombra 4, Fogo 5 (a Ilusão não mira: é em volta)
-    for (const skill of ['water', 'shadow', 'fire']) {
-      a.send({ type: 'switch_kit', kit: skill === 'water' || skill === 'fire' ? 'A' : 'B' });
+    const far = world.spawnMonster({ x: S.x + 6, y: S.y });  // Água 4, Sombra 4: não chegam; Fogo 9: chega
+    for (const skill of ['water', 'shadow']) {
+      a.send({ type: 'switch_kit', kit: skill === 'water' ? 'A' : 'B' });
       a.send({ type: 'cast', skill, targetId: far.id });
-      assert.deepEqual(a.conn.last('cast_failed'), { type: 'cast_failed', skill, reason: 'OUT_OF_RANGE' });
+      assert.equal(a.conn.last('cast').skill, skill);
+      assert.equal(a.conn.last('cast').fx, 1, 'virou para o focado');
     }
-    assert.equal(a.conn.of('stats').length, 0, 'nada cobrado');
-    assert.equal(monsterHp(world, far.id), M.maxHp);
-    const near = world.spawnMonster({ x: S.x + 4, y: S.y });
+    assert.equal(monsterHp(world, far.id), M.maxHp, 'longe demais: errou');
+    assert.equal(a.conn.last('stats').chakra, 100 - SK.water.cost - SK.shadow.cost, 'errar também gasta');
     a.send({ type: 'switch_kit', kit: 'A' });
-    a.send({ type: 'cast', skill: 'water', targetId: near.id });   // exatamente 4: dentro
-    assert.equal(monsterHp(world, near.id), M.maxHp - SK.water.damage!);
+    a.send({ type: 'cast', skill: 'fire', targetId: far.id });
+    run(700);
+    assert.equal(monsterHp(world, far.id), M.maxHp - SK.fire.damage!, 'o Fogo chega a 6 casas');
   });
 
   it('Sombra com alvo: a linha vai até o FOCADO e prende o PRIMEIRO que ela encosta; sem alvo, o mais perto', () => {
@@ -452,12 +456,15 @@ describe('jutsus direcionados (targetId)', () => {
     assert.equal(a.conn.last('monster_status').id, close.id);
   });
 
-  it('Ilusão: atordoa TODOS num círculo de 3 casas em volta do jogador (o foco não importa); ninguém perto: NO_TARGET', () => {
-    const { world, connect } = setupWorld(config());
+  it('Ilusão: atordoa TODOS num círculo de 3 casas em volta do jogador (o foco não importa); ninguém perto: sai e erra', () => {
+    const { world, connect, clock } = setupWorld(config());
     const a = connect('kaito');
     a.send({ type: 'switch_kit', kit: 'B' });
     a.send({ type: 'cast', skill: 'illusion' });
-    assert.equal(a.conn.last('cast_failed').reason, 'NO_TARGET');
+    assert.equal(a.conn.last('cast_failed'), undefined);
+    assert.equal(a.conn.last('cast').skill, 'illusion');
+    assert.equal(a.conn.last('stats').chakra, 100 - SK.illusion.cost, 'errar também gasta');
+    clock.advance(SK.illusion.cooldownMs);
     const m1 = world.spawnMonster({ x: S.x + 1, y: S.y });
     const m2 = world.spawnMonster({ x: S.x - 3, y: S.y });          // na borda (3)
     const out = world.spawnMonster({ x: S.x, y: S.y + 4 });
@@ -479,11 +486,13 @@ describe('jutsus direcionados (targetId)', () => {
     assert.equal(monsterHp(world, side.id), M.maxHp, 'o perto do jogador, do outro lado, fica inteiro');
   });
 
-  it('alvo morto, inexistente ou com id inválido: NO_TARGET / INVALID_MESSAGE; Taijutsu ignora targetId', () => {
-    const { world, connect } = setupWorld(config());
+  it('alvo morto ou inexistente: o jutsu sai para a frente; id inválido: INVALID_MESSAGE; Taijutsu ignora targetId', () => {
+    const { world, connect, clock } = setupWorld(config());
     const a = connect('kaito');
     a.send({ type: 'cast', skill: 'water', targetId: 'm999' });
-    assert.equal(a.conn.last('cast_failed').reason, 'NO_TARGET');
+    assert.equal(a.conn.last('cast').skill, 'water');
+    assert.equal(a.conn.last('cast_failed'), undefined);
+    clock.advance(SK.water.cooldownMs);
     a.send({ type: 'cast', skill: 'water', targetId: '../../etc' });
     assert.equal(a.conn.last('error').code, 'INVALID_MESSAGE');
     const close = world.spawnMonster({ x: S.x + 1, y: S.y });
@@ -497,7 +506,7 @@ describe('jutsus direcionados (targetId)', () => {
     const { connect } = setupWorld(config());
     const a = connect('kaito');
     const skills = a.conn.of('welcome')[0].world.skills;
-    assert.deepEqual([skills.fire.range, skills.water.range, skills.illusion.range, skills.shadow.range, skills.taijutsu.range], [5, 4, 3, 4, 2.5]);
+    assert.deepEqual([skills.fire.range, skills.water.range, skills.illusion.range, skills.shadow.range, skills.taijutsu.range], [9, 4, 3, 4, 2.5]);
     assert.deepEqual([skills.fire.radius, skills.illusion.radius, skills.taijutsu.radius, skills.heal.radius], [2, 3, 1, 3]);
     assert.equal(skills.stone.range, undefined);
   });

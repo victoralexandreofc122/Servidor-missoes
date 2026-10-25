@@ -222,7 +222,7 @@ describe('v16: Zona de Conflito', () => {
     at(a, 'zona_conflito', 40, 30);
     at(ally, 'zona_conflito', 41, 30);
     a.send({ type: 'attack', targetId: ally.id });
-    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET');
+    assert.equal(sessionOf(world, ally.id).hp, sessionOf(world, ally.id).stats.maxHp, 'aliado: o golpe passa por ele');
     at(foe, 'zona_conflito', 41, 30.2);
     const s = sessionOf(world, a.id);
     Object.assign(s, { fx: 1, fy: 0, cooldowns: {} });
@@ -246,7 +246,7 @@ describe('v16: Zona de Conflito', () => {
     at(a, 'zona_conflito', 40, 30);
     at(b, 'zona_conflito', 41, 30);
     a.send({ type: 'attack', targetId: b.id });
-    assert.equal(a.conn.last('attack_failed').reason, 'NO_TARGET');
+    assert.equal(sessionOf(world, b.id).hp, sessionOf(world, b.id).stats.maxHp, 'ninguém apanha');
     const arena = REALTIME.maps.map_1.arenas![0]!;
     const c = join('ryu', 'vila_1');
     at(a, 'map_1', arena.x + 4, arena.y + 4);
@@ -426,8 +426,9 @@ describe('v16: Akatsuki', () => {
     await env.world.refreshPolitics();
     env.at(other, 'zona_conflito', 41, 30);
     Object.assign(env.s, { cooldowns: {} });
+    const hp = (env.world as any).sessions.get(other.id).hp;
     env.p.send({ type: 'attack', targetId: other.id });
-    assert.equal(env.p.conn.last('attack_failed').reason, 'NO_TARGET');
+    assert.equal((env.world as any).sessions.get(other.id).hp, hp, 'Akatsuki não bate em Akatsuki');
   });
 
   it('convite: o líder convida, o alvo online recebe, aceitar o transforma (o banco decide)', async () => {

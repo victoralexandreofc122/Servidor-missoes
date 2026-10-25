@@ -120,6 +120,7 @@ import type { PowerKind } from './akatsuki.js';
  *   teleport          { playerId, fromX, fromY, x, y, a }  Teleporte Curto (a = ack, para o dono reconciliar)
  *   substitution      { playerId, logX, logY, x, y, a }    Substituição: tronco no lugar, ninja atrás do atacante
  *   player_gear       { playerId, gear }                   arma na mão / nas costas e pergaminho nas costas (todos veem)
+ *   pushed            { playerId, fromX, fromY, x, y, a }  a Água empurrou o ninja (o dono dele refaz a predição dali)
  *   mission_board     { npcId, offers, mission }           Sala de Missões: cartões do Mestre e a missão atual
  *   chat_history      { messages }                         histórico do chat (só para quem pediu)
  *   chat / error                                           como antes
@@ -478,6 +479,7 @@ export type ServerMessage =
   | { type: 'chat'; playerId: string; username: string; message: string; channel?: ChatChannel; to?: string }
   | { type: 'chat_history'; messages: ChatEntry[] }
   | { type: 'player_gear'; playerId: string; gear: Gear }
+  | { type: 'pushed'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }
   | { type: 'mission_board'; npcId: string; offers: MissionOffer[]; mission: MissionView | null }
   | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean; speed: number; running: boolean }
   | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }

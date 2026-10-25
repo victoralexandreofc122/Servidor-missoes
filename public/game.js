@@ -9,7 +9,7 @@
 // servidor. O cliente prevê o próprio movimento para a resposta ser imediata e corrige
 // com a posição oficial que chega a cada tick.
 
-import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
+import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextFocus, smoothing } from './targeting.js';
 import { arenaAt, arenaFoes, groundAt, inSafeZone, mapName, placements, themeAt, visibleDeco, visibleWalls } from './world.js';
 import {
   ART, PROP_KINDS, buildingLights, drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawOakCanopy, drawProp, drawSealGlow, drawTrails,
@@ -597,6 +597,14 @@ function handleMessage(msg) {
       jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
       break;
     }
+    case 'pushed': {
+      // A Água empurrou o ninja: respingo onde ele estava e o boneco escorrega até o lugar novo (o servidor decidiu).
+      vfx.play('dust', msg.fromX, msg.fromY, { start: now, feet: true, layer: 'ground' });
+      const p = state.players.get(msg.playerId);
+      jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
+      if (p) p.knock = { dx: msg.fromX - msg.x, dy: msg.fromY - msg.y, start: now };
+      break;
+    }
     case 'dash': {
       // Avanço do Taijutsu: o servidor moveu o jogador até o alvo. Poeira onde ele saiu.
       vfx.play('dust', msg.fromX, msg.fromY, { start: now, feet: true, layer: 'ground' });
@@ -1055,6 +1063,7 @@ function updateTargetWindow(f) {
   ui.targetWindow.hidden = false;
   if (targetView.id !== f.id) {
     targetView.id = f.id;
+    ui.targetWindow.classList.toggle('friend', !f.type && isAlly(f));   // aliado focado: barra verde
     targetView.text = '';
     ui.targetName.textContent = f.type ? (MONSTER_NAMES[f.type] || f.type) : f.username;
     const c = ui.targetPortrait, g = c.getContext('2d');
@@ -1613,22 +1622,34 @@ function updateAccess() {
 /** O efeito na tela de cada poder da Akatsuki (os mesmos desenhos dos jutsus). Argila e Papel: o projétil já é o efeito. */
 const POWER_FX = { pull: 'illusion', crows: 'illusion', strings: 'shadow', hearts: 'stone', mask: 'substitution', roots: 'teleport', drain: 'heal', lifesteal: 'heal' };
 
-/** O alvo focado: um monstro ou, na arena, outro ninja. */
+/** Aliado que dá para focar (para a Cura e os jutsus de apoio): outro ninja do mapa, vivo, que não é inimigo. */
+function isAlly(p) {
+  return !!p && p.id !== state.meId && p.map === state.mapId && !p.dead && !isFoe(p);
+}
+
+/** O alvo focado: um monstro, um ninja inimigo (arena, Zona de Conflito) ou um aliado. */
 function focusEntity() {
   if (!state.focusId) return null;
   const m = state.monsters.get(state.focusId);
   if (m) return m;
   const p = state.players.get(state.focusId);
-  return isFoe(p) ? p : null;
+  return isFoe(p) || isAlly(p) ? p : null;
 }
 
-/** Botão 🎯: foca o mais perto; com foco, passa para o próximo mais perto (ciclo). Na arena, os ninjas da vila também. */
+/**
+ * Botão 🎯: foca o mais perto; com foco, passa para o próximo (ciclo). Primeiro os inimigos (monstros e, na arena e na
+ * Zona de Conflito, os ninjas inimigos), do mais perto para o mais longe; depois os aliados (para a Cura).
+ */
 function cycleFocus() {
   const me = state.players.get(state.meId);
   if (!me || state.me.dead) return;
-  const here = [...state.monsters.values()].filter((m) => m.map === state.mapId);
-  if (state.inArena || inConflict()) for (const p of state.players.values()) if (isFoe(p)) here.push(p);
-  const id = nextTarget(me, here, state.focusId, FOCUS_RANGE);
+  const foes = [...state.monsters.values()].filter((m) => m.map === state.mapId);
+  const allies = [];
+  for (const p of state.players.values()) {
+    if (isFoe(p)) foes.push(p);
+    else if (isAlly(p)) allies.push(p);
+  }
+  const id = nextFocus(me, foes, allies, state.focusId, FOCUS_RANGE);
   if (!id) {
     setFocus(null);
     addFloater(me.x, me.y - 1.1, 'Nenhum alvo perto', '#d8cdb8', 0.8);
@@ -2636,7 +2657,8 @@ function castSkill(skill) {
   }
   // Jutsu direcionado: com alvo focado, vai o targetId (o servidor mira e confere o alcance).
   // Substituição Nível 4: aparece atrás do alvo focado (o servidor confere o nível).
-  const targetId = (DIRECTED.has(mech) || mech === 'substitution') && state.focusId ? state.focusId : undefined;
+  // Cura: com um aliado focado, vai nele (o servidor confere se está perto).
+  const targetId = (DIRECTED.has(mech) || mech === 'substitution' || mech === 'heal') && state.focusId ? state.focusId : undefined;
   send(targetId ? { type: 'cast', skill, targetId } : { type: 'cast', skill });
 }
 /** Direção do boneco (0 baixo, 1 esquerda, 2 direita, 3 cima) -> vetor. */
@@ -2649,7 +2671,7 @@ function jutsuLevelOf(uses) {
   return level;
 }
 
-/** Ataque Básico: sem chakra; vai no focado (se estiver perto) ou no mais perto. */
+/** Ataque Básico: sem chakra; vai no focado (se estiver perto) ou no mais perto. Ninguém perto: sai e erra. */
 function basicAttack() {
   if (!state.connected || state.me.dead || !tapGuard('attack')) return;
   send(state.focusId ? { type: 'attack', targetId: state.focusId } : { type: 'attack' });
@@ -4328,7 +4350,7 @@ function draw(now) {
     if (e.prop) drawPropOnScreen(e, toScreenX, toScreenY, T, me);
     else if (e.npc) drawNpc(e, toScreenX(e.x), toScreenY(e.y), T, now, me);
     else if (e.type) drawMonster(e, toScreenX(e.x), toScreenY(e.y), T, now);
-    else drawPlayer(e, toScreenX(e.x), toScreenY(e.y), T, e.id === state.meId, now);
+    else drawPlayer(e, toScreenX(e.x) + knockOffset(e, now, 'dx') * T, toScreenY(e.y) + knockOffset(e, now, 'dy') * T, T, e.id === state.meId, now);
   }
 
   for (const fx of state.effects) if (!GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
@@ -5371,10 +5393,11 @@ function drawMonster(m, sx, sy, T, now) {
  * Indicador do alvo focado: anel tracejado girando no chão + seta pulando em cima. `part`: só o anel (desenhado antes
  * do corpo, para ficar no chão) ou só a seta; sem `part`, os dois.
  */
-function drawFocusMarker(sx, sy, r, T, now, part) {
+function drawFocusMarker(sx, sy, r, T, now, part, ally = false) {
+  const color = ally ? '#7fe0a0' : '#ffb347';           // aliado: verde (Cura, apoio)
   ctx.save();
   if (part !== 'arrow') {
-    ctx.strokeStyle = '#ffb347';
+    ctx.strokeStyle = color;
     ctx.lineWidth = Math.max(2, T * 0.07);
     ctx.setLineDash([T * 0.22, T * 0.12]);
     ctx.lineDashOffset = -now / 30;
@@ -5385,7 +5408,7 @@ function drawFocusMarker(sx, sy, r, T, now, part) {
   const bob = Math.sin(now / 160) * T * 0.08;
   const ay = sy - r - T * 0.55 + bob;
   const s = Math.max(6, T * 0.2);
-  ctx.fillStyle = '#ffb347';
+  ctx.fillStyle = color;
   ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(sx - s, ay - s); ctx.lineTo(sx + s, ay - s); ctx.lineTo(sx, ay); ctx.closePath();
@@ -5760,6 +5783,15 @@ function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
   return minY == null ? null : top + minY * s;
 }
 
+/** Empurrão da Água: o boneco escorrega do lugar antigo até o novo em 180 ms (só o desenho; a posição já é a nova). */
+function knockOffset(p, now, axis) {
+  const k = p.knock;
+  if (!k) return 0;
+  const t = (now - k.start) / 180;
+  if (t >= 1) { p.knock = null; return 0; }
+  return k[axis] * (1 - t) * (1 - t);
+}
+
 function drawPlayer(p, sx, sy, T, isMe, now) {
   if (p.dead) ctx.globalAlpha = 0.45;
   const r = T * 0.38;
@@ -5841,7 +5873,7 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
   // vida dos outros jogadores (a nossa fica nas barras de baixo)
   if (!isMe && !p.dead) drawHpBar(sx, headTop - 8, tw + 4, p.hp / p.maxHp, foe ? '#ff6f61' : '#8fe0a0');
   ctx.globalAlpha = 1;
-  if (!isMe && p.id === state.focusId && foe) drawFocusMarker(sx, sy, r, T, now);
+  if (!isMe && p.id === state.focusId) drawFocusMarker(sx, sy, r, T, now, undefined, !foe);
 
   // balão de chat
   if (p.bubble && now < p.bubble.until) {

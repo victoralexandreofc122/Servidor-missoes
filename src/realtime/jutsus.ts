@@ -104,10 +104,11 @@ export const jutsuPower = (level: number) => 1 + 0.1 * (Math.max(1, Math.min(4, 
 
 /** Tier 1 de cada mecânica (os 7 antigos com os MESMOS números de antes). */
 export const BASE_SKILLS: Readonly<Record<Mechanic, SkillConfig>> = {
-  // Fogo: projétil em linha reta (5 casas) que explode no primeiro alvo (ou na parede/no fim): círculo de 2.
-  fire: { cost: 20, cooldownMs: 1500, damage: 25, range: 5, radius: 2, speed: 12 },
-  // Água: cone de 90° e 4 casas na direção em que o jogador olha (ou no alvo focado).
-  water: { cost: 15, cooldownMs: 1000, damage: 20, range: 4, coneDeg: 90 },
+  // Fogo: projétil em linha reta (9 casas) na direção do inimigo, que explode no primeiro alvo (ou na parede/no fim):
+  // círculo de 2.
+  fire: { cost: 20, cooldownMs: 1500, damage: 25, range: 9, radius: 2, speed: 14 },
+  // Água: cone de 90° e 4 casas na direção em que o jogador olha (ou no alvo focado); empurra quem acerta 1,5 casa.
+  water: { cost: 15, cooldownMs: 1000, damage: 20, range: 4, coneDeg: 90, push: 1.5 },
   // Taijutsu: avança até o mais perto (alcance 2,5) e acerta um círculo de 1 casa na frente.
   taijutsu: { cost: 5, cooldownMs: 500, damage: 35, range: 2.5, radius: 1, scaling: 'taijutsu' },
   // Ilusão: atordoa todos num círculo de 3 casas em volta do jogador.
@@ -152,6 +153,7 @@ export function skillConfig(j: JutsuDef): SkillConfig & { mechanic: Mechanic } {
   if (base.heal !== undefined) out.heal = r(base.heal, TIER.power[t]!)!;
   if (base.radius !== undefined) out.radius = base.radius + TIER.reach[t]!;
   if (base.range !== undefined) out.range = base.range + TIER.reach[t]!;
+  if (base.push !== undefined) out.push = base.push + TIER.reach[t]!;
   if (base.stunMs !== undefined) out.stunMs = r(base.stunMs, TIER.control[t]!)!;
   if (base.rootMs !== undefined) out.rootMs = r(base.rootMs, TIER.control[t]!)!;
   if (base.reduction !== undefined) out.reduction = TIER.shield[t]!;
