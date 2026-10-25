@@ -12,8 +12,8 @@
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
 import { arenaAt, arenaFoes, groundAt, inSafeZone, mapName, placements, themeAt, visibleDeco, visibleWalls } from './world.js';
 import {
-  ART, PROP_KINDS, drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawOakCanopy, drawProp, drawSealGlow, drawTrails, drawWall, fenceLanterns,
-  propExtent,
+  ART, PROP_KINDS, buildingLights, drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawOakCanopy, drawProp, drawSealGlow, drawTrails,
+  drawWall, fenceLanterns, propExtent,
 } from './mapArt.js';
 import { dirFrom, drawBackItem, drawCharacter, drawHandItem } from './character.js';
 import {
@@ -1322,6 +1322,8 @@ function enterMap(id, announce) {
   state.lights = state.walls.filter((w) => w.k === 'fence').flatMap((w) => fenceLanterns(w).map((l) => ({
     x: l.x, y: w.w >= w.h ? w.y + w.h : l.y + 0.25,
   })));
+  // Janelas e lanternas das casas: acendem de noite.
+  state.windows = state.walls.filter((w) => w.k === 'house').flatMap(buildingLights);
   // Arenas à vista (as do mapa atual): os holofotes.
   state.arenaBoxes = state.places.flatMap((pl) => (pl.map.arenas || []).map((a) => ({ x: a.x + pl.ox, y: a.y + pl.oy, w: a.w, h: a.h })));
   state.props = makeProps(state.walls);
@@ -4510,7 +4512,8 @@ function drawFringe(g, x, y, ux, uy) {
  */
 function drawPatches(g, cx, cy) {
   const kind = state.maps[state.mapId]?.kind;
-  if (kind !== 'forest' && kind !== 'wild' && kind !== 'cave') return;
+  if (kind !== 'forest' && kind !== 'wild' && kind !== 'cave' && kind !== 'village') return;
+  const soft = kind === 'village' ? 0.55 : 1;           // na vila, mais leve (calçamento claro)
   const x0 = cx * CHUNK, y0 = cy * CHUNK, STEP = 4;
   for (let gy = Math.floor((y0 - 6) / STEP); gy <= Math.floor((y0 + CHUNK + 6) / STEP); gy++) {
     for (let gx = Math.floor((x0 - 6) / STEP); gx <= Math.floor((x0 + CHUNK + 6) / STEP); gx++) {
@@ -4518,7 +4521,7 @@ function drawPatches(g, cx, cy) {
       const r = rng(h);
       const px = (gx + r()) * STEP, py = (gy + r()) * STEP, rad = 2 + r() * 3;
       const light = r() < 0.45;
-      const a = 0.06 + r() * 0.08;
+      const a = (0.06 + r() * 0.08) * soft;
       const sx = (px - x0) * U, sy = (py - y0) * U, sr = rad * U;
       const grad = g.createRadialGradient(sx, sy, 0, sx, sy, sr);
       grad.addColorStop(0, light ? `rgba(255, 240, 170, ${a})` : `rgba(0, 20, 10, ${a * 1.4})`);
@@ -4659,6 +4662,17 @@ function drawScatter(g, x, y, ux, uy) {
       fine(g, '#6b4423', -2.5, -PX, 5, PX);
       fine(g, '#4a2e17', 0.5, -1.2, PX * 2, 1.1);
       g.restore();
+    }
+  } else if (ground === 'stone' && roll < 90) {         // calçamento da vila: musgo nas juntas, rachaduras e folhas
+    if (roll < 30) {
+      for (let i = 0; i < 4; i++) fine(g, i % 2 ? '#5c7a3a' : '#7a9a4a', px + (r() - 0.5) * 5, py + (r() - 0.5) * 2, 1 + r(), PX * 2);
+    } else if (roll < 55) {
+      let qx = px, qy = py;
+      for (let k = 0; k < 4; k++) { fine(g, 'rgba(70, 66, 60, 0.5)', qx, qy, PX * 2, PX * 3); qx += (r() - 0.5) * 2; qy += 0.9; }
+    } else {
+      const leaf = r() < 0.5 ? '#f6b4c8' : r() < 0.5 ? '#c98a3a' : '#7a9a4a';
+      g.fillStyle = leaf;
+      g.beginPath(); g.ellipse(px, py, 1.2, 0.6, r() * 3, 0, Math.PI * 2); g.fill();
     }
   } else if (ground === 'path' && roll < 70) {
     for (let i = 0; i < 3; i++) {
@@ -4938,17 +4952,27 @@ function drawSky(toScreenX, toScreenY, T, now, me) {
     for (const p of state.players.values()) if (p.id !== state.meId) hole(p.x, p.y - 0.3, 1.8, 0.6);
     for (const l of state.lights || []) hole(l.x, l.y - 0.6, 3, 0.9);
     for (const d of state.deco) {
-      if (d.k === 'lamp') hole(d.x + d.w / 2, d.y + d.h / 2, 3.2, 0.9);
+      if (d.k === 'lamp' || d.k === 'toro') hole(d.x + d.w / 2, d.y + d.h / 2, 3.2, 0.9);
       else if (d.k === 'embers' || d.k === 'fire') hole(d.x + d.w / 2, d.y + d.h / 2, 2.4, 0.7);
     }
     for (const s of state.glows || []) hole(s.x + s.w / 2, s.y + s.h / 2, 2.6, 0.8);
+    for (const l of state.windows || []) hole(l.x, l.y + (l.kind === 'window' ? 0.6 : 0), l.kind === 'window' ? 1.5 : 2.4, l.kind === 'window' ? 0.55 : 0.85);
     ctx.globalCompositeOperation = 'multiply';
     ctx.drawImage(nightLayer, 0, 0, viewW, viewH);
     ctx.globalCompositeOperation = 'source-over';
-    // o brilho quente dos postes da vila (de dia não aparece)
+    // o brilho quente dos postes, das janelas de papel e das lanternas das lojas (de dia não aparece)
     ctx.globalCompositeOperation = 'lighter';
+    for (const l of state.windows || []) {
+      const sx = toScreenX(l.x), sy = toScreenY(l.y), r = T * (l.kind === 'window' ? 0.55 : 0.9);
+      if (sx + r < 0 || sx - r > viewW || sy + r < 0 || sy - r > viewH) continue;
+      const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+      gr.addColorStop(0, `rgba(255, ${l.kind === 'window' ? 196 : 120}, ${l.kind === 'window' ? 110 : 70}, ${(0.5 * dark).toFixed(3)})`);
+      gr.addColorStop(1, 'rgba(255, 150, 60, 0)');
+      ctx.fillStyle = gr;
+      ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
+    }
     for (const d of state.deco) {
-      if (d.k !== 'lamp') continue;
+      if (d.k !== 'lamp' && d.k !== 'toro') continue;
       const sx = toScreenX(d.x + d.w / 2), sy = toScreenY(d.y + d.h * 0.35), r = T * 1.6;
       if (sx + r < 0 || sx - r > viewW || sy + r < 0 || sy - r > viewH) continue;
       const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);

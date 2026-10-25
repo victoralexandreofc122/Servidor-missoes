@@ -158,52 +158,175 @@ function drawSign(g, cx, y, style) {
 }
 
 /**
- * Prédio em 3/4: telhado (vermelho-escuro; a sede em vermelho vivo e com 2 andares) em cima e
- * a fachada (bege, ou madeira nas cabanas) embaixo, com porta, janelas, vigas e placa.
+ * Onde ficam a porta, as janelas e a lanterna da fachada de um prédio (unidades, a partir do canto da caixa). O
+ * desenho e as luzes da noite usam a mesma conta.
+ */
+function facadeLayout(w, h, style) {
+  const rh = Math.round(h * 0.58), fh = h - rh;
+  const door = Math.min(16, Math.max(9, Math.round(w * 0.12)));
+  const dx = w / 2 - door / 2;
+  const posts = [];
+  const span = 22;
+  const n = Math.max(2, Math.round((w - 8) / span));
+  for (let i = 0; i <= n; i++) posts.push(4 + ((w - 10) * i) / n);
+  const windows = [];
+  const ww = style === 'hut' ? 9 : 12, wh = Math.min(10, Math.max(6, Math.round(fh * 0.34)));
+  for (let i = 0; i < posts.length - 1; i++) {
+    const cx = (posts[i] + posts[i + 1]) / 2 + 1;
+    if (Math.abs(cx - w / 2) < door / 2 + ww / 2 + 2) continue;
+    windows.push({ x: cx - ww / 2, y: rh + 4, w: ww, h: wh });
+  }
+  const shop = style !== 'hut' && style !== 'home';
+  return { rh, fh, door, dx, posts, windows, lantern: shop ? { x: dx - 6, y: rh + 3 } : null };
+}
+
+/**
+ * Luzes da noite de um prédio (em casas): as janelas de papel e a lanterna da porta. O cliente acende de noite.
+ */
+export function buildingLights(wall) {
+  const U = 16, f = facadeLayout(wall.w * U, wall.h * U, wall.s || 'home');
+  const out = f.windows.map((wd) => ({ x: wall.x + (wd.x + wd.w / 2) / U, y: wall.y + (wd.y + wd.h / 2) / U, kind: 'window' }));
+  if (f.lantern) out.push({ x: wall.x + (f.lantern.x + 2) / U, y: wall.y + (f.lantern.y + 4) / U, kind: 'lantern' });
+  return out;
+}
+
+/** Cor mais clara/escura (para tirar mais tons da paleta do telhado da vila). */
+function mix(hex, to, k) {
+  const a = parseInt(hex.slice(1), 16), b = parseInt(to.slice(1), 16);
+  const c = (sh) => Math.round(((a >> sh) & 255) * (1 - k) + ((b >> sh) & 255) * k);
+  return `#${((1 << 24) | (c(16) << 16) | (c(8) << 8) | c(0)).toString(16).slice(1)}`;
+}
+
+/**
+ * Telhado japonês visto de cima em 3/4: a água de trás (estreita, mais escura), a da frente (grande) com as fileiras
+ * de telha e as pontinhas redondas, a cumeeira com as pontas curvadas para cima e o beiral passando da parede, com
+ * sombra embaixo e os cantos levantados.
+ */
+function drawRoof(g, x, y, w, rh, pal, over = 3) {
+  const [shade, roof, light] = pal;
+  const ridgeY = y + Math.round(rh * 0.3), hip = Math.min(w * 0.18, 26);
+  const ex = x - over, ew = w + over * 2, ey = y + rh;
+  // contorno e a água de trás
+  g.fillStyle = mix(shade, '#000000', 0.35);
+  roundedPath(g, ex - 0.6, y - 0.6, ew + 1.2, rh + 1.2, 5, 5, 2, 2); g.fill();
+  g.fillStyle = mix(roof, '#000000', 0.25);
+  roundedPath(g, x + 1, y, w - 2, ridgeY - y + 2, 5, 5, 0, 0); g.fill();
+  for (let ty = y + 3; ty < ridgeY; ty += 3.5) fr(g, mix(roof, '#000000', 0.38), x + 3, ty, w - 6, FINE * 2);
+  // a água da frente: trapézio do pé da cumeeira até o beiral, clareando para cima
+  const grad = g.createLinearGradient(0, ridgeY, 0, ey);
+  grad.addColorStop(0, light);
+  grad.addColorStop(0.45, roof);
+  grad.addColorStop(1, mix(roof, shade, 0.6));
+  g.fillStyle = grad;
+  g.beginPath();
+  g.moveTo(x + hip, ridgeY); g.lineTo(x + w - hip, ridgeY); g.lineTo(ex + ew, ey - 2); g.lineTo(ex, ey - 2); g.closePath(); g.fill();
+  // as águas dos lados (quadris), um pouco mais escuras
+  g.fillStyle = mix(roof, '#000000', 0.18);
+  g.beginPath(); g.moveTo(x + 1, y + 3); g.lineTo(x + hip, ridgeY); g.lineTo(ex, ey - 2); g.lineTo(ex, y + 6); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(x + w - 1, y + 3); g.lineTo(x + w - hip, ridgeY); g.lineTo(ex + ew, ey - 2); g.lineTo(ex + ew, y + 6); g.closePath(); g.fill();
+  // fileiras de telha (na frente): linha escura e as pontinhas redondas de cada telha
+  for (let ty = ridgeY + 4; ty < ey - 4; ty += 4.5) {
+    const k = (ty - ridgeY) / (ey - ridgeY), lx = x + hip + (ex - x - hip) * k, rx = x + w - hip + (ex + ew - (x + w - hip)) * k;
+    fr(g, mix(roof, '#000000', 0.42), lx, ty, rx - lx, FINE * 2);
+    g.fillStyle = mix(roof, '#000000', 0.3);
+    for (let tx = lx + 1.5 + (Math.round(ty) % 2) * 1.5; tx < rx - 1; tx += 3.2) { g.beginPath(); g.arc(tx, ty + 0.6, 0.9, 0, Math.PI); g.fill(); }
+    fr(g, mix(light, '#ffffff', 0.15), lx, ty - FINE * 2, rx - lx, FINE);
+  }
+  // as linhas dos quadris
+  g.strokeStyle = mix(light, '#ffffff', 0.25); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(x + hip, ridgeY); g.lineTo(ex + 1, ey - 3); g.moveTo(x + w - hip, ridgeY); g.lineTo(ex + ew - 1, ey - 3); g.stroke();
+  // a cumeeira, com as pontas curvadas
+  fr(g, mix(shade, '#000000', 0.3), x + hip - 3, ridgeY - 3, w - hip * 2 + 6, 4.5);
+  fr(g, mix(light, '#ffffff', 0.2), x + hip - 3, ridgeY - 3, w - hip * 2 + 6, FINE * 2);
+  for (const sx of [x + hip - 3, x + w - hip + 3]) {
+    g.fillStyle = mix(shade, '#000000', 0.3);
+    g.beginPath(); g.arc(sx, ridgeY - 2.5, 2.8, 0, Math.PI * 2); g.fill();
+    g.fillStyle = mix(light, '#ffffff', 0.3);
+    g.beginPath(); g.arc(sx - 0.6, ridgeY - 3.2, 1, 0, Math.PI * 2); g.fill();
+  }
+  // o beiral: a faixa da borda e os cantos levantados
+  fr(g, mix(shade, '#000000', 0.2), ex, ey - 3.5, ew, 3.5);
+  fr(g, mix(light, '#ffffff', 0.1), ex, ey - 3.5, ew, FINE * 2);
+  g.fillStyle = mix(shade, '#000000', 0.2);
+  for (const [cx, dir] of [[ex, -1], [ex + ew, 1]]) {
+    g.beginPath(); g.moveTo(cx - dir * 3, ey - 3.5); g.lineTo(cx + dir * 2.5, ey - 7); g.lineTo(cx + dir * 1, ey - 1); g.closePath(); g.fill();
+  }
+}
+
+/**
+ * Prédio em 3/4: o telhado japonês (cores da vila; a sede em dois andares) em cima e a fachada embaixo: base de
+ * pedra, reboco (ou tábuas, nas casas) com vigas de madeira, janelas de papel com treliça, porta (cortina noren nas
+ * lojas, porta de correr nas casas), a lanterna vermelha das lojas e a placa.
  */
 function drawBuilding(g, x, y, w, h, style, seed, theme) {
   const r = rng(seed);
-  const [shade, roof, light] = (THEME_ROOF[theme] || ROOF)[style === 'leader' ? 'leader' : 'default'];
-  const [beam, wallc] = style === 'hut' || style === 'home' ? WALLS.wood : WALLS.beige;
-  const rh = Math.round(h * 0.6), fh = h - rh;
-  rect(g, 'rgba(0,0,0,0.25)', x + 4, y + 6, w, h);                                    // sombra
+  const pal = (THEME_ROOF[theme] || ROOF)[style === 'leader' ? 'leader' : 'default'];
+  const wood = style === 'hut' || style === 'home';
+  const f = facadeLayout(w, h, style);
+  const fy = y + f.rh, fh = f.fh;
+  const beam = wood ? '#3e2614' : '#4a2e17', wallc = wood ? '#9b6a3c' : '#e6d8b8';
+  g.fillStyle = 'rgba(10, 12, 8, 0.28)';                                            // sombra
+  roundedPath(g, x + 5, y + 8, w, h - 2, 6); g.fill();
   // fachada
-  rect(g, beam, x + 2, y + rh - 2, w - 4, fh + 2);
-  rect(g, wallc, x + 4, y + rh, w - 8, fh - 3);
-  for (let bx = x + 4; bx < x + w - 6; bx += 24) rect(g, beam, bx, y + rh, 2, fh - 3);   // vigas
-  rect(g, beam, x + 4, y + h - 5, w - 8, 2);                                           // rodapé
-  const door = Math.min(14, Math.max(8, Math.round(w * 0.12)));
-  rect(g, '#2b1a0e', x + w / 2 - door / 2, y + h - fh + 4, door, fh - 7);               // porta
-  rect(g, '#4a2e17', x + w / 2 - door / 2, y + h - fh + 4, door, 2);
-  for (let wx = x + 12; wx < x + w - 18; wx += 26) {                                    // janelas
-    if (Math.abs(wx + 4 - (x + w / 2)) < door) continue;
-    rect(g, '#3b2a1a', wx, y + rh + 4, 9, 7);
-    rect(g, style === 'hut' ? '#c9a96e' : '#6f8fa3', wx + 1, y + rh + 5, 7, 5);
-    rect(g, '#3b2a1a', wx + 4, y + rh + 5, 1, 5);
+  fr(g, beam, x + 1, fy - 3, w - 2, fh + 1);
+  fr(g, wallc, x + 3, fy, w - 6, fh - 6);
+  if (wood) for (let px = x + 5; px < x + w - 4; px += 3.5) fr(g, mix(wallc, '#000000', 0.22), px, fy, FINE * 2, fh - 6);   // tábuas
+  else for (let i = 0; i < w * fh / 60; i++) fr(g, r() < 0.5 ? '#d9caa8' : '#efe4c8', x + 4 + r() * (w - 8), fy + 1 + r() * (fh - 9), 1 + r() * 2, FINE * 2);   // reboco
+  for (const px of f.posts) fr(g, beam, x + px, fy, 2.5, fh - 6);                    // pilares
+  fr(g, beam, x + 3, fy + Math.round((fh - 6) * 0.62), w - 6, 1.6);                  // viga do meio
+  fr(g, '#6d6a64', x + 1, y + h - 6, w - 2, 6);                                     // base de pedra
+  for (let px = x + 2; px < x + w - 3; px += 5 + r() * 3) fr(g, r() < 0.5 ? '#8d8a84' : '#7d7a73', px, y + h - 5.5, 3.5 + r() * 2, 2.5);
+  fr(g, '#4e4b46', x + 1, y + h - 1.5, w - 2, 1.5);
+  for (const wd of f.windows) {                                                     // janelas de papel (shoji)
+    const wx = x + wd.x, wy = y + wd.y;
+    fr(g, beam, wx - 1, wy - 1, wd.w + 2, wd.h + 2);
+    fr(g, style === 'hut' ? '#d9b97a' : '#f4ecd8', wx, wy, wd.w, wd.h);
+    fr(g, 'rgba(255, 220, 150, 0.35)', wx, wy + wd.h * 0.5, wd.w, wd.h * 0.5);
+    for (let k = 1; k < 3; k++) fr(g, '#8a6a44', wx + (wd.w * k) / 3, wy, FINE * 2, wd.h);
+    fr(g, '#8a6a44', wx, wy + wd.h / 2, wd.w, FINE * 2);
+    fr(g, mix(beam, '#000000', 0.2), wx - 1.5, wy + wd.h + 0.5, wd.w + 3, 1.5);     // peitoril
   }
-  // telhado
-  rect(g, shade, x, y, w, rh);
-  rect(g, roof, x + 2, y + 2, w - 4, rh - 6);
-  g.fillStyle = shade;
-  for (let tx = x + 5; tx < x + w - 4; tx += 5) g.fillRect(tx, y + 3, 1, rh - 8);      // telhas
-  rect(g, light, x + 2, y + Math.floor(rh * 0.42), w - 4, 2);                          // cumeeira
-  rect(g, shade, x - 2, y + rh - 5, w + 4, 4);                                         // beiral
+  const dx = x + f.dx, dy = fy + 2, dh = fh - 8;                                   // a porta
+  fr(g, '#1a1008', dx - 1, dy - 1, f.door + 2, dh + 1);
+  if (wood) {
+    fr(g, '#6e4a2a', dx, dy, f.door, dh);
+    for (let k = 1; k < 3; k++) fr(g, '#3e2614', dx + (f.door * k) / 3, dy, FINE * 2, dh);
+    fr(g, '#d9b97a', dx + 1, dy + 1.5, f.door - 2, dh * 0.4);
+  } else {
+    fr(g, '#2b1a0e', dx, dy, f.door, dh);
+    const cloth = mix(pal[1], '#000000', 0.15);                                     // a cortina noren (3 tiras)
+    for (let k = 0; k < 3; k++) fr(g, cloth, dx + 0.5 + k * (f.door / 3), dy, f.door / 3 - 1, dh * 0.55);
+    fr(g, mix(pal[2], '#ffffff', 0.5), dx + f.door / 2 - 1.2, dy + dh * 0.18, 2.4, 2.4);
+  }
+  if (f.lantern) {                                                                  // a lanterna vermelha das lojas
+    const lx = x + f.lantern.x, ly = y + f.lantern.y;
+    fr(g, '#1a1008', lx + 1.5, ly - 2, FINE * 2, 2);
+    g.fillStyle = '#1a1008';
+    g.beginPath(); g.ellipse(lx + 2, ly + 4, 3, 4.2, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#d23a2a';
+    g.beginPath(); g.ellipse(lx + 2, ly + 4, 2.4, 3.6, 0, 0, Math.PI * 2); g.fill();
+    fr(g, '#ff8a6a', lx + 0.6, ly + 2.2, 1, 3);
+    fr(g, '#1a1008', lx + 0.4, ly + 0.4, 3.2, 0.8);
+    fr(g, '#1a1008', lx + 0.4, ly + 7.2, 3.2, 0.8);
+  }
+  // telhado (a sede: o segundo andar menor por cima, pilares vermelhos e o emblema)
+  drawRoof(g, x, y, w, f.rh, pal);
   if (style === 'leader') {
-    // segundo andar: telhado menor em cima, pilares vermelhos na entrada e um emblema redondo
-    const uw = Math.round(w * 0.56), ux = x + Math.round((w - uw) / 2), uh = Math.round(rh * 0.5);
-    rect(g, 'rgba(0,0,0,0.25)', ux + 3, y + 4 + uh, uw, 4);
-    rect(g, shade, ux, y + 3, uw, uh);
-    rect(g, roof, ux + 2, y + 5, uw - 4, uh - 5);
-    rect(g, light, ux + 2, y + 3 + Math.floor(uh * 0.4), uw - 4, 2);
-    rect(g, shade, ux - 2, y + uh, uw + 4, 3);
+    const uw = Math.round(w * 0.56), ux = x + Math.round((w - uw) / 2), uh = Math.round(f.rh * 0.55);
+    g.fillStyle = 'rgba(10, 12, 8, 0.3)';
+    g.fillRect(ux + 3, y + uh - 1, uw, 5);
+    drawRoof(g, ux, y - 4, uw, uh, pal, 4);
+    g.fillStyle = '#1a1008';
+    g.beginPath(); g.arc(x + w / 2, y + uh + 12, 8, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#e9dcbc';
-    g.beginPath(); g.arc(x + w / 2, y + uh + 12, 6, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#c99a2e';
-    g.beginPath(); g.arc(x + w / 2, y + uh + 12, 3, 0, Math.PI * 2); g.fill();
-    for (const px of [x + w / 2 - door - 4, x + w / 2 + door + 1]) rect(g, '#a52f25', px, y + rh - 2, 3, fh - 2);
+    g.beginPath(); g.arc(x + w / 2, y + uh + 12, 7, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#c8261e';                                                         // a chama do emblema
+    g.beginPath(); g.moveTo(x + w / 2, y + uh + 6.5); g.quadraticCurveTo(x + w / 2 + 5, y + uh + 12, x + w / 2, y + uh + 17); g.quadraticCurveTo(x + w / 2 - 5, y + uh + 12, x + w / 2, y + uh + 6.5); g.fill();
+    g.fillStyle = '#f2a33a';
+    g.beginPath(); g.ellipse(x + w / 2, y + uh + 13, 1.8, 3, 0, 0, Math.PI * 2); g.fill();
+    for (const px of [x + f.dx - 5, x + f.dx + f.door + 2]) { fr(g, '#5e1712', px, fy - 3, 3.5, fh - 4); fr(g, '#a52f25', px + 0.5, fy - 3, 2, fh - 4); }
   }
-  if (style !== 'hut' && style !== 'home') drawSign(g, x + w / 2, y + rh + 2, style);
-  if (style === 'hut') rect(g, '#6b4423', x + 6 + Math.floor(r() * 4), y + h - 8, 6, 4);   // caixote
+  if (!wood) drawSign(g, x + w / 2, fy + 1, style);
 }
 
 // ------------------------------------------------------------------ árvores e boneco
@@ -529,7 +652,7 @@ export function drawWall(g, wall, x, y, w, h, tile) {
   switch (wall.k) {
     case 'wall': return drawRampart(g, x, y, w, h);
     case 'gatepost': return drawGatePost(g, x, y, w, h);
-    case 'rock': return drawRock(g, x, y, w, h, seed);
+    case 'rock': return wall.s === 'mountain' ? drawMountain(g, x, y, w, h, Math.abs(seed), tile) : drawRock(g, x, y, w, h, seed);
     case 'house': return drawBuilding(g, x, y, w, h, wall.s || 'home', seed, wall.t);
     case 'tree': return drawTrees(g, x, y, w, h, Math.abs(seed) % 97, tile);
     case 'dummy': return drawDummy(g, x, y, w, h);
@@ -577,7 +700,7 @@ export function propExtent(wall) {
 export function drawProp(g, wall, x, y, w, h, tile) {
   const seed = (wall.x * 73856093) ^ (wall.y * 19349663);
   switch (wall.k) {
-    case 'tree': return drawTreeGroup(g, x, y, w, h, Math.abs(seed), tile);
+    case 'tree': return drawTreeGroup(g, x, y, w, h, Math.abs(seed), tile, wall.s);
     case 'deadtree': return drawDeadTrees(g, x, y, w, h, Math.abs(seed), tile);
     case 'oak': return drawOakTrunk(g, x, y, w, h);
     case 'seal': return drawSeal(g, x, y, w, h, wall.s !== 'out');
@@ -597,9 +720,12 @@ const LEAVES = [
  * Uma árvore em 3/4, no estilo dos bonecos chibi: tronco curto e grosso embaixo, copa redonda e fofa em cima (sombra
  * embaixo à direita, luz em cima à esquerda, folhas em tufos). `baseX, baseY` = o pé do tronco; `size` em casas.
  */
-function drawTree(g, baseX, baseY, size, seed, tile) {
+/** Cerejeira (sakura): copa rosa nos gramados da vila. */
+const SAKURA = ['#5a2a3a', '#c76a8a', '#e88aa8', '#f6b4c8', '#ffe2ec'];
+
+function drawTree(g, baseX, baseY, size, seed, tile, palette) {
   const r = rng(seed);
-  const pal = LEAVES[seed % 3];
+  const pal = palette || LEAVES[seed % 3];
   const R = tile * 0.5 * size * (0.92 + r() * 0.12);     // raio da copa
   const tw = tile * 0.16 * size, th = tile * 0.42 * size;
   // sombra no chão (para baixo e à direita: luz de cima à esquerda)
@@ -635,15 +761,21 @@ function drawTree(g, baseX, baseY, size, seed, tile) {
   }
   fr(g, pal[4], cx - R * 0.45, cy - R * 0.5, 1.4, 1);
   fr(g, pal[4], cx - R * 0.3, cy - R * 0.62, 1, FINE * 2);
+  if (palette === SAKURA) {                                                          // pétalas caídas em volta
+    for (let i = 0; i < 9; i++) {
+      const a = r() * Math.PI * 2, d = R * (0.4 + r() * 0.9);
+      fr(g, r() < 0.5 ? '#f6b4c8' : '#e88aa8', baseX + Math.cos(a) * d, baseY - 1 + Math.sin(a) * d * 0.35, 1, FINE * 2);
+    }
+  }
 }
 
 /**
  * Bloco de árvores (a parede `tree`): uma árvore só nos blocos pequenos; fileiras desencontradas nas bordas da mata
  * (de trás para a frente, para a de trás ficar atrás).
  */
-function drawTreeGroup(g, x, y, w, h, seed, tile) {
+function drawTreeGroup(g, x, y, w, h, seed, tile, style) {
   const wt = w / tile, ht = h / tile;
-  if (wt <= 3.2 && ht <= 3.2) return drawTree(g, x + w / 2, y + h - tile * 0.15, Math.min(wt, ht), seed, tile);
+  if (wt <= 3.2 && ht <= 3.2) return drawTree(g, x + w / 2, y + h - tile * 0.15, Math.min(wt, ht), seed, tile, style === 'sakura' ? SAKURA : undefined);
   const r = rng(seed);
   const trees = [];
   if (wt >= ht) {
@@ -760,6 +892,21 @@ export function drawOakCanopy(g, w, h) {
     fr(g, '#8a5a2e', bx, by, 1, 1.2);
     fr(g, '#5a3a1e', bx, by - FINE, 1, FINE * 2);
   }
+}
+
+/**
+ * A montanha atrás da sede da vila: o paredão de pedra (colunas, platô, cipós) bem alto, com a mata em cima (copas
+ * pequenas de árvore no platô, de trás para a frente) para parecer uma serra, não um monte de pedras.
+ */
+function drawMountain(g, x, y, w, h, seed, tile) {
+  drawCliff(g, x, y, w, h, seed, { face: Math.min(h * 0.55, 92), round: 22 });
+  const r = rng(seed + 3);
+  const top = h - Math.min(h * 0.55, 92);
+  const trees = [];
+  for (let ty = y + 8; ty < y + top - 6; ty += 9 + r() * 4) {
+    for (let tx = x + 10 + r() * 10; tx < x + w - 10; tx += 16 + r() * 14) trees.push([tx, ty + (r() - 0.5) * 3]);
+  }
+  for (const [tx, ty] of trees) drawTree(g, tx, ty + tile * 0.6, 0.9 + r() * 0.5, (seed + Math.round(tx * 5 + ty * 3)) >>> 0, tile);
 }
 
 /** Caminho de retângulo com cantos redondos (raio por canto: cima-esq, cima-dir, baixo-dir, baixo-esq). */
@@ -1636,6 +1783,39 @@ export function drawDeco(g, d, x, y, w, h) {
       return;
     }
     case 'trail': return drawTrails(g, [{ d, x, y, w }]);   // sozinha (o bloco do chão desenha todas juntas)
+    case 'toro': {                                    // lanterna de pedra: base, coluna, a casinha da luz e o telhadinho
+      const cx = x + w / 2, by = y + h;
+      fr(g, 'rgba(10, 12, 8, 0.3)', cx - 6, by - 2, 13, 3.5);
+      fr(g, '#5a5650', cx - 5, by - 4, 10, 4);                                   // base
+      fr(g, '#8d8a84', cx - 4.5, by - 4, 9, 1.2);
+      fr(g, '#6d6a64', cx - 2, by - 12, 4, 8);                                   // coluna
+      fr(g, '#8d8a84', cx - 2, by - 12, 1.2, 8);
+      fr(g, '#5a5650', cx - 4.5, by - 14, 9, 2.5);                               // apoio
+      fr(g, '#3e3b36', cx - 3.5, by - 19.5, 7, 5.5);                             // a casinha da luz
+      fr(g, '#ffd27a', cx - 2.2, by - 18.5, 4.4, 3.5);
+      fr(g, '#fff1c4', cx - 1, by - 18, 2, 2);
+      fr(g, '#3e3b36', cx - 0.3, by - 19.5, 0.6, 5.5);
+      g.fillStyle = '#4a4742';                                                   // o telhadinho
+      g.beginPath(); g.moveTo(cx - 7, by - 19); g.lineTo(cx, by - 24); g.lineTo(cx + 7, by - 19); g.closePath(); g.fill();
+      fr(g, '#8d8a84', cx - 6.5, by - 19.5, 13, FINE * 2);
+      fr(g, '#6d6a64', cx - 1, by - 26, 2, 2.5);                                 // a ponta
+      return;
+    }
+    case 'planter': {                                 // vaso comprido de madeira com flores
+      fr(g, 'rgba(10, 12, 8, 0.28)', x + 1, y + h - 1, w, 2.5);
+      fr(g, '#4a2e17', x, y + h * 0.35, w, h * 0.65);
+      fr(g, '#7a5230', x + 0.8, y + h * 0.35 + 0.8, w - 1.6, h * 0.65 - 2);
+      fr(g, '#a8713a', x + 0.8, y + h * 0.35 + 0.8, w - 1.6, FINE * 2);
+      const r = rng(Math.round(d.x * 13 + d.y * 7));
+      for (let i = 0; i < w / 2.2; i++) {
+        const fx = x + 2 + r() * (w - 4), fy = y + h * 0.3 - r() * 3;
+        fr(g, '#2f6a33', fx, fy, FINE * 2, 3);
+        g.fillStyle = ['#f48aa0', '#f2d25a', '#f4efe0', '#c9a6e8'][i % 4];
+        g.beginPath(); g.arc(fx + 0.3, fy, 1.2, 0, Math.PI * 2); g.fill();
+        fr(g, '#e0882a', fx, fy - 0.3, FINE * 2, FINE * 2);
+      }
+      return;
+    }
     case 'stream': return drawStream(g, d, x, y, w);
     case 'drybed': return drawDryBed(g, d, x, y, w);
     case 'scorch': {                                  // chão chamuscado: mancha redonda de queimado, com rachaduras e brasas

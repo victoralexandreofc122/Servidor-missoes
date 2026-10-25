@@ -58,7 +58,9 @@ export interface Wall extends Box {
     | 'sword_rack' | 'spear_rack' | 'shield_rack' | 'mannequin' | 'cloth_shelf' | 'scroll_shelf' | 'scroll_table' | 'barrel'
     | 'lit' | 'out' | 'fall' | 'burnt' | 'chasm' | 'mouth'
     // pilar da arena da vila: bloco de ardósia com moldura dourada (os da Zona de Conflito são ruína)
-    | 'arena';
+    | 'arena'
+    // árvore cerejeira (copa rosa, nos gramados da vila) e a montanha atrás da sede (paredão com mata em cima)
+    | 'sakura' | 'mountain';
 }
 
 /**
@@ -86,7 +88,9 @@ export interface Deco extends Box {
     // o riacho e o leito seco, desenhados como uma faixa que segue a linha `p` (largura 2 × `r`)
     | 'stream' | 'drybed' | 'trail'
     // o que sobrou no Acampamento Queimado: caixote quebrado, panela no tripé, esteira e um pergaminho caído
-    | 'crate' | 'pot' | 'bedroll' | 'scroll_drop';
+    | 'crate' | 'pot' | 'bedroll' | 'scroll_drop'
+    // vila: lanterna de pedra (tōrō, acende de noite) e vaso de flores
+    | 'toro' | 'planter';
   /** Linha do riacho/leito: x0, y0, x1, y1... em casas, a partir do canto (x, y) do enfeite. */
   p?: number[];
   /** Meia largura da faixa, em casas. */
@@ -195,6 +199,7 @@ export interface MapLayout {
 
 const wall = (k: Wall['k'], x: number, y: number, w: number, h: number, s?: Wall['s']): Wall => (s ? { x, y, w, h, k, s } : { x, y, w, h, k });
 const tree = (x: number, y: number, size = 2): Wall => wall('tree', x, y, size, size);
+const sakura = (x: number, y: number, size = 2): Wall => wall('tree', x, y, size, size, 'sakura');
 const area = (g: Area['g'], x: number, y: number, w: number, h: number): Area => ({ x, y, w, h, g });
 const oval = (g: Area['g'], x: number, y: number, w: number, h: number): Area => ({ x, y, w, h, g, shape: 'oval' });
 const deco = (k: Deco['k'], x: number, y: number, w = 1, h = 1): Deco => ({ x, y, w, h, k });
@@ -365,7 +370,7 @@ function village(def: VillageMapDef = VILLAGE_MAPS[0]!): MapLayout {
     wall('gatepost', G.to, H - 4, 2, 2),
     ...(def.gate ? [] : [wall('gate', G.from, H - 2, G.to - G.from, 2)]),
     // Montanha no topo (paredão de rocha atrás da sede).
-    wall('rock', 18, 2, 44, 10),
+    wall('rock', 18, 2, 44, 10, 'mountain'),
     // Prédios.
     wall('house', 31, 15, 18, 16, 'leader'),        // sede da vila, no topo, no eixo da avenida
     wall('house', 15, 19, 12, 11, 'hospital'),      // hospital, à esquerda
@@ -392,8 +397,8 @@ function village(def: VillageMapDef = VILLAGE_MAPS[0]!): MapLayout {
     // Árvores (só nos gramados; nenhuma na rua, na praça ou no portão).
     tree(12, 3), tree(14, 8), tree(11, 12, 1), tree(63, 3), tree(65, 8), tree(66, 12, 1),
     tree(10, 22, 1), tree(28, 22, 1), tree(51, 22, 1), tree(67, 25, 1),
-    tree(21, 47), tree(33, 47), tree(44, 47), tree(56, 47), tree(61, 47), tree(74, 47),
-    tree(22, 58), tree(25, 67), tree(13, 70), tree(19, 74), tree(53, 62), tree(53, 70),
+    sakura(21, 47), tree(33, 47), sakura(44, 47), tree(56, 47), sakura(61, 47), tree(74, 47),
+    sakura(22, 58), tree(25, 67), sakura(13, 70), tree(19, 74), sakura(53, 62), tree(53, 70),
   ];
   const areas: Area[] = [
     // Gramados (o resto é pedra clara: ruas e praça).
@@ -418,6 +423,10 @@ function village(def: VillageMapDef = VILLAGE_MAPS[0]!): MapLayout {
     deco('plant', 30, 56), deco('plant', 49, 56), deco('plant', 30, 74), deco('plant', 49, 74),
     deco('lamp', 35, 32), deco('lamp', 44, 32), deco('lamp', 36, 52), deco('lamp', 43, 52),
     deco('lamp', 33, 75), deco('lamp', 46, 75),
+    // lanternas de pedra na praça e vasos de flores na frente das lojas
+    deco('toro', 29.2, 66, 1, 1.4), deco('toro', 49.8, 66, 1, 1.4), deco('toro', 36.6, 58, 1, 1.4), deco('toro', 42.4, 58, 1, 1.4),
+    deco('planter', 21.4, 46.2, 1.6, 0.8), deco('planter', 32.6, 46.2, 1.6, 0.8), deco('planter', 44.4, 46.2, 1.6, 0.8),
+    deco('planter', 55.6, 46.2, 1.6, 0.8), deco('planter', 61.4, 46.2, 1.6, 0.8), deco('planter', 72.6, 46.2, 1.6, 0.8),
     // Arco 1: a grade onde o rio passa por baixo da muralha (M2: "a água vem da Floresta") e a tampa lacrada do poço.
     deco('grate', 5.5, 77, 4, 1), deco('well_lid', 33, 65, 2, 2),
     deco('gate_roof', G.from - 2, H - 5, G.to - G.from + 4, 2),       // telhado do portão (desenhado por cima)
