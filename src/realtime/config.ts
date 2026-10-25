@@ -23,6 +23,8 @@ export interface SkillConfig {
   burnMs?: number;
   /** Relâmpago: quanto dura a paralisia (anda a 70% e um choque de 0,25 s por segundo). */
   paralysisMs?: number;
+  /** Ilusão tier 3 e 4: silêncio (sem jutsu) que continua DEPOIS do atordoamento, por mais estes ms. */
+  silenceMs?: number;
   /** Projétil (Fogo, Kunais): velocidade em casas/s. Sem `speed`, a linha é instantânea. */
   speed?: number;
   /** Kunais: quantos projéteis e a abertura total do leque (graus). */
@@ -62,11 +64,40 @@ export interface MonsterSlam {
   damage: number;
 }
 
+/** Golpe pesado marcado só no alvo do chefe ("tank buster"): não pula, bate no círculo pequeno onde o alvo estava. */
+export interface MonsterCrush {
+  everyMs: number;
+  windupMs: number;
+  radius: number;
+  damage: number;
+}
+
+/**
+ * Fase de chefe: dispara UMA vez quando a vida cai até `at` (fração da vida), na ordem. Pode chamar ajudantes
+ * (`adds`), deixar o chefe furioso (`enrage`: ataques x mais rápidos) e liberar o golpe pesado (`crush`).
+ */
+export interface BossPhase {
+  at: number;
+  text: string;
+  adds?: { type: string; count: number };
+  enrage?: number;
+  crush?: MonsterCrush;
+}
+
+/** Chefe: o nome na barra do topo, o ryō de cada participante e as fases. Voltou para casa: as fases recomeçam. */
+export interface MonsterBoss {
+  name: string;
+  ryo: { min: number; max: number };
+  phases: readonly BossPhase[];
+}
+
 export interface MonsterType {
   /** Sem isto: não persegue (anda à toa e só bate em quem encosta). */
   ai?: MonsterAiConfig;
   /** Golpe marcado no chão (Lodo Escuro). */
   slam?: MonsterSlam;
+  /** Chefe (Rei Lodo): barra no topo, fases e recompensa maior. */
+  boss?: MonsterBoss;
   maxHp: number;
   xp: number;
   attackRange: number;
@@ -319,6 +350,25 @@ export const REALTIME: Readonly<RealtimeConfig> = {
         ai: { aggroRange: 5, chaseSpeed: 3, leashRange: 10 },
         // Pancada: marca o chão (1,6 casa) onde o alvo está e pula ali 1 s depois (28 de dano); de 8 em 8 s.
         slam: { everyMs: 8000, windupMs: 1000, range: 4.5, radius: 1.6, damage: 28 },
+      },
+      // Chefe da Caverna do Lodo (opcional, para grupo, níveis 12 a 16): mora no canto leste da câmara do lago e só
+      // sai do salão dele 3 casas. Renasce 5 min depois de cair. docs/habilidades.md, seção 5.
+      rei_lodo: {
+        maxHp: 1000, xp: 400, attackRange: 1.8, attackDamage: 20, attackEveryMs: 1600, stationary: false, respawnMs: 300_000,
+        ai: { aggroRange: 4, chaseSpeed: 2.4, leashRange: 3 },
+        slam: { everyMs: 6000, windupMs: 1100, range: 6, radius: 2.2, damage: 32 },
+        boss: {
+          name: 'Rei Lodo',
+          ryo: { min: 120, max: 200 },
+          phases: [
+            { at: 0.65, text: 'O Rei Lodo chama os filhos!', adds: { type: 'slime', count: 4 } },
+            {
+              at: 0.3, text: 'O Rei Lodo está furioso!', enrage: 1.3,
+              // Esmagar: marca só o alvo dele (1,2 casa) e bate 1,5 s depois: 60 de dano. Sai, Pedra ou Substituição.
+              crush: { everyMs: 9000, windupMs: 1500, radius: 1.2, damage: 60 },
+            },
+          ],
+        },
       },
     },
     rankLevels: { genin: 11, chunin: 40, kage: 60 },

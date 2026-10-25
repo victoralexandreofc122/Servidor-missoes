@@ -18,7 +18,7 @@ export type ClassCode = (typeof CLASSES)[number];
 export const CLASS_INFO: Readonly<Record<ClassCode, { name: string; icon: string; desc: string }>> = {
   heal: { name: 'Cura', icon: '✚', desc: 'Fecha feridas e mantém o grupo de pé.' },
   shadow: { name: 'Sombra', icon: '🌑', desc: 'Uma linha de sombra prende no chão o primeiro inimigo que toca.' },
-  illusion: { name: 'Ilusão', icon: '🌀', desc: 'Engana a mente: todos em volta de você ficam atordoados.' },
+  illusion: { name: 'Ilusão', icon: '🌀', desc: 'Engana a mente: todos em volta de você ficam atordoados. Do Labirinto Mental em diante, depois ficam em silêncio (sem jutsu).' },
   stone: { name: 'Pedra', icon: '⛰', desc: 'Pele de rocha: o próximo golpe perde força.' },
   fire: { name: 'Fogo', icon: '🔥', desc: 'Bola de fogo de longo alcance que explode no primeiro inimigo, queimando quem está perto.' },
   water: { name: 'Água', icon: '💧', desc: 'Jatos em cone que empurram e deixam o inimigo molhado (o Relâmpago num alvo molhado bate mais forte).' },
@@ -157,6 +157,8 @@ export function skillConfig(j: JutsuDef): SkillConfig & { mechanic: Mechanic } {
   if (base.push !== undefined) out.push = base.push + TIER.reach[t]!;
   if (base.burn !== undefined) out.burn = r(base.burn, TIER.power[t]!)!;
   if (base.paralysisMs !== undefined) out.paralysisMs = r(base.paralysisMs, TIER.control[t]!)!;
+  // Ilusão: o Labirinto Mental (tier 3) e o Cárcere dos Sonhos (tier 4) também silenciam depois do atordoamento.
+  if (j.mechanic === 'illusion' && j.tier >= 3) out.silenceMs = j.tier === 3 ? 3000 : 4500;
   if (base.stunMs !== undefined) out.stunMs = r(base.stunMs, TIER.control[t]!)!;
   if (base.rootMs !== undefined) out.rootMs = r(base.rootMs, TIER.control[t]!)!;
   if (base.reduction !== undefined) out.reduction = TIER.shield[t]!;

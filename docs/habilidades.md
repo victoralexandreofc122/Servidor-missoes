@@ -21,7 +21,7 @@ Os números das propostas são um ponto de partida; o balanceamento vem dos dado
 | **Atordoar** | Ilusão (em volta), Relâmpago (choque curto) | | |
 | **Paralisia** | **Relâmpago** (todos os tiers): 2 / 2,4 / 2,8 / 3,4 s andando a 70%, com um choque de 0,25 s por segundo | `paralisia` | |
 | **Prender** | Sombra | | |
-| **Silêncio** (sem jutsu) | | `silencio` | Ilusão tier 3: "Genjutsu do Silêncio" |
+| **Silêncio** (sem jutsu) | **Ilusão tier 3 e 4** (v19): depois do atordoamento, mais 3 s (tier 3) ou 4,5 s (tier 4) sem jutsu | `silencio` | |
 | **Sono** (quebra ao apanhar) | | `sono` | Ilusão tier 4: "Genjutsu do Sono", longo e frágil |
 | **Melhorias** | Pedra (escudo), passivas das vilas, poderes da Akatsuki | | Pedra tier 3: escudo também nos aliados perto |
 | **Penalidades** | | `lentidao` (60% da velocidade), `ferida` (metade da cura) | Sombra tier 2: lentidão; Kunais envenenadas: ferida |
@@ -78,12 +78,14 @@ depois nada. Silêncio e sono devem entrar nesse mesmo teto quando virarem jutsu
   - quem sai a tempo não apanha;
   - atordoar ou adormecer o Lodo no preparo interrompe o golpe ("Interrompido!");
   - a câmera treme se cair perto.
-- **Primeiro chefe** (proposta: o Rei Lodo, no fundo da Caverna do Lodo), com fases disparadas uma vez só:
-  - **65% da vida:** invoca 4 slimes (adds);
-  - **30%:** golpe pesado no alvo dele ("tank buster"), que pede Pedra ou Substituição;
-  - também: marca um jogador com uma poça (**espalhar**: os outros se afastam dele).
-  - **Linha de visão** já funciona, porque linhas e projéteis param na parede. Uma onda do chefe poderia ser evitada
-    escondendo-se atrás das pedras.
+- **Primeiro chefe: o Rei Lodo (v19, já no jogo)**, no canto leste da câmara do lago da Caverna do Lodo. Fases
+  disparadas uma vez só (`config.ts`, `boss.phases`):
+  - **65% da vida:** invoca 4 slimes (adds), que vão atrás do alvo dele;
+  - **30%:** fica furioso (ataques 30% mais rápidos) e libera o **Esmagar**, o golpe pesado no alvo ("tank buster"):
+    círculo roxo de 1,2 casa, 1,5 s de preparo, 60 de dano. Pede Pedra, Substituição ou correr;
+  - voltou para casa (corda): vida toda, as fases recomeçam e os filhos somem;
+  - **próximas ideias:** marcar um jogador com uma poça (**espalhar**: os outros se afastam dele) e uma onda que se
+    evita escondendo-se atrás das pedras (a **linha de visão** já funciona: linhas e projéteis param na parede).
 - **Agrupar** (dividir o dano) faz sentido em grupo. Fica para quando houver grupos.
 
 ## 6. Sinergias e combos

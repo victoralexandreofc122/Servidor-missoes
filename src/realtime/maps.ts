@@ -192,7 +192,8 @@ export interface MapLayout {
    */
   zones?: HuntZone[];
   /** Monstros FIXOS (bonecos da Academia): tipo e lugar; renascem no mesmo ponto. */
-  spawns?: { type: string; x: number; y: number }[];
+  /** Monstros fixos (bonecos, chefes): renascem no mesmo ponto. `zone` = de onde ele não sai (o salão do chefe). */
+  spawns?: { type: string; x: number; y: number; zone?: Box }[];
   /** Campos que drenam chakra de quem está dentro (Sala de Controle da Academia), por segundo. */
   fields?: (Box & { chakraPerSec: number })[];
 }
@@ -704,6 +705,9 @@ function cave(): MapLayout {
     hunt: { x: 7, y: 2, w: 42, h: 30 },
     huntType: 'lodo_escuro',
     zones: [{ name: 'caverna', type: 'lodo_escuro', weight: 1, x: 7, y: 2, w: 42, h: 30 }],
+    // O Rei Lodo (chefe opcional): canto leste da câmara, ao lado do lago. O túnel leste passa por ele; o oeste, não
+    // (o fundo da M11 fica longe do salão dele).
+    spawns: [{ type: 'rei_lodo', x: 43, y: 11, zone: { x: 38, y: 3, w: 10, h: 13 } }],
   };
 }
 

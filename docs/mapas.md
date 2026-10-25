@@ -156,6 +156,8 @@ y 0 █████████████████████████�
   lados levam ao mesmo lugar: em grupo, cada um vai por um.
 - **O lago de lodo** é parede (ninguém entra) e brilha. **O fundo** fica logo acima do lago: é o objetivo da M11.
 - **Monstros:** Lodos Escuros na caverna toda (menos a entrada). Níveis 11 a 13.
+- **Chefe (v19):** o **Rei Lodo** mora no canto leste da câmara do lago (x 38..48, y 3..16), longe do fundo da M11:
+  quem vai só cumprir a missão não precisa enfrentá-lo.
 - **Clima:** escuro. A tela fica escura em volta do jogador, com uma luz no meio (a caverna é o lugar mais tenso do
   arco até o chefe).
 

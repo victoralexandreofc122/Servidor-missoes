@@ -69,8 +69,9 @@ entre dois pings, que o texto aponta como o maior problema de sincronização.
   ±90°). Monstro de mapa vazio não pensa. Números por tipo em `config.ts` (`ai`), detalhes em docs/habilidades.md.
 - **Golpe marcado (v18):** o Lodo Escuro marca o chão e pula ali 1 s depois; quem sai escapa e atordoar no preparo
   interrompe. O servidor decide quem estava dentro na hora do pulo.
-- **Falta:** chefe com fases, disparadas uma vez só no limiar da vida (ex.: 65% e 30%), cada uma com o seu conjunto
-  de golpes (proposta em docs/habilidades.md).
+- **Chefe com fases (v19, o Rei Lodo):** cada fase dispara uma vez só no limiar da vida (65%: filhos; 30%: fúria e
+  Esmagar). O servidor confere o limiar a cada dano, então um golpe grande que passa os dois limiares dispara as duas
+  fases na ordem. A volta para casa zera as fases (docs/habilidades.md, seção 5).
 
 ## Anti-cheat
 
@@ -82,6 +83,6 @@ entre dois pings, que o texto aponta como o maior problema de sincronização.
 ## Ordem sugerida para o que falta
 
 1. ~~PvE com máquina de estados~~ (feito na v18).
-2. ~~Golpe telegrafado~~ (feito: o golpe marcado do Lodo Escuro). **Chefe com fases** (docs/habilidades.md, seção 5).
+2. ~~Golpe telegrafado~~ (o golpe marcado do Lodo Escuro) e ~~chefe com fases~~ (o Rei Lodo, v19).
 3. **Métricas de PvP** por classe e jutsu (painel do admin) e *dampening* na arena.
 4. **Contador de anomalias** por jogador.

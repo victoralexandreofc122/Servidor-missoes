@@ -4,7 +4,9 @@ import {
   ahead, distance, firstOnLine, HIT_RADIUS, isInArc, isInCircle, isInCone, lineIntersects, nearest, pointAt, rotate, shieldedDamage, STEPS,
   STRIKE_AHEAD, unit, type Point, type TrailPoint,
 } from './combat.js';
-import { REALTIME, type MonsterAiConfig, type MonsterSlam, type MonsterType, type RealtimeConfig } from './config.js';
+import {
+  REALTIME, type MonsterAiConfig, type MonsterBoss, type MonsterCrush, type MonsterSlam, type MonsterType, type RealtimeConfig,
+} from './config.js';
 import {
   CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, SKILLS, sanitizeChat,
   type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
@@ -367,7 +369,7 @@ interface Monster {
   /** Invocado por /admin spawn: não dá XP, ryō, drop, missão nem tutorial, e não renasce. */
   readonly admin?: boolean;
   /** Zona de caça onde nasceu (anda só dentro dela). Sem isto: a zona de caça do mapa. */
-  readonly zone?: Box;
+  zone?: Box;
   /** IA (monsterAi.ts): o estado, quem ele persegue, quando pensa de novo e a direção do passo. */
   mind: MonsterMind;
   targetId: string | null;
@@ -375,9 +377,19 @@ interface Monster {
   dir: [number, number] | null;
   /** Efeitos com tempo (effects.ts): molhado, queimadura, sono... */
   effects: EffectBag;
-  /** Golpe marcado em preparo (onde vai cair e quando) e quando pode marcar de novo. */
-  windup: { at: number; x: number; y: number } | null;
+  /** Golpe marcado em preparo (onde vai cair, quando e qual: o pulo ou o Esmagar do chefe) e quando pode marcar de novo. */
+  windup: { at: number; x: number; y: number; kind: 'slam' | 'crush' } | null;
   nextSlamAt: number;
+  /** Chefe: quantas fases já passaram, a fúria (ataques x mais rápidos) e o golpe pesado liberado na fase. */
+  phase: number;
+  enrage: number;
+  crush: MonsterCrush | null;
+  nextCrushAt: number;
+  /**
+   * Chamado pelo chefe (os filhos do Rei Lodo): o id do chefe. Não conta na densidade, não é reposto quando morre e some
+   * quando o chefe volta para casa (sem isso, cada tentativa deixaria mais 4 na caverna).
+   */
+  summonedBy?: string;
 }
 
 /** Quem uma hitbox pode acertar: um monstro ou (com o PvP ligado) outro jogador. */
@@ -469,7 +481,7 @@ export class GameWorld {
   private readonly admin: AdminStore | undefined;
   private purgeTimer: NodeJS.Timeout | undefined;
   /** Bonecos fixos esperando para renascer. */
-  private readonly respawns: { type: string; map: MapId; home: Point; at: number }[] = [];
+  private readonly respawns: { type: string; map: MapId; home: Point; at: number; zone?: Box }[] = [];
   /** Quem está em cada mapa (envio só para o mesmo mapa sem percorrer todo mundo). */
   private readonly mapPlayers = new Map<MapId, Set<Session>>();
   private timer: NodeJS.Timeout | undefined;
@@ -517,7 +529,7 @@ export class GameWorld {
     }
     // Bonecos fixos (Academia): cada um no seu lugar.
     for (const layout of Object.values(this.config.maps)) {
-      for (const sp of layout.spawns ?? []) this.spawnMonster({ x: sp.x, y: sp.y }, this.lastTick, layout.id, sp.type, true);
+      for (const sp of layout.spawns ?? []) this.spawnFixed(sp.type, layout.id, { x: sp.x, y: sp.y }, sp.zone, this.lastTick);
     }
   }
 
@@ -687,6 +699,8 @@ export class GameWorld {
       width: here.width, height: here.height, speed: speedTilesPerSecond, runSpeed: this.config.runSpeedTilesPerSecond,
       tickMs, spawn: { ...spawn }, respawnMs: combat.player.respawnMs, skills,
       effects: Object.fromEntries(Object.entries(EFFECTS).map(([k, e]) => [k, { name: e.name, icon: e.icon, kind: e.kind }])) as WorldInfo['effects'],
+      bosses: Object.fromEntries(Object.entries(combat.monsterTypes).filter(([, mt]) => mt.boss)
+        .map(([k, mt]) => [k, { name: mt.boss!.name, phases: mt.boss!.phases.map((ph) => ph.at) }])),
       meditationRegenMultiplier: combat.player.meditationRegenMultiplier,
       npcs: this.config.npcs.map((n) => ({ ...n })),
       basicAttack: { range: combat.basicAttack.range, cooldownMs: combat.basicAttack.cooldownMs },
@@ -1613,7 +1627,11 @@ export class GameWorld {
         }
         break;
       case 'illusion':
-        for (const x of hits) this.applyStatus(x, 'stunned', lasting(cfg.stunMs ?? 0), t);
+        for (const x of hits) {
+          this.applyStatus(x, 'stunned', lasting(cfg.stunMs ?? 0), t);
+          // Tier 3 e 4: o silêncio continua depois do atordoamento (acordou, mas ainda sem jutsu).
+          if (cfg.silenceMs && this.stillThere(x)) this.applyEffect(x, 'silencio', t, lasting(cfg.stunMs ?? 0) + cfg.silenceMs, undefined, session);
+        }
         break;
       case 'shadow':
         for (const x of hits) this.applyStatus(x, 'rooted', lasting(cfg.rootMs ?? 0), t);
@@ -2266,10 +2284,12 @@ export class GameWorld {
   private damageMonster(m: Monster, amount: number, attacker: Session, t: number, source: 'attack' | 'skill'): void {
     m.damageBy.set(attacker.id, (m.damageBy.get(attacker.id) ?? 0) + Math.min(amount, m.hp));   // só o que tirou de verdade
     if (m.mind === 'idle') m.nextThinkAt = t;                      // apanhou: nota quem bateu já no próximo tick
+    const boss = this.monsterType(m.type).boss;
     this.wakeOnDamage({ kind: 'monster', id: m.id, x: m.x, y: m.y, monster: m }, t);
     m.hp = Math.max(0, m.hp - amount);
     this.broadcastMap(m.map, { type: 'hit', target: 'monster', id: m.id, amount, kind: 'damage', hp: m.hp, maxHp: m.maxHp });
     if (m.hp === 0) this.killMonster(m, attacker, t, source);
+    else if (boss) this.bossPhases(m, boss, t);
   }
 
   /**
@@ -2283,8 +2303,8 @@ export class GameWorld {
     this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: killer.id });
     const type = this.monsterType(m.type);
     if (m.home) {
-      this.respawns.push({ type: m.type, map: m.map, home: m.home, at: t + type.respawnMs });
-    } else if (!m.admin) {
+      this.respawns.push({ type: m.type, map: m.map, home: m.home, at: t + type.respawnMs, ...(m.zone ? { zone: m.zone } : {}) });
+    } else if (!m.admin && !m.summonedBy) {
       const layout = this.layout(m.map);
       if (!layout.safe && layout.hunt && this.huntCount(m.map) < this.densityTarget(m.map)) this.spawnMonster(undefined, t, m.map);
     }
@@ -2296,8 +2316,14 @@ export class GameWorld {
       this.tutorialProgress(killer);
     }
     if (type.xp <= 0) return;                                    // boneco de treino: sem XP, sem ryō
-    for (const who of this.participants(m, killer)) {
-      const ryo = KILL_RYO.min + Math.floor(this.random() * (KILL_RYO.max - KILL_RYO.min + 1));
+    const pay = type.boss?.ryo ?? KILL_RYO;                      // chefe: ryō maior para cada participante
+    const winners = this.participants(m, killer);
+    if (type.boss) {
+      const names = winners.map((w) => w.username);
+      this.broadcast({ type: 'announce', message: `${names.slice(0, 4).join(', ')}${names.length > 4 ? ' e mais' : ''} derrotaram o ${type.boss.name}!` });
+    }
+    for (const who of winners) {
+      const ryo = pay.min + Math.floor(this.random() * (pay.max - pay.min + 1));
       this.awardXp(who, type.xp, ryo);
       this.trackKill(who, m.type);
       this.maybeDropScroll(who);
@@ -2318,7 +2344,7 @@ export class GameWorld {
   /** Monstros de caça de um mapa (sem os bonecos fixos e os do admin). */
   private huntCount(map: MapId): number {
     let n = 0;
-    for (const m of this.monsters.values()) if (m.map === map && !m.home && !m.admin) n += 1;
+    for (const m of this.monsters.values()) if (m.map === map && !m.home && !m.admin && !m.summonedBy) n += 1;
     return n;
   }
 
@@ -3164,6 +3190,10 @@ export class GameWorld {
       effects: new Map(),
       windup: null,
       nextSlamAt: t + (stats.slam ? stats.slam.everyMs / 2 : 0),
+      phase: 0,
+      enrage: 1,
+      crush: null,
+      nextCrushAt: 0,
       ...(fixed ? { home: { x: pos!.x, y: pos!.y } } : {}),
       ...(admin ? { admin: true } : {}),
       ...(picked ? { zone: { x: picked.x, y: picked.y, w: picked.w, h: picked.h } } : {}),
@@ -3171,6 +3201,13 @@ export class GameWorld {
     this.monsters.set(m.id, m);
     this.broadcastMap(mapId, { type: 'monster_spawned', monster: monsterView(m) });
     return monsterView(m);
+  }
+
+  /** Monstro fixo (boneco, chefe): nasce no ponto dele e, com `zone`, não sai do salão. */
+  private spawnFixed(type: string, map: MapId, home: Point, zone: Box | undefined, t: number): void {
+    const v = this.spawnMonster({ ...home }, t, map, type, true);
+    const m = this.monsters.get(v.id);
+    if (m && zone) m.zone = zone;
   }
 
   /** Zona de caça sorteada pelo peso (mapas com `zones`). */
@@ -3223,19 +3260,27 @@ export class GameWorld {
   private updateMonster(m: Monster, t: number, dt: number): boolean {
     const type = this.monsterType(m.type);
     if (type.stationary) return false;
-    // Golpe marcado em preparo: parado; atordoado ou dormindo, perde o golpe; na hora, pula e acerta o círculo.
-    if (m.windup && type.slam) {
+    // Golpe marcado em preparo: parado; atordoado ou dormindo, perde o golpe; na hora, pula (ou esmaga) e acerta o círculo.
+    if (m.windup) {
+      const kind = m.windup.kind;
       if (t < m.stunnedUntil || effectBlock(m.effects, t) === 'all') {
         m.windup = null;
-        m.nextSlamAt = t + type.slam.everyMs / 2;
-        this.broadcastMap(m.map, { type: 'telegraph', id: m.id, x: m.x, y: m.y, r: 0, ms: 0 });
+        if (kind === 'slam' && type.slam) m.nextSlamAt = t + type.slam.everyMs / 2;
+        else if (m.crush) m.nextCrushAt = t + m.crush.everyMs / 2;
+        this.broadcastMap(m.map, { type: 'telegraph', id: m.id, kind, x: m.x, y: m.y, r: 0, ms: 0 });
         return false;
       }
       if (t < m.windup.at) return false;
-      this.monsterSlam(m, type.slam, t);
-      return true;
+      if (kind === 'slam' && type.slam) {
+        this.monsterSlam(m, type.slam, t);
+        return true;
+      }
+      if (m.crush) this.monsterCrush(m, m.crush, t);
+      else m.windup = null;
+      return false;
     }
     if (type.ai && t >= m.nextThinkAt) this.thinkMonster(m, type.ai, t);
+    if (m.crush && m.mind === 'chase' && t >= m.nextCrushAt && this.startCrush(m, m.crush, t)) return false;
     if (type.slam && m.mind === 'chase' && t >= m.nextSlamAt && this.startSlam(m, type.slam, t)) return false;
     if (m.mind === 'idle' || !type.ai) return t >= m.nextStepAt && this.stepMonster(m, t);
     if (t < m.stunnedUntil || t < m.rootedUntil || effectBlock(m.effects, t) === 'all' || !m.dir) return false;
@@ -3304,10 +3349,71 @@ export class GameWorld {
     const target = m.targetId ? this.sessions.get(m.targetId) : undefined;
     if (!target || target.dead || target.map !== m.map || distance(m, target) > slam.range) return false;
     if (t < m.stunnedUntil || t < m.rootedUntil || effectBlock(m.effects, t) === 'all' || this.inSafeZone(target)) return false;
-    m.windup = { at: t + slam.windupMs, x: q3(target.x), y: q3(target.y) };
+    m.windup = { at: t + slam.windupMs, x: q3(target.x), y: q3(target.y), kind: 'slam' };
     m.nextSlamAt = t + slam.everyMs;
-    this.broadcastMap(m.map, { type: 'telegraph', id: m.id, x: m.windup.x, y: m.windup.y, r: slam.radius, ms: slam.windupMs });
+    this.broadcastMap(m.map, { type: 'telegraph', id: m.id, kind: 'slam', x: m.windup.x, y: m.windup.y, r: slam.radius, ms: slam.windupMs });
     return true;
+  }
+
+  /** Esmagar (chefe, fase de fúria): marca SÓ o alvo dele, num círculo pequeno, com mais tempo para reagir. */
+  private startCrush(m: Monster, crush: MonsterCrush, t: number): boolean {
+    const target = m.targetId ? this.sessions.get(m.targetId) : undefined;
+    if (!target || target.dead || target.map !== m.map || distance(m, target) > 6) return false;
+    if (t < m.stunnedUntil || effectBlock(m.effects, t) === 'all' || this.inSafeZone(target)) return false;
+    m.windup = { at: t + crush.windupMs, x: q3(target.x), y: q3(target.y), kind: 'crush' };
+    m.nextCrushAt = t + crush.everyMs;
+    this.broadcastMap(m.map, { type: 'telegraph', id: m.id, kind: 'crush', x: m.windup.x, y: m.windup.y, r: crush.radius, ms: crush.windupMs });
+    return true;
+  }
+
+  /** O Esmagar cai: não pula; acerta quem ficou no círculo (Pedra corta pela metade; a Substituição escapa). */
+  private monsterCrush(m: Monster, crush: MonsterCrush, t: number): void {
+    const at = m.windup!;
+    m.windup = null;
+    this.broadcastMap(m.map, { type: 'monster_slam', id: m.id, kind: 'crush', x: at.x, y: at.y, r: crush.radius });
+    const layout = this.layout(m.map);
+    for (const s of [...(this.mapPlayers.get(m.map) ?? [])]) {
+      if (s.dead || s.closed || inSafeZone(layout, s.x, s.y) || !isInCircle(at, crush.radius, s)) continue;
+      this.damagePlayer(s, crush.damage, t, m);
+    }
+  }
+
+  /**
+   * Fases do chefe: cada uma dispara UMA vez, na ordem, quando a vida cai até o limiar (uma pancada grande pode passar
+   * duas de uma vez). Chama os filhos, fica furioso, libera o Esmagar e avisa todos no mapa.
+   */
+  private bossPhases(m: Monster, boss: MonsterBoss, t: number): void {
+    while (m.phase < boss.phases.length && m.hp / m.maxHp <= boss.phases[m.phase]!.at) {
+      const ph = boss.phases[m.phase]!;
+      m.phase += 1;
+      this.broadcastMap(m.map, { type: 'boss_phase', id: m.id, phase: m.phase, text: ph.text });
+      if (ph.enrage) m.enrage = ph.enrage;
+      if (ph.crush) {
+        m.crush = ph.crush;
+        m.nextCrushAt = t + 1500;
+      }
+      if (ph.adds) this.summonAdds(m, ph.adds.type, ph.adds.count, t);
+    }
+  }
+
+  /** Os filhos do chefe nascem em volta dele e já vão atrás do alvo dele. */
+  private summonAdds(boss: Monster, type: string, count: number, t: number): void {
+    const layout = this.layout(boss.map);
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2 + Math.PI / 4;
+      let at = { x: q3(boss.x + Math.cos(a) * 1.8), y: q3(boss.y + Math.sin(a) * 1.8) };
+      if (blocked(at.x, at.y, layout.walls) || inSafeZone(layout, at.x, at.y)) at = { x: boss.x, y: boss.y };
+      const v = this.spawnMonster(at, t, boss.map, type);
+      const add = this.monsters.get(v.id);
+      if (!add) continue;
+      add.summonedBy = boss.id;
+      if (boss.zone) add.zone = boss.zone;
+      if (boss.targetId) {
+        add.mind = 'chase';
+        add.targetId = boss.targetId;
+        add.nextThinkAt = t;
+      }
+    }
   }
 
   /** O pulo: o monstro cai no centro do círculo e acerta todo ninja dentro dele (quem saiu a tempo escapa). */
@@ -3317,7 +3423,7 @@ export class GameWorld {
     m.x = at.x;
     m.y = at.y;
     m.nextAttackAt = Math.max(m.nextAttackAt, t + 600);           // caiu: um instante antes de bater de novo
-    this.broadcastMap(m.map, { type: 'monster_slam', id: m.id, x: at.x, y: at.y, r: slam.radius });
+    this.broadcastMap(m.map, { type: 'monster_slam', id: m.id, kind: 'slam', x: at.x, y: at.y, r: slam.radius });
     const layout = this.layout(m.map);
     for (const s of [...(this.mapPlayers.get(m.map) ?? [])]) {
       if (s.dead || s.closed || inSafeZone(layout, s.x, s.y) || !isInCircle(at, slam.radius, s)) continue;
@@ -3347,8 +3453,16 @@ export class GameWorld {
     m.mind = 'idle';
     m.targetId = null;
     m.dir = null;
+    m.phase = 0;                                                   // chefe: as fases recomeçam
+    m.enrage = 1;
+    m.crush = null;
     m.nextStepAt = t + this.config.combat.monsters.stepMs;
     m.damageBy.clear();
+    for (const add of [...this.monsters.values()]) {
+      if (add.summonedBy !== m.id) continue;                     // os filhos do chefe vão embora com ele
+      this.monsters.delete(add.id);
+      this.broadcastMap(add.map, { type: 'monster_gone', id: add.id });
+    }
     if (m.hp < m.maxHp) {
       const amount = m.maxHp - m.hp;
       m.hp = m.maxHp;
@@ -3363,7 +3477,7 @@ export class GameWorld {
     if (cfg.attackDamage <= 0 || t < m.nextAttackAt || t < m.stunnedUntil || effectBlock(m.effects, t) === 'all') return;
     const target = nearest(m, this.mapPlayers.get(m.map) ?? [], cfg.attackRange, (s) => !s.dead && !s.closed && !this.inSafeZone(s));
     if (!target) return;
-    m.nextAttackAt = t + cfg.attackEveryMs;
+    m.nextAttackAt = t + Math.round(cfg.attackEveryMs / m.enrage);   // chefe furioso: mais rápido
     this.damagePlayer(target, cfg.attackDamage, t, m);
   }
 
@@ -3434,7 +3548,7 @@ export class GameWorld {
       const r = this.respawns[i]!;
       if (t < r.at) continue;
       this.respawns.splice(i, 1);
-      this.spawnMonster({ ...r.home }, t, r.map, r.type, true);
+      this.spawnFixed(r.type, r.map, r.home, r.zone, t);
     }
 
     // 2. Monstros: andar e atacar. Mapa sem ninguém: os monstros esperam (nada a enviar).

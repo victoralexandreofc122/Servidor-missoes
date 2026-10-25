@@ -215,6 +215,22 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v19: Rei Lodo e silêncio da Ilusão (sem migração)
+
+- **Rei Lodo, o primeiro chefe** (Caverna do Lodo, canto leste da câmara do lago, longe do fundo da M11):
+  - 1000 de vida, coroa e tamanho 2,3x; nasce com o servidor e volta 5 min depois de morrer;
+  - quem chega perto vê a **barra do chefe** no topo, com as marcas das fases;
+  - tem o golpe marcado (círculo vermelho de 2,2 casas, 32 de dano, de 6 em 6 s);
+  - **65% da vida:** "O Rei Lodo chama os filhos!": 4 slimes nascem em volta e vão atrás do alvo dele;
+  - **30%:** "O Rei Lodo está furioso!": bate 30% mais rápido e libera o **Esmagar**, um círculo **roxo** pequeno
+    (1,2 casa) só no alvo, que cai 1,5 s depois com 60 de dano. Pede a Pedra, a Substituição ou sair correndo;
+  - cada fase acontece uma vez só. Se todos fugirem (corda de 3 casas fora da zona dele), ele volta para casa com a
+    vida toda, as fases recomeçam e os filhos vão embora;
+  - na morte: 400 de XP e 120 a 200 ryō para cada participante, e um anúncio para o servidor todo;
+  - os números ficam em `config.ts` (`rei_lodo`). São para um grupo de 3 ou 4 ninjas dos níveis da caverna (11 a 13).
+- **Ilusão tier 3 e 4:** depois do atordoamento, o alvo fica **em silêncio** (sem jutsu; o Ataque Básico continua):
+  mais 3 s no tier 3 e 4,5 s no tier 4.
+
 ### v18: sapatos, tela de equipamentos e `/admin ryo` (migração `db/schema_v12_sapatos.sql`, ANTES do deploy)
 
 - **Sapatos (equipamento dos pés):** o sapato saiu da roupa e virou uma camada própria do boneco (`sapato` nos
