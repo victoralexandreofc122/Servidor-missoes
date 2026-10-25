@@ -211,6 +211,41 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v17: arte nova, HUD do desenho, mapas do Arco 1 e clima (sem migração)
+
+- **Direção de arte** ([docs/arte.md](docs/arte.md)):
+  - azul-noite e ouro na interface, com a fonte Barlow Condensed (OFL), servida pelo próprio servidor;
+  - luz e cor por mapa: sombras das copas, faixas de sol, pólen, brasas, esporos e vinheta;
+  - contorno, sombra e anel no chão de quem luta, e plaquinha de nome;
+  - slime e Lodo Escuro chibi no lugar do círculo com "M"; o Mestre e o Posto de Viagem viraram bonecos chibi.
+- **HUD** (`public/hud.css`):
+  - retrato com nível, Vida e Chakra com ryō e efeitos, e a janela do alvo;
+  - minimapa redondo com moldura dourada e missões em andamento;
+  - chat em painel (abas Chat e Missões), menu em ícones redondos e faixa de XP;
+  - computador: barra de ações embaixo, no meio; celular: arco do polegar, menu no ☰ e a câmera mais longe, com
+    "Distância da câmera" no ⚙️.
+- **Equipamentos de Shinobi** (a 🎒 Mochila):
+  - o boneco grande, com os espaços em volta (os que o jogo ainda não tem ficam travados);
+  - rank, atributos e barras;
+  - grade do inventário com ícones em pixel art (armas, pergaminhos com o selo da classe, capas). Equipar só pede ao
+    servidor.
+- **Mapas do Arco 1** ([docs/mapas.md](docs/mapas.md)):
+  - a Floresta por regiões: Pedras-Selo, Velho Carvalho, cachoeira seca, Acampamento Queimado, abismo e a boca da
+    Caverna do Lodo;
+  - trilhas e riacho em curva, mato e paredões de pedra;
+  - a Caverna do Lodo, a Clareira Queimada e o Poço, lacrados até a história;
+  - zonas de caça por nível e o Lodo Escuro;
+  - `/admin ir <mapa> [x y]` para visitar.
+- **Arena da Vila:** ardósia com frisos dourados, mureta com lanternas e holofotes.
+- **Vila:** telhados japoneses, fachadas com janelas de papel, cerejeiras, lanternas de pedra e montanha com mata.
+- **Ciclo de dia e noite e clima** ([docs/clima.md](docs/clima.md), `src/realtime/weather.ts`):
+  - o servidor decide a hora (48 min por dia) e o clima (normal, dia quente, chuva, neblina), iguais para todos;
+  - ao ar livre, dão bônus aos elementos: Fogo no dia quente, Água e Raio na chuva, Ilusão na neblina, Sombra de
+    noite;
+  - noite com luz em volta do jogador, das lanternas e das janelas;
+  - `/admin clima` e `/admin hora`;
+  - mensagem nova: `sky` (e `WorldInfo.sky`).
+
 ### v16: fim de jogo (migração opcional `db/schema_v11_endgame.sql`, [docs/endgame.md](docs/endgame.md))
 
 Seis módulos que ligam **com a população** (jogadores ativos na semana): vilas 30 → PvP 60 → renegados 100 →
