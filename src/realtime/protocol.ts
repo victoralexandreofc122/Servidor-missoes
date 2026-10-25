@@ -506,6 +506,8 @@ export type ServerMessage =
   | { type: 'admin_catalog'; players: { username: string; map: string; level: number }[]; monsters: { code: string; name: string }[]; maps: { id: string; name: string }[]; villages: { code: string; name: string }[] }
   | { type: 'admin_pvp'; report: PvpReport; db: { days: number; rows: PvpClassRow[] } | null }
   | { type: 'monster_aggro'; id: string; targetId: string | null }
+  /** O monstro bateu em alguém (v19): o cliente toca a animação de ataque virada para o alvo. */
+  | { type: 'monster_attack'; id: string; targetId: string }
   | { type: 'effect'; target: 'player' | 'monster'; id: string; effect: EffectCode; ms: number }
   | { type: 'combo'; target: 'player' | 'monster'; id: string; combo: 'eletrocutado' }
   | { type: 'telegraph'; id: string; kind: 'slam' | 'crush'; x: number; y: number; r: number; ms: number }

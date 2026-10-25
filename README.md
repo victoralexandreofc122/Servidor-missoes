@@ -252,6 +252,14 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
     vida toda, as fases recomeçam e os filhos vão embora;
   - na morte: 400 de XP e 120 a 200 ryō para cada participante, e um anúncio para o servidor todo;
   - os números ficam em `config.ts` (`rei_lodo`). São para um grupo de 3 ou 4 ninjas dos níveis da caverna (11 a 13).
+- **Monstros em sprites** (estilo "tinta e brasa", [arte/monstros](arte/monstros/LEIAME.md)): Slime verde, Lodo
+  Escuro roxo, Lodo Sombrio de fumaça e Rei Lodo (gigante preto de coroa). Cada um tem parado, ataque, golpe recebido
+  e morte; o Lodo Escuro e o Rei Lodo agacham no golpe marcado e caem no pulo; o Rei chama os filhos, fica furioso
+  (olhos em brasa) e ergue os punhos no Esmagar.
+  - O servidor manda `monster_attack` (`id`, `targetId`) quando um monstro bate, e o cliente vira o monstro para o
+    alvo; o resto vem das mensagens que já existiam (golpe marcado, fases, morte).
+  - Um atlas WebP por tipo (`public/assets/monsters`), gerado por `arte/monstros/recortar.py`. Até carregar, o jogo
+    desenha os slimes antigos.
 - **Ilusão tier 3 e 4:** depois do atordoamento, o alvo fica **em silêncio** (sem jutsu; o Ataque Básico continua):
   mais 3 s no tier 3 e 4,5 s no tier 4.
 

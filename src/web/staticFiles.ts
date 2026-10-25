@@ -26,6 +26,9 @@ export interface StaticFile {
   etag: string;
 }
 
+/** Atlas dos monstros em public/assets/monsters/ (a lista bate com monsterData.js: test/monstros.test.ts confere). */
+export const MONSTER_ART_TYPES = ['slime', 'lodo_escuro', 'lodo_sombrio', 'rei_lodo'] as const;
+
 /** Folhas PNG de public/assets/<pasta>/ (a lista bate com vfxData.js e weaponData.js: test/static.test.ts confere). */
 function sheets(folder: 'vfx' | 'weapons', names: readonly string[]) {
   return names.map((n) => ({ route: `/assets/${folder}/${n}.png`, file: `assets/${folder}/${n}.png`, contentType: 'image/png', binary: true as const }));
@@ -60,6 +63,10 @@ const FILES = [
     'lightning', 'spark', 'shadow', 'bind', 'illusion', 'heal', 'stone', 'kunai', 'fuma',
   ]),
   ...sheets('weapons', ['kunai_training', 'kunai', 'tanto', 'katana', 'katana_mao', 'katana_bainha', 'fuma_shuriken', 'fuma_shuriken_mao', 'scroll']),
+  // Monstros em sprites (v19, arte/monstros): o desenhista, os dados (gerados) e um atlas WebP por tipo.
+  { route: '/monsterSprites.js', file: 'monsterSprites.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/monsterData.js', file: 'monsterData.js', contentType: 'text/javascript; charset=utf-8' },
+  ...MONSTER_ART_TYPES.map((n) => ({ route: `/assets/monsters/${n}.webp`, file: `assets/monsters/${n}.webp`, contentType: 'image/webp', binary: true as const })),
   // Identidade visual (binários): favicon da Folha em Chamas e Pergaminho em Chamas do login.
   { route: '/img/favicon-32.png', file: 'img/favicon-32.png', contentType: 'image/png', binary: true },
   { route: '/img/favicon-192.png', file: 'img/favicon-192.png', contentType: 'image/png', binary: true },

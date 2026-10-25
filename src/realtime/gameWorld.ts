@@ -3541,6 +3541,7 @@ export class GameWorld {
     const target = nearest(m, this.mapPlayers.get(m.map) ?? [], cfg.attackRange, (s) => !s.dead && !s.closed && !this.inSafeZone(s));
     if (!target) return;
     m.nextAttackAt = t + Math.round(cfg.attackEveryMs / m.enrage);   // chefe furioso: mais rápido
+    this.broadcastMap(m.map, { type: 'monster_attack', id: m.id, targetId: target.id });   // a animação de ataque
     this.damagePlayer(target, cfg.attackDamage, t, m);
   }
 

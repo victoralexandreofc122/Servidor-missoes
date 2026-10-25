@@ -110,11 +110,12 @@ describe('armas no boneco', () => {
 describe('lista fechada de arquivos (staticFiles)', () => {
   it('serve cada folha dos dados como image/png em bytes, e nenhuma a mais', () => {
     const files = loadPublicFiles();
-    const served = new Set(files.filter((f) => f.route.startsWith('/assets/')).map((f) => f.route));
+    // (os atlas dos monstros, em /assets/monsters, têm o próprio teste: test/monstros.test.ts)
+    const served = new Set(files.filter((f) => f.route.startsWith('/assets/') && !f.route.startsWith('/assets/monsters/')).map((f) => f.route));
     const weaponSheets = Object.values<any>(ARMAS.armas).flatMap((a) => ['mao', 'costas', 'bainha'].filter((k) => a[k]).map((k) => a[k]));
     const wanted = new Set([...Object.values<any>(VFX.efeitos), ...weaponSheets].map((x) => `/${x.arquivo}`));
     assert.deepEqual([...served].sort(), [...wanted].sort());
-    for (const f of files.filter((x) => x.route.startsWith('/assets/'))) {
+    for (const f of files.filter((x) => x.route.startsWith('/assets/') && !x.route.startsWith('/assets/monsters/'))) {
       assert.equal(f.contentType, 'image/png', f.route);
       assert.ok(Buffer.isBuffer(f.body), f.route);
     }

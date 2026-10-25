@@ -25,6 +25,7 @@ import { VFXManager, loadVfx, vfxReady } from './vfx.js';
 import { drawBackWeapon, drawHandWeapon, drawWeaponIcon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
 import { drawCape, drawRenegadeScratch, egOn, factionStyle, mapAccess, mountEndgameUI, shopFactor, zoneFoe } from './endgame.js';
 import { mountAdminUI } from './adminPanel.js';
+import { drawMonsterArt, drawMonsterPortrait, loadMonsterSprites, monsterArtReady, monsterDeathMs, playMonster } from './monsterSprites.js';
 
 const TOKEN_KEY = 'nin.token';
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/game`;
@@ -424,6 +425,8 @@ function upsertMonster(m, now) {
   state.monsters.set(m.id, {
     id: m.id, type: m.type, map: state.serverMap, x: m.x, y: m.y, tx: m.x, ty: m.y, hp: m.hp, maxHp: m.maxHp,
     stunnedUntil: 0, rootedUntil: 0, bornAt: now, diedAt: 0, fx: fxFrom(m.fx), aggro: null,
+    // Sprites (monsterSprites.js): a animação de agora, para onde olha e a fase própria (não respiram juntos).
+    anim: null, face: 1, furious: false, seed: Number.parseInt(String(m.id).replace(/\D/g, ''), 10) || 0,
   });
 }
 
@@ -674,11 +677,16 @@ function handleMessage(msg) {
     }
     case 'telegraph': {
       // Golpe marcado: o círculo vermelho enche no chão até a hora do pulo (ms 0 = o monstro foi interrompido).
-      if (msg.ms > 0) state.telegraphs.set(msg.id, { x: msg.x, y: msg.y, r: msg.r, start: now, end: now + msg.ms, crush: msg.kind === 'crush' });
-      else {
+      const tm = state.monsters.get(msg.id);
+      if (msg.ms > 0) {
+        state.telegraphs.set(msg.id, { x: msg.x, y: msg.y, r: msg.r, start: now, end: now + msg.ms, crush: msg.kind === 'crush' });
+        if (tm) {
+          if (Math.abs(msg.x - tm.x) > 0.05) tm.face = msg.x > tm.x ? 1 : -1;
+          playMonster(tm, msg.kind === 'crush' ? 'crush_windup' : 'leap_windup', now, msg.ms);   // agacha e segura
+        }
+      } else {
         state.telegraphs.delete(msg.id);
-        const m = state.monsters.get(msg.id);
-        if (m) addFloater(m.x, m.y - 1.1, 'Interrompido!', '#ffe066', 1);
+        if (tm) { addFloater(tm.x, tm.y - 1.1, 'Interrompido!', '#ffe066', 1); tm.anim = null; }
       }
       break;
     }
@@ -687,6 +695,7 @@ function handleMessage(msg) {
       state.telegraphs.delete(msg.id);
       const m = state.monsters.get(msg.id);
       if (m && msg.kind !== 'crush') { m.tx = msg.x; m.ty = msg.y; }   // o pulo; o Esmagar bate sem sair do lugar
+      if (m) playMonster(m, msg.kind === 'crush' ? 'crush_hit' : 'leap_land', now);
       vfx.play('dust', msg.x, msg.y, { start: now, feet: true, layer: 'ground', scale: msg.r });
       state.effects.push({ skill: 'slam', x: msg.x, y: msg.y, fx: msg.r, fy: 0, start: now });
       const me = state.players.get(state.meId);
@@ -697,7 +706,10 @@ function handleMessage(msg) {
       // O chefe mudou de fase (chamou os filhos, ficou furioso): aviso grande e o texto em cima dele.
       showToast(`👑 ${msg.text}`, 3500);
       const m = state.monsters.get(msg.id);
-      if (m) addFloater(m.x, m.y - 2.4, msg.phase >= 2 ? 'FÚRIA!' : '!!', '#ff7a4a', 1.4);
+      if (m) {
+        addFloater(m.x, m.y - 2.4, msg.phase >= 2 ? 'FÚRIA!' : '!!', '#ff7a4a', 1.4);
+        if (msg.phase >= 2) { m.furious = true; playMonster(m, 'fury', now); } else playMonster(m, 'summon', now);
+      }
       break;
     }
     case 'combo': {
@@ -957,6 +969,11 @@ function handleMessage(msg) {
       const text = heal ? `+${msg.amount}` : `-${msg.amount}${msg.shielded ? ' 🛡' : ''}`;
       addFloater(target.x, target.y - 0.6, text, color, mine || msg.target === 'monster' ? 1.15 : 0.9);
       if (!heal) vfx.play('hit', target.x, target.y - 0.15, { start: now, scale: 0.8 });
+      if (msg.target === 'monster') {
+        // Monstro: tranco de golpe (sem cortar um ataque ou um golpe marcado no meio); vida cheia de novo = voltou para casa.
+        if (!heal && !(target.anim && now < target.anim.until)) playMonster(target, 'hit', now);
+        if (heal && msg.hp >= msg.maxHp) { target.furious = false; target.anim = null; }
+      }
       if (mine) {
         state.me.hp = msg.hp;
         renderVitals();
@@ -967,9 +984,22 @@ function handleMessage(msg) {
     case 'monsters_moved':
       for (const [id, x, y] of msg.m) {
         const m = state.monsters.get(id);
-        if (m) { m.tx = x; m.ty = y; }
+        if (m) {
+          if (Math.abs(x - m.x) > 0.02) m.face = x > m.x ? 1 : -1;   // olha para onde anda
+          m.tx = x; m.ty = y;
+        }
       }
       break;
+    case 'monster_attack': {
+      // Bateu em alguém: a animação de ataque, virado para o alvo (o dano vem no `hit`).
+      const m = state.monsters.get(msg.id);
+      const t = state.players.get(msg.targetId);
+      if (m) {
+        if (t && Math.abs(t.x - m.x) > 0.05) m.face = t.x > m.x ? 1 : -1;
+        playMonster(m, 'attack', now);
+      }
+      break;
+    }
     case 'monster_spawned':
       upsertMonster(msg.monster, now);
       break;
@@ -1244,7 +1274,7 @@ function updateTargetWindow(f) {
       g.textBaseline = 'middle';
       g.fillText('🎯', c.width / 2, c.height / 2 + 2);
     } else if (f.type) {
-      drawSlime(g, c.width / 2, c.height * 0.5, c.width * 0.27, MONSTER_LOOK[f.type] || MONSTER_LOOK.slime, 0, 0, 0, f.id);
+      if (!drawMonsterPortrait(g, f.type, c.width)) drawSlime(g, c.width / 2, c.height * 0.5, c.width * 0.27, MONSTER_LOOK[f.type] || MONSTER_LOOK.slime, 0, 0, 0, f.id);
     } else if (f.look) {
       drawBust(c, f.look);
     }
@@ -3313,6 +3343,7 @@ function renderCreatorOptions() {
 loadSprites();   // atlas do personagem (2 PNGs pequenos); até chegarem, o jogo desenha o boneco antigo
 loadVfx();       // folhas dos efeitos dos golpes (assets/vfx); até chegarem, os efeitos desenhados à mão
 loadWeapons();   // armas em pixel art (assets/weapons); até chegarem, as armas de retângulos
+loadMonsterSprites();   // monstros em sprites (assets/monsters); até chegarem, os slimes desenhados à mão
 ui.creatorTurn.addEventListener('click', () => { creatorDir = [0, 1, 3, 2][(([0, 1, 3, 2].indexOf(creatorDir)) + 1) % 4]; });
 ui.creatorRandom.addEventListener('click', () => {
   const pick = (list) => list[Math.floor(Math.random() * list.length)];
@@ -4520,7 +4551,7 @@ function draw(now) {
   // 5. Monstros e jogadores juntos, de cima para baixo (quem está mais embaixo fica na frente).
   drawList.length = 0;
   for (const m of state.monsters.values()) {
-    if (m.diedAt && now - m.diedAt > 450) { state.monsters.delete(m.id); continue; }   // terminou de sumir
+    if (m.diedAt && now - m.diedAt > monsterDeathMs(m.type)) { state.monsters.delete(m.id); continue; }   // terminou de sumir
     if (m.map === state.mapId) drawList.push(m);
   }
   for (const p of state.players.values()) if (p.map === state.mapId) drawList.push(p);
@@ -5476,6 +5507,8 @@ const MONSTER_LOOK = {
   // O Rei Lodo (chefe): verde-musgo do lago de lodo, bravo, escorrendo, com a coroa (drawMonster) e 2,3x maior.
   rei_lodo: { top: '#8fd06a', mid: '#3f8f52', low: '#225f35', edge: '#0b2a14', dead: '#2a4a30', angry: true, drip: '#b6f08a' },
 };
+/** Monstros de tinta preta (sprites): ganham um brilho de brasa atrás para não sumirem no chão escuro. */
+const DARK_MONSTERS = new Set(['rei_lodo', 'lodo_sombrio']);
 /** Tamanho de cada tipo (1 = o slime). */
 const MONSTER_SCALE = { rei_lodo: 2.3 };
 
@@ -5591,36 +5624,53 @@ function drawCrown(g, sx, top, r) {
 function drawMonster(m, sx, sy, T, now) {
   if (m.type === 'dummy' || m.type === 'sparring') return drawDummyMonster(m, sx, sy, T, now);
   const born = Math.max(0.05, Math.min(1, (now - m.bornAt) / 250));
-  const dying = m.diedAt ? Math.max(0, Math.min(1, (now - m.diedAt) / 450)) : 0;
+  const art = monsterArtReady(m.type);
+  // Com sprite, a morte é a animação dela (monsterSprites.js); sem, o slime encolhe e some em 0,45 s.
+  const dying = m.diedAt ? Math.max(0, Math.min(1, (now - m.diedAt) / (art ? monsterDeathMs(m.type) : 450))) : 0;
   const stunned = now < m.stunnedUntil;
   const rooted = now < m.rootedUntil;
   const wobble = stunned || rooted || dying ? 0 : Math.sin(now / 180 + sx) * 0.06;
-  const r = T * 0.4 * (MONSTER_SCALE[m.type] || 1) * born * (1 - dying * 0.6);
+  const size = MONSTER_SCALE[m.type] || 1;
+  const r = T * 0.4 * size * born * (art ? 1 : 1 - dying * 0.6);
+  const ground = sy + r * 0.82;                   // o pé (a mesma base do slime desenhado)
   ctx.save();
-  ctx.globalAlpha = 1 - dying;
+  if (!art) ctx.globalAlpha = 1 - dying;
   if (rooted) {                       // Sombra: mancha escura presa no chão
     ctx.fillStyle = 'rgba(42, 33, 64, 0.8)';
     ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.85, r * 1.5, r * 0.55, 0, 0, Math.PI * 2); ctx.fill();
-  } else {
+  } else if (!dying) {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
     ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 0.95, r * 0.36, 0, 0, Math.PI * 2); ctx.fill();
   }
   if (m.id === state.focusId && !dying) drawFocusMarker(sx, sy, r, T, now, 'ring');   // o anel fica no chão, embaixo
-  // Cada tipo com a sua cor (docs/mapas.md): o perigo se lê pela cor.
-  drawSlime(ctx, sx, sy, r, MONSTER_LOOK[m.type] || MONSTER_LOOK.slime, wobble, dying, now, m.id);
-  if (state.world.bosses?.[m.type] && !dying) drawCrown(ctx, sx, sy - r * 0.95, r);
+  // Tinta preta some no chão escuro da caverna: um brilho de brasa fraco atrás do Rei Lodo e do Lodo Sombrio.
+  if (art && DARK_MONSTERS.has(m.type) && !dying) {
+    const h = T * 1.1 * size, cy = ground - h * 0.55;
+    const glow = ctx.createRadialGradient(sx, cy, h * 0.1, sx, cy, h * 0.75);
+    glow.addColorStop(0, 'rgba(255, 150, 70, 0.26)');
+    glow.addColorStop(1, 'rgba(255, 150, 70, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(sx, cy, h * 0.75, 0, Math.PI * 2); ctx.fill();
+  }
+  // Sprite (tinta e brasa) quando o atlas chegou; senão o slime desenhado, com a cor de cada tipo.
+  const tall = art ? drawMonsterArt(ctx, m, sx, ground, T, now, born) : null;
+  if (tall === null) {
+    drawSlime(ctx, sx, sy, r, MONSTER_LOOK[m.type] || MONSTER_LOOK.slime, wobble, dying, now, m.id);
+    if (state.world.bosses?.[m.type] && !dying) drawCrown(ctx, sx, sy - r * 0.95, r);
+  }
+  const head = tall === null ? sy - r : ground - tall;        // topo da cabeça na tela
   if (stunned) {                      // Ilusão: estrelinhas girando
     ctx.fillStyle = '#ffe066';
     for (let k = 0; k < 3; k++) {
       const a = now / 250 + (k * Math.PI * 2) / 3;
-      ctx.fillRect(Math.round(sx + Math.cos(a) * r * 0.9) - 2, Math.round(sy - r * 1.25 + Math.sin(a) * r * 0.3) - 2, 4, 4);
+      ctx.fillRect(Math.round(sx + Math.cos(a) * r * 0.9) - 2, Math.round(head - r * 0.25 + Math.sin(a) * r * 0.3) - 2, 4, 4);
     }
   }
   const isBoss = !!state.world.bosses?.[m.type];                  // o chefe tem a barra no topo (e a coroa na cabeça)
-  if (!dying && !isBoss) drawHpBar(sx, sy - r - Math.max(6, T * 0.16), T * 0.8, m.hp / m.maxHp, '#ff5a4a');
+  if (!dying && !isBoss) drawHpBar(sx, head - Math.max(6, T * 0.16), T * 0.8, m.hp / m.maxHp, '#ff5a4a');
   ctx.restore();
-  if (!dying) drawFxIcons(m, sx, sy - r * (isBoss ? 1.55 : 1) - Math.max(9, T * 0.24), T, now);   // molhado, queimadura, sono...
-  if (m.id === state.focusId && !dying) drawFocusMarker(sx, sy, r, T, now, 'arrow');
+  if (!dying) drawFxIcons(m, sx, (tall === null ? sy - r * (isBoss ? 1.55 : 1) : head - T * 0.1) - Math.max(9, T * 0.24), T, now);   // molhado, queimadura, sono...
+  if (m.id === state.focusId && !dying) drawFocusMarker(sx, tall === null ? sy : head + r, r, T, now, 'arrow');
 }
 
 /**
