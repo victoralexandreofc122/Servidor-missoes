@@ -46,6 +46,8 @@ import type { PowerKind } from './akatsuki.js';
  *   { "type": "deliver_npc_mission" }            botão "Entregar" da Sala de Missões (perto do Mestre)
  *   { "type": "chat_history" }                   pedir o histórico do chat (últimas 100, 24 h)
  *   { "type": "sync", "id": 12 }                 resposta na hora ao "sync" do servidor (ele mede o ping)
+ *   { "type": "client_error", "message": "...", "source": "game.js", "line": 120 }   erro no navegador (vira bug
+ *                                                no painel do site; sem resposta)
  *   { "type": "chat", "message": "Olá!" }        fala local (o mapa); "/g texto" = global; "/w Nome texto" = sussurro;
  *                                               "/admin ..." = comandos do administrador (nunca vira chat)
  *
@@ -215,6 +217,11 @@ export const ClientMessage = z.discriminatedUnion('type', [
   // Painel do admin (v19): o comando sem o "/admin" na frente ("ryo Kaito 500") e o catálogo (online, monstros, mapas).
   z.object({ type: z.literal('admin'), command: z.string().min(1).max(200) }),
   z.object({ type: z.literal('admin_catalog') }),
+  // Erro no navegador (v20): vira "bug" no painel do admin do site. Texto curto; o servidor tira segredos antes de mandar.
+  z.object({
+    type: z.literal('client_error'), message: z.string().min(1).max(300), source: z.string().max(200).optional(),
+    line: z.number().int().min(0).max(10_000_000).optional(), stack: z.string().max(1500).optional(),
+  }),
   // ------------------------------------------------ fim de jogo (v16)
   z.object({ type: z.literal('village_panel') }),
   z.object({ type: z.literal('kage_vote'), candidate: uuid }),

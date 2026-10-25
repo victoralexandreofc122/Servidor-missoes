@@ -14,7 +14,7 @@ import { AUTH_SQL, publicPlayer, type PlayerRow } from '../sql.js';
  * resposta (401 INVALID_CREDENTIALS) e gastam o mesmo tempo (o scrypt roda sempre):
  * quem tenta não descobre quais e-mails ou nomes têm conta.
  */
-export function makeLogin(deps: { db: Db; issueToken: TokenIssuer }) {
+export function makeLogin(deps: { db: Db; issueToken: TokenIssuer; onFailedLogin?: (login: string) => void }) {
   return async function login(request: PlayerRequest, reply: ReplyLike) {
     try {
       const body = parseOrThrow(LoginBody, request.body);
@@ -25,7 +25,10 @@ export function makeLogin(deps: { db: Db; issueToken: TokenIssuer }) {
       const row = rows[0];
       const storedHash = row?.password_hash ?? (await dummyPasswordHash());
       const passwordOk = await verifyPassword(body.password, storedHash);
-      if (!row || !row.password_hash || !passwordOk) throw new AppError(SERVER_ERRORS.invalid_credentials);
+      if (!row || !row.password_hash || !passwordOk) {
+        deps.onFailedLogin?.(body.email ?? body.username ?? '');   // o sentinela conta chutes de senha por conta
+        throw new AppError(SERVER_ERRORS.invalid_credentials);
+      }
 
       const { token, expiresAt } = await deps.issueToken(row.id);
       return reply.code(200).send({ token, expires_at: expiresAt.toISOString(), player: publicPlayer(row) });

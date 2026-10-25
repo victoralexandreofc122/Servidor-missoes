@@ -24,3 +24,8 @@ services:
         generateValue: true      # 256 bits aleatórios (44 caracteres)
       - key: SERVICE_TOKEN
         generateValue: true
+      # Site do jogo (Floot, v20): opcionais. Vazias = o jogo roda igual, sem mandar nada ao site.
+      - key: SITE_URL
+        sync: false              # endereço do site, ex.: https://vontade-do-fogo.floot.app (sem "/" no fim)
+      - key: SITE_TOKEN
+        sync: false              # segredo compartilhado com o Floot (32+ caracteres; o mesmo nos dois lados)

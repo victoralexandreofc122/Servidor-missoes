@@ -7,6 +7,7 @@ import { registerCors } from './plugins/cors.js';
 import { makeRateLimit } from './plugins/rateLimit.js';
 import { registerInternalRoutes, type InternalRoutesDeps } from './routes/internalRoutes.js';
 import { registerPublicRoutes, type PublicRoutesDeps } from './routes/publicRoutes.js';
+import { registerSiteRoutes, SITE_ROUTES } from './site/siteRoutes.js';
 import { registerStaticFiles } from './web/staticFiles.js';
 
 /*
@@ -69,7 +70,9 @@ export function configurePublicApp(app: FastifyInstance, deps: PublicRoutesDeps,
   registerCors(app, settings.allowedOrigins);
 
   const { globalMax, sensitiveMax, authMax, windowMs, now } = settings.rateLimit;
-  const globalLimit = makeRateLimit({ max: globalMax, timeWindowMs: windowMs, skipRoutes: [HEALTH_PATH], ...(now ? { now } : {}) });
+  // O site do jogo chama do servidor dele (um IP só para todos os visitantes): fora do limite por IP, com limite próprio no login.
+  const skipRoutes = [HEALTH_PATH, ...(deps.site ? SITE_ROUTES : [])];
+  const globalLimit = makeRateLimit({ max: globalMax, timeWindowMs: windowMs, skipRoutes, ...(now ? { now } : {}) });
   const sensitiveLimit = makeRateLimit({ max: sensitiveMax, timeWindowMs: windowMs, ...(now ? { now } : {}) });
   const authLimit = makeRateLimit({ max: authMax, timeWindowMs: windowMs, ...(now ? { now } : {}) });
   app.addHook('onRequest', globalLimit);
@@ -83,6 +86,7 @@ export function configurePublicApp(app: FastifyInstance, deps: PublicRoutesDeps,
   app.get(HEALTH_PATH, async (_request, reply) => reply.code(200).send({ status: 'ok' }));
 
   registerPublicRoutes(app, deps, { sensitive: sensitiveLimit, auth: authLimit });
+  if (deps.site) registerSiteRoutes(app, deps.site);
 
   // Cliente web do jogo: GET / (index.html), /game.js, /targeting.js e /styles.css, da mesma origem da API.
   // Mesma origem = o navegador não precisa de CORS para /auth/login nem para o WebSocket.

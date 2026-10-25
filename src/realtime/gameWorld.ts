@@ -47,6 +47,7 @@ import {
   type MapLayout,
 } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
+import type { WorldWatch } from './watch.js';
 
 /*
  * Estado do jogo em memória e regras do tempo real. Não sabe nada de rede: recebe
@@ -154,6 +155,8 @@ export interface WorldOptions {
   admin?: AdminStore;
   /** Fim de jogo no banco (migração v11). Sem isto, ou sem a v11 aplicada: módulos desligados. */
   endgame?: EndgameStore;
+  /** Quem vigia o servidor (site do jogo: saúde, bugs e comportamento suspeito). */
+  watch?: WorldWatch;
 }
 
 export interface JoiningPlayer {
@@ -450,6 +453,14 @@ interface LaunchSpec {
 }
 
 /** Devolvido pelo `join`: o gateway entrega as mensagens e o fechamento desta conexão. */
+/** Retrato ao vivo do mundo (site do jogo). */
+export interface LiveStats {
+  online: number;
+  byMap: Record<string, number>;
+  players: { username: string; map: string; level: number; village: Village | null; admin: boolean }[];
+  monsters: number;
+}
+
 export interface SessionHandle {
   receive(data: string | Buffer, isBinary?: boolean): void;
   leave(): void;
@@ -503,6 +514,7 @@ export class GameWorld {
   private readonly densityAt = new Map<MapId, number>();
   // ------------------------------------------------ fim de jogo (v16)
   private readonly endgame: EndgameStore | undefined;
+  private readonly watch: WorldWatch;
   /** A migração v11 já foi encontrada (conferida na manutenção: aplicar no Neon não precisa reiniciar). */
   private endgameReady = false;
   private politics: Politics = NO_POLITICS;
@@ -525,6 +537,7 @@ export class GameWorld {
     this.chatLog = options.chatLog ?? memoryChatLog(now);
     this.admin = options.admin;
     this.endgame = options.endgame;
+    this.watch = options.watch ?? {};
     for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
     this.lastTick = now();
     this.pvpStats = new PvpStats(this.lastTick);
@@ -586,6 +599,18 @@ export class GameWorld {
   /** Jogadores online (para testes e diagnóstico). */
   players(): PlayerView[] {
     return [...this.sessions.values()].map((s) => this.view(s));
+  }
+
+  /** Quem está online agora e onde, e quantos monstros vivos (painel do admin no site do jogo). */
+  liveStats(): LiveStats {
+    const byMap: Record<string, number> = {};
+    const players: LiveStats['players'] = [];
+    for (const s of this.sessions.values()) {
+      byMap[s.map] = (byMap[s.map] ?? 0) + 1;
+      players.push({ username: s.username, map: s.map, level: s.level, village: s.village, admin: s.isAdmin });
+    }
+    players.sort((a, b) => a.username.localeCompare(b.username));
+    return { online: this.sessions.size, byMap, players, monsters: this.monsters.size };
   }
 
   private selfView(s: Session): SelfView {
@@ -925,6 +950,7 @@ export class GameWorld {
       session.dropped += 1;
       if (session.dropped > this.config.maxDroppedPerSecond) {
         this.log.warn({ playerId: session.id }, 'flood: conexão fechada');
+        this.watch.floodKick?.(session.username);
         this.kick(session, CLOSE.FLOOD);
         this.flushKicks();
       }
@@ -940,7 +966,10 @@ export class GameWorld {
         // JSON malformado: cai no erro abaixo
       }
     }
-    if (!parsed) this.sendError(session, 'INVALID_MESSAGE');
+    if (!parsed) {
+      this.watch.invalidMessage?.(session.username);
+      this.sendError(session, 'INVALID_MESSAGE');
+    } else if (parsed.type === 'client_error') this.watch.clientError?.(session.username, parsed);
     else if (parsed.type === 'move') this.setDirection(session, parsed.dx, parsed.dy);
     else if (parsed.type === 'input') this.queueInputs(session, parsed.seq, parsed.inputs);
     else if (parsed.type === 'cast') this.cast(session, parsed.skill, t, parsed.targetId, parsed.dir);
@@ -3032,6 +3061,7 @@ export class GameWorld {
     const { id, username } = killer;
     this.progression.grantXp(id, amount, ryo).then((result) => {
       if (!result) return;
+      this.watch.rewards?.(username, amount, ryo);
       this.applyXp(id, username, amount, result);
       const current = this.sessions.get(id);
       if (current && result.ryo !== undefined && result.ryo !== current.ryo) {
@@ -3651,7 +3681,11 @@ export class GameWorld {
   start(): void {
     if (this.timer) return;
     this.lastTick = this.now();
-    this.timer = setInterval(() => this.tick(), this.config.tickMs);
+    this.timer = setInterval(() => {
+      const t0 = performance.now();
+      this.tick();
+      this.watch.tick?.(performance.now() - t0);
+    }, this.config.tickMs);
     this.timer.unref();
     // Histórico do chat: apaga o que passou de 24 h (fora do loop).
     this.purgeTimer = setInterval(() => {
@@ -4173,6 +4207,7 @@ export class GameWorld {
       return;
     }
     const winnerVillage = winner.village;
+    this.watch.pvpKill?.(winner.username, loser.username);
     store.pvpKill(winner.id, loser.id).then((r) => this.applyPvpKill(r, base, map, winnerVillage)).catch((err: unknown) => {
       this.log.warn({ winnerId: winner.id, loserId: loser.id, err }, 'fim de jogo: falha ao gravar a vitória PvP');
     });

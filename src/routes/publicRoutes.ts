@@ -9,6 +9,7 @@ import { makeEvaluateMission } from '../missions/handlers/evaluateMission.js';
 import { makeRedeemScroll } from '../missions/handlers/redeemScroll.js';
 import { makeSubmitMission } from '../missions/handlers/submitMission.js';
 import type { RateLimitHook } from '../plugins/rateLimit.js';
+import type { SiteDeps } from '../site/siteRoutes.js';
 import type { StaticFile } from '../web/staticFiles.js';
 
 export interface PublicRoutesDeps {
@@ -17,6 +18,10 @@ export interface PublicRoutesDeps {
   issueToken: TokenIssuer;
   /** Cliente web (public/). Sem isto, a API sobe só com as rotas JSON. */
   publicFiles?: readonly StaticFile[];
+  /** Site do jogo (Floot), em /site/*. Sem isto (SITE_TOKEN vazio), as rotas não existem. */
+  site?: SiteDeps;
+  /** Senha errada no login do jogo (o sentinela do site conta tentativas por conta). */
+  onFailedLogin?: (login: string) => void;
 }
 
 export interface RouteLimits {

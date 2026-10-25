@@ -372,6 +372,28 @@ function send(message) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
 }
 
+// Erro no navegador (v20): vai para o servidor, que mostra como "bug" no painel do admin do site. O mesmo erro sai uma
+// vez só, e no máximo 3 por minuto (um erro dentro do loop de desenho repetiria 60 vezes por segundo).
+const reportedErrors = new Set();
+let errorWindow = { start: 0, n: 0 };
+function reportClientError(message, source, line, stack) {
+  const text = String(message || 'erro sem mensagem').slice(0, 300);
+  const key = `${text}|${source || ''}|${line || 0}`;
+  const now = Date.now();
+  if (reportedErrors.has(key)) return;
+  if (now - errorWindow.start > 60_000) errorWindow = { start: now, n: 0 };
+  if (++errorWindow.n > 3) return;
+  reportedErrors.add(key);
+  send({
+    type: 'client_error', message: text,
+    ...(source ? { source: String(source).slice(0, 200) } : {}),
+    ...(Number.isInteger(line) && line >= 0 ? { line } : {}),
+    ...(stack ? { stack: String(stack).slice(0, 1500) } : {}),
+  });
+}
+window.addEventListener('error', (e) => reportClientError(e.message, e.filename, e.lineno, e.error?.stack));
+window.addEventListener('unhandledrejection', (e) => reportClientError(e.reason?.message || String(e.reason), null, null, e.reason?.stack));
+
 // Cores que contrastam com a grama (nada de verde): cada jogador ganha uma, fixa pelo id.
 const PLAYER_COLORS = ['#e8572f', '#3c9be0', '#9a6be0', '#f2c230', '#e04f8a', '#f08a3c', '#47c6d1', '#d94848', '#7d8cf0', '#f5f0e1'];
 const LIGHT_COLORS = new Set(['#f2c230', '#47c6d1', '#f5f0e1']);   // nestas, a inicial vai em preto

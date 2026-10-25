@@ -10,6 +10,7 @@ import type { NinjaStore } from './ninjaStore.js';
 import type { AdminStore } from './admin.js';
 import type { ChatLog } from './chatLog.js';
 import type { EndgameStore } from './endgameStore.js';
+import type { WorldWatch } from './watch.js';
 
 /*
  * Endpoint WebSocket: wss://<servidor>/game
@@ -47,6 +48,8 @@ export interface GatewayDeps {
   admin?: AdminStore;
   /** v16: fim de jogo no banco (migração v11, opcional: sem ela os módulos ficam desligados). */
   endgame?: EndgameStore;
+  /** Quem vigia o servidor (site do jogo: saúde, bugs e comportamento suspeito). */
+  watch?: WorldWatch;
   /** Sorteio dos monstros (testes). */
   random?: () => number;
   log: WorldLogger & { error(obj: object, msg?: string): void };
@@ -98,6 +101,7 @@ export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
     ...(deps.chatLog ? { chatLog: deps.chatLog } : {}),
     ...(deps.admin ? { admin: deps.admin } : {}),
     ...(deps.endgame ? { endgame: deps.endgame } : {}),
+    ...(deps.watch ? { watch: deps.watch } : {}),
   });
   const wss = new WebSocketServer({
     noServer: true,

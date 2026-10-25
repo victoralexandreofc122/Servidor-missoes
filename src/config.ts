@@ -31,6 +31,9 @@ const TrustProxy = z
 
 export type TrustProxySetting = boolean | number | string;
 
+/** Variável opcional: vazia no painel do Render conta como ausente. */
+const optional = <T extends z.ZodTypeAny>(schema: T) => z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), schema.optional());
+
 const EnvSchema = z.object({
   NODE_ENV: z.string().default('development'),
   DATABASE_URL: z.string().min(1),
@@ -51,6 +54,10 @@ const EnvSchema = z.object({
   /** Cadastro e login, por IP e por rota: 5 tentativas por janela (padrão 1 min). */
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(5),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  /** Site do jogo (Floot): segredo das rotas /site e da telemetria. Sem ele, o site fica desligado. */
+  SITE_TOKEN: optional(z.string().min(32, 'SITE_TOKEN precisa de pelo menos 32 caracteres')),
+  /** Endereço do site (ex.: https://vontade-do-fogo.floot.app): para onde vão a saúde do servidor e os alertas. */
+  SITE_URL: optional(OriginSchema),
 });
 
 export type Config = z.infer<typeof EnvSchema>;
@@ -63,6 +70,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   if (parsed.data.JWT_SECRET === parsed.data.SERVICE_TOKEN) {
     throw new Error('Configuração inválida: JWT_SECRET e SERVICE_TOKEN precisam ser diferentes');
+  }
+  if (parsed.data.SITE_TOKEN && [parsed.data.JWT_SECRET, parsed.data.SERVICE_TOKEN].includes(parsed.data.SITE_TOKEN)) {
+    throw new Error('Configuração inválida: SITE_TOKEN precisa ser diferente de JWT_SECRET e de SERVICE_TOKEN');
   }
   if (parsed.data.PORT === parsed.data.INTERNAL_PORT) {
     throw new Error('Configuração inválida: PORT e INTERNAL_PORT precisam ser diferentes');
