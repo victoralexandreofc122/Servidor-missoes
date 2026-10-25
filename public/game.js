@@ -12,7 +12,8 @@
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
 import { arenaAt, arenaFoes, groundAt, inSafeZone, mapName, placements, themeAt, visibleDeco, visibleWalls } from './world.js';
 import {
-  ART, PROP_KINDS, drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawOakCanopy, drawProp, drawSealGlow, drawWall, fenceLanterns, propExtent,
+  ART, PROP_KINDS, drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawOakCanopy, drawProp, drawSealGlow, drawTrails, drawWall, fenceLanterns,
+  propExtent,
 } from './mapArt.js';
 import { dirFrom, drawBackItem, drawCharacter, drawHandItem } from './character.js';
 import {
@@ -1085,7 +1086,7 @@ function updateTargetWindow(f) {
  */
 const MM_GROUND = {
   stone: '#8d8a84', grass: '#4f9a3a', darkgrass: '#2a5a2c', sand: '#d9c08a', water: '#3a8ad0', bridge: '#8b5a2b',
-  path: '#b8935c', trail: '#2a5a2c', wood: '#7a5230', arena: '#3e4761', dirt: '#6f6150', ash: '#4a4744', cave: '#2a2236',
+  path: '#b8935c', trail: '#9a7a50', wood: '#7a5230', arena: '#3e4761', dirt: '#6f6150', ash: '#4a4744', cave: '#2a2236',
   burnt: '#3a2e26', pebbles: '#8a8478', lodo: '#5e2a86', void: '#0b1020',
 };
 const MM_WALL = {
@@ -3881,6 +3882,7 @@ function tileAt(x, y) {
     case 'arena': return TILES.arena[x % 4 === 2 && y % 4 === 1 ? 3 : h % 3];   // arena da vila: lajes, losango a cada 4
     case 'water': return TILES.river[h & 3];                       // rio e canais
     case 'bridge': return TILES.bridge[0];                         // pontes
+    case 'trail':                                                  // Floresta: grama por baixo da trilha curva
     case 'darkgrass': return TILES.darkGrass[h % 23 === 0 ? 4 : h % 17 === 0 ? 5 : h % 13 === 0 ? 6 : h % 4];   // Floresta: grama escura
     case 'wood': return TILES.wood[h & 1];                         // assoalho das lojas
     case 'grass': return TILES.grass[h % 11 === 0 ? 3 : h % 13 === 0 ? 4 : h % 3];    // gramados
@@ -3928,7 +3930,17 @@ function chunkCanvas(cx, cy) {
   // montanha, boneco), inclusive as do mapa vizinho além da borda. Cada uma é desenhada só nos blocos que toca (margem
   // de 8 unidades para as sombras). Árvores, pedras altas e barracas são objetos com altura: vão na camada de cima.
   const size = CHUNK * U, M = 8;
+  // As trilhas da Floresta primeiro, todas juntas (emendam sem a borda de uma cortar a outra).
+  const trails = [];
   for (const d of state.deco) {
+    if (d.k !== 'trail') continue;
+    const x = (d.x - cx * CHUNK) * U, y = (d.y - cy * CHUNK) * U, w = d.w * U, h = d.h * U;
+    if (x + w < -M || y + h < -M || x > size + M || y > size + M) continue;
+    trails.push({ d, x, y, w });
+  }
+  if (trails.length) drawTrails(g, trails);
+  for (const d of state.deco) {
+    if (d.k === 'trail') continue;
     const x = (d.x - cx * CHUNK) * U, y = (d.y - cy * CHUNK) * U, w = d.w * U, h = d.h * U;
     if (x + w < -M || y + h < -M || x > size + M || y > size + M) continue;
     drawDeco(g, d, x, y, w, h);
@@ -4437,8 +4449,81 @@ function drawPatches(g, cx, cy) {
  * Enfeites espalhados no chão (só desenho, sem colisão), sorteados por casa: tufos altos, flores, pedrinhas,
  * cogumelos e moitas na mata; pedrinhas na trilha; gravetos queimados nas cinzas; cristais na caverna.
  */
+/**
+ * Mato da Floresta (uma peça maior por casa, às vezes): moita redonda (com frutinhas), samambaia, canteiro de flores
+ * ou pedra com musgo. Só no meio da grama (as 8 casas em volta também são grama): longe de trilha, rio e clareira.
+ * Cabe na casa (o bloco do chão corta o que passa da borda).
+ */
+function drawUndergrowth(g, x, y, ux, uy) {
+  const roll = cellHash(x * 5 + 17, y * 11 + 3) % 100;
+  if (roll >= 11) return;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (groundAt(state.places, x + dx, y + dy) !== 'darkgrass') return;
+  const r = rng(cellHash(x * 3 + 7, y * 7 + 1));
+  const cx = ux + 5 + r() * 6, cy = uy + 7 + r() * 5;
+  if (roll < 4) {                                             // moita
+    g.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    g.beginPath(); g.ellipse(cx + 0.6, cy + 2.6, 6, 2.2, 0, 0, Math.PI * 2); g.fill();
+    const pal = r() < 0.5 ? ['#1f4a24', '#2f6a33', '#3f8040', '#6aa85a'] : ['#24502e', '#336f3c', '#47874a', '#79b56a'];
+    for (const [bx, by, br] of [[-3.2, 0, 3.4], [3, 0.2, 3.3], [0, -2, 4], [-1.5, -3.5, 2.6], [2, -3.2, 2.5]]) {
+      g.fillStyle = pal[0];
+      g.beginPath(); g.arc(cx + bx, cy + by + 0.6, br + 0.5, 0, Math.PI * 2); g.fill();
+    }
+    for (const [bx, by, br] of [[-3.2, 0, 3.4], [3, 0.2, 3.3], [0, -2, 4], [-1.5, -3.5, 2.6], [2, -3.2, 2.5]]) {
+      g.fillStyle = pal[1];
+      g.beginPath(); g.arc(cx + bx, cy + by, br, 0, Math.PI * 2); g.fill();
+      g.fillStyle = pal[2];
+      g.beginPath(); g.arc(cx + bx - br * 0.25, cy + by - br * 0.3, br * 0.55, 0, Math.PI * 2); g.fill();
+    }
+    for (let i = 0; i < 5; i++) fine(g, pal[3], cx - 4 + r() * 8, cy - 5 + r() * 5, PX * 2, PX * 2);
+    if (r() < 0.45) {                                         // frutinhas
+      const berry = r() < 0.5 ? '#d8344a' : '#4a6ad8';
+      for (let i = 0; i < 4; i++) {
+        const bx = cx - 3.5 + r() * 7, by = cy - 4 + r() * 4;
+        g.fillStyle = berry;
+        g.beginPath(); g.arc(bx, by, 0.75, 0, Math.PI * 2); g.fill();
+        fine(g, '#ffffff', bx - 0.3, by - 0.3);
+      }
+    }
+  } else if (roll < 7) {                                      // samambaia: folhas compridas abrindo do meio
+    g.fillStyle = 'rgba(0, 0, 0, 0.2)';
+    g.beginPath(); g.ellipse(cx, cy + 1.5, 5, 1.6, 0, 0, Math.PI * 2); g.fill();
+    for (let i = 0; i < 7; i++) {
+      const a = -Math.PI / 2 + (i - 3) * 0.42 + (r() - 0.5) * 0.2, len = 5 + r() * 2.5;
+      const tx = cx + Math.cos(a) * len, ty = cy + 1 + Math.sin(a) * len * 0.8;
+      g.strokeStyle = i % 2 ? '#2f6a33' : '#3f8040';
+      g.lineWidth = 1.1;
+      g.beginPath(); g.moveTo(cx, cy + 1); g.quadraticCurveTo((cx + tx) / 2, (cy + ty) / 2 - 1.5, tx, ty); g.stroke();
+      for (let k = 1; k < 4; k++) {
+        const fx = cx + (tx - cx) * (k / 4), fy = cy + 1 + (ty - cy - 1) * (k / 4) - 0.8;
+        fine(g, '#5c9a44', fx - 0.8, fy, 1.6 - k * 0.3, PX * 2);
+      }
+    }
+  } else if (roll < 9) {                                      // canteiro de flores
+    const petal = ['#f4efe0', '#f2d25a', '#c9a6e8', '#f48aa0', '#8ac8f4'][r() * 5 | 0];
+    for (let i = 0; i < 7; i++) {
+      const fx = cx - 4 + r() * 8, fy = cy - 2.5 + r() * 5;
+      fine(g, '#2f6a33', fx, fy, PX, 1.6);
+      g.fillStyle = petal;
+      for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(fx + Math.cos(k * 1.57) * 0.7, fy - 0.3 + Math.sin(k * 1.57) * 0.7, 0.55, 0, Math.PI * 2); g.fill(); }
+      fine(g, '#e0882a', fx - PX, fy - 0.3 - PX, PX * 2, PX * 2);
+    }
+  } else {                                                    // pedra com musgo
+    g.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    g.beginPath(); g.ellipse(cx + 0.8, cy + 2, 5, 2, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#4f4740';
+    g.beginPath(); g.ellipse(cx, cy, 4.6, 3.4, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#6d645a';
+    g.beginPath(); g.ellipse(cx - 0.6, cy - 0.6, 3.8, 2.7, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#4a7a35';
+    g.beginPath(); g.ellipse(cx - 0.8, cy - 2, 3.2, 1.4, 0, Math.PI, Math.PI * 2); g.fill();
+    fine(g, '#6aa85a', cx - 2.5, cy - 2.6, 2, PX * 2);
+    fine(g, '#948a7c', cx + 1.5, cy - 1, 1.2, PX * 2);
+  }
+}
+
 function drawScatter(g, x, y, ux, uy) {
   const ground = groundAt(state.places, x, y);
+  if (ground === 'darkgrass') drawUndergrowth(g, x, y, ux, uy);
   const h = cellHash(x * 7 + 1, y * 5 + 3);
   const roll = h % 1000;
   const r = rng(h);

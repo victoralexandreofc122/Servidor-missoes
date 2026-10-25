@@ -1246,6 +1246,54 @@ function drawStream(g, d, x, y, w) {
   g.restore();
 }
 
+/**
+ * Trilhas de terra da Floresta, desenhadas JUNTAS (cada camada em todas antes da próxima): assim, onde uma trilha
+ * encontra a outra, a terra emenda sem a borda de uma cortar a outra. A faixa curva com a beira mais escura, o meio
+ * gasto, dois sulcos, pedrinhas e o capim invadindo as beiradas. `list`: [{ d, x, y, w }] (o enfeite e a caixa dele
+ * em unidades do bloco).
+ */
+export function drawTrails(g, list) {
+  const lim = (g.canvas?.width || 4096) / ART + 24;
+  const vis = (q) => q.x > -24 && q.y > -24 && q.x < lim && q.y < lim;
+  const trails = list.map(({ d, x, y, w }) => {
+    const U = w / d.w, pts = [];
+    for (let i = 0; i < d.p.length; i += 2) pts.push([x + d.p[i] * U, y + d.p[i + 1] * U]);
+    return { d, pts, R: d.r * U, S: sampleSmooth(pts, 2.4), r: rng(Math.round(d.x * 37 + d.y * 11 + d.w * 7)) };
+  });
+  g.save();
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  for (const [color, grow] of [['rgba(16, 28, 12, 0.3)', 5], ['#6e5a3c', 1.5], ['#8f7550', 0], ['#a48862', -1]]) {
+    for (const t of trails) {
+      g.strokeStyle = color;
+      g.lineWidth = grow >= 0 ? t.R * 2 + grow : t.R * 1.15;
+      smoothPath(g, t.pts);
+      g.stroke();
+    }
+  }
+  for (const { S, R, r } of trails) {                // sulcos, pedrinhas e marcas
+    for (const q of S) {
+      const a = r(), b = r(), c = r(), e = r();
+      if (!vis(q)) continue;
+      for (const side of [-0.42, 0.42]) {
+        if (a < 0.7) fr(g, 'rgba(90, 70, 44, 0.45)', q.x + q.nx * R * side - q.tx, q.y + q.ny * R * side - q.ty, FINE * 3 + Math.abs(q.tx) * 2, FINE * 3 + Math.abs(q.ty) * 2);
+      }
+      if (b < 0.35) pebble(g, q.x + q.nx * (c - 0.5) * R * 1.6, q.y + q.ny * (c - 0.5) * R * 1.6, 0.6 + e * 0.8, '#7d6a50', '#b8a07a');
+    }
+  }
+  const onTrail = (px, py, self) => trails.some((t) => t !== self && t.S.some((q) => Math.hypot(q.x - px, q.y - py) < t.R));
+  for (const t of trails) {                          // o capim invadindo as beiradas (menos no meio de outra trilha)
+    for (const q of t.S) {
+      const side = t.r() < 0.5 ? -1 : 1, n = t.r(), m = t.r(), tall = 1.6 + t.r() * 1.8;
+      if (!vis(q) || n > 0.75) continue;
+      const bx = q.x + q.nx * side * (t.R - 0.4 + m * 1.6), by = q.y + q.ny * side * (t.R - 0.4 + m * 1.6);
+      if (onTrail(bx, by, t)) continue;
+      for (let k = -1; k <= 1; k++) fr(g, k ? '#2f6a33' : '#4f8f3e', bx + k * 0.8, by - tall + Math.abs(k) * 0.7, FINE * 2, tall - Math.abs(k) * 0.7);
+    }
+  }
+  g.restore();
+}
+
 /** Leito seco: o caminho que o riacho fazia até a cachoeira. Areia clara, seixos, lama rachada e capim seco. */
 function drawDryBed(g, d, x, y, w) {
   const U = w / d.w, R = d.r * U;
@@ -1587,6 +1635,7 @@ export function drawDeco(g, d, x, y, w, h) {
       fr(g, '#e0453a', x + w - 4, y + 1, 0.8, h - 2);
       return;
     }
+    case 'trail': return drawTrails(g, [{ d, x, y, w }]);   // sozinha (o bloco do chão desenha todas juntas)
     case 'stream': return drawStream(g, d, x, y, w);
     case 'drybed': return drawDryBed(g, d, x, y, w);
     case 'scorch': {                                  // chão chamuscado: mancha redonda de queimado, com rachaduras e brasas

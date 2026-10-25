@@ -67,7 +67,9 @@ export interface Wall extends Box {
  * burnt (grama queimada), pebbles (seixos do leito seco), lodo (o lago de lodo, embaixo da parede `pool`).
  */
 export interface Area extends Box {
-  g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood' | 'arena' | 'dirt' | 'ash' | 'cave' | 'burnt' | 'pebbles' | 'lodo';
+  g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood' | 'arena' | 'dirt' | 'ash' | 'cave' | 'burnt' | 'pebbles' | 'lodo'
+    // trilha da Floresta: o chão é a grama; a trilha curva vem do enfeite 'trail' (aqui só não nasce mato em cima)
+    | 'trail';
   /** 'oval': só a mancha oval (com a borda ondulada) dentro da caixa pinta o chão. Sem: a caixa toda. */
   shape?: 'oval';
 }
@@ -82,7 +84,7 @@ export interface Deco extends Box {
     // do Velho Carvalho (POR CIMA dos jogadores, como o telhado do portão), estalagmite, pegadas e a escada do poço.
     | 'signpost' | 'roots' | 'kunai' | 'embers' | 'grate' | 'well_lid' | 'oak_canopy' | 'stalagmite' | 'footprints' | 'ladder' | 'scorch'
     // o riacho e o leito seco, desenhados como uma faixa que segue a linha `p` (largura 2 × `r`)
-    | 'stream' | 'drybed'
+    | 'stream' | 'drybed' | 'trail'
     // o que sobrou no Acampamento Queimado: caixote quebrado, panela no tripé, esteira e um pergaminho caído
     | 'crate' | 'pot' | 'bedroll' | 'scroll_drop';
   /** Linha do riacho/leito: x0, y0, x1, y1... em casas, a partir do canto (x, y) do enfeite. */
@@ -198,7 +200,7 @@ const oval = (g: Area['g'], x: number, y: number, w: number, h: number): Area =>
 const deco = (k: Deco['k'], x: number, y: number, w = 1, h = 1): Deco => ({ x, y, w, h, k });
 
 /** Faixa que segue uma linha (riacho, leito seco): o enfeite ocupa a caixa da linha mais a largura. */
-function band(k: 'stream' | 'drybed', pts: readonly (readonly [number, number])[], r: number): Deco {
+function band(k: 'stream' | 'drybed' | 'trail', pts: readonly (readonly [number, number])[], r: number): Deco {
   const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
   const r1 = (n: number) => Math.round(n * 10) / 10;
   const x = r1(Math.min(...xs) - r - 0.5), y = r1(Math.min(...ys) - r - 0.5);
@@ -505,6 +507,16 @@ export const FOREST_ABYSS = { x: 60, y: 82, w: 38, h: 2 } as const;
 /** O riacho da Floresta, do leste até o sumidouro (casas), e a meia largura dele. */
 const STREAM = [[99, 11.2], [94, 11.7], [89, 13.1], [84, 14], [79, 14.6], [74, 15.7], [69, 16.6], [64.5, 17.4], [60, 18]] as const;
 const STREAM_R = 1.2;
+/** As trilhas da Floresta (curvas, mas sempre dentro das caixas de `paths`, que guardam o caminho sem árvore). */
+const TRAILS: readonly { pts: readonly (readonly [number, number])[]; r: number }[] = [
+  { r: 1.5, pts: [[40.5, -0.5], [40.2, 8], [41.1, 16], [40.3, 24], [40.8, 32], [40.5, 38], [41, 46], [40.2, 56], [40.9, 66], [40.4, 76], [40.6, 86], [40.5, 93.5]] },
+  { r: 1, pts: [[39.5, 23], [35.5, 22.6], [31.5, 23.4], [28, 23]] },                          // Pedra 1
+  { r: 1, pts: [[39.5, 38], [33, 38.4], [26, 37.6], [20, 38.2], [16.5, 38]] },                // Velho Carvalho
+  { r: 1, pts: [[41.5, 40], [50, 40.4], [58, 39.6], [66, 40.3], [74, 39.8], [79.3, 39.4], [79.5, 37.2]] },   // cachoeira
+  { r: 1, pts: [[39.5, 71], [34, 71.3], [29, 70.7], [24.5, 71]] },                            // acampamento
+  { r: 1, pts: [[41.5, 77], [48, 77.3], [55, 76.7], [61, 77.2], [64.6, 77.8], [65, 80], [65, 81.4]] },   // abismo
+];
+
 /** O leito seco: sai do riacho e desce até a cachoeira seca. */
 const DRYBED = [[79, 15.5], [78.2, 19], [79.6, 23], [78.6, 27], [79.5, 30.6]] as const;
 
@@ -604,12 +616,13 @@ function forest(): MapLayout {
     ],
     areas: [
       area('pebbles', 76, 33, 7, 4),                 // o chão atrás da cachoeira (onde fica a Pedra 3)
-      ...paths.map((b) => area('path', b.x, b.y, b.w, b.h)),
+      ...paths.map((b) => area('trail', b.x, b.y, b.w, b.h)),
       oval('burnt', 4, 60, 31, 24), oval('dirt', 9, 64.5, 21, 14),   // o chão queimado e o batido do acampamento
       oval('dirt', 62.5, 84.5, 35, 13.5),            // saliência do outro lado do abismo
       oval('burnt', 31, 84.5, 22, 15),               // a passagem sul já começa queimada
     ],
     deco: [
+      ...TRAILS.map((tr) => band('trail', tr.pts, tr.r)),   // as trilhas de terra, curvas
       band('drybed', DRYBED, 1.5),                   // leito seco: o riacho corria até a cachoeira
       band('stream', STREAM, STREAM_R),
       deco('signpost', 37, 11.6, 1, 1.4), deco('signpost', 43.4, 34.6, 1, 1.4),
