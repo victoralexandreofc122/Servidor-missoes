@@ -269,6 +269,7 @@ describe('hitboxes: PvP (preparado, desligado por padrão)', () => {
     run(400);
     assert.ok(pos(b.id).x > where.x, 'passou o choque: anda de novo');
     b.send({ type: 'move', dx: 0, dy: 0 });
+    run(SK.lightning.paralysisMs!);                                // a paralisia do Relâmpago passa
 
     a.send({ type: 'switch_kit', kit: 'B' });
     a.send({ type: 'cast', skill: 'shadow', targetId: b.id });

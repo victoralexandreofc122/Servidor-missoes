@@ -199,6 +199,8 @@ const state = {
   failures: 0,
   reconnectTimer: null,
   effects: [],          // efeitos de habilidade: { skill, x, y, fx, fy, start }
+  /** Golpes marcados no chão (Lodo Escuro): id do monstro -> { x, y, r, start, end }. */
+  telegraphs: new Map(),
   /** Portas da Academia (desenhadas a cada quadro: abertas ou fechadas pelo passo do tutorial). */
   doors: [],
 };
@@ -441,6 +443,29 @@ function fxIcons(e, now) {
   return out;
 }
 
+/**
+ * Golpes marcados no chão: um círculo vermelho tracejado com o miolo enchendo do centro para a borda até a hora do
+ * pulo. Quem está dentro quando enche apanha (a regra é do servidor; isto só avisa).
+ */
+function drawTelegraphs(toScreenX, toScreenY, T, now) {
+  for (const [id, tg] of state.telegraphs) {
+    if (now > tg.end + 150) { state.telegraphs.delete(id); continue; }
+    const p = Math.min(1, (now - tg.start) / (tg.end - tg.start || 1));
+    const sx = toScreenX(tg.x), sy = toScreenY(tg.y), rx = tg.r * T, ry = tg.r * T * 0.62;
+    ctx.save();
+    ctx.fillStyle = `rgba(220, 40, 30, ${0.12 + 0.1 * p})`;
+    ctx.beginPath(); ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(255, 70, 50, ${0.28 + 0.2 * p})`;
+    ctx.beginPath(); ctx.ellipse(sx, sy, rx * p, ry * p, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = p > 0.8 && Math.floor(now / 70) % 2 ? '#ffe066' : '#ff4a3a';   // pisca no fim
+    ctx.lineWidth = Math.max(2, T * 0.06);
+    ctx.setLineDash([T * 0.2, T * 0.1]);
+    ctx.lineDashOffset = -now / 25;
+    ctx.beginPath(); ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+}
+
 /** Linha de ícones de efeito em cima da cabeça (ninja ou monstro). */
 function drawFxIcons(e, sx, y, T, now) {
   const icons = fxIcons(e, now);
@@ -639,6 +664,27 @@ function handleMessage(msg) {
         else delete e.fx[msg.effect];
       }
       if (msg.id === state.meId) renderBuffs();
+      break;
+    }
+    case 'telegraph': {
+      // Golpe marcado: o círculo vermelho enche no chão até a hora do pulo (ms 0 = o monstro foi interrompido).
+      if (msg.ms > 0) state.telegraphs.set(msg.id, { x: msg.x, y: msg.y, r: msg.r, start: now, end: now + msg.ms });
+      else {
+        state.telegraphs.delete(msg.id);
+        const m = state.monsters.get(msg.id);
+        if (m) addFloater(m.x, m.y - 1.1, 'Interrompido!', '#ffe066', 1);
+      }
+      break;
+    }
+    case 'monster_slam': {
+      // Caiu: o monstro pula no centro, poeira em anel e um tremor curto na câmera.
+      state.telegraphs.delete(msg.id);
+      const m = state.monsters.get(msg.id);
+      if (m) { m.tx = msg.x; m.ty = msg.y; }
+      vfx.play('dust', msg.x, msg.y, { start: now, feet: true, layer: 'ground', scale: msg.r });
+      state.effects.push({ skill: 'slam', x: msg.x, y: msg.y, fx: msg.r, fy: 0, start: now });
+      const me = state.players.get(state.meId);
+      if (me && Math.hypot(me.x - msg.x, me.y - msg.y) < msg.r + 3) state.shakeUntil = now + 220;
       break;
     }
     case 'combo': {
@@ -1619,8 +1665,9 @@ const SKILLS = {
   substitution: { color: '#e8c66a', ms: 600 },
   log: { color: '#8b5a2b', ms: 1400 },         // tronco que levou o golpe da Substituição
   attack: { color: '#fff3c4', ms: 260 },   // Ataque Básico: corte rápido na direção do golpe
+  slam: { color: '#7a5a3a', ms: 520 },     // golpe marcado caiu: anel de impacto no chão (fx = raio)
 };
-const GROUND_FX = new Set(['shadow', 'water', 'log']);
+const GROUND_FX = new Set(['shadow', 'water', 'log', 'slam']);
 /** Efeitos em sprite (assets/vfx). Os de `SKILLS`/drawEffect ficam de reserva, se as folhas não carregarem. */
 const vfx = new VFXManager();
 
@@ -4309,8 +4356,10 @@ function draw(now) {
   ctx.imageSmoothingEnabled = false;
   const me = state.players.get(state.meId);
   const { width, height } = state.world;
-  const camX = me ? me.x + cam.ox : width / 2;
-  const camY = me ? me.y + cam.oy : height / 2;
+  // Tremor curto (o golpe marcado caiu perto): alguns centésimos de casa para os lados.
+  const shake = now < (state.shakeUntil || 0) ? ((state.shakeUntil - now) / 220) * 0.12 : 0;
+  const camX = (me ? me.x + cam.ox : width / 2) + (shake ? Math.sin(now / 9) * shake : 0);
+  const camY = (me ? me.y + cam.oy : height / 2) + (shake ? Math.cos(now / 11) * shake : 0);
   const T = Math.max(8, Math.round(tile * cam.scale));   // inteiro: o chão em blocos não abre frestas
   const halfW = viewW / 2, halfH = viewH / 2;
   const toScreenX = (wx) => Math.round((wx - camX) * T + halfW);
@@ -4384,6 +4433,7 @@ function draw(now) {
   state.effects.length = alive;
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   vfx.draw(ctx, 'ground', toScreenX, toScreenY, T, dpr, now);
+  drawTelegraphs(toScreenX, toScreenY, T, now);
 
   // Linha pontilhada do jogador até o alvo focado (e a janela do alvo, o retrato e o minimapa do HUD).
   const focused = focusEntity();
@@ -5131,6 +5181,23 @@ function drawEffect(fx, sx, sy, T, now) {
   const fade = 1 - t;
   ctx.save();
   switch (fx.skill) {
+    case 'slam': {                       // impacto do golpe marcado: anel que abre até o raio e rachaduras
+      const r = T * fx.fx * (0.6 + 0.4 * t);
+      ctx.globalAlpha = 0.75 * fade;
+      ctx.strokeStyle = '#3a2a1a';
+      ctx.lineWidth = Math.max(2, T * 0.12 * fade);
+      ctx.beginPath(); ctx.ellipse(sx, sy, r, r * 0.62, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1, T * 0.05);
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + 0.4;
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(a) * r * 0.25, sy + Math.sin(a) * r * 0.16);
+        ctx.lineTo(sx + Math.cos(a) * r * 0.85, sy + Math.sin(a) * r * 0.53);
+        ctx.stroke();
+      }
+      break;
+    }
     case 'fire': {                       // explosão: círculo vermelho do tamanho da área real (raio do impacto)
       const r = T * (fx.r ?? 2) * (1 - (1 - t) * (1 - t));
       ctx.globalAlpha = 0.55 * fade;

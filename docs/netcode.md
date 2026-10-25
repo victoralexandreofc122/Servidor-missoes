@@ -67,8 +67,10 @@ entre dois pings, que o texto aponta como o maior problema de sincronização.
     ninguém e, chegando, recupera a vida toda e zera quem participou.
 - **Leve:** o monstro "pensa" (alvo e direção) a cada 500 ms e só anda no tick; o passo desvia de parede (reto, ±45°,
   ±90°). Monstro de mapa vazio não pensa. Números por tipo em `config.ts` (`ai`), detalhes em docs/habilidades.md.
-- **Falta:** golpe telegrafado e chefe com fases, disparadas uma vez só no limiar da vida (ex.: 65% e 30%), cada uma
-  com o seu conjunto de golpes (proposta em docs/habilidades.md).
+- **Golpe marcado (v18):** o Lodo Escuro marca o chão e pula ali 1 s depois; quem sai escapa e atordoar no preparo
+  interrompe. O servidor decide quem estava dentro na hora do pulo.
+- **Falta:** chefe com fases, disparadas uma vez só no limiar da vida (ex.: 65% e 30%), cada uma com o seu conjunto
+  de golpes (proposta em docs/habilidades.md).
 
 ## Anti-cheat
 
@@ -80,6 +82,6 @@ entre dois pings, que o texto aponta como o maior problema de sincronização.
 ## Ordem sugerida para o que falta
 
 1. ~~PvE com máquina de estados~~ (feito na v18).
-2. **Golpe telegrafado e chefe com fases** (docs/habilidades.md, seção 5).
+2. ~~Golpe telegrafado~~ (feito: o golpe marcado do Lodo Escuro). **Chefe com fases** (docs/habilidades.md, seção 5).
 3. **Métricas de PvP** por classe e jutsu (painel do admin) e *dampening* na arena.
 4. **Contador de anomalias** por jogador.

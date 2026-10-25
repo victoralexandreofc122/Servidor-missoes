@@ -105,8 +105,8 @@ export const jutsuPower = (level: number) => 1 + 0.1 * (Math.max(1, Math.min(4, 
 /** Tier 1 de cada mecânica (os 7 antigos com os MESMOS números de antes). */
 export const BASE_SKILLS: Readonly<Record<Mechanic, SkillConfig>> = {
   // Fogo: projétil em linha reta (9 casas) na direção do inimigo, que explode no primeiro alvo (ou na parede/no fim):
-  // círculo de 2.
-  fire: { cost: 20, cooldownMs: 1500, damage: 25, range: 9, radius: 2, speed: 14 },
+  // círculo de 2. Quem a explosão pega fica queimando: 3 por segundo, por 3 s (mais forte nos tiers altos).
+  fire: { cost: 20, cooldownMs: 1500, damage: 25, range: 9, radius: 2, speed: 14, burn: 3, burnMs: 3000 },
   // Água: cone de 90° e 4 casas na direção em que o jogador olha (ou no alvo focado); empurra quem acerta 1,5 casa.
   water: { cost: 15, cooldownMs: 1000, damage: 20, range: 4, coneDeg: 90, push: 1.5 },
   // Taijutsu: avança até o mais perto (alcance 2,5) e acerta um círculo de 1 casa na frente.
@@ -121,8 +121,9 @@ export const BASE_SKILLS: Readonly<Record<Mechanic, SkillConfig>> = {
   // Armas: 3 kunais em leque de 45°, 4 casas; cada alvo leva no máximo 1 kunai por arremesso.
   // Escala com o atributo Armas (+ a arma equipada).
   weapons: { cost: 10, cooldownMs: 1200, damage: 18, range: 4, shots: 3, fanDeg: 45, speed: 16, scaling: 'weapons' },
-  // Relâmpago: linha instantânea de 4,5 casas; o primeiro alvo leva dano alto e um choque rápido.
-  lightning: { cost: 20, cooldownMs: 2000, damage: 30, range: 4.5, stunMs: 400 },
+  // Relâmpago: linha instantânea de 4,5 casas; o primeiro alvo leva dano alto, um choque rápido e fica paralisado 2 s
+  // (anda a 70% e leva um choque de 0,25 s por segundo; mais tempo nos tiers altos).
+  lightning: { cost: 20, cooldownMs: 2000, damage: 30, range: 4.5, stunMs: 400, paralysisMs: 2000 },
   // Academia: o alcance e a recarga reais vêm do NÍVEL do jutsu (teleportRange, substitutionCooldownMs).
   teleport: { cost: 10, cooldownMs: 1500, range: 3 },
   substitution: { cost: 20, cooldownMs: 30_000, durationMs: 5000 },
@@ -154,6 +155,8 @@ export function skillConfig(j: JutsuDef): SkillConfig & { mechanic: Mechanic } {
   if (base.radius !== undefined) out.radius = base.radius + TIER.reach[t]!;
   if (base.range !== undefined) out.range = base.range + TIER.reach[t]!;
   if (base.push !== undefined) out.push = base.push + TIER.reach[t]!;
+  if (base.burn !== undefined) out.burn = r(base.burn, TIER.power[t]!)!;
+  if (base.paralysisMs !== undefined) out.paralysisMs = r(base.paralysisMs, TIER.control[t]!)!;
   if (base.stunMs !== undefined) out.stunMs = r(base.stunMs, TIER.control[t]!)!;
   if (base.rootMs !== undefined) out.rootMs = r(base.rootMs, TIER.control[t]!)!;
   if (base.reduction !== undefined) out.reduction = TIER.shield[t]!;

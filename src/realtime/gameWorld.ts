@@ -4,7 +4,7 @@ import {
   ahead, distance, firstOnLine, HIT_RADIUS, isInArc, isInCircle, isInCone, lineIntersects, nearest, pointAt, rotate, shieldedDamage, STEPS,
   STRIKE_AHEAD, unit, type Point, type TrailPoint,
 } from './combat.js';
-import { REALTIME, type MonsterAiConfig, type MonsterType, type RealtimeConfig } from './config.js';
+import { REALTIME, type MonsterAiConfig, type MonsterSlam, type MonsterType, type RealtimeConfig } from './config.js';
 import {
   CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, SKILLS, sanitizeChat,
   type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
@@ -375,6 +375,9 @@ interface Monster {
   dir: [number, number] | null;
   /** Efeitos com tempo (effects.ts): molhado, queimadura, sono... */
   effects: EffectBag;
+  /** Golpe marcado em preparo (onde vai cair e quando) e quando pode marcar de novo. */
+  windup: { at: number; x: number; y: number } | null;
+  nextSlamAt: number;
 }
 
 /** Quem uma hitbox pode acertar: um monstro ou (com o PvP ligado) outro jogador. */
@@ -409,6 +412,8 @@ interface Projectile {
   /** Atravessa: acerta todos no caminho (cada um uma vez) e só para na parede ou no fim do alcance. */
   readonly pierce: boolean;
   readonly source: 'attack' | 'skill';
+  /** Fogo: queimadura em quem a explosão pega. */
+  readonly burn?: { amount: number; ms: number };
 }
 
 /** Como um projétil sai: o que é, a força e a forma da hitbox. */
@@ -425,6 +430,8 @@ interface LaunchSpec {
   hitRadius?: number;
   pierce?: boolean;
   source?: 'attack' | 'skill';
+  /** Fogo: queimadura em quem a explosão pega (dano por pulso e duração). */
+  burn?: { amount: number; ms: number };
 }
 
 /** Devolvido pelo `join`: o gateway entrega as mensagens e o fechamento desta conexão. */
@@ -1601,6 +1608,8 @@ export class GameWorld {
           }
           this.applyStatus(x, 'stunned', cfg.stunMs ?? 0, t);
           this.hitTarget(x, wet ? Math.round(dmg * WET_LIGHTNING_BONUS) : dmg, session, t, 'skill');
+          // Paralisia: o corpo fica dormente (anda a 70% e leva um choque por segundo).
+          if (cfg.paralysisMs && this.stillThere(x)) this.applyEffect(x, 'paralisia', t, cfg.paralysisMs, undefined, session);
         }
         break;
       case 'illusion':
@@ -1609,9 +1618,14 @@ export class GameWorld {
       case 'shadow':
         for (const x of hits) this.applyStatus(x, 'rooted', lasting(cfg.rootMs ?? 0), t);
         break;
-      case 'fire':
-        this.launch(session, fx, fy, { skill, speed: cfg.speed ?? 12, range: reach, damage: dmg, radius: cfg.radius ?? 0, volley: new Set() });
+      case 'fire': {
+        // A queimadura escala igual ao golpe (Ninjutsu, nível do jutsu, passiva, clima): mesma proporção do dano.
+        const burn = cfg.burn ? { amount: Math.max(1, Math.round(cfg.burn * (dmg / (cfg.damage ?? 1)))), ms: cfg.burnMs ?? 3000 } : undefined;
+        this.launch(session, fx, fy, {
+          skill, speed: cfg.speed ?? 12, range: reach, damage: dmg, radius: cfg.radius ?? 0, volley: new Set(), ...(burn ? { burn } : {}),
+        });
         break;
+      }
       case 'weapons': {
         // Leque: a do meio primeiro, depois as dos lados (-fan/2 e +fan/2).
         const n = Math.max(1, cfg.shots ?? 3);
@@ -1802,6 +1816,7 @@ export class GameWorld {
       for (const p of pulses) {
         if (s.dead) break;
         if (p.kind === 'heal') this.healPlayer(s, p.amount, t);
+        else if (p.kind === 'stun') this.shock(x, p.amount, t);
         else {
           const by = p.sourceId ? this.sessions.get(p.sourceId) : undefined;
           this.damagePlayer(s, p.amount, t, undefined, by && by !== s && this.canHurt(by, s, t) ? by : undefined);
@@ -1815,7 +1830,8 @@ export class GameWorld {
       const { pulses, expired } = stepEffects(m.effects, t);
       for (const p of pulses) {
         if (m.hp <= 0 || !this.monsters.has(m.id)) break;
-        if (p.kind === 'heal') {
+        if (p.kind === 'stun') this.shock(x, p.amount, t);
+        else if (p.kind === 'heal') {
           const amount = Math.min(m.maxHp - m.hp, p.amount);
           m.hp += amount;
           if (amount > 0) this.broadcastMap(m.map, { type: 'hit', target: 'monster', id: m.id, amount, kind: 'heal', hp: m.hp, maxHp: m.maxHp });
@@ -1825,6 +1841,21 @@ export class GameWorld {
         }
       }
       if (this.monsters.has(m.id)) for (const code of expired) this.effectGone(x, code, t);
+    }
+  }
+
+  /**
+   * Choque da paralisia: parado por `ms` (todos veem). Fora do teto de controle (é curto e já veio de um Relâmpago que
+   * contou no teto); a Máscara Intangível ignora.
+   */
+  private shock(x: Target, ms: number, t: number): void {
+    if (x.kind === 'player') {
+      if (t < x.session.intangibleUntil) return;
+      x.session.stunnedUntil = Math.max(x.session.stunnedUntil, t + ms);
+      this.broadcastMap(x.session.map, { type: 'player_status', playerId: x.id, status: 'stunned', ms });
+    } else {
+      x.monster.stunnedUntil = Math.max(x.monster.stunnedUntil, t + ms);
+      this.broadcastMap(x.monster.map, { type: 'monster_status', id: x.id, status: 'stunned', ms });
     }
   }
 
@@ -1888,6 +1919,7 @@ export class GameWorld {
       id: ++this.projectileSeq, owner, map: owner.map, skill: spec.skill, weapon: spec.weapon, power: spec.power, x: owner.x, y: owner.y, ux, uy,
       speed: spec.speed, left: spec.range, damage: spec.damage, radius: spec.radius, volley: spec.volley,
       hitRadius: spec.hitRadius ?? HIT_RADIUS, pierce: spec.pierce ?? false, source: spec.source ?? 'skill',
+      ...(spec.burn ? { burn: spec.burn } : {}),
     };
     this.projectiles.push(p);
     this.broadcastMap(owner.map, {
@@ -1934,7 +1966,12 @@ export class GameWorld {
       type: 'impact', id: p.id, ...projectileKind(p), x: round2(at.x), y: round2(at.y), r: p.radius,
     });
     if (p.radius > 0) {
-      for (const x of this.targetsFor(p.owner)) if (isInCircle(at, p.radius, x)) this.hitTarget(x, p.damage, p.owner, t, p.source);
+      for (const x of this.targetsFor(p.owner)) {
+        if (!isInCircle(at, p.radius, x)) continue;
+        this.hitTarget(x, p.damage, p.owner, t, p.source);
+        // Fogo: quem sobreviveu à explosão fica queimando (o dono ganha o abate se a queimadura matar).
+        if (p.burn && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, p.burn.ms, p.burn.amount, p.owner);
+      }
     } else if (hit) {
       p.volley.add(hit.id);
       this.hitTarget(hit, p.damage, p.owner, t, p.source);
@@ -3125,6 +3162,8 @@ export class GameWorld {
       nextThinkAt: t + this.config.combat.monsterThinkMs * this.random(),
       dir: null,
       effects: new Map(),
+      windup: null,
+      nextSlamAt: t + (stats.slam ? stats.slam.everyMs / 2 : 0),
       ...(fixed ? { home: { x: pos!.x, y: pos!.y } } : {}),
       ...(admin ? { admin: true } : {}),
       ...(picked ? { zone: { x: picked.x, y: picked.y, w: picked.w, h: picked.h } } : {}),
@@ -3184,7 +3223,20 @@ export class GameWorld {
   private updateMonster(m: Monster, t: number, dt: number): boolean {
     const type = this.monsterType(m.type);
     if (type.stationary) return false;
+    // Golpe marcado em preparo: parado; atordoado ou dormindo, perde o golpe; na hora, pula e acerta o círculo.
+    if (m.windup && type.slam) {
+      if (t < m.stunnedUntil || effectBlock(m.effects, t) === 'all') {
+        m.windup = null;
+        m.nextSlamAt = t + type.slam.everyMs / 2;
+        this.broadcastMap(m.map, { type: 'telegraph', id: m.id, x: m.x, y: m.y, r: 0, ms: 0 });
+        return false;
+      }
+      if (t < m.windup.at) return false;
+      this.monsterSlam(m, type.slam, t);
+      return true;
+    }
     if (type.ai && t >= m.nextThinkAt) this.thinkMonster(m, type.ai, t);
+    if (type.slam && m.mind === 'chase' && t >= m.nextSlamAt && this.startSlam(m, type.slam, t)) return false;
     if (m.mind === 'idle' || !type.ai) return t >= m.nextStepAt && this.stepMonster(m, t);
     if (t < m.stunnedUntil || t < m.rootedUntil || effectBlock(m.effects, t) === 'all' || !m.dir) return false;
     if (m.mind === 'chase') {                       // encostou: para e bate (monsterAttack)
@@ -3244,6 +3296,35 @@ export class GameWorld {
     m.dir = unit(target.x - m.x, target.y - m.y);
   }
 
+  /**
+   * Marca o chão onde o alvo está (todos veem o círculo enchendo). Só com o alvo perto, sem estar atordoado ou preso,
+   * e com o alvo fora de zona segura.
+   */
+  private startSlam(m: Monster, slam: MonsterSlam, t: number): boolean {
+    const target = m.targetId ? this.sessions.get(m.targetId) : undefined;
+    if (!target || target.dead || target.map !== m.map || distance(m, target) > slam.range) return false;
+    if (t < m.stunnedUntil || t < m.rootedUntil || effectBlock(m.effects, t) === 'all' || this.inSafeZone(target)) return false;
+    m.windup = { at: t + slam.windupMs, x: q3(target.x), y: q3(target.y) };
+    m.nextSlamAt = t + slam.everyMs;
+    this.broadcastMap(m.map, { type: 'telegraph', id: m.id, x: m.windup.x, y: m.windup.y, r: slam.radius, ms: slam.windupMs });
+    return true;
+  }
+
+  /** O pulo: o monstro cai no centro do círculo e acerta todo ninja dentro dele (quem saiu a tempo escapa). */
+  private monsterSlam(m: Monster, slam: MonsterSlam, t: number): void {
+    const at = m.windup!;
+    m.windup = null;
+    m.x = at.x;
+    m.y = at.y;
+    m.nextAttackAt = Math.max(m.nextAttackAt, t + 600);           // caiu: um instante antes de bater de novo
+    this.broadcastMap(m.map, { type: 'monster_slam', id: m.id, x: at.x, y: at.y, r: slam.radius });
+    const layout = this.layout(m.map);
+    for (const s of [...(this.mapPlayers.get(m.map) ?? [])]) {
+      if (s.dead || s.closed || inSafeZone(layout, s.x, s.y) || !isInCircle(at, slam.radius, s)) continue;
+      this.damagePlayer(s, slam.damage, t, at);
+    }
+  }
+
   /** Desiste e volta para a zona (sem ouvir ninguém no caminho). */
   private monsterReturn(m: Monster, zone: Box): void {
     m.mind = 'return';
@@ -3278,6 +3359,7 @@ export class GameWorld {
   /** Monstro bate em quem está colado (o mais perto), no ritmo do tipo dele. Atordoado ou dormindo não ataca. */
   private monsterAttack(m: Monster, t: number): void {
     const cfg = this.monsterType(m.type);
+    if (m.windup) return;                                          // preparando o golpe marcado
     if (cfg.attackDamage <= 0 || t < m.nextAttackAt || t < m.stunnedUntil || effectBlock(m.effects, t) === 'all') return;
     const target = nearest(m, this.mapPlayers.get(m.map) ?? [], cfg.attackRange, (s) => !s.dead && !s.closed && !this.inSafeZone(s));
     if (!target) return;

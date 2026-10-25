@@ -127,6 +127,8 @@ import type { PowerKind } from './akatsuki.js';
  *   monster_aggro     { id, targetId }                     o monstro notou alguém e persegue (null = desistiu)
  *   effect            { target, id, effect, ms }           efeito com tempo (effects.ts) começou ou renovou; ms 0 = acabou
  *   combo             { target, id, combo }                combo de elementos (Água molha + Relâmpago = eletrocutado)
+ *   telegraph         { id, x, y, r, ms }                  golpe marcado: círculo no chão, cai em ms (ms 0 = interrompido)
+ *   monster_slam      { id, x, y, r }                      o golpe marcado caiu (o monstro pulou ali)
  *   mission_board     { npcId, offers, mission }           Sala de Missões: cartões do Mestre e a missão atual
  *   chat_history      { messages }                         histórico do chat (só para quem pediu)
  *   chat / error                                           como antes
@@ -497,6 +499,8 @@ export type ServerMessage =
   | { type: 'monster_aggro'; id: string; targetId: string | null }
   | { type: 'effect'; target: 'player' | 'monster'; id: string; effect: EffectCode; ms: number }
   | { type: 'combo'; target: 'player' | 'monster'; id: string; combo: 'eletrocutado' }
+  | { type: 'telegraph'; id: string; x: number; y: number; r: number; ms: number }
+  | { type: 'monster_slam'; id: string; x: number; y: number; r: number }
   | { type: 'mission_board'; npcId: string; offers: MissionOffer[]; mission: MissionView | null }
   | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean; speed: number; running: boolean }
   | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }

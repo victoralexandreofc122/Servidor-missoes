@@ -252,7 +252,13 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   silêncio, sono (acorda ao apanhar), ferida (metade da cura) e lentidão, em ninjas e monstros, com ícone em cima da
   cabeça.
   - No jogo já: a **Água molha** e o **Relâmpago num alvo molhado** dá combo, 30% a mais ("Combo! ⚡💧").
+  - O **Fogo queima** em todos os tiers (3 s; 3, 4, 6 e 8 por segundo nos tiers 1 a 4, com o Ninjutsu).
+  - O **Relâmpago paralisa** (2 a 3,4 s): anda a 70% e leva um choque de 0,25 s por segundo.
   - Os outros efeitos são a base dos próximos jutsus; o admin testa com `/admin efeito <nome> <efeito|limpar> [seg]`.
+- **Golpe marcado do Lodo Escuro:**
+  - ele marca no chão um círculo vermelho onde o alvo está e, 1 s depois, pula ali (28 de dano);
+  - quem sai a tempo escapa;
+  - atordoar o Lodo no preparo interrompe o golpe.
 - **Deploy:** a migração v12 é obrigatória. O servidor novo não sobe sem ela (o log do Render avisa) e o Render mantém
   a versão anterior no ar. Rodar no Neon primeiro, depois a `main` (DEPLOY.md, passo 24).
 

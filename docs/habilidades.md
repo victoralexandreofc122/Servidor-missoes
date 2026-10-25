@@ -15,10 +15,11 @@ Os números das propostas são um ponto de partida; o balanceamento vem dos dado
 |---|---|---|---|
 | **Dano direto, um alvo** | Relâmpago, Taijutsu, Ataque Básico | | |
 | **Dano em área** | Fogo (explosão), Água (cone), Kunais (leque), Shuriken Gigante (atravessa) | | |
-| **Dano ao longo do tempo** | | `queimadura` (4 por segundo) | Fogo tier 3 e 4 deixam queimadura |
+| **Dano ao longo do tempo** | **Fogo** (todos os tiers): a explosão deixa queimadura por 3 s, 3/4/6/8 por segundo nos tiers 1 a 4 (com o Ninjutsu) | `queimadura` | |
 | **Cura direta** | Cura (no aliado focado, em si ou no mais ferido) | | |
 | **Cura ao longo do tempo** | | `regeneracao` (5 por segundo) | Cura tier 3 vira regeneração no grupo |
 | **Atordoar** | Ilusão (em volta), Relâmpago (choque curto) | | |
+| **Paralisia** | **Relâmpago** (todos os tiers): 2 / 2,4 / 2,8 / 3,4 s andando a 70%, com um choque de 0,25 s por segundo | `paralisia` | |
 | **Prender** | Sombra | | |
 | **Silêncio** (sem jutsu) | | `silencio` | Ilusão tier 3: "Genjutsu do Silêncio" |
 | **Sono** (quebra ao apanhar) | | `sono` | Ilusão tier 4: "Genjutsu do Sono", longo e frágil |
@@ -70,8 +71,13 @@ depois nada. Silêncio e sono devem entrar nesse mesmo teto quando virarem jutsu
   | lodo sombrio | 6 casas | 3,4 casas/s | 12 casas |
 
   O ninja anda a 5 casas/s, então sempre dá para fugir.
-- **Golpe telegrafado** (próximo): o Lodo Escuro marca o chão com um círculo e 1 s depois pula ali. Quem sai do
-  círculo não apanha.
+- **Golpe marcado (v18, já no jogo):**
+  - o Lodo Escuro marca no chão um círculo vermelho de 1,6 casa onde o alvo está (de 8 em 8 s, com o alvo a até
+    4,5 casas);
+  - o miolo enche e, 1 s depois, ele pula ali: 28 de dano em quem ficou dentro;
+  - quem sai a tempo não apanha;
+  - atordoar ou adormecer o Lodo no preparo interrompe o golpe ("Interrompido!");
+  - a câmera treme se cair perto.
 - **Primeiro chefe** (proposta: o Rei Lodo, no fundo da Caverna do Lodo), com fases disparadas uma vez só:
   - **65% da vida:** invoca 4 slimes (adds);
   - **30%:** golpe pesado no alvo dele ("tank buster"), que pede Pedra ou Substituição;
@@ -84,6 +90,8 @@ depois nada. Silêncio e sono devem entrar nesse mesmo teto quando virarem jutsu
 
 - **Água + Relâmpago (v18, já no jogo):** a Água deixa o alvo **molhado** (4 s); o Relâmpago num alvo molhado bate
   **30% a mais** e o seca (aparece "Combo! ⚡💧"). Com a chuva (Água e Raio +5%), o combo fica ainda melhor.
+- **Fogo e Relâmpago:** a queimadura e a paralisia somam com o combo. Quem queima e depois toma Relâmpago molhado
+  apanha das três coisas.
 - **Próximos combos de classe:**
   - a Água apaga a queimadura (defesa contra Fogo);
   - Sombra + Ilusão: o preso que é atordoado também fica lento.

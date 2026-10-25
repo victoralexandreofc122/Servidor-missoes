@@ -10,12 +10,13 @@
  *   sono         não anda, não ataca, não usa nada; ACORDA ao apanhar
  *   ferida       a cura recebida cai pela metade (anti-cura)
  *   lentidao     anda a 60% da velocidade
+ *   paralisia    o Relâmpago deixa o corpo dormente: anda a 70% e leva um choque (0,25 s parado) a cada 1 s
  *
  * O atordoamento e a prisão (Relâmpago, Ilusão, Sombra) continuam como estão (`stunnedUntil`, `rootedUntil`, com o teto
  * de controle no PvP). Funções puras aqui; o mundo (gameWorld.ts) avisa todos e aplica dano, cura e bloqueios.
  */
 
-export const EFFECT_CODES = ['molhado', 'queimadura', 'regeneracao', 'silencio', 'sono', 'ferida', 'lentidao'] as const;
+export const EFFECT_CODES = ['molhado', 'queimadura', 'regeneracao', 'silencio', 'sono', 'ferida', 'lentidao', 'paralisia'] as const;
 export type EffectCode = (typeof EFFECT_CODES)[number];
 
 export interface EffectRule {
@@ -26,8 +27,8 @@ export interface EffectRule {
   /** Duração e força padrão (dano ou cura por pulso), quando quem aplica não diz. */
   defaultMs: number;
   amount?: number;
-  /** Pulso (DoT, HoT): de quanto em quanto tempo e o que faz. */
-  tick?: { everyMs: number; kind: 'damage' | 'heal' };
+  /** Pulso (DoT, HoT, choque): de quanto em quanto tempo e o que faz. No choque, `amount` = ms parado. */
+  tick?: { everyMs: number; kind: 'damage' | 'heal' | 'stun' };
   /** Silêncio: sem jutsu. Sono: sem nada (nem andar). */
   blocksJutsu?: boolean;
   blocksAll?: boolean;
@@ -47,6 +48,7 @@ export const EFFECTS: Readonly<Record<EffectCode, EffectRule>> = {
   sono: { name: 'Sono', icon: '💤', kind: 'cc', defaultMs: 4000, blocksAll: true, breaksOnDamage: true },
   ferida: { name: 'Ferida', icon: '🩸', kind: 'debuff', defaultMs: 6000, healTaken: 0.5 },
   lentidao: { name: 'Lentidão', icon: '🐌', kind: 'debuff', defaultMs: 3000, speed: 0.6 },
+  paralisia: { name: 'Paralisia', icon: '💫', kind: 'cc', defaultMs: 2000, amount: 250, speed: 0.7, tick: { everyMs: 1000, kind: 'stun' } },
 };
 
 /** Combo Água + Relâmpago: o choque num alvo molhado bate 30% mais forte (e seca o alvo). */
@@ -85,7 +87,7 @@ export const hasEffect = (bag: EffectBag, code: EffectCode, t: number): boolean 
 /** Pulso devido de um DoT/HoT. */
 export interface Pulse {
   code: EffectCode;
-  kind: 'damage' | 'heal';
+  kind: 'damage' | 'heal' | 'stun';
   amount: number;
   sourceId: string | null;
 }

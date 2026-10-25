@@ -18,6 +18,11 @@ export interface SkillConfig {
   range?: number;          // alcance (casas): até onde a linha, o projétil ou o cone vão
   coneDeg?: number;        // abertura do cone
   push?: number;           // Água: quantas casas empurra quem ela acerta (para longe de quem lançou)
+  /** Fogo: queimadura em quem a explosão pega (dano por segundo, antes do Ninjutsu) e quanto dura. */
+  burn?: number;
+  burnMs?: number;
+  /** Relâmpago: quanto dura a paralisia (anda a 70% e um choque de 0,25 s por segundo). */
+  paralysisMs?: number;
   /** Projétil (Fogo, Kunais): velocidade em casas/s. Sem `speed`, a linha é instantânea. */
   speed?: number;
   /** Kunais: quantos projéteis e a abertura total do leque (graus). */
@@ -44,9 +49,24 @@ export interface MonsterAiConfig {
   leashRange: number;
 }
 
+/**
+ * Golpe marcado (telegrafado): perseguindo, com o alvo a até `range` casas, o monstro marca um círculo no chão onde o
+ * alvo está e, `windupMs` depois, pula ali e acerta todo ninja dentro do círculo. Quem sai a tempo não apanha;
+ * atordoar (ou adormecer) o monstro durante o preparo interrompe o golpe.
+ */
+export interface MonsterSlam {
+  everyMs: number;
+  windupMs: number;
+  range: number;
+  radius: number;
+  damage: number;
+}
+
 export interface MonsterType {
   /** Sem isto: não persegue (anda à toa e só bate em quem encosta). */
   ai?: MonsterAiConfig;
+  /** Golpe marcado no chão (Lodo Escuro). */
+  slam?: MonsterSlam;
   maxHp: number;
   xp: number;
   attackRange: number;
@@ -297,6 +317,8 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       lodo_escuro: {
         maxHp: 110, xp: 45, attackRange: 1.25, attackDamage: 14, attackEveryMs: 1900, stationary: false, respawnMs: 0,
         ai: { aggroRange: 5, chaseSpeed: 3, leashRange: 10 },
+        // Pancada: marca o chão (1,6 casa) onde o alvo está e pula ali 1 s depois (28 de dano); de 8 em 8 s.
+        slam: { everyMs: 8000, windupMs: 1000, range: 4.5, radius: 1.6, damage: 28 },
       },
     },
     rankLevels: { genin: 11, chunin: 40, kage: 60 },

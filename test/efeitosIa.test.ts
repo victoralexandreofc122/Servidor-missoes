@@ -111,8 +111,8 @@ describe('efeitos no jogo', () => {
     a.send({ type: 'cast', skill: 'lightning' });
     assert.deepEqual(a.conn.last('combo'), { type: 'combo', target: 'monster', id: m.id, combo: 'eletrocutado' });
     assert.equal(hp - monster(w.world, m.id).hp, Math.round(SK.lightning.damage! * WET_LIGHTNING_BONUS));
-    assert.equal(a.conn.last('effect').ms, 0, 'secou');
-    assert.equal(monster(w.world, m.id).effects.size, 0);
+    assert.equal(a.conn.of('effect').filter((e: any) => e.effect === 'molhado').at(-1).ms, 0, 'secou');
+    assert.deepEqual([...monster(w.world, m.id).effects.keys()], ['paralisia'], 'e ficou paralisado');
   });
 
   it('/admin efeito: silêncio (sem jutsu, golpe sai), sono (não anda nem bate; apanhar acorda), lentidão, ferida, regeneração', () => {
