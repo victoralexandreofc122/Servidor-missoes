@@ -5416,93 +5416,93 @@ function drawMeditationAura(sx, sy, r, T, now) {
 }
 
 /** O Mestre: manto índigo com borda dourada, o kanji 師 (sensei) e o marcador de missão. */
-function drawNpc(n, sx, sy, T, now, me) {
-  if (n.shop || ACADEMY_LOOK[n.id]) return drawShopkeeper(n, sx, sy, T, now);
-  const r = T * 0.44;
-  ctx.save();
-  // Perto o bastante para conversar: anel dourado no chão.
-  if (state.nearNpc === n) {
-    ctx.strokeStyle = 'rgba(255, 210, 63, 0.75)';
-    ctx.lineWidth = Math.max(2, T * 0.06);
-    ctx.setLineDash([T * 0.2, T * 0.12]);
-    ctx.lineDashOffset = -now / 50;
-    ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 1.7, r * 0.66, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
-  }
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-  ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.92, r * 1.05, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
-  // manto (um pouco mais largo embaixo): o Mestre de roxo, o Posto de Viagem de verde
-  ctx.fillStyle = n.role === 'travel' ? '#2f5a3a' : '#3b2f6e';
-  ctx.beginPath();
-  ctx.moveTo(sx - r * 0.95, sy + r * 0.75);
-  ctx.quadraticCurveTo(sx - r * 1.05, sy - r * 0.2, sx, sy - r * 1.02);
-  ctx.quadraticCurveTo(sx + r * 1.05, sy - r * 0.2, sx + r * 0.95, sy + r * 0.75);
-  ctx.quadraticCurveTo(sx, sy + r * 1.0, sx - r * 0.95, sy + r * 0.75);
-  ctx.fill();
-  ctx.lineWidth = Math.max(2, T * 0.07);
-  ctx.strokeStyle = '#e8c66a';
-  ctx.stroke();
-  ctx.fillStyle = '#ffe9a8';
-  ctx.font = `800 ${Math.round(r * 0.95)}px system-ui, -apple-system, sans-serif`;
-  ctx.textBaseline = 'middle';
-  ctx.fillText(n.role === 'travel' ? '旅' : '師', sx, sy + r * 0.05);
-  // nome
-  const fontSize = Math.max(11, Math.round(T * 0.32));
-  ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
+/** O Mestre (grisalho, colete e a capa da vila) e o Posto de Viagem (capa de viagem e um pergaminho nas costas). */
+const ROLE_LOOK = {
+  sensei: { look: { hairColor: 'branco', eyeColor: 'cinza', outfit: 'vila', bandana: true }, cape: 'capa_vila', gear: null },
+  travel: { look: { hairColor: 'preto', skin: 'canela', shirtColor: 'marrom', pantsColor: 'marrom' }, cape: 'capa_viagem', gear: { hand: null, back: null, scroll: 'scroll_weapons' } },
+};
+const roleLooks = new Map();
+
+/** Nome do NPC numa plaquinha escura (letra estreita, dourada), como a dos jogadores. Devolve o topo da plaquinha. */
+function drawNpcLabel(text, sx, bottom, T) {
+  const fontSize = Math.max(12, Math.round(T * 0.32));
+  ctx.font = `700 ${fontSize}px ${UI_FONT}`;
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
+  const tw = ctx.measureText(text).width;
+  ctx.fillStyle = 'rgba(10, 13, 26, 0.68)';
+  roundRect(sx - tw / 2 - 6, bottom - fontSize - 1, tw + 12, fontSize + 3, 4);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(233, 196, 106, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
   ctx.lineWidth = 3;
   ctx.lineJoin = 'round';
-  ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
-  ctx.fillStyle = '#ffd23f';
-  const nameY = sy - r * 1.05 - 3;
-  ctx.strokeText(n.name, sx, nameY);
-  ctx.fillText(n.name, sx, nameY);
+  ctx.strokeStyle = 'rgba(8, 10, 20, 0.85)';
+  ctx.fillStyle = '#ffd76a';
+  ctx.strokeText(text, sx, bottom + 1);
+  ctx.fillText(text, sx, bottom + 1);
+  return bottom - fontSize - 1;
+}
+
+/** Anel dourado no chão: perto o bastante para conversar. */
+function drawTalkRing(n, sx, sy, T, now) {
+  if (state.nearNpc !== n) return;
+  const r = T * 0.44;
+  ctx.strokeStyle = 'rgba(255, 210, 63, 0.75)';
+  ctx.lineWidth = Math.max(2, T * 0.06);
+  ctx.setLineDash([T * 0.2, T * 0.12]);
+  ctx.lineDashOffset = -now / 50;
+  ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 1.7, r * 0.66, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawNpc(n, sx, sy, T, now, me) {
+  if (n.shop || ACADEMY_LOOK[n.id]) return drawShopkeeper(n, sx, sy, T, now);
+  const role = ROLE_LOOK[n.role] || ROLE_LOOK.sensei;
+  const village = state.maps[state.mapId]?.village || 'vila_1';
+  const key = `${n.role}:${village}`;
+  if (!roleLooks.has(key)) roleLooks.set(key, npcLook({ ...role.look, village }));
+  const look = roleLooks.get(key);
+  ctx.save();
+  drawTalkRing(n, sx, sy, T, now);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+  ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.35, T * 0.36, T * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+  n.anim ||= { dead: false, moving: false, act: null, seed: [...String(n.id)].length * 977, faction: { village, cape: role.cape } };
+  const top = drawSpriteCharacter(ctx, n.anim, sx, sy, T, look, 0, now, role.gear)
+    ?? drawCharacter(ctx, sx, sy, T, fallbackColors(look), 0, 0, false, role.gear);
+  const nameTop = drawNpcLabel(n.name, sx, top - 4, T);
   // marcador de missão, pulando (só o Mestre: o Posto de Viagem não passa missão)
   const marker = n.role === 'travel' ? null : npcMarker();
+  let labelTop = nameTop;
   if (marker) {
     const size = Math.max(16, Math.round(T * 0.62));
     const bob = Math.sin(now / 220) * T * 0.08;
-    const my = nameY - fontSize - size * 0.15 + bob;
-    ctx.font = `900 ${size}px system-ui, -apple-system, sans-serif`;
+    const my = nameTop - 2 + bob;
+    ctx.font = `900 ${size}px ${UI_FONT}`;
+    ctx.textBaseline = 'bottom';
     ctx.lineWidth = 4;
     ctx.strokeStyle = 'rgba(20, 17, 13, 0.95)';
     ctx.strokeText(marker.ch, sx, my);
     ctx.fillStyle = marker.color;
     ctx.fillText(marker.ch, sx, my);
+    labelTop = my - size;
   }
   ctx.restore();
-  n.labelTop = nameY - fontSize - Math.max(16, Math.round(T * 0.62));   // o balão fica acima do marcador
+  n.labelTop = labelTop;                               // o balão fica acima do marcador
 }
 
 /** Lojista (só existe dentro da loja): boneco de frente, nome com o ícone da loja e anel quando perto. */
 function drawShopkeeper(n, sx, sy, T, now) {
   ctx.save();
-  if (state.nearNpc === n) {
-    const r = T * 0.44;
-    ctx.strokeStyle = 'rgba(255, 210, 63, 0.75)';
-    ctx.lineWidth = Math.max(2, T * 0.06);
-    ctx.setLineDash([T * 0.2, T * 0.12]);
-    ctx.lineDashOffset = -now / 50;
-    ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 1.7, r * 0.66, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
-  }
+  drawTalkRing(n, sx, sy, T, now);
   const look = SHOPKEEPER_LOOK[n.shop] || ACADEMY_LOOK[n.id] || DEFAULT_APPEARANCE;
   n.anim ||= { dead: false, moving: false, act: null, seed: [...String(n.id)].length * 977 };
   const top = drawSpriteCharacter(ctx, n.anim, sx, sy, T, look, 0, now, NPC_GEAR[n.id])
     ?? drawCharacter(ctx, sx, sy, T, fallbackColors(look), 0, 0, false, NPC_GEAR[n.id]);
-  const fontSize = Math.max(11, Math.round(T * 0.3));
-  ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  ctx.lineWidth = 3;
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
-  ctx.fillStyle = '#ffd23f';
   const label = `${n.shop ? SHOP_INFO[n.shop]?.icon || '🛒' : n.id === 'director' ? '🎓' : '📘'} ${n.name}`;
-  ctx.strokeText(label, sx, top - 3);
-  ctx.fillText(label, sx, top - 3);
+  n.labelTop = drawNpcLabel(label, sx, top - 4, T);
   ctx.restore();
-  n.labelTop = top - 3 - fontSize;
 }
 
 /** Fala do NPC: balão com quebra de linha, acima do marcador. */
