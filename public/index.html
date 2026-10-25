@@ -61,9 +61,6 @@
       <div id="boss-track" class="boss-track" role="meter" aria-label="Vida do chefe"><span id="boss-fill" class="boss-fill"></span><b id="boss-hp" class="boss-hp"></b></div>
     </div>
 
-    <!-- Painel do Admin (v19): o botão só aparece para quem é administrador. -->
-    <button id="admin-toggle" class="admin-toggle" type="button" hidden aria-expanded="false" aria-controls="admin-panel"><span aria-hidden="true">🛡️</span> Admin</button>
-
     <!-- O alvo focado (🎯): retrato, nome e vida. -->
     <div id="target-window" class="target-window" hidden>
       <div class="portrait foe"><canvas id="target-portrait" width="96" height="96" aria-hidden="true"></canvas></div>
@@ -100,6 +97,8 @@
       <button id="village-toggle" class="menu-btn" type="button" hidden aria-expanded="false" aria-controls="village-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5c3 .8 15 .8 18 0"/><path d="M4.5 4c4 1 11 1 15 0"/><path d="M5.5 10.5h13"/><path d="M8 6.5V21M16 6.5V21"/></svg><span id="village-badge">Vila</span></button>
       <button id="history-toggle" class="menu-btn" type="button" aria-label="Histórico do chat" aria-expanded="false" aria-controls="history-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><span>Histórico</span></button>
       <button id="chat-toggle" class="menu-btn" type="button" aria-label="Escrever no chat" aria-expanded="false" aria-controls="chat"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M8 9.5h8M8 12.5h5"/></svg><span>Chat</span></button>
+      <!-- Painel do Admin (v19): só aparece para quem é administrador. No menu, para não cobrir o chat (v20). -->
+      <button id="admin-toggle" class="menu-btn admin-toggle" type="button" hidden aria-expanded="false" aria-controls="admin-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.6-3.4 8.4-8 9-4.6-.6-8-4.4-8-9V6z"/><path d="M8.8 12.2l2.3 2.3 4.2-4.6"/></svg><span>Admin</span></button>
       <button id="logout" class="menu-btn" type="button"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h5v16h-5"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/></svg><span>Sair</span></button>
     </nav>
 

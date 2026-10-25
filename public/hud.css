@@ -196,9 +196,11 @@
   grid-column: 1 / span 2;
   justify-self: end;
   max-width: min(260px, 40vw);
-  padding: 3px 9px;
-  font-size: 12px;
-  background: rgba(10, 14, 34, 0.7);
+  margin-top: -2px;
+  padding: 2px 8px;
+  font-size: 11px;
+  opacity: 0.72;                               /* v20: discreto no canto; o mapa fica à vista */
+  background: rgba(10, 14, 34, 0.55);
   border: 0;
   box-shadow: var(--frame-thin);
   overflow: hidden;
@@ -270,12 +272,17 @@
   box-shadow: 0 0 0 1px rgba(240, 207, 122, 0.25), 0 6px 16px rgba(0, 0, 0, 0.45);
   pointer-events: auto;
   z-index: 2;
+  /* v20: translúcido durante o jogo; opaco quando toca nele (.active, game.js) ou escreve (foco no campo) */
+  opacity: 0.58;
+  transition: opacity 0.18s ease;
 }
-.chat-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 2px; }
-.chat-title { display: flex; align-items: center; gap: 6px; font: 700 16px / 1 var(--ui-font); color: #f6efdc; text-shadow: var(--text-outline); }
+.chat-box:focus-within, .chat-box.active { opacity: 1; }
+@media (hover: hover) and (pointer: fine) { .chat-box:hover { opacity: 1; } }
+.chat-head { display: flex; align-items: center; justify-content: space-between; padding: 3px 8px 1px; }
+.chat-title { display: flex; align-items: center; gap: 5px; font: 700 13px / 1 var(--ui-font); color: #f6efdc; text-shadow: var(--text-outline); }
 .bubble { width: 18px; height: 14px; border-radius: 50%; background: #f4ecd8; position: relative; }
 .bubble::after { content: ""; position: absolute; left: 3px; bottom: -3px; border: 4px solid transparent; border-top-color: #f4ecd8; border-left-width: 2px; }
-.chat-min { width: 28px; height: 22px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, 0.08); color: #f4ecd8; font: 700 16px / 1 var(--ui-font); }
+.chat-min { width: 26px; height: 20px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, 0.08); color: #f4ecd8; font: 700 14px / 1 var(--ui-font); }
 .chat-box .chat-feed {
   position: static;
   flex: 1 1 auto;
@@ -294,7 +301,7 @@
   padding: 0;
   border-radius: 0;
   background: none;
-  font-size: 13.5px;
+  font-size: 12px;
   line-height: 1.3;
   animation: none;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
@@ -318,17 +325,18 @@
 }
 .chat-box .chat-bar input {
   min-width: 0;
-  height: 32px;
+  height: 30px;
   padding: 0 8px;
   border-radius: 6px;
   border: 0;
   background: rgba(4, 6, 16, 0.75);
   box-shadow: inset 0 0 0 1px rgba(240, 207, 122, 0.25);
   color: #f4ecd8;
-  font-size: 14px;
+  font-size: 13px;
 }
-.chat-box .chat-bar button { height: 32px; width: 34px; padding: 0; border: 0; border-radius: 6px; background: rgba(240, 207, 122, 0.18); color: #ffd76a; font-size: 14px; }
-.chat-tab { height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: rgba(4, 6, 16, 0.75); box-shadow: inset 0 0 0 1px rgba(240, 207, 122, 0.25); color: #c9d2ee; font: 600 14px / 1 var(--ui-font); letter-spacing: 0.04em; text-transform: uppercase; }
+.chat-box .chat-bar button { height: 30px; width: 32px; padding: 0; border: 0; border-radius: 6px; background: rgba(240, 207, 122, 0.18); color: #ffd76a; font-size: 13px; }
+.chat-tab { height: 30px; padding: 0 9px; border: 0; border-radius: 6px; background: rgba(4, 6, 16, 0.75); box-shadow: inset 0 0 0 1px rgba(240, 207, 122, 0.25); color: #c9d2ee; font: 600 12px / 1 var(--ui-font); letter-spacing: 0.04em; text-transform: uppercase; }
+.mm-wrap .pill .st-detail { display: none; }     /* celular: só "N jogadores · ping"; o computador mostra o mapa */
 .chat-tab[aria-pressed="true"] { color: #1b1608; background: linear-gradient(180deg, #f6d98a, #d9ab48); box-shadow: none; }
 .chat-box.min .chat-feed, .chat-box.min .chat-missions { display: none; }
 .chat-box.min .chat-foot { padding-top: 0; }
@@ -440,14 +448,19 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
 
 /* telas baixas (celular deitado): tudo um pouco menor */
 @media (max-height: 430px) {
-  /* o status vai para o meio, embaixo do alvo: à direita, o arco de combate sobe até o minimapa */
-  .mm-wrap .pill { position: fixed; top: calc(var(--safe-top) + 70px); left: 50%; transform: translateX(-50%); justify-self: auto; }
+  /* v20: o status fica no alto, à esquerda do ☰ (curto e translúcido); embaixo do minimapa o arco de combate sobe */
+  .mm-wrap .pill { position: absolute; top: 2px; right: 100%; margin: 0 8px 0 0; font-size: 10px; padding: 1px 7px; }
   .chat-box { max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 96px - 150px); }
   .hud-me .bar { width: 170px; height: 15px; }
   .hud-me .bar-chakra { width: 146px; height: 11px; }
   .me-label { font-size: 17px; }
   .chat-box { top: calc(var(--safe-top) + 96px); width: min(232px, 32vw); }
   .chat-box .chat-feed { max-height: calc(3 * 1.3em + 6px); }
+  .chat-box .chat-feed li { font-size: 11px; }
+  .chat-title { font-size: 12px; }
+  .chat-box .chat-bar input, .chat-box .chat-bar button, .chat-tab { height: 26px; font-size: 12px; }
+  .chat-tab { font-size: 11px; }
+  .chat-foot { padding: 4px 6px 5px; gap: 4px; }
   .minimap { width: 92px; height: 92px; }
   .target-window .bar { width: 160px; }
 }
@@ -467,6 +480,7 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
   .minimap { width: 176px; height: 176px; }
   .tracker { display: block; top: calc(var(--safe-top) + 236px); }
   .chat-box { top: auto; bottom: 150px; width: 300px; }
+  .mm-wrap .pill .st-detail { display: inline; }
   .chat-box .chat-feed { max-height: calc(6 * 1.3em + 8px); }
   #chat-tab-missions { display: none; }
   .menu-grid {
@@ -761,14 +775,7 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
 /* ------------------------------------------------------------ Painel do Admin (v19, adminPanel.js)
    Só o admin vê o botão. Painel largo (cabe em PC e celular deitado), o jogador alvo fixo em cima, abas e o rodapé com o
    comando que saiu (para aprender o atalho do chat) e a resposta do servidor. Botões com 40 px ou mais (toque). */
-.admin-toggle {
-  position: fixed; z-index: 7; top: calc(var(--safe-top) + 150px); left: calc(var(--safe-left) + 12px);
-  min-height: 40px; padding: 0 14px; border-radius: 999px; pointer-events: auto;
-  border: 1px solid rgba(240, 160, 60, 0.85); background: linear-gradient(180deg, rgba(40, 26, 10, 0.92), rgba(20, 13, 6, 0.92));
-  color: #ffd79a; font: 800 13px / 1 var(--ui-font); letter-spacing: 0.06em; text-transform: uppercase;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
-}
-.admin-toggle[aria-expanded="true"] { background: var(--accent); color: var(--ink); }
+.admin-toggle .ico-svg { color: #ffb45e; }      /* v20: ícone do menu ☰ (antes ficava solto em cima do chat) */
 .admin-panel {
   width: min(680px, calc(100vw - 20px - var(--safe-left) - var(--safe-right))); border-color: rgba(240, 160, 60, 0.75); z-index: 9;
   display: flex; flex-direction: column; overflow: hidden;       /* o alvo e as abas ficam; só o conteúdo rola */
@@ -835,7 +842,6 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
 .adm-reply.bad { color: var(--danger); }
 @media (max-width: 560px) { .adm-row { grid-template-columns: 1fr; gap: 4px; } }
 @media (max-height: 430px) {
-  .admin-toggle { top: calc(var(--safe-top) + 118px); min-height: 34px; }
   .admin-panel { top: calc(var(--safe-top) + 6px); max-height: calc(100dvh - 12px - var(--safe-top) - var(--safe-bottom)); padding: 8px 12px 12px; }
   .admin-panel .mission-head h2 { font-size: 15px; }
   .adm-target { margin: 0 0 6px; }

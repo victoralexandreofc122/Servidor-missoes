@@ -890,7 +890,7 @@ SELECT (SELECT count(*) FROM game.items WHERE kind = 'shoes'),
 
 ### Testar no celular
 
-1. **Painel do Admin (conta Victor):** embaixo das barras aparece o botão **🛡️ Admin** (quem não é admin não vê).
+1. **Painel do Admin (conta Victor):** no menu ☰ aparece o ícone **Admin** (quem não é admin não vê; desde a v20 ele fica no menu, não mais solto em cima do chat).
    - **Jogador alvo** em cima (o "eu" põe o seu nome; a lista sugere quem está online).
    - Abas **Jogador** (ryō, nível, zerar pontos, efeito, vila, Kage, renegado, Akatsuki), **Itens** e **Jutsus** (é
      só tocar no item ou no jutsu), **Monstros**, **Mundo** (ir para um mapa, clima, hora), **Fim de jogo** e **PvP**.
@@ -930,3 +930,6 @@ Para conferir depois: `SELECT name FROM game.villages ORDER BY sort_order;` tem 
    módulo de vilas desligado, só a Folha abre; as outras ficam com cadeado).
 2. **Admin:** `/admin vila <nome> pedra` responde com o uso: `<folha|nevoa|nuvem|areia>`.
 3. **Zona de Conflito** (com o módulo de PvP ligado): cinco acampamentos, sem o do meio de cima.
+4. **Tela do jogo (celular deitado):** o chat tem letra menor e fica translúcido; toque nele (ou no campo de escrever) e
+   ele fica opaco, toque fora e volta a ficar translúcido. O botão Admin saiu de cima do chat e está no menu ☰. O status
+   (jogadores e ping) fica pequeno no alto, à esquerda do ☰, em vez de no meio da tela.

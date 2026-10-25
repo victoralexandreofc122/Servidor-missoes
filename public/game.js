@@ -1526,7 +1526,7 @@ function updateOnline() {
   const rec = state.arenaRecord;
   const zone = state.inSafeZone ? 'zona segura · ' : state.inArena ? `⚔️ arena${rec ? ` ${rec.wins}V ${rec.losses}D` : ''} · ` : '';
   const ping = state.pingMs ? ` · ${state.pingMs} ms` : '';
-  setStatus(`online · ${where ? `${where} · ` : ''}${zone}${n} ${n === 1 ? 'jogador' : 'jogadores'}${ping}`, 'ok');
+  setStatus(`${n} ${n === 1 ? 'jogador' : 'jogadores'}${ping}`, 'ok', `online · ${where ? `${where} · ` : ''}${zone}`);
 }
 
 /**
@@ -1590,8 +1590,16 @@ const FADE_OUT_MS = 140;
 const FADE_IN_MS = 260;
 const mapFade = { to: null, outAt: 0, alpha: 0 };
 
-function setStatus(text, kind) {
-  ui.status.textContent = text;
+/** `detail` (onde está, zona) some no celular, onde o status fica pequeno no canto (hud.css, .st-detail). */
+function setStatus(text, kind, detail = '') {
+  ui.status.replaceChildren();
+  if (detail) {
+    const d = document.createElement('span');
+    d.className = 'st-detail';
+    d.textContent = detail;
+    ui.status.append(d);
+  }
+  ui.status.append(text);
   ui.status.className = `pill ${kind || ''}`.trim();
 }
 
@@ -3586,6 +3594,11 @@ function setChatMin(min) {
 }
 try { if (localStorage.getItem(CHAT_MIN_KEY)) setChatMin(true); } catch { /* modo privado */ }
 ui.chatMin.addEventListener('click', () => setChatMin(!ui.chatBox.classList.contains('min')));
+// Translúcido no jogo (v20): tocar no chat deixa opaco; tocar em qualquer outro lugar devolve a transparência.
+ui.chatBox.addEventListener('pointerdown', () => ui.chatBox.classList.add('active'));
+document.addEventListener('pointerdown', (e) => {
+  if (!ui.chatBox.contains(e.target)) ui.chatBox.classList.remove('active');
+}, true);
 
 /** Menu (☰ no celular): abre a grade de ícones; escolher qualquer um fecha. */
 ui.menuToggle.addEventListener('click', () => {

@@ -226,6 +226,9 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   a v11 de novo não a traz de volta).
 - **Criador:** os botões de vila mostram o nome (Folha, Névoa...) em vez de "Vila 1".
 - A passiva de vida (+10%, só da Pedra) saiu junto.
+- **Tela do jogo:** chat com letra menor e translúcido (opaco ao tocar nele ou escrever: `.chat-box.active` e
+  `:focus-within`); o botão do Admin virou um ícone do menu ☰ (não cobre mais o chat); o status fica no canto, curto no
+  celular ("1 jogador · 212 ms", o mapa só no PC: `.st-detail`).
 
 ### v19: Rei Lodo, silêncio da Ilusão, números de PvP e Painel do Admin (sem migração)
 
