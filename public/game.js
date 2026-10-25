@@ -2261,7 +2261,7 @@ ui.extractGo.addEventListener('click', () => {
   send({ type: 'extract', class: extractChoice.cls, level: extractChoice.level });
 });
 function showExtractResult(r) {
-  const text = r.outcome === 'success' ? `✨ Sucesso! Você aprendeu ${skillName(r.jutsu)}. Coloque no kit (📊 → Kits).`
+  const text = r.outcome === 'success' ? `✨ Sucesso! Você aprendeu ${skillName(r.jutsu)}. Coloque no kit (☰ → Perfil → Kits).`
     : r.outcome === 'failed' ? `💨 Falhou… ${r.consumed} ${r.consumed === 1 ? 'pergaminho se foi' : 'pergaminhos se foram'}.`
       : r.outcome === 'no_scrolls' ? 'Pergaminhos insuficientes para esse nível.'
         : 'Você já aprendeu todos os jutsus desse nível.';
@@ -2830,8 +2830,8 @@ function renderKit() {
     button.querySelector('.cost').textContent = cost !== undefined ? String(cost) : '';
     button.style.setProperty('--c', info ? info.color : 'transparent');
     button.classList.toggle('empty', !info);
-    button.disabled = !info;
-    button.setAttribute('aria-label', info ? `${info.name}${info.mark} (${cost} de chakra) — tecla ${i + 1}` : `Espaço ${i + 1} vazio (monte na ficha 📊 → Kits)`);
+    // Espaço vazio fica tocável: abre a aba Kits (☰ → Perfil → Kits), onde se escolhem os jutsus de cada kit.
+    button.setAttribute('aria-label', info ? `${info.name}${info.mark} (${cost} de chakra) — tecla ${i + 1}` : `Espaço ${i + 1} vazio: toque para escolher os jutsus (☰ → Perfil → Kits)`);
   });
   ui.kitLabel.textContent = state.kit.active;
   ui.kitBtn.setAttribute('aria-label', `Trocar de kit (ativo: ${state.kit.active})`);
@@ -2888,6 +2888,13 @@ function tapGuard(key) {
 function castSlot(i) {
   const skill = ui.slots[i]?.dataset.skill;
   if (skill) castSkill(skill);
+  else openKits();
+}
+
+/** A aba Kits da ficha: cada jutsu aprendido com os botões A e B (até 4 em cada kit) e "Salvar kits". */
+function openKits() {
+  openStatus();
+  showTab('kits');
 }
 function castSkill(skill) {
   const mech = mechanicOf(skill);
@@ -2937,7 +2944,7 @@ onTap(ui.runBtn, toggleRun);
 onTap(ui.kitBtn, switchKit);
 ui.slots.forEach((button, i) => onTap(button, () => castSlot(i)));
 
-// ------------------------------------------------------------------ ficha (📊): atributos e kits
+// ------------------------------------------------------------------ ficha (☰ → Perfil): atributos, jutsus e kits
 
 /** Número com vírgula e no máximo 1 casa (só formatação: o valor vem pronto do servidor). */
 const num = (n) => String(Math.round(Number(n || 0) * 10) / 10).replace('.', ',');
