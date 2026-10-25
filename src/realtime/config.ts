@@ -150,6 +150,12 @@ export interface RealtimeConfig {
   maxBufferedBytes: number;
   maxPlayers: number;
   heartbeatMs: number;
+  /**
+   * Compensação de lag no PvP. O servidor mede o ping de cada um (a cada `syncEveryMs`) e, nos golpes instantâneos,
+   * confere o acerto onde o OUTRO ninja estava quando o atacante o viu: ping + `interpDelayMs` (o atraso com que o
+   * cliente desenha os outros, prediction.js), no máximo `maxRewindMs` (ping alto não acerta atrás da parede).
+   */
+  lagComp: { syncEveryMs: number; interpDelayMs: number; maxRewindMs: number; trailMs: number };
   combat: CombatConfig;
   /**
    * NPCs parados no mapa. `range` = distância máxima para conversar (casas). `role`: o que ele faz ao conversar
@@ -223,6 +229,9 @@ export const REALTIME: Readonly<RealtimeConfig> = {
 
   /** Ping a cada 30 s (recomendação do Render); sem pong até o próximo ping, a conexão cai. */
   heartbeatMs: 30_000,
+
+  /** Compensação de lag (PvP): ping medido a cada 2 s; volta no tempo até 300 ms; rastro de 500 ms. */
+  lagComp: { syncEveryMs: 2000, interpDelayMs: 100, maxRewindMs: 300, trailMs: 500 },
 
   /** Combate PvE. O servidor decide tudo: dano, acerto, morte e XP. */
   combat: {

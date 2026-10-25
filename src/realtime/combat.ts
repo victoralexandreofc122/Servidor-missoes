@@ -142,3 +142,28 @@ export function randomInRing(center: Point, inner: number, outer: number, random
 
 /** Os 8 vizinhos de uma casa (passo de 1 casa, inclusive diagonais). */
 export const STEPS: readonly [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+
+/** Um ponto do rastro de um ninja: onde ele estava no instante `t` (ms do relógio do servidor). */
+export interface TrailPoint extends Point {
+  t: number;
+}
+
+/**
+ * Compensação de lag: onde o ninja estava no instante `when`, pelo rastro (um ponto por tick, do mais antigo para o
+ * mais novo). Entre dois pontos, na reta; antes do rastro, o ponto mais antigo; depois dele (ou sem rastro), `current`.
+ */
+export function pointAt(trail: readonly TrailPoint[], when: number, current: Point): Point {
+  const last = trail[trail.length - 1];
+  if (!last || when >= last.t) return { x: current.x, y: current.y };
+  const first = trail[0]!;
+  if (when <= first.t) return { x: first.x, y: first.y };
+  for (let i = trail.length - 1; i > 0; i--) {
+    const a = trail[i - 1]!;
+    if (when >= a.t) {
+      const b = trail[i]!;
+      const f = (when - a.t) / (b.t - a.t || 1);
+      return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+    }
+  }
+  return { x: first.x, y: first.y };
+}

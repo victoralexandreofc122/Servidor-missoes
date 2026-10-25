@@ -240,6 +240,9 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   - o **🎯 foca aliados** também: primeiro os inimigos (monstros e, na arena e na Zona de Conflito, os ninjas
     inimigos), do mais perto ao mais longe; depois os aliados (anel e ficha verdes). Com um aliado focado, a **Cura**
     vai nele (longe demais: `OUT_OF_RANGE`, sem gastar).
+- **Compensação de lag no PvP** ([docs/netcode.md](docs/netcode.md)): o servidor mede o ping de cada um (`sync` a
+  cada 2 s; aparece no topo) e confere os golpes instantâneos onde o outro ninja estava na tela de quem bateu
+  (ping + 100 ms de interpolação, teto de 300 ms). Projéteis continuam em tempo real.
 - **Deploy:** a migração v12 é obrigatória. O servidor novo não sobe sem ela (o log do Render avisa) e o Render mantém
   a versão anterior no ar. Rodar no Neon primeiro, depois a `main` (DEPLOY.md, passo 24).
 

@@ -1,8 +1,8 @@
 import { randomInt } from 'node:crypto';
 import { SKY, dayPhase, offsetFor, outdoors, pickWeather, skyEffects, weatherFits, type DayPhase, type SkyEffects, type Weather } from './weather.js';
 import {
-  ahead, distance, firstOnLine, HIT_RADIUS, isInArc, isInCircle, isInCone, lineIntersects, nearest, rotate, shieldedDamage, STEPS, STRIKE_AHEAD,
-  unit, type Point,
+  ahead, distance, firstOnLine, HIT_RADIUS, isInArc, isInCircle, isInCone, lineIntersects, nearest, pointAt, rotate, shieldedDamage, STEPS,
+  STRIKE_AHEAD, unit, type Point, type TrailPoint,
 } from './combat.js';
 import { REALTIME, type MonsterType, type RealtimeConfig } from './config.js';
 import {
@@ -295,6 +295,14 @@ interface Session {
   equippedScroll: string | null;
   /** Sapato calçado (equipamento dos pés; null = descalço). */
   equippedShoes: string | null;
+  /**
+   * Compensação de lag (PvP): onde ele esteve nos últimos `lagComp.trailMs` (um ponto por tick), o ping medido pelo
+   * servidor (média; 0 = ainda não medido) e o "sync" que espera resposta.
+   */
+  trail: TrailPoint[];
+  rttMs: number;
+  sync: { id: number; at: number } | null;
+  nextSyncAt: number;
   /** Último pedido de histórico do chat. */
   lastHistoryAt: number;
   // ------------------------------------------------ fim de jogo (v16, migração v11)
@@ -446,6 +454,8 @@ export class GameWorld {
   private timer: NodeJS.Timeout | undefined;
   private lastTick: number;
   private monsterSeq = 0;
+  /** Número do próximo "sync" (medida do ping). */
+  private syncSeq = 0;
   /** Projéteis no ar (Fogo, Kunais), na ordem em que saíram. */
   private readonly projectiles: Projectile[] = [];
   private projectileSeq = 0;
@@ -778,6 +788,10 @@ export class GameWorld {
       isAdmin: player.isAdmin ?? previous?.isAdmin ?? false,
       equippedScroll: player.equippedScroll !== undefined ? player.equippedScroll : (previous?.equippedScroll ?? null),
       equippedShoes: player.equippedShoes !== undefined ? player.equippedShoes : (previous?.equippedShoes ?? null),
+      trail: [],
+      rttMs: previous?.rttMs ?? 0,
+      sync: null,
+      nextSyncAt: t + this.config.lagComp.syncEveryMs / 2,
       lastHistoryAt: 0,
       sentMaps: new Set(),
       village,
@@ -903,6 +917,7 @@ export class GameWorld {
     else if (parsed.type === 'accept_mission') this.acceptMission(session, parsed.offer, t);
     else if (parsed.type === 'deliver_npc_mission') this.deliverNpcMission(session, t);
     else if (parsed.type === 'chat_history') this.sendChatHistory(session, t);
+    else if (parsed.type === 'sync') this.syncReply(session, parsed.id, t);
     else if (parsed.type === 'chat') this.chatMessage(session, parsed.message, t);
     else if (parsed.type === 'power') this.power(session, t, parsed.targetId, parsed.dir);
     else if (parsed.type === 'set_display') this.setDisplay(session, { cape: parsed.cape, weapon: parsed.weapon, scroll: parsed.scroll });
@@ -1028,6 +1043,7 @@ export class GameWorld {
     s.x = x;
     s.y = y;
     if (from !== to) {
+      s.trail.length = 0;                       // o rastro é do mapa antigo: ninguém do mapa novo o viu lá
       this.mapPlayers.get(from)?.delete(s);
       this.broadcastMap(from, { type: 'player_left', playerId: s.id });
       s.map = to;
@@ -1425,7 +1441,7 @@ export class GameWorld {
       damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * jutsuPower(level) * this.passive(session, 'jutsu') * (sky?.damage[mechanic] ?? 1));
     const lasting = (ms: number) => Math.round(ms * (sky?.status[mechanic] ?? 1));
     const reach = cfg.range ?? cfg.radius ?? 0;
-    const targets = this.targetsFor(session);
+    const targets = this.targetsFor(session, true);
 
     // 1. Mira. Jutsu que mira + inimigo focado: vai na direção dele, MESMO LONGE (pode não chegar). Sem foco, as formas
     //    estreitas (linha, avanço, projétil) procuram o mais perto no alcance; a Água vai para onde o jogador olha.
@@ -1634,13 +1650,36 @@ export class GameWorld {
     return arenaAt(this.layout(s.map), s.x, s.y);
   }
 
-  /** O que as hitboxes de `s` podem acertar agora: os monstros vivos do mapa e os jogadores que ele pode machucar (arena, PvP aberto). */
-  private targetsFor(s: Session): Target[] {
+  /**
+   * O que as hitboxes de `s` podem acertar: os monstros vivos do mapa e os jogadores que ele pode machucar (arena, PvP
+   * aberto). `rewind` (golpes instantâneos): os outros ninjas onde ESTAVAM quando `s` os viu na tela (compensação de
+   * lag: ping + o atraso de desenho, com teto). Projéteis voam em tempo real: posição de agora.
+   */
+  private targetsFor(s: Session, rewind = false): Target[] {
     const out: Target[] = [];
     const t = this.now();
+    const back = rewind ? this.rewindMs(s) : 0;
     for (const m of this.monsters.values()) if (m.hp > 0 && m.map === s.map) out.push({ kind: 'monster', id: m.id, x: m.x, y: m.y, monster: m });
-    for (const o of this.mapPlayers.get(s.map) ?? []) if (this.canHurt(s, o, t)) out.push({ kind: 'player', id: o.id, x: o.x, y: o.y, session: o });
+    for (const o of this.mapPlayers.get(s.map) ?? []) {
+      if (!this.canHurt(s, o, t)) continue;
+      const at = back > 0 ? pointAt(o.trail, t - back, o) : o;
+      out.push({ kind: 'player', id: o.id, x: at.x, y: at.y, session: o });
+    }
     return out;
+  }
+
+  /** Quanto voltar no tempo nos golpes de `s`: o ping dele + o atraso de desenho, até o teto. Ping ainda não medido: nada. */
+  private rewindMs(s: Session): number {
+    const lc = this.config.lagComp;
+    return s.rttMs > 0 ? Math.min(lc.maxRewindMs, Math.round(s.rttMs + lc.interpDelayMs)) : 0;
+  }
+
+  /** Resposta ao "sync": o ping é medido pelo SERVIDOR (o cliente não diz quanto é). Média que muda devagar. */
+  private syncReply(s: Session, id: number, t: number): void {
+    if (!s.sync || s.sync.id !== id) return;
+    const rtt = Math.max(0, t - s.sync.at);
+    s.sync = null;
+    s.rttMs = s.rttMs > 0 ? s.rttMs * 0.75 + rtt * 0.25 : rtt;
   }
 
   /** Dano de uma hitbox: no monstro (XP para quem matou) ou no jogador (PvP). Quem já morreu no meio do golpe não apanha de novo. */
@@ -1860,7 +1899,7 @@ export class GameWorld {
     const thrown = weapon?.throw;
     const swing = weapon?.swing ?? { cooldownFactor: 1, arcDeg: cfg.arcDeg, range: cfg.range };
     const range = thrown ? thrown.range : swing.range;
-    const targets = safe ? [] : this.targetsFor(session);
+    const targets = safe ? [] : this.targetsFor(session, true);
     // Mira: o focado (no alcance) ou o mais perto no alcance. Ninguém: o golpe sai assim mesmo, para o focado (longe)
     // ou para onde ele olha, e erra. No PvP, acertar é questão de tempo.
     const focused = targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined;
@@ -3033,6 +3072,19 @@ export class GameWorld {
       }
     }
 
+    // 1c. Compensação de lag: o rastro de cada um (onde esteve, um ponto por tick) e o "sync" que mede o ping.
+    const lc = this.config.lagComp;
+    for (const s of this.sessions.values()) {
+      if (s.closed) continue;
+      s.trail.push({ t, x: s.x, y: s.y });
+      while (s.trail.length > 1 && s.trail[0]!.t < t - lc.trailMs) s.trail.shift();
+      if (t >= s.nextSyncAt) {
+        s.nextSyncAt = t + lc.syncEveryMs;
+        s.sync = { id: ++this.syncSeq, at: t };
+        this.sendTo(s, { type: 'sync', id: s.sync.id, rtt: Math.round(s.rttMs) });
+      }
+    }
+
     // 0. O céu: virou a fase do dia ou o clima? (avisa todos)
     this.updateSky(t);
 
@@ -3699,7 +3751,7 @@ export class GameWorld {
     if (this.inSafeZone(s)) return fail('SAFE_ZONE');
     if ((s.cooldowns.power ?? 0) > t) return fail('COOLDOWN');
     if (s.chakra < def.cost) return fail('NO_CHAKRA');
-    const targets = this.targetsFor(s);
+    const targets = this.targetsFor(s, true);
     const focused = targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined;
     const dmg = (base: number) => scaledDamage(base, damageMultiplier(s.stats, 'ninjutsu'));
     const layout = this.layout(s.map);

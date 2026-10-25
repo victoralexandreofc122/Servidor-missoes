@@ -597,6 +597,15 @@ function handleMessage(msg) {
       jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
       break;
     }
+    case 'sync': {
+      // O servidor mede o ping (para a compensação de lag no PvP): devolve na hora, e mostra o último medido no topo.
+      send({ type: 'sync', id: msg.id });
+      if (msg.rtt > 0 && (!state.pingMs || Math.abs(state.pingMs - msg.rtt) >= 5)) {
+        state.pingMs = msg.rtt;
+        updateOnline();
+      }
+      break;
+    }
     case 'pushed': {
       // A Água empurrou o ninja: respingo onde ele estava e o boneco escorrega até o lugar novo (o servidor decidiu).
       vfx.play('dust', msg.fromX, msg.fromY, { start: now, feet: true, layer: 'ground' });
@@ -1303,7 +1312,8 @@ function updateOnline() {
   const where = mapName(state.maps, state.mapId);
   const rec = state.arenaRecord;
   const zone = state.inSafeZone ? 'zona segura · ' : state.inArena ? `⚔️ arena${rec ? ` ${rec.wins}V ${rec.losses}D` : ''} · ` : '';
-  setStatus(`online · ${where ? `${where} · ` : ''}${zone}${n} ${n === 1 ? 'jogador' : 'jogadores'}`, 'ok');
+  const ping = state.pingMs ? ` · ${state.pingMs} ms` : '';
+  setStatus(`online · ${where ? `${where} · ` : ''}${zone}${n} ${n === 1 ? 'jogador' : 'jogadores'}${ping}`, 'ok');
 }
 
 /**

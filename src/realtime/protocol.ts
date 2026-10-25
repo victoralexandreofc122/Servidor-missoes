@@ -43,6 +43,7 @@ import type { PowerKind } from './akatsuki.js';
  *   { "type": "accept_mission", "offer": "NPC_EASY" }   escolher um cartão da Sala de Missões (perto do Mestre)
  *   { "type": "deliver_npc_mission" }            botão "Entregar" da Sala de Missões (perto do Mestre)
  *   { "type": "chat_history" }                   pedir o histórico do chat (últimas 100, 24 h)
+ *   { "type": "sync", "id": 12 }                 resposta na hora ao "sync" do servidor (ele mede o ping)
  *   { "type": "chat", "message": "Olá!" }        fala local (o mapa); "/g texto" = global; "/w Nome texto" = sussurro;
  *                                               "/admin ..." = comandos do administrador (nunca vira chat)
  *
@@ -121,6 +122,7 @@ import type { PowerKind } from './akatsuki.js';
  *   substitution      { playerId, logX, logY, x, y, a }    Substituição: tronco no lugar, ninja atrás do atacante
  *   player_gear       { playerId, gear }                   arma na mão / nas costas e pergaminho nas costas (todos veem)
  *   pushed            { playerId, fromX, fromY, x, y, a }  a Água empurrou o ninja (o dono dele refaz a predição dali)
+ *   sync              { id, rtt }                          a cada 2 s: o cliente devolve o id na hora; rtt = o ping medido (ms)
  *   mission_board     { npcId, offers, mission }           Sala de Missões: cartões do Mestre e a missão atual
  *   chat_history      { messages }                         histórico do chat (só para quem pediu)
  *   chat / error                                           como antes
@@ -200,6 +202,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('accept_mission'), offer: z.string().regex(/^NPC_[A-Z]{1,24}$/) }),
   z.object({ type: z.literal('deliver_npc_mission') }),
   z.object({ type: z.literal('chat_history') }),
+  z.object({ type: z.literal('sync'), id: z.number().int().nonnegative().max(2 ** 31) }),
   z.object({ type: z.literal('chat'), message: z.string() }),
   // ------------------------------------------------ fim de jogo (v16)
   z.object({ type: z.literal('village_panel') }),
@@ -480,6 +483,7 @@ export type ServerMessage =
   | { type: 'chat_history'; messages: ChatEntry[] }
   | { type: 'player_gear'; playerId: string; gear: Gear }
   | { type: 'pushed'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }
+  | { type: 'sync'; id: number; rtt: number }
   | { type: 'mission_board'; npcId: string; offers: MissionOffer[]; mission: MissionView | null }
   | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean; speed: number; running: boolean }
   | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }
