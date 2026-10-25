@@ -52,7 +52,7 @@ import type { PowerKind } from './akatsuki.js';
  * Fim de jogo (v16, docs/endgame.md; só valem com o módulo ligado, e o BANCO confere cada regra de novo):
  *   { "type": "village_panel" }                  painel da vila (eleição, diplomacia, denúncias para o Kage)
  *   { "type": "kage_vote", "candidate": uuid }   voto na eleição da própria vila
- *   { "type": "kage_action", "action": "guerra", "village": "vila_2" }   guerra, fim_guerra, alianca, paz, romper
+ *   { "type": "kage_action", "action": "guerra", "village": "vila_3" }   guerra, fim_guerra, alianca, paz, romper
  *   { "type": "kage_answer", "proposal": 3, "accept": true }   responder proposta de aliança ou de paz
  *   { "type": "kage_exile", "name": "Fulano", "reason": ".." }   Kage expulsa da vila (vira renegado)
  *   { "type": "report_player", "name": "Fulano", "reason": ".." }   denúncia (rank igual ou maior)

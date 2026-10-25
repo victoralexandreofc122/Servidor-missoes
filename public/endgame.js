@@ -7,9 +7,11 @@
 
 import { alliesOf, conflictHostile, priceFactor, relationOf } from './politics.js';
 
-export const VILLAGE_CODES = ['vila_1', 'vila_2', 'vila_3', 'vila_4', 'vila_5'];
+export const VILLAGE_CODES = ['vila_1', 'vila_3', 'vila_4', 'vila_5'];
 /** Cor de cada vila (a mesma da bandana no Criador): capa da vila, chips do painel. */
-export const VILLAGE_COLORS = { vila_1: '#3f7d3a', vila_2: '#6b6e73', vila_3: '#4f9cc4', vila_4: '#7a2a3a', vila_5: '#c9822e' };
+export const VILLAGE_COLORS = { vila_1: '#3f7d3a', vila_3: '#4f9cc4', vila_4: '#7a2a3a', vila_5: '#c9822e' };
+/** Nome de cada vila (o mesmo de villages.ts): o Criador mostra antes de o servidor mandar o fim de jogo. */
+export const VILLAGE_NAMES = { vila_1: 'Folha', vila_3: 'Névoa', vila_4: 'Nuvem', vila_5: 'Areia' };
 const RELATION_TEXT = { guerra: 'Guerra', alianca: 'Aliança', neutro: 'Neutro', tregua: 'Trégua', mesma: 'Sua vila' };
 
 /** O módulo está ligado? (`view` = a mensagem `endgame` do servidor) */

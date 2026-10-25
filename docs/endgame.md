@@ -15,7 +15,7 @@ cada parte:
 | Leitura e escrita do banco | `src/realtime/endgameStore.ts`, `admin.ts` | | `v11.integration`, `v16` |
 | Ativação pela população | `src/realtime/endgame.ts` | | `test/endgame.test.ts` |
 | Contas puras (relação, inimigo na Zona, acesso, preço) | `src/realtime/villages.ts` | `public/politics.js` (a mesma conta) | `test/endgame.test.ts` |
-| Mapas (5 vilas, Zona, Refúgio), Postos de Viagem | `maps.ts`, `config.ts` | `mapArt.js`, `world.js` (temas) | `maps.test`, `v16` |
+| Mapas (4 vilas, Zona, Refúgio), Postos de Viagem | `maps.ts`, `config.ts` | `mapArt.js`, `world.js` (temas) | `maps.test`, `v16` |
 | Mundo: passivas, acesso, viagem, PvP da Zona, poderes, capas | `gameWorld.ts` | `endgame.js` (painéis, capa no boneco) | `test/v16.test.ts` |
 
 ---
@@ -44,15 +44,17 @@ guerra entre vilas vazias ou um ranking de 3 jogadores deixam o jogo pior, não 
 
 ## 1. Vilas e política
 
-### 1.1 As cinco vilas
+### 1.1 As quatro vilas
 
 | Código | Vila | Cores (já no Criador) | Passiva |
 |---|---|---|---|
 | `vila_1` | Folha | verde e azul-marinho | +10% de cura (jutsus de cura) |
-| `vila_2` | Pedra | cinza e preto | +10% de vida máxima |
 | `vila_3` | Névoa | azul-celeste | +10% de velocidade |
 | `vila_4` | Nuvem | vinho e preto | +10% de dano dos jutsus |
 | `vila_5` | Areia | laranja e marrom | +10% de dano com armas |
+
+A Vila da Pedra (`vila_2`, +10% de vida) existiu até a v13: o Victor decidiu que o jogo só terá estas quatro
+(25/10/2026). A migração `db/schema_v13_sem_pedra.sql` tira a Pedra do banco; os códigos das outras não mudaram.
 
 - **A vila é do servidor.** Ela mora em `players.village`, não no visual. Salvar o visual nunca muda a vila; a
   bandana e o conjunto só mostram as cores da vila de verdade.
@@ -64,7 +66,7 @@ guerra entre vilas vazias ou um ranking de 3 jogadores deixam o jogo pior, não 
 ### 1.2 Os mapas
 
 - **Folha** é a Vila de hoje (`map_1`), com a Floresta ao sul.
-- **Pedra, Névoa, Nuvem e Areia** usam a mesma planta da Folha (as ruas e os prédios que os testes já medem), cada
+- **Névoa, Nuvem e Areia** usam a mesma planta da Folha (as ruas e os prédios que os testes já medem), cada
   uma com o seu tema de cores no chão e nos telhados, a sua arena, o seu Mestre e o seu Posto de Viagem. O portão sul
   delas fica fechado.
 - **Lojas e Academia** são as mesmas salas para todos: a porta de saída leva de volta à vila de onde a pessoa entrou.
@@ -239,7 +241,7 @@ valendo):
 
 ## Risco de propriedade intelectual
 
-Folha, Névoa, Areia, Nuvem e Pedra, Kage, Akatsuki, renegado (missing-nin) e "Vontade do Fogo" vêm todos de
+Folha, Névoa, Areia, Nuvem, Kage, Akatsuki, renegado (missing-nin) e "Vontade do Fogo" vêm todos de
 Naruto. Juntos, deixam claro que este é um jogo de fã de Naruto. Para jogar entre amigos, sem cobrar, o risco é baixo;
 para lançar ao público ou vender qualquer coisa, os donos da marca podem pedir para tirar o jogo do ar. Por isso os
 nomes ficam em **um lugar só** (`src/realtime/villages.ts` e o catálogo do banco): trocar é editar uma tabela.

@@ -1,5 +1,5 @@
 /*
- * As cinco vilas e a política entre elas (docs/endgame.md, módulos 1 a 4). Funções PURAS: o servidor usa e o cliente
+ * As quatro vilas (Folha, Névoa, Nuvem e Areia; a Pedra saiu na v13) e a política entre elas (docs/endgame.md, módulos 1 a 4). Funções PURAS: o servidor usa e o cliente
  * tem a MESMA conta em public/politics.js (test/endgame.test.ts confere as duas).
  *
  * O banco é a autoridade de quem é de qual vila, de quem é Kage, das guerras e alianças (migração v11); aqui só se
@@ -9,7 +9,7 @@
 import type { Village } from './appearance.js';
 
 /** A passiva de cada vila: um bônus de +10% num tipo de coisa. */
-export type PassiveKind = 'heal' | 'hp' | 'speed' | 'jutsu' | 'weapons';
+export type PassiveKind = 'heal' | 'speed' | 'jutsu' | 'weapons';
 
 export interface VillageInfo {
   /** Nome que aparece no jogo (mudar aqui e em game.villages). */
@@ -21,7 +21,6 @@ export interface VillageInfo {
 
 export const VILLAGE_INFO: Readonly<Record<Village, VillageInfo>> = {
   vila_1: { name: 'Folha', map: 'map_1', passive: { kind: 'heal', bonus: 0.1, text: '+10% de cura' } },
-  vila_2: { name: 'Pedra', map: 'vila_pedra', passive: { kind: 'hp', bonus: 0.1, text: '+10% de vida máxima' } },
   vila_3: { name: 'Névoa', map: 'vila_nevoa', passive: { kind: 'speed', bonus: 0.1, text: '+10% de velocidade' } },
   vila_4: { name: 'Nuvem', map: 'vila_nuvem', passive: { kind: 'jutsu', bonus: 0.1, text: '+10% de dano dos jutsus' } },
   vila_5: { name: 'Areia', map: 'vila_areia', passive: { kind: 'weapons', bonus: 0.1, text: '+10% de dano com armas' } },

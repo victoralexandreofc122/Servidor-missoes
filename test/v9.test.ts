@@ -15,7 +15,7 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 const OLD = { skin: '#8d5524', hair: '#e8c547', shirt: '#ff7700', pants: '#1f2a44', cape: '#2e8b57' };
 const LOOK = {
   v: 2, gender: 'f', skin: 'canela', hairStyle: 'longo_lateral', hairColor: 'preto', eyeStyle: 'cilios', eyeColor: 'verde',
-  outfit: 'vila', shirtColor: 'azul_marinho', pantsColor: 'cinza', bandana: true, village: 'vila_2',
+  outfit: 'vila', shirtColor: 'azul_marinho', pantsColor: 'cinza', bandana: true, village: 'vila_4',
 } as const;
 
 describe('v9: visual em sprites (nomes de paleta)', () => {

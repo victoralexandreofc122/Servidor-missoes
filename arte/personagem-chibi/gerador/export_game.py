@@ -132,7 +132,7 @@ def main():
     )
     out["vilas"] = {v["vila"].replace("vila_exemplo_", "vila_"): dict(
         conjunto=[v["conjunto"]["cor1"], v["conjunto"]["cor2"], v["conjunto"]["cor3"]], bandana=v["bandana"],
-        logo=v.get("logo", "vermelho"), simbolo=v["simbolo"]) for v in EX.VILAS}
+        logo=v.get("logo", "vermelho"), simbolo=v["simbolo"]) for v in EX.VILAS if v["vila"] != "vila_exemplo_2"}  # a Pedra saiu do jogo (v13)
     out["canais"] = {str(k): v for k, v in CANAIS.items()}
     js = ("// GERADO por arte/personagem-chibi/gerador/export_game.py: não edite à mão.\n"
           "// Células: chave 'animação/slot/item/plano/vista/frame' -> [x, y, w, h, ox, oy] no atlas do gênero.\n"

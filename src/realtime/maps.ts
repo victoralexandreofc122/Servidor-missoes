@@ -26,10 +26,10 @@ import type { Box } from './movement.js';
 
 export type Edge = 'east' | 'west' | 'north' | 'south';
 export type MapId = 'map_1' | 'map_2' | 'interior_weapons' | 'interior_clothes' | 'interior_scrolls' | 'academy_interior'
-  | 'vila_pedra' | 'vila_nevoa' | 'vila_nuvem' | 'vila_areia' | 'zona_conflito' | 'refugio'
+  | 'vila_nevoa' | 'vila_nuvem' | 'vila_areia' | 'zona_conflito' | 'refugio'
   | 'caverna_lodo' | 'clareira_queimada' | 'poco';
 /** Tema de cores do mapa (chão, telhados e enfeites; ver public/mapArt.js). */
-export type MapTheme = 'folha' | 'pedra' | 'nevoa' | 'nuvem' | 'areia' | 'conflito' | 'refugio';
+export type MapTheme = 'folha' | 'nevoa' | 'nuvem' | 'areia' | 'conflito' | 'refugio';
 /** As 3 lojas com interior (o NPC lojista manda `shop_open` com isto). */
 export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
 
@@ -347,7 +347,6 @@ interface VillageMapDef { id: MapId; name: string; village: Village; theme: MapT
 
 export const VILLAGE_MAPS: readonly VillageMapDef[] = [
   { id: 'map_1', name: 'Vila da Folha', village: 'vila_1', theme: 'folha', gate: true },
-  { id: 'vila_pedra', name: 'Vila da Pedra', village: 'vila_2', theme: 'pedra', gate: false },
   { id: 'vila_nevoa', name: 'Vila da Névoa', village: 'vila_3', theme: 'nevoa', gate: false },
   { id: 'vila_nuvem', name: 'Vila da Nuvem', village: 'vila_4', theme: 'nuvem', gate: false },
   { id: 'vila_areia', name: 'Vila da Areia', village: 'vila_5', theme: 'areia', gate: false },
@@ -437,7 +436,7 @@ function village(def: VillageMapDef = VILLAGE_MAPS[0]!): MapLayout {
     deco('banner', VILLAGE_ARENA.fence.x - 1.7, VILLAGE_ARENA.west.from - 1.2), deco('banner', VILLAGE_ARENA.fence.x - 1.7, VILLAGE_ARENA.west.to + 0.2),
     deco('bench', 60, 74.6, 3, 1), deco('bench', 66, 74.6, 3, 1), deco('bench', 72, 74.6, 2, 1),
   ];
-  // Lojas e Academia são salas compartilhadas pelas cinco vilas: a porta lembra de onde o jogador veio (`back`).
+  // Lojas e Academia são salas compartilhadas pelas quatro vilas: a porta lembra de onde o jogador veio (`back`).
   const doors: Door[] = SHOPS.map((sh) => {
     const { door, outside } = shopDoor(sh.building);
     decos.push(deco('mat', door.x + 0.5, door.y, 2, 0.6));        // capacho na porta
@@ -869,14 +868,14 @@ function academy(): MapLayout {
  * meio (pilares que servem de cobertura). PvP livre (menos aliados) e monstros mais fortes (lodo sombrio). Cada vila e
  * os renegados têm um ACAMPAMENTO na borda (zona segura onde se chega pelo Posto de Viagem, com o Posto para voltar).
  *
- *   Folha ──────────── Pedra ──────────── Névoa
+ *   Folha ──────────────────────────────── Névoa
  *     │                  ruína               │
  *   Nuvem ──────────── Renegados ────────── Areia
  */
 export const CONFLICT = {
   width: 110, height: 80,
   camps: [
-    { who: 'vila_1', x: 4, y: 4 }, { who: 'vila_2', x: 50, y: 3 }, { who: 'vila_3', x: 96, y: 4 },
+    { who: 'vila_1', x: 4, y: 4 }, { who: 'vila_3', x: 96, y: 4 },
     { who: 'vila_4', x: 4, y: 68 }, { who: 'vila_5', x: 96, y: 68 }, { who: 'renegados', x: 50, y: 69 },
   ] as const,
   camp: { w: 10, h: 8 },
@@ -977,7 +976,7 @@ export function buildMaps(): Record<MapId, MapLayout> {
   const [weapons, clothes, scrolls] = SHOPS;
   return {
     map_1: village(VILLAGE_MAPS[0]), map_2: forest(),
-    vila_pedra: village(VILLAGE_MAPS[1]), vila_nevoa: village(VILLAGE_MAPS[2]), vila_nuvem: village(VILLAGE_MAPS[3]), vila_areia: village(VILLAGE_MAPS[4]),
+    vila_nevoa: village(VILLAGE_MAPS[1]), vila_nuvem: village(VILLAGE_MAPS[2]), vila_areia: village(VILLAGE_MAPS[3]),
     zona_conflito: conflictZone(), refugio: refuge(),
     caverna_lodo: cave(), clareira_queimada: burnedClearing(), poco: well(),
     interior_weapons: interior(weapons), interior_clothes: interior(clothes), interior_scrolls: interior(scrolls),

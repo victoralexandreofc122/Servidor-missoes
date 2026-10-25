@@ -44,9 +44,9 @@ async function setup(modules?: Parameters<typeof fakeEndgame>[0], admin?: AdminS
   await world.endgameMaintenance();
   const join = (username: string, village: Village | null = 'vila_1', extra: Record<string, unknown> = {}) => {
     const id = randomUUID();
-    fake.setVillage(id, village, village === null ? 'vila_2' : null);
+    fake.setVillage(id, village, village === null ? 'vila_4' : null);
     const conn = new FakeConn();
-    const h = world.join({ id, username, appearance: { ...DEFAULT_APPEARANCE, village: village ?? 'vila_2' }, endgame: fake.player(id), ...extra }, conn);
+    const h = world.join({ id, username, appearance: { ...DEFAULT_APPEARANCE, village: village ?? 'vila_4' }, endgame: fake.player(id), ...extra }, conn);
     return { id, conn, username, send: (m: unknown) => h.receive(JSON.stringify(m)) };
   };
   const run = (ms: number) => {
@@ -79,18 +79,18 @@ describe('v16: módulos do fim de jogo', () => {
     fake.setPopulation(REALTIME.endgame.thresholds.vilas);
     await world.endgameMaintenance();
     assert.ok(fake.calls.some((c) => c[0] === 'activate' && c[1] === 'vilas'));
-    assert.match(a.conn.last('announce').message, /cinco vilas/);
+    assert.match(a.conn.last('announce').message, /quatro vilas/);
     assert.deepEqual(a.conn.last('endgame').modules, ['vilas']);
     // A população não chegou no pvp: ele continua desligado.
     assert.ok(!fake.calls.some((c) => c[0] === 'activate' && c[1] === 'pvp'));
   });
 
-  it('cada vila nasce na própria praça; com o módulo, o Criador abre as cinco', async () => {
+  it('cada vila nasce na própria praça; com o módulo, o Criador abre as quatro', async () => {
     const { join } = await setup(['vilas']);
     const nevoa = join('mizu', 'vila_3');
     const w = nevoa.conn.last('welcome');
     assert.equal(w.world.map, 'vila_nevoa');
-    assert.deepEqual(w.world.openVillages, ['vila_1', 'vila_2', 'vila_3', 'vila_4', 'vila_5']);
+    assert.deepEqual(w.world.openVillages, ['vila_1', 'vila_3', 'vila_4', 'vila_5']);
     assert.deepEqual(w.you.faction, { village: 'vila_3' });
   });
 });
@@ -138,7 +138,7 @@ describe('v16: vilas, acesso e Posto de Viagem', () => {
     assert.ok(free('vila_nevoa', TRAVEL_POST.x + 2.5, TRAVEL_POST.y - 1.5));
     assert.ok(free('map_2', 44, 8));
     assert.ok(free('refugio', REFUGE.spawn.x, REFUGE.spawn.y));
-    for (const who of ['vila_1', 'vila_2', 'vila_3', 'vila_4', 'vila_5', 'renegados'] as const) {
+    for (const who of ['vila_1', 'vila_3', 'vila_4', 'vila_5', 'renegados'] as const) {
       const a = conflictCamp(who).arrive;
       assert.ok(free('zona_conflito', a.x, a.y), who);
     }
@@ -172,16 +172,15 @@ describe('v16: vilas, acesso e Posto de Viagem', () => {
 });
 
 describe('v16: passivas das vilas', () => {
-  it('Pedra: +10% de vida; Névoa: +10% de velocidade; renegado: nada', async () => {
+  it('Névoa: +10% de velocidade (a vida não muda); renegado: nada', async () => {
     const { world, join } = await setup(['vilas', 'pvp', 'renegados']);
     const base = join('kaito', 'vila_1');
-    const pedra = join('iwa', 'vila_2');
     const nevoa = join('mizu', 'vila_3');
     const ren = join('nuke', null);
     const hp = (p: { id: string }) => sessionOf(world, p.id).stats.maxHp;
     const speed = (p: { id: string }) => sessionOf(world, p.id).stats.walkSpeed;
-    assert.equal(hp(pedra), Math.round(hp(base) * 1.1));
     assert.equal(speed(nevoa), Math.round(speed(base) * 1.1 * 100) / 100);
+    assert.equal(hp(nevoa), hp(base));
     assert.equal(hp(ren), hp(base));
     assert.equal(speed(ren), speed(base));
   });
@@ -214,10 +213,10 @@ describe('v16: passivas das vilas', () => {
 describe('v16: Zona de Conflito', () => {
   it('PvP livre fora do acampamento, menos aliados; a vitória vai para o banco (ranking, espólio)', async () => {
     const { world, fake, join, at } = await setup(['vilas', 'pvp']);
-    fake.politics.relations.push({ a: 'vila_1', b: 'vila_2', state: 'alianca', declaredBy: 'vila_1' });
+    fake.politics.relations.push({ a: 'vila_1', b: 'vila_4', state: 'alianca', declaredBy: 'vila_1' });
     await world.refreshPolitics();
     const a = join('kaito', 'vila_1');
-    const ally = join('iwa', 'vila_2');
+    const ally = join('kumo', 'vila_4');
     const foe = join('mizu', 'vila_3');
     at(a, 'zona_conflito', 40, 30);
     at(ally, 'zona_conflito', 41, 30);
@@ -353,13 +352,13 @@ describe('v16: Kage e diplomacia', () => {
     const id = randomUUID();
     const conn = new FakeConn();
     const h = world.join({ id, username: 'iwa', appearance: null, endgame: fake.player(id) }, conn);
-    h.receive(JSON.stringify({ type: 'set_appearance', appearance: { ...DEFAULT_APPEARANCE, village: 'vila_2' } }));
+    h.receive(JSON.stringify({ type: 'set_appearance', appearance: { ...DEFAULT_APPEARANCE, village: 'vila_3' } }));
     await flush();
-    assert.deepEqual(fake.calls.find((c) => c[0] === 'chooseVillage'), ['chooseVillage', id, 'vila_2']);
+    assert.deepEqual(fake.calls.find((c) => c[0] === 'chooseVillage'), ['chooseVillage', id, 'vila_3']);
     assert.equal(saved.length, 1);
     const s = sessionOf(world, id);
-    assert.equal(s.village, 'vila_2');
-    assert.equal(s.stats.maxHp, Math.round(REALTIME.combat.player.maxHp * 1.1));
+    assert.equal(s.village, 'vila_3');
+    assert.equal(s.stats.walkSpeed, Math.round(REALTIME.speedTilesPerSecond * 1.1 * 100) / 100);
   });
 });
 
@@ -527,7 +526,7 @@ describe('v16: comandos de admin do fim de jogo', () => {
 describe('v16: nomes e passivas no catálogo', () => {
   it('cada vila tem mapa, nome e uma passiva diferente', () => {
     const kinds = Object.values(VILLAGE_INFO).map((v) => v.passive.kind);
-    assert.equal(new Set(kinds).size, 5);
+    assert.equal(new Set(kinds).size, 4);
     for (const v of Object.values(VILLAGE_INFO)) assert.ok(REALTIME.maps[v.map as keyof typeof REALTIME.maps], v.map);
   });
 });

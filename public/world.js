@@ -61,7 +61,7 @@ export function groundAt(places, x, y) {
   return 'void';
 }
 
-/** Tema de cores do mapa dono da casa (x, y): 'folha', 'pedra', 'nevoa', 'nuvem', 'areia', 'conflito', 'refugio' ou null. */
+/** Tema de cores do mapa dono da casa (x, y): 'folha', 'nevoa', 'nuvem', 'areia', 'conflito', 'refugio' ou null. */
 export function themeAt(places, x, y) {
   for (const p of places) {
     const lx = x - p.ox, ly = y - p.oy;

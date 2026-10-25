@@ -132,7 +132,6 @@ const ROOF = {
 };
 /** Telhados de cada vila (v16): a mesma planta, cores diferentes. [sombra, telhado, brilho]; leader = a sede. */
 const THEME_ROOF = {
-  pedra: { default: ['#22252b', '#3d434d', '#56606c'], leader: ['#2a2d33', '#505864', '#6c7684'] },
   nevoa: { default: ['#1b3a48', '#2f6378', '#4a8aa2'], leader: ['#173544', '#3a7a92', '#5aa2bd'] },
   nuvem: { default: ['#3b1520', '#6b2836', '#86404c'], leader: ['#2e1018', '#7e2f3e', '#9c4a58'] },
   areia: { default: ['#7a4a1e', '#b9773a', '#d39a55'], leader: ['#6e3f18', '#c8863e', '#e0aa62'] },

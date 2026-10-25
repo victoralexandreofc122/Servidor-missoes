@@ -215,6 +215,18 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v20: a Vila da Pedra sai do jogo (migração `db/schema_v13_sem_pedra.sql`, ANTES do deploy)
+
+- **Quatro vilas:** Folha, Névoa, Nuvem e Areia (decisão do Victor, 25/10/2026). Os códigos não mudaram (`vila_1`,
+  `vila_3`, `vila_4`, `vila_5`); a `vila_2` sumiu do servidor (`VILLAGES`, `villages.ts`, mapa `vila_pedra`), do
+  cliente (`endgame.js`, temas em `mapArt.js` e `game.js`), do Criador (`spriteData.js`) e da Zona de Conflito, que
+  agora tem cinco acampamentos (quatro vilas e os renegados).
+- **Migração v13:** quem estiver na Pedra vai para a Folha com a troca de vila de volta; Kage, eleição, diplomacia,
+  eventos, denúncias e o registro do Kage da Pedra são apagados, e a vila também. A v11 não cria mais a Pedra (rodar
+  a v11 de novo não a traz de volta).
+- **Criador:** os botões de vila mostram o nome (Folha, Névoa...) em vez de "Vila 1".
+- A passiva de vida (+10%, só da Pedra) saiu junto.
+
 ### v19: Rei Lodo, silêncio da Ilusão, números de PvP e Painel do Admin (sem migração)
 
 - **Painel do Admin** (`public/adminPanel.js`): o botão 🛡️ só aparece para quem tem `is_admin`.
@@ -354,7 +366,7 @@ guerras, alianças, renegados, ranking e Akatsuki (funções `game.*` da v11, co
 cópia (`politics`, relida a cada mudança e a cada minuto) para decidir na hora mapa, PvP e passivas. **A v11 é
 opcional:** sem ela tudo fica desligado, e aplicar no Neon não precisa reiniciar (a manutenção procura a v11).
 
-- **Vilas** (`villages.ts`): Folha (+10% cura), Pedra (+10% vida), Névoa (+10% velocidade), Nuvem (+10% dano de
+- **Vilas** (`villages.ts`): Folha (+10% cura), Névoa (+10% velocidade), Nuvem (+10% dano de
   jutsu), Areia (+10% dano com armas). A vila do jogador (`players.village`) vem do banco no `join` (o gateway lê
   antes do welcome) e decide onde nasce e renasce. Cada vila tem o seu mapa (a mesma planta, `theme` próprio), o seu
   Mestre e o seu **Posto de Viagem** (`travel_options` / `travel`: casa, Floresta, Zona, vila aliada por 50 ryō via

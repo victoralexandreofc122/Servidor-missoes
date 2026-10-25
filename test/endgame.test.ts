@@ -90,7 +90,7 @@ describe('fim de jogo: cliente e servidor com a mesma conta', () => {
       assert.equal(clientPolitics.mapAllowed(layout, undefined), true);
     }
     assert.equal(mapAllowed(WORLD_MAPS.map_1, access), true);
-    assert.equal(mapAllowed(WORLD_MAPS.vila_pedra, access), false);
+    assert.equal(mapAllowed(WORLD_MAPS.vila_nuvem, access), false);
     assert.equal(mapAllowed(WORLD_MAPS.refugio, access), false);
     assert.equal(mapAllowed(WORLD_MAPS.refugio, { village: null, allies: [] }), true);
   });
@@ -108,11 +108,11 @@ describe('fim de jogo: cliente e servidor com a mesma conta', () => {
   });
 
   it('nome e foco na Zona: inimigo, aliado, Akatsuki entre si; acampamento não', () => {
-    const view = { modules: ['vilas', 'pvp'], relations: [{ a: 'vila_1', b: 'vila_2', state: 'alianca', declaredBy: 'vila_1' }], events: [], villages: [] };
+    const view = { modules: ['vilas', 'pvp'], relations: [{ a: 'vila_1', b: 'vila_4', state: 'alianca', declaredBy: 'vila_1' }], events: [], villages: [] };
     const map = WORLD_MAPS.zona_conflito;
     const safe = (x: number, y: number) => map.safeZones.some((z) => x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h);
     const me = { x: 40, y: 30, faction: { village: 'vila_1' } };
-    const ally = { x: 41, y: 30, faction: { village: 'vila_2' } };
+    const ally = { x: 41, y: 30, faction: { village: 'vila_4' } };
     const foe = { x: 41, y: 31, faction: { village: 'vila_3' } };
     const renegade = { x: 41, y: 32, faction: { village: null, bounty: 300 } };
     assert.equal(clientEndgame.zoneFoe(view, map, me, ally, safe), false);
@@ -141,9 +141,28 @@ describe('fim de jogo: cliente e servidor com a mesma conta', () => {
   });
 
   it('o preço da vila no cliente é o do banco (guerra +10%, aliança −5%)', () => {
-    const view = { modules: ['vilas'], relations: [{ a: 'vila_1', b: 'vila_2', state: 'guerra', declaredBy: 'vila_1' }, { a: 'vila_1', b: 'vila_3', state: 'alianca', declaredBy: 'vila_1' }], events: [] };
+    const view = { modules: ['vilas'], relations: [{ a: 'vila_1', b: 'vila_4', state: 'guerra', declaredBy: 'vila_1' }, { a: 'vila_1', b: 'vila_3', state: 'alianca', declaredBy: 'vila_1' }], events: [] };
     assert.equal(clientEndgame.shopFactor(view, { village: 'vila_1' }, 0), 1.1 * 0.95);
     assert.equal(clientEndgame.shopFactor(view, { village: null }, 0), 1);
     assert.equal(clientEndgame.shopFactor({ modules: [] }, { village: 'vila_1' }, 0), 1);
+  });
+});
+
+describe('v13: só quatro vilas (a Pedra saiu)', () => {
+  it('servidor, cliente, sprites, mapas e Zona de Conflito têm as mesmas: Folha, Névoa, Nuvem e Areia', async () => {
+    const { VILLAGE_INFO } = await import('../src/realtime/villages.js');
+    const { CONFLICT, VILLAGE_MAPS } = await import('../src/realtime/maps.js');
+    // @ts-expect-error módulo JS do cliente (sem tipos)
+    const { SPRITES } = await import('../public/spriteData.js');
+    const four = ['vila_1', 'vila_3', 'vila_4', 'vila_5'];
+    assert.deepEqual([...VILLAGES], four);
+    assert.deepEqual(Object.keys(VILLAGE_INFO), four);
+    assert.deepEqual(clientEndgame.VILLAGE_CODES, four);
+    assert.deepEqual(Object.keys(clientEndgame.VILLAGE_COLORS), four);
+    assert.deepEqual(clientEndgame.VILLAGE_NAMES, Object.fromEntries(four.map((v) => [v, VILLAGE_INFO[v as Village].name])), 'o nome no Criador é o do servidor');
+    assert.deepEqual(Object.keys(SPRITES.vilas), four, 'o Criador só oferece estas');
+    assert.deepEqual(VILLAGE_MAPS.map((m) => m.village), four);
+    assert.deepEqual(CONFLICT.camps.map((c) => c.who), [...four, 'renegados'].sort((a, b) => (a === 'renegados' ? 1 : b === 'renegados' ? -1 : a.localeCompare(b))));
+    assert.equal(Object.keys(WORLD_MAPS).some((id) => id.includes('pedra')), false);
   });
 });

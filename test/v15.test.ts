@@ -405,12 +405,12 @@ describe('v15: vilas travadas no Criador até o Arco 2', () => {
   it('só a primeira vila está aberta; quem já tinha outra pode continuar com ela', async () => {
     assert.deepEqual(OPEN_VILLAGES, ['vila_1']);
     assert.equal(villageAllowed('vila_1', undefined), true);
-    assert.equal(villageAllowed('vila_2', 'vila_1'), false);
+    assert.equal(villageAllowed('vila_4', 'vila_1'), false);
     assert.equal(villageAllowed('vila_3', 'vila_3'), true);
     const { profile, saved } = fakeProfile();
     const { join } = world(config(), undefined, profile);
     const a = join('kaito');
-    a.send({ type: 'set_appearance', appearance: look('vila_2') });
+    a.send({ type: 'set_appearance', appearance: look('vila_4') });
     await flush();
     assert.equal(a.conn.last('error').code, 'VILLAGE_LOCKED');
     assert.deepEqual(saved, []);

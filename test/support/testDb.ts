@@ -7,7 +7,7 @@ import { createDb, type Db } from '../../src/db.js';
  * e apaga tudo no final. TEST_DATABASE_URL precisa de um role com CREATEDB.
  * `files` permite subir um banco sem alguma migração (ex.: testar a v4 ausente).
  */
-export const MIGRATIONS = ['schema_ranks_missoes_sensei.sql', 'schema_v3_auth.sql', 'schema_v4_npc_missions.sql', 'schema_v5_atributos.sql', 'schema_v6_aparencia.sql', 'schema_v7_progressao.sql', 'schema_v8_admin_chat.sql', 'schema_v9_visual_sprites.sql', 'schema_v10_design.sql', 'schema_v11_endgame.sql', 'schema_v12_sapatos.sql'] as const;
+export const MIGRATIONS = ['schema_ranks_missoes_sensei.sql', 'schema_v3_auth.sql', 'schema_v4_npc_missions.sql', 'schema_v5_atributos.sql', 'schema_v6_aparencia.sql', 'schema_v7_progressao.sql', 'schema_v8_admin_chat.sql', 'schema_v9_visual_sprites.sql', 'schema_v10_design.sql', 'schema_v11_endgame.sql', 'schema_v12_sapatos.sql', 'schema_v13_sem_pedra.sql'] as const;
 
 export async function createTestDatabase(files: readonly string[] = MIGRATIONS) {
   const adminUrl = process.env.TEST_DATABASE_URL;
@@ -22,8 +22,16 @@ export async function createTestDatabase(files: readonly string[] = MIGRATIONS) 
   url.pathname = `/${name}`;
   const pool = new pg.Pool({ connectionString: url.toString(), max: 10 });
   // Mesma ordem do Neon: schema v2, migração v3 (login), migração v4 (NPC Mestre).
-  for (const file of files) {
-    await pool.query(readFileSync(new URL(`../../db/${file}`, import.meta.url), 'utf8'));
+  // Uma migração que falha não pode deixar o banco e as conexões abertos: o processo do teste ficaria pendurado.
+  try {
+    for (const file of files) {
+      await pool.query(readFileSync(new URL(`../../db/${file}`, import.meta.url), 'utf8'));
+    }
+  } catch (e) {
+    await pool.end();
+    await admin.query(`DROP DATABASE ${name}`);
+    await admin.end();
+    throw e;
   }
 
   const db: Db = createDb(pool);

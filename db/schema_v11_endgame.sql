@@ -72,9 +72,10 @@ CREATE TABLE IF NOT EXISTS game.villages (
   name       text     NOT NULL UNIQUE,
   sort_order smallint NOT NULL UNIQUE
 );
-COMMENT ON TABLE game.villages IS 'As cinco vilas (os nomes mudam aqui e em src/realtime/villages.ts).';
+COMMENT ON TABLE game.villages IS 'As quatro vilas: Folha, Névoa, Nuvem e Areia (os nomes mudam aqui e em src/realtime/villages.ts). A Pedra (vila_2) saiu na v13.';
+-- A Pedra (vila_2) estava aqui até a v13 tirá-la do jogo; fora da lista, rodar esta migração de novo não a traz de volta.
 INSERT INTO game.villages (code, name, sort_order) VALUES
-  ('vila_1', 'Folha', 1), ('vila_2', 'Pedra', 2), ('vila_3', 'Névoa', 3), ('vila_4', 'Nuvem', 4), ('vila_5', 'Areia', 5)
+  ('vila_1', 'Folha', 1), ('vila_3', 'Névoa', 3), ('vila_4', 'Nuvem', 4), ('vila_5', 'Areia', 5)
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, sort_order = EXCLUDED.sort_order;
 
 ALTER TABLE game.players ADD COLUMN IF NOT EXISTS village          text REFERENCES game.villages (code);
@@ -89,7 +90,7 @@ COMMENT ON COLUMN game.players.own_village_kills IS 'Karma: ninjas da própria v
 
 -- Quem já jogava: a vila que escolheu no Criador antes de as vilas travarem, ou a Folha.
 UPDATE game.players
-   SET village = CASE WHEN appearance ->> 'village' IN ('vila_1', 'vila_2', 'vila_3', 'vila_4', 'vila_5') THEN appearance ->> 'village' ELSE 'vila_1' END
+   SET village = CASE WHEN appearance ->> 'village' IN ('vila_1', 'vila_3', 'vila_4', 'vila_5') THEN appearance ->> 'village' ELSE 'vila_1' END
  WHERE village IS NULL AND renegade_at IS NULL;
 ALTER TABLE game.players ALTER COLUMN village SET DEFAULT 'vila_1';
 ALTER TABLE game.players DROP CONSTRAINT IF EXISTS ck_players_village;

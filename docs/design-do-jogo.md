@@ -501,11 +501,12 @@ Vila. Quando o PvP entre vilas chegar, os jogadores já terão escolhido sem sab
 
 **Decidido: A** [existe, v15]. É a mais simples de explicar e de fazer, combina com o Arco 1 e permite abrir cada
 vila só quando ela tiver mapa e conteúdo. Além disso, controla a população: quem abrir a segunda vila pode ganhar um
-incentivo para equilibrar. No jogo, o Criador mostra a Vila 1 e as outras 4 com cadeado ("abre com o Arco 2"), e o
+incentivo para equilibrar. No jogo, o Criador mostra a Vila 1 e as outras 3 com cadeado ("abre com o Arco 2"), e o
 servidor recusa vila travada (`VILLAGE_LOCKED`). Quem já tinha escolhido outra continua com ela.
 
-**Nomes:** decididos pelo Victor (v16): **Folha, Pedra, Névoa, Nuvem e Areia**, cada uma com uma passiva de +10%.
-As outras quatro vilas abrem com o módulo de vilas do fim de jogo (30 jogadores ativos na semana, ou o admin), cada
+**Nomes:** decididos pelo Victor (v16): **Folha, Névoa, Nuvem e Areia**, cada uma com uma passiva de +10%. A Pedra
+existiu até a v13, quando o Victor decidiu que o jogo só terá estas quatro (25/10/2026).
+As outras três vilas abrem com o módulo de vilas do fim de jogo (30 jogadores ativos na semana, ou o admin), cada
 uma com o seu mapa, o seu Mestre e o seu Posto de Viagem [existe, v16]. Até lá, a decisão A acima continua valendo.
 Detalhes em [endgame.md](endgame.md).
 
@@ -870,7 +871,7 @@ e-mail ou conversa na telemetria.
 | 0 · Base | o jogo roda | servidor, combate, Academia, lojas, arte chibi, armas e efeitos | [feito] |
 | 1 · Arco 1 jogável | motivo para voltar | sistema de história, diálogo, 8 objetivos, inimigos e mapas do Arco 1, Tsubaki e Kagerō, ícones pixel. **Já feito (v15):** XP por participação, monstros por jogador, armas com jeito próprio, proteção contra azar, teto de controle, vilas travadas, arena da vila | um jogador novo vai do login ao título Guardião da Chama sem ajuda, em 5 a 6 horas |
 | 2 · Social | jogar junto | grupo, amigos, recompensa do sensei, Equipes, ranking da arena gravado, denunciar e silenciar, som | metade dos Genin tem sensei ou grupo na primeira semana |
-| 3 · Arco 2 e vilas | rivalidade | **já feito (v16, liga com a população):** cinco vilas e viagem, Kage eleito, diplomacia, Zona de Conflito, renegados, Akatsuki. Falta: a história do Arco 2 | a primeira eleição acontece e a Zona tem gente toda semana |
+| 3 · Arco 2 e vilas | rivalidade | **já feito (v16, liga com a população):** quatro vilas (a Pedra saiu na v13) e viagem, Kage eleito, diplomacia, Zona de Conflito, renegados, Akatsuki. Falta: a história do Arco 2 | a primeira eleição acontece e a Zona tem gente toda semana |
 | 4 · Temporadas | durar | **já feito (v16):** temporadas de PvP de 60 dias com recompensas e capas. Falta: evento semanal da vila, disputa de vilas, loja de cosméticos (se B), mercado | retenção de 30 dias estável por 3 meses |
 
 **Antes de abrir para o público:** busca do nome no INPI (seção 22), termos de uso, política de privacidade e
@@ -884,7 +885,7 @@ classificação indicativa.
 |---|---|---|---|
 | 1 | Nome do jogo | manter "Nin Online Mobile" / nome próprio | **decidido: Vontade do Fogo** (nota na seção 22) |
 | 2 | Título do líder da vila | "Hokage" / título próprio | **decidido: Kage** (Victor, v16; risco na seção 22) |
-| 3 | Nomes das 5 vilas | a criar | **decidido: Folha, Pedra, Névoa, Nuvem e Areia** (Victor, v16; risco na seção 22) |
+| 3 | Nomes das vilas | a criar | **decidido: Folha, Névoa, Nuvem e Areia** (Victor, v16; a Pedra saiu na v13; risco na seção 22) |
 | 4 | Vila no Criador | A travar / B origem / C ganhar no Arco 1 | **decidido e feito: A** (seção 11.1) |
 | 5 | Modelo de PvP | arena da vila, depois fronteira e disputa / PvP livre / sem PvP | **decidido e feito: arena em cada vila (v15) e a Zona de Conflito com ranking e temporadas (v16)** |
 | 6 | Monetização | A / B / C | **decidido: A agora, B depois** |
@@ -901,7 +902,7 @@ classificação indicativa.
 | Risco | Por que importa | Como reduzir |
 |---|---|---|
 | **Nome** | O nome antigo, "Nin Online", é de um jogo de outra empresa (Hitspark), na Steam desde junho de 2025 ([Steambase](https://steambase.io/games/nin-online/info), [itch.io](https://ninonline.itch.io/nin-online)); por isso virou **Vontade do Fogo**. O nome novo tem um risco menor, mas existe: "Vontade do Fogo" é como a dublagem brasileira de Naruto traduz "Will of Fire", um conceito central da série | antes de abrir ao público, buscar o nome no INPI e, se possível, registrar a marca; evitar no jogo o símbolo e o discurso da "Vontade do Fogo" de Naruto (a nossa vontade é a chama do Pergaminho em Chamas) |
-| **Termos de outras obras** | Kage, Akatsuki, renegado, Folha, Areia, Névoa, Nuvem e Pedra (v16) vêm de Naruto. Genin, Chunin e Jonin são ranks ninja históricos, com menos risco | para jogar entre amigos, sem cobrar, o risco é baixo; antes de abrir ao público, trocar os nomes, que ficam num lugar só (`villages.ts`, `akatsuki.ts` e o catálogo do banco) |
+| **Termos de outras obras** | Kage, Akatsuki, renegado, Folha, Areia, Névoa e Nuvem (v16) vêm de Naruto. Genin, Chunin e Jonin são ranks ninja históricos, com menos risco | para jogar entre amigos, sem cobrar, o risco é baixo; antes de abrir ao público, trocar os nomes, que ficam num lugar só (`villages.ts`, `akatsuki.ts` e o catálogo do banco) |
 | **MMO vazio** | com poucos jogadores online, PvP e sensei não acontecem | tudo do Arco 1 dá para fazer sozinho; o NPC luta junto; monstros escalam com o mapa; um servidor só |
 | **Estado em memória** | um deploy derruba todos e a posição volta ao início | publicar fora do horário de pico; avisar no chat antes; no futuro, gravar o mapa e a posição |
 | **Chat e menores** | toxicidade e contato indevido | moderação da seção 10.5 desde a fase 2 |

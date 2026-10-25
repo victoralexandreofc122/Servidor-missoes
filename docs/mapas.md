@@ -51,7 +51,7 @@ O jogo é jogado num celular deitado, com a câmera vendo cerca de **20 x 11 cas
                  │  Clareira Queimada │  44 x 40 · Pedra 4 · chefe Kagerō · M14
                  └────────────────────┘
 
-   Vilas (fim de jogo): Folha, Pedra, Névoa, Nuvem, Areia ──Posto de Viagem──► Floresta, Zona de Conflito
+   Vilas (fim de jogo): Folha, Névoa, Nuvem, Areia ──Posto de Viagem──► Floresta, Zona de Conflito
    Refúgio dos Renegados ──Posto de Viagem──► Zona de Conflito
 ```
 

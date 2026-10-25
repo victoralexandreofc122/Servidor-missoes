@@ -49,7 +49,7 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
 
   it('migração: roda de novo sem erro; vilas, módulos em auto; jogador novo é da Folha; o Kage substitui o Hokage', async () => {
     await t.pool.query(V11);
-    assert.deepEqual((await t.pool.query('SELECT code, name FROM game.villages ORDER BY sort_order')).rows.map((r) => r.name), ['Folha', 'Pedra', 'Névoa', 'Nuvem', 'Areia']);
+    assert.deepEqual((await t.pool.query('SELECT code, name FROM game.villages ORDER BY sort_order')).rows.map((r) => r.name), ['Folha', 'Névoa', 'Nuvem', 'Areia']);
     assert.deepEqual((await t.pool.query(`SELECT code, mode, activated_at FROM game.endgame_modules ORDER BY code`)).rows.map((r) => r.mode), ['auto', 'auto', 'auto', 'auto']);
     const id = await t.createPlayer('novato');
     assert.equal((await one('SELECT village FROM game.players WHERE id = $1', [id])).village, 'vila_1');
@@ -84,28 +84,28 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
     assert.deepEqual(await s.chooseVillage(fresh, 'vila_3'), { ok: true, village: 'vila_3' }, 'visual vazio: escolha livre');
     await t.pool.query('UPDATE game.players SET appearance = $2::jsonb WHERE id = $1', [fresh, JSON.stringify(DEFAULT_APPEARANCE)]);
     assert.deepEqual(await s.chooseVillage(fresh, 'vila_5'), { ok: true, village: 'vila_5' }, 'a troca grátis');
-    assert.ok(no(/já usou/)(await s.chooseVillage(fresh, 'vila_2')));
+    assert.ok(no(/já usou/)(await s.chooseVillage(fresh, 'vila_4')));
     const cand = await ninja('candidato', { level: 60 });
     await makeNinjaStore(t.db).applyKage(cand);
-    assert.ok(no(/candidato/)(await s.chooseVillage(cand, 'vila_2')));
+    assert.ok(no(/candidato/)(await s.chooseVillage(cand, 'vila_4')));
     await modules('off');
     const other = await ninja('outro');
-    assert.ok(no(/ainda não está disponível/)(await s.chooseVillage(other, 'vila_2')));
+    assert.ok(no(/ainda não está disponível/)(await s.chooseVillage(other, 'vila_4')));
     await modules('on');
   });
 
   it('eleição do Kage: Genin+ com conta de 7 dias, um voto; ganha quem tem mais votos (empate: quem se candidatou antes)', async () => {
     const s = store();
-    const a = await ninja('cand_a', { level: 60, village: 'vila_2' });
-    const b = await ninja('cand_b', { level: 60, village: 'vila_2' });
+    const a = await ninja('cand_a', { level: 60, village: 'vila_5' });
+    const b = await ninja('cand_b', { level: 60, village: 'vila_5' });
     const ns = makeNinjaStore(t.db);
     await ns.applyKage(a);
     await ns.applyKage(b);
     const ev = await s.tick();
-    assert.ok(ev.some((e) => e.kind === 'eleicao_aberta' && e.village === 'vila_2'), 'sem Kage: a eleição abre');
-    const voters = await Promise.all(['eleitor1', 'eleitor2', 'eleitor3'].map((n) => ninja(n, { village: 'vila_2' })));
-    const newbie = await ninja('calouro', { village: 'vila_2', fresh: true });
-    const academy = await ninja('cadete', { village: 'vila_2', rank: 'ACADEMY' });
+    assert.ok(ev.some((e) => e.kind === 'eleicao_aberta' && e.village === 'vila_5'), 'sem Kage: a eleição abre');
+    const voters = await Promise.all(['eleitor1', 'eleitor2', 'eleitor3'].map((n) => ninja(n, { village: 'vila_5' })));
+    const newbie = await ninja('calouro', { village: 'vila_5', fresh: true });
+    const academy = await ninja('cadete', { village: 'vila_5', rank: 'ACADEMY' });
     const foreign = await ninja('estrangeiro', { village: 'vila_3' });
     assert.ok(no(/7 dias/)(await s.vote(newbie, a)));
     assert.ok(no(/Genin/)(await s.vote(academy, a)));
@@ -114,14 +114,14 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
     assert.ok(no(/já votou/)(await s.vote(voters[0]!, a)));
     await s.vote(voters[1]!, b);
     await s.vote(voters[2]!, a);
-    const panel = await s.villagePanel(voters[0]!, 'vila_2', false);
+    const panel = await s.villagePanel(voters[0]!, 'vila_5', false);
     assert.deepEqual(panel.election!.candidates.map((c) => c.username), ['cand_a', 'cand_b']);
     assert.equal(panel.election!.myVote, b);
-    await t.pool.query(`UPDATE game.kage_elections SET closes_at = now() - interval '1 minute' WHERE village = 'vila_2' AND closed_at IS NULL`);
+    await t.pool.query(`UPDATE game.kage_elections SET closes_at = now() - interval '1 minute' WHERE village = 'vila_5' AND closed_at IS NULL`);
     const closed = await s.tick();
-    assert.ok(closed.some((e) => e.kind === 'eleicao_fechada' && e.village === 'vila_2' && e.playerId === b));
-    assert.equal((await one('SELECT game.kage_village_of($1) AS v', [b])).v, 'vila_2');
-    assert.ok((await s.politics()).kages.some((k) => k.village === 'vila_2' && k.username === 'cand_b'));
+    assert.ok(closed.some((e) => e.kind === 'eleicao_fechada' && e.village === 'vila_5' && e.playerId === b));
+    assert.equal((await one('SELECT game.kage_village_of($1) AS v', [b])).v, 'vila_5');
+    assert.ok((await s.politics()).kages.some((k) => k.village === 'vila_5' && k.username === 'cand_b'));
   });
 
   it('diplomacia: guerra sozinho; aliança proposta e aceita (1 por vila); 24 h entre mudanças; trégua forçada vale por cima', async () => {
@@ -210,7 +210,7 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
     const s = store();
     await t.pool.query(`SELECT * FROM game.endgame_tick(now())`);     // abre a temporada 1
     const w = await ninja('lutador_a', { level: 30, village: 'vila_1' });
-    const l = await ninja('lutador_b', { level: 30, village: 'vila_2' });
+    const l = await ninja('lutador_b', { level: 30, village: 'vila_3' });
     const first = await s.pvpKill(w, l);
     assert.deepEqual([first.counted, first.winnerDelta, first.loserDelta, first.winnerMmr, first.loserMmr], [true, 16, -16, 1016, 984]);
     const season = (await s.politics()).season!;
@@ -218,7 +218,7 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
     await s.pvpKill(w, l);
     await s.pvpKill(w, l);
     assert.equal((await s.pvpKill(w, l)).counted, false, 'a 4ª da mesma dupla no dia');
-    const low = await ninja('fraco', { level: 5, village: 'vila_2' });
+    const low = await ninja('fraco', { level: 5, village: 'vila_3' });
     assert.equal((await s.pvpKill(w, low)).counted, false, 'diferença de nível > 10');
     const adm = await ninja('admin4', { level: 30, admin: true });
     assert.equal((await s.pvpKill(adm, l)).counted, false, 'admin nunca entra no ranking');
@@ -249,7 +249,7 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
     const ren = await ninja('foragido', { level: 30, village: 'vila_1' });
     await t.pool.query('SELECT game.admin_renegade($1, $2, true)', [admin, ren]);
     const v1 = await ninja('aldeao1', { level: 30, village: 'vila_1' });
-    const hunter = await ninja('cacador', { level: 30, village: 'vila_2' });
+    const hunter = await ninja('cacador', { level: 30, village: 'vila_3' });
     assert.equal((await s.pvpKill(ren, v1)).winnerBounty, 50 + 5 * 30);
     assert.equal((await s.pvpKill(ren, v1)).winnerBounty, 200, 'mesma dupla no mesmo dia: não aumenta de novo');
     const before = Number((await one('SELECT ryo FROM game.players WHERE id = $1', [hunter])).ryo);
@@ -262,7 +262,7 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
   it('temporada: fecha com títulos, ryō e o Manto do Campeão (10+ lutas, sem admin) e abre a próxima', async () => {
     const s = store();
     const champ = await ninja('campeao', { level: 40, village: 'vila_1' });
-    const foes = await Promise.all(Array.from({ length: 4 }, (_, i) => ninja(`rival${i}`, { level: 40, village: 'vila_2' })));
+    const foes = await Promise.all(Array.from({ length: 4 }, (_, i) => ninja(`rival${i}`, { level: 40, village: 'vila_3' })));
     for (const f of foes) for (let i = 0; i < 3; i++) await s.pvpKill(champ, f);
     const admin = await ninja('admin6', { admin: true });
     const season = (await s.politics()).season!.id;
@@ -283,8 +283,8 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
     const leader = await ninja('lider', { level: 50, village: 'vila_1' });
     await t.pool.query('SELECT game.admin_akatsuki_leader($1, $2)', [admin, leader]);
     assert.equal((await one('SELECT renegade_at IS NOT NULL AS r FROM game.players WHERE id = $1', [leader])).r, true);
-    const member = await ninja('membro', { level: 45, village: 'vila_2' });
-    const weak = await ninja('fraquinho', { level: 20, village: 'vila_2' });
+    const member = await ninja('membro', { level: 45, village: 'vila_3' });
+    const weak = await ninja('fraquinho', { level: 20, village: 'vila_3' });
     assert.ok(no(/nível 40/)(await s.akatsukiInvite(leader, 'fraquinho', 2)));
     assert.ok(no(/Só o líder/)(await s.akatsukiInvite(member, 'fraquinho', 2)));
     assert.deepEqual(await s.akatsukiInvite(leader, 'membro', 2), { ok: true, targetId: member, username: 'membro' });
@@ -361,7 +361,8 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
   });
 
   it('sem a v11, o servidor sabe (available = false)', async () => {
-    const old = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v11_endgame.sql'));
+    // Sem a v11 e sem a v13 (que limpa tabelas da v11).
+    const old = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v11_endgame.sql' && f !== 'schema_v13_sem_pedra.sql'));
     try {
       assert.equal(await makeEndgameStore(old.db).available(), false);
     } finally {

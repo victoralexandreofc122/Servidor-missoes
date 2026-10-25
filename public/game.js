@@ -23,7 +23,7 @@ import {
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
 import { drawBackWeapon, drawHandWeapon, drawWeaponIcon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
-import { drawCape, drawRenegadeScratch, egOn, factionStyle, mapAccess, mountEndgameUI, shopFactor, zoneFoe } from './endgame.js';
+import { VILLAGE_NAMES, drawCape, drawRenegadeScratch, egOn, factionStyle, mapAccess, mountEndgameUI, shopFactor, zoneFoe } from './endgame.js';
 import { mountAdminUI } from './adminPanel.js';
 import { drawMonsterArt, drawMonsterPortrait, loadMonsterSprites, monsterArtReady, monsterDeathMs, playMonster } from './monsterSprites.js';
 
@@ -3249,7 +3249,7 @@ const CREATOR_LABEL = {
   m: 'Masculino', f: 'Feminino', espetado: 'Espetado', longo_lateral: 'Longo', masculino: 'Sem cílios', cilios: 'Com cílios',
   basica: 'Camisa e calça', vila: 'Conjunto da vila', true: 'Com bandana', false: 'Sem',
 };
-const creatorLabel = (field, v) => (field === 'village' ? `Vila ${String(v).split('_')[1]}` : CREATOR_LABEL[String(v)] || String(v).replace(/_/g, ' '));
+const creatorLabel = (field, v) => (field === 'village' ? VILLAGE_NAMES[v] || String(v) : CREATOR_LABEL[String(v)] || String(v).replace(/_/g, ' '));
 /**
  * Vila que dá para escolher: as abertas (o servidor manda) ou a que o jogador já tinha. As outras aparecem
  * travadas até o Arco 2 (o servidor recusa do mesmo jeito: VILLAGE_LOCKED).
@@ -4054,7 +4054,6 @@ function stoneTile(seed) {
 
 /** Calçamento de cada vila (v16): a mesma planta da Folha com a pedra da terra dela. [base, bloco, bloco 2, brilho, pontos]. */
 const STONE_THEMES = {
-  pedra: ['#5d5f63', '#7c7f84', '#73767b', '#8f9297', ['#6a6d72', '#868a8f']],
   nevoa: ['#8a9ea6', '#b3c6cc', '#a7bcc3', '#c8d8dc', ['#9cb1b8', '#bfd0d5']],
   nuvem: ['#b3aaa6', '#d6cfca', '#cbc3be', '#e3ddd8', ['#c0b8b3', '#ddd6d1']],
   areia: ['#b9925e', '#d9b47c', '#cfa970', '#e6c592', ['#c49c66', '#e0bd88']],

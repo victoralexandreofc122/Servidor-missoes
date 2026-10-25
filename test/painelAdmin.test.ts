@@ -128,7 +128,7 @@ describe('painel do admin', () => {
     assert.deepEqual(c.players.map((p: any) => p.username), ['kaito', 'victor']);
     assert.deepEqual(c.monsters.find((m: any) => m.code === 'rei_lodo'), { code: 'rei_lodo', name: 'Rei Lodo (chefe)' });
     assert.ok(c.maps.some((m: any) => m.id === 'caverna_lodo' && m.name === 'Caverna do Lodo'));
-    assert.deepEqual(c.villages.map((x: any) => x.code), ['folha', 'pedra', 'nevoa', 'nuvem', 'areia']);
+    assert.deepEqual(c.villages.map((x: any) => x.code), ['folha', 'nevoa', 'nuvem', 'areia']);
   });
 });
 

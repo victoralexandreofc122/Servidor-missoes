@@ -11,7 +11,7 @@ const { SPRITES } = await import(new URL('../public/spriteData.js', import.meta.
 
 const LOOK = {
   v: 2, gender: 'f', skin: 'canela', hairStyle: 'longo_lateral', hairColor: 'preto', eyeStyle: 'cilios', eyeColor: 'verde',
-  outfit: 'vila', shirtColor: 'azul_marinho', pantsColor: 'cinza', bandana: true, village: 'vila_2',
+  outfit: 'vila', shirtColor: 'azul_marinho', pantsColor: 'cinza', bandana: true, village: 'vila_4',
 };
 
 describe('v9: sprites do personagem (cliente)', () => {
@@ -52,11 +52,11 @@ describe('v9: sprites do personagem (cliente)', () => {
   });
 
   it('conjunto e bandana têm as cores da VILA (travadas); camisa e calça, as do jogador', () => {
-    const v2 = SPRITES.vilas.vila_2;
+    const v4 = SPRITES.vilas.vila_4;
     const r = S.rampsFor(LOOK, 'conjunto');
-    assert.deepEqual([r[5], r[6], r[7]], v2.conjunto.map((n: string) => SPRITES.paletas.roupa[n]));
+    assert.deepEqual([r[5], r[6], r[7]], v4.conjunto.map((n: string) => SPRITES.paletas.roupa[n]));
     assert.deepEqual(S.rampsFor({ ...LOOK, shirtColor: 'vermelho' }, 'conjunto'), r, 'a cor da camisa não muda o conjunto');
-    assert.deepEqual(S.rampsFor(LOOK, 'chapeu')[5], SPRITES.paletas.roupa[v2.bandana]);
+    assert.deepEqual(S.rampsFor(LOOK, 'chapeu')[5], SPRITES.paletas.roupa[v4.bandana]);
     assert.deepEqual(S.rampsFor({ ...LOOK, shirtColor: 'vermelho' }, 'camisa')[5], SPRITES.paletas.roupa.vermelho);
     assert.deepEqual(S.rampsFor(LOOK, 'corpo')[2], SPRITES.paletas.pele.canela);
     assert.notEqual(S.colorKey(LOOK, 'camisa'), S.colorKey({ ...LOOK, shirtColor: 'vermelho' }, 'camisa'));

@@ -346,7 +346,7 @@ interface Session {
 const NO_POLITICS: Politics = { modules: [], kages: [], relations: [], events: [], elections: [], akatsuki: [], season: null };
 /** Nome de cada módulo no anúncio de quando ele abre. */
 const MODULE_NAMES: Record<EndgameModule, string> = {
-  vilas: 'as cinco vilas e os Kages', pvp: 'a Zona de Conflito e as temporadas de PvP', renegados: 'os renegados', akatsuki: 'a Akatsuki',
+  vilas: 'as quatro vilas e os Kages', pvp: 'a Zona de Conflito e as temporadas de PvP', renegados: 'os renegados', akatsuki: 'a Akatsuki',
 };
 const villageName = (v: Village) => `Vila da ${VILLAGE_INFO[v].name}`;
 /** Pedidos do fim de jogo que vão ao banco (endgameRequest). */
@@ -638,13 +638,12 @@ export class GameWorld {
     return { active: s.activeKit, kits: { A: [...s.kits.A], B: [...s.kits.B] } };
   }
 
-  /** Stats da sessão: os dos atributos com a passiva da vila (Pedra: vida; Névoa: velocidade). */
+  /** Stats da sessão: os dos atributos com a passiva da vila (Névoa: velocidade). */
   private statsFor(village: Village | null, attributes: Attributes): DerivedStats {
     const base = this.computeStats(attributes);
-    const hp = this.passiveOf(village, 'hp');
     const speed = this.passiveOf(village, 'speed');
-    if (hp === 1 && speed === 1) return base;
-    return { ...base, maxHp: Math.round(base.maxHp * hp), walkSpeed: round2(base.walkSpeed * speed), runSpeed: round2(base.runSpeed * speed) };
+    if (speed === 1) return base;
+    return { ...base, walkSpeed: round2(base.walkSpeed * speed), runSpeed: round2(base.runSpeed * speed) };
   }
 
   private computeStats(attributes: Attributes): DerivedStats {

@@ -832,7 +832,7 @@ chat (só a conta com `is_admin`; tudo vai para a auditoria e ninguém vê anún
 ### Testar no celular (com 2 contas)
 
 1. **Ligar:** com o Victor, `/admin endgame akatsuki on`. Aparece o botão **🏯** no topo.
-2. **Vilas:** com a outra conta, ⚙️ → **🎨 Mudar visual**: agora as cinco vilas abrem. Escolher outra (só 1 troca
+2. **Vilas:** com a outra conta, ⚙️ → **🎨 Mudar visual**: agora as quatro vilas abrem. Escolher outra (só 1 troca
    depois de criado) leva para a praça dela, com o chão e os telhados da vila. A passiva aparece no 🏯.
 3. **Posto de Viagem** (NPC verde 旅, perto do portão de cada vila): Floresta, Zona de Conflito e as vilas aliadas
    (50 ryō). Quem não é da Folha não entra na Folha a pé: a saída da Floresta vira parede.
@@ -907,3 +907,26 @@ SELECT (SELECT count(*) FROM game.items WHERE kind = 'shoes'),
 5. **Ilusão tier 3 e 4:** quem é atingido fica atordoado e, depois, em silêncio (ícone 🤐, sem jutsu) por mais 3 s ou
    4,5 s.
 
+---
+
+## Passo 26 — Atualização v20: a Vila da Pedra sai do jogo
+
+**Banco primeiro.** No Neon, abra o **SQL Editor**, confira no seletor que o branch é o `production` e rode o arquivo
+`db/schema_v13_sem_pedra.sql` inteiro. Ele apaga linhas (da Pedra), então antes crie um branch de backup do
+`production` e mude o "Expires" dele para **Never**. A migração segue as regras de sempre (sem bloco `DO $$`, tudo
+dentro de `BEGIN; ... COMMIT;`) e pode rodar de novo. Ela:
+
+- passa quem for da Pedra para a Folha e devolve a troca de vila (hoje ninguém é da Pedra, então não muda ninguém);
+- apaga o Kage, a eleição, a diplomacia, os eventos, as denúncias e o registro do Kage da Pedra;
+- apaga a Vila da Pedra.
+
+Para conferir depois: `SELECT name FROM game.villages ORDER BY sort_order;` tem que mostrar Folha, Névoa, Nuvem e Areia.
+
+**Depois o código:** publique a `main` (o Render faz o deploy sozinho).
+
+### Testar no celular
+
+1. **Criador:** ⚙️ → **🎨 Mudar visual do personagem**. Na linha **Vila** aparecem Folha, Névoa, Nuvem e Areia (com o
+   módulo de vilas desligado, só a Folha abre; as outras ficam com cadeado).
+2. **Admin:** `/admin vila <nome> pedra` responde com o uso: `<folha|nevoa|nuvem|areia>`.
+3. **Zona de Conflito** (com o módulo de PvP ligado): cinco acampamentos, sem o do meio de cima.
