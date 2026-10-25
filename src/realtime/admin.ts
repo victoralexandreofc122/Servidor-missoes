@@ -16,6 +16,7 @@ import { VILLAGE_INFO, villageByName } from './villages.js';
  *   /admin givejutsu <nome> <jutsu> <nível>      ensina o jutsu ou sobe o nível dele (1 a 4)
  *   /admin giveitem <nome> <item> <quantidade>   põe itens no inventário (1 a 999)
  *   /admin resetstats <nome>                     devolve os pontos de atributo (sem custo)
+ *   /admin ir <mapa> [x y]                       leva o próprio admin a um mapa (inclusive os lacrados), para testar
  *
  * Fim de jogo (v16, migração v11; docs/endgame.md, seção 6):
  *   /admin endgame <vilas|pvp|renegados|akatsuki> <on|off|auto>   liga, desliga ou devolve ao automático
@@ -45,6 +46,7 @@ export type AdminCommand =
   | { cmd: 'giveitem'; username: string; item: string; quantity: number }
   | { cmd: 'resetstats'; username: string }
   | { cmd: 'help' }
+  | { cmd: 'ir'; map: string; x?: number; y?: number }
   | EndgameAdminCommand;
 
 /** Comandos do fim de jogo (v11). */
@@ -63,7 +65,7 @@ export const isEndgameAdmin = (c: AdminCommand): c is EndgameAdminCommand => END
 
 export type ParsedAdmin = { ok: true; command: AdminCommand } | { ok: false; command: string; text: string };
 
-export const ADMIN_HELP = 'Admin: /admin level <nome> <nível> · spawn <monstro> <qtd> · givejutsu <nome> <jutsu> <nível> · giveitem <nome> <item> <qtd> · resetstats <nome>'
+export const ADMIN_HELP = 'Admin: /admin level <nome> <nível> · spawn <monstro> <qtd> · givejutsu <nome> <jutsu> <nível> · giveitem <nome> <item> <qtd> · resetstats <nome> · ir <mapa> [x y]'
   + ' · endgame <módulo> <on|off|auto> · vila <nome> <vila> · kage <vila> <nome> · eleicao <vila> · evento <guerra|tregua> <vila|todas> [vila] <horas>'
   + ' · renegado <nome> <on|off> · akatsuki <lider|remover> <nome> · temporada fechar';
 const VILLAGE_NAMES = Object.values(VILLAGE_INFO).map((v) => v.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()).join('|');
@@ -76,7 +78,7 @@ const CODE = /^[a-z][a-z0-9_]{0,31}$/;
 export const isAdminCommand = (text: string) => /^\/admin(\s|$)/i.test(text);
 
 /** Lê o comando. Não sabe quem pediu: só confere formato, faixa e códigos conhecidos. */
-export function parseAdminCommand(text: string, monsterTypes: readonly string[]): ParsedAdmin {
+export function parseAdminCommand(text: string, monsterTypes: readonly string[], mapIds: readonly string[] = []): ParsedAdmin {
   const parts = text.trim().split(/\s+/).slice(1);
   const cmd = (parts[0] ?? 'help').toLowerCase();
   const args = parts.slice(1);
@@ -100,6 +102,15 @@ export function parseAdminCommand(text: string, monsterTypes: readonly string[])
         return bad(`spawn <${monsterTypes.join('|')}> <quantidade 1 a ${ADMIN_LIMITS.maxSpawn}>`);
       }
       return { ok: true, command: { cmd, monster, quantity } };
+    }
+    case 'ir': {
+      const map = (args[0] ?? '').toLowerCase();
+      const coord = (s: string | undefined) => (s && /^\d{1,3}(\.\d)?$/.test(s) ? Number(s) : undefined);
+      const x = coord(args[1]), y = coord(args[2]);
+      if (!mapIds.includes(map) || (args.length !== 1 && args.length !== 3) || (args.length === 3 && (x === undefined || y === undefined))) {
+        return bad(`ir <${mapIds.join('|')}> [x y]`);
+      }
+      return { ok: true, command: x !== undefined && y !== undefined ? { cmd, map, x, y } : { cmd, map } };
     }
     case 'givejutsu': {
       const username = user(args[0]);

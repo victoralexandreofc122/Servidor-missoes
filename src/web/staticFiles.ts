@@ -64,6 +64,8 @@ const FILES = [
   { route: '/img/apple-touch-icon.png', file: 'img/apple-touch-icon.png', contentType: 'image/png', binary: true },
   { route: '/img/login-bg.webp', file: 'img/login-bg.webp', contentType: 'image/webp', binary: true },
   { route: '/img/logo.webp', file: 'img/logo.webp', contentType: 'image/webp', binary: true },
+  // Fonte da interface: Barlow Condensed (SIL Open Font License, public/fonts/OFL-barlow.txt), só o alfabeto latino.
+  ...[500, 600, 700].map((w) => ({ route: `/fonts/barlow-condensed-${w}.woff2`, file: `fonts/barlow-condensed-${w}.woff2`, contentType: 'font/woff2', binary: true as const })),
 ];
 
 /** public/ fica na raiz do projeto: dois níveis acima de src/web/ (dev) e de dist/web/ (Render). */

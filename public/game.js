@@ -11,7 +11,9 @@
 
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextTarget, smoothing } from './targeting.js';
 import { arenaAt, arenaFoes, groundAt, inSafeZone, mapName, placements, themeAt, visibleDeco, visibleWalls } from './world.js';
-import { drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawWall } from './mapArt.js';
+import {
+  ART, PROP_KINDS, drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawOakCanopy, drawProp, drawSealGlow, drawWall, fenceLanterns, propExtent,
+} from './mapArt.js';
 import { dirFrom, drawBackItem, drawCharacter, drawHandItem } from './character.js';
 import {
   DEFAULT_APPEARANCE, OPTIONS, anchorsOf, drawCell, fallbackColors, loadSprites, normalizeLook, pickFrame, spriteScale,
@@ -139,6 +141,8 @@ const state = {
   /** Enfeites visíveis (bancos, lanternas...) e os que passam POR CIMA dos jogadores (telhado do portão). */
   deco: [],
   overhead: [],
+  /** Objetos com altura do mapa (árvores, pedras, barracas): desenhados junto dos bonecos (makeProps). */
+  props: [],
   /** Loja aberta ({ kind, npcId }) ou null. */
   shop: null,
   /** O próprio jogador está numa zona segura (praça): botões de combate apagados. */
@@ -1048,8 +1052,17 @@ function enterMap(id, announce) {
   // Paredes de cima para baixo: o que está mais embaixo é desenhado por cima (3/4).
   state.walls = visibleWalls(state.places).sort((a, b) => a.y + a.h - (b.y + b.h));
   const deco = visibleDeco(state.places);
-  state.deco = deco.filter((d) => d.k !== 'gate_roof' && d.k !== 'door');
-  state.overhead = deco.filter((d) => d.k === 'gate_roof');
+  state.deco = deco.filter((d) => d.k !== 'gate_roof' && d.k !== 'door' && d.k !== 'oak_canopy');
+  state.overhead = deco.filter((d) => d.k === 'gate_roof' || d.k === 'oak_canopy');
+  // Pedras-Selo acesas: o halo que respira é desenhado a cada quadro (o resto da pedra fica no bloco do chão).
+  state.glows = state.walls.filter((w) => w.k === 'seal' && w.s !== 'out');
+  // Luzes quentes que tremem a cada quadro: as lanternas da mureta da arena (a lanterna fica no bloco do chão).
+  state.lights = state.walls.filter((w) => w.k === 'fence').flatMap((w) => fenceLanterns(w).map((l) => ({
+    x: l.x, y: w.w >= w.h ? w.y + w.h : l.y + 0.25,
+  })));
+  // Arenas à vista (as do mapa atual): os holofotes.
+  state.arenaBoxes = state.places.flatMap((pl) => (pl.map.arenas || []).map((a) => ({ x: a.x + pl.ox, y: a.y + pl.oy, w: a.w, h: a.h })));
+  state.props = makeProps(state.walls);
   state.doors = deco.filter((d) => d.k === 'door');      // Academia: abrem conforme o tutorial (desenho a cada quadro)
   state.fields = layout.fields || [];                     // Sala de Controle: o campo que drena o chakra
   state.npcs = state.allNpcs.filter((n) => n.map === id && npcVisible(n));
@@ -2928,18 +2941,25 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', resi
 
 // ------------------------------------------------------------------ pixel art (gerada por código)
 
-const PIX = 16;   // cada casa é desenhada em 16x16 "pixels" e ampliada sem suavizar
+// Arte do mapa: cada casa mede U = 16 unidades de desenho (a medida de toda a arte do mapa, em mapArt.js também) e
+// cada unidade vira ART pixels de verdade nos blocos do chão: 48 px por casa, perto da densidade dos bonecos chibi.
+// A arte desenhada em unidades inteiras fica igual a antes, só mais nítida; o detalhe fino usa frações (1/ART = 1 px).
+const U = 16;
+const PIX = U * ART;
 
 function rng(seed) {
   let s = seed >>> 0;
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 
+/** Um tile do chão: `draw` desenha em unidades (0..U); o canvas tem ART pixels por unidade (frações = detalhe fino). */
 function makeTile(draw) {
   const c = document.createElement('canvas');
   c.width = PIX;
   c.height = PIX;
-  draw(c.getContext('2d'));
+  const g = c.getContext('2d');
+  g.scale(ART, ART);
+  draw(g);
   return c;
 }
 
@@ -2947,13 +2967,13 @@ function grassTile(seed, flowers) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#4f9a3a';
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     for (let i = 0; i < 26; i++) {
       g.fillStyle = r() < 0.5 ? '#438a31' : '#5fae47';
-      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+      g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1);
     }
     for (let i = 0; i < 4; i++) {          // tufos
-      const x = Math.floor(r() * (PIX - 2)), y = Math.floor(r() * (PIX - 3)) + 2;
+      const x = Math.floor(r() * (U - 2)), y = Math.floor(r() * (U - 3)) + 2;
       g.fillStyle = '#3a7a2b';
       g.fillRect(x, y, 1, 2);
       g.fillRect(x + 2, y, 1, 2);
@@ -2962,7 +2982,7 @@ function grassTile(seed, flowers) {
     }
     if (flowers) {
       for (let i = 0; i < 3; i++) {
-        const x = 2 + Math.floor(r() * (PIX - 4)), y = 2 + Math.floor(r() * (PIX - 4));
+        const x = 2 + Math.floor(r() * (U - 4)), y = 2 + Math.floor(r() * (U - 4));
         g.fillStyle = r() < 0.5 ? '#f1e9c9' : '#e9c74a';
         g.fillRect(x, y, 1, 1);
         g.fillRect(x - 1, y, 1, 1); g.fillRect(x + 1, y, 1, 1); g.fillRect(x, y - 1, 1, 1); g.fillRect(x, y + 1, 1, 1);
@@ -2977,14 +2997,14 @@ function pathTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#b8935c';
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     for (let i = 0; i < 30; i++) {
       g.fillStyle = r() < 0.5 ? '#a8834e' : '#c9a56d';
-      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+      g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1);
     }
     for (let i = 0; i < 3; i++) {          // pedrinhas
       g.fillStyle = '#8d7350';
-      const x = Math.floor(r() * (PIX - 2)), y = Math.floor(r() * (PIX - 2));
+      const x = Math.floor(r() * (U - 2)), y = Math.floor(r() * (U - 2));
       g.fillRect(x, y, 2, 1);
       g.fillStyle = '#d7bd8c';
       g.fillRect(x, y - 1, 1, 1);
@@ -2996,27 +3016,88 @@ function waterTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#1f4e66';
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     for (let i = 0; i < 5; i++) {
       g.fillStyle = r() < 0.5 ? '#2b6584' : '#173d52';
-      const x = Math.floor(r() * (PIX - 4)), y = Math.floor(r() * PIX);
+      const x = Math.floor(r() * (U - 4)), y = Math.floor(r() * U);
       g.fillRect(x, y, 3 + Math.floor(r() * 3), 1);
     }
   });
 }
 
 /** Grama escura da Floresta (mais fechada que os gramados da Vila). */
+/** 1 pixel de verdade, em unidades (o detalhe fino da arte do chão). */
+const PX = 1 / ART;
+const fine = (g, color, x, y, w = PX, h = PX) => {
+  g.fillStyle = color;
+  g.fillRect(Math.round(x * ART) / ART, Math.round(y * ART) / ART, w, h);
+};
+
+/**
+ * Grama em alta resolução: base com manchas suaves, folhinhas de 1 pixel de largura (escuras embaixo, claras na ponta)
+ * e, em algumas variantes, florzinhas, trevos ou folhas caídas. `pal` = [base, sombra, meio, luz, ponta].
+ */
+function grassHD(seed, pal, extra) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = pal[0];
+    g.fillRect(0, 0, U, U);
+    for (let i = 0; i < 60; i++) {                      // pontinhos de tom (sem forma: o tile não pode "aparecer" repetido)
+      fine(g, r() < 0.5 ? 'rgba(10, 40, 15, 0.25)' : 'rgba(170, 220, 120, 0.12)', r() * U, r() * U, PX * (1 + Math.floor(r() * 2)), PX);
+    }
+    for (let i = 0; i < 40; i++) {                      // folhinhas
+      const x = r() * U, y = 1 + r() * (U - 1), h = 0.7 + r() * 1.1;
+      fine(g, pal[1], x, y - h, PX, h);
+      fine(g, r() < 0.5 ? pal[2] : pal[3], x, y - h, PX, h * 0.55);
+      if (r() < 0.3) fine(g, pal[4], x, y - h - PX);
+    }
+    for (let i = 0; i < 3; i++) {                       // tufos (três folhas abertas)
+      const x = 1 + r() * (U - 2), y = 2 + r() * (U - 3);
+      fine(g, pal[1], x - PX * 2, y - 1, PX, 1);
+      fine(g, pal[1], x + PX * 2, y - 1, PX, 1);
+      fine(g, pal[3], x, y - 1.6, PX, 1.6);
+      fine(g, pal[4], x, y - 1.6 - PX);
+    }
+    if (extra === 'flowers') {
+      for (let i = 0; i < 3; i++) {
+        const x = 2 + r() * (U - 4), y = 2 + r() * (U - 4);
+        const petal = ['#f4efe0', '#f2d25a', '#c9a6e8', '#f4a6b8'][Math.floor(r() * 4)];
+        for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) fine(g, petal, x + dx * PX, y + dy * PX);
+        fine(g, '#e0882a', x, y);
+        fine(g, pal[1], x, y + PX * 2, PX, PX * 2);
+      }
+    } else if (extra === 'clover') {
+      for (let i = 0; i < 4; i++) {
+        const x = 1.5 + r() * (U - 3), y = 1.5 + r() * (U - 3);
+        for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1]]) fine(g, pal[3], x + dx * PX * 1.5, y + dy * PX * 1.5, PX * 2, PX * 2);
+      }
+    } else if (extra === 'leaves') {
+      for (let i = 0; i < 3; i++) {
+        const x = 1 + r() * (U - 3), y = 1 + r() * (U - 3);
+        const c = ['#a8682a', '#c48a3a', '#8a4a20'][Math.floor(r() * 3)];
+        fine(g, c, x, y, PX * 3, PX * 2);
+        fine(g, c, x + PX, y - PX, PX, PX);
+        fine(g, '#5a3414', x + PX, y + PX, PX, PX);
+      }
+    }
+  });
+}
+
+/** Grama da Floresta (mais escura) e a dos gramados da Vila. */
+const DARK_GRASS = ['#2d6230', '#1f4a24', '#2f6a33', '#3f8040', '#6aa85a'];
+const LAWN = ['#4f9a3a', '#3a7a2b', '#4c9238', '#5fae47', '#8fd06a'];
+
 function darkGrassTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#2f6b28';
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     for (let i = 0; i < 28; i++) {
       g.fillStyle = r() < 0.5 ? '#285f22' : '#3a7d31';
-      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+      g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1);
     }
     for (let i = 0; i < 4; i++) {
-      const x = Math.floor(r() * (PIX - 2)), y = Math.floor(r() * (PIX - 3)) + 2;
+      const x = Math.floor(r() * (U - 2)), y = Math.floor(r() * (U - 3)) + 2;
       g.fillStyle = '#21521c';
       g.fillRect(x, y, 1, 2);
       g.fillRect(x + 2, y, 1, 2);
@@ -3031,10 +3112,10 @@ function woodTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#9a6a3a';
-    g.fillRect(0, 0, PIX, PIX);
-    for (let y = 0; y < PIX; y += 4) {
+    g.fillRect(0, 0, U, U);
+    for (let y = 0; y < U; y += 4) {
       g.fillStyle = '#7a4f28';
-      g.fillRect(0, y + 3, PIX, 1);                                   // junta das tábuas
+      g.fillRect(0, y + 3, U, 1);                                   // junta das tábuas
       g.fillRect((y / 4) % 2 ? 5 : 11, y, 1, 3);                       // emenda
       g.fillStyle = r() < 0.5 ? '#a8763f' : '#8d6034';
       g.fillRect(Math.floor(r() * 10), y + 1, 4 + Math.floor(r() * 4), 1);   // veio
@@ -3047,7 +3128,7 @@ function lightStoneTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#a7a39a';
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     const blocks = seed % 2 ? [[0, 0, 8, 7], [8, 0, 8, 7], [0, 8, 5, 8], [5, 8, 11, 8]] : [[0, 0, 6, 8], [6, 0, 10, 8], [0, 8, 9, 8], [9, 8, 7, 8]];
     for (const [x, y, w, h] of blocks) {
       g.fillStyle = r() < 0.5 ? '#cfcbc1' : '#c4c0b6';
@@ -3057,7 +3138,7 @@ function lightStoneTile(seed) {
     }
     for (let i = 0; i < 6; i++) {
       g.fillStyle = r() < 0.5 ? '#b8b4aa' : '#d8d4ca';
-      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+      g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1);
     }
   });
 }
@@ -3067,26 +3148,44 @@ function sandTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#e2cd96';
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     for (let i = 0; i < 22; i++) {
       g.fillStyle = r() < 0.5 ? '#d3bb80' : '#eedcab';
-      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+      g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1);
     }
   });
 }
 
-/** Terra batida da arena: mais escura e avermelhada que a areia, com pedrinhas e marcas de pé. */
-function arenaTile(seed) {
+/**
+ * Laje de ardósia da arena (estilo da prova de arte): junta escura, chanfro claro em cima e à esquerda, sombra
+ * embaixo e à direita, poeira fina. `motif`: o losango gravado que se repete a cada 4 casas.
+ */
+function slabTile(seed, motif) {
   return makeTile((g) => {
     const r = rng(seed);
-    g.fillStyle = '#b48558';
-    g.fillRect(0, 0, PIX, PIX);
-    for (let i = 0; i < 18; i++) {
-      g.fillStyle = r() < 0.5 ? '#a2764c' : '#c49568';
-      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1 + Math.floor(r() * 2), 1);
+    const base = ['#3e4761', '#3b445d', '#414a65'][seed % 3];
+    g.fillStyle = '#21263a';
+    g.fillRect(0, 0, U, U);                                           // junta
+    g.fillStyle = base;
+    g.fillRect(0.5, 0.5, U - 1, U - 1);
+    fine(g, '#535d7b', 0.5, 0.5, U - 1, PX * 2);                      // chanfro de luz
+    fine(g, '#535d7b', 0.5, 0.5, PX * 2, U - 1);
+    fine(g, '#2c3248', 0.5, U - 0.5 - PX * 2, U - 1, PX * 2);        // sombra
+    fine(g, '#2c3248', U - 0.5 - PX * 2, 0.5, PX * 2, U - 1);
+    for (let i = 0; i < 46; i++) fine(g, r() < 0.5 ? '#47506c' : '#363d55', 1 + r() * (U - 2), 1 + r() * (U - 2), PX * (1 + Math.floor(r() * 2)), PX);
+    if (motif) {
+      const c = U / 2;
+      const dia = (rad, color) => { g.fillStyle = color; g.beginPath(); g.moveTo(c, c - rad); g.lineTo(c + rad, c); g.lineTo(c, c + rad); g.lineTo(c - rad, c); g.closePath(); g.fill(); };
+      dia(6.4, '#30374e');
+      dia(6, '#46506e');
+      dia(4, '#3b4460');
+      dia(2.4, '#525d7f');
+      fine(g, '#6a769c', c - PX, c - 2.4, PX * 2, PX * 2);
+      for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) fine(g, '#58638a', c + dx * 7.4 - PX, c + dy * 7.4 - PX, PX * 3, PX * 3);
+    } else if (r() < 0.3) {                                           // rachadura fininha
+      let cx = 2 + r() * (U - 4), cy = 2 + r() * (U - 4);
+      for (let k = 0; k < 5; k++) { fine(g, '#2a3045', cx, cy, PX * 2, PX); cx += (r() - 0.3) * 1.6; cy += (r() - 0.5) * 1.6; }
     }
-    g.fillStyle = '#8f6741';
-    g.fillRect(Math.floor(r() * (PIX - 2)), Math.floor(r() * (PIX - 2)), 2, 1);
   });
 }
 
@@ -3094,11 +3193,11 @@ function arenaTile(seed) {
 function bridgeTile() {
   return makeTile((g) => {
     g.fillStyle = '#8b5a2b';
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     g.fillStyle = '#5d3a1a';
-    for (let x = 3; x < PIX; x += 4) g.fillRect(x, 0, 1, PIX);
+    for (let x = 3; x < U; x += 4) g.fillRect(x, 0, 1, U);
     g.fillStyle = '#a8713a';
-    for (let x = 0; x < PIX; x += 4) g.fillRect(x, 0, 1, PIX);
+    for (let x = 0; x < U; x += 4) g.fillRect(x, 0, 1, U);
   });
 }
 
@@ -3107,10 +3206,13 @@ function riverTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#3a78c4';
-    g.fillRect(0, 0, PIX, PIX);
-    for (let i = 0; i < 5; i++) {
-      g.fillStyle = r() < 0.5 ? '#5a96de' : '#2f66a9';
-      g.fillRect(Math.floor(r() * (PIX - 4)), Math.floor(r() * PIX), 3 + Math.floor(r() * 3), 1);
+    g.fillRect(0, 0, U, U);
+    for (let i = 0; i < 40; i++) fine(g, r() < 0.5 ? 'rgba(20, 60, 120, 0.25)' : 'rgba(120, 180, 240, 0.18)', r() * U, r() * U, PX * 3, PX);   // tom
+    for (let i = 0; i < 6; i++) {                       // ondinhas: um arco claro e a sombra embaixo
+      const x = r() * (U - 4), y = 1 + r() * (U - 2), w = 2 + r() * 3;
+      fine(g, '#2f66a9', x, y + PX, w, PX);
+      fine(g, '#6fa8e8', x + PX, y, w - PX * 2, PX);
+      if (r() < 0.4) fine(g, '#d8ecff', x + w * 0.4, y - PX, PX * 2, PX);   // brilho
     }
   });
 }
@@ -3120,9 +3222,9 @@ function canopyTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#173f17';
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     for (let i = 0; i < 7; i++) {
-      const x = Math.floor(r() * PIX), y = Math.floor(r() * PIX), rad = 2 + Math.floor(r() * 3);
+      const x = Math.floor(r() * U), y = Math.floor(r() * U), rad = 2 + Math.floor(r() * 3);
       g.fillStyle = r() < 0.5 ? '#1f5220' : '#122f12';
       g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
     }
@@ -3133,7 +3235,7 @@ function stoneTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#8d8a84';
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     // pedras de calçamento: 4 blocos com junta escura e brilho em cima
     const blocks = seed % 2 ? [[0, 0, 8, 7], [8, 0, 8, 7], [0, 8, 5, 8], [5, 8, 11, 8]] : [[0, 0, 6, 8], [6, 0, 10, 8], [0, 8, 9, 8], [9, 8, 7, 8]];
     for (const [x, y, w, h] of blocks) {
@@ -3143,7 +3245,7 @@ function stoneTile(seed) {
       g.fillRect(x + 1, y + 1, w - 2, 1);
     }
     g.fillStyle = '#6d6a64';
-    for (let i = 0; i < 6; i++) g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+    for (let i = 0; i < 6; i++) g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1);
   });
 }
 
@@ -3160,13 +3262,13 @@ function dirtTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#6f6150';
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     for (let i = 0; i < 20; i++) {
       g.fillStyle = r() < 0.5 ? '#5f5242' : '#806f5c';
-      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1 + Math.floor(r() * 2), 1);
+      g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1 + Math.floor(r() * 2), 1);
     }
     g.fillStyle = '#8f8a80';
-    g.fillRect(Math.floor(r() * (PIX - 2)), Math.floor(r() * (PIX - 2)), 2, 2);
+    g.fillRect(Math.floor(r() * (U - 2)), Math.floor(r() * (U - 2)), 2, 2);
   });
 }
 
@@ -3175,12 +3277,66 @@ function ashTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = '#4a4744';
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     for (let i = 0; i < 18; i++) {
       g.fillStyle = r() < 0.5 ? '#3b3836' : '#5c5955';
-      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+      g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1);
     }
-    if (r() < 0.4) { g.fillStyle = '#7a3a22'; g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1); }
+    if (r() < 0.4) { g.fillStyle = '#7a3a22'; g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1); }
+  });
+}
+
+/** Chão de caverna: pedra úmida arroxeada, com poças escuras. */
+function caveTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#2a2430';
+    g.fillRect(0, 0, U, U);
+    for (let i = 0; i < 16; i++) {
+      g.fillStyle = r() < 0.5 ? '#231e29' : '#352e3d';
+      g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1 + Math.floor(r() * 2), 1);
+    }
+    if (r() < 0.3) { g.fillStyle = '#1a1520'; g.fillRect(Math.floor(r() * 12), Math.floor(r() * 12), 4, 2); }
+  });
+}
+
+/** Grama queimada: preta e marrom, com um tufo verde que sobrou aqui e ali. */
+function burntTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#2e2a22';
+    g.fillRect(0, 0, U, U);
+    for (let i = 0; i < 18; i++) {
+      g.fillStyle = r() < 0.5 ? '#1f1c17' : '#40382c';
+      g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1 + Math.floor(r() * 2));
+    }
+    if (r() < 0.25) { g.fillStyle = '#3a5a2a'; g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 2); }
+  });
+}
+
+/** Seixos do leito seco: areia cinza com pedrinhas redondas. */
+function pebblesTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#8a8478';
+    g.fillRect(0, 0, U, U);
+    for (let i = 0; i < 9; i++) {
+      g.fillStyle = r() < 0.5 ? '#a39d90' : '#6f6a60';
+      const x = Math.floor(r() * (U - 2)), y = Math.floor(r() * (U - 2));
+      g.fillRect(x, y, 2, 2);
+      g.fillStyle = '#c0b9aa';
+      g.fillRect(x, y, 1, 1);
+    }
+  });
+}
+
+/** Lodo (embaixo do lago da caverna): roxo escuro. */
+function lodoTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#3b1f4a';
+    g.fillRect(0, 0, U, U);
+    for (let i = 0; i < 6; i++) { g.fillStyle = '#5a3070'; g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 2, 1); }
   });
 }
 
@@ -3189,7 +3345,7 @@ function themedStoneTile(seed, [base, a, b, light, dots]) {
   return makeTile((g) => {
     const r = rng(seed);
     g.fillStyle = base;
-    g.fillRect(0, 0, PIX, PIX);
+    g.fillRect(0, 0, U, U);
     const blocks = seed % 2 ? [[0, 0, 8, 7], [8, 0, 8, 7], [0, 8, 5, 8], [5, 8, 11, 8]] : [[0, 0, 6, 8], [6, 0, 10, 8], [0, 8, 9, 8], [9, 8, 7, 8]];
     for (const [x, y, w, h] of blocks) {
       g.fillStyle = r() < 0.5 ? a : b;
@@ -3199,27 +3355,32 @@ function themedStoneTile(seed, [base, a, b, light, dots]) {
     }
     for (let i = 0; i < 6; i++) {
       g.fillStyle = r() < 0.5 ? dots[0] : dots[1];
-      g.fillRect(Math.floor(r() * PIX), Math.floor(r() * PIX), 1, 1);
+      g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1);
     }
   });
 }
 
 const TILES = {
-  grass: [grassTile(1, false), grassTile(2, false), grassTile(3, false), grassTile(4, true)],
+  grass: [grassHD(1, LAWN), grassHD(2, LAWN), grassHD(3, LAWN), grassHD(4, LAWN, 'flowers'), grassHD(5, LAWN, 'clover')],
   stone: [lightStoneTile(21), lightStoneTile(22), lightStoneTile(23)],   // ruas e praça: pedra cinza clara
   themedStone: Object.fromEntries(Object.entries(STONE_THEMES).map(([k, c]) => [k, [themedStoneTile(91, c), themedStoneTile(92, c), themedStoneTile(93, c)]])),
   dirt: [dirtTile(101), dirtTile(102), dirtTile(103)],
   ash: [ashTile(111), ashTile(112)],
+  cave: [caveTile(121), caveTile(122), caveTile(123)],
+  burnt: [burntTile(131), burntTile(132), burntTile(133)],
+  pebbles: [pebblesTile(141), pebblesTile(142)],
+  lodo: [lodoTile(151)],
   sand: [sandTile(41), sandTile(42)],
-  arena: [arenaTile(43), arenaTile(44), arenaTile(45)],                                     // terra batida da arena
+  arena: [slabTile(43), slabTile(44), slabTile(45), slabTile(46, true)],                     // lajes de ardósia da arena
   bridge: [bridgeTile(51)],
-  river: [riverTile(61), riverTile(62)],
+  river: [riverTile(61), riverTile(62), riverTile(63), riverTile(64)],
   path: [pathTile(7), pathTile(8)],
   water: [waterTile(11), waterTile(12)],
   canopy: [canopyTile(31), canopyTile(32), canopyTile(33)],
-  darkGrass: [darkGrassTile(71), darkGrassTile(72), darkGrassTile(73), darkGrassTile(74)],   // Floresta
+  darkGrass: [grassHD(71, DARK_GRASS), grassHD(72, DARK_GRASS), grassHD(73, DARK_GRASS), grassHD(74, DARK_GRASS),
+    grassHD(75, DARK_GRASS, 'flowers'), grassHD(76, DARK_GRASS, 'clover'), grassHD(77, DARK_GRASS, 'leaves')],   // Floresta
   wood: [woodTile(81), woodTile(82)],                                                       // assoalho das lojas
-  black: [makeTile((g) => { g.fillStyle = '#100c09'; g.fillRect(0, 0, PIX, PIX); })],         // fora da sala
+  black: [makeTile((g) => { g.fillStyle = '#100c09'; g.fillRect(0, 0, U, U); })],         // fora da sala
 };
 
 /** Hash estável por casa: o mesmo chão aparece sempre no mesmo lugar. */
@@ -3236,22 +3397,26 @@ function tileAt(x, y) {
     case 'stone': return (TILES.themedStone[themeAt(state.places, x, y)] || TILES.stone)[h % 3];   // Vila: o calçamento da vila
     case 'dirt': return TILES.dirt[h % 3];                         // Zona de Conflito, Refúgio: terra solta
     case 'ash': return TILES.ash[h & 1];                           // acampamentos: cinzas
+    case 'cave': return TILES.cave[h % 3];                         // Caverna do Lodo
+    case 'burnt': return TILES.burnt[h % 3];                       // Acampamento e Clareira Queimada
+    case 'pebbles': return TILES.pebbles[h & 1];                   // leito seco da cachoeira
+    case 'lodo': return TILES.lodo[0];
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
-    case 'arena': return TILES.arena[h % 3];                       // arena da vila (terra batida)
-    case 'water': return TILES.river[h & 1];                       // rio e canais
+    case 'arena': return TILES.arena[x % 4 === 2 && y % 4 === 1 ? 3 : h % 3];   // arena da vila: lajes, losango a cada 4
+    case 'water': return TILES.river[h & 3];                       // rio e canais
     case 'bridge': return TILES.bridge[0];                         // pontes
-    case 'darkgrass': return TILES.darkGrass[h % 31 === 0 ? 3 : h % 3];   // Floresta: grama escura
+    case 'darkgrass': return TILES.darkGrass[h % 23 === 0 ? 4 : h % 17 === 0 ? 5 : h % 13 === 0 ? 6 : h % 4];   // Floresta: grama escura
     case 'wood': return TILES.wood[h & 1];                         // assoalho das lojas
-    case 'grass': return TILES.grass[h % 23 === 0 ? 3 : h % 3];    // Floresta
-    default: return state.maps[state.mapId]?.kind === 'interior' ? TILES.black[0] : TILES.canopy[h % 3];   // fora: escuro (sala) ou mata
+    case 'grass': return TILES.grass[h % 11 === 0 ? 3 : h % 13 === 0 ? 4 : h % 3];    // gramados
+    default: return ['interior', 'cave'].includes(state.maps[state.mapId]?.kind) ? TILES.black[0] : TILES.canopy[h % 3];   // fora: escuro (sala, caverna) ou mata
   }
 }
 
-// Chão em BLOCOS de 16x16 casas, desenhados uma vez na resolução da pixel art (256x256 px)
-// e guardados. Cada quadro desenha só ~4 a 9 imagens em vez de ~300 casas.
-const CHUNK = 16;
-const CHUNK_CACHE_MAX = 64;          // ~64 x 256 KB = 16 MB no máximo
+// Chão em BLOCOS de 8x8 casas, desenhados uma vez na resolução da arte (384 x 384 px) e guardados. Cada quadro
+// desenha só ~12 a 20 imagens em vez de ~300 casas.
+const CHUNK = 8;
+const CHUNK_CACHE_MAX = 64;          // 8 x 48 px = 384 px por bloco: ~64 x 576 KB = 37 MB no máximo
 const chunkCache = new Map();        // "mapa:cx,cy" -> canvas (ordem de uso = LRU; voltar a um mapa é instantâneo)
 
 /**
@@ -3259,7 +3424,7 @@ const chunkCache = new Map();        // "mapa:cx,cy" -> canvas (ordem de uso = L
  * que faltam aparecem nos quadros seguintes, por baixo do "piscar" da troca de mapa), e com
  * folga o jogo já monta os vizinhos da tela antes de o jogador chegar lá.
  */
-const CHUNK_BUILDS_PER_FRAME = 2;
+const CHUNK_BUILDS_PER_FRAME = 3;
 let chunkBuilds = 0;
 
 function chunkCanvas(cx, cy) {
@@ -3278,19 +3443,26 @@ function chunkCanvas(cx, cy) {
   for (let ty = 0; ty < CHUNK; ty++) {
     for (let tx = 0; tx < CHUNK; tx++) g.drawImage(tileAt(cx * CHUNK + tx, cy * CHUNK + ty), tx * PIX, ty * PIX);
   }
-  // Enfeites no chão (bancos, rosa dos ventos, lanternas, vasos) e depois as paredes (muralha,
-  // prédios, montanha, árvores, boneco), inclusive as do mapa vizinho além da borda. Cada uma
-  // é desenhada só nos blocos que toca (margem de 8 px para as sombras).
-  const size = CHUNK * PIX, M = 8;
+  // Daqui para baixo, tudo em unidades (U por casa): a arte do mapa é a mesma em qualquer resolução.
+  g.scale(ART, ART);
+  // Bordas macias entre chãos diferentes (grama por cima da terra, margem da água).
+  drawPatches(g, cx, cy);
+  for (let ty = 0; ty < CHUNK; ty++) for (let tx = 0; tx < CHUNK; tx++) drawFringe(g, cx * CHUNK + tx, cy * CHUNK + ty, tx * U, ty * U);
+  for (let ty = 0; ty < CHUNK; ty++) for (let tx = 0; tx < CHUNK; tx++) drawScatter(g, cx * CHUNK + tx, cy * CHUNK + ty, tx * U, ty * U);
+  // Enfeites no chão (bancos, rosa dos ventos, lanternas, vasos) e depois as paredes baixas (muralha, prédios,
+  // montanha, boneco), inclusive as do mapa vizinho além da borda. Cada uma é desenhada só nos blocos que toca (margem
+  // de 8 unidades para as sombras). Árvores, pedras altas e barracas são objetos com altura: vão na camada de cima.
+  const size = CHUNK * U, M = 8;
   for (const d of state.deco) {
-    const x = (d.x - cx * CHUNK) * PIX, y = (d.y - cy * CHUNK) * PIX, w = d.w * PIX, h = d.h * PIX;
+    const x = (d.x - cx * CHUNK) * U, y = (d.y - cy * CHUNK) * U, w = d.w * U, h = d.h * U;
     if (x + w < -M || y + h < -M || x > size + M || y > size + M) continue;
     drawDeco(g, d, x, y, w, h);
   }
   for (const w of state.walls) {
-    const x = (w.x - cx * CHUNK) * PIX, y = (w.y - cy * CHUNK) * PIX, pw = w.w * PIX, ph = w.h * PIX;
+    if (PROP_KINDS.has(w.k)) continue;
+    const x = (w.x - cx * CHUNK) * U, y = (w.y - cy * CHUNK) * U, pw = w.w * U, ph = w.h * U;
     if (x + pw < -M || y + ph < -M || x > size + M || y > size + M) continue;
-    drawWall(g, w, x, y, pw, ph, PIX);
+    drawWall(g, w, x, y, pw, ph, U);
   }
   chunkCache.set(key, c);
   if (chunkCache.size > CHUNK_CACHE_MAX) chunkCache.delete(chunkCache.keys().next().value);
@@ -3389,20 +3561,31 @@ try {
       map: () => ({ predicted: pred.map, drawn: state.mapId, server: state.serverMap }),
       fade: () => ({ alpha: mapFade.alpha, fading: !!mapFade.to }),
       npcs: () => state.npcs.map((n) => n.id),
+      monsters: () => [...state.monsters.values()].map((m) => [m.type, Math.round(m.x * 10) / 10, Math.round(m.y * 10) / 10]),
       shop: () => (state.shop ? { ...state.shop } : null),
       /** O mapa inteiro numa imagem (16 px por casa), montado com os mesmos blocos do jogo. */
-      mapPicture: () => {
+      /** O mapa inteiro numa imagem (`px` pixels por casa), montado com os mesmos blocos e objetos do jogo. */
+      mapPicture: (px = 16) => {
         const c = document.createElement('canvas');
-        c.width = state.world.width * PIX;
-        c.height = state.world.height * PIX;
+        c.width = state.world.width * px;
+        c.height = state.world.height * px;
         const g = c.getContext('2d');
         for (let cy = 0; cy * CHUNK < state.world.height; cy++) {
           for (let cx = 0; cx * CHUNK < state.world.width; cx++) {
             chunkBuilds = 0;
-            g.drawImage(chunkCanvas(cx, cy), cx * CHUNK * PIX, cy * CHUNK * PIX);
+            g.drawImage(chunkCanvas(cx, cy), cx * CHUNK * px, cy * CHUNK * px, CHUNK * px, CHUNK * px);
           }
         }
-        for (const o of state.overhead) drawGateRoof(g, o.x * PIX, o.y * PIX, o.w * PIX, o.h * PIX);
+        for (const s2 of state.glows || []) drawSealGlow(g, s2.x * px, s2.y * px, s2.w * px, s2.h * px, 0);
+        for (const pr of [...state.props].sort((a, b) => a.y - b.y)) {
+          propBuilds = 0;
+          const sp = propSprite(pr);
+          if (sp) g.drawImage(sp.canvas, (pr.x - sp.left) * px, (pr.y - sp.top) * px, sp.w * px, sp.h * px);
+        }
+        for (const o of state.overhead) {
+          if (o.k === 'oak_canopy') g.drawImage(canopySprite(o), o.x * px, o.y * px, o.w * px, o.h * px);
+          else drawGateRoof(g, o.x * px, o.y * px, o.w * px, o.h * px);
+        }
         return c.toDataURL('image/png');
       },
       visible: () => ({
@@ -3468,6 +3651,7 @@ function draw(now) {
   const cy0 = Math.floor(top / CHUNK), cy1 = Math.floor(bottom / CHUNK);
   const size = CHUNK * T;
   chunkBuilds = 0;
+  propBuilds = 0;
   for (let cy = cy0; cy <= cy1; cy++) {
     for (let cx = cx0; cx <= cx1; cx++) {
       const c = chunkCanvas(cx, cy);
@@ -3489,12 +3673,16 @@ function draw(now) {
   const gx0 = Math.ceil(left), gx1 = Math.floor(right);
   const gy0 = Math.ceil(top), gy1 = Math.floor(bottom);
   const sTop = 0, sBottom = viewH, sLeft = 0, sRight = viewW;
-  ctx.beginPath();
-  for (let x = gx0; x <= gx1; x++) { const sx = toScreenX(x) + 0.5; ctx.moveTo(sx, sTop); ctx.lineTo(sx, sBottom); }
-  for (let y = gy0; y <= gy1; y++) { const sy = toScreenY(y) + 0.5; ctx.moveTo(sLeft, sy); ctx.lineTo(sRight, sy); }
-  ctx.strokeStyle = 'rgba(16, 48, 12, 0.22)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  // Só nas vilas e salas (calçamento, assoalho): na natureza, a grade parece quadriculado e tira a beleza do mapa.
+  const kind = state.maps[state.mapId]?.kind;
+  if (kind === 'village' || kind === 'interior') {
+    ctx.beginPath();
+    for (let x = gx0; x <= gx1; x++) { const sx = toScreenX(x) + 0.5; ctx.moveTo(sx, sTop); ctx.lineTo(sx, sBottom); }
+    for (let y = gy0; y <= gy1; y++) { const sy = toScreenY(y) + 0.5; ctx.moveTo(sLeft, sy); ctx.lineTo(sRight, sy); }
+    ctx.strokeStyle = 'rgba(16, 48, 12, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
 
   // 3. Borda do mapa.
   ctx.strokeStyle = 'rgba(20, 17, 13, 0.6)';
@@ -3511,6 +3699,11 @@ function draw(now) {
     const x = toScreenX(f.x), y = toScreenY(f.y), w = f.w * T, h = f.h * T;
     if (x + w >= 0 && x <= viewW && y + h >= 0 && y <= viewH) drawChakraField(ctx, x, y, w, h, now);
   }
+  for (const s of state.glows || []) {
+    const x = toScreenX(s.x), y = toScreenY(s.y), w = s.w * T, h = s.h * T;
+    if (x + w * 3 >= 0 && x - w * 2 <= viewW && y + h * 3 >= 0 && y - h * 2 <= viewH) drawSealGlow(ctx, x, y, w, h, now);
+  }
+  drawLights(toScreenX, toScreenY, T, viewW, viewH, now);
 
   // 4. Efeitos de habilidade: os "de chão" (Sombra, Água) por baixo dos bonecos, o resto por cima.
   let alive = 0;
@@ -3540,10 +3733,17 @@ function draw(now) {
   }
   for (const p of state.players.values()) if (p.map === state.mapId) drawList.push(p);
   for (const n of state.npcs) drawList.push(n);
+  // Árvores, pedras altas e barracas no meio dos bonecos, pela linha da base (quem passa atrás fica atrás da copa).
+  for (const pr of state.props) {
+    const x = toScreenX(pr.x - pr.ext.left), y = toScreenY(pr.y - pr.ext.top);
+    if (x > viewW || y > viewH || x + (pr.w + pr.ext.left + pr.ext.right) * T < 0 || y + (pr.h + pr.ext.top + pr.ext.bottom) * T < 0) continue;
+    drawList.push(pr);
+  }
   if (drawList.length > 1) drawList.sort((a, b) => a.y - b.y);
   ctx.textAlign = 'center';
   for (const e of drawList) {
-    if (e.npc) drawNpc(e, toScreenX(e.x), toScreenY(e.y), T, now, me);
+    if (e.prop) drawPropOnScreen(e, toScreenX, toScreenY, T, me);
+    else if (e.npc) drawNpc(e, toScreenX(e.x), toScreenY(e.y), T, now, me);
     else if (e.type) drawMonster(e, toScreenX(e.x), toScreenY(e.y), T, now);
     else drawPlayer(e, toScreenX(e.x), toScreenY(e.y), T, e.id === state.meId, now);
   }
@@ -3554,8 +3754,19 @@ function draw(now) {
   // Por cima de todos: o telhado do portão (quem passa por baixo fica escondido por ele).
   for (const o of state.overhead) {
     const x = toScreenX(o.x), y = toScreenY(o.y), w = o.w * T, h = o.h * T;
-    if (x + w >= 0 && x <= viewW && y + h >= 0 && y <= viewH) drawGateRoof(ctx, x, y, w, h);
+    if (x + w < 0 || x > viewW || y + h < 0 || y > viewH) continue;
+    if (o.k === 'oak_canopy') {
+      // A copa do Velho Carvalho: translúcida com o jogador embaixo dela (ele não some).
+      const under = !!me && me.x >= o.x && me.x <= o.x + o.w && me.y >= o.y && me.y <= o.y + o.h;
+      const c = canopySprite(o);
+      if (under) ctx.globalAlpha = 0.45;
+      ctx.drawImage(c, x, y, w, h);
+      ctx.globalAlpha = 1;
+    } else drawGateRoof(ctx, x, y, w, h);
   }
+
+  // Caverna: escuro em volta do jogador, com uma luz no meio (o lugar mais tenso do arco antes do chefe).
+  if (me && state.maps[state.mapId]?.kind === 'cave') drawCaveDark(toScreenX(me.x), toScreenY(me.y), T);
 
   // 6. Números flutuantes (dano, cura, XP, avisos) e falas do NPC.
   drawFloaters(toScreenX, toScreenY, T, now);
@@ -3574,6 +3785,262 @@ function draw(now) {
     ctx.fillStyle = 'rgba(20, 17, 13, 0.55)';
     ctx.fillRect(0, 0, viewW, viewH);
   }
+}
+
+/**
+ * Objetos com altura do mapa: cada parede `tree`, `oak`, `seal`... vira um objeto que se desenha junto dos bonecos.
+ * Fileiras compridas de árvores (bordas da mata) são cortadas em pedaços de até 6 casas: cada pedaço se ordena pela
+ * própria base. `y` = a base (é por ela que a lista de desenho ordena).
+ */
+function makeProps(walls) {
+  const out = [];
+  for (const w of walls) {
+    if (!PROP_KINDS.has(w.k)) continue;
+    const ext = propExtent(w);
+    const long = Math.max(w.w, w.h);
+    const parts = w.k === 'tree' || w.k === 'deadtree' ? Math.ceil(long / 6) : 1;
+    for (let i = 0; i < parts; i++) {
+      const horiz = w.w >= w.h;
+      const seg = horiz
+        ? { x: w.x + (w.w * i) / parts, y: w.y, w: w.w / parts, h: w.h }
+        : { x: w.x, y: w.y + (w.h * i) / parts, w: w.w, h: w.h / parts };
+      out.push({ prop: true, wall: { ...w, ...seg }, x: seg.x, top: seg.y, w: seg.w, h: seg.h, y: seg.y + seg.h, ext });
+    }
+  }
+  return out;
+}
+
+/** A copa do Velho Carvalho, desenhada uma vez na resolução da arte. */
+const canopyCache = new Map();
+function canopySprite(o) {
+  const key = `${o.w}x${o.h}`;
+  let c = canopyCache.get(key);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = Math.ceil(o.w * PIX);
+  c.height = Math.ceil(o.h * PIX);
+  const g = c.getContext('2d');
+  g.scale(ART, ART);
+  drawOakCanopy(g, o.w * U, o.h * U);
+  canopyCache.set(key, c);
+  return c;
+}
+
+/** Desenho de cada objeto alto, em cache (montado uma vez, no máximo 4 por quadro). */
+const propCache = new Map();
+const PROP_BUILDS_PER_FRAME = 4;
+let propBuilds = 0;
+function propSprite(pr) {
+  const key = `${pr.wall.k}:${pr.x},${pr.top},${pr.w},${pr.h}:${pr.wall.s || ''}`;
+  let sp = propCache.get(key);
+  if (sp) return sp;
+  if (propBuilds >= PROP_BUILDS_PER_FRAME) return null;
+  propBuilds += 1;
+  const { left, right, top, bottom } = pr.ext;
+  const w = pr.w + left + right, h = pr.h + top + bottom;
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(w * PIX);
+  c.height = Math.ceil(h * PIX);
+  const g = c.getContext('2d');
+  g.scale(ART, ART);
+  drawProp(g, pr.wall, left * U, top * U, pr.w * U, pr.h * U, U);
+  sp = { canvas: c, left, top, w, h };
+  propCache.set(key, sp);
+  if (propCache.size > 600) propCache.delete(propCache.keys().next().value);
+  return sp;
+}
+
+/** Um objeto alto na tela. Se ele esconde o próprio jogador (atrás da copa), fica translúcido. */
+function drawPropOnScreen(pr, toScreenX, toScreenY, T, me) {
+  const sp = propSprite(pr);
+  if (!sp) return;
+  const x = toScreenX(pr.x - sp.left), y = toScreenY(pr.top - sp.top);
+  const covers = me && me.y < pr.y && me.y > pr.top - sp.top && me.x > pr.x - sp.left && me.x < pr.x + pr.w + sp.right;
+  if (covers) ctx.globalAlpha = 0.55;
+  ctx.drawImage(sp.canvas, x, y, sp.w * T, sp.h * T);
+  if (covers) ctx.globalAlpha = 1;
+}
+
+/**
+ * Bordas entre chãos naturais: o de prioridade maior avança sobre o vizinho em tufos irregulares (a grama sobre a
+ * terra, a terra sobre os seixos...), e a água ganha margem e espuma. Chão feito por gente (calçamento, assoalho,
+ * ponte, arena) fica reto. Sem isso, cada casa é um quadrado e o mapa parece grade.
+ */
+const EDGE = {
+  grass: { p: 6, base: '#4f9a3a', dark: '#3a7a2b', tip: '#6cbd52', blades: true },
+  darkgrass: { p: 6, base: '#2d6230', dark: '#1f4a24', tip: '#3f8040', blades: true },
+  burnt: { p: 4, base: '#2e2a22', dark: '#1f1c17', tip: '#40382c' },
+  path: { p: 3, base: '#b8935c', dark: '#a8834e', tip: '#c9a56d' },
+  sand: { p: 3, base: '#e2cd96', dark: '#d3bb80', tip: '#eedcab' },
+  pebbles: { p: 2, base: '#8a8478', dark: '#6f6a60', tip: '#a39d90' },
+  dirt: { p: 2, base: '#6f6150', dark: '#5f5242', tip: '#806f5c' },
+  ash: { p: 1, base: '#4a4744', dark: '#3b3836', tip: '#5c5955' },
+};
+
+function drawFringe(g, x, y, ux, uy) {
+  const here = groundAt(state.places, x, y);
+  const me = EDGE[here];
+  const sides = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+  if (me) {
+    for (const [dx, dy] of sides) {
+      const other = EDGE[groundAt(state.places, x + dx, y + dy)];
+      if (!other || other.p <= me.p) continue;
+      let h = cellHash(x * 3 + dx + 7, y * 3 + dy + 11);
+      const next = () => (h = (h * 1103515245 + 12345) >>> 0) / 4294967296;
+      const n = other.blades ? 7 : 9;
+      for (let i = 0; i < n; i++) {
+        const t = ((i + next()) / n) * U;                       // ao longo da borda
+        const depth = other.blades ? 0.8 + next() * 2.2 : 1 + next() * 3.2;   // quanto avança
+        const ex = dx === 0 ? ux + t : dx === -1 ? ux : ux + U;
+        const ey = dy === 0 ? uy + t : dy === -1 ? uy : uy + U;
+        const ix = -dx, iy = -dy;                              // para dentro desta casa
+        g.fillStyle = other.base;
+        g.beginPath();
+        g.ellipse(ex + ix * depth * 0.35, ey + iy * depth * 0.35, dx === 0 ? 1.2 + next() : depth * 0.75, dy === 0 ? 1.2 + next() : depth * 0.75, 0, 0, Math.PI * 2);
+        g.fill();
+        if (other.blades) {                                     // a grama solta folhinhas para fora
+          fine(g, other.dark, ex + ix * depth + (dx === 0 ? 0.4 : 0), ey + iy * depth + (dy === 0 ? 0.4 : 0), PX, PX * 3);
+          fine(g, other.tip, ex + ix * (depth - 0.4) + (dx === 0 ? 1 : 0), ey + iy * (depth - 0.4) + (dy === 0 ? 1 : 0), PX, PX * 2);
+        } else {
+          fine(g, other.dark, ex + ix * depth * 0.7, ey + iy * depth * 0.7, PX * 2, PX);
+        }
+      }
+    }
+  } else if (here === 'water') {
+    for (const [dx, dy] of sides) {
+      const n = groundAt(state.places, x + dx, y + dy);
+      if (n === 'water' || n === 'bridge' || n === 'void') continue;
+      const [rx, ry, rw, rh] = dy === -1 ? [ux, uy, U, 1.6] : dy === 1 ? [ux, uy + U - 1.6, U, 1.6] : dx === -1 ? [ux, uy, 1.6, U] : [ux + U - 1.6, uy, 1.6, U];
+      g.fillStyle = 'rgba(40, 30, 20, 0.5)';                  // a margem molhada
+      g.fillRect(rx, ry, rw, rh);
+      g.fillStyle = 'rgba(30, 60, 90, 0.35)';                 // água mais escura junto da margem
+      g.fillRect(rx + (dx === 1 ? -1.4 : dx === -1 ? 1.6 : 0), ry + (dy === 1 ? -1.4 : dy === -1 ? 1.6 : 0), dx === 0 ? U : 1.4, dy === 0 ? U : 1.4);
+      let h = cellHash(x + 31, y + 17 + dx * 5 + dy * 3);
+      for (let i = 0; i < 6; i++) {                            // espuma
+        h = (h * 1103515245 + 12345) >>> 0;
+        const t = ((h % 1000) / 1000) * U;
+        const fx = dy === 0 ? rx + (dx === -1 ? 1.7 : -0.7) : ux + t, fy = dx === 0 ? ry + (dy === -1 ? 1.7 : -0.7) : uy + t;
+        fine(g, 'rgba(225, 242, 255, 0.7)', fx, fy, dy === 0 ? PX : PX * 3, dx === 0 ? PX : PX * 3);
+      }
+    }
+  }
+}
+
+/**
+ * Manchas grandes de luz e sombra no chão dos mapas naturais: círculos bem suaves (2 a 5 casas) presos numa grade do
+ * mundo a cada 4 casas, com sorteio por posição. Cada bloco desenha os que encostam nele: emenda sem costura.
+ */
+function drawPatches(g, cx, cy) {
+  const kind = state.maps[state.mapId]?.kind;
+  if (kind !== 'forest' && kind !== 'wild' && kind !== 'cave') return;
+  const x0 = cx * CHUNK, y0 = cy * CHUNK, STEP = 4;
+  for (let gy = Math.floor((y0 - 6) / STEP); gy <= Math.floor((y0 + CHUNK + 6) / STEP); gy++) {
+    for (let gx = Math.floor((x0 - 6) / STEP); gx <= Math.floor((x0 + CHUNK + 6) / STEP); gx++) {
+      const h = cellHash(gx * 31 + 5, gy * 17 + 9);
+      const r = rng(h);
+      const px = (gx + r()) * STEP, py = (gy + r()) * STEP, rad = 2 + r() * 3;
+      const light = r() < 0.45;
+      const a = 0.06 + r() * 0.08;
+      const sx = (px - x0) * U, sy = (py - y0) * U, sr = rad * U;
+      const grad = g.createRadialGradient(sx, sy, 0, sx, sy, sr);
+      grad.addColorStop(0, light ? `rgba(255, 240, 170, ${a})` : `rgba(0, 20, 10, ${a * 1.4})`);
+      grad.addColorStop(1, light ? 'rgba(255, 240, 170, 0)' : 'rgba(0, 20, 10, 0)');
+      g.fillStyle = grad;
+      g.fillRect(sx - sr, sy - sr, sr * 2, sr * 2);
+    }
+  }
+}
+
+/**
+ * Enfeites espalhados no chão (só desenho, sem colisão), sorteados por casa: tufos altos, flores, pedrinhas,
+ * cogumelos e moitas na mata; pedrinhas na trilha; gravetos queimados nas cinzas; cristais na caverna.
+ */
+function drawScatter(g, x, y, ux, uy) {
+  const ground = groundAt(state.places, x, y);
+  const h = cellHash(x * 7 + 1, y * 5 + 3);
+  const roll = h % 1000;
+  const r = rng(h);
+  const px = ux + 2 + r() * (U - 4), py = uy + 3 + r() * (U - 5);
+  if (ground === 'grass' || ground === 'darkgrass') {
+    const pal = ground === 'grass' ? LAWN : DARK_GRASS;
+    if (roll < 60) {                                          // capim alto
+      for (let i = 0; i < 7; i++) {
+        const bx = px + (r() - 0.5) * 4, bh = 2.2 + r() * 2.4;
+        fine(g, pal[1], bx, py - bh, PX * 2, bh);
+        fine(g, pal[3], bx, py - bh, PX, bh * 0.6);
+        fine(g, pal[4], bx, py - bh - PX);
+      }
+    } else if (roll < 80) {                                   // flores
+      const petal = ['#f4efe0', '#f2d25a', '#c9a6e8', '#f48aa0'][h % 4];
+      for (let i = 0; i < 4; i++) {
+        const fx = px + (r() - 0.5) * 5, fy = py + (r() - 0.5) * 3;
+        fine(g, pal[1], fx, fy, PX, 1.2);
+        g.fillStyle = petal;
+        g.beginPath(); g.arc(fx, fy - 0.3, 0.75, 0, Math.PI * 2); g.fill();
+        fine(g, '#e0882a', fx, fy - 0.3);
+      }
+    } else if (roll < 93) {                                   // pedrinha
+      g.fillStyle = 'rgba(0,0,0,0.25)';
+      g.beginPath(); g.ellipse(px + 0.6, py + 0.6, 2.1, 1.1, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#7d7a73';
+      g.beginPath(); g.ellipse(px, py, 2, 1.3, 0, 0, Math.PI * 2); g.fill();
+      fine(g, '#a9a59b', px - 1, py - 0.8, 1.2, PX * 2);
+    } else if (roll < 101 && ground === 'darkgrass') {        // cogumelos
+      for (const [dx, cap] of [[0, '#c8392a'], [1.8, '#b5824a']]) {
+        fine(g, '#efe6d0', px + dx - PX, py - 1.2, PX * 3, 1.2);
+        g.fillStyle = cap;
+        g.beginPath(); g.ellipse(px + dx, py - 1.3, 1.3, 0.8, 0, Math.PI, Math.PI * 2); g.fill();
+        if (cap === '#c8392a') fine(g, '#f4efe0', px + dx - 0.4, py - 1.7);
+      }
+    } else if (roll < 116) {                                  // moita
+      g.fillStyle = 'rgba(0,0,0,0.22)';
+      g.beginPath(); g.ellipse(px + 0.8, py + 0.4, 3.4, 1.4, 0, 0, Math.PI * 2); g.fill();
+      for (const [dx, dy, rr, c] of [[-1.4, -0.8, 1.7, pal[1]], [1.3, -0.8, 1.7, pal[1]], [0, -1.6, 2, pal[2]], [-0.6, -2.2, 1.1, pal[3]]]) {
+        g.fillStyle = c;
+        g.beginPath(); g.arc(px + dx, py + dy, rr, 0, Math.PI * 2); g.fill();
+      }
+      fine(g, pal[4], px - 1, py - 3, PX * 2, PX);
+    } else if (roll < 124) {                                  // graveto caído
+      g.save();
+      g.translate(px, py);
+      g.rotate((r() - 0.5) * 1.2);
+      fine(g, '#4a2e17', -2.5, -PX, 5, PX * 2);
+      fine(g, '#6b4423', -2.5, -PX, 5, PX);
+      fine(g, '#4a2e17', 0.5, -1.2, PX * 2, 1.1);
+      g.restore();
+    }
+  } else if (ground === 'path' && roll < 70) {
+    for (let i = 0; i < 3; i++) {
+      const sx = px + (r() - 0.5) * 6, sy = py + (r() - 0.5) * 4;
+      fine(g, '#8d7350', sx, sy, PX * 4, PX * 3);
+      fine(g, '#d7bd8c', sx, sy, PX * 2, PX);
+    }
+  } else if (ground === 'ash' && roll < 160) {                // cinzas: carvão, pedrinhas e um ponto de brasa
+    for (let i = 0; i < 3; i++) fine(g, r() < 0.5 ? '#2a2725' : '#6a6662', px + (r() - 0.5) * 6, py + (r() - 0.5) * 4, PX * (2 + Math.floor(r() * 3)), PX * 2);
+    if (roll < 25) fine(g, '#d2541f', px, py, PX, PX);
+  } else if (ground === 'burnt' && roll < 90) {
+    fine(g, '#1a1410', px - 2, py, 4, PX * 2);
+    fine(g, '#3a2a1e', px - 1, py - 1, 3, PX * 2);
+    if (roll < 30) fine(g, '#d2541f', px, py - PX);
+  } else if (ground === 'cave' && roll < 70) {                // cristais roxos que brilham fraco
+    for (const [dx, hh] of [[0, 2.6], [1, 1.8], [-0.9, 1.5]]) {
+      g.fillStyle = '#4a2a66';
+      g.beginPath(); g.moveTo(px + dx - 0.5, py); g.lineTo(px + dx, py - hh); g.lineTo(px + dx + 0.5, py); g.closePath(); g.fill();
+      fine(g, '#b78ae0', px + dx - PX, py - hh + 0.3, PX, hh * 0.6);
+    }
+  } else if ((ground === 'cave' || ground === 'dirt') && roll < 150) {
+    for (let i = 0; i < 3; i++) fine(g, ground === 'cave' ? '#3b3346' : '#8f8a80', px + (r() - 0.5) * 6, py + (r() - 0.5) * 4, PX * 4, PX * 3);
+  }
+}
+
+/** Escuro da caverna: tudo escurece, menos um círculo de luz em volta do jogador (raio de ~6 casas). */
+function drawCaveDark(sx, sy, T) {
+  const r = T * 6.5;
+  const grad = ctx.createRadialGradient(sx, sy, T * 1.5, sx, sy, r);
+  grad.addColorStop(0, 'rgba(8, 4, 14, 0)');
+  grad.addColorStop(1, 'rgba(8, 4, 14, 0.82)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
 }
 
 /**
@@ -3815,6 +4282,103 @@ function drawDummyMonster(m, sx, sy, T, now) {
 }
 
 /** Monstro provisório: círculo vermelho com "M", barra de vida e ícones de atordoado/preso. */
+/** [corpo, morrendo, contorno] de cada monstro: Slime vermelho, Lodo Escuro roxo, Lodo Sombrio azul-petróleo. */
+/** Letra da interface (a mesma do HUD em CSS): estreita, lê bem pequena. */
+const UI_FONT = '"Barlow Condensed", system-ui, -apple-system, sans-serif';
+
+/** Cores de cada monstro (de cima para baixo no corpo, contorno, e a cor de quando morre). */
+const MONSTER_LOOK = {
+  slime: { top: '#ff7a63', mid: '#e0412f', low: '#a6261a', edge: '#4a0f0a', dead: '#7a2a22', cheek: '#ffb0a0' },
+  lodo_escuro: { top: '#9a62c8', mid: '#673096', low: '#3f1a62', edge: '#1a0828', dead: '#3a1a52', angry: true, drip: '#b98ae6' },
+  lodo_sombrio: { top: '#4fa3b4', mid: '#2a6a7a', low: '#17404c', edge: '#08202a', dead: '#1a3e48', angry: true, drip: '#8fd6e4' },
+};
+
+/**
+ * Slime chibi: corpo em gota (base achatada, topo redondo) que respira, degradê de cima para baixo, contorno escuro,
+ * brilho na cabeça, olhos grandes com reflexo. Os Lodos têm a sobrancelha brava e escorrem. Morrendo, vira poça.
+ */
+function drawSlime(sx, sy, r, c, wobble, dying, now, monsterId) {
+  const id = typeof monsterId === 'number' ? monsterId : Number.parseInt(String(monsterId).replace(/\D/g, ''), 10) || 0;   // "m12" -> 12
+  const squash = dying ? 1 - dying * 0.75 : 1;
+  const w = r * (1.08 + wobble) * (1 + (1 - squash) * 0.5), h = r * (1.02 - wobble) * squash;
+  const base = sy + r * 0.82, top = base - h * 1.75;
+  const body = () => {
+    ctx.beginPath();
+    ctx.moveTo(sx - w, base);
+    ctx.bezierCurveTo(sx - w * 1.08, base - h * 0.9, sx - w * 0.62, top, sx, top);
+    ctx.bezierCurveTo(sx + w * 0.62, top, sx + w * 1.08, base - h * 0.9, sx + w, base);
+    ctx.quadraticCurveTo(sx, base + h * 0.22, sx - w, base);
+    ctx.closePath();
+  };
+  const g = ctx.createLinearGradient(0, top, 0, base);
+  g.addColorStop(0, dying ? c.dead : c.top);
+  g.addColorStop(0.55, dying ? c.dead : c.mid);
+  g.addColorStop(1, dying ? c.edge : c.low);
+  ctx.fillStyle = g;
+  body();
+  ctx.fill();
+  ctx.lineWidth = Math.max(2, r * 0.12);
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = c.edge;
+  ctx.stroke();
+  if (dying > 0.6) return;
+  // brilho de gelatina e bolhas por dentro
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.beginPath(); ctx.ellipse(sx - w * 0.42, top + h * 0.42, w * 0.2, h * 0.16, -0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.beginPath(); ctx.arc(sx - w * 0.2, top + h * 0.28, Math.max(1.5, r * 0.06), 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+  const bob = (now / 900 + (id % 7) / 7) % 1;
+  ctx.beginPath(); ctx.arc(sx + w * 0.42, base - h * (0.3 + bob * 0.7), r * 0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx + w * 0.22, base - h * (0.2 + ((bob + 0.5) % 1) * 0.6), r * 0.05, 0, Math.PI * 2); ctx.fill();
+  // olhos (piscam de vez em quando)
+  const blink = ((now + (id % 11) * 397) % 3600) < 120;
+  const ey = base - h * 0.92, ex = w * 0.33, er = r * 0.17;
+  for (const side of [-1, 1]) {
+    const x = sx + side * ex;
+    if (blink) {
+      ctx.fillStyle = c.edge;
+      ctx.fillRect(x - er, ey, er * 2, Math.max(1.5, r * 0.06));
+      continue;
+    }
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.ellipse(x, ey, er, er * 1.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1a0f14';
+    ctx.beginPath(); ctx.ellipse(x + side * er * 0.15, ey + er * 0.15, er * 0.68, er * 0.9, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(x - er * 0.2, ey - er * 0.3, er * 0.3, 0, Math.PI * 2); ctx.fill();
+    if (c.angry) {                                        // sobrancelha brava
+      ctx.strokeStyle = c.edge;
+      ctx.lineWidth = Math.max(2, r * 0.09);
+      ctx.beginPath(); ctx.moveTo(x + side * er * 1.1, ey - er * 1.8); ctx.lineTo(x - side * er * 0.9, ey - er * 1.1); ctx.stroke();
+    }
+  }
+  if (c.cheek) {                                          // bochechas
+    ctx.fillStyle = c.cheek;
+    ctx.globalAlpha *= 0.55;
+    for (const side of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sx + side * ex * 1.55, ey + er * 1.4, er * 0.7, er * 0.38, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.globalAlpha /= 0.55;
+  }
+  ctx.strokeStyle = c.edge;                               // boca
+  ctx.lineWidth = Math.max(1.5, r * 0.06);
+  ctx.beginPath();
+  if (c.angry) { ctx.moveTo(sx - er * 0.8, ey + er * 2); ctx.lineTo(sx + er * 0.8, ey + er * 1.8); }
+  else ctx.arc(sx, ey + er * 1.3, er * 0.6, 0.2, Math.PI - 0.2);
+  ctx.stroke();
+  if (c.drip) {                                           // o lodo escorre na base
+    ctx.fillStyle = c.low;
+    for (const k of [-0.55, 0.15, 0.62]) {
+      const dy = (Math.sin(now / 400 + k * 9 + id) * 0.5 + 0.5) * r * 0.25;
+      ctx.beginPath(); ctx.ellipse(sx + w * k, base + r * 0.06 + dy * 0.4, r * 0.08, r * 0.1 + dy * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = c.drip;
+    ctx.globalAlpha *= 0.6;
+    ctx.beginPath(); ctx.arc(sx + w * 0.5, top + h * 0.5, r * 0.05, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha /= 0.6;
+  }
+}
+
+
 function drawMonster(m, sx, sy, T, now) {
   if (m.type === 'dummy' || m.type === 'sparring') return drawDummyMonster(m, sx, sy, T, now);
   const born = Math.max(0.05, Math.min(1, (now - m.bornAt) / 250));
@@ -3832,15 +4396,9 @@ function drawMonster(m, sx, sy, T, now) {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
     ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 0.95, r * 0.36, 0, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.fillStyle = dying ? '#7a2a22' : '#d63a2c';
-  ctx.beginPath(); ctx.ellipse(sx, sy, r * (1 + wobble), r * (1 - wobble), 0, 0, Math.PI * 2); ctx.fill();
-  ctx.lineWidth = Math.max(2, T * 0.06);
-  ctx.strokeStyle = '#4a0f0a';
-  ctx.stroke();
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `900 ${Math.round(r * 1.05)}px system-ui, -apple-system, sans-serif`;
-  ctx.textBaseline = 'middle';
-  ctx.fillText('M', sx, sy + r * 0.06);
+  if (m.id === state.focusId && !dying) drawFocusMarker(sx, sy, r, T, now, 'ring');   // o anel fica no chão, embaixo
+  // Cada tipo com a sua cor (docs/mapas.md): o perigo se lê pela cor.
+  drawSlime(sx, sy, r, MONSTER_LOOK[m.type] || MONSTER_LOOK.slime, wobble, dying, now, m.id);
   if (stunned) {                      // Ilusão: estrelinhas girando
     ctx.fillStyle = '#ffe066';
     for (let k = 0; k < 3; k++) {
@@ -3850,18 +4408,24 @@ function drawMonster(m, sx, sy, T, now) {
   }
   if (!dying) drawHpBar(sx, sy - r - Math.max(6, T * 0.16), T * 0.8, m.hp / m.maxHp, '#ff5a4a');
   ctx.restore();
-  if (m.id === state.focusId && !dying) drawFocusMarker(sx, sy, r, T, now);
+  if (m.id === state.focusId && !dying) drawFocusMarker(sx, sy, r, T, now, 'arrow');
 }
 
-/** Indicador do alvo focado: anel tracejado girando no chão + seta pulando em cima. */
-function drawFocusMarker(sx, sy, r, T, now) {
+/**
+ * Indicador do alvo focado: anel tracejado girando no chão + seta pulando em cima. `part`: só o anel (desenhado antes
+ * do corpo, para ficar no chão) ou só a seta; sem `part`, os dois.
+ */
+function drawFocusMarker(sx, sy, r, T, now, part) {
   ctx.save();
-  ctx.strokeStyle = '#ffb347';
-  ctx.lineWidth = Math.max(2, T * 0.07);
-  ctx.setLineDash([T * 0.22, T * 0.12]);
-  ctx.lineDashOffset = -now / 30;
-  ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 1.55, r * 0.62, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.setLineDash([]);
+  if (part !== 'arrow') {
+    ctx.strokeStyle = '#ffb347';
+    ctx.lineWidth = Math.max(2, T * 0.07);
+    ctx.setLineDash([T * 0.22, T * 0.12]);
+    ctx.lineDashOffset = -now / 30;
+    ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.9, r * 1.55, r * 0.62, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  if (part === 'ring') { ctx.restore(); return; }
   const bob = Math.sin(now / 160) * T * 0.08;
   const ay = sy - r - T * 0.55 + bob;
   const s = Math.max(6, T * 0.2);
@@ -4063,13 +4627,94 @@ function drawOffscreenArrow(sx, sy, marker, now) {
   ctx.restore();
 }
 
+/**
+ * Luz quente das lanternas (somada ao chão, tremendo de leve): uma poça larga no piso e um halo pequeno em volta da
+ * caixa da luz. E, por cima das arenas à vista, quatro holofotes frios vindos dos cantos (como num estádio à noite).
+ */
+function drawLights(toScreenX, toScreenY, T, viewW, viewH, now) {
+  const lights = state.lights || [];
+  const boxes = state.arenaBoxes || [];
+  if (!lights.length && !boxes.length) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const l of lights) {
+    const x = toScreenX(l.x), y = toScreenY(l.y);
+    if (x < -T * 3 || x > viewW + T * 3 || y < -T * 3 || y > viewH + T * 3) continue;
+    const flick = 0.88 + 0.12 * Math.sin(now / 130 + l.x * 7.1) * Math.sin(now / 83 + l.y * 3.3);
+    const pr = T * 2.1;
+    let g = ctx.createRadialGradient(x, y, 0, x, y, pr);
+    g.addColorStop(0, `rgba(255, 186, 92, ${0.3 * flick})`);
+    g.addColorStop(0.5, `rgba(255, 150, 60, ${0.1 * flick})`);
+    g.addColorStop(1, 'rgba(255, 140, 50, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - pr, y - pr, pr * 2, pr * 2);
+    const hy = y - T * 1.25, hr = T * 0.75;
+    g = ctx.createRadialGradient(x, hy, 0, x, hy, hr);
+    g.addColorStop(0, `rgba(255, 214, 140, ${0.45 * flick})`);
+    g.addColorStop(1, 'rgba(255, 170, 70, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - hr, hy - hr, hr * 2, hr * 2);
+  }
+  for (const b of boxes) {
+    const x0 = toScreenX(b.x), y0 = toScreenY(b.y), w = b.w * T, h = b.h * T;
+    if (x0 + w < -T * 4 || x0 > viewW + T * 4 || y0 + h < -T * 4 || y0 > viewH + T * 4) continue;
+    // Holofotes: só dentro da mureta (não vazam para a rua). Três cones um dentro do outro: a borda sai macia.
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0 - T * 0.5, y0 - T * 0.5, w + T, h + T); ctx.clip();
+    const cx = x0 + w / 2, cy = y0 + h / 2;
+    for (const [k, [sx, sy]] of [[x0 - T * 2, y0 - T * 3], [x0 + w + T * 2, y0 - T * 3], [x0 - T * 2, y0 + h + T], [x0 + w + T * 2, y0 + h + T]].entries()) {
+      const sway = Math.sin(now / 2400 + k * 1.7) * T * 1.4;
+      const tx = cx + (k % 2 ? -1 : 1) * w * 0.12 + sway, ty = cy + (k < 2 ? 1 : -1) * h * 0.08;
+      const ang = Math.atan2(ty - sy, tx - sx), len = Math.hypot(tx - sx, ty - sy) * 1.15;
+      const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, len);
+      g.addColorStop(0, 'rgba(225, 235, 255, 0.07)');
+      g.addColorStop(0.75, 'rgba(205, 220, 255, 0.03)');
+      g.addColorStop(1, 'rgba(205, 220, 255, 0)');
+      ctx.fillStyle = g;
+      for (const spread of [0.09, 0.15, 0.21]) {
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + Math.cos(ang - spread) * len, sy + Math.sin(ang - spread) * len);
+        ctx.lineTo(sx + Math.cos(ang + spread) * len, sy + Math.sin(ang + spread) * len);
+        ctx.closePath();
+        ctx.fill();
+      }
+      const pg = ctx.createRadialGradient(tx, ty, 0, tx, ty, T * 2.4);   // a mancha de luz no chão
+      pg.addColorStop(0, 'rgba(230, 238, 255, 0.12)');
+      pg.addColorStop(1, 'rgba(230, 238, 255, 0)');
+      ctx.fillStyle = pg;
+      ctx.beginPath(); ctx.ellipse(tx, ty, T * 2.4, T * 1.4, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/** Anel no chão de quem luta (dourado: você; vermelho: o adversário), com um brilho fraco por dentro. */
+function drawGroundRing(sx, sy, r, color, glow) {
+  ctx.save();
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.92, r * 1.25, r * 0.48, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(10, 12, 20, 0.55)';
+  ctx.lineWidth = Math.max(3, r * 0.14);
+  ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.92 + 1, r * 1.25, r * 0.48, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(2, r * 0.09);
+  ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.92, r * 1.25, r * 0.48, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
 function drawHpBar(cx, y, w, ratio, color) {
   const h = 4;
-  const x = Math.round(cx - w / 2);
-  ctx.fillStyle = 'rgba(20, 17, 13, 0.8)';
-  ctx.fillRect(x - 1, Math.round(y) - 1, Math.round(w) + 2, h + 2);
+  const x = Math.round(cx - w / 2), yy = Math.round(y), fill = Math.round(w * Math.max(0, Math.min(1, ratio)));
+  ctx.fillStyle = 'rgba(8, 10, 20, 0.85)';                   // trilho escuro com borda
+  ctx.fillRect(x - 1, yy - 1, Math.round(w) + 2, h + 2);
+  ctx.fillStyle = 'rgba(233, 214, 170, 0.12)';
+  ctx.fillRect(x, yy, Math.round(w), h);
   ctx.fillStyle = color;
-  ctx.fillRect(x, Math.round(y), Math.round(w * Math.max(0, Math.min(1, ratio))), h);
+  ctx.fillRect(x, yy, fill, h);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';               // brilho em cima
+  ctx.fillRect(x, yy, fill, 1);
 }
 
 function drawFloaters(toScreenX, toScreenY, T, now) {
@@ -4167,6 +4812,11 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
   ctx.beginPath();
   ctx.ellipse(sx, sy + r * 0.92, r * 0.95, r * 0.36, 0, 0, Math.PI * 2);
   ctx.fill();
+  // Na arena: anel dourado embaixo de você e vermelho embaixo de quem pode ser o seu adversário.
+  if (!p.dead && state.inArena && arenaAt(state.maps[state.mapId], p.x, p.y)) {
+    if (isMe) drawGroundRing(sx, sy, r, '#e9c46a', 'rgba(233, 196, 106, 0.16)');
+    else if (isFoe(p)) drawGroundRing(sx, sy, r, '#e8737a', 'rgba(232, 115, 122, 0.14)');
+  }
   // escudo de Pedra ativo (só sabemos o nosso)
   if (isMe && state.me.shield && !p.dead) {
     ctx.strokeStyle = '#c9a678';
@@ -4198,19 +4848,29 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
     ctx.fill();
   }
 
-  // nome
-  const fontSize = Math.max(11, Math.round(T * 0.32));
-  ctx.font = `600 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  // nome numa plaquinha escura (letra estreita); a vida dos outros fica na base da plaquinha
+  const fontSize = Math.max(12, Math.round(T * 0.34));
+  ctx.font = `600 ${fontSize}px ${UI_FONT}`;
   ctx.textBaseline = 'bottom';
   ctx.lineWidth = 3;
   ctx.lineJoin = 'round';            // contorno do texto sem "espinhos" nas quinas
-  ctx.strokeStyle = 'rgba(20, 17, 13, 0.9)';
+  ctx.strokeStyle = 'rgba(8, 10, 20, 0.85)';
   const foe = !isMe && (state.inArena || inConflict()) && isFoe(p);   // arena e Zona de Conflito: adversário em vermelho
   // Fim de jogo: 👑 Kage, ☁ Akatsuki, renegado em violeta, aliado em verde na Zona e a recompensa pela cabeça.
   const style = factionStyle(state.endgame, state.players.get(state.meId), p, inConflict());
-  ctx.fillStyle = isMe ? '#ffe2a8' : foe ? (style.color || '#ff9a8a') : style.color || '#f4ead8';
   const nameY = headTop - 5 - (isMe ? 2 : 7);
   const label = `${style.prefix}${p.username}`;
+  const tw = ctx.measureText(label).width;
+  const plateBottom = !isMe && !p.dead ? headTop - 3 : nameY + 1;
+  ctx.fillStyle = 'rgba(10, 13, 26, 0.62)';
+  roundRect(sx - tw / 2 - 6, nameY - fontSize - 1, tw + 12, plateBottom - (nameY - fontSize - 1), 4);
+  ctx.fill();
+  ctx.strokeStyle = foe ? 'rgba(232, 115, 122, 0.55)' : isMe ? 'rgba(233, 196, 106, 0.5)' : 'rgba(233, 214, 170, 0.16)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(8, 10, 20, 0.85)';
+  ctx.lineWidth = 3;
+  ctx.fillStyle = isMe ? '#f2d58c' : foe ? (style.color || '#ff9a8a') : style.color || '#f4ecd8';
   ctx.strokeText(label, sx, nameY);
   ctx.fillText(label, sx, nameY);
   if (style.bounty > 0) {
@@ -4221,7 +4881,7 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
     ctx.fillText(`💰 ${style.bounty}`, sx, by);
   }
   // vida dos outros jogadores (a nossa fica nas barras de baixo)
-  if (!isMe && !p.dead) drawHpBar(sx, headTop - 9, T * 0.8, p.hp / p.maxHp, foe ? '#ff5a4a' : '#7bd36a');
+  if (!isMe && !p.dead) drawHpBar(sx, headTop - 8, tw + 4, p.hp / p.maxHp, foe ? '#ff6f61' : '#8fe0a0');
   ctx.globalAlpha = 1;
   if (!isMe && p.id === state.focusId && foe) drawFocusMarker(sx, sy, r, T, now);
 
@@ -4269,15 +4929,15 @@ function drawJoystick() {
     ctx.beginPath(); ctx.arc(joy.baseX, joy.baseY, joy.radius + 8, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
-  ctx.fillStyle = 'rgba(20, 17, 13, 0.45)';
-  ctx.strokeStyle = 'rgba(244, 234, 216, 0.5)';
+  ctx.fillStyle = 'rgba(12, 16, 32, 0.45)';
+  ctx.strokeStyle = 'rgba(233, 214, 170, 0.5)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.arc(joy.baseX, joy.baseY, joy.radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   const meditating = state.me.meditating;
-  ctx.fillStyle = meditating ? 'rgba(111, 192, 255, 0.6)' : active ? '#f0a03c' : 'rgba(244, 234, 216, 0.85)';
+  ctx.fillStyle = meditating ? 'rgba(111, 192, 255, 0.6)' : active ? '#e9c46a' : 'rgba(244, 236, 216, 0.85)';
   ctx.beginPath();
   ctx.arc(joy.baseX + joy.knobX, joy.baseY + joy.knobY, joy.radius * 0.48, 0, Math.PI * 2);
   ctx.fill();
@@ -4295,6 +4955,9 @@ function drawJoystick() {
 
 resize();
 applyHud();
+// O canvas só usa a letra do HUD depois que ela carrega (sem isto, os nomes saem na letra do sistema até a primeira
+// vez que um texto do HUD a pedir).
+document.fonts?.load(`600 16px ${UI_FONT}`).catch(() => {});
 requestAnimationFrame(frame);
 if (readToken()) startGame();
 else showLogin();

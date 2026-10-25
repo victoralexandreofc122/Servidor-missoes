@@ -32,9 +32,10 @@ import {
   damageMultiplier, derivedStats, levelProgress, MAX_LEVEL, NO_ATTRIBUTES, nextPointGains, scaledDamage,
   type Attribute, type Attributes, type DerivedStats,
 } from './stats.js';
-import { blocked, moveStep, q3, type MoveGates } from './movement.js';
+import { blocked, moveStep, q3, type Box, type MoveGates } from './movement.js';
 import {
-  ACADEMY, REFUGE, TRAVEL_POST, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, type Arena, type CampOwner, type MapId, type MapLayout,
+  ACADEMY, REFUGE, TRAVEL_POST, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, type Arena, type CampOwner, type HuntZone, type MapId,
+  type MapLayout,
 } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
 
@@ -345,6 +346,8 @@ interface Monster {
   readonly home?: Point;
   /** Invocado por /admin spawn: não dá XP, ryō, drop, missão nem tutorial, e não renasce. */
   readonly admin?: boolean;
+  /** Zona de caça onde nasceu (anda só dentro dela). Sem isto: a zona de caça do mapa. */
+  readonly zone?: Box;
 }
 
 /** Quem uma hitbox pode acertar: um monstro ou (com o PvP ligado) outro jogador. */
@@ -1109,7 +1112,7 @@ export class GameWorld {
       this.log.warn({ playerId: session.id }, 'comando de admin recusado: jogador não é administrador');
       return this.sendTo(session, { type: 'notice', text: 'Comando desconhecido.', tone: 'bad' });
     }
-    const parsed = parseAdminCommand(text, this.monsterTypeNames());
+    const parsed = parseAdminCommand(text, this.monsterTypeNames(), Object.keys(this.config.maps));
     if (!parsed.ok) {
       this.audit(session.id, /^[a-z]{2,24}$/.test(parsed.command) ? parsed.command : 'invalid', null, { text }, false, parsed.text);
       return this.sendTo(session, { type: 'notice', text: parsed.text, tone: 'bad' });
@@ -1117,6 +1120,7 @@ export class GameWorld {
     const c = parsed.command;
     if (c.cmd === 'help') return this.sendTo(session, { type: 'notice', text: ADMIN_HELP, tone: 'info' });
     if (c.cmd === 'spawn') return this.adminSpawn(session, c.monster, c.quantity, t);
+    if (c.cmd === 'ir') return this.adminGo(session, c.map as MapId, c.x, c.y);
     const store = this.admin;
     if (!store) return this.sendTo(session, { type: 'notice', text: 'Modo Administrador sem banco: aqui só o /admin spawn funciona.', tone: 'bad' });
     if (isEndgameAdmin(c)) {
@@ -1156,6 +1160,33 @@ export class GameWorld {
   private audit(adminId: string, command: string, targetId: string | null, args: Record<string, unknown>, ok: boolean, detail: string | null): void {
     this.log.info({ adminId, command, targetId, ok }, 'comando de admin');
     this.admin?.log(adminId, command, targetId, args, ok, detail).catch((err: unknown) => this.log.warn({ adminId, err }, 'falha ao gravar a auditoria do admin'));
+  }
+
+  /**
+   * Leva o próprio admin a um mapa (inclusive os lacrados pela história), para testar. No ponto pedido ou, sem ponto,
+   * no chão livre mais perto do meio do mapa. Só em memória; vai para a auditoria.
+   */
+  private adminGo(s: Session, map: MapId, x?: number, y?: number): void {
+    const layout = this.layout(map);
+    const want = { x: x ?? layout.width / 2, y: y ?? layout.height / 2 };
+    let at: Point | undefined;
+    for (let r = 0; !at && r < Math.max(layout.width, layout.height); r += 0.5) {
+      for (let a = 0; a < 16 && !at; a++) {
+        const p = { x: q3(want.x + Math.cos((a / 16) * Math.PI * 2) * r), y: q3(want.y + Math.sin((a / 16) * Math.PI * 2) * r) };
+        if (p.x > 0.5 && p.y > 0.5 && p.x < layout.width - 0.5 && p.y < layout.height - 0.5 && !blocked(p.x, p.y, layout.walls)) at = p;
+      }
+    }
+    this.audit(s.id, 'ir', null, { map, x: at?.x ?? null, y: at?.y ?? null }, !!at, null);
+    if (!at) return this.sendTo(s, { type: 'notice', text: 'Admin: nenhum chão livre nesse mapa.', tone: 'bad' });
+    this.stopMeditation(s, 'manual');
+    s.dx = 0;
+    s.dy = 0;
+    this.dropInputs(s);
+    this.transfer(s, map, at.x, at.y, 'travel');
+    s.doorBack = this.backFor(s, map);
+    s.lastUpdate = this.now();
+    s.dirty = true;
+    this.sendTo(s, { type: 'notice', text: `Admin: ${layout.name} (${at.x}, ${at.y}).`, tone: 'good' });
   }
 
   /** Invoca monstros em volta do admin (casas livres do mapa dele). Não dão recompensa nenhuma. */
@@ -1202,7 +1233,7 @@ export class GameWorld {
   }
 
   /** Comandos de admin no banco. O alvo online vê a ficha nova na hora (sem anúncio, sem XP de abate). */
-  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | EndgameAdminCommand>): Promise<void> {
+  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | EndgameAdminCommand>): Promise<void> {
     const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
     const target = await store.findPlayer(c.username);
     if (!target) {
@@ -2784,9 +2815,11 @@ export class GameWorld {
     const cfg = this.config.combat.monsters;
     const mapId: MapId = map ?? (at ? this.config.startMap : (this.huntingMaps()[0]?.id ?? this.config.startMap));
     const layout = this.layout(mapId);
-    const type = typeName ?? layout.huntType ?? cfg.type;          // cada mapa de caça tem o seu monstro
+    // Zonas de caça (docs/mapas.md): sorteia a zona pelo peso; o monstro é o dela e anda só dentro dela.
+    const picked = !at && !typeName ? this.pickZone(layout) : undefined;
+    const type = typeName ?? picked?.type ?? layout.huntType ?? cfg.type;          // cada mapa de caça tem o seu monstro
     const stats = this.monsterType(type);
-    const zone = layout.hunt ?? { x: 0, y: 0, w: layout.width, h: layout.height };
+    const zone: Box = picked ?? layout.hunt ?? { x: 0, y: 0, w: layout.width, h: layout.height };
     const players = [...(this.mapPlayers.get(mapId) ?? [])];
     let pos = at;
     for (let i = 0; !pos && i < 30; i++) {
@@ -2810,10 +2843,23 @@ export class GameWorld {
       damageBy: new Map(),
       ...(fixed ? { home: { x: pos!.x, y: pos!.y } } : {}),
       ...(admin ? { admin: true } : {}),
+      ...(picked ? { zone: { x: picked.x, y: picked.y, w: picked.w, h: picked.h } } : {}),
     };
     this.monsters.set(m.id, m);
     this.broadcastMap(mapId, { type: 'monster_spawned', monster: monsterView(m) });
     return monsterView(m);
+  }
+
+  /** Zona de caça sorteada pelo peso (mapas com `zones`). */
+  private pickZone(layout: MapLayout): HuntZone | undefined {
+    const zones = layout.zones;
+    if (!zones || zones.length === 0) return undefined;
+    let roll = this.random() * zones.reduce((sum, z) => sum + z.weight, 0);
+    for (const z of zones) {
+      roll -= z.weight;
+      if (roll < 0) return z;
+    }
+    return zones[zones.length - 1];
   }
 
   /** Andar aleatório: 1 casa (ou parado) a cada ~1 s, sem sair da zona de caça e sem entrar nas árvores. */
@@ -2824,8 +2870,8 @@ export class GameWorld {
     if (this.monsterType(m.type).stationary) return false;        // boneco de treino
     if (this.random() < 0.2) return false;                         // às vezes fica parado
     const layout = this.layout(m.map);
-    if (!layout.hunt) return false;                                // fora de mapa de caça (teste): parado
-    const z = layout.hunt;
+    const z = m.zone ?? layout.hunt;
+    if (!z) return false;                                          // fora de mapa de caça (teste): parado
     for (let attempt = 0; attempt < 4; attempt++) {
       const [sx, sy] = STEPS[Math.floor(this.random() * STEPS.length)]!;
       const next = { x: m.x + sx, y: m.y + sy };

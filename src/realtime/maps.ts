@@ -4,7 +4,12 @@
  *
  *   map_1  Vila      80 x 80   muralha em volta, PORTÃO no sul (x 35..45), sede, hospital,
  *                              academia, lojas, rio com pontes, praça segura e a ARENA (no campo de treino)
- *   map_2  Floresta 100 x 100  grama escura, árvores (paredes), monstros; entrada no NORTE (x 35..45)
+ *   map_2  Floresta 100 x 100  grama escura, árvores, monstros por zona (mais longe, mais forte); entrada no NORTE
+ *                              (x 35..45); as Pedras-Selo 1 a 3, o Velho Carvalho, a Cachoeira Seca, o Acampamento
+ *                              Queimado, o riacho e o abismo do Arco 1 (docs/mapas.md)
+ *   caverna_lodo       56 x 44  do outro lado do abismo (só com o Teleporte): túneis e o lago de lodo
+ *   clareira_queimada  44 x 40  o coração da Floresta (Pedra 4, chefe); passagem sul LACRADA até a história abrir
+ *   poco               24 x 20  o Poço sob a Praça; tampa LACRADA até a história abrir
  *   interior_weapons / interior_clothes / interior_scrolls   salas 15 x 15 das lojas: assoalho,
  *                              paredes, balcão no meio e o lojista atrás dele; porta de saída embaixo
  *   academy_interior  Academia 64 x 16: 4 salas do tutorial (v8: fechadas; o servidor leva o jogador
@@ -21,7 +26,8 @@ import type { Box } from './movement.js';
 
 export type Edge = 'east' | 'west' | 'north' | 'south';
 export type MapId = 'map_1' | 'map_2' | 'interior_weapons' | 'interior_clothes' | 'interior_scrolls' | 'academy_interior'
-  | 'vila_pedra' | 'vila_nevoa' | 'vila_nuvem' | 'vila_areia' | 'zona_conflito' | 'refugio';
+  | 'vila_pedra' | 'vila_nevoa' | 'vila_nuvem' | 'vila_areia' | 'zona_conflito' | 'refugio'
+  | 'caverna_lodo' | 'clareira_queimada' | 'poco';
 /** Tema de cores do mapa (chão, telhados e enfeites; ver public/mapArt.js). */
 export type MapTheme = 'folha' | 'pedra' | 'nevoa' | 'nuvem' | 'areia' | 'conflito' | 'refugio';
 /** As 3 lojas com interior (o NPC lojista manda `shop_open` com isto). */
@@ -35,24 +41,35 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
  *  pit = vão no chão (Academia): ninguém atravessa andando, mas o Teleporte Curto salta por cima
  *  fence = cerca de madeira da arena · pillar = pilar de pedra (cobertura dentro da arena)
  *  gate = portão fechado (vilas sem saída a pé: só pelo Posto de Viagem)
+ *  pit com s = chasm: o abismo da Floresta (bordas de pedra, em vez das tábuas da Academia)
+ *  seal = Pedra-Selo (s = lit acesa / out apagada) · oak = tronco do Velho Carvalho · cliff = paredão (s = fall: a
+ *  cachoeira seca) · tent = barraca (s = burnt: queimada) · cave = rocha de caverna · deadtree = árvore morta ·
+ *  logs = troncos caídos (passagem lacrada) · sink = sumidouro (onde o riacho some) · pool = lago de lodo
  */
 export interface Wall extends Box {
-  k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit' | 'fence' | 'pillar' | 'gate';
+  k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit' | 'fence' | 'pillar' | 'gate'
+    | 'seal' | 'oak' | 'cliff' | 'tent' | 'cave' | 'deadtree' | 'logs' | 'sink' | 'pool';
   /**
    * Estilo do prédio (sede, hospital, academia, lojas, casa, cabana) ou do móvel do interior
    * (suporte de espadas, de lanças, de escudos, manequim, prateleira de roupas, estante de
    * pergaminhos, mesa de pergaminhos, barril).
    */
   s?: 'leader' | 'hospital' | 'academy' | 'shop_weapon' | 'shop_cloth' | 'shop_scroll' | 'home' | 'hut'
-    | 'sword_rack' | 'spear_rack' | 'shield_rack' | 'mannequin' | 'cloth_shelf' | 'scroll_shelf' | 'scroll_table' | 'barrel';
+    | 'sword_rack' | 'spear_rack' | 'shield_rack' | 'mannequin' | 'cloth_shelf' | 'scroll_shelf' | 'scroll_table' | 'barrel'
+    | 'lit' | 'out' | 'fall' | 'burnt' | 'chasm' | 'mouth'
+    // pilar da arena da vila: bloco de ardósia com moldura dourada (os da Zona de Conflito são ruína)
+    | 'arena';
 }
 
 /**
  * Chão pintado (só desenho): stone = pedra clara, grass, sand, water, bridge, path (terra), wood (assoalho), arena
- * (terra batida), dirt (chão de pedra solta da Zona de Conflito), ash (cinzas do Refúgio).
+ * (terra batida), dirt (chão de pedra solta da Zona de Conflito), ash (cinzas do Refúgio), cave (chão de caverna),
+ * burnt (grama queimada), pebbles (seixos do leito seco), lodo (o lago de lodo, embaixo da parede `pool`).
  */
 export interface Area extends Box {
-  g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood' | 'arena' | 'dirt' | 'ash';
+  g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood' | 'arena' | 'dirt' | 'ash' | 'cave' | 'burnt' | 'pebbles' | 'lodo';
+  /** 'oval': só a mancha oval (com a borda ondulada) dentro da caixa pinta o chão. Sem: a caixa toda. */
+  shape?: 'oval';
 }
 
 /**
@@ -60,7 +77,16 @@ export interface Area extends Box {
  * cima), tapete, capacho de porta, estandarte (entrada da arena) e o círculo pintado no chão da arena.
  */
 export interface Deco extends Box {
-  k: 'bench' | 'rosette' | 'lamp' | 'plant' | 'gate_roof' | 'rug' | 'mat' | 'door' | 'cushion' | 'board' | 'banner' | 'ring' | 'fire' | 'bones';
+  k: 'bench' | 'rosette' | 'lamp' | 'plant' | 'gate_roof' | 'rug' | 'mat' | 'door' | 'cushion' | 'board' | 'banner' | 'ring' | 'fire' | 'bones'
+    // Arco 1 (docs/mapas.md): placa da trilha, raízes, kunais cravadas, brasas, grade do canal, tampa do poço, a copa
+    // do Velho Carvalho (POR CIMA dos jogadores, como o telhado do portão), estalagmite, pegadas e a escada do poço.
+    | 'signpost' | 'roots' | 'kunai' | 'embers' | 'grate' | 'well_lid' | 'oak_canopy' | 'stalagmite' | 'footprints' | 'ladder' | 'scorch'
+    // o riacho e o leito seco, desenhados como uma faixa que segue a linha `p` (largura 2 × `r`)
+    | 'stream' | 'drybed';
+  /** Linha do riacho/leito: x0, y0, x1, y1... em casas, a partir do canto (x, y) do enfeite. */
+  p?: number[];
+  /** Meia largura da faixa, em casas. */
+  r?: number;
   /** Porta da Academia: desenhada FECHADA enquanto o passo do tutorial do jogador for menor que este. */
   step?: number;
 }
@@ -113,6 +139,13 @@ export interface Arena extends Box {
   respawn: { x: number; y: number };
 }
 
+/** Zona de caça com nome (docs/mapas.md, 3.3), o monstro dela e o peso no sorteio. */
+export interface HuntZone extends Box {
+  name: string;
+  type: string;
+  weight: number;
+}
+
 export interface MapLayout {
   id: MapId;
   name: string;
@@ -126,8 +159,8 @@ export interface MapLayout {
   theme?: MapTheme;
   /** Arenas de treino de PvP (área de luta, DENTRO da cerca). */
   arenas?: Arena[];
-  /** Estilo e chão padrão: 'village' = pedra clara; 'forest' = grama; 'wild' = pedra solta; 'interior' = assoalho. */
-  kind: 'village' | 'forest' | 'interior' | 'wild';
+  /** Estilo e chão padrão: 'village' = pedra clara; 'forest' = grama; 'wild' = pedra solta; 'interior' = assoalho; 'cave' = caverna (escura). */
+  kind: 'village' | 'forest' | 'interior' | 'wild' | 'cave';
   width: number;
   height: number;
   /** Mapa seguro: sem monstros. */
@@ -145,6 +178,11 @@ export interface MapLayout {
   hunt?: Box;
   /** Tipo de monstro de caça do mapa (sem isto: o slime). */
   huntType?: string;
+  /**
+   * Zonas de caça com o monstro de cada uma (mais longe da entrada, mais forte). `weight` = quanto dos monstros do mapa
+   * nasce nela; cada monstro anda só dentro da zona dele. Sem isto: `hunt` e `huntType`.
+   */
+  zones?: HuntZone[];
   /** Monstros FIXOS (bonecos da Academia): tipo e lugar; renascem no mesmo ponto. */
   spawns?: { type: string; x: number; y: number }[];
   /** Campos que drenam chakra de quem está dentro (Sala de Controle da Academia), por segundo. */
@@ -154,7 +192,29 @@ export interface MapLayout {
 const wall = (k: Wall['k'], x: number, y: number, w: number, h: number, s?: Wall['s']): Wall => (s ? { x, y, w, h, k, s } : { x, y, w, h, k });
 const tree = (x: number, y: number, size = 2): Wall => wall('tree', x, y, size, size);
 const area = (g: Area['g'], x: number, y: number, w: number, h: number): Area => ({ x, y, w, h, g });
+const oval = (g: Area['g'], x: number, y: number, w: number, h: number): Area => ({ x, y, w, h, g, shape: 'oval' });
 const deco = (k: Deco['k'], x: number, y: number, w = 1, h = 1): Deco => ({ x, y, w, h, k });
+
+/** Faixa que segue uma linha (riacho, leito seco): o enfeite ocupa a caixa da linha mais a largura. */
+function band(k: 'stream' | 'drybed', pts: readonly (readonly [number, number])[], r: number): Deco {
+  const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+  const x = r1(Math.min(...xs) - r - 0.5), y = r1(Math.min(...ys) - r - 0.5);
+  const w = r1(Math.max(...xs) + r + 0.5 - x), h = r1(Math.max(...ys) + r + 0.5 - y);
+  const p = pts.flatMap(([px, py]) => [r1(px - x), r1(py - y)]);
+  return { k, x, y, w, h, p, r };
+}
+
+/** y da linha na altura x (a linha vai da direita para a esquerda ou ao contrário; interpola reto entre os pontos). */
+function lineY(pts: readonly (readonly [number, number])[], x: number): number {
+  const sorted = [...pts].sort((a, b) => a[0] - b[0]);
+  if (x <= sorted[0]![0]) return sorted[0]![1];
+  for (let i = 1; i < sorted.length; i++) {
+    const [x0, y0] = sorted[i - 1]!, [x1, y1] = sorted[i]!;
+    if (x <= x1) return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
+  }
+  return sorted[sorted.length - 1]![1];
+}
 
 /**
  * Portão sul da Vila (x 35..45, y 79/80) <-> entrada norte da Floresta (mesmos x, y 0).
@@ -354,6 +414,8 @@ function village(def: VillageMapDef = VILLAGE_MAPS[0]!): MapLayout {
     deco('plant', 30, 56), deco('plant', 49, 56), deco('plant', 30, 74), deco('plant', 49, 74),
     deco('lamp', 35, 32), deco('lamp', 44, 32), deco('lamp', 36, 52), deco('lamp', 43, 52),
     deco('lamp', 33, 75), deco('lamp', 46, 75),
+    // Arco 1: a grade onde o rio passa por baixo da muralha (M2: "a água vem da Floresta") e a tampa lacrada do poço.
+    deco('grate', 5.5, 77, 4, 1), deco('well_lid', 33, 65, 2, 2),
     deco('gate_roof', G.from - 2, H - 5, G.to - G.from + 4, 2),       // telhado do portão (desenhado por cima)
     // Arena: o círculo pintado no chão, estandartes nas duas entradas e bancos para quem assiste.
     deco('ring', arenaFightBox().x, arenaFightBox().y, arenaFightBox().w, arenaFightBox().h),
@@ -392,7 +454,7 @@ function arenaWalls(): Wall[] {
     wall('fence', f.x, f.y + t, t, w.from - f.y - t),               // esquerda, acima da entrada oeste
     wall('fence', f.x, w.to, t, f.y + f.h - t - w.to),              // esquerda, abaixo
     wall('fence', f.x + f.w - t, f.y + t, t, f.h - 2 * t),          // direita
-    ...VILLAGE_ARENA.pillars.map((p) => wall('pillar', p.x, p.y, 1, 1)),
+    ...VILLAGE_ARENA.pillars.map((p) => wall('pillar', p.x, p.y, 1, 1, 'arena')),
   ];
 }
 
@@ -416,36 +478,253 @@ const overlaps = (a: Box, b: Box, gap = 0) =>
  * leva ao portão da Vila; uma trilha desce dali e há uma clareira na chegada, sem árvores e
  * sem monstros. Árvores espalhadas (2x2 e 3x3).
  */
+/**
+ * Pontos da Floresta que as missões do Arco 1 usam (docs/mapas.md, 3.2): centro e raio (casas). O "IR ATÉ" do
+ * sistema de história aponta para eles pelo nome.
+ */
+export const FOREST_POI = {
+  entrada: { x: 40, y: 8, r: 6 },
+  pedra1: { x: 22, y: 23, r: 3 },
+  sumidouro: { x: 57, y: 22, r: 3 },
+  encruzilhada: { x: 40.5, y: 38, r: 4 },
+  carvalho: { x: 14, y: 46, r: 6 },
+  pedra2: { x: 14, y: 50, r: 2.5 },
+  cachoeira: { x: 79.5, y: 40, r: 4 },
+  pedra3: { x: 79.5, y: 36.3, r: 1.8 },
+  acampamento: { x: 18, y: 71, r: 8 },
+  abismo: { x: 65, y: 80, r: 3 },
+  caverna: { x: 80, y: 95.5, r: 3 },
+  passagemSul: { x: 42, y: 91, r: 3 },
+} as const;
+
+/** O abismo da Floresta: um vão de 2 casas, o mesmo da Sala de Jutsus (o Teleporte do nível 1 alcança 3). */
+export const FOREST_ABYSS = { x: 60, y: 82, w: 38, h: 2 } as const;
+
+/** O riacho da Floresta, do leste até o sumidouro (casas), e a meia largura dele. */
+const STREAM = [[99, 11.2], [94, 11.7], [89, 13.1], [84, 14], [79, 14.6], [74, 15.7], [69, 16.6], [64.5, 17.4], [60, 18]] as const;
+const STREAM_R = 1.2;
+/** O leito seco: sai do riacho e desce até a cachoeira seca. */
+const DRYBED = [[79, 15.5], [78.2, 19], [79.6, 23], [78.6, 27], [79.5, 30.6]] as const;
+
+/**
+ * Floresta (100 x 100), desenhada por regiões (docs/mapas.md, seção 3):
+ *
+ *   ┌───────── mata ────[ ENTRADA x 35..45 ]──── mata ─────────┐
+ *   │            Clareira da Entrada (Posto de Viagem)   ≈ riacho │  y  0..14
+ *   │  Clareira da Pedra (Pedra 1, apagada) ═╗   ◎ sumidouro ≈≈≈ │  y 16..28
+ *   │                                        ║        leito seco │
+ *   │  Velho Carvalho ══════ Encruzilhada ═══╬════ paredão[fresta]│  y 32..41 (Pedra 3 atrás da cachoeira)
+ *   │  (Pedra 2 nas raízes)                  ║                   │
+ *   │  Acampamento Queimado ═════════════════╣                   │  y 62..82
+ *   │                                        ╚═══ pegadas ▒▒ABISMO│  y 76..84
+ *   │                          [troncos]          saliência ⌂caverna│ y 84..98
+ *   └────────────────────────[ SAÍDA SUL x 38..46 ]──────────────┘
+ *
+ * O resto é mata: árvores com sorteio de semente fixa (sempre as mesmas), longe das trilhas e dos lugares.
+ * Mais longe da entrada, monstros mais fortes (zonas de caça).
+ */
 function forest(): MapLayout {
   const W = 100, H = 100;
   const gateFrom = VILLAGE_GATE.from + VILLAGE_GATE.shift, gateTo = VILLAGE_GATE.to + VILLAGE_GATE.shift;   // 35..45
+  const south = { from: 38, to: 46 };                                             // passagem sul (Clareira Queimada)
   const walls: Wall[] = [
     wall('tree', 0, 0, gateFrom, 2),               // mata norte, à esquerda da entrada
     wall('tree', gateTo, 0, W - gateTo, 2),        // mata norte, à direita
-    wall('tree', 0, H - 2, W, 2),                  // mata sul
+    wall('tree', 0, H - 2, south.from, 2),         // mata sul, dos dois lados da passagem
+    wall('tree', south.to, H - 2, W - south.to, 2),
     wall('tree', 0, 2, 2, H - 4),                  // mata oeste
     wall('tree', W - 2, 2, 2, H - 4),              // mata leste
   ];
-  const clearing: Box = { x: gateFrom - 8, y: 0, w: gateTo - gateFrom + 16, h: 14 };   // chegada
-  const trail: Box = { x: 39, y: 0, w: 3, h: 36 };
+  // Riacho: desce do leste e some no sumidouro (é a água que sobe no canal da Vila, M2). Na tela, uma faixa curva
+  // (o enfeite 'stream'); a colisão são caixas de 2 casas que seguem a mesma linha.
+  for (let x = 61; x < 98; x += 2) {
+    const cy = lineY(STREAM, x + 1);
+    walls.push(wall('water', x, Math.round((cy - STREAM_R) * 10) / 10, 2, STREAM_R * 2));
+  }
+  walls.push(wall('sink', 57, 16, 4, 4));
+  // Pedra-Selo 1 (apagada: a Tsubaki acha na M3), na Clareira da Pedra.
+  walls.push(wall('seal', 21, 20, 2, 2, 'out'));
+  // Velho Carvalho: o tronco (a copa passa por cima de quem anda embaixo) e a Pedra-Selo 2 nas raízes.
+  walls.push(wall('oak', 12, 42, 4, 3), wall('seal', 13, 47, 2, 2, 'lit'));
+  // Cachoeira Seca: o paredão, a face lisa da queda e a fresta (x 78,5..80,5) que leva à Pedra-Selo 3, atrás dela.
+  walls.push(
+    wall('cliff', 62, 32, 14, 6), wall('cliff', 83, 32, 15, 6), wall('cliff', 76, 30, 7, 3, 'fall'),
+    wall('cliff', 76, 37, 2.5, 1), wall('cliff', 80.5, 37, 2.5, 1), wall('seal', 78.5, 33.6, 2, 2, 'lit'),
+  );
+  // Acampamento Queimado: barracas queimadas dos Cinzas.
+  for (const [x, y] of [[8, 64], [16, 63], [24, 65], [9, 75], [25, 76]] as const) walls.push(wall('tent', x, y, 4, 3, 'burnt'));
+  // Abismo (vão: só o Teleporte passa) e a rocha que fecha a saliência do outro lado; a boca da caverna.
+  const A = FOREST_ABYSS;
+  walls.push(wall('pit', A.x, A.y, A.w, A.h, 'chasm'), wall('cliff', 56, 82, 6, 16), wall('cave', 74, 88, 12, 6, 'mouth'));
+  // Passagem sul: troncos queimados fecham o caminho até a história abrir (M14); árvores nos lados.
+  walls.push(wall('logs', 37, 93, 10, 2), wall('tree', 33, 90, 4, 8), wall('tree', 47, 90, 4, 8));
+
+  const paths: Box[] = [
+    { x: 39, y: 0, w: 3, h: 93 },                  // trilha principal, do portão à passagem sul
+    { x: 28, y: 22, w: 11, h: 2 },                 // para a Pedra 1
+    { x: 16, y: 37, w: 23, h: 2 },                 // oeste: o Velho Carvalho
+    { x: 42, y: 39, w: 37, h: 2 },                 // leste: a cachoeira seca (termina na fresta)
+    { x: 78.5, y: 37, w: 2, h: 2 },
+    { x: 24, y: 70, w: 15, h: 2 },                 // o Acampamento Queimado
+    { x: 42, y: 76, w: 24, h: 2 },                 // o abismo
+    { x: 64, y: 78, w: 2, h: 4 },
+  ];
+  // Lugares sem árvore do sorteio (clareiras, o paredão e o leito, a saliência, a passagem).
+  const keep: Box[] = [
+    { x: gateFrom - 8, y: 0, w: gateTo - gateFrom + 16, h: 14 },   // Clareira da Entrada
+    { x: 14, y: 16, w: 16, h: 12 },                // Clareira da Pedra
+    { x: 33, y: 34, w: 15, h: 8 },                 // Encruzilhada
+    { x: 4, y: 34, w: 30, h: 26 },                 // Velho Carvalho
+    { x: 6, y: 62, w: 26, h: 20 },                 // Acampamento
+    { x: 54, y: 9, w: 44, h: 33 },                 // riacho, leito seco e paredão
+    { x: 54, y: 78, w: 44, h: 20 },                // abismo e saliência
+    { x: 30, y: 86, w: 24, h: 12 },                // passagem sul
+  ];
   const rnd = seeded(2026);
   for (let gx = 4; gx < W - 6; gx += 5) {
     for (let gy = 4; gy < H - 6; gy += 5) {
-      if (rnd() > 0.42) continue;
+      if (rnd() > 0.5) continue;
       const size = rnd() < 0.2 ? 3 : 2;
       const t = tree(gx + Math.floor(rnd() * 3), gy + Math.floor(rnd() * 3), size);
-      if (overlaps(t, clearing) || overlaps(t, trail, 1) || walls.some((w) => overlaps(t, w, 1))) continue;
+      if (keep.some((k) => overlaps(t, k)) || paths.some((pa) => overlaps(t, pa, 1)) || walls.some((w) => overlaps(t, w, 1))) continue;
       walls.push(t);
     }
   }
   return {
     id: 'map_2', name: 'Floresta', kind: 'forest', width: W, height: H, safe: false, walls,
-    exits: [{ edge: 'north', from: gateFrom, to: gateTo, map: 'map_1', shift: -VILLAGE_GATE.shift, arrive: VILLAGE_GATE.returnY }],
-    doors: [],
-    areas: [area('path', trail.x, trail.y, trail.w, trail.h)],
-    deco: [],
+    exits: [
+      { edge: 'north', from: gateFrom, to: gateTo, map: 'map_1', shift: -VILLAGE_GATE.shift, arrive: VILLAGE_GATE.returnY },
+      { edge: 'south', from: south.from, to: south.to, map: 'clareira_queimada', shift: -20, arrive: 2 },
+    ],
+    doors: [
+      // A boca da caverna, na face sul da rocha (a que se vê): contornando a rocha e empurrando para o norte, entra.
+      { x: 78.5, y: 94, w: 3, h: 0.5, dir: 'north', map: 'caverna_lodo', at: { ...CAVE_ARRIVE } },
+    ],
+    areas: [
+      area('pebbles', 76, 33, 7, 4),                 // o chão atrás da cachoeira (onde fica a Pedra 3)
+      ...paths.map((b) => area('path', b.x, b.y, b.w, b.h)),
+      oval('burnt', 4, 60, 31, 24), oval('dirt', 9, 64.5, 21, 14),   // o chão queimado e o batido do acampamento
+      oval('dirt', 62.5, 84.5, 35, 13.5),            // saliência do outro lado do abismo
+      oval('burnt', 31, 84.5, 22, 15),               // a passagem sul já começa queimada
+    ],
+    deco: [
+      band('drybed', DRYBED, 1.5),                   // leito seco: o riacho corria até a cachoeira
+      band('stream', STREAM, STREAM_R),
+      deco('signpost', 37, 11.6, 1, 1.4), deco('signpost', 43.4, 34.6, 1, 1.4),
+      deco('oak_canopy', 7, 35, 14, 10), deco('roots', 9, 45, 10, 2.5),
+      deco('kunai', 13, 70), deco('kunai', 21, 68.4), deco('kunai', 27.4, 72.6), deco('kunai', 19, 77),
+      deco('scorch', 12.5, 67, 10, 7),                // o chão chamuscado em volta da fogueira
+      deco('embers', 16, 70, 3, 2),                   // a fogueira apagada do acampamento
+      deco('footprints', 63.4, 78.6, 3, 3),            // as pegadas param na beira do abismo
+      deco('embers', 39, 89, 2, 1.4), deco('embers', 44, 88, 2, 1.4),
+    ],
     safeZones: [],
-    hunt: { x: 4, y: 18, w: W - 8, h: H - 22 },
+    hunt: { x: 4, y: 18, w: 92, h: 76 },
+    zones: [
+      { name: 'bosque', type: 'slime', weight: 5, x: 4, y: 18, w: 92, h: 22 },
+      { name: 'mata', type: 'slime', weight: 4, x: 4, y: 40, w: 56, h: 24 },
+      { name: 'fundo', type: 'slime', weight: 3, x: 4, y: 64, w: 52, h: 28 },
+      { name: 'leito', type: 'lodo_escuro', weight: 1, x: 62, y: 21, w: 34, h: 10 },
+      { name: 'beira', type: 'lodo_escuro', weight: 2, x: 60, y: 42, w: 36, h: 38 },
+    ],
+  };
+}
+
+/** Onde se chega na Caverna do Lodo (logo depois da entrada, num pedaço seguro). */
+const CAVE_ARRIVE = { x: 28, y: 40.4 } as const;
+
+/** Pontos da Caverna do Lodo: o lago e o fundo (M11: "IR ATÉ o fundo"). */
+export const CAVE_POI = {
+  entrada: { x: 28, y: 40, r: 3 },
+  lago: { x: 28, y: 10, r: 6 },
+  fundo: { x: 28, y: 4.5, r: 3 },
+} as const;
+
+/**
+ * Caverna do Lodo (56 x 44), do outro lado do abismo (docs/mapas.md, seção 4). A boca fica na face sul da rocha da
+ * saliência: entra-se indo para o norte, então a entrada é embaixo e o fundo em cima.
+ *
+ *   ████████████████████████████████████
+ *   █          ◇ o fundo                █
+ *   █   câmara: ≈≈ lago de lodo ≈≈      █   y 2..16
+ *   █ túnel ███ rocha do meio ███ túnel █   y 16..24 (oeste x 8..16, leste x 40..48)
+ *   █      galeria com estalagmites  █    y 24..32
+ *   ████████████[saída]████████████    túnel de entrada (x 25..31), seguro no começo
+ */
+function cave(): MapLayout {
+  const W = 56, H = 44;
+  const c = (x: number, y: number, w: number, h: number) => wall('cave', x, y, w, h);
+  const walls: Wall[] = [
+    c(0, 0, W, 2), c(0, H - 1.4, W, 1.4), c(0, 2, 2, H - 3.4), c(W - 2, 2, 2, H - 3.4),
+    c(2, 32, 23, 10.6), c(31, 32, 23, 10.6),       // o túnel de entrada fica entre as duas massas
+    c(2, 24, 5, 8), c(49, 24, 5, 8),               // a galeria vai de x 7 a 49
+    c(2, 16, 6, 8), c(16, 16, 24, 8), c(48, 16, 6, 8),   // dois túneis sobem (oeste e leste)
+    c(14, 27, 2, 2), c(38, 28, 2, 2),              // estalagmites grandes na galeria
+    c(7, 10, 2, 2), c(47, 8, 2, 2),                // e na câmara
+    wall('pool', 19, 7, 18, 6),                    // o lago de lodo: ninguém entra
+  ];
+  return {
+    id: 'caverna_lodo', name: 'Caverna do Lodo', kind: 'cave', width: W, height: H, safe: false, walls,
+    exits: [],
+    doors: [{ x: 26.5, y: 42, w: 3, h: 0.6, dir: 'south', map: 'map_2', at: { x: 80, y: 95.8 } }],
+    areas: [area('cave', 0, 0, W, H), area('lodo', 19, 7, 18, 6)],
+    deco: [
+      deco('stalagmite', 10, 29.2, 1, 1.4), deco('stalagmite', 44, 26.6, 1, 1.4), deco('stalagmite', 30, 17.6, 1, 1.4),
+      deco('stalagmite', 12, 3.6, 1, 1.4), deco('stalagmite', 43, 3.2, 1, 1.4),
+      deco('bones', 26.5, 3.8, 2, 1), deco('roots', 24, 2, 8, 1.4),
+    ],
+    safeZones: [{ x: 24, y: 37.6, w: 8, h: 5 }],     // quem chega não apanha na hora
+    hunt: { x: 7, y: 2, w: 42, h: 30 },
+    huntType: 'lodo_escuro',
+    zones: [{ name: 'caverna', type: 'lodo_escuro', weight: 1, x: 7, y: 2, w: 42, h: 30 }],
+  };
+}
+
+/** Pontos da Clareira Queimada: a Pedra 4 no meio da arena do chefe. */
+export const CLEARING_POI = { pedra4: { x: 22, y: 18, r: 3 }, arena: { x: 22, y: 20, r: 12 } } as const;
+
+/**
+ * Clareira Queimada (44 x 40): o coração da Floresta, arena do chefe do Arco 1 (docs/mapas.md, seção 5). Árvores
+ * mortas em volta, chão queimado e a Pedra-Selo 4 no meio. Sem coluna no meio: o chefe tem ataque em área.
+ * Entrada pelo norte (x 18..26), que é a passagem sul da Floresta.
+ */
+function burnedClearing(): MapLayout {
+  const W = 44, H = 40;
+  const d = (x: number, y: number, w: number, h: number) => wall('deadtree', x, y, w, h);
+  const walls: Wall[] = [
+    d(0, 0, 18, 4), d(26, 0, 18, 4), d(0, 4, 5, 32), d(39, 4, 5, 32), d(0, 36, W, 4),
+    d(5, 4, 6, 4), d(33, 4, 6, 4), d(5, 30, 5, 6), d(34, 30, 5, 6),   // cantos: a arena fica redonda
+    wall('seal', 21, 17, 2, 2, 'lit'),
+  ];
+  return {
+    id: 'clareira_queimada', name: 'Clareira Queimada', kind: 'forest', width: W, height: H, safe: false, walls,
+    exits: [{ edge: 'north', from: 18, to: 26, map: 'map_2', shift: 20, arrive: 97 }],
+    doors: [],
+    areas: [area('burnt', 0, 0, W, H)],
+    deco: [deco('scorch', 11, 9, 22, 19), deco('embers', 10, 12, 2, 1.4), deco('embers', 30, 24, 2, 1.4), deco('embers', 16, 28, 2, 1.4), deco('embers', 28, 9, 2, 1.4)],
+    safeZones: [],
+  };
+}
+
+/**
+ * Poço sob a Praça (24 x 20): a cisterna debaixo da Vila (docs/mapas.md, seção 6). Desce-se pela escada do poço da
+ * Praça (a tampa fica lacrada até a história abrir). Canal de água com uma ponte e, no fundo, a porta lacrada da
+ * Quinta Pedra (Arco 2).
+ */
+function well(): MapLayout {
+  const W = 24, H = 20;
+  const walls: Wall[] = [
+    wall('wall', 0, 0, W, 2), wall('wall', 0, 2, 1, H - 2), wall('wall', W - 1, 2, 1, H - 2),
+    wall('wall', 0, H - 2, 10, 2), wall('wall', 14, H - 2, 10, 2), wall('gate', 10, H - 2, 4, 2),   // a porta lacrada
+    wall('water', 1, 8, 10, 2), wall('water', 13, 8, 10, 2),                                          // canal (ponte no meio)
+  ];
+  return {
+    id: 'poco', name: 'Poço sob a Praça', kind: 'cave', width: W, height: H, safe: false, walls,
+    exits: [],
+    doors: [],
+    areas: [area('stone', 0, 0, W, H), area('water', 1, 8, 10, 2), area('water', 13, 8, 10, 2), area('bridge', 11, 8, 2, 2)],
+    deco: [deco('ladder', 11, 2, 2, 2)],
+    safeZones: [],
   };
 }
 
@@ -669,6 +948,7 @@ export function buildMaps(): Record<MapId, MapLayout> {
     map_1: village(VILLAGE_MAPS[0]), map_2: forest(),
     vila_pedra: village(VILLAGE_MAPS[1]), vila_nevoa: village(VILLAGE_MAPS[2]), vila_nuvem: village(VILLAGE_MAPS[3]), vila_areia: village(VILLAGE_MAPS[4]),
     zona_conflito: conflictZone(), refugio: refuge(),
+    caverna_lodo: cave(), clareira_queimada: burnedClearing(), poco: well(),
     interior_weapons: interior(weapons), interior_clothes: interior(clothes), interior_scrolls: interior(scrolls),
     academy_interior: academy(),
   };

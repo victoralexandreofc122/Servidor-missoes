@@ -262,6 +262,8 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       sparring: { maxHp: 400, xp: 0, attackRange: 1.6, attackDamage: 6, attackEveryMs: 1800, stationary: true, respawnMs: 2500 },
       // Zona de Conflito: lodo sombrio, mais forte que o slime (para quem já é Chunin).
       lodo_sombrio: { maxHp: 150, xp: 60, attackRange: 1.3, attackDamage: 18, attackEveryMs: 1800, stationary: false, respawnMs: 0 },
+      // Floresta (o fundo, perto das pedras) e a Caverna do Lodo: o Lodo Escuro do Arco 1, para os níveis 8 a 13.
+      lodo_escuro: { maxHp: 110, xp: 45, attackRange: 1.25, attackDamage: 14, attackEveryMs: 1900, stationary: false, respawnMs: 0 },
     },
     rankLevels: { genin: 11, chunin: 40, kage: 60 },
     statsEveryMs: 200,

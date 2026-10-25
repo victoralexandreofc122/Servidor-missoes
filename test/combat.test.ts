@@ -78,17 +78,18 @@ describe('combate: monstros', () => {
     const a = connect('kaito');
     assert.equal(a.conn.of('welcome')[0].monsters.length, 0, 'na Vila (área segura) não há monstros');
     const forest = REALTIME.maps.map_2;
-    const zone = forest.hunt!;
     placeIn(world, a.id, 'map_2', 30, 50);
     assert.equal(a.conn.last('map_changed').monsters.length, M.count, 'chegando na Floresta, recebe os 10');
-    // (a Academia tem os bonecos de treino fixos: aqui contam só os de caça)
-    const hunt = () => world.monsterList().filter((m) => m.type === M.type);
+    // (a Academia tem os bonecos de treino fixos; a Caverna e a Zona têm os delas: aqui contam só os da Floresta)
+    const hunt = () => (world as any).monstersIn('map_2') as { id: string; type: string; x: number; y: number }[];
     const before = hunt();
     run(30_000);
     const after = hunt();
     assert.equal(after.length, M.count + M.perPlayer, 'os 10 de base + 3 pelo jogador que chegou (1 a cada segundo)');
     for (const m of after) {
-      assert.ok(m.x >= zone.x && m.y >= zone.y && m.x < zone.x + zone.w && m.y < zone.y + zone.h, `monstro fora da zona: ${m.x},${m.y}`);
+      // Cada monstro na zona de caça do tipo dele (docs/mapas.md: mais longe da entrada, mais forte).
+      const zones = forest.zones!.filter((z) => z.type === m.type);
+      assert.ok(zones.some((z) => m.x >= z.x && m.y >= z.y && m.x < z.x + z.w && m.y < z.y + z.h), `${m.type} fora da zona: ${m.x},${m.y}`);
       assert.ok(!blocked(m.x, m.y, forest.walls), `monstro dentro de árvore: ${m.x},${m.y}`);
       assert.ok(Number.isInteger(m.x) && Number.isInteger(m.y));
     }
@@ -315,21 +316,28 @@ describe('combate: morte, renascimento e autoridade do servidor', () => {
     const F = { x: 10, y: 50 };                                // clareira da Floresta (onde nascem os monstros)
     placeIn(world, a.id, 'map_2', F.x, F.y);
     placeIn(world, b.id, 'map_2', F.x, F.y);
-    const hunt = () => world.monsterList().filter((m) => m.type === M.type);
+    const hunt = () => (world as any).monstersIn('map_2') as { id: string; type: string }[];
+    const xpOf = (type: string) => REALTIME.combat.monsterTypes[type]?.xp ?? M.xp;
+    const expected: [string, number][] = [];
     for (let kill = 1; kill <= 5; kill++) {
       const target = hunt()[0]!;
+      const stats = (world as any).monsters.get(target.id);
+      stats.hp = 10;                                       // um golpe só, qualquer que seja o tipo (Slime ou Lodo Escuro)
       place(world, target.id, F.x + 1, F.y, 10);
       const who = kill === 5 ? b : a;
+      expected.push([kill === 5 ? 'b' : 'a', xpOf(target.type)]);
       ready(world, who.id);
       who.send({ type: 'cast', skill: 'taijutsu' });
       assert.deepEqual(a.conn.last('monster_died'), { type: 'monster_died', id: target.id, killerId: who.id });
       assert.equal(hunt().length, 1, 'sempre o mesmo número de monstros');
-      assert.equal(a.conn.last('monster_spawned').monster.hp, M.maxHp);
+      const born = a.conn.last('monster_spawned').monster;
+      assert.equal(born.hp, REALTIME.combat.monsterTypes[born.type]?.maxHp ?? M.maxHp, 'nasce com a vida cheia do tipo dele');
       await flush();
     }
-    assert.deepEqual(fake.calls.map(([id, xp]) => [id === a.id ? 'a' : 'b', xp]), [['a', 20], ['a', 20], ['a', 20], ['a', 20], ['b', 20]]);
-    assert.deepEqual(a.conn.of('xp').map((x) => x.totalXp), [20, 40, 60, 80]);
-    assert.equal(b.conn.last('xp').totalXp, 20);
+    assert.deepEqual(fake.calls.map(([id, xp]) => [id === a.id ? 'a' : 'b', xp]), expected);
+    const sums = expected.filter(([who]) => who === 'a').map(([, xp]) => xp).map((_, i, all) => all.slice(0, i + 1).reduce((x, y) => x + y, 0));
+    assert.deepEqual(a.conn.of('xp').map((x) => x.totalXp), sums);
+    assert.equal(b.conn.last('xp').totalXp, expected[4]![1]);
     const fake2 = fakeProgression(100);
     const w2 = setupWorld(config(), fake2.progression);
     const p = w2.connect('kaito');

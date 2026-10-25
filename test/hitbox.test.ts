@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import { firstOnLine, isInArc, isInCircle, isInCone, lineIntersects, rotate } from '../src/realtime/combat.js';
 import { REALTIME, type CombatConfig, type RealtimeConfig } from '../src/realtime/config.js';
 import { ITEM_BY_CODE } from '../src/realtime/items.js';
+import { blocked } from '../src/realtime/movement.js';
 import { placeIn, setupWorld } from './support/world.js';
 
 /*
@@ -150,16 +151,20 @@ describe('hitboxes no jogo (monstros)', () => {
     const { world, connect, run } = setupWorld(config());
     const a = connect('kaito');
     learn(world, a.id, 'lightning');
-    // Árvore da Floresta em x 29 a 31, y 51 a 53. Jogador à esquerda, monstro do outro lado.
-    placeIn(world, a.id, 'map_2', 27.5, 52);
-    const m = world.spawnMonster({ x: 32, y: 52 }, undefined, 'map_2');
+    // Uma árvore da Floresta (2 x 2) com chão livre dos dois lados: jogador à esquerda, monstro do outro lado.
+    const forest = REALTIME.maps.map_2;
+    const tree = forest.walls.find((w) => w.k === 'tree' && w.w === 2 && w.x > 4 && w.x < 90
+      && !blocked(w.x - 1.5, w.y + 1, forest.walls) && !blocked(w.x - 0.5, w.y + 1, forest.walls) && !blocked(w.x + 3, w.y + 1, forest.walls))!;
+    const cy = tree.y + 1;
+    placeIn(world, a.id, 'map_2', tree.x - 1.5, cy);
+    const m = world.spawnMonster({ x: tree.x + 3, y: cy }, undefined, 'map_2');
     a.send({ type: 'cast', skill: 'lightning' });
     assert.equal(a.conn.last('cast_failed').reason, 'BLOCKED');
     assert.equal(a.conn.of('stats').length, 0, 'nada cobrado');
     a.send({ type: 'cast', skill: 'fire', targetId: m.id });
     run(500);
     const boom = a.conn.last('impact');
-    assert.ok(boom.x < 29 && boom.x > 28, `explodiu no tronco: ${boom.x}`);
+    assert.ok(boom.x < tree.x && boom.x > tree.x - 1, `explodiu no tronco: ${boom.x}`);
     assert.equal(monsterHp(world, m.id), M.maxHp, 'atrás da árvore, fora da explosão');
   });
 

@@ -29,6 +29,20 @@ export function placements(maps, mapId) {
 const inside = (b, x, y) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
 
 /**
+ * A casa (x, y) está na mancha da área? Área 'oval': só a elipse dentro da caixa, com a borda ondulada (sempre a mesma
+ * ondulação para a mesma área), para o chão queimado ou batido não sair quadrado.
+ */
+function inArea(b, x, y) {
+  if (!inside(b, x, y)) return false;
+  if (b.shape !== 'oval') return true;
+  const rx = b.w / 2, ry = b.h / 2;
+  const nx = (x + 0.5 - b.x - rx) / rx, ny = (y + 0.5 - b.y - ry) / ry;
+  const a = Math.atan2(ny, nx);
+  const edge = 1 - 0.07 * (1 + Math.sin(a * 3 + b.x)) - 0.05 * (1 + Math.sin(a * 5 + b.y * 1.7));
+  return nx * nx + ny * ny <= edge * edge;
+}
+
+/**
  * Chão da casa inteira (x, y), em coordenadas do mapa atual. As `areas` do layout pintam por
  * cima do chão padrão (a última da lista vale): 'stone' (pedra clara: ruas e praça), 'grass',
  * 'sand', 'water', 'bridge', 'path' (terra), 'wood' (assoalho), 'dirt' (terra solta), 'ash' (cinzas). Padrão: pedra
@@ -40,8 +54,9 @@ export function groundAt(places, x, y) {
     const lx = x - p.ox, ly = y - p.oy;
     if (lx < 0 || ly < 0 || lx >= p.map.width || ly >= p.map.height) continue;
     const areas = p.map.areas || [];
-    for (let i = areas.length - 1; i >= 0; i--) if (inside(areas[i], lx, ly)) return areas[i].g;
-    return p.map.kind === 'village' ? 'stone' : p.map.kind === 'interior' ? 'wood' : p.map.kind === 'wild' ? 'dirt' : 'darkgrass';
+    for (let i = areas.length - 1; i >= 0; i--) if (inArea(areas[i], lx, ly)) return areas[i].g;
+    const k = p.map.kind;
+    return k === 'village' ? 'stone' : k === 'interior' ? 'wood' : k === 'wild' ? 'dirt' : k === 'cave' ? 'cave' : 'darkgrass';
   }
   return 'void';
 }
@@ -59,7 +74,7 @@ export function themeAt(places, x, y) {
 /** Enfeites (bancos, lanternas...) de todos os mapas visíveis, em coordenadas do mapa atual. */
 export function visibleDeco(places) {
   const out = [];
-  for (const p of places) for (const d of p.map.deco || []) out.push({ x: d.x + p.ox, y: d.y + p.oy, w: d.w, h: d.h, k: d.k });
+  for (const p of places) for (const d of p.map.deco || []) out.push({ ...d, x: d.x + p.ox, y: d.y + p.oy });
   return out;
 }
 

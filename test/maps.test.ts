@@ -292,7 +292,7 @@ describe('mapas: servidor (salas)', () => {
     assert.equal(w.world.maps.map_2.walls.length, FLORESTA.walls.length);
     assert.deepEqual(w.world.maps.map_1.safeZones, VILA.safeZones);
     assert.deepEqual(w.players, [], 'kaito está na Floresta: não aparece na Vila');
-    assert.ok(JSON.stringify(w).length < 30_000, `welcome leve (${JSON.stringify(w).length} bytes)`);
+    assert.ok(JSON.stringify(w).length < 32_000, `welcome leve (${JSON.stringify(w).length} bytes)`);   // a Floresta do Arco 1 é maior
   });
 });
 
@@ -304,7 +304,7 @@ describe('mapas: desenho no cliente (world.js)', async () => {
     const fromVila = W.placements(maps, 'map_1');
     assert.deepEqual(fromVila.map((p: any) => [p.map.id, p.ox, p.oy]), [['map_1', 0, 0], ['map_2', 0, 80]]);
     const fromFloresta = W.placements(maps, 'map_2');
-    assert.deepEqual(fromFloresta.map((p: any) => [p.map.id, p.ox, p.oy]), [['map_2', 0, 0], ['map_1', 0, -80]]);
+    assert.deepEqual(fromFloresta.map((p: any) => [p.map.id, p.ox, p.oy]), [['map_2', 0, 0], ['map_1', 0, -80], ['clareira_queimada', 20, 100]]);
     // a mesma casa do mundo vista dos dois lados: a praça da Vila
     assert.equal(W.groundAt(fromVila, 40, 70), 'stone');
     assert.equal(W.groundAt(fromFloresta, 40, 70 - 80), 'stone');

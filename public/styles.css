@@ -997,3 +997,55 @@ body.tut-bag #inv-toggle { animation: ready-glow 1.4s ease-in-out infinite; bord
 .display-opts legend { padding: 0 6px; color: #e8c66a; font-size: 13px; }
 .display-opts label { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; min-height: 36px; }
 .display-opts input { width: 20px; height: 20px; }
+
+/* ------------------------------------------------------------ Estilo v2: noite azul e ouro
+ * Painéis azul-marinho translúcidos, texto creme, destaque dourado e rótulos em Barlow Condensed (letra estreita:
+ * cabe mais no celular e lê bem em caixa-alta). As cores das classes de jutsu continuam as mesmas.
+ */
+@font-face { font-family: "Barlow Condensed"; font-weight: 500; font-display: swap; src: url("/fonts/barlow-condensed-500.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 600; font-display: swap; src: url("/fonts/barlow-condensed-600.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 700; font-display: swap; src: url("/fonts/barlow-condensed-700.woff2") format("woff2"); }
+
+:root {
+  --ink: #0d1020;
+  --panel: rgba(14, 18, 34, 0.82);
+  --panel-solid: #141a2e;
+  --line: rgba(233, 214, 170, 0.16);
+  --text: #f4ecd8;
+  --muted: #a7afc8;
+  --accent: #e9c46a;
+  --gold: #e9c46a;
+  --gold-line: rgba(233, 196, 106, 0.5);
+  --glass: linear-gradient(180deg, rgba(28, 35, 62, 0.88), rgba(13, 17, 32, 0.88));
+  --ui-font: "Barlow Condensed", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.pill, .mission-btn, .text-btn, .tab, .chip, .primary, .secondary, .bar b, .xp-line, .card h1, .mission-head h2,
+.kit-label, .cbtn .cost, .cbtn .cd, .toast { font-family: var(--ui-font); }
+.pill, .mission-btn, .text-btn, .tab { letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600; }
+.pill { font-size: 14px; }
+.mission-btn, .text-btn { font-size: 15px; }
+
+.pill, .icon-btn, .mission-btn, .text-btn {
+  background: var(--glass);
+  border-color: rgba(233, 214, 170, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.mission-btn.active { color: var(--gold); border-color: var(--gold-line); }
+.mission-btn.ready { background: linear-gradient(180deg, #f6d98a, #d9ab48); border-color: #f6d98a; color: #1b1608; }
+
+.mission-panel, .card { background: linear-gradient(180deg, #19203a, #11162a); border-color: var(--gold-line); }
+.mission-head h2, .card h1 { color: var(--gold); letter-spacing: 0.03em; text-transform: uppercase; }
+.primary { background: linear-gradient(180deg, #f6d98a, #d9ab48); color: #1b1608; letter-spacing: 0.06em; text-transform: uppercase; }
+.chat-feed li { background: rgba(14, 18, 34, 0.7); }
+
+/* Barras: trilho escuro e fino, número em letra estreita. */
+.bar { height: 16px; border-radius: 5px; background: rgba(9, 12, 24, 0.86); border-color: rgba(233, 214, 170, 0.22); }
+.bar-hp .fill { background: linear-gradient(180deg, #ff8a78 0%, #e0493a 55%, #b8301f 100%); }
+.bar-chakra .fill { background: linear-gradient(180deg, #8fd0ff 0%, #3b8fe0 55%, #2366b8 100%); }
+.bar b { font-size: 13px; line-height: 14px; font-weight: 600; letter-spacing: 0.05em; }
+.xp-line { font-family: var(--ui-font); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--gold); }
+
+/* Botões de combate: aro creme, o ataque com aro dourado e brilho. */
+.cbtn { border-color: rgba(233, 214, 170, 0.42); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(5, 7, 15, 0.6); }
+.cbtn.attack { border-color: var(--gold); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(5, 7, 15, 0.6), 0 0 18px rgba(233, 196, 106, 0.3); }
