@@ -327,7 +327,7 @@ describe('v8: Modo Administrador', () => {
     await go('/admin level ninguem_aqui 5');
     assert.match(v.conn.last('notice').text, /não encontrado/);
     await go('/admin level kaito 99');
-    assert.match(v.conn.last('notice').text, /^Uso: \/admin level/);
+    assert.match(v.conn.last('notice').text, /^Uso: \/admin nivel/);
     assert.deepEqual(admin.audit.map((a) => [a.command, a.ok]), [
       ['givejutsu', true], ['giveitem', true], ['giveryo', true], ['resetstats', true], ['level', false], ['level', false],
     ]);

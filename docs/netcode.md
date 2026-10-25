@@ -54,8 +54,11 @@ entre dois pings, que o texto aponta como o maior problema de sincronização.
 - **Proteção ao renascer:** 5 s sem apanhar de jogador.
 - **Clima:** cada bônus de elemento vale no máximo 5%.
 - **Registro das lutas:** cada vitória na Zona de Conflito vai para o banco (Elo, temporada, espólio).
-- **Falta:** taxa de vitória por classe e por jutsu (dá para tirar do banco), e *dampening* (cura e dano caindo
-  devagar em luta longa) para a arena.
+- **Números do PvP (v19, `pvpStats.ts`):** o painel do admin (aba PvP) e o `/admin pvp [dias]` mostram:
+  - desde que o servidor ligou: vitórias, derrotas, % e dano por classe Primária, e dano, acertos, dano por acerto e
+    abates por golpe (jutsu, Ataque Básico, arma lançada, poder e queimadura);
+  - do banco: a Zona de Conflito por classe nos últimos N dias.
+- **Falta:** *dampening* (cura e dano caindo devagar em luta longa) para a arena.
 
 ## PvE
 
@@ -84,5 +87,5 @@ entre dois pings, que o texto aponta como o maior problema de sincronização.
 
 1. ~~PvE com máquina de estados~~ (feito na v18).
 2. ~~Golpe telegrafado~~ (o golpe marcado do Lodo Escuro) e ~~chefe com fases~~ (o Rei Lodo, v19).
-3. **Métricas de PvP** por classe e jutsu (painel do admin) e *dampening* na arena.
+3. ~~Métricas de PvP por classe e jutsu~~ (v19, painel do admin). *Dampening* na arena.
 4. **Contador de anomalias** por jogador.

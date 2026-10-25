@@ -29,6 +29,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 22 | Atualização v15: nome Vontade do Fogo, arena da vila e design geral, com SQL opcional | ~10 min |
 | 23 | Atualização v16: fim de jogo (vilas, Kage, PvP, renegados, Akatsuki, capas), com SQL opcional | ~15 min |
 | 24 | Atualização v18: sapatos (equipamento dos pés), tela de equipamentos e `/admin ryo`, com SQL **antes** do deploy | ~10 min |
+| 25 | Atualização v19: Rei Lodo, silêncio da Ilusão, números de PvP e Painel do Admin, **sem SQL** | ~5 min |
 
 **Regra de ouro:** senha do banco, `JWT_SECRET` e `SERVICE_TOKEN` só vão no painel do Render.
 Nunca no GitHub, nunca num arquivo, nunca num print compartilhado.
@@ -881,3 +882,28 @@ SELECT (SELECT count(*) FROM game.items WHERE kind = 'shoes'),
    🎯 foca ele também (anel verde), e a Cura vai nele.
 5. **Clima:** os bônus agora são de no máximo **5%** (Fogo +5% no dia quente, Água +5% na chuva, Sombra +5% de
    noite...). `/admin clima chuva` e tocar no ícone 🌧️ embaixo das barras mostra o bônus.
+
+## Passo 25 — Atualização v19: Rei Lodo, números de PvP e Painel do Admin
+
+**Banco:** nada a rodar. Os números de PvP só **leem** a tabela `game.pvp_matches` (criada na v11). Basta publicar a
+`main` (o Render faz o deploy sozinho).
+
+### Testar no celular
+
+1. **Painel do Admin (conta Victor):** embaixo das barras aparece o botão **🛡️ Admin** (quem não é admin não vê).
+   - **Jogador alvo** em cima (o "eu" põe o seu nome; a lista sugere quem está online).
+   - Abas **Jogador** (ryō, nível, zerar pontos, efeito, vila, Kage, renegado, Akatsuki), **Itens** e **Jutsus** (é
+     só tocar no item ou no jutsu), **Monstros**, **Mundo** (ir para um mapa, clima, hora), **Fim de jogo** e **PvP**.
+   - O que não volta atrás (zerar pontos, renegado, remover da Akatsuki, fechar eleição ou temporada) pede um
+     segundo toque.
+   - O rodapé mostra o comando de chat equivalente (ex.: `/admin ryo Victor 1000`) e a resposta do servidor.
+2. **Comandos em português:** `/admin ajuda` lista todos (`nivel`, `invocar`, `darjutsu`, `daritem`, `ryo`,
+   `zerarpontos`, `pvp`, `ir`, `clima`, `hora`, `efeito`, `fimdejogo`, `vila`, `kage`, `eleicao`, `evento`,
+   `renegado`, `akatsuki`, `temporada`). Os nomes antigos (`level`, `spawn`, `givejutsu`...) continuam valendo.
+3. **Rei Lodo:** na Caverna do Lodo, canto leste da câmara do lago (ou `/admin invocar rei_lodo 1`). Barra do chefe
+   no topo; em 65% ele chama 4 slimes; em 30% fica furioso e marca o **Esmagar** roxo no alvo (sair do círculo).
+4. **PvP:** depois de algumas lutas, 🛡️ → **PvP** → **Ver números**: vitórias e derrotas por classe, dano por golpe e,
+   do banco, a Zona de Conflito dos últimos dias.
+5. **Ilusão tier 3 e 4:** quem é atingido fica atordoado e, depois, em silêncio (ícone 🤐, sem jutsu) por mais 3 s ou
+   4,5 s.
+

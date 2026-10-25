@@ -37,7 +37,7 @@ guerra entre vilas vazias ou um ranking de 3 jogadores deixam o jogo pior, não 
 - **Jogador ativo:** conta que entrou no jogo nos últimos 7 dias, já fora da Academia e que não é admin
   (`players.last_seen_at`).
 - **Uma vez ligado, fica ligado.** Se a população cair, o mundo não "desfaz" vilas, Kages e renegados.
-- **O admin força** qualquer módulo (`/admin endgame <módulo> on|off|auto`), para testar. Fica na auditoria.
+- **O admin força** qualquer módulo (`/admin fimdejogo <módulo> ligar|desligar|auto`, ou o Painel do Admin), para testar. Fica na auditoria.
 - **Sem a migração v11** no banco, o jogo sobe igual e todos os módulos ficam desligados (o log avisa).
 
 ---
@@ -221,16 +221,17 @@ O admin (ou, no futuro, o calendário de eventos) cria eventos com hora para aca
 ## 6. Modo Administrador
 
 Os comandos de antes continuam (o nível do jutsu e a quantidade do item são opcionais: 1). Novos, todos na
-auditoria e sem anúncio:
+auditoria e sem anúncio (desde a v19 em português e também no Painel do Admin 🛡️; `endgame` e `on/off` continuam
+valendo):
 
 | Comando | O que faz |
 |---|---|
-| `/admin endgame <vilas\|pvp\|renegados\|akatsuki> <on\|off\|auto>` | liga, desliga ou devolve ao automático |
+| `/admin fimdejogo <vilas\|pvp\|renegados\|akatsuki> <ligar\|desligar\|auto>` | liga, desliga ou devolve ao automático |
 | `/admin vila <nome> <folha\|pedra\|nevoa\|nuvem\|areia>` | muda a vila de alguém |
 | `/admin kage <vila> <nome>` | põe alguém como Kage (mandato de 28 dias) |
 | `/admin eleicao <vila>` | fecha a eleição da vila agora |
 | `/admin evento <guerra\|tregua> <vila\|todas> [vila] <horas>` | evento global |
-| `/admin renegado <nome> <on\|off>` | torna renegado ou desfaz (a única forma de desfazer) |
+| `/admin renegado <nome> <sim\|nao>` | torna renegado ou desfaz (a única forma de desfazer) |
 | `/admin akatsuki <lider\|remover> <nome>` | escolhe o líder ou tira alguém |
 | `/admin temporada fechar` | fecha a temporada agora (as contas de admin nunca recebem recompensa) |
 

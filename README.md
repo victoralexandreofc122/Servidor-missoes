@@ -215,7 +215,31 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
-### v19: Rei Lodo e silêncio da Ilusão (sem migração)
+### v19: Rei Lodo, silêncio da Ilusão, números de PvP e Painel do Admin (sem migração)
+
+- **Painel do Admin** (`public/adminPanel.js`): o botão 🛡️ só aparece para quem tem `is_admin`.
+  - Em cima, o **jogador alvo** (a lista sugere quem está online; "eu" põe o seu nome).
+  - Abas:
+    - **Jogador:** ryō, nível, zerar pontos, efeito, vila, Kage, renegado e Akatsuki;
+    - **Itens** e **Jutsus:** tocar no item ou no jutsu dá ao alvo;
+    - **Monstros:** tocar invoca em volta;
+    - **Mundo:** ir para um mapa, clima e hora;
+    - **Fim de jogo:** ligar, desligar ou deixar no automático cada módulo, eleição, evento e temporada;
+    - **PvP:** os números.
+  - Cada toque manda `{ type: "admin", command }`, o mesmo texto do chat, com ritmo próprio (5 seguidos, depois 3 por
+    segundo) fora do chat. O servidor confere tudo de novo, como no `/admin`. O catálogo (`admin_catalog`: online,
+    monstros e mapas) só vai para admin.
+  - O que não volta atrás pede um segundo toque. O rodapé mostra o comando de chat equivalente e a resposta.
+- **Comandos de admin em português:** `ajuda`, `nivel`, `invocar`, `darjutsu`, `daritem`, `ryo`, `zerarpontos`, `pvp`,
+  `ir`, `clima`, `hora`, `efeito`, `fimdejogo <módulo> <ligar|desligar|auto>`, `vila`, `kage`, `eleicao`, `evento`,
+  `renegado <nome> <sim|nao>`, `akatsuki`, `temporada`. Os nomes antigos continuam valendo, e a auditoria guarda os
+  mesmos nomes internos de antes.
+- **Números de PvP** (`pvpStats.ts`, `/admin pvp [dias]` ou a aba PvP):
+  - **desde que o servidor ligou:** lutas (arena, Zona de Conflito e aberto); vitórias, derrotas, % e dano por classe
+    Primária; dano, acertos, dano por acerto e abates por golpe (jutsu, Ataque Básico, arma lançada, poder da Akatsuki
+    e queimadura);
+  - **do banco:** a Zona de Conflito por classe nos últimos N dias (padrão 7, até 90). É só leitura em
+    `game.pvp_matches`, sem migração.
 
 - **Rei Lodo, o primeiro chefe** (Caverna do Lodo, canto leste da câmara do lago, longe do fundo da M11):
   - 1000 de vida, coroa e tamanho 2,3x; nasce com o servidor e volta 5 min depois de morrer;
@@ -317,7 +341,7 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 
 Seis módulos que ligam **com a população** (jogadores ativos na semana): vilas 30 → PvP 60 → renegados 100 →
 Akatsuki 150 (`config.endgame.thresholds`; `src/realtime/endgame.ts`). Ligou, fica ligado. O admin força com
-`/admin endgame <módulo> <on|off|auto>`. **O banco é a autoridade** de quem é de qual vila, de quem é Kage, das
+`/admin fimdejogo <módulo> <ligar|desligar|auto>`. **O banco é a autoridade** de quem é de qual vila, de quem é Kage, das
 guerras, alianças, renegados, ranking e Akatsuki (funções `game.*` da v11, com trava de linha); o mundo guarda uma
 cópia (`politics`, relida a cada mudança e a cada minuto) para decidir na hora mapa, PvP e passivas. **A v11 é
 opcional:** sem ela tudo fica desligado, e aplicar no Neon não precisa reiniciar (a manutenção procura a v11).
@@ -341,7 +365,7 @@ opcional:** sem ela tudo fica desligado, e aplicar no Neon não precisa reinicia
   do Campeão. Ranking: `ranking` (aba do 🏯). A arena da vila continua treino e não conta.
 - **Renegados:** expulsão do Kage (`kage_exile`, justificativa, 5 por semana), denúncia de rank igual ou maior
   (`report_player` → `kage_report`) e karma (20 da própria vila na Zona, sem aviso). Irreversível (trigger no banco),
-  menos por `/admin renegado <nome> off`. Renegado mora no **Refúgio** (`refugio`), sem passiva, bandana riscada, e a
+  menos por `/admin renegado <nome> nao`. Renegado mora no **Refúgio** (`refugio`), sem passiva, bandana riscada, e a
   recompensa pela cabeça aparece sobre o nome na Zona.
 - **Akatsuki** (`akatsuki.ts`): 10 vagas, líder pelo admin, convites só do líder (`akatsuki_invite` / `_answer`,
   aceitar vira renegado), expulsar e sair. Cada vaga tem um poder (`power`, botão ☁️): Atração do Vazio, Lâmina
@@ -351,7 +375,7 @@ opcional:** sem ela tudo fica desligado, e aplicar no Neon não precisa reinicia
   todas as animações): Capa de Viagem e Capa da Vila (Alfaiataria), Manto do Kage, da Akatsuki e do Campeão
   (`equip` com `slot: 'cape'`). ⚙️ → mostrar ou esconder capa, arma e pergaminho (`set_display`; só o que os outros
   veem).
-- **Admin** (só `is_admin`, auditado, sem anúncio): `/admin endgame`, `vila`, `kage`, `eleicao`, `evento`,
+- **Admin** (só `is_admin`, auditado, sem anúncio): `/admin fimdejogo`, `vila`, `kage`, `eleicao`, `evento`,
   `renegado`, `akatsuki`, `temporada fechar`. Nenhum mexe no MMR.
 - Mensagens novas: `endgame`, `player_faction`, `village_panel`, `travel_options`, `ranking`, `pvp_result`,
   `akatsuki_invite`, `power` / `power_failed`; `PlayerView.faction` e `SelfView.doorBack`.
@@ -416,12 +440,16 @@ Rodar no Neon depois da v7 (pode rodar de novo). Sem ela o servidor não sobe e 
 
 | Comando | O que faz |
 |---|---|
-| `/admin level <nome> <nível>` | nível 1 a 60 (XP no começo do nível; pontos recalculados, atributos zerados se não couberem) |
-| `/admin spawn <slime\|dummy\|sparring> <qtd>` | 1 a 20 monstros em volta do admin |
-| `/admin givejutsu <nome> <jutsu> <nível>` | ensina o jutsu ou sobe o uso até o nível 1 a 4 (o uso nunca desce) |
-| `/admin giveitem <nome> <item> <qtd>` | 1 a 999 itens no inventário |
+| `/admin nivel <nome> <nível>` | nível 1 a 60 (XP no começo do nível; pontos recalculados, atributos zerados se não couberem) |
+| `/admin invocar <monstro> [qtd]` | 1 a 20 monstros em volta do admin |
+| `/admin darjutsu <nome> <jutsu> [nível]` | ensina o jutsu ou sobe o uso até o nível 1 a 4 (o uso nunca desce) |
+| `/admin daritem <nome> <item> [qtd]` | 1 a 999 itens no inventário |
 | `/admin ryo <nome> <qtd>` | dá de 1 a 1.000.000 ryō (v18, migração v12) |
-| `/admin resetstats <nome>` | devolve os pontos de atributo, sem custo |
+| `/admin zerarpontos <nome>` | devolve os pontos de atributo, sem custo |
+| `/admin pvp [dias]` | números do PvP por classe e por golpe (v19) |
+
+Desde a v19 os comandos são em português, e o mesmo vale pelo **Painel do Admin** (🛡️). Os nomes antigos (`level`,
+`spawn`, `givejutsu`, `giveitem`, `giveryo`, `resetstats`, `endgame`) continuam valendo.
 
 - **Restrito:** o servidor só aceita de quem entrou com `is_admin`; cada função do banco (`game.admin_*`)
   confere `is_admin` de novo. Quem não é admin recebe só "Comando desconhecido" (e o servidor registra no log).

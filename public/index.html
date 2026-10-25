@@ -61,6 +61,9 @@
       <div id="boss-track" class="boss-track" role="meter" aria-label="Vida do chefe"><span id="boss-fill" class="boss-fill"></span><b id="boss-hp" class="boss-hp"></b></div>
     </div>
 
+    <!-- Painel do Admin (v19): o botão só aparece para quem é administrador. -->
+    <button id="admin-toggle" class="admin-toggle" type="button" hidden aria-expanded="false" aria-controls="admin-panel"><span aria-hidden="true">🛡️</span> Admin</button>
+
     <!-- O alvo focado (🎯): retrato, nome e vida. -->
     <div id="target-window" class="target-window" hidden>
       <div class="portrait foe"><canvas id="target-portrait" width="96" height="96" aria-hidden="true"></canvas></div>
@@ -298,6 +301,29 @@
         <button type="button" class="tab" role="tab" aria-selected="false" data-tab="akatsuki" hidden>Akatsuki</button>
       </div>
       <div id="village-body" class="village-body"></div>
+    </section>
+
+    <!--
+      Painel do Admin (adminPanel.js): o jogador alvo em cima, as abas e, embaixo, o comando que saiu e a resposta.
+      Cada botão manda o mesmo comando do chat ("/admin ryo Kaito 500"); o servidor confere tudo de novo.
+    -->
+    <section id="admin-panel" class="mission-panel admin-panel" hidden role="dialog" aria-labelledby="admin-title">
+      <header class="mission-head">
+        <h2 id="admin-title"><span aria-hidden="true">🛡️</span> Painel do Admin</h2>
+        <button id="admin-close" class="icon-btn small" type="button" aria-label="Fechar o painel do admin"><span aria-hidden="true">✕</span></button>
+      </header>
+      <div class="adm-target">
+        <label for="admin-target">Jogador alvo</label>
+        <input id="admin-target" type="text" list="admin-players" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Nome do jogador">
+        <datalist id="admin-players"></datalist>
+        <button id="admin-me" type="button" class="chip">eu</button>
+      </div>
+      <div id="admin-tabs" class="tabs adm-tabs" role="tablist"></div>
+      <div id="admin-body" class="adm-body"></div>
+      <footer class="adm-foot" aria-live="polite">
+        <code id="admin-sent" class="adm-sent"></code>
+        <p id="admin-reply" class="adm-reply">Escolha um jogador e toque numa ação.</p>
+      </footer>
     </section>
 
     <section id="travel-panel" class="mission-panel travel-panel" hidden role="dialog" aria-labelledby="travel-title">

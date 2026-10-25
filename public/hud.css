@@ -757,3 +757,90 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
   .boss-bar { top: calc(var(--safe-top) + 54px); width: min(360px, 60vw); }
   .boss-bar:not([hidden]) ~ .toast { top: calc(var(--safe-top) + 100px); }
 }
+
+/* ------------------------------------------------------------ Painel do Admin (v19, adminPanel.js)
+   Só o admin vê o botão. Painel largo (cabe em PC e celular deitado), o jogador alvo fixo em cima, abas e o rodapé com o
+   comando que saiu (para aprender o atalho do chat) e a resposta do servidor. Botões com 40 px ou mais (toque). */
+.admin-toggle {
+  position: fixed; z-index: 7; top: calc(var(--safe-top) + 150px); left: calc(var(--safe-left) + 12px);
+  min-height: 40px; padding: 0 14px; border-radius: 999px; pointer-events: auto;
+  border: 1px solid rgba(240, 160, 60, 0.85); background: linear-gradient(180deg, rgba(40, 26, 10, 0.92), rgba(20, 13, 6, 0.92));
+  color: #ffd79a; font: 800 13px / 1 var(--ui-font); letter-spacing: 0.06em; text-transform: uppercase;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+.admin-toggle[aria-expanded="true"] { background: var(--accent); color: var(--ink); }
+.admin-panel {
+  width: min(680px, calc(100vw - 20px - var(--safe-left) - var(--safe-right))); border-color: rgba(240, 160, 60, 0.75); z-index: 9;
+  display: flex; flex-direction: column; overflow: hidden;       /* o alvo e as abas ficam; só o conteúdo rola */
+}
+/* Com o painel aberto, o aviso solto some: a resposta já aparece no rodapé. */
+#admin-panel:not([hidden]) ~ .toast { display: none; }
+.adm-target { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; margin: 2px 0 8px; }
+.adm-target label { font-weight: 800; font-size: 13px; color: #ffd79a; }
+/* Só o miolo encolhe (e rola); o resto mantém a altura (sem isto, abas e tabelas ficam esmagadas). */
+.admin-panel > *, .adm-body > * { flex-shrink: 0; }
+.admin-panel > .adm-body { flex-shrink: 1; }
+.admin-panel input, .admin-panel select {
+  min-height: 40px; min-width: 0; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.4); color: var(--text); font: 600 14px / 1 system-ui, sans-serif;
+}
+.admin-panel input:focus, .admin-panel select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.adm-num { width: 92px; }
+.adm-tabs { flex-wrap: wrap; }
+.adm-tabs .tab { flex: 1 1 auto; min-height: 36px; padding: 0 10px; font-size: 12px; }
+.adm-body { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
+.adm-sec { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px 10px; border-radius: 12px; background: rgba(0, 0, 0, 0.22); }
+.adm-sec h3, .adm-group { margin: 0; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.adm-group { margin-top: 4px; }
+.adm-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; }
+.adm-label { font-weight: 700; font-size: 14px; }
+.adm-ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.adm-ctl select { flex: 1 1 140px; }
+.adm-btn {
+  min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--accent);
+  background: rgba(240, 160, 60, 0.16); color: #ffd79a; font-weight: 800; font-size: 14px;
+}
+.adm-btn:active { transform: translateY(1px); background: var(--accent); color: var(--ink); }
+.adm-btn.danger { border-color: var(--danger); background: rgba(255, 122, 107, 0.12); color: #ffb3a9; }
+.adm-btn.danger[data-armed] { background: var(--danger); color: var(--ink); }
+.adm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.adm-chips .chip { flex: 1 1 120px; }
+.adm-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.adm-search { flex: 1 1 180px; }
+.adm-inline { display: inline-flex; gap: 6px; align-items: center; font-weight: 700; font-size: 13px; color: var(--muted); }
+.adm-hint { margin: 0; font-size: 13px; color: var(--muted); }
+.adm-hint.strong { color: var(--text); font-weight: 700; }
+.adm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 6px; }
+.adm-grid.small { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+.adm-card {
+  display: grid; justify-items: center; gap: 2px; min-height: 44px; padding: 6px; border-radius: 10px;
+  border: 1px solid var(--line); background: rgba(0, 0, 0, 0.32); color: var(--text); text-align: center;
+}
+.adm-card:hover, .adm-card:focus-visible { border-color: var(--accent); }
+.adm-card:active { background: rgba(240, 160, 60, 0.25); }
+.adm-card b { font-size: 12px; line-height: 1.15; }
+.adm-card small { font-size: 11px; color: var(--muted); }
+.adm-card.boss { border-color: rgba(242, 213, 140, 0.7); }
+.adm-ico { width: 40px; height: 40px; image-rendering: pixelated; }
+.adm-table-wrap { overflow-x: auto; }
+.adm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.adm-table th:not(:first-child) { text-align: right; }
+.adm-table th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.adm-table td { padding: 5px 6px; border-bottom: 1px solid rgba(244, 234, 216, 0.06); }
+.adm-table td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.adm-foot { flex: 0 0 auto; margin: 10px -14px -14px; padding: 8px 14px 10px; background: rgba(0, 0, 0, 0.25); border-top: 1px solid var(--line); }
+.adm-sent { display: block; font-size: 12px; color: #ffd79a; min-height: 1em; overflow-wrap: anywhere; }
+.adm-reply { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.adm-reply.good { color: #9be88a; }
+.adm-reply.bad { color: var(--danger); }
+@media (max-width: 560px) { .adm-row { grid-template-columns: 1fr; gap: 4px; } }
+@media (max-height: 430px) {
+  .admin-toggle { top: calc(var(--safe-top) + 118px); min-height: 34px; }
+  .admin-panel { top: calc(var(--safe-top) + 6px); max-height: calc(100dvh - 12px - var(--safe-top) - var(--safe-bottom)); padding: 8px 12px 12px; }
+  .admin-panel .mission-head h2 { font-size: 15px; }
+  .adm-target { margin: 0 0 6px; }
+  .adm-target input, .adm-target .chip { min-height: 34px; }
+  .adm-tabs { flex-wrap: nowrap; overflow-x: auto; margin-bottom: 6px; }
+  .adm-tabs .tab { flex: 0 0 auto; min-height: 32px; }
+  .adm-foot { margin: 6px -12px -12px; padding: 5px 12px 6px; }
+}

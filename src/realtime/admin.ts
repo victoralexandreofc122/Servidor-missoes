@@ -9,16 +9,24 @@ import { ENDGAME_MODULES, type EndgameModule } from './endgame.js';
 import { VILLAGE_INFO, villageByName } from './villages.js';
 import { DAY_PHASES, WEATHERS, type DayPhase, type Weather } from './weather.js';
 import { EFFECT_CODES, type EffectCode } from './effects.js';
+import { PVP_CLASS_SQL } from './pvpStats.js';
 
 /*
- * Modo Administrador (God Mode): comandos no chat que começam com "/admin".
+ * Modo Administrador (God Mode): o painel 🛡️ (só para admin, v19) ou comandos no chat que começam com "/admin". O painel
+ * monta o mesmo texto e manda `{ type: "admin", command }`; o servidor lê os dois do mesmo jeito.
  *
- *   /admin level <nome> <nível>                  define o nível (1 a 60)
- *   /admin spawn <monstro> <quantidade>          invoca monstros em volta do admin (1 a 20)
- *   /admin givejutsu <nome> <jutsu> <nível>      ensina o jutsu ou sobe o nível dele (1 a 4)
- *   /admin giveitem <nome> <item> <quantidade>   põe itens no inventário (1 a 999)
- *   /admin ryo <nome> <quantidade>               dá ryō ao jogador (1 a 1.000.000; "giveryo" também vale; migração v12)
- *   /admin resetstats <nome>                     devolve os pontos de atributo (sem custo)
+ * Os comandos são em português (v19). Os nomes antigos continuam valendo (level, spawn, givejutsu, giveitem, giveryo,
+ * resetstats, endgame, help, on/off).
+ *
+ *   /admin ajuda                                 lista os comandos
+ *   /admin nivel <nome> <nível>                  define o nível (1 a 60)
+ *   /admin invocar <monstro> [quantidade]        invoca monstros em volta do admin (1 a 20)
+ *   /admin darjutsu <nome> <jutsu> [nível]       ensina o jutsu ou sobe o nível dele (1 a 4)
+ *   /admin daritem <nome> <item> [quantidade]    põe itens no inventário (1 a 999)
+ *   /admin ryo <nome> <quantidade>               dá ryō ao jogador (1 a 1.000.000; "darryo" também vale; migração v12)
+ *   /admin zerarpontos <nome>                    devolve os pontos de atributo (sem custo)
+ *   /admin pvp [dias]                            números do PvP: por classe e por golpe (desde que o servidor ligou) e a
+ *                                                Zona de Conflito no banco (últimos N dias, padrão 7; pvpStats.ts)
  *   /admin ir <mapa> [x y]                       leva o próprio admin a um mapa (inclusive os lacrados), para testar
  *   /admin clima <normal|quente|chuva|neblina> [minutos]   muda o clima agora (para todos; padrão: 10 min)
  *   /admin hora <amanhecer|dia|entardecer|noite>           pula o ciclo para o começo dessa fase (para todos)
@@ -26,12 +34,12 @@ import { EFFECT_CODES, type EffectCode } from './effects.js';
  *                                                          testar (effects.ts); "limpar" tira todos
  *
  * Fim de jogo (v16, migração v11; docs/endgame.md, seção 6):
- *   /admin endgame <vilas|pvp|renegados|akatsuki> <on|off|auto>   liga, desliga ou devolve ao automático
+ *   /admin fimdejogo <vilas|pvp|renegados|akatsuki> <ligar|desligar|auto>   liga, desliga ou devolve ao automático
  *   /admin vila <nome> <folha|pedra|nevoa|nuvem|areia>            muda a vila de alguém
  *   /admin kage <vila> <nome>                                     põe alguém como Kage (mandato de 28 dias)
  *   /admin eleicao <vila>                                         fecha a eleição da vila agora
  *   /admin evento <guerra|tregua> <vila|todas> [vila] <horas>     evento global (guerra ou trégua forçada)
- *   /admin renegado <nome> <on|off>                               torna renegado ou desfaz (a ÚNICA forma de desfazer)
+ *   /admin renegado <nome> <sim|nao>                              torna renegado ou desfaz (a ÚNICA forma de desfazer)
  *   /admin akatsuki <lider|remover> <nome>                        escolhe o líder ou tira alguém
  *   /admin temporada fechar                                       fecha a temporada PvP agora
  * Nenhum deles mexe no MMR nem no ranking (o banco deixa as contas de admin fora do ranking e das recompensas).
@@ -58,6 +66,7 @@ export type AdminCommand =
   | { cmd: 'clima'; weather: Weather; minutes: number }
   | { cmd: 'hora'; phase: DayPhase }
   | { cmd: 'efeito'; username: string; effect: EffectCode | 'limpar'; seconds: number }
+  | { cmd: 'pvp'; days: number }
   | EndgameAdminCommand;
 
 /** Comandos do fim de jogo (v11). */
@@ -76,10 +85,29 @@ export const isEndgameAdmin = (c: AdminCommand): c is EndgameAdminCommand => END
 
 export type ParsedAdmin = { ok: true; command: AdminCommand } | { ok: false; command: string; text: string };
 
-export const ADMIN_HELP = 'Admin: /admin level <nome> <nível> · spawn <monstro> <qtd> · givejutsu <nome> <jutsu> <nível> · giveitem <nome> <item> <qtd> · ryo <nome> <qtd> · resetstats <nome> · ir <mapa> [x y]'
-  + ' · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite> · efeito <nome> <efeito|limpar> [seg]'
-  + ' · endgame <módulo> <on|off|auto> · vila <nome> <vila> · kage <vila> <nome> · eleicao <vila> · evento <guerra|tregua> <vila|todas> [vila] <horas>'
-  + ' · renegado <nome> <on|off> · akatsuki <lider|remover> <nome> · temporada fechar';
+export const ADMIN_HELP = 'Admin (ou o painel 🛡️): /admin nivel <nome> <nível> · invocar <monstro> [qtd] · darjutsu <nome> <jutsu> [nível] · daritem <nome> <item> [qtd] · ryo <nome> <qtd>'
+  + ' · zerarpontos <nome> · pvp [dias] · ir <mapa> [x y] · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite> · efeito <nome> <efeito|limpar> [seg]'
+  + ' · fimdejogo <módulo> <ligar|desligar|auto> · vila <nome> <vila> · kage <vila> <nome> · eleicao <vila> · evento <guerra|tregua> <vila|todas> [vila] <horas>'
+  + ' · renegado <nome> <sim|nao> · akatsuki <lider|remover> <nome> · temporada fechar';
+
+/** Os nomes antigos (em inglês) e as variações que também valem: apontam para o nome em português. */
+export const ADMIN_ALIASES: Readonly<Record<string, string>> = {
+  help: 'ajuda', level: 'nivel', spawn: 'invocar', givejutsu: 'darjutsu', giveitem: 'daritem', giveryo: 'ryo', darryo: 'ryo',
+  resetstats: 'zerarpontos', endgame: 'fimdejogo',
+};
+
+/** Nome na auditoria (game.admin_audit_log) de cada comando em português. */
+const AUDIT_NAMES: Readonly<Record<string, string>> = {
+  ajuda: 'help', nivel: 'level', invocar: 'spawn', darjutsu: 'givejutsu', daritem: 'giveitem', ryo: 'giveryo', zerarpontos: 'resetstats',
+  fimdejogo: 'endgame',
+};
+
+/** Ligar ou desligar (fimdejogo, renegado): aceita o português e o on/off de antes. */
+const SWITCH: Readonly<Record<string, 'on' | 'off' | 'auto'>> = { ligar: 'on', on: 'on', sim: 'on', desligar: 'off', off: 'off', nao: 'off', auto: 'auto' };
+const plain = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+/** Dias que o /admin pvp soma no banco (padrão 7). */
+export const PVP_DAYS = { default: 7, max: 90 } as const;
 const VILLAGE_NAMES = Object.values(VILLAGE_INFO).map((v) => v.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()).join('|');
 
 const USERNAME = /^[A-Za-z0-9_]{3,24}$/;
@@ -92,28 +120,35 @@ export const isAdminCommand = (text: string) => /^\/admin(\s|$)/i.test(text);
 /** Lê o comando. Não sabe quem pediu: só confere formato, faixa e códigos conhecidos. */
 export function parseAdminCommand(text: string, monsterTypes: readonly string[], mapIds: readonly string[] = []): ParsedAdmin {
   const parts = text.trim().split(/\s+/).slice(1);
-  const cmd = (parts[0] ?? 'help').toLowerCase();
+  const typed = plain(parts[0] ?? 'ajuda');
+  const cmd = ADMIN_ALIASES[typed] ?? typed;
   const args = parts.slice(1);
-  const bad = (usage: string): ParsedAdmin => ({ ok: false, command: cmd, text: `Uso: /admin ${usage}` });
+  // A auditoria guarda o nome interno (o mesmo de antes da v19), para o histórico não mudar de nome.
+  const bad = (usage: string): ParsedAdmin => ({ ok: false, command: AUDIT_NAMES[cmd] ?? cmd, text: `Uso: /admin ${usage}` });
   const int = (s: string | undefined, min: number, max: number) => (s && INT.test(s) && Number(s) >= min && Number(s) <= max ? Number(s) : undefined);
   const user = (s: string | undefined) => (s && USERNAME.test(s) ? s : undefined);
 
   switch (cmd) {
-    case 'help':
+    case 'ajuda':
       return { ok: true, command: { cmd: 'help' } };
-    case 'level': {
+    case 'nivel': {
       const username = user(args[0]);
       const level = int(args[1], 1, ADMIN_LIMITS.maxLevel);
-      if (args.length !== 2 || !username || level === undefined) return bad(`level <nome> <nível 1 a ${ADMIN_LIMITS.maxLevel}>`);
-      return { ok: true, command: { cmd, username, level } };
+      if (args.length !== 2 || !username || level === undefined) return bad(`nivel <nome> <nível 1 a ${ADMIN_LIMITS.maxLevel}>`);
+      return { ok: true, command: { cmd: 'level', username, level } };
     }
-    case 'spawn': {
+    case 'invocar': {
       const monster = (args[0] ?? '').toLowerCase();
       const quantity = int(args[1] ?? '1', 1, ADMIN_LIMITS.maxSpawn);
       if (args.length < 1 || args.length > 2 || !monsterTypes.includes(monster) || quantity === undefined) {
-        return bad(`spawn <${monsterTypes.join('|')}> <quantidade 1 a ${ADMIN_LIMITS.maxSpawn}>`);
+        return bad(`invocar <${monsterTypes.join('|')}> [quantidade 1 a ${ADMIN_LIMITS.maxSpawn}]`);
       }
-      return { ok: true, command: { cmd, monster, quantity } };
+      return { ok: true, command: { cmd: 'spawn', monster, quantity } };
+    }
+    case 'pvp': {
+      const days = int(args[0] ?? String(PVP_DAYS.default), 1, PVP_DAYS.max);
+      if (args.length > 1 || days === undefined) return bad(`pvp [dias 1 a ${PVP_DAYS.max}]`);
+      return { ok: true, command: { cmd, days } };
     }
     case 'ir': {
       const map = (args[0] ?? '').toLowerCase();
@@ -145,43 +180,42 @@ export function parseAdminCommand(text: string, monsterTypes: readonly string[],
       }
       return { ok: true, command: { cmd, username, effect: effect as EffectCode | 'limpar', seconds } };
     }
-    case 'givejutsu': {
+    case 'darjutsu': {
       const username = user(args[0]);
       const jutsu = (args[1] ?? '').toLowerCase();
       const level = int(args[2] ?? '1', 1, ADMIN_LIMITS.maxJutsuLevel);
       if (args.length < 2 || args.length > 3 || !username || !CODE.test(jutsu) || !JUTSU_BY_CODE.has(jutsu as never) || level === undefined) {
-        return bad('givejutsu <nome> <jutsu, ex.: fire_2> <nível 1 a 4>');
+        return bad('darjutsu <nome> <jutsu, ex.: fire_2> [nível 1 a 4]');
       }
-      return { ok: true, command: { cmd, username, jutsu, level } };
+      return { ok: true, command: { cmd: 'givejutsu', username, jutsu, level } };
     }
-    case 'giveitem': {
+    case 'daritem': {
       const username = user(args[0]);
       const item = (args[1] ?? '').toLowerCase();
       const quantity = int(args[2] ?? '1', 1, ADMIN_LIMITS.maxItems);
       if (args.length < 2 || args.length > 3 || !username || !CODE.test(item) || !ITEM_BY_CODE.has(item) || quantity === undefined) {
-        return bad(`giveitem <nome> <item, ex.: kunai> <quantidade 1 a ${ADMIN_LIMITS.maxItems}>`);
+        return bad(`daritem <nome> <item, ex.: kunai> [quantidade 1 a ${ADMIN_LIMITS.maxItems}]`);
       }
-      return { ok: true, command: { cmd, username, item, quantity } };
+      return { ok: true, command: { cmd: 'giveitem', username, item, quantity } };
     }
-    case 'ryo':
-    case 'giveryo': {
+    case 'ryo': {
       const username = user(args[0]);
       const amount = int(args[1], 1, ADMIN_LIMITS.maxRyo);
       if (args.length !== 2 || !username || amount === undefined) return bad('ryo <nome> <quantidade 1 a 1000000>');
       return { ok: true, command: { cmd: 'giveryo', username, amount } };
     }
-    case 'resetstats': {
+    case 'zerarpontos': {
       const username = user(args[0]);
-      if (args.length !== 1 || !username) return bad('resetstats <nome>');
-      return { ok: true, command: { cmd, username } };
+      if (args.length !== 1 || !username) return bad('zerarpontos <nome>');
+      return { ok: true, command: { cmd: 'resetstats', username } };
     }
-    case 'endgame': {
-      const module = (args[0] ?? '').toLowerCase() as EndgameModule;
-      const mode = (args[1] ?? '').toLowerCase();
-      if (args.length !== 2 || !ENDGAME_MODULES.includes(module) || !['on', 'off', 'auto'].includes(mode)) {
-        return bad(`endgame <${ENDGAME_MODULES.join('|')}> <on|off|auto>`);
+    case 'fimdejogo': {
+      const module = plain(args[0] ?? '') as EndgameModule;
+      const mode = SWITCH[plain(args[1] ?? '')];
+      if (args.length !== 2 || !ENDGAME_MODULES.includes(module) || !mode) {
+        return bad(`fimdejogo <${ENDGAME_MODULES.join('|')}> <ligar|desligar|auto>`);
       }
-      return { ok: true, command: { cmd, module, mode: mode as 'on' | 'off' | 'auto' } };
+      return { ok: true, command: { cmd: 'endgame', module, mode } };
     }
     case 'vila': {
       const username = user(args[0]);
@@ -213,8 +247,8 @@ export function parseAdminCommand(text: string, monsterTypes: readonly string[],
     }
     case 'renegado': {
       const username = user(args[0]);
-      const on = (args[1] ?? '').toLowerCase();
-      if (args.length !== 2 || !username || (on !== 'on' && on !== 'off')) return bad('renegado <nome> <on|off>');
+      const on = SWITCH[plain(args[1] ?? '')];
+      if (args.length !== 2 || !username || (on !== 'on' && on !== 'off')) return bad('renegado <nome> <sim|nao>');
       return { ok: true, command: { cmd, username, on: on === 'on' } };
     }
     case 'akatsuki': {
@@ -258,6 +292,8 @@ export interface AdminStore {
    * `target` = o jogador já encontrado pelo nome (os que não têm alvo recebem null).
    */
   endgame?(adminId: string, c: EndgameAdminCommand, targetId: string | null): Promise<AdminOutcome<{ result: string | null }>>;
+  /** Zona de Conflito: vitórias e derrotas por classe Primária nos últimos `days` dias (só leitura; pvpStats.ts). */
+  pvpByClass?(days: number): Promise<{ code: string; wins: number; losses: number }[]>;
 }
 
 const STATE = `total_xp, level, stat_points, attr_vitality, attr_chakra, attr_agility, attr_taijutsu, attr_ninjutsu, attr_weapons`;
@@ -358,6 +394,9 @@ export function makeAdminStore(db: Db): AdminStore {
       });
     },
     log,
+    async pvpByClass(days) {
+      return (await db.query<{ code: string; wins: number; losses: number }>(PVP_CLASS_SQL, [days])).rows;
+    },
     endgame(adminId, c, targetId) {
       const { cmd, ...args } = c;
       const [sql, params]: [string, unknown[]] = (() => {

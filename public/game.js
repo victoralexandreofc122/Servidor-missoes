@@ -24,6 +24,7 @@ import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
 import { drawBackWeapon, drawHandWeapon, drawWeaponIcon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
 import { drawCape, drawRenegadeScratch, egOn, factionStyle, mapAccess, mountEndgameUI, shopFactor, zoneFoe } from './endgame.js';
+import { mountAdminUI } from './adminPanel.js';
 
 const TOKEN_KEY = 'nin.token';
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/game`;
@@ -492,6 +493,7 @@ const CAST_FAIL_TEXT = {
 function handleMessage(msg) {
   const now = performance.now();
   if (eg.handle(msg)) return;            // painéis do fim de jogo (endgame.js)
+  if (adminUI.handle(msg)) return;       // painel do admin (adminPanel.js)
   switch (msg.type) {
     case 'sky': {
       // O céu mudou (para todos): a fase do dia e/ou o clima. Avisa na tela o que mudou nos jutsus.
@@ -540,6 +542,7 @@ function handleMessage(msg) {
       state.endgame = null;                              // o servidor manda `endgame` logo depois (se houver)
       updateAccess();
       eg.refresh();
+      adminUI.refresh();
       renderNinja();
       state.evalQueue = [];
       renderEval();
@@ -2557,7 +2560,18 @@ const eg = mountEndgameUI({
   ninja: () => state.ninja,
   focusId: () => state.focusId,
   aim: () => (dir.x !== 0 || dir.y !== 0 ? [Math.round(dir.x * 100) / 100, Math.round(dir.y * 100) / 100] : null),
-  closeOthers: () => { closeSettings(); closeStatus(); closeMissions(); closeShop(); closePlayerMenu(); closeBoard(); closeHistory(); closeInventory(); },
+  closeOthers: () => { closeSettings(); closeStatus(); closeMissions(); closeShop(); closePlayerMenu(); closeBoard(); closeHistory(); closeInventory(); adminUI.close(); },
+});
+
+// ------------------------------------------------------------------ painel do admin (v19): adminPanel.js
+
+const adminUI = mountAdminUI({
+  send,
+  ninja: () => state.ninja,
+  world: () => state.world,
+  myName: () => state.players.get(state.meId)?.username || '',
+  drawItemIcon,
+  closeOthers: () => { closeSettings(); closeStatus(); closeMissions(); closeShop(); closePlayerMenu(); closeBoard(); closeHistory(); closeInventory(); eg.close?.(); },
 });
 
 // ⚙️ O que os outros veem no boneco (capa, arma, pergaminho): só PEDE; o servidor manda o boneco novo a todos.

@@ -1,5 +1,6 @@
 import type { DayPhase, SkyEffects, Weather } from './weather.js';
 import type { EffectCode } from './effects.js';
+import type { PvpClassRow, PvpReport } from './pvpStats.js';
 import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
@@ -211,6 +212,9 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('chat_history') }),
   z.object({ type: z.literal('sync'), id: z.number().int().nonnegative().max(2 ** 31) }),
   z.object({ type: z.literal('chat'), message: z.string() }),
+  // Painel do admin (v19): o comando sem o "/admin" na frente ("ryo Kaito 500") e o catálogo (online, monstros, mapas).
+  z.object({ type: z.literal('admin'), command: z.string().min(1).max(200) }),
+  z.object({ type: z.literal('admin_catalog') }),
   // ------------------------------------------------ fim de jogo (v16)
   z.object({ type: z.literal('village_panel') }),
   z.object({ type: z.literal('kage_vote'), candidate: uuid }),
@@ -499,6 +503,8 @@ export type ServerMessage =
   | { type: 'player_gear'; playerId: string; gear: Gear }
   | { type: 'pushed'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }
   | { type: 'sync'; id: number; rtt: number }
+  | { type: 'admin_catalog'; players: { username: string; map: string; level: number }[]; monsters: { code: string; name: string }[]; maps: { id: string; name: string }[]; villages: { code: string; name: string }[] }
+  | { type: 'admin_pvp'; report: PvpReport; db: { days: number; rows: PvpClassRow[] } | null }
   | { type: 'monster_aggro'; id: string; targetId: string | null }
   | { type: 'effect'; target: 'player' | 'monster'; id: string; effect: EffectCode; ms: number }
   | { type: 'combo'; target: 'player' | 'monster'; id: string; combo: 'eletrocutado' }

@@ -41,6 +41,7 @@ import {
   addEffect, breakOnDamage, effectBlock, EFFECTS, hasEffect, healFactor, speedFactor, stepEffects, WET_LIGHTNING_BONUS,
   type EffectBag, type EffectCode,
 } from './effects.js';
+import { NO_CLASS, PvpStats, reportText, toClassRows } from './pvpStats.js';
 import {
   ACADEMY, REFUGE, TRAVEL_POST, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, type Arena, type CampOwner, type HuntZone, type MapId,
   type MapLayout,
@@ -149,7 +150,7 @@ export interface WorldOptions {
   secureRandom?: () => number;
   /** Histórico do chat (game.chat_logs). Sem isto: em memória. */
   chatLog?: ChatLog;
-  /** Comandos do administrador no banco (auditados). Sem isto: só o /admin spawn funciona (em memória). */
+  /** Comandos do administrador no banco (auditados). Sem isto: só o /admin invocar funciona (em memória). */
   admin?: AdminStore;
   /** Fim de jogo no banco (migração v11). Sem isto, ou sem a v11 aplicada: módulos desligados. */
   endgame?: EndgameStore;
@@ -261,6 +262,8 @@ interface Session {
   lastHpAt: number;
   readonly messages: TokenBucket;
   readonly chat: TokenBucket;
+  /** Painel do admin (v19): os comandos têm o próprio ritmo, fora do chat. */
+  readonly adminBucket: TokenBucket;
   dropWindowStart: number;
   dropped: number;
   /** Pedido ao banco de missões em andamento (dois toques seguidos viram um). */
@@ -366,7 +369,7 @@ interface Monster {
   readonly damageBy: Map<string, number>;
   /** Boneco fixo do mapa: renasce neste ponto. */
   readonly home?: Point;
-  /** Invocado por /admin spawn: não dá XP, ryō, drop, missão nem tutorial, e não renasce. */
+  /** Invocado por /admin invocar: não dá XP, ryō, drop, missão nem tutorial, e não renasce. */
   readonly admin?: boolean;
   /** Zona de caça onde nasceu (anda só dentro dela). Sem isto: a zona de caça do mapa. */
   zone?: Box;
@@ -494,6 +497,8 @@ export class GameWorld {
   private projectileSeq = 0;
   /** Placar da arena (vitórias e derrotas desde que o servidor subiu; não vai para o banco). */
   private readonly arenaRecord = new Map<string, { wins: number; losses: number }>();
+  /** Números do PvP desde que o servidor ligou (por classe e por golpe), para o painel do admin. */
+  private readonly pvpStats: PvpStats;
   /** Densidade: quando cada mapa de caça pode ganhar ou perder o próximo monstro. */
   private readonly densityAt = new Map<MapId, number>();
   // ------------------------------------------------ fim de jogo (v16)
@@ -522,6 +527,7 @@ export class GameWorld {
     this.endgame = options.endgame;
     for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
     this.lastTick = now();
+    this.pvpStats = new PvpStats(this.lastTick);
     // Começa sempre com o clima normal; o primeiro sorteio vem depois do tempo mínimo de um clima.
     this.sky = { weather: 'normal', until: this.lastTick + SKY.weatherMinMs, offsetMs: 0, phase: dayPhase(this.lastTick).phase };
     for (const layout of this.huntingMaps()) {
@@ -802,6 +808,7 @@ export class GameWorld {
       lastHpAt: t,
       messages: new TokenBucket(this.config.messageBurst, this.config.messagesPerSecond, t),
       chat: new TokenBucket(this.config.chatBurst, this.config.chatPerSecond, t),
+      adminBucket: new TokenBucket(ADMIN_PANEL.burst, ADMIN_PANEL.perSecond, t),
       dropWindowStart: t,
       dropped: 0,
       missionBusy: false,
@@ -962,6 +969,8 @@ export class GameWorld {
     else if (parsed.type === 'chat_history') this.sendChatHistory(session, t);
     else if (parsed.type === 'sync') this.syncReply(session, parsed.id, t);
     else if (parsed.type === 'chat') this.chatMessage(session, parsed.message, t);
+    else if (parsed.type === 'admin') this.adminPanel(session, parsed.command, t);
+    else if (parsed.type === 'admin_catalog') this.adminCatalog(session);
     else if (parsed.type === 'power') this.power(session, t, parsed.targetId, parsed.dir);
     else if (parsed.type === 'set_display') this.setDisplay(session, { cape: parsed.cape, weapon: parsed.weapon, scroll: parsed.scroll });
     else if (parsed.type === 'travel') this.travel(session, parsed.to, t);
@@ -1169,7 +1178,7 @@ export class GameWorld {
 
   // ---------------------------------------------------------------- Modo Administrador
 
-  /** Tipos que o /admin spawn aceita: o slime de caça e os bonecos da Academia. */
+  /** Tipos que o /admin invocar aceita: o slime de caça, os bonecos da Academia e os monstros dos mapas novos. */
   private monsterTypeNames(): string[] {
     return [this.config.combat.monsters.type, ...Object.keys(this.config.combat.monsterTypes)];
   }
@@ -1178,7 +1187,7 @@ export class GameWorld {
    * "/admin ...": só para quem entrou como administrador (players.is_admin). Quem não é admin
    * recebe "Comando desconhecido" e o servidor registra a tentativa no log. Os comandos que
    * mexem no banco vão em fila (um por vez) e cada função do banco confere is_admin de novo e
-   * grava a auditoria; o /admin spawn é só de memória e também vai para a auditoria.
+   * grava a auditoria; o /admin invocar é só de memória e também vai para a auditoria.
    */
   private adminCommand(session: Session, text: string, t: number): void {
     if (!session.isAdmin) {
@@ -1196,8 +1205,9 @@ export class GameWorld {
     if (c.cmd === 'ir') return this.adminGo(session, c.map as MapId, c.x, c.y);
     if (c.cmd === 'clima' || c.cmd === 'hora') return this.adminSky(session, c, t);
     if (c.cmd === 'efeito') return this.adminEffect(session, c, t);
+    if (c.cmd === 'pvp') return this.adminPvp(session, c.days, t);
     const store = this.admin;
-    if (!store) return this.sendTo(session, { type: 'notice', text: 'Modo Administrador sem banco: aqui só o /admin spawn funciona.', tone: 'bad' });
+    if (!store) return this.sendTo(session, { type: 'notice', text: 'Modo Administrador sem banco: aqui só o /admin invocar funciona.', tone: 'bad' });
     if (isEndgameAdmin(c)) {
       if (!this.readyStore() || !store.endgame) return this.sendTo(session, { type: 'notice', text: 'Admin: rode a migração v11 (fim de jogo) no Neon primeiro.', tone: 'bad' });
       return this.queueTask(session, () => this.runEndgameAdmin(session.id, store, c));
@@ -1229,6 +1239,53 @@ export class GameWorld {
     const forTarget = target && target.id !== adminId ? this.adminTargetText(c) : null;
     if (forTarget) this.notice(target!.id, forTarget, 'info');
     this.log.info({ adminId, command: c.cmd, targetId: target?.id ?? null }, 'comando de admin aplicado');
+  }
+
+  /**
+   * Painel do admin (v19): o painel monta o mesmo texto do chat ("ryo Kaito 500") e manda `{ type: "admin" }`. Passa pelo
+   * mesmo caminho do "/admin" (quem não é admin recebe "Comando desconhecido"), com ritmo próprio (não gasta o do chat).
+   */
+  private adminPanel(session: Session, command: string, t: number): void {
+    if (!session.adminBucket.take(t)) return this.sendTo(session, { type: 'notice', text: 'Admin: calma, um comando de cada vez.', tone: 'bad' });
+    this.adminCommand(session, `/admin ${command}`, t);
+  }
+
+  /** O que o painel do admin precisa e o cliente não tem: os ninjas online, os monstros e os mapas. Só para admin. */
+  private adminCatalog(session: Session): void {
+    if (!session.isAdmin) {
+      this.log.warn({ playerId: session.id }, 'catálogo de admin recusado: jogador não é administrador');
+      return;
+    }
+    const players = [...this.sessions.values()].filter((s) => !s.closed)
+      .map((s) => ({ username: s.username, map: s.map, level: s.level }))
+      .sort((a, b) => a.username.localeCompare(b.username))
+      .slice(0, ADMIN_PANEL.maxPlayers);
+    const monsters = this.monsterTypeNames().map((code) => ({ code, name: monsterName(code) }));
+    const maps = Object.values(this.config.maps).map((m) => ({ id: m.id, name: m.name }));
+    const villages = VILLAGES.map((v) => ({ code: VILLAGE_INFO[v].name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(), name: villageName(v) }));
+    this.sendTo(session, { type: 'admin_catalog', players, monsters, maps, villages });
+  }
+
+  /**
+   * Números do PvP (pvpStats.ts): o que aconteceu desde que o servidor ligou e, com banco, a Zona de Conflito dos últimos
+   * `days` dias por classe. O texto vai para o chat; a tabela, para o painel.
+   */
+  private adminPvp(session: Session, days: number, t: number): void {
+    const report = this.pvpStats.report(t);
+    const id = session.id;
+    const send = (db: { days: number; rows: ReturnType<typeof toClassRows> } | null) => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      this.sendTo(current, { type: 'notice', text: reportText(report, db), tone: 'info' });
+      this.sendTo(current, { type: 'admin_pvp', report, db });
+    };
+    this.audit(id, 'pvp', null, { days }, true, null);
+    const store = this.admin;
+    if (!store?.pvpByClass || !this.readyStore()) return send(null);
+    store.pvpByClass(days).then((rows) => send({ days, rows: toClassRows(rows) })).catch((err: unknown) => {
+      this.log.warn({ adminId: id, err }, 'falha ao ler o PvP por classe');
+      send(null);
+    });
   }
 
   /** Auditoria sem esperar (spawn e comandos recusados antes do banco). Sem banco: só o log do servidor. */
@@ -1384,7 +1441,7 @@ export class GameWorld {
   }
 
   /** Comandos de admin no banco. O alvo online vê a ficha nova na hora (sem anúncio, sem XP de abate). */
-  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | { cmd: 'clima' } | { cmd: 'hora' } | EndgameAdminCommand>): Promise<void> {
+  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | { cmd: 'clima' } | { cmd: 'hora' } | { cmd: 'pvp' } | EndgameAdminCommand>): Promise<void> {
     const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
     const target = await store.findPlayer(c.username);
     if (!target) {
@@ -1603,14 +1660,14 @@ export class GameWorld {
         for (const x of hits) {
           const who = x.kind === 'monster' ? x.monster : x.session;
           const at = { x: who.x, y: who.y };
-          this.hitTarget(x, dmg, session, t, 'skill');
+          this.hitTarget(x, dmg, session, t, 'skill', skill);
           if (who.x === at.x && who.y === at.y) this.pushAway(x, session, o, cfg.push ?? 0, t);
           if (this.stillThere(x)) this.applyEffect(x, 'molhado', t, undefined, undefined, session);   // prepara o combo com o Relâmpago
         }
         break;
       case 'taijutsu':
         if (dashTo && distance(o, dashTo) > 0.01) this.dash(session, dashTo, t);
-        for (const x of hits) this.hitTarget(x, dmg, session, t, 'skill');
+        for (const x of hits) this.hitTarget(x, dmg, session, t, 'skill', skill);
         break;
       case 'lightning':
         for (const x of hits) {
@@ -1621,7 +1678,7 @@ export class GameWorld {
             this.broadcastMap(session.map, { type: 'combo', target: x.kind, id: x.id, combo: 'eletrocutado' });
           }
           this.applyStatus(x, 'stunned', cfg.stunMs ?? 0, t);
-          this.hitTarget(x, wet ? Math.round(dmg * WET_LIGHTNING_BONUS) : dmg, session, t, 'skill');
+          this.hitTarget(x, wet ? Math.round(dmg * WET_LIGHTNING_BONUS) : dmg, session, t, 'skill', skill);
           // Paralisia: o corpo fica dormente (anda a 70% e leva um choque por segundo).
           if (cfg.paralysisMs && this.stillThere(x)) this.applyEffect(x, 'paralisia', t, cfg.paralysisMs, undefined, session);
         }
@@ -1764,7 +1821,7 @@ export class GameWorld {
   }
 
   /** Dano de uma hitbox: no monstro (XP para quem matou) ou no jogador (PvP). Quem já morreu no meio do golpe não apanha de novo. */
-  private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill'): void {
+  private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill', label: string = source): void {
     let hurt = false;
     if (target.kind === 'monster') {
       if (target.monster.hp > 0 && this.monsters.has(target.id)) {
@@ -1772,7 +1829,7 @@ export class GameWorld {
         hurt = true;
       }
     } else if (this.canHurt(attacker, target.session, t)) {
-      this.damagePlayer(target.session, amount, t, attacker, attacker);
+      this.damagePlayer(target.session, amount, t, attacker, attacker, label);
       hurt = true;
     }
     // Akatsuki (Lâmina Sanguessuga / Foice do Pacto): o Ataque Básico drena chakra do ninja atingido ou cura o dono.
@@ -1837,7 +1894,7 @@ export class GameWorld {
         else if (p.kind === 'stun') this.shock(x, p.amount, t);
         else {
           const by = p.sourceId ? this.sessions.get(p.sourceId) : undefined;
-          this.damagePlayer(s, p.amount, t, undefined, by && by !== s && this.canHurt(by, s, t) ? by : undefined);
+          this.damagePlayer(s, p.amount, t, undefined, by && by !== s && this.canHurt(by, s, t) ? by : undefined, `efeito:${p.code}`);
         }
       }
       for (const code of expired) this.effectGone(x, code, t);
@@ -1965,7 +2022,7 @@ export class GameWorld {
       for (const x of fresh) {
         if (!lineIntersects(from, end, x, p.hitRadius)) continue;
         p.volley.add(x.id);
-        this.hitTarget(x, p.damage, p.owner, t, p.source);
+        this.hitTarget(x, p.damage, p.owner, t, p.source, projectileLabel(p));
       }
       if (!wall && p.left > 1e-9) return false;
       this.impact(p, end, undefined, t);
@@ -1986,13 +2043,13 @@ export class GameWorld {
     if (p.radius > 0) {
       for (const x of this.targetsFor(p.owner)) {
         if (!isInCircle(at, p.radius, x)) continue;
-        this.hitTarget(x, p.damage, p.owner, t, p.source);
+        this.hitTarget(x, p.damage, p.owner, t, p.source, projectileLabel(p));
         // Fogo: quem sobreviveu à explosão fica queimando (o dono ganha o abate se a queimadura matar).
         if (p.burn && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, p.burn.ms, p.burn.amount, p.owner);
       }
     } else if (hit) {
       p.volley.add(hit.id);
-      this.hitTarget(hit, p.damage, p.owner, t, p.source);
+      this.hitTarget(hit, p.damage, p.owner, t, p.source, projectileLabel(p));
     }
   }
 
@@ -3015,8 +3072,11 @@ export class GameWorld {
     }
   }
 
-  /** Dano num jogador. `by` = outro jogador (arena, PvP aberto): na arena, quem derruba vence a luta. */
-  private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session): void {
+  /**
+   * Dano num jogador. `by` = outro jogador (arena, PvP aberto): na arena, quem derruba vence a luta. `label` = o golpe
+   * (jutsu, "attack", "arma:…", "poder:…", "efeito:…"), para os números do PvP (pvpStats.ts).
+   */
+  private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session, label?: string): void {
     if (t < session.intangibleUntil) return;                    // Máscara Intangível (Akatsuki)
     // Apanhou: a meditação acaba ANTES do dano (não dá para meditar no meio da luta). O sono acorda.
     this.stopMeditation(session, 'damaged');
@@ -3033,7 +3093,9 @@ export class GameWorld {
       session.hearts -= 1;
       shielded = true;
     }
+    const before = session.hp;
     session.hp = Math.max(0, session.hp - dmg);
+    if (by && label) this.pvpStats.hit(label, classOf(by), before - session.hp);
     const maxHp = session.stats.maxHp;
     this.broadcastMap(session.map, { type: 'hit', target: 'player', id: session.id, amount: dmg, kind: 'damage', hp: shownHp(session.hp), maxHp, ...(shielded ? { shielded: true } : {}) });
     session.sentHp = shownHp(session.hp);
@@ -3049,6 +3111,7 @@ export class GameWorld {
       session.shield = 0;
       for (const code of [...session.effects.keys()]) this.dropEffect({ kind: 'player', id: session.id, x: session.x, y: session.y, session }, code, t);
       this.broadcastMap(session.map, { type: 'player_died', playerId: session.id, respawnInMs: session.respawnMs, ...(arena ? { arena: true } : {}) });
+      if (by) this.pvpStats.kill(label, classOf(by), classOf(session), arena ? 'arena' : this.layout(session.map).conflict ? 'conflito' : 'aberto');
       if (arena && by) this.arenaResult(by, session);
       else if (by && this.layout(session.map).conflict) this.pvpKill(by, session);
     }
@@ -3403,7 +3466,7 @@ export class GameWorld {
       const a = (i / count) * Math.PI * 2 + Math.PI / 4;
       let at = { x: q3(boss.x + Math.cos(a) * 1.8), y: q3(boss.y + Math.sin(a) * 1.8) };
       if (blocked(at.x, at.y, layout.walls) || inSafeZone(layout, at.x, at.y)) at = { x: boss.x, y: boss.y };
-      const v = this.spawnMonster(at, t, boss.map, type);
+      const v = this.spawnMonster(at, t, boss.map, type, false, boss.admin === true);
       const add = this.monsters.get(v.id);
       if (!add) continue;
       add.summonedBy = boss.id;
@@ -4523,6 +4586,26 @@ export function behind(layout: MapLayout, from: Point, anchor: Point): Point | u
 }
 
 /** O que voa (para o cliente escolher o desenho): o jutsu, a arma lançada ou o poder da Akatsuki. */
+/** Painel do admin: até 5 comandos seguidos e depois 3 por segundo; no catálogo, até 200 ninjas online. */
+const ADMIN_PANEL = { burst: 5, perSecond: 3, maxPlayers: 200 } as const;
+
+/** Nome do monstro no painel do admin. */
+const MONSTER_NAMES: Readonly<Record<string, string>> = {
+  slime: 'Slime', dummy: 'Boneco de treino', sparring: 'Armadilha de lâminas', lodo_escuro: 'Lodo Escuro', lodo_sombrio: 'Lodo Sombrio',
+  rei_lodo: 'Rei Lodo (chefe)',
+};
+const monsterName = (code: string): string => MONSTER_NAMES[code] ?? code;
+
+/** O golpe de um projétil, para os números do PvP: o jutsu, a arma lançada ou o poder. */
+function projectileLabel(p: Projectile): string {
+  if (p.skill) return p.skill;
+  if (p.power) return `poder:${p.power}`;
+  return p.weapon ? `arma:${p.weapon}` : 'attack';
+}
+
+/** A classe que conta nos números do PvP: a Primária (ou "sem classe", antes da Missão de Genin). */
+const classOf = (s: Session): string => s.classes.primary ?? NO_CLASS;
+
 function projectileKind(p: Projectile): { skill: Skill } | { weapon: string } | { power: PowerKind } {
   if (p.skill) return { skill: p.skill };
   if (p.power) return { power: p.power };
