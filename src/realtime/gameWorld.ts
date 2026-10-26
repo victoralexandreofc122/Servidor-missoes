@@ -1,14 +1,14 @@
 import { randomInt } from 'node:crypto';
 import { SKY, dayPhase, offsetFor, outdoors, pickWeather, skyEffects, weatherFits, type DayPhase, type SkyEffects, type Weather } from './weather.js';
 import {
-  ahead, distance, firstOnLine, HIT_RADIUS, isInArc, isInCircle, isInCone, lineIntersects, nearest, pointAt, rotate, shieldedDamage, STEPS,
-  STRIKE_AHEAD, unit, type Point, type TrailPoint,
+  ahead, cardinal, distance, firstOnLine, HIT_RADIUS, isInArc, isInCircle, isInCone, laneOffsets, lineIntersects, nearest, pointAt, rotate,
+  shieldedDamage, STEPS, STRIKE_AHEAD, unit, type Point, type TrailPoint,
 } from './combat.js';
 import {
   REALTIME, type MonsterAiConfig, type MonsterBoss, type MonsterCrush, type MonsterSlam, type MonsterType, type RealtimeConfig,
 } from './config.js';
 import {
-  CLOSE, ClientMessage, DIRECTED_SKILLS, REALTIME_ERRORS, SKILLS, sanitizeChat,
+  CLOSE, ClientMessage, DIRECTED_SKILLS, LINE_MECHANICS, REALTIME_ERRORS, SKILLS, sanitizeChat,
   type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
   type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
   type Skill, type WorldInfo, type Appearance, type Dir, type MonsterStatus,
@@ -450,6 +450,8 @@ interface LaunchSpec {
   source?: 'attack' | 'skill';
   /** Fogo: queimadura em quem a explosão pega (dano por pulso e duração). */
   burn?: { amount: number; ms: number };
+  /** De onde sai (Kunais: as trilhas dos lados); sem isto, do dono. */
+  from?: Point;
 }
 
 /** Devolvido pelo `join`: o gateway entrega as mensagens e o fechamento desta conexão. */
@@ -722,6 +724,8 @@ export class GameWorld {
           name: j.name, class: j.class, tier: j.tier, mechanic: v.mechanic, cost: v.cost, cooldownMs: v.cooldownMs,
           ...(range !== undefined ? { range } : {}),
           ...(v.radius !== undefined ? { radius: v.radius } : {}),
+          ...(LINE_MECHANICS.has(v.mechanic) ? { line: true } : {}),
+          ...(v.shots && v.shots > 1 ? { shots: v.shots, laneGap: v.laneGap ?? 0.7 } : {}),
         }];
       }),
     ) as WorldInfo['skills'];
@@ -1596,12 +1600,21 @@ export class GameWorld {
     // 1. Mira. Jutsu que mira + inimigo focado: vai na direção dele, MESMO LONGE (pode não chegar). Sem foco, as formas
     //    estreitas (linha, avanço, projétil) procuram o mais perto no alcance; a Água vai para onde o jogador olha.
     //    Ninguém por perto: o jutsu sai assim mesmo, para a frente, e pode errar (no PvP, acertar é questão de tempo).
+    //    Em linha (Fogo, Sombra, Relâmpago, Kunais): só nas 4 direções. Com a direção escolhida pelo jogador (segurou e
+    //    arrastou o botão), vale a dele; senão, a que passa mais perto do alvo (focado ou o mais perto); sem ninguém,
+    //    para onde ele olha (arredondado para a cardinal).
+    const line = LINE_MECHANICS.has(mechanic);
     let aim: Target | undefined = targetId !== undefined && DIRECTED_SKILLS.has(skill) ? targets.find((x) => x.id === targetId) : undefined;
-    if (!aim && (mechanic === 'taijutsu' || mechanic === 'shadow' || mechanic === 'lightning' || mechanic === 'weapons' || mechanic === 'fire')) {
-      aim = nearest(session, targets, reach);
+    if (!aim && (mechanic === 'taijutsu' || line)) aim = nearest(session, targets, reach);
+    if (line) {
+      const chosen = dir && Math.hypot(dir[0], dir[1]) > 0.1 ? dir : undefined;
+      const [cx, cy] = chosen ? cardinal(chosen[0], chosen[1]) : aim ? cardinal(aim.x - session.x, aim.y - session.y) : cardinal(session.fx, session.fy);
+      session.fx = cx;
+      session.fy = cy;
+    } else if (aim) {
+      // Mira: o servidor vira o jogador para o alvo (mesmo que ele estivesse olhando para o outro lado).
+      this.faceTo(session, aim);
     }
-    // Mira: o servidor vira o jogador para o alvo (mesmo que ele estivesse olhando para o outro lado).
-    if (aim) this.faceTo(session, aim);
     const o: Point = { x: session.x, y: session.y };
     const { fx, fy } = session;
 
@@ -1733,14 +1746,14 @@ export class GameWorld {
         break;
       }
       case 'weapons': {
-        // Leque: a do meio primeiro, depois as dos lados (-fan/2 e +fan/2).
-        const n = Math.max(1, cfg.shots ?? 3);
-        const fan = cfg.fanDeg ?? 45;
+        // Trilhas paralelas, todas na mesma direção: a do meio primeiro, depois as dos lados (deslocadas de lado). Uma
+        // trilha que começaria dentro de uma parede não sai.
         const volley = new Set<string>();
-        const angles = [0, ...Array.from({ length: n - 1 }, (_, k) => -fan / 2 + (fan * k) / Math.max(1, n - 2))];
-        for (const deg of angles) {
-          const [ux, uy] = rotate(fx, fy, deg);
-          this.launch(session, ux, uy, { skill, speed: cfg.speed ?? 16, range: reach, damage: dmg, radius: 0, volley });
+        const solid = this.layout(session.map).walls;
+        for (const off of laneOffsets(Math.max(1, cfg.shots ?? 3), cfg.laneGap ?? 0.7)) {
+          const from = { x: q3(session.x - fy * off), y: q3(session.y + fx * off) };
+          if (off !== 0 && blocked(from.x, from.y, solid)) continue;
+          this.launch(session, fx, fy, { skill, speed: cfg.speed ?? 16, range: reach, damage: dmg, radius: 0, volley, from });
         }
         break;
       }
@@ -2022,7 +2035,8 @@ export class GameWorld {
   private launch(owner: Session, fx: number, fy: number, spec: LaunchSpec): void {
     const [ux, uy] = unit(fx, fy);
     const p: Projectile = {
-      id: ++this.projectileSeq, owner, map: owner.map, skill: spec.skill, weapon: spec.weapon, power: spec.power, x: owner.x, y: owner.y, ux, uy,
+      id: ++this.projectileSeq, owner, map: owner.map, skill: spec.skill, weapon: spec.weapon, power: spec.power,
+      x: spec.from?.x ?? owner.x, y: spec.from?.y ?? owner.y, ux, uy,
       speed: spec.speed, left: spec.range, damage: spec.damage, radius: spec.radius, volley: spec.volley,
       hitRadius: spec.hitRadius ?? HIT_RADIUS, pierce: spec.pierce ?? false, source: spec.source ?? 'skill',
       ...(spec.burn ? { burn: spec.burn } : {}),

@@ -161,7 +161,7 @@ Cada golpe tem uma **hitbox geométrica** (`src/realtime/combat.ts`: `isInArc`, 
 | Ilusão (`illusion`) | 30 | 4 s | círculo de 3 casas em volta do jogador | atordoa todos por 3 s |
 | Sombra (`shadow`) | 25 | 6 s | linha instantânea de 4 casas: o primeiro que ela encosta | prende por 5 s (não anda, mas ataca) |
 | Relâmpago (`lightning`) | 20 | 2 s | linha instantânea de 4,5 casas: o primeiro que ela encosta | 30 de dano e choque de 0,4 s |
-| Armas (`weapons`) | 10 | 1,2 s | 3 kunais (projéteis) em leque de 45°, 4 casas | 18 + arma em cada alvo (no máximo 1 kunai por alvo) |
+| Armas (`weapons`) | 10 | 1,2 s | 3 kunais (projéteis) lado a lado, em trilhas paralelas a 0,7 casa, 4 casas | 18 + arma em cada alvo (no máximo 1 kunai por alvo) |
 | Pedra (`stone`) | 15 | 6 s | em si mesmo | escudo: o próximo dano cai pela metade |
 | Cura (`heal`) | 30 | 4 s | no aliado focado (até 3 casas), em si mesmo ou no aliado mais ferido perto | +30 de vida |
 
@@ -214,6 +214,14 @@ Regras (em `src/realtime/config.ts`):
 - **Mesma conta:** conectando de novo, derruba a conexão antiga (4000).
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
+
+### v24: habilidades em linha só nas 4 direções, mira com prévia e ✕ do foco (sem migração)
+
+- Fogo, Sombra, Relâmpago e Kunais (todos os tiers) só saem para cima, baixo, esquerda ou direita. Segurar e arrastar
+  o botão escolhe a direção, com a prévia em ciano (caminho, casas, alvo) só para quem mira; toque rápido mira no
+  foco; arrastar e voltar ao meio cancela; no computador, segurar 1 a 4 mira com o mouse (docs/habilidades.md, 2b).
+- As Kunais saem em 3 trilhas paralelas (antes, leque de 45°).
+- Com foco, um ✕ ao lado do quadro do alvo para de focar (tecla X).
 
 ### v23: mapas com a imagem gerada por IA (piloto: Poço; sem migração)
 

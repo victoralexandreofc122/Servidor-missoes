@@ -10,6 +10,7 @@
 // com a posição oficial que chega a cada tick.
 
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextFocus, smoothing } from './targeting.js';
+import { HOLD_MS, aimPaths, autoAim, dragAim, tilesOnPath } from './aim.js';
 import { arenaAt, arenaFoes, artPlaces, groundAt, inSafeZone, mapName, placements, themeAt, visibleDeco, visibleWalls } from './world.js';
 import {
   ART, PROP_KINDS, buildingLights, drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawOakCanopy, drawProp, drawSealGlow, drawTrails,
@@ -1747,7 +1748,15 @@ window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
   if (hud.editing || !ui.creator.hidden) return;   // editando o layout ou criando o personagem: sem combate
   if (KEYMAP[e.code]) { keys.add(e.code); keyDirection(); e.preventDefault(); }
-  if (e.key >= '1' && e.key <= '4') castSlot(Number(e.key) - 1);
+  if (e.key >= '1' && e.key <= '4' && !e.repeat) {
+    // Em linha: segurar a tecla mira (a direção segue o mouse); soltar lança. Toque rápido: o servidor mira no foco.
+    const button = ui.slots[Number(e.key) - 1];
+    const skill = button?.dataset.skill;
+    if (skill && isLineSkill(skill) && !aim && !state.me.dead) startAim(skill, button, { key: e.key });
+    else castSlot(Number(e.key) - 1);
+  }
+  if (e.key === 'Escape' && aim) { endAim(false); return; }
+  if (e.key === 'x' || e.key === 'X') setFocus(null);
   if (e.key === ' ') { basicAttack(); e.preventDefault(); }
   if (e.key === 'q' || e.key === 'Q') switchKit();
   if (e.key === 'r' || e.key === 'R') toggleRun();
@@ -1763,6 +1772,7 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => {
   if (KEYMAP[e.code] && keys.delete(e.code)) keyDirection();
+  if (aim && aim.key === e.key) endAim(true);
 });
 
 // App em segundo plano ou aba trocada: para de andar.
@@ -1940,6 +1950,8 @@ function onTap(el, fn) {
   el.addEventListener('click', (e) => { if (e.detail === 0 && !hud.editing) fn(e); });
 }
 onTap(ui.targetBtn, cycleFocus);
+// ✕ ao lado do alvo focado: para de focar (monstro, inimigo ou aliado). No teclado: X.
+onTap(document.getElementById('target-clear'), () => setFocus(null));
 onTap(ui.meditateBtn, toggleMeditation);
 
 // ------------------------------------------------------------------ missões (NPC Mestre e Sala de Missões)
@@ -2908,9 +2920,13 @@ function openKits() {
   openStatus();
   showTab('kits');
 }
-function castSkill(skill) {
+function castSkill(skill, aimDir) {
   const mech = mechanicOf(skill);
   if (!SKILLS[mech] || !state.connected || state.me.dead || !tapGuard(skill)) return;
+  if (aimDir) {
+    // Habilidade em linha com a direção escolhida (segurou e arrastou): cima, baixo, esquerda ou direita.
+    return send(state.focusId ? { type: 'cast', skill, targetId: state.focusId, dir: aimDir } : { type: 'cast', skill, dir: aimDir });
+  }
   if (mech === 'teleport') {
     // Teleporte Curto: para onde o joystick aponta (ou para onde o boneco olha). O ALCANCE é do servidor.
     const me = state.players.get(state.meId);
@@ -2954,7 +2970,195 @@ function switchKit() {
 onTap(ui.attackBtn, basicAttack);
 onTap(ui.runBtn, toggleRun);
 onTap(ui.kitBtn, switchKit);
-ui.slots.forEach((button, i) => onTap(button, () => castSlot(i)));
+ui.slots.forEach((button, i) => bindSkillButton(button, i));
+
+// ------------------------------------------------------------------ mira das habilidades em linha (aim.js)
+
+/**
+ * Mira em andamento (só uma por vez): o botão segurado (ou a tecla 1 a 4), desde quando, se já arrastou, se cancelou
+ * e a direção (cardinal). Fogo, Sombra, Relâmpago e Kunais só saem nas 4 direções: segurar e arrastar escolhe para qual
+ * (a prévia ciano mostra o caminho); toque rápido deixa o servidor mirar no focado; arrastar e voltar ao meio cancela.
+ */
+let aim = null;
+/** Onde está o mouse (PC: segurando 1 a 4, a direção segue o mouse, como no LoL). */
+const mouse = { x: 0, y: 0, seen: false };
+window.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  mouse.seen = true;
+});
+
+const isLineSkill = (skill) => !!state.world.skills?.[skill]?.line;
+
+function bindSkillButton(button, i) {
+  button.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button > 0) return;
+    e.preventDefault();
+    if (hud.editing) return;          // modo "Editar layout": o toque arrasta, não ataca
+    const skill = button.dataset.skill;
+    if (!skill || !isLineSkill(skill) || aim) return castSlot(i);
+    try { button.setPointerCapture(e.pointerId); } catch { /* sem captura: o botão ainda recebe o soltar em cima dele */ }
+    startAim(skill, button, { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY });
+  });
+  button.addEventListener('pointermove', (e) => {
+    if (!aim || aim.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    const scale = hud.btnScale || 1;
+    moveAim(e.clientX - aim.x0, e.clientY - aim.y0, scale);
+  });
+  const release = (e) => { if (aim && aim.pointerId === e.pointerId) endAim(true); };
+  button.addEventListener('pointerup', release);
+  button.addEventListener('pointercancel', (e) => { if (aim && aim.pointerId === e.pointerId) endAim(false); });
+  button.addEventListener('lostpointercapture', (e) => { if (aim && aim.pointerId === e.pointerId) endAim(true); });
+  button.addEventListener('click', (e) => { if (e.detail === 0 && !hud.editing) castSlot(i); });   // teclado / leitor de tela
+}
+
+function startAim(skill, button, from) {
+  aim = { skill, button, since: performance.now(), dragged: false, canceled: false, dir: null, pointerId: null, key: null, x0: 0, y0: 0, ...from };
+  button.classList.add('aiming');
+}
+
+/** O dedo arrastou (dx, dy) px desde que segurou: o botão vira um joystick pequeno (o ícone acompanha o dedo). */
+function moveAim(dx, dy, scale = 1) {
+  const r = dragAim(dx / scale, dy / scale, aim.dragged);
+  aim.dragged = r.dragged;
+  aim.canceled = r.canceled;
+  if (r.dir) aim.dir = r.dir;
+  const len = Math.hypot(dx, dy), max = 22 * scale, k = len > max ? max / len : 1;
+  aim.button.style.setProperty('--aim-x', `${Math.round(dx * k)}px`);
+  aim.button.style.setProperty('--aim-y', `${Math.round(dy * k)}px`);
+  aim.button.classList.toggle('aim-cancel', aim.canceled);
+}
+
+/** Soltou: lança na direção escolhida (ou na automática, se segurou sem arrastar); toque rápido: o servidor mira. */
+function endAim(cast) {
+  const a = aim;
+  aim = null;
+  if (!a) return;
+  a.button.classList.remove('aiming', 'aim-cancel');
+  a.button.style.removeProperty('--aim-x');
+  a.button.style.removeProperty('--aim-y');
+  if (!cast || a.canceled || state.me.dead) return;
+  if (a.button.dataset.skill !== a.skill) return;                       // trocou de kit no meio da mira
+  const held = performance.now() - a.since;
+  if (a.dragged && a.dir) return castSkill(a.skill, a.dir);
+  if (held >= HOLD_MS && a.dir) return castSkill(a.skill, a.dir);         // segurou vendo a prévia: vai onde ela mostrava
+  castSkill(a.skill);                                                     // toque rápido
+}
+
+/** Inimigos à vista para a mira: monstros vivos do mapa e os ninjas que dá para atacar. */
+function aimFoes() {
+  const out = [];
+  for (const m of state.monsters.values()) if (m.map === state.mapId && !m.diedAt && m.hp > 0) out.push(m);
+  for (const p of state.players.values()) if (!p.dead && isFoe(p)) out.push(p);
+  return out;
+}
+
+/** A cada quadro: a direção da mira (arrastada, a do mouse segurando a tecla, ou a automática) e a prévia. */
+function updateAim(me) {
+  if (!aim) return null;
+  if (!me || state.me.dead || state.me.meditating) { endAim(false); return null; }
+  const info = state.world.skills?.[aim.skill];
+  if (!info) return null;
+  if (aim.key && mouse.seen && lastView) {
+    // PC: segurando a tecla, a direção segue o mouse (passou da zona morta em volta do boneco).
+    const w = lastView.toWorld(mouse.x, mouse.y);
+    const dx = (w.x - me.x) * lastView.T, dy = (w.y - me.y) * lastView.T;
+    const r = dragAim(dx, dy, aim.dragged, 24);
+    if (r.dir) { aim.dragged = true; aim.dir = r.dir; }
+  }
+  if (!aim.dragged) aim.dir = autoAim(me, focusEntity(), aimFoes(), info.range ?? 4, DIR_VECTOR[me.dir ?? 0]);
+  if (aim.canceled) return null;
+  if (!aim.dragged && performance.now() - aim.since < HOLD_MS) return null;   // toque rápido: sem prévia piscando
+  const solid = state.walls.filter((w) => w.k !== 'pit');                       // o que voa passa por cima dos vãos
+  return { info, mechanic: info.mechanic, ...aimPaths(me, aim.dir, info, solid, aimFoes(), state.world.width, state.world.height) };
+}
+
+/**
+ * Prévia da mira (só para quem mira): o caminho em ciano quase transparente, as casas que ele pega (as do caminho
+ * livre mais fortes; as que o alcance ainda teria, mais fracas), a explosão do Fogo, o alvo que vai ser atingido e
+ * quantas casas.
+ */
+function drawAimPreview(view, toScreenX, toScreenY, T, now) {
+  if (!view) return;
+  const CY = (a) => `rgba(64, 232, 255, ${a})`;
+  ctx.save();
+  const lane = Math.max(4, T * 0.9);
+  view.paths.forEach((p, i) => {
+    const main = i === 0;
+    // As casas: até onde vai (fortes) e o resto do alcance (fracas), só na trilha do meio.
+    if (main) {
+      const strong = tilesOnPath(p.from, p.to);
+      const weak = tilesOnPath(p.from, p.reach).slice(strong.length);
+      for (const c of weak) {
+        ctx.fillStyle = CY(0.05);
+        ctx.fillRect(toScreenX(c.x) + 2, toScreenY(c.y) + 2, T - 4, T - 4);
+      }
+      for (const c of strong) {
+        ctx.fillStyle = CY(0.1);
+        ctx.fillRect(toScreenX(c.x) + 1, toScreenY(c.y) + 1, T - 2, T - 2);
+        ctx.strokeStyle = CY(0.3);
+        ctx.lineWidth = 1;
+        ctx.strokeRect(toScreenX(c.x) + 1.5, toScreenY(c.y) + 1.5, T - 3, T - 3);
+      }
+      p.tiles = strong.length;
+    }
+    // A faixa do caminho, com a ponta em seta.
+    const x0 = toScreenX(p.from.x), y0 = toScreenY(p.from.y), x1 = toScreenX(p.to.x), y1 = toScreenY(p.to.y);
+    const [ux, uy] = view.dir;
+    ctx.strokeStyle = CY(main ? 0.2 : 0.15);
+    ctx.lineWidth = lane;
+    ctx.lineCap = 'butt';
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.strokeStyle = CY(0.7);
+    ctx.lineWidth = Math.max(1.5, T / 18);
+    ctx.setLineDash([T / 4, T / 6]);
+    ctx.lineDashOffset = -now / 30;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.setLineDash([]);
+    const h = lane * 0.65;
+    ctx.fillStyle = CY(0.55);
+    ctx.beginPath();
+    ctx.moveTo(x1 + ux * h * 0.6, y1 + uy * h * 0.6);
+    ctx.lineTo(x1 - uy * h - ux * h * 0.4, y1 + ux * h - uy * h * 0.4);
+    ctx.lineTo(x1 + uy * h - ux * h * 0.4, y1 - ux * h - uy * h * 0.4);
+    ctx.closePath(); ctx.fill();
+    // Fogo: a explosão no fim (ou no primeiro alvo).
+    if (view.mechanic === 'fire' && view.info.radius) {
+      ctx.fillStyle = CY(0.06);
+      ctx.strokeStyle = CY(0.35);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x1, y1, view.info.radius * T, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    // O alvo que o caminho pega: anel forte em volta dele.
+    if (p.hit) {
+      const r = T * 0.62 + Math.sin(now / 120) * T * 0.04;
+      ctx.strokeStyle = CY(0.9);
+      ctx.lineWidth = Math.max(2, T / 12);
+      ctx.beginPath(); ctx.ellipse(toScreenX(p.hit.x), toScreenY(p.hit.y) + T * 0.1, r, r * 0.55, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+  });
+  // Quantas casas (e se acerta alguém), na ponta do caminho do meio.
+  const p = view.paths[0];
+  if (p) {
+    const tiles = `${p.tiles} ${p.tiles === 1 ? 'casa' : 'casas'}`;
+    const label = p.hit ? `${tiles} · acerta` : p.wall ? `${tiles} · parede` : tiles;
+    // Na ponta do caminho, mas sempre dentro da tela (o caminho pode sair dela).
+    const pad = T * 1.2;
+    const x = Math.max(pad * 1.6, Math.min(viewW - pad * 1.6, toScreenX(p.to.x) + view.dir[0] * T * 0.9));
+    const y = Math.max(pad, Math.min(viewH - pad * 2.5, toScreenY(p.to.y) + view.dir[1] * T * 0.9 - (view.dir[1] === 0 ? T * 0.55 : 0)));
+    ctx.font = `700 ${Math.max(11, Math.round(T * 0.32))}px ${getComputedStyle(document.documentElement).getPropertyValue('--ui-font') || 'sans-serif'}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(4, 30, 40, 0.75)';
+    ctx.strokeText(label, x, y);
+    ctx.fillStyle = 'rgba(200, 250, 255, 0.95)';
+    ctx.fillText(label, x, y);
+  }
+  ctx.restore();
+}
 
 // ------------------------------------------------------------------ ficha (☰ → Perfil): atributos, jutsus e kits
 
@@ -4551,6 +4755,7 @@ function update(dt) {
 try {
   if (localStorage.getItem('nin.debug') === '1') {
     window.ninDebug = Object.freeze({
+      aimState: () => (aim ? { skill: aim.skill, dir: aim.dir, dragged: aim.dragged, canceled: aim.canceled } : null),
       predicted: () => [pred.x, pred.y],
       official: () => { const me = state.players.get(state.meId); return me ? [me.tx, me.ty] : null; },
       drawn: (id) => { const p = state.players.get(id || state.meId); return p ? [p.x, p.y] : null; },
@@ -4643,7 +4848,7 @@ function draw(now) {
   const halfW = viewW / 2, halfH = viewH / 2;
   const toScreenX = (wx) => Math.round((wx - camX) * T + halfW);
   const toScreenY = (wy) => Math.round((wy - camY) * T + halfH);
-  lastView = { toScreenX, toScreenY, T };
+  lastView = { toScreenX, toScreenY, T, toWorld: (sx, sy) => ({ x: (sx - halfW) / T + camX, y: (sy - halfH) / T + camY }) };
   drawCooldowns(now);
 
   // 1. Chão (blocos em cache).
@@ -4715,6 +4920,7 @@ function draw(now) {
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   vfx.draw(ctx, 'ground', toScreenX, toScreenY, T, dpr, now);
   drawTelegraphs(toScreenX, toScreenY, T, now);
+  drawAimPreview(updateAim(me), toScreenX, toScreenY, T, now);
 
   // Linha pontilhada do jogador até o alvo focado (e a janela do alvo, o retrato e o minimapa do HUD).
   const focused = focusEntity();

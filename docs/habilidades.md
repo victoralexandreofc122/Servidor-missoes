@@ -14,7 +14,7 @@ Os números das propostas são um ponto de partida; o balanceamento vem dos dado
 | Função | Já no jogo | Base pronta (v18) | Próximos jutsus |
 |---|---|---|---|
 | **Dano direto, um alvo** | Relâmpago, Taijutsu, Ataque Básico | | |
-| **Dano em área** | Fogo (explosão), Água (cone), Kunais (leque), Shuriken Gigante (atravessa) | | |
+| **Dano em área** | Fogo (explosão), Água (cone), Kunais (3 trilhas paralelas), Shuriken Gigante (atravessa) | | |
 | **Dano ao longo do tempo** | **Fogo** (todos os tiers): a explosão deixa queimadura por 3 s, 3/4/6/8 por segundo nos tiers 1 a 4 (com o Ninjutsu) | `queimadura` | |
 | **Cura direta** | Cura (no aliado focado, em si ou no mais ferido) | | |
 | **Cura ao longo do tempo** | | `regeneracao` (5 por segundo) | Cura tier 3 vira regeneração no grupo |
@@ -48,6 +48,28 @@ depois nada. Silêncio e sono devem entrar nesse mesmo teto quando virarem jutsu
   selos em vez de chakra, ou ganham bônus com eles. Dá função ao Ataque Básico na luta longa.
 - **Calor** (proposta, só para o Fogo): cada Fogo aquece, e o calor esfria sozinho. Aquecido demais, o próximo Fogo
   queima também quem lançou. É uma escolha, não um castigo.
+
+## 2b. Habilidades em linha: 4 direções e mira (v24)
+
+Fogo, Sombra, Relâmpago e Kunais (todos os tiers, pela mecânica) **seguem um caminho até bater no alvo**. Para o PvP
+ficar de leitura e esquiva, elas só saem em **4 direções a partir de quem lança: cima, baixo, esquerda ou direita**.
+
+- **Mirar:** segurar o botão e arrastar escolhe a direção (o botão vira um joystick pequeno). Enquanto segura, só quem
+  mira vê a **prévia em ciano quase transparente**: o caminho, até onde vai (parede ou alcance), as casas que ele pega
+  (as do caminho livre mais fortes, o resto do alcance mais fraco), quantas casas, o alvo que vai ser atingido e, no
+  Fogo, o círculo da explosão. Dá para andar com o joystick enquanto mira.
+- **Cancelar:** arrastar e voltar o dedo para o meio do botão (fica vermelho com um ✕) e soltar.
+- **Toque rápido:** sai na direção que passa mais perto do alvo focado (o servidor escolhe); sem foco, do inimigo
+  mais perto no alcance; sem ninguém, para onde o boneco olha.
+- **Segurar sem arrastar:** depois de 0,2 s a prévia aparece na direção automática, e soltar lança nela.
+- **Computador:** segurar 1 a 4 mira com o mouse (a direção segue o cursor, como no LoL); soltar lança; toque rápido
+  mira no foco; Esc cancela.
+- **Kunais:** as 3 saem lado a lado (trilhas paralelas a 0,7 casa), todas na mesma direção (antes era um leque).
+- **Foco:** ao lado do alvo focado (no quadro do alvo, em cima) aparece um ✕ para parar de focar; no teclado, X.
+
+O servidor confere tudo: a direção que chega (`dir` do `cast`) vira a cardinal mais perto (`cardinal` em
+`src/realtime/combat.ts`, a mesma de `public/aim.js`), e o alcance, as paredes e quem foi atingido são dele. Água,
+Ilusão, Taijutsu, Cura, Pedra e os jutsus da Academia continuam como estavam.
 
 ## 4. PvP
 

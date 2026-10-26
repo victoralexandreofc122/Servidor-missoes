@@ -16,7 +16,8 @@ export const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y)
 //   arco    Ataque Básico: o corte em volta do corpo
 //   cone    Água: leque largo saindo do jogador
 //   círculo Fogo (explosão), Ilusão (em volta do jogador), Taijutsu (na frente, depois do avanço), Cura
-//   linha   Relâmpago, Sombra e os projéteis (Fogo, Kunais): pega quem a linha encosta
+//   linha   Relâmpago, Sombra e os projéteis (Fogo, Kunais): pega quem a linha encosta. Só nas 4 direções
+//           (cardinal): cima, baixo, esquerda e direita.
 
 /** "Corpo" de um alvo para as linhas: o tiro pega quem passa a até meia casa dele. */
 export const HIT_RADIUS = 0.5;
@@ -36,6 +37,29 @@ export function rotate(fx: number, fy: number, deg: number): [number, number] {
   const a = (deg * Math.PI) / 180;
   const c = Math.cos(a), s = Math.sin(a);
   return [fx * c - fy * s, fx * s + fy * c];
+}
+
+/**
+ * Habilidades em linha (Fogo, Sombra, Relâmpago, Kunais) só saem nas 4 direções: cima, baixo, esquerda ou direita.
+ * A direção (dx, dy) vira a cardinal mais perto dela (o eixo maior; empate, a horizontal). Para mirar num alvo, é a
+ * direção que passa mais perto dele. Sem direção: para baixo.
+ */
+export function cardinal(dx: number, dy: number): [number, number] {
+  if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return [0, 1];
+  return Math.abs(dx) >= Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
+}
+
+/**
+ * Trilhas paralelas das Kunais: o deslocamento de lado (casas, perpendicular à direção) de cada uma. A do meio
+ * primeiro, depois as dos lados: 3 kunais com `gap` 0,7 = 0, -0,7 e +0,7.
+ */
+export function laneOffsets(n: number, gap: number): number[] {
+  const out = [0];
+  for (let k = 1; out.length < n; k++) {
+    out.push(-gap * k);
+    if (out.length < n) out.push(gap * k);
+  }
+  return out;
 }
 
 /** O ponto `dist` casas à frente de `origin` na direção (fx, fy). */

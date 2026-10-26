@@ -163,6 +163,13 @@ export type Skill = JutsuCode;
 export const DIRECTED_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'water', 'shadow', 'lightning', 'weapons']);
 export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(JUTSUS.filter((j) => DIRECTED_MECHANICS.has(j.mechanic)).map((j) => j.code));
 
+/**
+ * Habilidades EM LINHA (seguem um caminho até bater no alvo): só saem nas 4 direções. O jogador escolhe a direção
+ * segurando e arrastando o botão (o `dir` do cast vira a cardinal mais perto); num toque rápido, o servidor escolhe a
+ * direção que passa mais perto do alvo focado (ou do inimigo mais perto no alcance).
+ */
+export const LINE_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'shadow', 'lightning', 'weapons']);
+
 /** Id de monstro como o servidor cria ("m" + número). */
 const monsterId = z.string().regex(/^m\d{1,9}$/);
 const uuid = z.string().uuid();
@@ -187,7 +194,8 @@ export type Kits = Record<KitName, Skill[]>;
 export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move'), dx: axis, dy: axis }),
   z.object({ type: z.literal('input'), seq: z.number().int().min(1).max(2_000_000_000), inputs: z.array(z.tuple([axis, axis])).min(1).max(10) }),
-  // dir: para onde o Teleporte Curto vai (o joystick do jogador); o ALCANCE é sempre do servidor.
+  // dir: para onde o Teleporte Curto vai (o joystick do jogador) e a direção escolhida das habilidades em linha (vira
+  // cima, baixo, esquerda ou direita); o ALCANCE é sempre do servidor.
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: targetId.optional(), dir: z.tuple([axis, axis]).optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
   z.object({ type: z.literal('respawn') }),
@@ -404,6 +412,11 @@ export interface SkillInfo {
   range?: number;
   /** Círculo da hitbox (explosão do Fogo, Ilusão, golpe do Taijutsu, Cura), para o efeito na tela. */
   radius?: number;
+  /** Habilidade em linha (só nas 4 direções): a prévia da mira mostra o caminho. */
+  line?: boolean;
+  /** Kunais: quantas trilhas paralelas e a distância entre elas (casas). */
+  shots?: number;
+  laneGap?: number;
 }
 
 /** Missão de sensei como o jogador vê (Sala de Missões). */

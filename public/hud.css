@@ -850,3 +850,27 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
   .adm-tabs .tab { flex: 0 0 auto; min-height: 32px; }
   .adm-foot { margin: 6px -12px -12px; padding: 5px 12px 6px; }
 }
+
+/* ------------------------------------------------------------ mira das habilidades em linha (aim.js) */
+
+/* Segurando o botão: ele vira um joystick pequeno (o ícone acompanha o dedo) com um anel ciano; voltar ao meio cancela. */
+.cbtn.skill.aiming { box-shadow: 0 0 0 1px #06222a, 0 0 0 3px #40e8ff, 0 0 16px rgba(64, 232, 255, 0.55), 0 4px 10px rgba(0, 0, 0, 0.55); }
+.cbtn.skill.aiming .ico { transform: translate(var(--aim-x, 0px), var(--aim-y, 0px)); transition: transform 0.04s linear; }
+.cbtn.skill.aiming.aim-cancel { box-shadow: 0 0 0 1px #2a0606, 0 0 0 3px #ff5a5a, 0 0 14px rgba(255, 90, 90, 0.5), 0 4px 10px rgba(0, 0, 0, 0.55); }
+.cbtn.skill.aiming.aim-cancel::after {
+  content: "✕"; position: absolute; inset: 0; display: grid; place-items: center;
+  font: 800 22px / 1 var(--ui-font); color: #ffd6d6; text-shadow: var(--text-outline); pointer-events: none; z-index: 3;
+}
+
+/* O X do foco: ao lado do alvo focado (no quadro do alvo), para parar de focar. */
+.target-clear {
+  pointer-events: auto; align-self: center; flex: none;
+  width: calc(30px * var(--s-hud)); height: calc(30px * var(--s-hud)); border-radius: 50%;
+  display: grid; place-items: center; padding: 0; cursor: pointer;
+  font: 800 calc(16px * var(--s-hud)) / 1 var(--ui-font); color: #f6efdc;
+  background: radial-gradient(circle at 35% 30%, #5a3a2a, #23140c 70%);
+  border: 0; box-shadow: 0 0 0 1px #000, 0 0 0 2px #c9a050, 0 3px 8px rgba(0, 0, 0, 0.6);
+  touch-action: manipulation;
+}
+.target-clear:active { transform: scale(0.92); }
+.target-clear:focus-visible { outline: 2px solid #40e8ff; outline-offset: 2px; }

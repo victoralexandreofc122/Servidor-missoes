@@ -104,6 +104,7 @@ export const jutsuPower = (level: number) => 1 + 0.1 * (Math.max(1, Math.min(4, 
 
 /** Tier 1 de cada mecânica (os 7 antigos com os MESMOS números de antes). */
 export const BASE_SKILLS: Readonly<Record<Mechanic, SkillConfig>> = {
+  // Fogo, Sombra, Relâmpago e Armas são habilidades EM LINHA: só saem nas 4 direções (cima, baixo, esquerda, direita).
   // Fogo: projétil em linha reta (9 casas) na direção do inimigo, que explode no primeiro alvo (ou na parede/no fim):
   // círculo de 2. Quem a explosão pega fica queimando: 3 por segundo, por 3 s (mais forte nos tiers altos).
   fire: { cost: 20, cooldownMs: 1500, damage: 25, range: 9, radius: 2, speed: 14, burn: 3, burnMs: 3000 },
@@ -118,9 +119,9 @@ export const BASE_SKILLS: Readonly<Record<Mechanic, SkillConfig>> = {
   stone: { cost: 15, cooldownMs: 6000, reduction: 0.5 },
   // Cura: em si mesmo ou num aliado a até 3 casas.
   heal: { cost: 30, cooldownMs: 4000, heal: 30, radius: 3 },
-  // Armas: 3 kunais em leque de 45°, 4 casas; cada alvo leva no máximo 1 kunai por arremesso.
-  // Escala com o atributo Armas (+ a arma equipada).
-  weapons: { cost: 10, cooldownMs: 1200, damage: 18, range: 4, shots: 3, fanDeg: 45, speed: 16, scaling: 'weapons' },
+  // Armas: 3 kunais lado a lado (trilhas paralelas a 0,7 casa), 4 casas; cada alvo leva no máximo 1 kunai por
+  // arremesso. Escala com o atributo Armas (+ a arma equipada).
+  weapons: { cost: 10, cooldownMs: 1200, damage: 18, range: 4, shots: 3, laneGap: 0.7, speed: 16, scaling: 'weapons' },
   // Relâmpago: linha instantânea de 4,5 casas; o primeiro alvo leva dano alto, um choque rápido e fica paralisado 2 s
   // (anda a 70% e leva um choque de 0,25 s por segundo; mais tempo nos tiers altos).
   lightning: { cost: 20, cooldownMs: 2000, damage: 30, range: 4.5, stunMs: 400, paralysisMs: 2000 },

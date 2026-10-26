@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { firstOnLine, isInArc, isInCircle, isInCone, lineIntersects, rotate } from '../src/realtime/combat.js';
+import { cardinal, firstOnLine, isInArc, isInCircle, isInCone, laneOffsets, lineIntersects, rotate } from '../src/realtime/combat.js';
 import { REALTIME, type CombatConfig, type RealtimeConfig } from '../src/realtime/config.js';
 import { ITEM_BY_CODE } from '../src/realtime/items.js';
 import { blocked } from '../src/realtime/movement.js';
@@ -98,6 +98,20 @@ describe('hitboxes: geometria (combat.ts)', () => {
   });
 });
 
+describe('habilidades em linha: 4 direções (combat.ts)', () => {
+  it('cardinal: o eixo maior (empate: horizontal); parado: para baixo', () => {
+    assert.deepEqual(cardinal(3, 1), [1, 0]);
+    assert.deepEqual(cardinal(-0.2, -5), [0, -1]);
+    assert.deepEqual(cardinal(-2, 2), [-1, 0]);
+    assert.deepEqual(cardinal(0, 0), [0, 1]);
+  });
+  it('laneOffsets: a do meio e depois as dos lados', () => {
+    assert.deepEqual(laneOffsets(3, 0.7), [0, -0.7, 0.7]);
+    assert.deepEqual(laneOffsets(1, 0.7), [0]);
+    assert.deepEqual(laneOffsets(4, 0.5), [0, -0.5, 0.5, -1]);
+  });
+});
+
 describe('hitboxes no jogo (monstros)', () => {
   it('Ataque Básico: arco de 90° na direção do alvo acerta os DOIS da frente; o de trás, não', () => {
     const { world, connect } = setupWorld(config());
@@ -170,18 +184,18 @@ describe('hitboxes no jogo (monstros)', () => {
     assert.equal(monsterHp(world, m.id), M.maxHp, 'atrás da árvore, fora da explosão');
   });
 
-  it('Kunais: 3 em leque de 45°, cada uma no primeiro que encontra; colado, o alvo leva SÓ uma', () => {
+  it('Kunais: 3 em trilhas paralelas (0,7 casa), todas na mesma direção; cada uma no primeiro que encontra; colado, o alvo leva SÓ uma', () => {
     const { world, connect, run } = setupWorld(config());
     const a = connect('kaito');
     learn(world, a.id, 'weapons');
     const mid = world.spawnMonster({ x: S.x + 3, y: S.y });
-    const up = world.spawnMonster({ x: S.x + 3, y: S.y - 1 });
-    const down = world.spawnMonster({ x: S.x + 3, y: S.y + 1 });
+    const up = world.spawnMonster({ x: S.x + 3, y: S.y - 0.7 });
+    const down = world.spawnMonster({ x: S.x + 3, y: S.y + 0.7 });
     a.send({ type: 'cast', skill: 'weapons' });
     const shots = a.conn.of('projectile');
     assert.equal(shots.length, 3);
-    const angles = shots.map((p) => (Math.atan2(p.fy, p.fx) * 180) / Math.PI);
-    [0, -22.5, 22.5].forEach((want, i) => assert.ok(Math.abs(angles[i]! - want) < 1, `${angles[i]}° (${want}°)`));
+    for (const p of shots) assert.deepEqual([p.fx, p.fy], [1, 0], 'todas para a direita');
+    assert.deepEqual(shots.map((p) => Math.round((p.y - S.y) * 100) / 100), [0, -0.7, 0.7]);
     run(400);
     for (const m of [mid, up, down]) assert.equal(monsterHp(world, m.id), M.maxHp - SK.weapons.damage!);
     assert.equal(a.conn.of('impact').length, 3);
@@ -193,6 +207,43 @@ describe('hitboxes no jogo (monstros)', () => {
     p.send({ type: 'cast', skill: 'weapons' });
     r2(400);
     assert.equal(monsterHp(w2, close.id), M.maxHp - SK.weapons.damage!, 'uma kunai por alvo, por arremesso');
+  });
+
+  it('em linha, só nas 4 direções: a escolhida (dir) vira a cardinal; o toque rápido vai na que passa mais perto do focado', () => {
+    for (const skill of ['fire', 'shadow', 'lightning', 'weapons']) {
+      const { world, connect } = setupWorld(config());
+      const a = connect('kaito');
+      learn(world, a.id, skill);
+      const s = session(world, a.id);
+      const m = world.spawnMonster({ x: S.x + 3, y: S.y + 1.2 });   // mais para a direita do que para baixo
+      const cast = (msg: Record<string, unknown>) => {
+        ready(world, a.id);
+        a.conn.clear();
+        a.send({ type: 'cast', skill, ...msg });
+        const c = a.conn.last('cast');
+        assert.ok(c, `${skill}: ${JSON.stringify(a.conn.last('cast_failed'))}`);
+        return [c.fx, c.fy];
+      };
+      assert.deepEqual(cast({ targetId: m.id }), [1, 0], `${skill}: toque rápido com foco: para a direita`);
+      assert.deepEqual(cast({ targetId: m.id, dir: [0.3, -0.9] }), [0, -1], `${skill}: a direção escolhida vale (cima)`);
+      assert.deepEqual(cast({ dir: [-0.8, 0.5] }), [-1, 0], `${skill}: diagonal vira a cardinal mais perto (esquerda)`);
+      assert.deepEqual(cast({ dir: [0.6, 0.62] }), [0, 1], `${skill}: (baixo)`);
+      Object.assign(s, { fx: 0.6, fy: -0.8 });
+      world.monsterList().forEach((x: any) => (world as any).monsters.delete(x.id));
+      assert.deepEqual(cast({}), [0, -1], `${skill}: sem ninguém: para onde olha, arredondado`);
+    }
+  });
+
+  it('em linha: a Sombra na direção escolhida pega quem está nela, e não quem está fora dela', () => {
+    const { world, connect } = setupWorld(config());
+    const a = connect('kaito');
+    learn(world, a.id, 'shadow');
+    const right = world.spawnMonster({ x: S.x + 2.5, y: S.y });
+    const diag = world.spawnMonster({ x: S.x + 2, y: S.y + 2 });
+    a.send({ type: 'cast', skill: 'shadow', targetId: diag.id });
+    // O focado está na diagonal: a cardinal mais perto (empate = horizontal) é a direita, e a linha pega quem está nela.
+    assert.ok((world as any).monsters.get(right.id).rootedUntil > 0, 'o da direita ficou preso');
+    assert.ok(!((world as any).monsters.get(diag.id).rootedUntil > 0), 'o da diagonal, não');
   });
 
   it('Cura: com vida cheia, cura o aliado mais ferido a até 3 casas; o focado tem preferência; longe: FULL_HP', () => {

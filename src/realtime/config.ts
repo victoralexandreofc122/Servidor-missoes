@@ -27,9 +27,9 @@ export interface SkillConfig {
   silenceMs?: number;
   /** Projétil (Fogo, Kunais): velocidade em casas/s. Sem `speed`, a linha é instantânea. */
   speed?: number;
-  /** Kunais: quantos projéteis e a abertura total do leque (graus). */
+  /** Kunais: quantos projéteis, em trilhas paralelas separadas por `laneGap` casas (todas na mesma direção). */
   shots?: number;
-  fanDeg?: number;
+  laneGap?: number;
   stunMs?: number;
   rootMs?: number;
   reduction?: number;      // escudo: fração do dano que some (0.5 = metade)
