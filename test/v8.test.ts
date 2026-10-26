@@ -355,11 +355,11 @@ describe('v8: Modo Administrador', () => {
     const { join, world, sess } = setup({ admin: admin.store, progression, missions });
     const v = join('Victor', { id: 'v1', isAdmin: true });
     const s = sess('v1');
-    (world as any).transfer(s, 'map_2', 40, 20, 'walk');
+    (world as any).transfer(s, 'map_2', 51, 10, 'walk');   // Clareira da Entrada
     v.send({ type: 'chat', message: '/admin spawn slime 4' });
     const spawned = world.monsterList().filter((m) => (world as any).monsters.get(m.id).admin);
     assert.equal(spawned.length, 4);
-    for (const m of spawned) assert.ok(Math.hypot(m.x - 40, m.y - 20) <= 5.01, 'em volta do admin');
+    for (const m of spawned) assert.ok(Math.hypot(m.x - 51, m.y - 10) <= 5.01, 'em volta do admin');
     assert.match(v.conn.last('notice').text, /4x slime invocado/);
     for (const m of spawned) {
       (world as any).monsters.get(m.id).hp = 1;

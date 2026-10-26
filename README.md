@@ -231,6 +231,10 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Névoa e Nuvem:** em imagem também. A IA desenhou as duas sobre a planta da Folha: `arte/mapas/alinhar.py` mede a
   conta entre as imagens e `retrace()` reaproveita a planta e as colisões, trocando só o que muda (bambuzais na Névoa,
   mastros das bandeiras na Nuvem). A Areia segue na planta 80 x 80 por código até a imagem nova dela.
+- **Floresta:** em imagem, 100 x 75. Os lugares das missões foram para onde o desenho os mostra (docs/mapas.md, 3.x);
+  a Folha liga com a entrada deslocada 9,5 casas. O abismo do desenho é largo demais para o Teleporte: na beira,
+  virado para a saliência, o Teleporte salta até ela (`leaps`). O Posto de Viagem da Floresta fica na clareira da
+  entrada (54,5; 8,5).
 
 ### v22: Névoa, Nuvem e Areia com o desenho das artes (sem migração)
 

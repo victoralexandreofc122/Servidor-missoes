@@ -11,7 +11,7 @@ import { placeIn, seededRandom, setupWorld } from './support/world.js';
  */
 
 const SK = REALTIME.combat.skills;
-const F = { x: 10, y: 50 };                                       // clareira da Floresta (ao ar livre)
+const F = { x: 51, y: 10 };                                       // clareira da Floresta (ao ar livre)
 
 function pvpConfig(): RealtimeConfig {
   return {

@@ -1666,7 +1666,10 @@ export class GameWorld {
           session.fx = dir[0] / len;
           session.fy = dir[1] / len;
         }
-        blink = blinkTarget(this.layout(session.map), session.x, session.y, session.fx, session.fy, teleportRange(level));
+        // Abismo largo demais para o alcance (Floresta): na beira, virado para o outro lado, o salto leva até lá.
+        const leap = (this.layout(session.map).leaps ?? []).find((l) => session.x >= l.from.x && session.x <= l.from.x + l.from.w
+          && session.y >= l.from.y && session.y <= l.from.y + l.from.h && session.fx * l.dir.x + session.fy * l.dir.y > 0.5);
+        blink = leap ? { ...leap.to } : blinkTarget(this.layout(session.map), session.x, session.y, session.fx, session.fy, teleportRange(level));
         if (distance(session, blink) < 0.5) return fail('BLOCKED');
         break;
       }
@@ -4166,7 +4169,7 @@ export class GameWorld {
       const home = this.homeOf(s.village);
       return home.map === 'refugio' ? home : this.travelArrival(home.map);
     }
-    if (to === 'map_2') return { map: 'map_2', x: 44, y: 8 };
+    if (to === 'map_2') return { map: 'map_2', x: 57, y: 10 };
     if (to === 'zona_conflito') return { map: 'zona_conflito', ...conflictCamp((s.village ?? 'renegados') as CampOwner).arrive };
     return this.travelArrival(VILLAGE_INFO[to as Village].map as MapId);
   }

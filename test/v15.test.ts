@@ -25,7 +25,7 @@ const IN = { x: 66, y: 47 };                                  // meio da arena, 
 const STREET = { x: 66, y: 38.5 };                            // gramado logo acima da arena
 /** A cerca da esquerda (de cima da entrada): a arena da Folha só se entra por esse lado. */
 const FENCE = VILA.walls.find((w) => w.k === 'fence' && w.h > 4 && w.w < 1)!;
-const F = { x: 10, y: 50 };                                    // clareira da Floresta
+const F = { x: 51, y: 10 };                                    // clareira da Floresta
 
 function config(combat: Partial<CombatConfig> = {}, monsters: Partial<CombatConfig['monsters']> = {}): RealtimeConfig {
   return {

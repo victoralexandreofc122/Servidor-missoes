@@ -11,7 +11,7 @@ import { placeIn, setupWorld } from './support/world.js';
 
 const LC = REALTIME.lagComp;
 const BA = REALTIME.combat.basicAttack;
-const F = { x: 10, y: 50 };                                       // clareira da Floresta
+const F = { x: 51, y: 10 };                                       // clareira da Floresta
 
 function pvp(): RealtimeConfig {
   return {

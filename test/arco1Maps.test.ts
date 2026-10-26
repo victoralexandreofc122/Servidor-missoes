@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { GameWorld } from '../src/realtime/gameWorld.js';
-import { CAVE_POI, CLEARING_POI, FOREST_ABYSS, FOREST_POI, WORLD_MAPS, villagePlan, type MapLayout } from '../src/realtime/maps.js';
+import { CAVE_POI, CLEARING_POI, FOREST_POI, WORLD_MAPS, villagePlan, type MapLayout } from '../src/realtime/maps.js';
 import { PLAYER_RADIUS, blocked } from '../src/realtime/movement.js';
 import { FakeConn, placeIn, seededRandom } from './support/world.js';
 
@@ -46,8 +46,8 @@ function config(): RealtimeConfig {
   return { ...REALTIME, combat: { ...REALTIME.combat, monsters: { ...REALTIME.combat.monsters, count: 0, perPlayer: 0 } } };
 }
 
-describe('Arco 1: a Floresta por regiões', () => {
-  const reach = walkable(F, { x: 40, y: 5 });
+describe('Arco 1: a Floresta por regiões (em imagem)', () => {
+  const reach = walkable(F, { x: 48.5, y: 5 });
 
   it('do portão se chega andando a todos os lugares das missões, menos à saliência da caverna e à passagem sul', () => {
     for (const [name, p] of Object.entries(FOREST_POI)) {
@@ -55,44 +55,55 @@ describe('Arco 1: a Floresta por regiões', () => {
       assert.ok(reach(p), `${name} não se alcança andando`);
     }
     assert.ok(!reach(FOREST_POI.caverna), 'a saliência só com o Teleporte');
-    assert.ok(!reach({ x: 42, y: 97 }), 'a passagem sul está lacrada pelos troncos');
+    assert.ok(!reach({ x: 49, y: 72 }), 'a passagem sul está lacrada pelos troncos');
   });
 
-  it('as três Pedras-Selo: a 1 apagada (Clareira da Pedra), a 2 nas raízes do Carvalho, a 3 atrás da cachoeira seca', () => {
+  it('as três Pedras-Selo: a 1 apagada (no lago), a 2 acesa nas raízes do Carvalho, a 3 acesa na abertura do paredão', () => {
     const seals = F.walls.filter((w) => w.k === 'seal');
     assert.deepEqual(seals.map((w) => w.s), ['out', 'lit', 'lit']);
     const inside = (p: { x: number; y: number; r: number }, w: { x: number; y: number; w: number; h: number }) => Math.hypot(w.x + w.w / 2 - p.x, w.y + w.h / 2 - p.y) <= p.r + 1.5;
     assert.ok(inside(FOREST_POI.pedra1, seals[0]!) && inside(FOREST_POI.pedra2, seals[1]!) && inside(FOREST_POI.pedra3, seals[2]!));
-    // A Pedra 3 só se alcança pela fresta do paredão (2 casas), no fim da trilha leste.
+    // A Pedra 3 só se alcança pela abertura do paredão, vindo do leito de pedras.
     for (let x = 62.5; x < 98; x += 0.5) {
-      const gap = x > 78.5 + PLAYER_RADIUS && x < 80.5 - PLAYER_RADIUS;
-      assert.equal(blocked(x, 37.5, F.walls), !gap, `paredão em x=${x}`);
+      const gap = x > 87.5 + PLAYER_RADIUS && x < 91 - PLAYER_RADIUS;
+      assert.equal(blocked(x, 34, F.walls), !gap, `paredão em x=${x}`);
     }
   });
 
-  it('o abismo é o vão da Academia (2 casas): o Teleporte do nível 1 atravessa; dá na boca da caverna e volta', () => {
+  it('o abismo é largo demais: o Teleporte na beira, virado para a saliência, salta até ela; a caverna e a volta', () => {
     let t = 1_000_000;
     const world = new GameWorld(config(), () => t, undefined, { random: seededRandom() });
     const tick = (n: number) => { for (let i = 0; i < n; i++) { t += 50; world.tick(); } };
     const conn = new FakeConn();
     const id = randomUUID();
     const h = world.join({ id, username: 'kaito', kits: { A: ['teleport'], B: [] } }, conn);
-    assert.equal(FOREST_ABYSS.h, 2);
-    placeIn(world, id, 'map_2', 65, FOREST_ABYSS.y - PLAYER_RADIUS - 0.05);
-    h.receive(JSON.stringify({ type: 'cast', skill: 'teleport', dir: [0, 1] }));
     const s = (world as any).sessions.get(id);
-    assert.ok(s.y > FOREST_ABYSS.y + FOREST_ABYSS.h, `do outro lado do abismo: y=${s.y}`);
-    // A boca da caverna fica na face sul da rocha: contornando e empurrando para o norte, entra.
-    placeIn(world, id, 'map_2', 80, 94.8);
+    const ready = () => { t += 60_000; s.chakra = 100; };
+    // Virado para o sul, na beira, o Teleporte comum não passa.
+    placeIn(world, id, 'map_2', 60, 47);
+    h.receive(JSON.stringify({ type: 'cast', skill: 'teleport', dir: [0, 1] }));
+    assert.ok(s.x < 63, `não atravessou: ${s.x},${s.y}`);
+    // Virado para o leste: salta até a saliência.
+    ready();
+    placeIn(world, id, 'map_2', 60, 47);
+    h.receive(JSON.stringify({ type: 'cast', skill: 'teleport', dir: [1, 0] }));
+    assert.deepEqual([s.x, s.y], [74.4, 57], 'do outro lado do abismo');
+    // A boca da caverna: empurrando para o norte, de frente para ela, entra.
+    placeIn(world, id, 'map_2', 92.7, 57);
     h.receive(JSON.stringify({ type: 'move', dx: 0, dy: -1 }));
-    tick(6);
+    tick(10);
     assert.equal(s.map, 'caverna_lodo');
     assert.ok((world as any).inSafeZone(s), 'chega num pedaço seguro');
-    // A saída fica embaixo: indo para o sul, sai; e quem continua andando não volta para dentro.
+    // A saída fica embaixo: indo para o sul, sai na saliência; e quem continua andando não volta para dentro.
     h.receive(JSON.stringify({ type: 'move', dx: 0, dy: 1 }));
     tick(40);
     assert.equal(s.map, 'map_2', 'a saída leva de volta para a saliência');
-    assert.ok(s.y > FOREST_ABYSS.y + FOREST_ABYSS.h);
+    assert.ok(s.x > 72.8 && s.y > 52.6, `na saliência: ${s.x},${s.y}`);
+    // E da faixa da esquerda da saliência, virado para o oeste, volta saltando.
+    ready();
+    placeIn(world, id, 'map_2', 74.4, 57);
+    h.receive(JSON.stringify({ type: 'cast', skill: 'teleport', dir: [-1, 0] }));
+    assert.deepEqual([s.x, s.y], [59.5, 47]);
   });
 
   it('zonas de caça: Slime perto da entrada, Lodo Escuro no fundo; ninguém nasce na Clareira da Entrada', () => {
@@ -103,7 +114,7 @@ describe('Arco 1: a Floresta por regiões', () => {
     const types = new Set(all.map((m) => m.type));
     assert.deepEqual([...types].sort(), ['lodo_escuro', 'slime']);
     for (const m of all) {
-      assert.ok(m.y >= 18, `nasceu na Clareira da Entrada: ${m.x},${m.y}`);
+      assert.ok(!(m.x >= 40 && m.x < 62 && m.y < 16), `nasceu na Clareira da Entrada: ${m.x},${m.y}`);
       assert.ok(!blocked(m.x, m.y, F.walls), `dentro de parede: ${m.x},${m.y}`);
       if (m.type === 'lodo_escuro') assert.ok(m.x >= 60, `Lodo Escuro longe do fundo: ${m.x},${m.y}`);
     }

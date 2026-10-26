@@ -131,6 +131,27 @@ y 0 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┃E
 
 ---
 
+### 3.x Floresta em imagem (v23)
+
+A Floresta passou a ser a imagem da IA, em **100 x 75** casas. Os lugares das missões continuam os mesmos, agora onde o
+desenho os mostra (`FOREST_POI` em `src/realtime/maps.ts`):
+
+| Lugar | Onde (casas) |
+|---|---|
+| Entrada (da Folha) | x 45..52 no alto; a Folha liga com um deslocamento de 9,5 casas (`FOREST_GATE_SHIFT`) |
+| Pedra-Selo 1 (apagada) | no meio do lago, à esquerda em cima (14,5; 12,5) |
+| Sumidouro | o buraco onde o riacho some (69, 19) |
+| Encruzilhada | a placa no meio da trilha (48, 35) |
+| Velho Carvalho e Pedra-Selo 2 (acesa) | a árvore grande com a chama nas raízes (30, 40) |
+| Cachoeira e Pedra-Selo 3 (acesa) | o paredão com a queda d'água; a Pedra 3 na abertura acesa à direita (89,3; 31) |
+| Acampamento Queimado | embaixo à esquerda (19, 57) |
+| Abismo e caverna | o vão escuro à direita; a boca da caverna na saliência (92, 57) |
+| Passagem sul (Clareira) | x 47..51 embaixo, fechada pelos troncos queimados até a M14 |
+
+O chão é o que está nas clareiras e trilhas (`open`); o resto é mata (`carve`). **O abismo do desenho tem umas
+10 casas** (o Teleporte alcança 3 a 6): usando o Teleporte na beira (x 58,5..61,5, y 43..51), virado para o leste,
+salta-se até a saliência; da faixa da esquerda da saliência, virado para o oeste, volta-se (`leaps` no layout).
+
 ## 4. Caverna do Lodo (56 x 44)
 
 ```
@@ -222,6 +243,7 @@ código por cima: o chão, as paredes, as tochas e os enfeites já estão no des
 | Vila da Folha | `arte/vilas/folha_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
 | Vila da Névoa | `arte/vilas/nevoa_ampliada.jpg` (6000 x 4480, ampliada) | `0,0,6000,4480` | 80 x 60 |
 | Vila da Nuvem | `arte/vilas/nuvem_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
+| Floresta | `arte/mapas/floresta_ampliada.jpg` (6000 x 4480, ampliada) | `0,0,6000,4480` | 100 x 75 |
 | Armaria | `arte/mapas/referencia_armaria.jpg` (2000 x 1493) | `56,52,1944,1493` | 17 x 13 |
 | Casa dos Pergaminhos | `arte/mapas/referencia_pergaminhos.jpg` (2000 x 1493) | `75,59,1925,1493` | 17 x 13 |
 

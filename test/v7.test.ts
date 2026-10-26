@@ -238,16 +238,16 @@ describe('v7: Substituição e Teleporte (combate)', () => {
     const { join, run, sess, world, advance } = setup();
     const p = join('kaito');
     const s = sess(p.id);
-    (world as any).transfer(s, 'map_2', 40, 20, 'walk');            // na trilha da Floresta (sem árvores)
-    const m = world.spawnMonster({ x: 40, y: 21 }, undefined, 'map_2');
+    (world as any).transfer(s, 'map_2', 48.5, 20, 'walk');            // na trilha da Floresta (sem árvores)
+    const m = world.spawnMonster({ x: 48.5, y: 21 }, undefined, 'map_2');
     Object.assign((world as any).monsters.get(m.id), { nextAttackAt: 0 });
     s.kits.A = ['substitution', 'teleport'];
     p.send({ type: 'cast', skill: 'substitution' });
     assert.equal(p.conn.last('cast').skill, 'substitution');
     run(50);
     const sub = p.conn.last('substitution');
-    assert.deepEqual([sub.logX, sub.logY], [40, 20], 'tronco onde ele estava');
-    assert.deepEqual([sub.x, sub.y], [40, 22], 'apareceu atrás do slime (do lado oposto)');
+    assert.deepEqual([sub.logX, sub.logY], [48.5, 20], 'tronco onde ele estava');
+    assert.deepEqual([sub.x, sub.y], [48.5, 22], 'apareceu atrás do slime (do lado oposto)');
     assert.deepEqual([s.fx, s.fy], [0, -1], 'virado para o slime');
     assert.equal(s.hp, 100);
     assert.equal(p.conn.of('hit').filter((h: any) => h.target === 'player').length, 0);
@@ -262,8 +262,8 @@ describe('v7: Substituição e Teleporte (combate)', () => {
     Object.assign(s, { x: 10, y: 10 });
     run(5100);
     const live = (world as any).monsters.get(m.id);                  // o slime andou nesse tempo
-    Object.assign(live, { x: 40, y: 21, nextAttackAt: 0, nextStepAt: 1e15 });
-    Object.assign(s, { x: 40, y: 20 });
+    Object.assign(live, { x: 48.5, y: 21, nextAttackAt: 0, nextStepAt: 1e15 });
+    Object.assign(s, { x: 48.5, y: 20 });
     run(50);
     assert.ok(s.hp < 100, 'depois dos 5 s, o golpe acerta');
   });
@@ -272,16 +272,16 @@ describe('v7: Substituição e Teleporte (combate)', () => {
     const { join, run, sess, world } = setup();
     const p = join('kaito', { jutsus: { substitution: 2000, teleport: 0 }, kits: { A: ['substitution'], B: [] } });
     const s = sess(p.id);
-    (world as any).transfer(s, 'map_2', 40, 20, 'walk');
-    const attacker = world.spawnMonster({ x: 40, y: 21 }, undefined, 'map_2');
-    const focus = world.spawnMonster({ x: 40, y: 17 }, undefined, 'map_2');
+    (world as any).transfer(s, 'map_2', 48.5, 20, 'walk');
+    const attacker = world.spawnMonster({ x: 48.5, y: 21 }, undefined, 'map_2');
+    const focus = world.spawnMonster({ x: 48.5, y: 17 }, undefined, 'map_2');
     Object.assign((world as any).monsters.get(attacker.id), { nextAttackAt: 0 });
     Object.assign((world as any).monsters.get(focus.id), { nextAttackAt: 1e15 });
     p.send({ type: 'cast', skill: 'substitution', targetId: focus.id });
     assert.equal(s.cooldowns.substitution - (world as any).now(), 15_000);
     run(50);
     const sub = p.conn.last('substitution');
-    assert.deepEqual([sub.x, sub.y], [40, 16], 'atrás do focado, não do atacante');
+    assert.deepEqual([sub.x, sub.y], [48.5, 16], 'atrás do focado, não do atacante');
   });
 
   it('Teleporte Curto: alcance 3/4/5/6 pelo uso (100/500/2000) e nunca atravessa parede', () => {
@@ -290,7 +290,7 @@ describe('v7: Substituição e Teleporte (combate)', () => {
       const { join, sess, world } = setup();
       const p = join('kaito', { jutsus: { teleport: uses }, kits: { A: ['teleport'], B: [] } });
       const s = sess(p.id);
-      (world as any).transfer(s, 'map_2', 40, 20, 'walk');
+      (world as any).transfer(s, 'map_2', 48.5, 20, 'walk');
       p.send({ type: 'cast', skill: 'teleport', dir: [0, 1] });
       assert.equal(p.conn.last('teleport').y - 20, range, `${uses} usos`);
     }
@@ -325,7 +325,7 @@ describe('v7: jutsus aprendidos e nível pelo uso', () => {
     const { join, sess, world } = setup({ store: fake.store });
     const p = join('kaito', { jutsus: { teleport: 98 }, kits: { A: ['teleport'], B: [] } });
     const s = sess(p.id);
-    (world as any).transfer(s, 'map_2', 40, 20, 'walk');
+    (world as any).transfer(s, 'map_2', 48.5, 20, 'walk');
     s.chakra = 5;
     p.send({ type: 'cast', skill: 'teleport', dir: [0, 1] });       // sem chakra: não conta
     assert.equal(s.jutsus.get('teleport'), 98);

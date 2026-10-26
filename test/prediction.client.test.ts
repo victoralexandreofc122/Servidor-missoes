@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { FakeConn, seededRandom } from './support/world.js';
+import { FOREST_GATE_SHIFT } from '../src/realtime/maps.js';
 import { GameWorld } from '../src/realtime/gameWorld.js';
 
 // Cliente (JavaScript puro), importado direto de public/: a MESMA predição do navegador.
@@ -134,7 +135,7 @@ describe('predição + reconciliação (cliente real x servidor real, 200 ms de 
     assert.equal(pred.map, 'map_2');
     assert.equal(results.snaps + results.smooth, 0, 'a previsão da passagem bateu com o servidor');
     assert.deepEqual([pred.x, pred.y], [s.x, s.y]);
-    assert.ok(s.y > 0 && Math.abs(s.x - REALTIME.spawn.x) < 1e-9, `entrou pela trilha norte, na coluna do renascimento (${s.x}, ${s.y})`);
+    assert.ok(s.y > 0 && Math.abs(s.x - REALTIME.spawn.x - FOREST_GATE_SHIFT) < 1e-9, `entrou pela trilha norte, na coluna do renascimento (${s.x}, ${s.y})`);
     assert.ok(results.mapSwitchAt > 0 && results.maxView < 0.2, `sem pulo na tela fora da costura (maior passo ${results.maxView})`);
   });
 

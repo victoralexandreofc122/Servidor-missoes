@@ -171,6 +171,11 @@ export interface MapLayout {
    * precisam seguir o desenho (confira com arte/mapas/sobrepor.py).
    */
   art?: string;
+  /**
+   * Saltos com o Teleporte (abismo largo demais para o alcance): usando o Teleporte dentro de `from`, virado para
+   * `dir`, chega em `to`.
+   */
+  leaps?: { from: Box; dir: { x: number; y: number }; to: { x: number; y: number } }[];
   /** Tochas e lanternas desenhadas na arte (o ponto da chama): o cliente acende a luz delas de noite e na caverna. */
   lights?: { x: number; y: number }[];
   /** Arenas de treino de PvP (área de luta, DENTRO da cerca). */
@@ -212,27 +217,6 @@ const sakura = (x: number, y: number, size = 2): Wall => wall('tree', x, y, size
 const area = (g: Area['g'], x: number, y: number, w: number, h: number): Area => ({ x, y, w, h, g });
 const oval = (g: Area['g'], x: number, y: number, w: number, h: number): Area => ({ x, y, w, h, g, shape: 'oval' });
 const deco = (k: Deco['k'], x: number, y: number, w = 1, h = 1): Deco => ({ x, y, w, h, k });
-
-/** Faixa que segue uma linha (riacho, leito seco): o enfeite ocupa a caixa da linha mais a largura. */
-function band(k: 'stream' | 'drybed' | 'trail', pts: readonly (readonly [number, number])[], r: number): Deco {
-  const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
-  const r1 = (n: number) => Math.round(n * 10) / 10;
-  const x = r1(Math.min(...xs) - r - 0.5), y = r1(Math.min(...ys) - r - 0.5);
-  const w = r1(Math.max(...xs) + r + 0.5 - x), h = r1(Math.max(...ys) + r + 0.5 - y);
-  const p = pts.flatMap(([px, py]) => [r1(px - x), r1(py - y)]);
-  return { k, x, y, w, h, p, r };
-}
-
-/** y da linha na altura x (a linha vai da direita para a esquerda ou ao contrário; interpola reto entre os pontos). */
-function lineY(pts: readonly (readonly [number, number])[], x: number): number {
-  const sorted = [...pts].sort((a, b) => a[0] - b[0]);
-  if (x <= sorted[0]![0]) return sorted[0]![1];
-  for (let i = 1; i < sorted.length; i++) {
-    const [x0, y0] = sorted[i - 1]!, [x1, y1] = sorted[i]!;
-    if (x <= x1) return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
-  }
-  return sorted[sorted.length - 1]![1];
-}
 
 /**
  * Portão sul da Vila (x 35..45, y 79/80) <-> entrada norte da Floresta (mesmos x, y 0).
@@ -629,7 +613,7 @@ function artVillage(def: VillageMapDef, A: VillageArt): MapLayout {
     id: def.id, name: def.name, kind: 'village', village: def.village, theme: def.theme, width: P.w, height: P.h, safe: true,
     walls: [...A.walls, ...(def.gate ? [] : [wall('gate', P.gate.from, P.h - 3, P.gate.to - P.gate.from, 3)])],
     art: A.art, lights: A.lights,
-    exits: def.gate ? [{ edge: 'south', from: P.gate.from, to: P.gate.to, map: 'map_2', shift: 0 }] : [],
+    exits: def.gate ? [{ edge: 'south', from: P.gate.from, to: P.gate.to, map: 'map_2', shift: FOREST_GATE_SHIFT }] : [],
     doors,
     areas: A.areas, deco: [],
     safeZones: P.safe.map((b) => ({ ...b })),
@@ -760,6 +744,9 @@ function arenaWalls(): Wall[] {
   ];
 }
 
+const overlaps = (a: Box, b: Box, gap = 0) =>
+  a.x < b.x + b.w + gap && a.x + a.w + gap > b.x && a.y < b.y + b.h + gap && a.y + a.h + gap > b.y;
+
 /** Sorteio com semente (mulberry32): a floresta sai igual em todo servidor e todo boot. */
 function seeded(seed: number): () => number {
   let a = seed >>> 0;
@@ -772,177 +759,154 @@ function seeded(seed: number): () => number {
   };
 }
 
-const overlaps = (a: Box, b: Box, gap = 0) =>
-  a.x < b.x + b.w + gap && a.x + a.w + gap > b.x && a.y < b.y + b.h + gap && a.y + a.h + gap > b.y;
 
-/**
- * Floresta (100 x 100): grama escura, mata fechada nas bordas, com a entrada no NORTE (x 35..45), que
- * leva ao portão da Vila; uma trilha desce dali e há uma clareira na chegada, sem árvores e
- * sem monstros. Árvores espalhadas (2x2 e 3x3).
- */
 /**
  * Pontos da Floresta que as missões do Arco 1 usam (docs/mapas.md, 3.2): centro e raio (casas). O "IR ATÉ" do
- * sistema de história aponta para eles pelo nome.
+ * sistema de história aponta para eles pelo nome. Medidos na imagem (arte/mapas/referencia_floresta.jpg).
  */
 export const FOREST_POI = {
-  entrada: { x: 40, y: 8, r: 6 },
-  pedra1: { x: 22, y: 23, r: 3 },
-  sumidouro: { x: 57, y: 22, r: 3 },
-  encruzilhada: { x: 40.5, y: 38, r: 4 },
-  carvalho: { x: 14, y: 46, r: 6 },
-  pedra2: { x: 14, y: 50, r: 2.5 },
-  cachoeira: { x: 79.5, y: 40, r: 4 },
-  pedra3: { x: 79.5, y: 36.3, r: 1.8 },
-  acampamento: { x: 18, y: 71, r: 8 },
-  abismo: { x: 65, y: 80, r: 3 },
-  caverna: { x: 80, y: 95.5, r: 3 },
-  passagemSul: { x: 42, y: 91, r: 3 },
+  entrada: { x: 48.5, y: 6, r: 6 },
+  pedra1: { x: 14.5, y: 16.8, r: 3 },
+  sumidouro: { x: 69, y: 24, r: 3 },
+  encruzilhada: { x: 48, y: 35, r: 4 },
+  carvalho: { x: 30, y: 45.5, r: 5 },
+  pedra2: { x: 30, y: 43, r: 2.5 },
+  cachoeira: { x: 77.5, y: 40, r: 4 },
+  pedra3: { x: 89.3, y: 34, r: 1.8 },
+  acampamento: { x: 19, y: 62.5, r: 6 },
+  abismo: { x: 60, y: 47, r: 3 },
+  caverna: { x: 88.5, y: 62, r: 3 },
+  passagemSul: { x: 49, y: 64.5, r: 2 },
 } as const;
 
-/** O abismo da Floresta: um vão de 2 casas, o mesmo da Sala de Jutsus (o Teleporte do nível 1 alcança 3). */
-export const FOREST_ABYSS = { x: 60, y: 82, w: 38, h: 2 } as const;
+/**
+ * A beira do abismo de onde se salta: usando o Teleporte aqui, virado para o leste, chega-se na saliência da caverna,
+ * do outro lado (o abismo do desenho tem umas 10 casas: nenhum nível do Teleporte alcança andando por cima dele).
+ */
+export const FOREST_ABYSS = { x: 58.5, y: 43, w: 3, h: 8 } as const;
 
-/** O riacho da Floresta, do leste até o sumidouro (casas), e a meia largura dele. */
-const STREAM = [[99, 11.2], [94, 11.7], [89, 13.1], [84, 14], [79, 14.6], [74, 15.7], [69, 16.6], [64.5, 17.4], [60, 18]] as const;
-const STREAM_R = 1.2;
-/** As trilhas da Floresta (curvas, mas sempre dentro das caixas de `paths`, que guardam o caminho sem árvore). */
-const TRAILS: readonly { pts: readonly (readonly [number, number])[]; r: number }[] = [
-  { r: 1.5, pts: [[40.5, -0.5], [40.2, 8], [41.1, 16], [40.3, 24], [40.8, 32], [40.5, 38], [41, 46], [40.2, 56], [40.9, 66], [40.4, 76], [40.6, 86], [40.5, 93.5]] },
-  { r: 1, pts: [[39.5, 23], [35.5, 22.6], [31.5, 23.4], [28, 23]] },                          // Pedra 1
-  { r: 1, pts: [[39.5, 38], [33, 38.4], [26, 37.6], [20, 38.2], [16.5, 38]] },                // Velho Carvalho
-  { r: 1, pts: [[41.5, 40], [50, 40.4], [58, 39.6], [66, 40.3], [74, 39.8], [79.3, 39.4], [79.5, 37.2]] },   // cachoeira
-  { r: 1, pts: [[39.5, 71], [34, 71.3], [29, 70.7], [24.5, 71]] },                            // acampamento
-  { r: 1, pts: [[41.5, 77], [48, 77.3], [55, 76.7], [61, 77.2], [64.6, 77.8], [65, 80], [65, 81.4]] },   // abismo
-];
-
-/** O leito seco: sai do riacho e desce até a cachoeira seca. */
-const DRYBED = [[79, 15.5], [78.2, 19], [79.6, 23], [78.6, 27], [79.5, 30.6]] as const;
+/** Entre o portão da Folha e a entrada da Floresta: x da Floresta = x da Folha + isto. */
+export const FOREST_GATE_SHIFT = 9.5;
 
 /**
- * Floresta (100 x 100), desenhada por regiões (docs/mapas.md, seção 3):
+ * Mata fechada em casas de meia casa: tudo o que não está em `open` vira parede, juntando as casas em retângulos
+ * (linhas iguais seguidas viram um retângulo só, para o layout ficar pequeno).
+ */
+function carve(W: number, H: number, open: readonly Box[], k: Wall['k'] = 'tree'): Wall[] {
+  const C = 0.5, cols = Math.round(W / C), rows = Math.round(H / C);
+  const free = (cx: number, cy: number) => open.some((b) => cx * C >= b.x - 1e-9 && (cx + 1) * C <= b.x + b.w + 1e-9 && cy * C >= b.y - 1e-9 && (cy + 1) * C <= b.y + b.h + 1e-9);
+  const runsOf = (cy: number) => {
+    const runs: [number, number][] = [];
+    for (let cx = 0; cx < cols; cx++) {
+      if (free(cx, cy)) continue;
+      const last = runs[runs.length - 1];
+      if (last && last[1] === cx) last[1] = cx + 1; else runs.push([cx, cx + 1]);
+    }
+    return runs;
+  };
+  const out: Wall[] = [];
+  let open_: { a: number; b: number; y0: number }[] = [];
+  for (let cy = 0; cy <= rows; cy++) {
+    const runs = cy < rows ? runsOf(cy) : [];
+    const next: typeof open_ = [];
+    for (const [a, b2] of runs) {
+      const cont = open_.find((o) => o.a === a && o.b === b2);
+      next.push(cont ?? { a, b: b2, y0: cy });
+    }
+    for (const o of open_) if (!next.includes(o)) out.push(wall(k, o.a * C, o.y0 * C, (o.b - o.a) * C, (cy - o.y0) * C));
+    open_ = next;
+  }
+  return out;
+}
+
+/**
+ * Floresta em imagem (arte/mapas/referencia_floresta.jpg, ampliada): 100 x 75 casas, a proporção do desenho.
  *
- *   ┌───────── mata ────[ ENTRADA x 35..45 ]──── mata ─────────┐
- *   │            Clareira da Entrada (Posto de Viagem)   ≈ riacho │  y  0..14
- *   │  Clareira da Pedra (Pedra 1, apagada) ═╗   ◎ sumidouro ≈≈≈ │  y 16..28
- *   │                                        ║        leito seco │
- *   │  Velho Carvalho ══════ Encruzilhada ═══╬════ paredão[fresta]│  y 32..41 (Pedra 3 atrás da cachoeira)
- *   │  (Pedra 2 nas raízes)                  ║                   │
- *   │  Acampamento Queimado ═════════════════╣                   │  y 62..82
- *   │                                        ╚═══ pegadas ▒▒ABISMO│  y 76..84
- *   │                          [troncos]          saliência ⌂caverna│ y 84..98
- *   └────────────────────────[ SAÍDA SUL x 38..46 ]──────────────┘
+ *   ┌──── mata ────[ ENTRADA x 45..52 ]──── mata ─────────────────────┐
+ *   │  lago da Pedra 1 (apagada)   Clareira da Entrada   ◎ sumidouro ≈≈ riacho │  y  0..25
+ *   │  (mata)     ║ trilha              paredão ▓▓▓ cachoeira ▓▓ [Pedra 3] │  y 25..37
+ *   │  Velho Carvalho (Pedra 2 acesa)  ╬ encruzilhada ═══ leito de pedras ═══│  y 37..43
+ *   │  Acampamento Queimado            ║  beira ░░ ABISMO ░░  saliência ⌂ caverna│ y 43..67
+ *   │                       [troncos]  ║                                   │
+ *   └────────────────────[ SAÍDA SUL x 47..51 ]───────────────────────────┘
  *
- * O resto é mata: árvores com sorteio de semente fixa (sempre as mesmas), longe das trilhas e dos lugares.
- * Mais longe da entrada, monstros mais fortes (zonas de caça).
+ * O chão é o que está em `open` (clareiras e trilhas); o resto é mata (carve). Mais longe da entrada, monstros mais
+ * fortes (zonas de caça).
  */
 function forest(): MapLayout {
-  const W = 100, H = 100;
-  const gateFrom = VILLAGE_GATE.from + VILLAGE_GATE.shift, gateTo = VILLAGE_GATE.to + VILLAGE_GATE.shift;   // 35..45
-  const south = { from: 38, to: 46 };                                             // passagem sul (Clareira Queimada)
+  const W = 100, H = 75;
+  const village = villagePlan('map_1').gate;
+  const north = { from: village.from + FOREST_GATE_SHIFT, to: village.to + FOREST_GATE_SHIFT };   // 46..50,9
+  const south = { from: 47.2, to: 50.8 };                                          // passagem sul (Clareira Queimada)
+  const open: Box[] = [
+    { x: 45, y: 0, w: 7, h: 4 },                   // entrada
+    { x: 40, y: 3, w: 22, h: 13 },                 // Clareira da Entrada
+    { x: 20, y: 6, w: 20, h: 8 },                  // gramado até o lago
+    { x: 5, y: 6, w: 19, h: 18.5 },                // o lago da Pedra 1
+    { x: 46, y: 16, w: 8.5, h: 21 },               // trilha e o gramado ao lado
+    { x: 52, y: 22.5, w: 23, h: 2.5 },             // até o sumidouro
+    { x: 50, y: 36.5, w: 49, h: 6.5 },             // leito de pedras, embaixo do paredão
+    { x: 87.5, y: 32.5, w: 3.5, h: 4.5 },          // a abertura da Pedra 3
+    { x: 50, y: 43, w: 11.5, h: 20.5 },            // terra até a beira do abismo
+    { x: 46, y: 37, w: 5.5, h: 26 },               // trilha que desce
+    { x: 47, y: 63, w: 4, h: 12 },                 // passagem sul
+    { x: 18, y: 41.5, w: 28, h: 9.5 },             // gramado do Velho Carvalho
+    { x: 4, y: 47, w: 31, h: 21 },                 // Acampamento Queimado
+    { x: 72.5, y: 52.5, w: 3.5, h: 14 },           // saliência: a faixa da esquerda (onde se chega saltando)
+    { x: 76, y: 63.5, w: 2, h: 1.5 },              // a passagem entre as pedras
+    { x: 78, y: 52.5, w: 17.5, h: 14.5 },          // saliência: a boca da caverna
+  ];
   const walls: Wall[] = [
-    wall('tree', 0, 0, gateFrom, 2),               // mata norte, à esquerda da entrada
-    wall('tree', gateTo, 0, W - gateTo, 2),        // mata norte, à direita
-    wall('tree', 0, H - 2, south.from, 2),         // mata sul, dos dois lados da passagem
-    wall('tree', south.to, H - 2, W - south.to, 2),
-    wall('tree', 0, 2, 2, H - 4),                  // mata oeste
-    wall('tree', W - 2, 2, 2, H - 4),              // mata leste
+    ...carve(W, H, open),
+    // Pedra-Selo 1 (apagada: a Tsubaki acha na M3) no meio do lago; pedras e moitas da clareira.
+    wall('seal', 12.3, 9.6, 4.5, 5.7, 'out'),
+    wall('rock', 20, 9, 4.5, 3.6), wall('rock', 25, 10, 2.5, 3.5), wall('rock', 6.4, 20.7, 2.7, 3.4), wall('rock', 9, 6, 4, 3),
+    wall('rock', 13.5, 6, 3.5, 1.6), wall('rock', 61.5, 4.8, 2, 1.7), wall('furniture', 42.8, 5, 0.8, 1.6), wall('furniture', 49, 37.8, 0.8, 1.3),
+    // O sumidouro (o riacho some aqui: é a água do canal da Vila, M2).
+    wall('sink', 65, 16, 9, 6.6),
+    // Velho Carvalho: o tronco e as raízes, com a Pedra-Selo 2 acesa na frente.
+    wall('oak', 23.5, 37, 13, 4.5), wall('seal', 28.8, 38.5, 2.4, 3, 'lit'),
+    // Pedra-Selo 3, acesa, no fundo da abertura do paredão.
+    wall('seal', 88.3, 30.2, 2.2, 2.4, 'lit'),
+    // Acampamento Queimado: barracas, caixotes, a fogueira e a pedra.
+    wall('tent', 8, 48.6, 7.7, 7.6, 'burnt'), wall('tent', 20.5, 47.7, 7.2, 7.3, 'burnt'), wall('tent', 9.5, 61, 6.4, 6.9, 'burnt'), wall('tent', 23.6, 60.6, 7.8, 6.9, 'burnt'),
+    wall('furniture', 6.4, 55.4, 3.6, 3.9, 'barrel'), wall('furniture', 15, 48.5, 3, 3, 'barrel'), wall('furniture', 29, 59.8, 2.8, 2.7, 'barrel'), wall('furniture', 16, 66.3, 2, 2.7, 'barrel'),
+    wall('rock', 16.8, 57.2, 4.6, 3.2), wall('rock', 18.3, 42.8, 2.7, 2.3),
+    crown(54, 51.5, 7.5, 14.5),                    // o pinheiro na beira
+    // Passagem sul: troncos queimados fecham o caminho até a história abrir (M14).
+    wall('logs', 45.5, 66, 7.5, 2.4),
+    // Saliência: o monte de pedras da boca da caverna e as pedras soltas.
+    wall('rock', 86, 51.5, 4.5, 9.5), wall('rock', 94.8, 51.5, 1.5, 10), wall('rock', 90, 51.5, 5, 3), wall('rock', 81, 55, 3.2, 3),
   ];
-  // Riacho: desce do leste e some no sumidouro (é a água que sobe no canal da Vila, M2). Na tela, uma faixa curva
-  // (o enfeite 'stream'); a colisão são caixas de 2 casas que seguem a mesma linha.
-  for (let x = 61; x < 98; x += 2) {
-    const cy = lineY(STREAM, x + 1);
-    walls.push(wall('water', x, Math.round((cy - STREAM_R) * 10) / 10, 2, STREAM_R * 2));
-  }
-  walls.push(wall('sink', 57, 16, 4, 4));
-  // Pedra-Selo 1 (apagada: a Tsubaki acha na M3), na Clareira da Pedra.
-  walls.push(wall('seal', 21, 20, 2, 2, 'out'));
-  // Velho Carvalho: o tronco (a copa passa por cima de quem anda embaixo) e a Pedra-Selo 2 nas raízes.
-  walls.push(wall('oak', 12, 42, 4, 3), wall('seal', 13, 47, 2, 2, 'lit'));
-  // Cachoeira Seca: o paredão, a face lisa da queda e a fresta (x 78,5..80,5) que leva à Pedra-Selo 3, atrás dela.
-  walls.push(
-    wall('cliff', 62, 32, 14, 6), wall('cliff', 83, 32, 15, 6), wall('cliff', 76, 30, 7, 3, 'fall'),
-    wall('cliff', 76, 37, 2.5, 1), wall('cliff', 80.5, 37, 2.5, 1), wall('seal', 78.5, 33.6, 2, 2, 'lit'),
-  );
-  // Acampamento Queimado: barracas queimadas dos Cinzas.
-  for (const [x, y] of [[8, 64], [16, 63], [24, 65], [9, 75], [25, 76]] as const) walls.push(wall('tent', x, y, 4, 3, 'burnt'));
-  // Abismo (vão: só o Teleporte passa) e a rocha que fecha a saliência do outro lado; a boca da caverna.
-  const A = FOREST_ABYSS;
-  walls.push(wall('pit', A.x, A.y, A.w, A.h, 'chasm'), wall('cliff', 56, 82, 6, 16), wall('cave', 74, 88, 12, 6, 'mouth'));
-  // Passagem sul: troncos queimados fecham o caminho até a história abrir (M14); árvores nos lados.
-  walls.push(wall('logs', 37, 93, 10, 2), wall('tree', 33, 90, 4, 8), wall('tree', 47, 90, 4, 8));
-
-  const paths: Box[] = [
-    { x: 39, y: 0, w: 3, h: 93 },                  // trilha principal, do portão à passagem sul
-    { x: 28, y: 22, w: 11, h: 2 },                 // para a Pedra 1
-    { x: 16, y: 37, w: 23, h: 2 },                 // oeste: o Velho Carvalho
-    { x: 42, y: 39, w: 37, h: 2 },                 // leste: a cachoeira seca (termina na fresta)
-    { x: 78.5, y: 37, w: 2, h: 2 },
-    { x: 24, y: 70, w: 15, h: 2 },                 // o Acampamento Queimado
-    { x: 42, y: 76, w: 24, h: 2 },                 // o abismo
-    { x: 64, y: 78, w: 2, h: 4 },
-  ];
-  // Lugares sem árvore do sorteio (clareiras, o paredão e o leito, a saliência, a passagem).
-  const keep: Box[] = [
-    { x: gateFrom - 8, y: 0, w: gateTo - gateFrom + 16, h: 14 },   // Clareira da Entrada
-    { x: 14, y: 16, w: 16, h: 12 },                // Clareira da Pedra
-    { x: 33, y: 34, w: 15, h: 8 },                 // Encruzilhada
-    { x: 4, y: 34, w: 30, h: 26 },                 // Velho Carvalho
-    { x: 6, y: 62, w: 26, h: 20 },                 // Acampamento
-    { x: 54, y: 9, w: 44, h: 33 },                 // riacho, leito seco e paredão
-    { x: 54, y: 78, w: 44, h: 20 },                // abismo e saliência
-    { x: 30, y: 86, w: 24, h: 12 },                // passagem sul
-  ];
-  const rnd = seeded(2026);
-  for (let gx = 4; gx < W - 6; gx += 5) {
-    for (let gy = 4; gy < H - 6; gy += 5) {
-      if (rnd() > 0.5) continue;
-      const size = rnd() < 0.2 ? 3 : 2;
-      const t = tree(gx + Math.floor(rnd() * 3), gy + Math.floor(rnd() * 3), size);
-      if (keep.some((k) => overlaps(t, k)) || paths.some((pa) => overlaps(t, pa, 1)) || walls.some((w) => overlaps(t, w, 1))) continue;
-      walls.push(t);
-    }
-  }
   return {
-    id: 'map_2', name: 'Floresta', kind: 'forest', width: W, height: H, safe: false, walls,
+    id: 'map_2', name: 'Floresta', kind: 'forest', width: W, height: H, safe: false, walls, art: 'floresta',
+    lights: [{ x: 30, y: 38.8 }, { x: 89.4, y: 30.8 }, { x: 58.5, y: 68.5 }],
+    leaps: [
+      { from: { ...FOREST_ABYSS }, dir: { x: 1, y: 0 }, to: { x: 74.4, y: 57 } },
+      { from: { x: 72.8, y: 52.6, w: 3.2, h: 11 }, dir: { x: -1, y: 0 }, to: { x: 59.5, y: 47 } },
+    ],
     exits: [
       // O trecho é o portão da Folha (a planta dela): fora dele, a borda não atravessa.
-      { edge: 'north', from: villagePlan('map_1').gate.from, to: villagePlan('map_1').gate.to, map: 'map_1', shift: 0, arrive: villagePlan('map_1').gate.returnY },
-      { edge: 'south', from: south.from, to: south.to, map: 'clareira_queimada', shift: -20, arrive: 2 },
+      { edge: 'north', from: north.from, to: north.to, map: 'map_1', shift: -FOREST_GATE_SHIFT, arrive: village.returnY },
+      { edge: 'south', from: south.from, to: south.to, map: 'clareira_queimada', shift: -27, arrive: 2 },
     ],
     doors: [
-      // A boca da caverna, na face sul da rocha (a que se vê): contornando a rocha e empurrando para o norte, entra.
-      { x: 78.5, y: 94, w: 3, h: 0.5, dir: 'north', map: 'caverna_lodo', at: { ...CAVE_ARRIVE } },
+      // A boca da caverna: entra-se empurrando para o norte, de frente para ela.
+      { x: 90.7, y: 55, w: 4, h: 0.8, dir: 'north', map: 'caverna_lodo', at: { ...CAVE_ARRIVE } },
     ],
     areas: [
-      area('pebbles', 76, 33, 7, 4),                 // o chão atrás da cachoeira (onde fica a Pedra 3)
-      ...paths.map((b) => area('trail', b.x, b.y, b.w, b.h)),
-      oval('burnt', 4, 60, 31, 24), oval('dirt', 9, 64.5, 21, 14),   // o chão queimado e o batido do acampamento
-      oval('dirt', 62.5, 84.5, 35, 13.5),            // saliência do outro lado do abismo
-      oval('burnt', 31, 84.5, 22, 15),               // a passagem sul já começa queimada
+      area('trail', 45, 0, 7, 16), area('trail', 46, 16, 5.5, 47), area('trail', 47, 63, 4, 12),
+      area('pebbles', 50, 36.8, 50, 6), oval('burnt', 4, 47, 31, 21), area('dirt', 72.8, 52.6, 22.7, 14.4),
     ],
-    deco: [
-      ...TRAILS.map((tr) => band('trail', tr.pts, tr.r)),   // as trilhas de terra, curvas
-      band('drybed', DRYBED, 1.5),                   // leito seco: o riacho corria até a cachoeira
-      band('stream', STREAM, STREAM_R),
-      deco('signpost', 37, 11.6, 1, 1.4), deco('signpost', 43.4, 34.6, 1, 1.4),
-      deco('oak_canopy', 7, 35, 14, 10), deco('roots', 9, 45, 10, 2.5),
-      deco('kunai', 13, 70), deco('kunai', 21, 68.4), deco('kunai', 27.4, 72.6), deco('kunai', 19, 77),
-      deco('scorch', 12.5, 67, 10, 7),                // o chão chamuscado em volta da fogueira
-      deco('embers', 16, 70, 3, 2),                   // a fogueira apagada do acampamento
-      deco('pot', 19.3, 69.8, 1.1, 1.2), deco('bedroll', 11.8, 72.6, 1.6, 0.75), deco('bedroll', 20.8, 74.2, 1.6, 0.75),
-      deco('crate', 29, 67.8, 0.9, 0.9), deco('crate', 30, 68.6, 0.8, 0.8), deco('crate', 6.8, 69.8, 0.9, 0.9),
-      deco('scroll_drop', 23.2, 71.4, 1, 0.6),
-      deco('footprints', 63.4, 78.6, 3, 3),            // as pegadas param na beira do abismo
-      deco('embers', 39, 89, 2, 1.4), deco('embers', 44, 88, 2, 1.4),
-    ],
+    deco: [],
     safeZones: [],
-    hunt: { x: 4, y: 18, w: 92, h: 76 },
+    hunt: { x: 4, y: 6, w: 92, h: 61 },
     zones: [
-      { name: 'bosque', type: 'slime', weight: 5, x: 4, y: 18, w: 92, h: 22 },
-      { name: 'mata', type: 'slime', weight: 4, x: 4, y: 40, w: 56, h: 24 },
-      { name: 'fundo', type: 'slime', weight: 3, x: 4, y: 64, w: 52, h: 28 },
-      { name: 'leito', type: 'lodo_escuro', weight: 1, x: 62, y: 21, w: 34, h: 10 },
-      { name: 'beira', type: 'lodo_escuro', weight: 2, x: 60, y: 42, w: 36, h: 38 },
+      { name: 'lago', type: 'slime', weight: 5, x: 6, y: 7, w: 17, h: 16 },
+      { name: 'carvalho', type: 'slime', weight: 4, x: 19, y: 42, w: 26, h: 8 },
+      { name: 'acampamento', type: 'slime', weight: 3, x: 5, y: 48, w: 29, h: 19 },
+      { name: 'leito', type: 'lodo_escuro', weight: 1, x: 64, y: 23, w: 10, h: 2 },
+      { name: 'beira', type: 'lodo_escuro', weight: 2, x: 64, y: 38, w: 31, h: 4.5 },
     ],
   };
 }
@@ -983,7 +947,7 @@ function cave(): MapLayout {
   return {
     id: 'caverna_lodo', name: 'Caverna do Lodo', kind: 'cave', width: W, height: H, safe: false, walls,
     exits: [],
-    doors: [{ x: 26.5, y: 42, w: 3, h: 0.6, dir: 'south', map: 'map_2', at: { x: 80, y: 95.8 } }],
+    doors: [{ x: 26.5, y: 42, w: 3, h: 0.6, dir: 'south', map: 'map_2', at: { x: 92.7, y: 61.8 } }],
     areas: [area('cave', 0, 0, W, H), area('lodo', 19, 7, 18, 6)],
     deco: [
       deco('stalagmite', 10, 29.2, 1, 1.4), deco('stalagmite', 44, 26.6, 1, 1.4), deco('stalagmite', 30, 17.6, 1, 1.4),
@@ -1018,7 +982,7 @@ function burnedClearing(): MapLayout {
   ];
   return {
     id: 'clareira_queimada', name: 'Clareira Queimada', kind: 'forest', width: W, height: H, safe: false, walls,
-    exits: [{ edge: 'north', from: 18, to: 26, map: 'map_2', shift: 20, arrive: 97 }],
+    exits: [{ edge: 'north', from: 20.2, to: 23.8, map: 'map_2', shift: 27, arrive: 73 }],
     doors: [],
     areas: [area('burnt', 0, 0, W, H)],
     deco: [deco('scorch', 11, 9, 22, 19), deco('embers', 10, 12, 2, 1.4), deco('embers', 30, 24, 2, 1.4), deco('embers', 16, 28, 2, 1.4), deco('embers', 28, 9, 2, 1.4)],

@@ -15,7 +15,7 @@ const S = REALTIME.spawn;
 const M = REALTIME.combat.monsters;
 const SK = REALTIME.combat.skills;
 const BA = REALTIME.combat.basicAttack;
-const F = { x: 10, y: 50 };                                       // clareira da Floresta (fora da zona segura)
+const F = { x: 51, y: 10 };                                       // clareira da Floresta (fora da zona segura)
 
 /** Monstros parados (stepMs enorme) que não batem; PvP ligado ou não. */
 function config(pvp = false, monsters: Partial<CombatConfig['monsters']> = {}): RealtimeConfig {

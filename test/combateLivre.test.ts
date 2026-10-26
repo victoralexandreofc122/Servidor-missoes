@@ -11,7 +11,7 @@ import { placeIn, setupWorld } from './support/world.js';
 const T = await import(new URL('../public/targeting.js', import.meta.url).href);
 const SK = REALTIME.combat.skills;
 const M = REALTIME.combat.monsters;
-const F = { x: 10, y: 50 };                                       // clareira da Floresta (sem paredes em volta)
+const F = { x: 51, y: 10 };                                       // clareira da Floresta (sem paredes em volta)
 
 function config(pvp = false): RealtimeConfig {
   return {

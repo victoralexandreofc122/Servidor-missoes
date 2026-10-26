@@ -100,8 +100,8 @@ describe('v16: vilas, acesso e Posto de Viagem', () => {
     const { world, join, run, at } = await setup(['vilas']);
     const nevoa = join('mizu', 'vila_3');
     const folha = join('kaito', 'vila_1');
-    at(nevoa, 'map_2', 40, 0.5);
-    at(folha, 'map_2', 41, 0.5);
+    at(nevoa, 'map_2', 48, 0.5);
+    at(folha, 'map_2', 49, 0.5);
     nevoa.send({ type: 'move', dx: 0, dy: -1 });
     folha.send({ type: 'move', dx: 0, dy: -1 });
     run(400);

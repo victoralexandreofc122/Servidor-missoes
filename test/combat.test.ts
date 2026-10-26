@@ -78,7 +78,7 @@ describe('combate: monstros', () => {
     const a = connect('kaito');
     assert.equal(a.conn.of('welcome')[0].monsters.length, 0, 'na Vila (área segura) não há monstros');
     const forest = REALTIME.maps.map_2;
-    placeIn(world, a.id, 'map_2', 30, 50);
+    placeIn(world, a.id, 'map_2', 51, 10);                // Clareira da Entrada, longe das zonas
     assert.equal(a.conn.last('map_changed').monsters.length, M.count, 'chegando na Floresta, recebe os 10');
     // (a Academia tem os bonecos de treino fixos; a Caverna e a Zona têm os delas: aqui contam só os da Floresta)
     const hunt = () => (world as any).monstersIn('map_2') as { id: string; type: string; x: number; y: number }[];
@@ -316,7 +316,7 @@ describe('combate: morte, renascimento e autoridade do servidor', () => {
     const { world, connect } = setupWorld({ ...config(), combat: { ...config().combat, monsters: { ...config().combat.monsters, count: 1 } } }, fake.progression);
     const a = connect('kaito');
     const b = connect('mei');
-    const F = { x: 10, y: 50 };                                // clareira da Floresta (onde nascem os monstros)
+    const F = { x: 51, y: 10 };                                // clareira da Floresta (onde nascem os monstros)
     placeIn(world, a.id, 'map_2', F.x, F.y);
     placeIn(world, b.id, 'map_2', F.x, F.y);
     const hunt = () => (world as any).monstersIn('map_2') as { id: string; type: string }[];
