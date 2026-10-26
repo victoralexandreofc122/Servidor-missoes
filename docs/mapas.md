@@ -220,6 +220,8 @@ código por cima: o chão, as paredes, as tochas e os enfeites já estão no des
 |---|---|---|---|
 | Poço sob a Praça | `arte/mapas/referencia_poco.jpg` (1500 x 1120) | `37,34,1464,1087` | 24 x 18 |
 | Vila da Folha | `arte/vilas/folha_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
+| Vila da Névoa | `arte/vilas/nevoa_ampliada.jpg` (6000 x 4480, ampliada) | `0,0,6000,4480` | 80 x 60 |
+| Vila da Nuvem | `arte/vilas/nuvem_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
 | Armaria | `arte/mapas/referencia_armaria.jpg` (2000 x 1493) | `56,52,1944,1493` | 17 x 13 |
 | Casa dos Pergaminhos | `arte/mapas/referencia_pergaminhos.jpg` (2000 x 1493) | `75,59,1925,1493` | 17 x 13 |
 
@@ -257,8 +259,13 @@ casas. A planta dela (`villagePlan('map_1')` em `src/realtime/maps.ts`) foi medi
 | Portão sul (Floresta) | x 36,5..41,4; voltando da Floresta, chega-se em y 57 |
 | Poço / grade do rio | o poço da praça (x 47,3..50,4) / a grade no braço do rio (y 49,4..52,8) |
 
-As árvores bloqueiam só o tronco e a parte de baixo da copa (`crown`): entre duas árvores sobra passagem. As outras
-vilas continuam na planta antiga (80 x 80, `BASE_PLAN`) até ganharem a sua.
+As árvores bloqueiam só o tronco e a parte de baixo da copa (`crown`): entre duas árvores sobra passagem.
+
+**Névoa e Nuvem em imagem (v23):** a IA desenhou as duas sobre a planta da Folha. `arte/mapas/alinhar.py` casa milhares
+de pontos das duas imagens e dá a conta (Névoa: escala 0,9875 e +1,49 casa em x, 80 x 60; Nuvem: a mesma posição, 78 x
+60). `retrace()` passa a planta e as paredes da Folha pela conta e troca o que muda: na Névoa, bambuzais no lugar das
+cerejeiras e no pé da praça; na Nuvem, os oito mastros das bandeiras da praça. A Areia continua na planta antiga
+(80 x 80, `BASE_PLAN`) até a imagem nova dela chegar.
 
 ### 7.1 Névoa, Nuvem e Areia (v22)
 

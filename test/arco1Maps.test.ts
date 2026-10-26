@@ -153,7 +153,7 @@ describe('Arco 1: Caverna do Lodo, Clareira Queimada e Poço', () => {
     const at = (b: { x: number; y: number; w: number; h: number }) => [b.x + b.w / 2, b.y + b.h / 2] as const;
     assert.ok(blocked(...at(plan.well), WORLD_MAPS.map_1.walls) && blocked(...at(plan.grate), WORLD_MAPS.map_1.walls));
     // Nas vilas desenhadas por código, a tampa e a grade são enfeites.
-    const deco = WORLD_MAPS.vila_nevoa.deco.map((d) => d.k);
+    const deco = WORLD_MAPS.vila_areia.deco.map((d) => d.k);
     assert.ok(deco.includes('well_lid') && deco.includes('grate'));
     const P = WORLD_MAPS.poco;
     assert.ok(P.walls.some((w) => w.k === 'gate'), 'a porta lacrada da Quinta Pedra');

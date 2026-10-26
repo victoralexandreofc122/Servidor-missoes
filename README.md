@@ -227,7 +227,10 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Vila da Folha:** em imagem, ampliada 4x com o Real-ESRGAN (`arte/mapas/ampliar.py`), em 78 x 60 casas. Cada vila
   em imagem tem a sua planta (`villagePlan()`: renascimento, Mestre, praça, Posto de Viagem, portão, lojas, Academia,
   arena); NPCs, renascimento, viagem e o fim do tutorial saem dela. A borda norte da Floresta só atravessa no trecho
-  do portão da Folha. As outras três vilas seguem na planta 80 x 80 por código até ganharem a sua.
+  do portão da Folha.
+- **Névoa e Nuvem:** em imagem também. A IA desenhou as duas sobre a planta da Folha: `arte/mapas/alinhar.py` mede a
+  conta entre as imagens e `retrace()` reaproveita a planta e as colisões, trocando só o que muda (bambuzais na Névoa,
+  mastros das bandeiras na Nuvem). A Areia segue na planta 80 x 80 por código até a imagem nova dela.
 
 ### v22: Névoa, Nuvem e Areia com o desenho das artes (sem migração)
 

@@ -466,7 +466,8 @@ interface VillageArt {
  * altura). Entre duas árvores vizinhas sobra passagem, e quem passa atrás de uma pisa na beirada de cima da copa.
  */
 const r2 = (n: number) => Math.round(n * 100) / 100;
-const crown = (x: number, y: number, w: number, h: number): Wall => wall('tree', r2(x + w * 0.2), r2(y + h * 0.45), r2(w * 0.6), r2(h * 0.55));
+const crown = (x: number, y: number, w: number, h: number, s?: 'sakura'): Wall =>
+  wall('tree', r2(x + w * 0.2), r2(y + h * 0.45), r2(w * 0.6), r2(h * 0.55), s);
 
 /**
  * Vila da Folha em imagem (arte/vilas/referencia_folha.jpg, ampliada 4x com o Real-ESRGAN): 78 x 60 casas, a
@@ -508,8 +509,8 @@ const FOLHA_ART: VillageArt = {
     crown(6.8, 28, 4.4, 5.2), crown(1.4, 37.5, 3.6, 5.1), crown(16.25, 32.5, 4.65, 5.7), crown(16.25, 42.3, 4.65, 5.5),
     crown(1.5, 49.5, 4, 5.2), crown(4.6, 51, 4.3, 4), crown(16.7, 50.5, 3.7, 4.2), crown(22, 51, 4.6, 3.7), crown(71.4, 28.5, 5.1, 11.3),
     crown(52, 50.5, 3.6, 4.2),
-    crown(19.5, 28.4, 4.8, 5.3), crown(32.1, 28.9, 4.7, 5.35), crown(41.2, 28.9, 4.3, 5.5), crown(53.5, 28.4, 4.1, 5.5),   // cerejeiras
-    crown(29.5, 51.5, 4.7, 3.5), crown(43.2, 51.5, 5, 3.5),
+    crown(19.5, 28.4, 4.8, 5.3, 'sakura'), crown(32.1, 28.9, 4.7, 5.35, 'sakura'), crown(41.2, 28.9, 4.3, 5.5, 'sakura'),   // cerejeiras
+    crown(53.5, 28.4, 4.1, 5.5, 'sakura'), crown(29.5, 51.5, 4.7, 3.5, 'sakura'), crown(43.2, 51.5, 5, 3.5, 'sakura'),
     // O rio (com as três pontes de cima e a ponte do braço da esquerda) e a grade onde ele passa sob a muralha.
     wall('water', 1.5, 26.9, 15.3, 2.4), wall('water', 20.1, 26.9, 16.5, 2.4), wall('water', 41.8, 26.9, 25.6, 2.4), wall('water', 70.9, 26.9, 5.6, 2.4),
     wall('water', 11.9, 29.3, 3.7, 8.9), wall('water', 11.9, 42.1, 3.7, 12.6),
@@ -547,8 +548,56 @@ const FOLHA_ART: VillageArt = {
   ],
 };
 
+/**
+ * Outra vila desenhada sobre a planta da Folha: a IA partiu do mesmo desenho, então tudo fica no mesmo lugar a menos de
+ * uma escala e um deslocamento (medidos casando milhares de pontos das duas imagens: arte/mapas/alinhar.py). A planta e
+ * as paredes da Folha passam pela conta; `drop` tira o que a outra vila não tem e `add` põe o que só ela tem (já em
+ * casas dela).
+ */
+function retrace(base: VillageArt, art: string, m: { sx: number; ox: number; sy: number; oy: number }, size: { w: number; h: number },
+  drop: (w: Wall) => boolean, add: Wall[], lights: Point[] = []): VillageArt {
+  const X = (x: number) => r2(m.sx * x + m.ox), Y = (y: number) => r2(m.sy * y + m.oy);
+  const pt = (p: Point): Point => ({ x: X(p.x), y: Y(p.y) });
+  const box = <T extends Box>(b: T): T => ({ ...b, x: X(b.x), y: Y(b.y), w: r2(m.sx * b.w), h: r2(m.sy * b.h) });
+  const P = base.plan;
+  return {
+    art,
+    plan: {
+      ...size, spawn: pt(P.spawn), sensei: pt(P.sensei), plaza: pt(P.plaza), travel: pt(P.travel),
+      gate: { from: X(P.gate.from), to: X(P.gate.to), returnY: Y(P.gate.returnY) },
+      shops: { weapons: box(P.shops.weapons), clothes: box(P.shops.clothes), scrolls: box(P.shops.scrolls) },
+      academy: box(P.academy), arena: { fight: box(P.arena.fight), respawn: pt(P.arena.respawn) },
+      safe: P.safe.map(box), well: box(P.well), grate: box(P.grate),
+    },
+    walls: [...base.walls.filter((w) => !drop(w)).map(box), ...add],
+    lights: [...base.lights.map(pt), ...lights],
+    areas: base.areas.map(box),
+  };
+}
+
+/** Bambuzal (Névoa): bloqueia a moita inteira menos o topo das hastes. */
+const bamboo = (x: number, y: number, w: number, h: number): Wall => wall('tree', x, r2(y + h * 0.3), w, r2(h * 0.7));
+
+/**
+ * Vila da Névoa (arte/vilas/referencia_nevoa.jpg, ampliada): a planta da Folha, 80 x 60, com bambuzais no lugar das
+ * cerejeiras, mais bambu na beira do rio e no pé da praça, e poças (só desenho).
+ */
+const NEVOA_ART = retrace(FOLHA_ART, 'nevoa', { sx: 0.9875, ox: 1.49, sy: 0.994, oy: 0 }, { w: 80, h: 60 },
+  (w) => w.s === 'sakura',
+  [
+    bamboo(21.4, 28, 3.4, 6.4), bamboo(33.6, 28, 3.8, 7.2), bamboo(42.4, 28, 4.3, 6.8), bamboo(55, 28, 3.8, 6.8),   // entre as lojas
+    bamboo(3.4, 37.2, 1.2, 8.8), bamboo(8.2, 37.7, 4, 6.8), bamboo(10.3, 50.5, 2.5, 4.2),                            // à esquerda do rio
+    bamboo(21.1, 48.6, 3.1, 5.4), bamboo(28.5, 49.6, 7.5, 5), bamboo(43.9, 48.8, 8.7, 5.6), bamboo(55.8, 48.8, 3, 5),  // pé da praça
+  ]);
+
+/** Vila da Nuvem (arte/vilas/referencia_nuvem.jpg, ampliada): a planta da Folha no mesmo lugar, com os mastros das bandeiras da praça. */
+const NUVEM_ART = retrace(FOLHA_ART, 'nuvem', { sx: 1, ox: 0, sy: 1, oy: 0 }, { w: 78, h: 60 }, () => false, [
+  wall('furniture', 24.75, 38.6, 0.5, 0.9), wall('furniture', 32.8, 39.1, 0.5, 0.9), wall('furniture', 44.55, 38.6, 0.5, 0.9), wall('furniture', 52.7, 38.8, 0.5, 0.9),
+  wall('furniture', 24.75, 49.9, 0.5, 0.9), wall('furniture', 32.8, 49.9, 0.5, 0.9), wall('furniture', 44.55, 49.9, 0.5, 0.9), wall('furniture', 52.7, 50.1, 0.5, 0.9),
+]);
+
 /** As vilas em imagem (as outras usam BASE_PLAN e são desenhadas por código). */
-const VILLAGE_ART: Partial<Record<MapId, VillageArt>> = { map_1: FOLHA_ART };
+const VILLAGE_ART: Partial<Record<MapId, VillageArt>> = { map_1: FOLHA_ART, vila_nevoa: NEVOA_ART, vila_nuvem: NUVEM_ART };
 
 /** A planta das vilas desenhadas por código (80 x 80, a mesma nas quatro). */
 const BASE_PLAN: VillagePlan = {

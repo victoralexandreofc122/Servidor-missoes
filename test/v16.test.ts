@@ -7,7 +7,7 @@ import { parseAdminCommand, type AdminStore } from '../src/realtime/admin.js';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { GameWorld } from '../src/realtime/gameWorld.js';
 import { ITEM_BY_CODE } from '../src/realtime/items.js';
-import { REFUGE, TRAVEL_POST, conflictCamp } from '../src/realtime/maps.js';
+import { REFUGE, VILLAGE_MAPS, conflictCamp, villagePlan } from '../src/realtime/maps.js';
 import { PLAYER_RADIUS, blocked } from '../src/realtime/movement.js';
 import { VILLAGE_INFO } from '../src/realtime/villages.js';
 import { fakeEndgame } from './support/endgameStore.js';
@@ -114,7 +114,8 @@ describe('v16: vilas, acesso e Posto de Viagem', () => {
     fake.politics.relations.push({ a: 'vila_1', b: 'vila_3', state: 'alianca', declaredBy: 'vila_1' });
     await world.refreshPolitics();
     const p = join('mizu', 'vila_3', { ryo: 1000 });
-    at(p, 'vila_nevoa', TRAVEL_POST.x, TRAVEL_POST.y + 1);
+    const post = villagePlan('vila_nevoa').travel;
+    at(p, 'vila_nevoa', post.x, post.y + 1);
     p.send({ type: 'talk', npcId: 'travel_vila_nevoa' });
     const options = p.conn.last('travel_options').options.map((o: { to: string; cost: number }) => `${o.to}:${o.cost}`);
     assert.deepEqual(options, ['map_2:0', 'zona_conflito:0', 'vila_1:50']);
@@ -135,7 +136,11 @@ describe('v16: vilas, acesso e Posto de Viagem', () => {
   it('cada destino tem chão livre para chegar', async () => {
     const maps = REALTIME.maps;
     const free = (map: keyof typeof maps, x: number, y: number) => !blocked(x, y, maps[map].walls) && !blocked(x + PLAYER_RADIUS, y, maps[map].walls);
-    assert.ok(free('vila_nevoa', TRAVEL_POST.x + 2.5, TRAVEL_POST.y - 1.5));
+    for (const v of VILLAGE_MAPS) {                                // cada vila tem a sua planta (as em imagem, medidas no desenho)
+      const P = villagePlan(v.id);
+      assert.ok(free(v.id, P.travel.x + 2.5, P.travel.y - 1.5), `${v.id}: chegada de viagem`);
+      assert.ok(free(v.id, P.spawn.x, P.spawn.y) && free(v.id, P.sensei.x, P.sensei.y) && free(v.id, P.plaza.x, P.plaza.y), `${v.id}: renascimento, Mestre e praça`);
+    }
     assert.ok(free('map_2', 44, 8));
     assert.ok(free('refugio', REFUGE.spawn.x, REFUGE.spawn.y));
     for (const who of ['vila_1', 'vila_3', 'vila_4', 'vila_5', 'renegados'] as const) {
