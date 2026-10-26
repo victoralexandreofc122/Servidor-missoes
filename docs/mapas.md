@@ -219,6 +219,12 @@ código por cima: o chão, as paredes, as tochas e os enfeites já estão no des
 | Mapa | Imagem | Recorte | Tamanho |
 |---|---|---|---|
 | Poço sob a Praça | `arte/mapas/referencia_poco.jpg` (1500 x 1120) | `37,34,1464,1087` | 24 x 18 |
+| Armaria | `arte/mapas/referencia_armaria.jpg` (2000 x 1493) | `56,52,1944,1493` | 17 x 13 |
+| Casa dos Pergaminhos | `arte/mapas/referencia_pergaminhos.jpg` (2000 x 1493) | `75,59,1925,1493` | 17 x 13 |
+
+As lojas em imagem têm cada uma a sua planta (`SHOP_ART` e `shopRoom()` em `src/realtime/maps.ts`): o lojista, a
+frente do balcão, a chegada e a porta de saída. A Alfaiataria continua na sala 15 x 15 desenhada por código (`ROOM`)
+até ter imagem.
 
 **Resolução:** o jogo mostra ~50 px por casa. Imagens com menos de ~40 px por casa (as vilas, a Floresta e a Zona
 de Conflito, com 10 a 19) ficam borradas se só esticadas: precisam passar por um ampliador de IA antes de fatiar.

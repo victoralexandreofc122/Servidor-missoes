@@ -10,8 +10,8 @@
  *   caverna_lodo       56 x 44  do outro lado do abismo (só com o Teleporte): túneis e o lago de lodo
  *   clareira_queimada  44 x 40  o coração da Floresta (Pedra 4, chefe); passagem sul LACRADA até a história abrir
  *   poco               24 x 18  o Poço sob a Praça; tampa LACRADA até a história abrir
- *   interior_weapons / interior_clothes / interior_scrolls   salas 15 x 15 das lojas: assoalho,
- *                              paredes, balcão no meio e o lojista atrás dele; porta de saída embaixo
+ *   interior_weapons / interior_clothes / interior_scrolls   salas das lojas: balcão e o lojista atrás
+ *                              dele, porta de saída embaixo (Armaria e Pergaminhos 17 x 13 em imagem; Alfaiataria 15 x 15)
  *   academy_interior  Academia 64 x 16: 4 salas do tutorial (v8: fechadas; o servidor leva o jogador
  *                              para a sala seguinte quando ele conclui a etapa)
  *
@@ -257,9 +257,69 @@ export const SHOPS = [
  * na parede ao lado do vão (ninguém fica preso no canto). Quem entra chega em (7,5; 12,8).
  */
 export const ROOM = {
-  w: 15, h: 15, doorFrom: 6, doorTo: 9, counterY: 6, npc: { x: 7.5, y: 4.6 }, arrive: { x: 7.5, y: 12.8 },
+  w: 15, h: 15, doorFrom: 6, doorTo: 9, counterY: 6, npc: { x: 7.5, y: 4.6 }, front: { x: 7.5, y: 7.7 }, arrive: { x: 7.5, y: 12.8 },
   exit: { x: 5.5, y: 13.4, w: 4, h: 1.6 },
 } as const;
+
+type Point = { x: number; y: number };
+
+/** O que o resto do jogo precisa saber da sala de uma loja: tamanho, lojista, frente do balcão, chegada e saída. */
+export interface ShopRoom {
+  w: number;
+  h: number;
+  /** O lojista, atrás do balcão. */
+  npc: Point;
+  /** Na frente do balcão, encostado: daqui se fala com ele. */
+  front: Point;
+  /** Onde se chega vindo da vila (fora da porta de saída). */
+  arrive: Point;
+  /** A porta de saída: empurrando para baixo dentro dela, volta para a vila. */
+  exit: Box;
+}
+
+/**
+ * Lojas com a sala em imagem (arte/mapas/referencia_*.jpg, docs/mapas.md 6.1): 17 x 13 casas, a proporção da
+ * imagem. As paredes seguem o desenho (o balcão, as estantes e os móveis) e só dão colisão.
+ */
+const SHOP_ART: Partial<Record<ShopKind, ShopRoom & { art: string; walls: Wall[]; lights: Point[] }>> = {
+  // Armaria: balcão em U encostado na parede das espadas (o ferreiro fica dentro do U), lanças à esquerda, escudos à
+  // direita, barril no canto e a porta no meio da parede de baixo, com o capacho do lado de fora.
+  weapons: {
+    w: 17, h: 13, art: 'armaria', npc: { x: 8.5, y: 5 }, front: { x: 8.5, y: 7.9 }, arrive: { x: 8.5, y: 8.7 },
+    exit: { x: 7.2, y: 10.2, w: 2.65, h: 2.8 },
+    walls: [
+      wall('iwall', 0, 0, 17, 2.9),                                            // parede das espadas
+      wall('iwall', 0, 2.9, 0.85, 8.3), wall('iwall', 16.15, 2.9, 0.85, 8.3),
+      wall('iwall', 0, 11.2, 7.2, 1.8), wall('iwall', 9.85, 11.2, 7.15, 1.8),  // parede de baixo (a porta no meio)
+      wall('counter', 4.45, 5.8, 8.05, 1.7),                                   // balcão
+      wall('counter', 4.45, 2.9, 1.35, 2.9), wall('counter', 11.2, 2.9, 1.3, 2.9),
+      wall('furniture', 0.85, 3.4, 1, 5.5, 'spear_rack'), wall('furniture', 15.2, 3.7, 0.95, 5.2, 'shield_rack'),
+      wall('furniture', 0.9, 9.1, 1.65, 1.9, 'barrel'),
+    ],
+    lights: [{ x: 2.27, y: 1.64 }, { x: 14.73, y: 1.64 }],
+  },
+  // Casa dos Pergaminhos: estantes na parede do fundo e um balcão comprido de lado a lado (o sábio fica atrás dele),
+  // estantes estreitas nas laterais, a mesa de pergaminhos no canto e a porta no meio da parede de baixo.
+  scrolls: {
+    w: 17, h: 13, art: 'pergaminhos', npc: { x: 8.5, y: 4.1 }, front: { x: 8.5, y: 6.3 }, arrive: { x: 8.5, y: 10.3 },
+    exit: { x: 7.2, y: 11.2, w: 2.6, h: 1.8 },
+    walls: [
+      wall('counter', 0, 0, 17, 5.9),                                          // estantes e o balcão comprido
+      wall('iwall', 0, 5.9, 1.5, 7.1), wall('iwall', 15.5, 5.9, 1.5, 7.1),      // laterais (com as estantes estreitas)
+      wall('iwall', 0, 11.8, 7.55, 1.2), wall('iwall', 9.45, 11.8, 7.55, 1.2),  // parede de baixo (a porta no meio)
+      wall('furniture', 11.8, 9.5, 3.5, 2.3, 'scroll_table'),
+    ],
+    lights: [
+      { x: 0.95, y: 1.15 }, { x: 8.48, y: 1.15 }, { x: 15.97, y: 1.15 },
+      { x: 0.45, y: 2.95 }, { x: 16.55, y: 2.95 }, { x: 0.45, y: 8.1 }, { x: 16.55, y: 8.1 },
+    ],
+  },
+};
+
+/** A sala da loja: a planta da imagem, ou a sala 15 x 15 desenhada por código (ROOM). */
+export function shopRoom(shop: ShopKind): ShopRoom {
+  return SHOP_ART[shop] ?? ROOM;
+}
 
 /**
  * Academia (tutorial, v8): 4 salas de 16 x 16 lado a lado (x 0, 16, 32, 48), FECHADAS entre si.
@@ -452,7 +512,7 @@ function village(def: VillageMapDef = VILLAGE_MAPS[0]!): MapLayout {
   const doors: Door[] = SHOPS.map((sh) => {
     const { door, outside } = shopDoor(sh.building);
     decos.push(deco('mat', door.x + 0.5, door.y, 2, 0.6));        // capacho na porta
-    return { ...door, dir: 'north' as const, map: sh.map, at: { ...ROOM.arrive }, back: { ...outside } };
+    return { ...door, dir: 'north' as const, map: sh.map, at: { ...shopRoom(sh.shop).arrive }, back: { ...outside } };
   });
   // Academia: a porta do prédio leva à sala 4 (onde fica o Diretor e a Missão de Genin).
   const academy = shopDoor(ACADEMY.building);
@@ -798,6 +858,18 @@ function well(): MapLayout {
  * Vila, na frente da loja. Quem entra chega em (7,5; 12,8), fora dela, e continua subindo.
  */
 function interior(sh: (typeof SHOPS)[number]): MapLayout {
+  const back = shopDoor(sh.building).outside;
+  const A = SHOP_ART[sh.shop];
+  if (A) {
+    return {
+      id: sh.map, name: sh.name, kind: 'interior', width: A.w, height: A.h, safe: true, walls: A.walls, art: A.art, lights: A.lights,
+      exits: [],
+      doors: [{ ...A.exit, dir: 'south', map: 'map_1', at: { ...back }, toBack: true }],
+      areas: [area('wood', 0, 0, A.w, A.h)],
+      deco: [],
+      safeZones: [{ x: 0, y: 0, w: A.w, h: A.h }],
+    };
+  }
   const { w: W, h: H } = ROOM;
   const f = (s: Wall['s'], x: number, y: number, w: number, h: number) => wall('furniture', x, y, w, h, s);
   const walls: Wall[] = [
@@ -820,7 +892,6 @@ function interior(sh: (typeof SHOPS)[number]): MapLayout {
     walls.push(f('scroll_shelf', 1, 0.6, 5, 2.2), f('scroll_shelf', 9, 0.6, 5, 2.2));  // pergaminhos
     walls.push(f('scroll_shelf', 1, 8.5, 1, 4), f('scroll_shelf', 13, 8.5, 1, 4), f('scroll_table', 11.4, 12.2, 1.6, 1));
   }
-  const back = shopDoor(sh.building).outside;
   return {
     id: sh.map, name: sh.name, kind: 'interior', width: W, height: H, safe: true, walls,
     exits: [],
@@ -984,10 +1055,10 @@ function refuge(): MapLayout {
   ];
   const doors: Door[] = [];
   const decos: Deco[] = [deco('fire', 23, 22, 2, 2), deco('bones', 30, 33, 2, 1), deco('bones', 12, 18, 2, 1)];
-  for (const [b, map] of [[REFUGE.weapons, 'interior_weapons'], [REFUGE.scrolls, 'interior_scrolls']] as const) {
+  for (const [b, map, shop] of [[REFUGE.weapons, 'interior_weapons', 'weapons'], [REFUGE.scrolls, 'interior_scrolls', 'scrolls']] as const) {
     const { door, outside } = shopDoor(b);
     decos.push(deco('mat', door.x + 0.5, door.y, 2, 0.6));
-    doors.push({ ...door, dir: 'north', map, at: { ...ROOM.arrive }, back: { ...outside } });
+    doors.push({ ...door, dir: 'north', map, at: { ...shopRoom(shop).arrive }, back: { ...outside } });
   }
   return {
     id: 'refugio', name: 'Refúgio dos Renegados', kind: 'wild', theme: 'refugio', refuge: true, width: W, height: H, safe: true, walls,

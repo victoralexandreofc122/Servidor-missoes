@@ -222,6 +222,8 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   colisão (confira com `arte/mapas/sobrepor.py`). Como fazer: docs/mapas.md, 6.1.
 - **Poço sob a Praça:** primeiro mapa em imagem; passou a 24 x 18 (a proporção da imagem), com as tochas do desenho
   acendendo no escuro da caverna (`lights`).
+- **Armaria e Casa dos Pergaminhos:** salas em imagem de 17 x 13, cada uma com a sua planta (`shopRoom()`: lojista,
+  frente do balcão, chegada e saída). A Alfaiataria segue na sala 15 x 15 por código até ter imagem.
 
 ### v22: Névoa, Nuvem e Areia com o desenho das artes (sem migração)
 

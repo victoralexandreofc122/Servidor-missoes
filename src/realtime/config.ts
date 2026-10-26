@@ -5,7 +5,7 @@
 import { buildSkills, type JutsuCode, type Mechanic } from './jutsus.js';
 import type { AttributeRules } from './stats.js';
 import {
-  ACADEMY, CONFLICT, REFUGE, ROOM, SHOPS, TRAVEL_POST, VILLAGE_MAPS, VILLAGE_PLAZA, WORLD_MAPS, conflictCamp, type MapId, type MapLayout, type ShopKind,
+  ACADEMY, CONFLICT, REFUGE, SHOPS, TRAVEL_POST, VILLAGE_MAPS, VILLAGE_PLAZA, WORLD_MAPS, conflictCamp, shopRoom, type MapId, type MapLayout, type ShopKind,
 } from './maps.js';
 import type { EndgameModule } from './endgame.js';
 
@@ -396,7 +396,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     { id: 'travel_refugio', name: 'Posto de Viagem', map: 'refugio', x: REFUGE.post.x, y: REFUGE.post.y, range: 2.5, role: 'travel' },
     // Lojistas: cada um atrás do balcão da sua loja (só existem dentro do interior). Alcance 3,3
     // casas: dá para falar com ele da frente do balcão, sem passar para trás.
-    ...SHOPS.map((sh): NpcConfig => ({ id: `shop_${sh.shop}`, name: sh.keeper, map: sh.map, x: ROOM.npc.x, y: ROOM.npc.y, range: 3.3, role: 'shop', shop: sh.shop })),
+    ...SHOPS.map((sh): NpcConfig => ({ id: `shop_${sh.shop}`, name: sh.keeper, map: sh.map, x: shopRoom(sh.shop).npc.x, y: shopRoom(sh.shop).npc.y, range: 3.3, role: 'shop', shop: sh.shop })),
     // Academia (v8): um Professor em cada etapa (dica do passo) e o Diretor na sala 4
     // (Missão de Genin, classe Secundária e candidatura a Kage). O da Sala de Jutsus fica ao
     // SUL do vão, perto de onde se nasce; o da Sala de Armas, longe do canto seguro do Diretor.

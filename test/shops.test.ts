@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { REALTIME } from '../src/realtime/config.js';
-import { ROOM, SHOPS, shopDoor, WORLD_MAPS, type MapLayout } from '../src/realtime/maps.js';
+import { SHOPS, shopDoor, shopRoom, WORLD_MAPS, type MapLayout } from '../src/realtime/maps.js';
 import { blocked, moveStep, useDoor } from '../src/realtime/movement.js';
 import { mapOf, seededRandom, setupWorld, withMonsters } from './support/world.js';
 
@@ -17,6 +17,12 @@ function walk(a: { send: (m: unknown) => void }, run: (ms: number) => void, from
   }
   return seq;
 }
+/** Um ponto bem dentro da porta de saída da sala (empurrando para baixo ali, sai). */
+const exitPoint = (shop: (typeof SHOPS)[number]['shop']) => {
+  const e = shopRoom(shop).exit;
+  return [e.x + e.w / 2, e.y + e.h - 0.4] as const;
+};
+
 /** Busca em largura (passo 0,25) com o raio do jogador: o que dá para alcançar dentro da sala. */
 function reach(layout: MapLayout, from: [number, number]): (x: number, y: number) => boolean {
   const seen = new Set<string>();
@@ -38,27 +44,33 @@ function reach(layout: MapLayout, from: [number, number]): (x: number, y: number
 describe('lojas: salas (interiores)', () => {
   for (const sh of SHOPS) {
     const room = WORLD_MAPS[sh.map];
-    it(`${sh.name}: sala 15x15 de assoalho, balcão no meio, lojista atrás dele e saída que sempre funciona`, () => {
-      assert.deepEqual([room.kind, room.width, room.height, room.safe], ['interior', 15, 15, true]);
+    const R = shopRoom(sh.shop);
+    it(`${sh.name}: sala de assoalho, balcão, lojista atrás dele e saída que sempre funciona`, () => {
+      assert.deepEqual([room.kind, room.width, room.height, room.safe], ['interior', R.w, R.h, true]);
       assert.ok(room.areas.some((a) => a.g === 'wood'), 'chão de madeira');
-      assert.ok(room.walls.some((w) => w.k === 'counter' && w.x <= 7.5 && w.x + w.w >= 7.5), 'balcão no meio');
-      const can = reach(room, [ROOM.arrive.x, ROOM.arrive.y]);
+      assert.ok(room.walls.some((w) => w.k === 'counter' && w.x <= R.npc.x && w.x + w.w >= R.npc.x), 'balcão na frente do lojista');
+      const can = reach(room, [R.arrive.x, R.arrive.y]);
       const npc = REALTIME.npcs.find((n) => n.shop === sh.shop)!;
       assert.equal(npc.map, sh.map, 'o lojista só existe dentro da loja');
+      assert.deepEqual([npc.x, npc.y], [R.npc.x, R.npc.y]);
       assert.ok(!can(npc.x, npc.y), 'ninguém passa para trás do balcão');
-      assert.ok(can(7.5, 7.7) && Math.hypot(7.5 - npc.x, 7.7 - npc.y) <= npc.range, 'da frente do balcão dá para falar com ele');
+      assert.ok(can(R.front.x, R.front.y) && Math.hypot(R.front.x - npc.x, R.front.y - npc.y) <= npc.range, 'da frente do balcão dá para falar com ele');
+      assert.ok(Math.hypot(R.arrive.x - npc.x, R.arrive.y - npc.y) > npc.range, 'da porta, não (tem que andar até o balcão)');
       const exit = room.doors[0]!;
-      assert.ok(can(7.5, 14.5) && 14.5 >= exit.y, 'a porta de saída é alcançável de onde se chega');
+      const [ex, ey] = exitPoint(sh.shop);
+      assert.ok(can(ex, ey) && ey >= exit.y, 'a porta de saída é alcançável de onde se chega');
       // De QUALQUER ponto alcançável da sala dá para chegar na saída (ninguém fica preso).
-      for (let x = 1; x < 14; x += 0.5) for (let y = 7.5; y < 14; y += 0.5) if (can(x, y)) assert.ok(can(7.5, 14.5));
+      for (let x = 1; x < R.w - 1; x += 0.5) for (let y = R.front.y; y < R.h - 1; y += 0.5) if (can(x, y)) assert.ok(can(ex, ey));
     });
   }
 
-  it('decoração própria: armas (espadas, lanças, escudos), roupas (manequins), pergaminhos (estantes)', () => {
+  it('decoração própria: Armaria e Pergaminhos em imagem (com os móveis do desenho), Alfaiataria por código (manequins)', () => {
     const styles = (m: MapLayout) => new Set(m.walls.filter((w) => w.k === 'furniture').map((w) => w.s));
-    assert.ok(styles(WORLD_MAPS.interior_weapons).has('sword_rack') && styles(WORLD_MAPS.interior_weapons).has('shield_rack'));
+    assert.deepEqual([WORLD_MAPS.interior_weapons.art, WORLD_MAPS.interior_scrolls.art], ['armaria', 'pergaminhos']);
+    assert.ok(styles(WORLD_MAPS.interior_weapons).has('spear_rack') && styles(WORLD_MAPS.interior_weapons).has('shield_rack'));
+    assert.ok(styles(WORLD_MAPS.interior_scrolls).has('scroll_table'));
+    assert.ok(!WORLD_MAPS.interior_clothes.art);
     assert.ok(styles(WORLD_MAPS.interior_clothes).has('mannequin') && styles(WORLD_MAPS.interior_clothes).has('cloth_shelf'));
-    assert.ok(styles(WORLD_MAPS.interior_scrolls).has('scroll_shelf') && styles(WORLD_MAPS.interior_scrolls).has('scroll_table'));
     assert.ok(!styles(WORLD_MAPS.interior_clothes).has('sword_rack'));
   });
 });
@@ -69,14 +81,16 @@ describe('lojas: portas (mesma regra no cliente e no servidor)', () => {
     for (const sh of SHOPS) {
       const { door, outside } = shopDoor(sh.building);
       const front = door.y + 0.3;                                         // encostado na fachada
-      assert.deepEqual(useDoor(maps, 'map_1', door.x + 1, front, 0, -1), [sh.map, ROOM.arrive.x, ROOM.arrive.y], sh.name);
+      const R = shopRoom(sh.shop);
+      const [ex, ey] = exitPoint(sh.shop);
+      assert.deepEqual(useDoor(maps, 'map_1', door.x + 1, front, 0, -1), [sh.map, R.arrive.x, R.arrive.y], sh.name);
       assert.equal(useDoor(maps, 'map_1', door.x + 1, front, 1, 0), null, 'passando de lado: não entra');
       assert.equal(useDoor(maps, 'map_1', door.x + 1, front, 0, 1), null, 'indo embora: não entra');
-      assert.deepEqual(useDoor(maps, sh.map, 7.5, 14.6, 0, 1), ['map_1', outside.x, outside.y]);
-      assert.equal(useDoor(maps, sh.map, 7.5, 14.6, 0, -1), null);
+      assert.deepEqual(useDoor(maps, sh.map, ex, ey, 0, 1), ['map_1', outside.x, outside.y]);
+      assert.equal(useDoor(maps, sh.map, ex, ey, 0, -1), null);
       // as chegadas são livres e ficam FORA da porta do outro lado
       assert.ok(!blocked(outside.x, outside.y, maps.map_1.walls) && outside.y > door.y + door.h);
-      assert.ok(!blocked(ROOM.arrive.x, ROOM.arrive.y, maps[sh.map].walls) && ROOM.arrive.y < maps[sh.map].doors[0]!.y);
+      assert.ok(!blocked(R.arrive.x, R.arrive.y, maps[sh.map].walls) && R.arrive.y < maps[sh.map].doors[0]!.y);
     }
   });
 
@@ -86,7 +100,7 @@ describe('lojas: portas (mesma regra no cliente e no servidor)', () => {
     for (let i = 0; i < 30 && s[0] === 'map_1'; i++) s = moveStep(maps, s[0], s[1], s[2], 0, -1, 0.25);
     assert.equal(s[0], 'interior_weapons');
     for (let i = 0; i < 40; i++) s = moveStep(maps, s[0], s[1], s[2], 0, -1, 0.25);
-    assert.ok(s[0] === 'interior_weapons' && s[2] >= 7.5 && s[2] <= 7.75, `parou no balcão (${s})`);
+    assert.ok(s[0] === 'interior_weapons' && Math.abs(s[2] - shopRoom('weapons').front.y) <= 0.3, `parou no balcão (${s})`);
     for (let i = 0; i < 40 && s[0] !== 'map_1'; i++) s = moveStep(maps, s[0], s[1], s[2], 0, 1, 0.25);
     assert.equal(s[0], 'map_1', 'saiu');
     const after = moveStep(maps, s[0], s[1], s[2], 0, 1, 0.25);
@@ -95,8 +109,10 @@ describe('lojas: portas (mesma regra no cliente e no servidor)', () => {
 
   it('ninguém fica preso no canto: descendo reto em qualquer ponto do capacho (até encostado na parede), sai', () => {
     for (const sh of SHOPS) {
-      for (const x of [5.6, 6.1, 6.6, 7.5, 8.4, 8.9, 9.4]) {
-        let s: [string, number, number] = [sh.map, x, 11];
+      const e = shopRoom(sh.shop).exit;
+      for (let k = 0; k <= 6; k++) {
+        const x = e.x + 0.1 + ((e.w - 0.2) * k) / 6;
+        let s: [string, number, number] = [sh.map, x, e.y - 0.5];
         for (let i = 0; i < 40 && s[0] === sh.map; i++) s = moveStep(maps, s[0], s[1], s[2], 0, 1, 0.25);
         assert.equal(s[0], 'map_1', `${sh.name}: preso descendo em x=${x} (${s})`);
       }
@@ -131,11 +147,14 @@ describe('lojas: servidor', () => {
     walk(a, run, 1, 10, [0, -1]);
     assert.equal(mapOf(world, a.id), 'interior_weapons');
     const changed = a.conn.last('map_changed');
-    assert.deepEqual([changed.map, changed.x, changed.y, changed.players, changed.monsters], ['interior_weapons', ROOM.arrive.x, ROOM.arrive.y, [], []]);
+    const R = shopRoom('weapons');
+    assert.deepEqual([changed.map, changed.x, changed.y, changed.players, changed.monsters], ['interior_weapons', R.arrive.x, R.arrive.y, [], []]);
     assert.equal(b.conn.last('player_left').playerId, a.id, 'quem está na Vila vê ele entrar na loja');
-    // longe do balcão (logo na entrada): longe demais para falar
+    // longe do balcão (no canto da sala): longe demais para falar
+    Object.assign(sess(world, a.id), { x: R.w - 3, y: R.arrive.y });
     a.send({ type: 'talk', npcId: 'shop_weapons' });
     assert.equal(a.conn.last('error').code, 'NPC_TOO_FAR');
+    Object.assign(sess(world, a.id), { x: R.arrive.x, y: R.arrive.y });
     walk(a, run, 11, 30, [0, -1]);                                       // sobe até o balcão
     run(400);
     a.send({ type: 'talk', npcId: 'shop_weapons' });
@@ -156,7 +175,7 @@ describe('lojas: servidor', () => {
   it('da Vila não se fala com lojista (mesma posição, outro mapa); o Mestre continua na Vila', () => {
     const { world, connect } = setupWorld(withMonsters(0));
     const a = connect('kaito');
-    Object.assign(sess(world, a.id), { x: ROOM.npc.x, y: ROOM.npc.y + 2 });
+    Object.assign(sess(world, a.id), { x: shopRoom('scrolls').npc.x, y: shopRoom('scrolls').npc.y + 2 });
     a.send({ type: 'talk', npcId: 'shop_scrolls' });
     assert.equal(a.conn.last('error').code, 'NPC_TOO_FAR');
     assert.equal(a.conn.of('shop_open').length, 0);
