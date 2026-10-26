@@ -74,7 +74,7 @@ export function themeAt(places, x, y) {
 /** Enfeites (bancos, lanternas...) de todos os mapas visíveis, em coordenadas do mapa atual. */
 export function visibleDeco(places) {
   const out = [];
-  for (const p of places) for (const d of p.map.deco || []) out.push({ ...d, x: d.x + p.ox, y: d.y + p.oy });
+  for (const p of places) for (const d of p.map.deco || []) out.push({ ...d, x: d.x + p.ox, y: d.y + p.oy, t: p.map.theme });
   return out;
 }
 

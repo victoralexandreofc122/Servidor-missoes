@@ -1316,7 +1316,7 @@ function updateTargetWindow(f) {
  * ninjas (verde), portas e saídas (roxo) e a seta do jogador no meio.
  */
 const MM_GROUND = {
-  stone: '#8d8a84', grass: '#4f9a3a', darkgrass: '#2a5a2c', sand: '#d9c08a', water: '#3a8ad0', bridge: '#8b5a2b',
+  stone: '#8d8a84', grass: '#4f9a3a', darkgrass: '#2a5a2c', moss: '#5b8a62', desert: '#e4c38a', stonebridge: '#b6aa94', sand: '#d9c08a', water: '#3a8ad0', bridge: '#8b5a2b',
   path: '#b8935c', trail: '#9a7a50', wood: '#7a5230', arena: '#3e4761', dirt: '#6f6150', ash: '#4a4744', cave: '#2a2236',
   burnt: '#3a2e26', pebbles: '#8a8478', lodo: '#5e2a86', void: '#0b1020',
 };
@@ -1336,7 +1336,7 @@ function buildMinimap() {
   const g = c.getContext('2d');
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
-      g.fillStyle = MM_GROUND[groundAt(state.places, x, y)] || '#2a4a2c';
+      g.fillStyle = MM_GROUND[groundKind(x, y)] || '#2a4a2c';
       g.fillRect(x * S, y * S, S, S);
     }
   }
@@ -3931,6 +3931,8 @@ function grassHD(seed, pal, extra) {
 /** Grama da Floresta (mais escura) e a dos gramados da Vila. */
 const DARK_GRASS = ['#2d6230', '#1f4a24', '#2f6a33', '#3f8040', '#6aa85a'];
 const LAWN = ['#4f9a3a', '#3a7a2b', '#4c9238', '#5fae47', '#8fd06a'];
+/** Grama úmida da Névoa: verde frio, puxado para o azul. */
+const MOSS = ['#5b8a62', '#41684a', '#527f5a', '#6c9a70', '#a2c6a0'];
 
 function darkGrassTile(seed) {
   return makeTile((g) => {
@@ -3984,6 +3986,47 @@ function lightStoneTile(seed) {
     for (let i = 0; i < 6; i++) {
       g.fillStyle = r() < 0.5 ? '#b8b4aa' : '#d8d4ca';
       g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1);
+    }
+  });
+}
+
+/** Areia do deserto (os gramados da Vila da Areia): grão fino e ondinhas de vento. */
+function desertTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#e4c38a';
+    g.fillRect(0, 0, U, U);
+    for (let i = 0; i < 50; i++) fine(g, r() < 0.5 ? '#d4ae70' : '#f0d6a4', r() * U, r() * U, PX * (1 + Math.floor(r() * 2)), PX);
+    for (let i = 0; i < 2; i++) {
+      const x = r() * (U - 6), y = 2 + r() * (U - 4), w = 3 + r() * 4;
+      fine(g, '#cfa868', x, y, w, PX);
+      fine(g, '#f4dcae', x + PX, y - PX, w - PX * 2, PX);
+    }
+  });
+}
+
+/** Terra batida da arena da Areia: areia mais escura e compacta, com marcas de pé. */
+function packedSandTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#d2a86c';
+    g.fillRect(0, 0, U, U);
+    for (let i = 0; i < 40; i++) fine(g, r() < 0.5 ? '#c09458' : '#e0ba80', r() * U, r() * U, PX * (1 + Math.floor(r() * 3)), PX);
+    if (r() < 0.4) { const x = 2 + r() * (U - 5), y = 2 + r() * (U - 5); fine(g, '#b6894e', x, y, PX * 4, PX * 6); fine(g, '#b6894e', x + 1.8, y + 2.4, PX * 4, PX * 6); }
+  });
+}
+
+/** Ponte de pedra (Areia): lajes claras atravessadas, com junta escura. */
+function stoneBridgeTile(seed) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#7a6e5c';
+    g.fillRect(0, 0, U, U);
+    for (let y = 0, row = 0; y < U; y += 5.3, row++) {
+      for (let x = row % 2 ? -3 : 0; x < U; x += 6) {
+        fine(g, r() < 0.5 ? '#c2b6a2' : '#b6aa94', x + PX, y + PX, 6 - PX * 2, 5.3 - PX * 2);
+        fine(g, '#ddd2c0', x + PX, y + PX, 6 - PX * 2, PX);
+      }
     }
   });
 }
@@ -4215,6 +4258,10 @@ const TILES = {
   pebbles: [pebblesTile(141), pebblesTile(142)],
   lodo: [lodoTile(151)],
   sand: [sandTile(41), sandTile(42)],
+  desert: [desertTile(161), desertTile(162), desertTile(163)],
+  packedSand: [packedSandTile(191), packedSandTile(192), packedSandTile(193)],                 // Areia: chão da arena                                // Areia: os gramados
+  moss: [grassHD(171, MOSS), grassHD(172, MOSS), grassHD(173, MOSS), grassHD(174, MOSS, 'clover')], // Névoa: grama úmida
+  stoneBridge: [stoneBridgeTile(181)],                                                        // Areia: pontes de pedra
   arena: [slabTile(43), slabTile(44), slabTile(45), slabTile(46, true)],                     // lajes de ardósia da arena
   bridge: [bridgeTile(51)],
   river: [riverTile(61), riverTile(62), riverTile(63), riverTile(64)],
@@ -4234,10 +4281,26 @@ function cellHash(x, y) {
   return (h ^ (h >>> 16)) >>> 0;      // >>> 0: sempre positivo (índice de tile válido)
 }
 
+/**
+ * Chão com o tema da vila (a mesma planta nas quatro): na Areia os gramados viram areia do deserto e as pontes são de
+ * pedra; na Névoa a grama é úmida ('moss').
+ */
+function groundKind(x, y) {
+  const g = groundAt(state.places, x, y);
+  if (g !== 'grass' && g !== 'bridge') return g;
+  const theme = themeAt(state.places, x, y);
+  if (theme === 'areia') return g === 'grass' ? 'desert' : 'stonebridge';
+  if (theme === 'nevoa' && g === 'grass') return 'moss';
+  return g;
+}
+
 /** Chão de uma casa (coordenadas do mapa desenhado; além da saída, o chão do mapa vizinho). */
 function tileAt(x, y) {
   const h = cellHash(x, y);
-  switch (groundAt(state.places, x, y)) {
+  switch (groundKind(x, y)) {
+    case 'desert': return TILES.desert[h % 3];                     // Areia: o deserto entre as casas
+    case 'moss': return TILES.moss[h % 13 === 0 ? 3 : h % 3];      // Névoa: grama úmida
+    case 'stonebridge': return TILES.stoneBridge[0];               // Areia: ponte de pedra
     case 'stone': return (TILES.themedStone[themeAt(state.places, x, y)] || TILES.stone)[h % 3];   // Vila: o calçamento da vila
     case 'dirt': return TILES.dirt[h % 3];                         // Zona de Conflito, Refúgio: terra solta
     case 'ash': return TILES.ash[h & 1];                           // acampamentos: cinzas
@@ -4247,7 +4310,9 @@ function tileAt(x, y) {
     case 'lodo': return TILES.lodo[0];
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
-    case 'arena': return TILES.arena[x % 4 === 2 && y % 4 === 1 ? 3 : h % 3];   // arena da vila: lajes, losango a cada 4
+    case 'arena':                                                  // arena da vila: lajes, losango a cada 4 (na Areia, terra batida)
+      if (themeAt(state.places, x, y) === 'areia') return TILES.packedSand[h % 3];
+      return TILES.arena[x % 4 === 2 && y % 4 === 1 ? 3 : h % 3];
     case 'water': return TILES.river[h & 3];                       // rio e canais
     case 'bridge': return TILES.bridge[0];                         // pontes
     case 'trail':                                                  // Floresta: grama por baixo da trilha curva
@@ -4439,7 +4504,7 @@ try {
         }
         for (const o of state.overhead) {
           if (o.k === 'oak_canopy') g.drawImage(canopySprite(o), o.x * px, o.y * px, o.w * px, o.h * px);
-          else drawGateRoof(g, o.x * px, o.y * px, o.w * px, o.h * px);
+          else drawGateRoof(g, o.x * px, o.y * px, o.w * px, o.h * px, o.t);
         }
         return c.toDataURL('image/png');
       },
@@ -4626,7 +4691,7 @@ function draw(now) {
       if (under) ctx.globalAlpha = 0.45;
       ctx.drawImage(c, x, y, w, h);
       ctx.globalAlpha = 1;
-    } else drawGateRoof(ctx, x, y, w, h);
+    } else drawGateRoof(ctx, x, y, w, h, o.t);
   }
 
   // O ar do mapa (sombras das copas, sol, pólen, brasas, vinheta) e, na caverna, o escuro em volta do jogador.
@@ -4697,7 +4762,8 @@ const propCache = new Map();
 const PROP_BUILDS_PER_FRAME = 4;
 let propBuilds = 0;
 function propSprite(pr) {
-  const key = `${pr.wall.k}:${pr.x},${pr.top},${pr.w},${pr.h}:${pr.wall.s || ''}`;
+  // O tema entra na chave: as quatro vilas têm árvores no mesmo lugar, mas desenhadas diferente (bambu, palmeira).
+  const key = `${pr.wall.k}:${pr.x},${pr.top},${pr.w},${pr.h}:${pr.wall.s || ''}:${pr.wall.t || ''}`;
   let sp = propCache.get(key);
   if (sp) return sp;
   if (propBuilds >= PROP_BUILDS_PER_FRAME) return null;
@@ -4727,6 +4793,18 @@ function drawPropOnScreen(pr, toScreenX, toScreenY, T, me) {
   if (covers) ctx.globalAlpha = 1;
 }
 
+/** Poça d'água da Névoa (chão molhado de neblina): reflexo azulado, borda escura e um brilho. */
+function drawPuddle(g, cx, cy, r) {
+  const rx = 3.5 + r() * 3, ry = rx * (0.45 + r() * 0.15);
+  g.fillStyle = 'rgba(40, 60, 70, 0.35)';
+  g.beginPath(); g.ellipse(cx, cy + 0.4, rx + 0.8, ry + 0.6, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(120, 160, 180, 0.7)';
+  g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(190, 220, 232, 0.65)';
+  g.beginPath(); g.ellipse(cx - rx * 0.3, cy - ry * 0.3, rx * 0.4, ry * 0.25, 0, 0, Math.PI * 2); g.fill();
+  if (r() < 0.6) { g.fillStyle = 'rgba(80, 120, 140, 0.6)'; g.beginPath(); g.ellipse(cx + rx * 1.1, cy + ry * 0.3, rx * 0.35, ry * 0.4, 0, 0, Math.PI * 2); g.fill(); }
+}
+
 /**
  * Bordas entre chãos naturais: o de prioridade maior avança sobre o vizinho em tufos irregulares (a grama sobre a
  * terra, a terra sobre os seixos...), e a água ganha margem e espuma. Chão feito por gente (calçamento, assoalho,
@@ -4734,6 +4812,8 @@ function drawPropOnScreen(pr, toScreenX, toScreenY, T, me) {
  */
 const EDGE = {
   grass: { p: 6, base: '#4f9a3a', dark: '#3a7a2b', tip: '#6cbd52', blades: true },
+  moss: { p: 6, base: '#5b8a62', dark: '#41684a', tip: '#7aa67c', blades: true },
+  desert: { p: 3, base: '#e4c38a', dark: '#d4ae70', tip: '#f0d6a4' },
   darkgrass: { p: 6, base: '#2d6230', dark: '#1f4a24', tip: '#3f8040', blades: true },
   burnt: { p: 4, base: '#2e2a22', dark: '#1f1c17', tip: '#40382c' },
   path: { p: 3, base: '#b8935c', dark: '#a8834e', tip: '#c9a56d' },
@@ -4744,12 +4824,12 @@ const EDGE = {
 };
 
 function drawFringe(g, x, y, ux, uy) {
-  const here = groundAt(state.places, x, y);
+  const here = groundKind(x, y);
   const me = EDGE[here];
   const sides = [[0, -1], [0, 1], [-1, 0], [1, 0]];
   if (me) {
     for (const [dx, dy] of sides) {
-      const other = EDGE[groundAt(state.places, x + dx, y + dy)];
+      const other = EDGE[groundKind(x + dx, y + dy)];
       if (!other || other.p <= me.p) continue;
       let h = cellHash(x * 3 + dx + 7, y * 3 + dy + 11);
       const next = () => (h = (h * 1103515245 + 12345) >>> 0) / 4294967296;
@@ -4774,8 +4854,8 @@ function drawFringe(g, x, y, ux, uy) {
     }
   } else if (here === 'water') {
     for (const [dx, dy] of sides) {
-      const n = groundAt(state.places, x + dx, y + dy);
-      if (n === 'water' || n === 'bridge' || n === 'void') continue;
+      const n = groundKind(x + dx, y + dy);
+      if (n === 'water' || n === 'bridge' || n === 'stonebridge' || n === 'void') continue;
       const [rx, ry, rw, rh] = dy === -1 ? [ux, uy, U, 1.6] : dy === 1 ? [ux, uy + U - 1.6, U, 1.6] : dx === -1 ? [ux, uy, 1.6, U] : [ux + U - 1.6, uy, 1.6, U];
       g.fillStyle = 'rgba(40, 30, 20, 0.5)';                  // a margem molhada
       g.fillRect(rx, ry, rw, rh);
@@ -4895,14 +4975,15 @@ function drawUndergrowth(g, x, y, ux, uy) {
 }
 
 function drawScatter(g, x, y, ux, uy) {
-  const ground = groundAt(state.places, x, y);
+  const ground = groundKind(x, y);
   if (ground === 'darkgrass') drawUndergrowth(g, x, y, ux, uy);
   const h = cellHash(x * 7 + 1, y * 5 + 3);
   const roll = h % 1000;
   const r = rng(h);
   const px = ux + 2 + r() * (U - 4), py = uy + 3 + r() * (U - 5);
-  if (ground === 'grass' || ground === 'darkgrass') {
-    const pal = ground === 'grass' ? LAWN : DARK_GRASS;
+  if (themeAt(state.places, x, y) === 'nevoa' && (ground === 'moss' || ground === 'stone') && roll >= 955) return drawPuddle(g, ux + U / 2, uy + U / 2, r);
+  if (ground === 'grass' || ground === 'darkgrass' || ground === 'moss') {
+    const pal = ground === 'grass' ? LAWN : ground === 'moss' ? MOSS : DARK_GRASS;
     if (roll < 60) {                                          // capim alto
       for (let i = 0; i < 7; i++) {
         const bx = px + (r() - 0.5) * 4, bh = 2.2 + r() * 2.4;
@@ -4950,15 +5031,32 @@ function drawScatter(g, x, y, ux, uy) {
       g.restore();
     }
   } else if (ground === 'stone' && roll < 90) {         // calçamento da vila: musgo nas juntas, rachaduras e folhas
+    const theme = themeAt(state.places, x, y);
     if (roll < 30) {
-      for (let i = 0; i < 4; i++) fine(g, i % 2 ? '#5c7a3a' : '#7a9a4a', px + (r() - 0.5) * 5, py + (r() - 0.5) * 2, 1 + r(), PX * 2);
+      const tuft = theme === 'areia' ? ['#c29a5e', '#e2c48c'] : ['#5c7a3a', '#7a9a4a'];      // na Areia, areia nas juntas
+      for (let i = 0; i < 4; i++) fine(g, tuft[i % 2], px + (r() - 0.5) * 5, py + (r() - 0.5) * 2, 1 + r(), PX * 2);
     } else if (roll < 55) {
       let qx = px, qy = py;
       for (let k = 0; k < 4; k++) { fine(g, 'rgba(70, 66, 60, 0.5)', qx, qy, PX * 2, PX * 3); qx += (r() - 0.5) * 2; qy += 0.9; }
     } else {
-      const leaf = r() < 0.5 ? '#f6b4c8' : r() < 0.5 ? '#c98a3a' : '#7a9a4a';
+      // pétala de cerejeira só onde há cerejeira (Folha e Nuvem); bambu na Névoa; na Areia, uma pedrinha
+      const leaf = theme === 'areia' ? '#a8804a' : theme === 'nevoa' ? (r() < 0.5 ? '#78b04f' : '#c2b060') : r() < 0.5 ? '#f6b4c8' : r() < 0.5 ? '#c98a3a' : '#7a9a4a';
       g.fillStyle = leaf;
       g.beginPath(); g.ellipse(px, py, 1.2, 0.6, r() * 3, 0, Math.PI * 2); g.fill();
+    }
+  } else if (ground === 'desert' && roll < 110) {            // deserto: pedrinhas, capim seco e um ossinho
+    if (roll < 55) {
+      for (let i = 0; i < 3; i++) fine(g, r() < 0.5 ? '#b8915a' : '#9a7444', px + (r() - 0.5) * 6, py + (r() - 0.5) * 4, PX * (3 + Math.floor(r() * 3)), PX * 2);
+    } else if (roll < 95) {
+      for (let i = 0; i < 5; i++) {
+        const bx = px + (r() - 0.5) * 3, bh = 1.5 + r() * 1.8;
+        fine(g, '#a88a4a', bx, py - bh, PX, bh);
+        fine(g, '#d2b878', bx, py - bh, PX, bh * 0.4);
+      }
+    } else {
+      fine(g, '#efe6d0', px - 1.5, py, 3, PX * 2);
+      fine(g, '#efe6d0', px - 1.8, py - PX, PX * 2, PX * 4);
+      fine(g, '#efe6d0', px + 1.4, py - PX, PX * 2, PX * 4);
     }
   } else if (ground === 'path' && roll < 70) {
     for (let i = 0; i < 3; i++) {

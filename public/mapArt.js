@@ -58,7 +58,8 @@ function drawGatePost(g, x, y, w, h) {
  * Telhado do portão principal: desenhado POR CIMA dos jogadores (quem passa fica embaixo).
  * Telhas escuras, viga vermelha e uma placa clara no meio. Coordenadas de tela.
  */
-export function drawGateRoof(ctx, x, y, w, h) {
+export function drawGateRoof(ctx, x, y, w, h, theme) {
+  if (theme === 'areia') return drawSandLintel(ctx, x, y, w, h);
   const t = h / 2;                                   // h = 2 casas
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.fillRect(x + 4, y + h * 0.75, w, h * 0.35);
@@ -328,6 +329,441 @@ function drawBuilding(g, x, y, w, h, style, seed, theme) {
   if (!wood) drawSign(g, x + w / 2, fy + 1, style);
 }
 
+// ------------------------------------------------------------------ vilas com tema (Névoa, Nuvem e Areia)
+//
+// As quatro vilas têm a mesma planta (as colisões são as mesmas); o desenho muda com o tema do mapa (`wall.t`,
+// `d.t`). Referência: as artes de cada vila (Névoa com bambu e poças, Nuvem com bandeiras e nuvens no morro, Areia
+// de arenito, com cúpulas, torres redondas, cânion, palmeiras e cactos).
+
+/** Arenito da Areia: contorno, sombra funda, sombra, parede, luz, faixas, topo e brilho do topo. O hospital é claro. */
+const SAND = { edge: '#4a2c12', dark: '#8a5a2c', shade: '#b07a42', wall: '#d6a462', light: '#ecc488', band: '#a8723e', top: '#e2b676', topLight: '#f6d9a8' };
+const SAND_PALE = { edge: '#5a4632', dark: '#a89270', shade: '#c9b796', wall: '#e8dcc3', light: '#f6eedc', band: '#c2b08e', top: '#efe4cd', topLight: '#fffaf0' };
+/** Pedregulho de arenito (o pé do cânion e do morro). */
+const SAND_ROCK = { edge: '#4a2c12', dark: '#9a6634', mid: '#c48a4c', light: '#e6b678', crack: '#7a4a22' };
+/** Toldos das lojas da Areia: [pano, listra]. */
+const AWNINGS = {
+  shop_weapon: [['#b8402e', '#e0a040'], ['#3f7a52', '#7cb06a']],
+  shop_cloth: [['#3a64a8', '#7aa0d8'], ['#7a3f8a', '#b07ac0']],
+  shop_scroll: [['#6a3a7a', '#c8a04a'], ['#3f7a52', '#a8c070']],
+};
+
+/**
+ * Cilindro de arenito visto em 3/4: o corpo (luz na esquerda, sombra na direita), duas faixas que seguem a curva e o
+ * pé arredondado; em cima, cúpula (`dome`, altura `domeH`) ou teto plano com mureta (`flat`). `bottom` = o ponto mais
+ * baixo da frente, no chão.
+ */
+function sandCylinder(g, cx, rw, top, bottom, roof, pal = SAND, domeH = rw * 0.75, seed = 1) {
+  const r = rng(seed);
+  const ry = Math.min(rw * 0.4, 22), by = bottom - ry;
+  const body = (k) => {
+    g.beginPath();
+    g.moveTo(cx - rw - k, top);
+    g.lineTo(cx - rw - k, by);
+    g.ellipse(cx, by, rw + k, ry + k, 0, Math.PI, 0, true);
+    g.lineTo(cx + rw + k, top);
+    g.closePath();
+  };
+  g.fillStyle = 'rgba(50, 26, 6, 0.3)';                                           // sombra no chão
+  g.beginPath(); g.ellipse(cx + rw * 0.2, by + 3, rw * 1.05, ry * 0.95, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = pal.edge; body(0.8); g.fill();
+  const grad = g.createLinearGradient(cx - rw, 0, cx + rw, 0);
+  grad.addColorStop(0, pal.shade); grad.addColorStop(0.18, pal.light); grad.addColorStop(0.55, pal.wall); grad.addColorStop(1, pal.dark);
+  g.fillStyle = grad; body(0); g.fill();
+  g.save(); body(0); g.clip();
+  for (let i = 0; i < rw * (by - top) / 40; i++) fr(g, r() < 0.5 ? pal.shade : pal.light, cx - rw + r() * rw * 2, top + r() * (by - top + ry), 1 + r() * 1.5, FINE * 2);
+  g.restore();
+  g.strokeStyle = pal.band; g.lineWidth = 1.3;                                    // faixas
+  for (const k of [0.3, 0.7]) { g.beginPath(); g.ellipse(cx, top + (by - top) * k, rw, ry, 0, 0.05, Math.PI - 0.05); g.stroke(); }
+  g.strokeStyle = pal.dark; g.lineWidth = 2;                                      // rodapé
+  g.beginPath(); g.ellipse(cx, by - 2, rw, ry, 0, 0.1, Math.PI - 0.1); g.stroke();
+  if (roof === 'flat') {
+    g.fillStyle = pal.edge; g.beginPath(); g.ellipse(cx, top, rw + 0.8, ry + 0.8, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = pal.top; g.beginPath(); g.ellipse(cx, top, rw, ry, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = pal.dark; g.beginPath(); g.ellipse(cx, top + 0.8, rw - 3.2, ry - 2.6, 0, 0, Math.PI * 2); g.fill();   // dentro da mureta
+    g.fillStyle = pal.shade; g.beginPath(); g.ellipse(cx, top + 1.8, rw - 4, ry - 3.6, 0, 0, Math.PI * 2); g.fill();    // o piso do terraço
+    g.strokeStyle = pal.topLight; g.lineWidth = 1;
+    g.beginPath(); g.ellipse(cx, top, rw - 0.6, ry - 0.6, 0, Math.PI * 1.05, Math.PI * 1.7); g.stroke();
+    return;
+  }
+  g.fillStyle = pal.edge;                                                         // cúpula
+  g.beginPath(); g.ellipse(cx, top, rw + 0.8, domeH + 0.8, 0, Math.PI, Math.PI * 2); g.ellipse(cx, top, rw + 0.8, ry + 0.8, 0, 0, Math.PI); g.fill();
+  const dg = g.createRadialGradient(cx - rw * 0.35, top - domeH * 0.65, 1, cx, top - domeH * 0.2, rw * 1.15);
+  dg.addColorStop(0, pal.topLight); dg.addColorStop(0.4, pal.top); dg.addColorStop(1, pal.shade);
+  g.fillStyle = dg;
+  g.beginPath(); g.ellipse(cx, top, rw, domeH, 0, Math.PI, Math.PI * 2); g.ellipse(cx, top, rw, ry, 0, 0, Math.PI); g.fill();
+  g.strokeStyle = pal.band; g.lineWidth = 2;                                      // aro da cúpula
+  g.beginPath(); g.ellipse(cx, top, rw, ry, 0, 0.02, Math.PI - 0.02); g.stroke();
+  g.strokeStyle = pal.topLight; g.lineWidth = 1;
+  g.beginPath(); g.ellipse(cx, top, rw - 3, ry - 2, 0, 0.15, Math.PI - 0.15); g.stroke();
+}
+
+/** Porta em arco, no chão (`bottom`), com o batente de arenito. */
+function sandDoor(g, cx, bottom, dw, dh, pal = SAND) {
+  const x = cx - dw / 2, top = bottom - dh;
+  g.fillStyle = pal.dark;
+  g.beginPath(); g.moveTo(x - 1.5, bottom); g.lineTo(x - 1.5, top + dw / 2); g.arc(cx, top + dw / 2, dw / 2 + 1.5, Math.PI, 0); g.lineTo(x + dw + 1.5, bottom); g.closePath(); g.fill();
+  g.fillStyle = '#1a0e06';
+  g.beginPath(); g.moveTo(x, bottom); g.lineTo(x, top + dw / 2); g.arc(cx, top + dw / 2, dw / 2, Math.PI, 0); g.lineTo(x + dw, bottom); g.closePath(); g.fill();
+  fr(g, 'rgba(255, 190, 110, 0.18)', x + 1, bottom - dh * 0.35, dw - 2, dh * 0.35);   // luz de dentro
+}
+
+/** Janela pequena de arco (onde a fachada comum teria a janela de papel: as luzes da noite caem no mesmo lugar). */
+function sandWindow(g, wd, x, y) {
+  const cx = x + wd.x + wd.w / 2, ww = Math.max(4, wd.w * 0.45), top = y + wd.y, wh = Math.max(5, wd.h * 0.9);
+  g.fillStyle = SAND.edge;
+  g.beginPath(); g.moveTo(cx - ww / 2 - 0.8, top + wh); g.lineTo(cx - ww / 2 - 0.8, top + ww / 2); g.arc(cx, top + ww / 2, ww / 2 + 0.8, Math.PI, 0); g.lineTo(cx + ww / 2 + 0.8, top + wh); g.closePath(); g.fill();
+  g.fillStyle = '#2a170a';
+  g.beginPath(); g.moveTo(cx - ww / 2, top + wh); g.lineTo(cx - ww / 2, top + ww / 2); g.arc(cx, top + ww / 2, ww / 2, Math.PI, 0); g.lineTo(cx + ww / 2, top + wh); g.closePath(); g.fill();
+  fr(g, SAND.light, cx - ww / 2 - 1, top + wh, ww + 2, 1.2);                       // peitoril
+}
+
+/** Toldo de pano listrado sobre a porta ou ao lado (lojas da Areia), com as varas. */
+function sandAwning(g, x, y, w, h, colors) {
+  const [cloth, stripe] = colors;
+  fr(g, 'rgba(40, 20, 5, 0.3)', x + 2, y + h + 1, w, 3);
+  g.fillStyle = mix(cloth, '#000000', 0.45);
+  g.beginPath(); g.moveTo(x + 2, y); g.lineTo(x + w - 2, y); g.lineTo(x + w + 1, y + h); g.lineTo(x - 1, y + h); g.closePath(); g.fill();
+  g.save(); g.clip();
+  for (let sx = x - 2, i = 0; sx < x + w + 2; sx += 3, i++) fr(g, i % 2 ? stripe : cloth, sx, y, 3, h);
+  fr(g, 'rgba(255, 255, 255, 0.18)', x, y, w, 1.2);
+  g.restore();
+  for (let sx = x, i = 0; sx < x + w; sx += 3, i++) {                              // franja de pontas
+    g.fillStyle = i % 2 ? stripe : cloth;
+    g.beginPath(); g.moveTo(sx - 1, y + h); g.lineTo(sx + 2, y + h); g.lineTo(sx + 0.5, y + h + 1.8); g.closePath(); g.fill();
+  }
+  fr(g, '#3a2410', x - 1, y + h, 1, 6);                                            // varas
+  fr(g, '#3a2410', x + w, y + h, 1, 6);
+}
+
+/** O que cada loja da Areia expõe na porta (sem placa escrita): armas no tapete, panos dobrados, pergaminhos. */
+function sandShopGoods(g, style, cx, bottom) {
+  const y = bottom + 1;
+  if (style === 'shop_weapon') {
+    fr(g, '#8a2e22', cx - 12, y, 7, 4); fr(g, '#c9a050', cx - 12, y, 7, FINE * 2);   // tapete com kunais e katana
+    fr(g, '#c8ccd2', cx - 11, y + 1.5, 5, 0.7); fr(g, '#c8ccd2', cx - 10, y + 2.6, 4, 0.7);
+    fr(g, '#3a2410', cx + 6, y - 9, 1.2, 10);                                      // suporte de lanças
+    fr(g, '#c8ccd2', cx + 5.6, y - 11, 2, 2.4); fr(g, '#3a2410', cx + 9, y - 8, 1.2, 9); fr(g, '#c8ccd2', cx + 8.6, y - 10, 2, 2.4);
+  } else if (style === 'shop_cloth') {
+    for (const [dx, c] of [[-12, '#3a64a8'], [-9, '#b8402e'], [-6, '#e0a040']]) { fr(g, c, cx + dx, y, 3, 4); fr(g, mix(c, '#ffffff', 0.3), cx + dx, y, 3, 0.8); }
+    fr(g, '#7a3f8a', cx + 5, y + 0.5, 8, 3.5); for (let k = 0; k < 4; k++) fr(g, '#c8a04a', cx + 5 + k * 2, y + 0.5, 0.8, 3.5);
+  } else {
+    fr(g, '#6a4422', cx - 13, y - 2, 8, 6); fr(g, '#8a5a2e', cx - 12.5, y - 1.5, 7, 1.2);   // caixote com rolos
+    for (let k = 0; k < 3; k++) { fr(g, '#efe1bd', cx - 12 + k * 2.3, y - 4, 2, 3); fr(g, '#b8402e', cx - 12 + k * 2.3, y - 2.6, 2, 0.6); }
+    fr(g, '#efe1bd', cx + 6, y + 1, 7, 2); fr(g, '#7a4e22', cx + 5.5, y + 0.6, 1, 2.8); fr(g, '#7a4e22', cx + 12.5, y + 0.6, 1, 2.8);
+  }
+}
+
+/** Lâmpada de latão pendurada (a "lanterna" das lojas da Areia; acende de noite no mesmo lugar). */
+function sandLamp(g, lx, ly) {
+  fr(g, '#3a2410', lx + 1.6, ly - 2, FINE * 2, 2.5);
+  g.fillStyle = '#6a4a1c'; g.beginPath(); g.ellipse(lx + 2, ly + 3.5, 2.6, 3.4, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#f2c060'; g.beginPath(); g.ellipse(lx + 2, ly + 3.5, 1.7, 2.5, 0, 0, Math.PI * 2); g.fill();
+  fr(g, '#fff0c4', lx + 1.4, ly + 2.3, 0.8, 1.4);
+}
+
+/**
+ * Prédios da Vila da Areia, na mesma caixa (e com a porta no mesmo lugar) dos da Folha: a sede é uma cúpula quase
+ * redonda com faixa de janelas e duas torres na frente; o hospital, uma cúpula clara com cruz vermelha; a Academia,
+ * duas torres ligadas por uma ponte de pedra; as lojas, redondas e baixas com toldos; as casas, torres de cúpula ou de
+ * terraço.
+ */
+function drawSandBuilding(g, x, y, w, h, style, seed) {
+  const f = facadeLayout(w, h, style);
+  const cx = x + w / 2, bottom = y + h;
+  const door = (dw, dh, pal) => sandDoor(g, cx, bottom - 0.5, dw, dh, pal);
+  if (style === 'leader') {
+    const rw = w * 0.36, top = y + h * 0.5, domeH = h * 0.42;
+    sandCylinder(g, cx, rw, top, bottom, 'dome', SAND, domeH, seed);
+    for (let i = 0; i < 11; i++) {                                                 // faixa de janelas redondas na cúpula
+      const t = Math.PI * (1.12 + (0.76 * i) / 10);
+      const wx = cx + Math.cos(t) * rw * 0.86, wy = top - domeH * 0.38 + Math.sin(t) * domeH * 0.16;
+      g.fillStyle = SAND.edge; g.beginPath(); g.arc(wx, wy, 2.6, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#5f9fc8'; g.beginPath(); g.arc(wx, wy, 1.8, 0, Math.PI * 2); g.fill();
+      fr(g, '#bfe2f2', wx - 1, wy - 1, 0.8, 0.8);
+    }
+    g.strokeStyle = SAND.band; g.lineWidth = 1.6;
+    g.beginPath(); g.ellipse(cx, top - domeH * 0.38, rw * 0.94, domeH * 0.24, 0, Math.PI * 1.05, Math.PI * 1.95, false); g.stroke();
+    const ey = top + (h * 0.13);                                                   // emblema: o redemoinho do vento
+    g.fillStyle = SAND.edge; g.beginPath(); g.arc(cx, ey, 9, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#9a3a22'; g.beginPath(); g.arc(cx, ey, 8, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#f2c98a'; g.lineWidth = 1.2;
+    for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(cx, ey, 2 + k * 2, k * 2.1, k * 2.1 + Math.PI * 1.3); g.stroke(); }
+    for (const tx of [x + w * 0.17, x + w * 0.83]) sandCylinder(g, tx, w * 0.1, y + h * 0.66, bottom - 1, 'flat', SAND, 0, seed + Math.round(tx));
+    door(Math.max(12, f.door), h * 0.2);
+  } else if (style === 'academy') {
+    const tw = w * 0.2, lx = x + w * 0.21, rx = x + w * 0.79;
+    fr(g, SAND.edge, lx, y + h * 0.48 - 0.8, rx - lx, h * 0.52 + 0.8);              // a parede do meio, com a porta
+    fr(g, SAND.wall, lx, y + h * 0.48, rx - lx, h * 0.52 - 1);
+    fr(g, SAND.top, lx, y + h * 0.48, rx - lx, 3);
+    fr(g, SAND.band, lx, y + h * 0.66, rx - lx, 1.2);
+    for (const tx of [lx, rx]) sandCylinder(g, tx, tw, y + h * 0.24, bottom - 1, 'flat', SAND, 0, seed + Math.round(tx));
+    const by = y + h * 0.27, bh = 8;                                               // a ponte de pedra lá em cima
+    fr(g, '#5a4a3a', lx + tw - 2, by - 0.8, rx - lx - tw * 2 + 4, bh + 1.6);
+    fr(g, '#b8ab98', lx + tw - 2, by, rx - lx - tw * 2 + 4, bh);
+    fr(g, '#d6cbb8', lx + tw - 2, by, rx - lx - tw * 2 + 4, 1.4);
+    for (let sx = lx + tw; sx < rx - tw; sx += 5) fr(g, '#8a7e6c', sx, by + 2, FINE * 2, bh - 2);
+    g.fillStyle = 'rgba(40, 24, 10, 0.55)';                                        // o arco embaixo da ponte
+    g.beginPath(); g.ellipse(cx, by + bh + 0.5, (rx - lx - tw * 2) * 0.42, 4, 0, Math.PI, 0); g.fill();
+    door(Math.max(11, f.door), h * 0.24);
+  } else if (style === 'hospital') {
+    sandCylinder(g, cx, w / 2 - 3, y + h * 0.42, bottom, 'dome', SAND_PALE, h * 0.34, seed);
+    const sy = y + h * 0.5;                                                        // a cruz vermelha na parede
+    fr(g, SAND_PALE.edge, cx - 6.6, sy - 0.6, 13.2, 13.2);
+    fr(g, '#f6eedc', cx - 6, sy, 12, 12);
+    fr(g, '#c8261e', cx - 1.6, sy + 2, 3.2, 8); fr(g, '#c8261e', cx - 4, sy + 4.4, 8, 3.2);
+    door(Math.max(11, f.door), h * 0.22, SAND_PALE);
+  } else if (style === 'hut' || style === 'home') {
+    const tall = style === 'home';
+    sandCylinder(g, cx, w / 2 - 2.5, y + h * (tall ? 0.34 : 0.3), bottom, tall ? 'dome' : 'flat', SAND, h * 0.3, seed);
+    door(10, h * 0.32);
+  } else {                                                                        // lojas: redondas, baixas, com toldos
+    sandCylinder(g, cx, w / 2 - 6, y + h * 0.34, bottom - 1, 'flat', SAND, 0, seed);
+    const [a, b] = AWNINGS[style] || AWNINGS.shop_weapon;
+    sandAwning(g, x + 1, y + h * 0.55, w * 0.3, h * 0.2, a);
+    sandAwning(g, x + w * 0.69, y + h * 0.55, w * 0.3, h * 0.2, b);
+    door(Math.max(12, f.door), h * 0.3);
+    sandShopGoods(g, style, cx, bottom - 6);
+    if (f.lantern) sandLamp(g, x + f.lantern.x, y + f.lantern.y);
+  }
+  if (style !== 'leader' && style !== 'academy') for (const wd of f.windows) sandWindow(g, wd, x, y);
+  else {
+    // sede e Academia: só as janelas que caem numa parede (corpo da cúpula ou torre), longe da porta
+    const walls = style === 'leader' ? [[cx, w * 0.33], [x + w * 0.17, w * 0.08], [x + w * 0.83, w * 0.08]] : [[x + w * 0.21, w * 0.17], [x + w * 0.79, w * 0.17]];
+    for (const wd of f.windows) {
+      const wx = x + wd.x + wd.w / 2;
+      if (Math.abs(wx - cx) > f.door && walls.some(([c, half]) => Math.abs(wx - c) < half)) sandWindow(g, wd, x, y);
+    }
+  }
+}
+
+/**
+ * Borda da Areia: paredão de cânion em vez de muralha. Na horizontal, o alto plano e a face com camadas; na vertical,
+ * o alto com sombra dos dois lados.
+ */
+function drawCanyonWall(g, x, y, w, h, seed) {
+  const r = rng(seed);
+  rect(g, SAND.edge, x, y, w, h);
+  if (w >= h) {
+    const topH = h * 0.42;
+    fr(g, SAND.top, x, y, w, topH);
+    for (let i = 0; i < w * topH / 30; i++) fr(g, r() < 0.5 ? SAND.light : SAND.shade, x + r() * w, y + r() * topH, 1 + r() * 2, FINE * 2);
+    const tones = ['#c88c4e', '#b47a42', '#d09858', '#a8703a'];
+    for (let yy = y + topH, i = 0; yy < y + h; i++) {
+      const bh = 2.5 + r() * 3;
+      fr(g, tones[i % 4], x, yy, w, Math.min(bh, y + h - yy));
+      fr(g, '#8a5a2c', x, yy + bh - FINE * 2, w, FINE * 2);
+      yy += bh;
+    }
+    for (let i = 0; i < w / 10; i++) { const gx = x + r() * w; fr(g, 'rgba(90, 50, 20, 0.4)', gx, y + topH + 1, 1, (h - topH) * (0.4 + r() * 0.5)); }
+    fr(g, SAND.topLight, x, y + topH - 1.2, w, 1.2);
+    fr(g, 'rgba(70, 40, 15, 0.45)', x, y + topH, w, 1.5);
+  } else {
+    fr(g, SAND.top, x + 1, y, w - 2, h);
+    for (let i = 0; i < w * h / 30; i++) fr(g, r() < 0.5 ? SAND.light : SAND.shade, x + r() * w, y + r() * h, FINE * 2, 1 + r() * 2);
+    fr(g, SAND.dark, x + w - 3, y, 2, h);
+    fr(g, SAND.topLight, x + 1.5, y, 1.2, h);
+  }
+}
+
+/** Pilar do portão da Areia: rocha de arenito com camadas e o alto claro. */
+function drawSandPost(g, x, y, w, h) {
+  rect(g, 'rgba(0,0,0,0.25)', x + 3, y + 4, w, h);
+  g.fillStyle = SAND.edge; roundedPath(g, x + 1, y - 3, w - 2, h + 3, 5, 5, 2, 2); g.fill();
+  g.fillStyle = SAND.wall; roundedPath(g, x + 2, y - 2, w - 4, h + 1, 4, 4, 2, 2); g.fill();
+  for (let yy = y + 4; yy < y + h - 1; yy += 4) fr(g, SAND.band, x + 2, yy, w - 4, FINE * 3);
+  fr(g, SAND.topLight, x + 3, y - 2, w - 6, 3);
+  fr(g, SAND.light, x + 2.5, y, 1.2, h - 2);
+}
+
+/** O morro atrás da sede na Areia: uma mesa de arenito, alto plano e face em camadas com sulcos de erosão. */
+function drawMesa(g, x, y, w, h, seed) {
+  const r = rng(seed);
+  const face = Math.min(h * 0.55, 80), top = h - face, fy = y + top;
+  g.fillStyle = 'rgba(60, 30, 8, 0.32)';
+  roundedPath(g, x + 2, y + h - 4, w - 2, 9, 4); g.fill();
+  g.save();
+  roundedPath(g, x, y, w, h + 3, 22, 22, 10, 10);
+  g.clip();
+  g.fillStyle = SAND.edge; g.fillRect(x, y, w, h + 3);
+  const tones = ['#c98d4f', '#b77c42', '#d39c5c', '#a96f3a', '#c28750'];
+  for (let yy = fy - 2, i = 0; yy < y + h + 3; i++) {
+    const bh = 4 + r() * 6;
+    fr(g, tones[i % tones.length], x, yy, w, bh);
+    fr(g, '#8e5a2c', x, yy + bh - FINE * 2, w, FINE * 2);
+    fr(g, 'rgba(255, 225, 170, 0.25)', x, yy, w, FINE * 2);
+    yy += bh;
+  }
+  for (let i = 0; i < w / 12; i++) {                                               // sulcos de erosão
+    const gx = x + r() * w, gl = face * (0.35 + r() * 0.55);
+    fr(g, 'rgba(90, 50, 20, 0.38)', gx, fy + 1, 1.4, gl);
+    fr(g, 'rgba(255, 220, 160, 0.22)', gx - 1.2, fy + 1, 1, gl * 0.7);
+  }
+  const grad = g.createLinearGradient(0, y, 0, fy);
+  grad.addColorStop(0, '#d2a062'); grad.addColorStop(1, '#ecc489');
+  g.fillStyle = grad; g.fillRect(x, y, w, top);
+  for (let i = 0; i < (w * top) / 26; i++) fr(g, r() < 0.5 ? '#c4935a' : '#f2d29c', x + r() * w, y + r() * top, 1 + r() * 2, FINE * 2);
+  fr(g, SAND.topLight, x, fy - 2.2, w, 1.4);
+  fr(g, 'rgba(70, 40, 15, 0.45)', x, fy - 0.8, w, 2);
+  g.restore();
+  for (let bx = x + 6; bx < x + w - 4; bx += 12 + r() * 14) if (r() < 0.6) boulder(g, bx, y + h - 1 + r() * 1.5, 2.6 + r() * 2.6, 1.8 + r() * 1.6, SAND_ROCK);
+}
+
+/** Nuvens no morro da Vila da Nuvem: tufos brancos com a sombra azulada embaixo. */
+function drawCloudBank(g, x, y, w, h, seed) {
+  const r = rng(seed);
+  const puffs = [[0.08, 0.3, 1.1], [0.26, 0.1, 1.4], [0.47, 0.2, 1.2], [0.68, 0.06, 1.5], [0.88, 0.22, 1.2], [0.37, 0.5, 0.9], [0.8, 0.55, 0.8]];
+  for (const [px, py, s] of puffs) {
+    const cx = x + w * px, cy = y + h * py, R = 11 * s;
+    const blobs = [[-1.6, 0.3, 0.8], [-0.7, -0.2, 1], [0.4, -0.35, 1.1], [1.4, 0.1, 0.85], [0.2, 0.4, 0.9]];
+    g.fillStyle = 'rgba(60, 70, 100, 0.25)';
+    g.beginPath(); g.ellipse(cx + 2, cy + R * 1.1, R * 2.6, R * 0.55, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#8e97ad';
+    for (const [bx, by, br] of blobs) { g.beginPath(); g.arc(cx + bx * R, cy + by * R, br * R + 0.8, 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = '#c9d0de';
+    for (const [bx, by, br] of blobs) { g.beginPath(); g.arc(cx + bx * R, cy + by * R, br * R, 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = '#f4f6fb';
+    for (const [bx, by, br] of blobs) { g.beginPath(); g.arc(cx + bx * R - 0.6, cy + by * R - 1.2, br * R * 0.8, 0, Math.PI * 2); g.fill(); }
+    fr(g, '#ffffff', cx - R * 0.6, cy - R * 0.9, R * 0.5, 1);
+    if (r() < 0.5) fr(g, '#ffffff', cx + R * 0.5, cy - R * 0.7, R * 0.3, FINE * 2);
+  }
+}
+
+/** Touceira de bambu (Névoa, no lugar das cerejeiras): colmos com nós, folhas finas no alto. */
+function drawBamboo(g, baseX, baseY, size, seed, tile) {
+  const r = rng(seed);
+  const n = 8 + Math.floor(r() * 4), spread = tile * size * 0.48;
+  g.fillStyle = 'rgba(0, 0, 0, 0.24)';
+  g.beginPath(); g.ellipse(baseX + 3, baseY - 1, spread * 1.4, spread * 0.45, 0, 0, Math.PI * 2); g.fill();
+  const stalks = [];
+  for (let i = 0; i < n; i++) stalks.push({ x: baseX + (r() - 0.5) * spread * 2, by: baseY - r() * 4, h: tile * (2.1 + r() * 1.1) * (0.5 + size / 4), lean: (r() - 0.5) * 6, w: 2.2 + r() * 0.9 });
+  stalks.sort((a, b) => a.by - b.by);
+  for (const s of stalks) {
+    const tx = s.x + s.lean, ty = s.by - s.h;
+    g.strokeStyle = '#2f5222'; g.lineWidth = s.w + 0.8;
+    g.beginPath(); g.moveTo(s.x, s.by); g.lineTo(tx, ty); g.stroke();
+    g.strokeStyle = '#6a9a3e'; g.lineWidth = s.w;
+    g.beginPath(); g.moveTo(s.x, s.by); g.lineTo(tx, ty); g.stroke();
+    g.strokeStyle = '#a2c86a'; g.lineWidth = s.w * 0.3;
+    g.beginPath(); g.moveTo(s.x - s.w * 0.25, s.by); g.lineTo(tx - s.w * 0.25, ty); g.stroke();
+    for (let t = 0.12; t < 1; t += 0.16 + r() * 0.05) {                            // nós
+      const nx = s.x + (tx - s.x) * t, ny = s.by + (ty - s.by) * t;
+      fr(g, '#2f5222', nx - s.w / 2 - 0.3, ny, s.w + 0.6, 0.8);
+      fr(g, '#c2dc8a', nx - s.w / 2, ny - 0.5, s.w, FINE * 2);
+    }
+    for (let k = 0; k < 9; k++) {                                                   // folhas na metade de cima
+      const t = 0.45 + r() * 0.55, lx = s.x + (tx - s.x) * t, ly = s.by + (ty - s.by) * t, side = r() < 0.5 ? -1 : 1;
+      g.fillStyle = '#2f5a24';
+      g.beginPath(); g.ellipse(lx + side * 3.6, ly + 1.4, 4.6, 1.3, side * 0.45, 0, Math.PI * 2); g.fill();
+      g.fillStyle = r() < 0.5 ? '#4f8a3a' : '#78b04f';
+      g.beginPath(); g.ellipse(lx + side * 3.4, ly + 1, 4.2, 1, side * 0.45, 0, Math.PI * 2); g.fill();
+    }
+  }
+}
+
+/** Palmeira (Areia, perto da água): tronco em anéis, curvado, e as folhas caindo em leque, com cocos. */
+function drawPalm(g, baseX, baseY, size, seed, tile) {
+  const r = rng(seed);
+  const hgt = tile * (1.7 + r() * 0.5) * (0.55 + size / 4), bend = (r() < 0.5 ? -1 : 1) * (3 + r() * 4);
+  const topX = baseX + bend, topY = baseY - hgt;
+  g.fillStyle = 'rgba(50, 26, 6, 0.26)';
+  g.beginPath(); g.ellipse(baseX + 6, baseY - 1, tile * 0.9, tile * 0.28, 0, 0, Math.PI * 2); g.fill();
+  for (let t = 0; t <= 1; t += 0.07) {                                              // tronco em anéis
+    const px = baseX + bend * t * t, py = baseY - hgt * t, tw = 3.6 - t * 1.3;
+    fr(g, '#4a2e14', px - tw / 2 - 0.4, py - 2.2, tw + 0.8, 2.6);
+    fr(g, '#8a6034', px - tw / 2, py - 2, tw, 2);
+    fr(g, '#b08250', px - tw / 2, py - 2, tw * 0.35, 2);
+  }
+  const fronds = 7;
+  for (let i = 0; i < fronds; i++) {                                                // folhas em leque
+    const a = Math.PI * (1.05 + (0.9 * i) / (fronds - 1)) + (r() - 0.5) * 0.15;
+    const L = tile * (0.85 + r() * 0.25) * (0.6 + size / 4);
+    const ex = topX + Math.cos(a) * L, ey = topY + Math.sin(a) * L * 0.55 + L * 0.35;
+    const mx = topX + Math.cos(a) * L * 0.55, my = topY + Math.sin(a) * L * 0.5 - 2;
+    g.strokeStyle = '#1f4a1c'; g.lineWidth = 3.4;
+    g.beginPath(); g.moveTo(topX, topY); g.quadraticCurveTo(mx, my, ex, ey); g.stroke();
+    g.strokeStyle = i % 2 ? '#3f8a35' : '#4f9a3e'; g.lineWidth = 2.4;
+    g.beginPath(); g.moveTo(topX, topY); g.quadraticCurveTo(mx, my, ex, ey); g.stroke();
+    g.strokeStyle = '#8ac860'; g.lineWidth = 0.6;
+    g.beginPath(); g.moveTo(topX, topY - 0.6); g.quadraticCurveTo(mx, my - 0.8, ex, ey - 0.6); g.stroke();
+  }
+  for (const [dx, dy] of [[-1.6, 1.4], [1.4, 1.6], [0, 2.6]]) {                     // cocos
+    g.fillStyle = '#4a2e14'; g.beginPath(); g.arc(topX + dx, topY + dy, 1.4, 0, Math.PI * 2); g.fill();
+    fr(g, '#7a5530', topX + dx - 0.6, topY + dy - 0.8, 0.6, 0.6);
+  }
+}
+
+/** Cacto de braços (Areia): corpo com gomos, braços, espinhos claros e, às vezes, uma flor. */
+function drawCactus(g, baseX, baseY, size, seed, tile) {
+  const r = rng(seed);
+  const hgt = tile * (0.85 + r() * 0.35) * (0.6 + size * 0.4), cw = tile * 0.3 * (0.7 + size * 0.2);
+  g.fillStyle = 'rgba(50, 26, 6, 0.26)';
+  g.beginPath(); g.ellipse(baseX + 3, baseY - 0.5, cw * 1.4, cw * 0.4, 0, 0, Math.PI * 2); g.fill();
+  const limb = (lx, ly, lw, lh) => {
+    g.fillStyle = '#1f3d18'; roundedPath(g, lx - 0.6, ly - 0.6, lw + 1.2, lh + 1.2, lw / 2 + 0.6, lw / 2 + 0.6, 1, 1); g.fill();
+    g.fillStyle = '#4a8a3a'; roundedPath(g, lx, ly, lw, lh, lw / 2, lw / 2, 1, 1); g.fill();
+    fr(g, '#7ab55a', lx + lw * 0.2, ly + lw * 0.4, lw * 0.22, lh - lw * 0.6);
+    fr(g, '#356a2c', lx + lw * 0.68, ly + lw * 0.4, lw * 0.14, lh - lw * 0.6);
+  };
+  const aw = cw * 0.62;
+  if (size >= 1) {                                                                  // braço esquerdo e direito
+    limb(baseX - cw / 2 - aw * 1.3, baseY - hgt * 0.62, aw, hgt * 0.3);
+    fr(g, '#4a8a3a', baseX - cw / 2 - aw * 0.8, baseY - hgt * 0.38, aw * 1.1, aw * 0.8);
+    if (r() < 0.7) {
+      limb(baseX + cw / 2 + aw * 0.3, baseY - hgt * 0.78, aw, hgt * 0.32);
+      fr(g, '#4a8a3a', baseX + cw / 2 - 0.5, baseY - hgt * 0.5, aw * 1.1, aw * 0.8);
+    }
+  }
+  limb(baseX - cw / 2, baseY - hgt, cw, hgt);
+  for (let i = 0; i < hgt / 2; i++) fr(g, '#ece6b8', baseX - cw / 2 + r() * cw, baseY - hgt + 2 + r() * (hgt - 3), FINE * 2, FINE * 2);
+  if (r() < 0.35) { g.fillStyle = '#f06a8a'; g.beginPath(); g.arc(baseX, baseY - hgt - 0.5, 1.4, 0, Math.PI * 2); g.fill(); }
+}
+
+/** Vaso de barro com planta do deserto (Areia): cacto redondo, cacto de coluna ou babosa, conforme a semente. */
+function drawClayPot(g, cx, by, size, seed) {
+  const r = rng(seed), pw = size * 1.6, ph = size * 1.3;
+  g.fillStyle = 'rgba(40, 20, 5, 0.3)'; g.beginPath(); g.ellipse(cx + 1, by, pw * 0.75, 1.4, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#5a2a14'; roundedPath(g, cx - pw / 2 - 0.6, by - ph - 0.6, pw + 1.2, ph + 0.6, 1, 1, ph * 0.4, ph * 0.4); g.fill();
+  g.fillStyle = '#b8582e'; roundedPath(g, cx - pw / 2, by - ph, pw, ph, 1, 1, ph * 0.4, ph * 0.4); g.fill();
+  fr(g, '#d8794a', cx - pw / 2 + 0.6, by - ph + 1, pw * 0.25, ph - 2);
+  fr(g, '#8a3e1e', cx - pw / 2 - 0.6, by - ph - 0.4, pw + 1.2, 1.2);              // a boca do vaso
+  const kind = seed % 3;
+  if (kind === 0) {                                                                 // cacto redondo
+    g.fillStyle = '#2a5222'; g.beginPath(); g.arc(cx, by - ph - size * 0.6, size * 0.8 + 0.5, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#5a9a44'; g.beginPath(); g.arc(cx, by - ph - size * 0.6, size * 0.8, 0, Math.PI * 2); g.fill();
+    for (let k = -1; k <= 1; k++) fr(g, '#3d7032', cx + k * size * 0.35, by - ph - size * 1.2, FINE * 2, size * 1.1);
+    fr(g, '#f06a8a', cx - 0.6, by - ph - size * 1.45, 1.2, 1);
+  } else if (kind === 1) {                                                          // cacto de coluna
+    g.fillStyle = '#2a5222'; roundedPath(g, cx - size * 0.45 - 0.5, by - ph - size * 2.2, size * 0.9 + 1, size * 2.2, size * 0.45, size * 0.45, 0, 0); g.fill();
+    g.fillStyle = '#4f8a3a'; roundedPath(g, cx - size * 0.45, by - ph - size * 2.1, size * 0.9, size * 2.1, size * 0.45, size * 0.45, 0, 0); g.fill();
+    fr(g, '#7ab55a', cx - size * 0.25, by - ph - size * 1.8, size * 0.2, size * 1.6);
+  } else {                                                                          // babosa (folhas pontudas)
+    for (let k = 0; k < 6; k++) {
+      const a = Math.PI * (1.15 + 0.7 * (k / 5)) + (r() - 0.5) * 0.1, L = size * (1.4 + r() * 0.5);
+      g.strokeStyle = k % 2 ? '#4f8a3a' : '#6aa64a'; g.lineWidth = 1.3;
+      g.beginPath(); g.moveTo(cx, by - ph); g.lineTo(cx + Math.cos(a) * L, by - ph + Math.sin(a) * L); g.stroke();
+    }
+  }
+}
+
+/** Telhado do portão da Areia: uma viga de arenito sobre a fenda do cânion (POR CIMA dos jogadores). */
+function drawSandLintel(ctx, x, y, w, h) {
+  const t = h / 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillRect(x + 4, y + h * 0.75, w, h * 0.3);
+  ctx.fillStyle = SAND.edge;
+  ctx.fillRect(x, y, w, h * 0.72);
+  ctx.fillStyle = SAND.wall;
+  ctx.fillRect(x + t * 0.08, y + t * 0.08, w - t * 0.16, h * 0.6);
+  ctx.fillStyle = SAND.top;
+  ctx.fillRect(x + t * 0.08, y + t * 0.08, w - t * 0.16, h * 0.18);
+  ctx.fillStyle = SAND.band;
+  for (let i = 1; i < 3; i++) ctx.fillRect(x + t * 0.08, y + h * (0.18 + i * 0.16), w - t * 0.16, Math.max(1, h * 0.03));
+  ctx.fillStyle = '#9a3a22';                                                         // o emblema do vento no meio
+  ctx.beginPath(); ctx.arc(x + w / 2, y + h * 0.38, t * 0.42, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#f2c98a'; ctx.lineWidth = Math.max(1, t * 0.08);
+  ctx.beginPath(); ctx.arc(x + w / 2, y + h * 0.38, t * 0.22, 0, Math.PI * 1.4); ctx.stroke();
+}
+
 // ------------------------------------------------------------------ árvores e boneco
 
 /**
@@ -491,6 +927,9 @@ function drawFurniture(g, x, y, w, h, kind, seed) {
 
 // Arena da Vila (estilo da prova de arte): ardósia azulada, frisos dourados, lanternas de luz quente.
 const SLATE = { cap: '#5b6585', capLight: '#7883a6', face: '#2f3549', faceLight: '#3d4560', joint: '#232838', edge: '#191c27' };
+const STONE_SLATE = SLATE;
+/** A mureta da arena na Areia: arenito (as mesmas peças da ardósia). */
+const SAND_SLATE = { cap: '#d6a462', capLight: '#f2cf96', face: '#a8723e', faceLight: '#c48a4c', joint: '#7a4a22', edge: '#4a2c12' };
 const GOLD = { dark: '#7a5a22', mid: '#c49a45', light: '#f2d58c' };
 
 /**
@@ -533,6 +972,7 @@ function drawLantern(g, cx, by) {
  */
 function drawFence(g, x, y, w, h, tile, wall) {
   const U = tile, H = 10;                                                       // altura da mureta
+  const SLATE = wall.t === 'areia' ? SAND_SLATE : STONE_SLATE;
   if (w >= h) {
     fr(g, 'rgba(10, 12, 20, 0.35)', x, y + h, w, 4);                            // sombra no chão
     fr(g, SLATE.edge, x, y - H - 1, w, h + H + 1);
@@ -566,7 +1006,7 @@ function drawFence(g, x, y, w, h, tile, wall) {
 }
 
 /** Bloco de ardósia da arena (cobertura): tampo com moldura dourada embutida, face escura e uma rachadura. */
-function drawArenaBlock(g, x, y, w, h) {
+function drawArenaBlock(g, x, y, w, h, SLATE = STONE_SLATE) {
   const H = 12;
   g.fillStyle = 'rgba(10, 12, 20, 0.35)';
   g.beginPath(); g.ellipse(x + w / 2 + 2, y + h + 1, w / 2 + 3, 4, 0, 0, Math.PI * 2); g.fill();
@@ -574,7 +1014,7 @@ function drawArenaBlock(g, x, y, w, h) {
   fr(g, SLATE.face, x, y + h - H, w, H);                                       // face da frente
   fr(g, SLATE.faceLight, x, y + h - H, w, FINE * 2);
   fr(g, SLATE.joint, x + w * 0.55, y + h - H + 2, FINE * 2, H - 3);
-  fr(g, '#4c5677', x, y - H, w, h);                                             // tampo
+  fr(g, SLATE === STONE_SLATE ? '#4c5677' : SLATE.cap, x, y - H, w, h);         // tampo
   fr(g, SLATE.capLight, x, y - H, w, FINE * 2);
   fr(g, SLATE.capLight, x, y - H, FINE * 2, h);
   const i = 2.5;                                                                // moldura dourada
@@ -649,10 +1089,14 @@ function drawPillar(g, x, y, w, h) {
 export function drawWall(g, wall, x, y, w, h, tile) {
   const seed = (wall.x * 73856093) ^ (wall.y * 19349663);
   switch (wall.k) {
-    case 'wall': return drawRampart(g, x, y, w, h);
-    case 'gatepost': return drawGatePost(g, x, y, w, h);
-    case 'rock': return wall.s === 'mountain' ? drawMountain(g, x, y, w, h, Math.abs(seed), tile) : drawRock(g, x, y, w, h, seed);
-    case 'house': return drawBuilding(g, x, y, w, h, wall.s || 'home', seed, wall.t);
+    case 'wall': return wall.t === 'areia' ? drawCanyonWall(g, x, y, w, h, Math.abs(seed)) : drawRampart(g, x, y, w, h);
+    case 'gatepost': return wall.t === 'areia' ? drawSandPost(g, x, y, w, h) : drawGatePost(g, x, y, w, h);
+    case 'rock':
+      if (wall.s !== 'mountain') return drawRock(g, x, y, w, h, seed);
+      if (wall.t === 'areia') return drawMesa(g, x, y, w, h, Math.abs(seed));
+      drawMountain(g, x, y, w, h, Math.abs(seed), tile);
+      return wall.t === 'nuvem' ? drawCloudBank(g, x, y, w, h, Math.abs(seed)) : undefined;
+    case 'house': return wall.t === 'areia' ? drawSandBuilding(g, x, y, w, h, wall.s || 'home', Math.abs(seed)) : drawBuilding(g, x, y, w, h, wall.s || 'home', seed, wall.t);
     case 'tree': return drawTrees(g, x, y, w, h, Math.abs(seed) % 97, tile);
     case 'dummy': return drawDummy(g, x, y, w, h);
     case 'iwall': return drawInteriorWall(g, x, y, w, h, tile);
@@ -660,7 +1104,7 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     case 'furniture': return drawFurniture(g, x, y, w, h, wall.s, Math.abs(seed));
     case 'pit': return wall.s === 'chasm' ? drawChasm(g, x, y, w, h, Math.abs(seed)) : drawPit(g, x, y, w, h);
     case 'fence': return drawFence(g, x, y, w, h, tile, wall);
-    case 'pillar': return wall.s === 'arena' ? drawArenaBlock(g, x, y, w, h) : drawPillar(g, x, y, w, h);
+    case 'pillar': return wall.s === 'arena' ? drawArenaBlock(g, x, y, w, h, wall.t === 'areia' ? SAND_SLATE : STONE_SLATE) : drawPillar(g, x, y, w, h);
     case 'gate': return drawClosedGate(g, x, y, w, h);
     // Arco 1 (docs/mapas.md)
     case 'seal': return drawSeal(g, x, y, w, h, wall.s !== 'out');
@@ -699,7 +1143,7 @@ export function propExtent(wall) {
 export function drawProp(g, wall, x, y, w, h, tile) {
   const seed = (wall.x * 73856093) ^ (wall.y * 19349663);
   switch (wall.k) {
-    case 'tree': return drawTreeGroup(g, x, y, w, h, Math.abs(seed), tile, wall.s);
+    case 'tree': return drawTreeGroup(g, x, y, w, h, Math.abs(seed), tile, wall.s, wall.t);
     case 'deadtree': return drawDeadTrees(g, x, y, w, h, Math.abs(seed), tile);
     case 'oak': return drawOakTrunk(g, x, y, w, h);
     case 'seal': return drawSeal(g, x, y, w, h, wall.s !== 'out');
@@ -772,9 +1216,15 @@ function drawTree(g, baseX, baseY, size, seed, tile, palette) {
  * Bloco de árvores (a parede `tree`): uma árvore só nos blocos pequenos; fileiras desencontradas nas bordas da mata
  * (de trás para a frente, para a de trás ficar atrás).
  */
-function drawTreeGroup(g, x, y, w, h, seed, tile, style) {
+function drawTreeGroup(g, x, y, w, h, seed, tile, style, theme) {
   const wt = w / tile, ht = h / tile;
-  if (wt <= 3.2 && ht <= 3.2) return drawTree(g, x + w / 2, y + h - tile * 0.15, Math.min(wt, ht), seed, tile, style === 'sakura' ? SAKURA : undefined);
+  if (wt <= 3.2 && ht <= 3.2) {
+    const bx = x + w / 2, by = y + h - tile * 0.15, size = Math.min(wt, ht);
+    // Areia: palmeira no lugar da cerejeira e das árvores grandes (um cacto grande em algumas), cacto nas pequenas.
+    if (theme === 'areia') return size < 1.5 ? drawCactus(g, bx, by, size, seed, tile) : style === 'sakura' || seed % 3 ? drawPalm(g, bx, by, size, seed, tile) : drawCactus(g, bx, by, size, seed, tile);
+    if (theme === 'nevoa' && style === 'sakura') return drawBamboo(g, bx, by, size, seed, tile);   // Névoa: bambu
+    return drawTree(g, bx, by, size, seed, tile, style === 'sakura' ? SAKURA : undefined);
+  }
   const r = rng(seed);
   const trees = [];
   if (wt >= ht) {
@@ -1603,6 +2053,7 @@ export function drawDeco(g, d, x, y, w, h) {
     }
     case 'plant': {
       const cx = x + w / 2;
+      if (d.t === 'areia') return drawClayPot(g, cx, y + h - 1, 4.5, Math.round(d.x * 13 + d.y * 7));
       rect(g, '#7a4c22', cx - 4, y + h - 7, 8, 6);
       g.fillStyle = '#2f7d2c'; g.beginPath(); g.arc(cx, y + h - 9, 5, 0, Math.PI * 2); g.fill();
       g.fillStyle = '#3d9637'; g.beginPath(); g.arc(cx - 2, y + h - 11, 2, 0, Math.PI * 2); g.fill();
@@ -1801,6 +2252,12 @@ export function drawDeco(g, d, x, y, w, h) {
       return;
     }
     case 'planter': {                                 // vaso comprido de madeira com flores
+      if (d.t === 'areia') {                          // Areia: dois vasos de barro com cactos e babosa
+        const seed = Math.round(d.x * 13 + d.y * 7);
+        drawClayPot(g, x + w * 0.28, y + h, 3.4, seed);
+        drawClayPot(g, x + w * 0.74, y + h, 3, seed + 5);
+        return;
+      }
       fr(g, 'rgba(10, 12, 8, 0.28)', x + 1, y + h - 1, w, 2.5);
       fr(g, '#4a2e17', x, y + h * 0.35, w, h * 0.65);
       fr(g, '#7a5230', x + 0.8, y + h * 0.35 + 0.8, w - 1.6, h * 0.65 - 2);
@@ -1894,6 +2351,25 @@ export function drawDeco(g, d, x, y, w, h) {
       rect(g, '#3b2414', x + w - 6, y, 3, h);
       g.fillStyle = '#7a5530';
       for (let ly = y + 3; ly < y + h - 1; ly += 6) g.fillRect(x + 3, ly, w - 6, 2);
+      return;
+    }
+    case 'flag': {                                    // bandeira da Vila da Nuvem: pano vinho com a nuvem branca
+      const px = x + w / 2;
+      fr(g, 'rgba(0,0,0,0.3)', px - 3, y + h - 1.5, 9, 3);
+      fr(g, '#2a1a0e', px - 1, y - 24, 2.4, h + 24);                          // mastro
+      fr(g, '#6b4423', px - 0.4, y - 24, 1, h + 22);
+      g.fillStyle = GOLD.mid; g.beginPath(); g.arc(px + 0.2, y - 25, 1.8, 0, Math.PI * 2); g.fill();
+      fr(g, GOLD.light, px - 0.6, y - 26, 0.8, 0.8);
+      fr(g, '#2e1018', px + 1.4, y - 22, 12, 19);                              // pano (contorno)
+      fr(g, '#7e2f3e', px + 2.2, y - 21.2, 10.4, 17.4);
+      fr(g, '#9c4a58', px + 2.2, y - 21.2, 2.6, 17.4);                         // luz na dobra
+      g.fillStyle = '#7e2f3e';                                                  // ponta em rabo de andorinha
+      g.beginPath(); g.moveTo(px + 2.2, y - 3.8); g.lineTo(px + 7.4, y - 3.8); g.lineTo(px + 4.8, y); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(px + 7.4, y - 3.8); g.lineTo(px + 12.6, y - 3.8); g.lineTo(px + 10, y); g.closePath(); g.fill();
+      g.fillStyle = '#f4f6fb';                                                  // a nuvem
+      for (const [cx, cy, rr] of [[5.6, -12, 2.2], [8.6, -13, 2.8], [11, -11.6, 2]]) { g.beginPath(); g.arc(px + cx, y + cy, rr, 0, Math.PI * 2); g.fill(); }
+      fr(g, '#f4f6fb', px + 4.2, y - 11.6, 8, 2.4);
+      fr(g, '#c9d0de', px + 4.2, y - 9.6, 8, 0.8);
       return;
     }
     case 'banner': {                                  // estandarte azul-noite com borda e emblema dourados

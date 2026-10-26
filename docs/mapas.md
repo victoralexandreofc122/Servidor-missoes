@@ -204,6 +204,23 @@ y 0 ████┃escada┃█████    desce pelo poço da Praça
   canal vem da Floresta. Por baixo da terra."
 - **Tampa do poço** na Praça, à esquerda da rosa dos ventos: tampa de pedra com um selo gravado.
 
+### 7.1 Névoa, Nuvem e Areia (v22)
+
+As quatro vilas têm a **mesma planta** (as mesmas colisões, portas e praça); o desenho muda com o tema do mapa,
+seguindo as artes de referência em `arte/vilas/` (a prévia de cada uma no jogo está ao lado, `jogo_*.jpg`).
+
+| Vila | O que muda no desenho |
+|---|---|
+| Folha | telhado vermelho, cerejeiras, grama verde (a base) |
+| Névoa | telhado azul, **bambu** no lugar das cerejeiras, grama úmida (verde frio) e **poças** no chão; a neblina é o clima "neblina" |
+| Nuvem | telhado vinho, **nuvens** no alto do morro e **bandeiras** vinho com a nuvem branca na praça e na avenida (só enfeite) |
+| Areia | tudo de **arenito**: sede em cúpula com faixa de janelas e duas torres, hospital de cúpula clara com cruz vermelha, Academia em duas torres ligadas por ponte de pedra, lojas redondas com toldos e a mercadoria na porta, casas em torre; **cânion** no lugar da muralha, **mesa** de arenito no lugar do morro, chão de deserto, pontes de pedra, palmeiras e cactos, vasos de barro, arena de terra batida |
+
+O tema chega ao desenho pelo mapa (`theme` no layout): paredes e árvores levam `t` (em `visibleWalls`), enfeites
+também (`visibleDeco`), e o chão troca na hora de pintar (`groundKind` em `public/game.js`: na Areia a grama vira
+`desert` e a ponte `stonebridge`; na Névoa a grama vira `moss`). As janelas e a lâmpada das lojas da Areia ficam onde
+a fachada comum as teria, então as luzes da noite continuam no lugar certo.
+
 ---
 
 ## 8. Arte
@@ -228,4 +245,4 @@ y 0 ████┃escada┃█████    desce pelo poço da Praça
 1. **Sistema de história** (missões por jogador, diálogo, IR ATÉ nos POIs deste documento): é o que abre a passagem
    sul e o poço, apaga e acende as pedras por jogador e coloca o Kenji, a Tsubaki e o Kagerō nos mapas.
 2. **Inimigos do arco:** Batedor das Cinzas (arremessa kunai), Eco de Kagerō, Kagerō e o Braço do Lodo.
-3. **As outras quatro vilas** com planta própria (hoje usam a planta da Folha com outras cores).
+3. **As outras três vilas** com planta própria (hoje usam a planta da Folha, cada uma com o seu desenho: seção 7.1).

@@ -215,6 +215,16 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v22: Névoa, Nuvem e Areia com o desenho das artes (sem migração)
+
+- A mesma planta nas quatro vilas, com o desenho do tema (docs/mapas.md, 7.1; referências e prévias em `arte/vilas/`).
+- **Areia:** prédios redondos de arenito (`drawSandBuilding` em `public/mapArt.js`: cúpula da sede com janelas e torres,
+  hospital claro, Academia de duas torres com ponte, lojas com toldos e mercadoria, casas em torre), cânion no lugar da
+  muralha, mesa de arenito, chão de deserto, pontes de pedra, palmeiras, cactos, vasos de barro e arena de terra batida.
+- **Névoa:** bambu no lugar das cerejeiras, grama úmida e poças. **Nuvem:** nuvens no morro e bandeiras da vila
+  (enfeite `flag`, sem colisão).
+- O cache dos objetos altos (árvores) agora separa por tema: antes, viajar entre vilas reaproveitava o desenho de outra.
+
 ### v21: site do jogo no Floot (API `/site/*`, saúde e alertas; sem migração)
 
 O site (ranking PvP e MMR, ranks, vilas e eleição do Kage, notícias, votação de atualizações e o painel do admin ao

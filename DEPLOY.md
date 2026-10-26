@@ -988,3 +988,19 @@ No projeto **Vontade do Fogo**, conecte a credencial que o site pede (o Floot mo
 - **Servidor dormindo:** o selo e o painel só recebem e nunca acordam o Render. Já as páginas de ranking, vilas e
   perfil perguntam ao jogo, e essa pergunta acorda o servidor: na primeira visita com ele dormindo a página avisa que o
   jogo está acordando, e um minuto depois os dados aparecem.
+
+---
+
+## Passo 28 — Atualização v22: Névoa, Nuvem e Areia com o desenho delas
+
+**Banco:** nada a rodar. Publique a `main` (o Render faz o deploy sozinho).
+
+### Testar no celular
+
+Use o admin para ir a cada vila (`/admin ir vila_areia 40 52`, `vila_nevoa`, `vila_nuvem`):
+
+1. **Areia:** prédios redondos de arenito, cânion em volta, palmeiras e cactos, chão de areia, pontes de pedra e a
+   arena de terra batida. As portas das lojas e da Academia continuam funcionando no mesmo lugar.
+2. **Névoa:** bambu perto das lojas e da praça, grama mais fria e poças no chão.
+3. **Nuvem:** nuvens no alto do morro e bandeiras vinho na praça; dá para andar por cima delas (são enfeite).
+4. Viaje de uma vila para a outra e volte: cada vila mantém as árvores dela (sem palmeira na Névoa, por exemplo).

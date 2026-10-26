@@ -89,8 +89,8 @@ export interface Deco extends Box {
     | 'stream' | 'drybed' | 'trail'
     // o que sobrou no Acampamento Queimado: caixote quebrado, panela no tripé, esteira e um pergaminho caído
     | 'crate' | 'pot' | 'bedroll' | 'scroll_drop'
-    // vila: lanterna de pedra (tōrō, acende de noite) e vaso de flores
-    | 'toro' | 'planter';
+    // vila: lanterna de pedra (tōrō, acende de noite) e vaso de flores; bandeira da Vila da Nuvem
+    | 'toro' | 'planter' | 'flag';
   /** Linha do riacho/leito: x0, y0, x1, y1... em casas, a partir do canto (x, y) do enfeite. */
   p?: number[];
   /** Meia largura da faixa, em casas. */
@@ -435,6 +435,10 @@ function village(def: VillageMapDef = VILLAGE_MAPS[0]!): MapLayout {
     deco('banner', VILLAGE_ARENA.north.from - 1.2, VILLAGE_ARENA.fence.y - 1.2), deco('banner', VILLAGE_ARENA.north.to + 0.2, VILLAGE_ARENA.fence.y - 1.2),
     deco('banner', VILLAGE_ARENA.fence.x - 1.7, VILLAGE_ARENA.west.from - 1.2), deco('banner', VILLAGE_ARENA.fence.x - 1.7, VILLAGE_ARENA.west.to + 0.2),
     deco('bench', 60, 74.6, 3, 1), deco('bench', 66, 74.6, 3, 1), deco('bench', 72, 74.6, 2, 1),
+    // Nuvem: bandeiras da vila na praça e na entrada da avenida (só enfeite: ninguém esbarra nelas).
+    ...(def.theme === 'nuvem'
+      ? [deco('flag', 34.6, 56.4), deco('flag', 44.6, 56.4), deco('flag', 31.5, 71), deco('flag', 47.5, 71), deco('flag', 36.6, 49.6), deco('flag', 42.6, 49.6)]
+      : []),
   ];
   // Lojas e Academia são salas compartilhadas pelas quatro vilas: a porta lembra de onde o jogador veio (`back`).
   const doors: Door[] = SHOPS.map((sh) => {
