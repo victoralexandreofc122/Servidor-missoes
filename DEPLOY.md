@@ -922,6 +922,10 @@ dentro de `BEGIN; ... COMMIT;`) e pode rodar de novo. Ela:
 
 Para conferir depois: `SELECT name FROM game.villages ORDER BY sort_order;` tem que mostrar Folha, Névoa, Nuvem e Areia.
 
+**Deu `column "village" does not exist`?** Então o banco ainda não tem a v11 (Passo 23): toque em **ROLLBACK** (nada
+foi gravado) e rode `db/schema_v11_endgame.sql` no lugar desta. A v11 atual já cria só as quatro vilas, então a v13 não
+faz falta (se rodar depois, não muda nada). O servidor acha a v11 sozinho em até 1 minuto, sem deploy.
+
 **Depois o código:** publique a `main` (o Render faz o deploy sozinho).
 
 ### Testar no celular

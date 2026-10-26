@@ -6,6 +6,8 @@
 --
 -- Regras do SQL Editor do Neon (DEPLOY.md): sem bloco DO, tudo dentro de BEGIN/COMMIT. Pode rodar de novo: na
 -- segunda vez nada casa com 'vila_2' e nada muda.
+--
+-- Banco sem a v11 (erro column "village" does not exist): rode a v11 no lugar desta. Ela já cria só as quatro vilas.
 
 BEGIN;
 
