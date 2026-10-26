@@ -933,3 +933,54 @@ Para conferir depois: `SELECT name FROM game.villages ORDER BY sort_order;` tem 
 4. **Tela do jogo (celular deitado):** o chat tem letra menor e fica translúcido; toque nele (ou no campo de escrever) e
    ele fica opaco, toque fora e volta a ficar translúcido. O botão Admin saiu de cima do chat e está no menu ☰. O status
    (jogadores e ping) fica pequeno no alto, à esquerda do ☰, em vez de no meio da tela.
+
+---
+
+## Passo 27 — O site do jogo (Floot)
+
+O site mostra ranking PvP e MMR, ranks, vilas e eleição do Kage (com voto), notícias, votação de atualizações e o
+painel do admin ao vivo, com push no celular quando algo dá errado. Não tem migração no Neon: o site tem o próprio
+banco no Floot. O código do jogo que fala com o site já está na `main`; ele só liga quando os dois segredos abaixo
+existirem no Render.
+
+### 1. Criar o segredo do site
+
+Gere uma senha aleatória de **40 caracteres** (letras e números) no gerenciador de senhas do celular. Ela é o
+`SITE_TOKEN`: precisa ser **diferente** do `JWT_SECRET` e do `SERVICE_TOKEN`. Não mande por chat nem cole em lugar
+nenhum além dos dois painéis abaixo.
+
+### 2. Render
+
+**servidor-missoes → Environment → Add Environment Variable:**
+
+- `SITE_TOKEN` = o segredo do item 1;
+- `SITE_URL` = o endereço do site publicado no Floot (o que aparece ao publicar, algo como
+  `https://….floot.app`), **sem `/` no fim**.
+
+Salve. O Render reinicia o servidor sozinho.
+
+### 3. Floot
+
+No projeto **Vontade do Fogo**, conecte a credencial que o site pede (o Floot mostra um link para isso):
+
+- `GAME_URL` = `https://servidor-missoes-ffb4.onrender.com`;
+- `SITE_TOKEN` = o **mesmo** segredo do item 1.
+
+### 4. Testar no celular
+
+1. Abra o jogo e entre (isso acorda o servidor). Em até 1 minuto o selo no alto do site muda para **Online** com o
+   número de jogadores.
+2. **Entrar** no site com a conta do jogo. No ranking, a sua linha aparece destacada.
+3. **Vilas e Kage:** com eleição aberta na sua vila, o botão de votar aparece (ou o motivo de não poder votar).
+4. **Painel** (só admin): aba **Ao vivo** com os números do último batimento; os gráficos enchem com o tempo.
+5. Aba **Notificações → Ligar push aqui** e **Mandar um teste**: a notificação chega no celular. No iPhone, antes,
+   abra o site no Safari → Compartilhar → **Adicionar à Tela de Início** e use o site pelo ícone.
+
+### Bom saber
+
+- **Alarme de queda:** usa uma tarefa agendada do Floot, que só existe no plano **Pro**. Sem ele, o selo vira
+  "Sem sinal" 3 minutos depois do último batimento, mas o push de "queda" não sai (os outros alertas saem normalmente).
+- **E-mail dos alertas:** sem um domínio verificado na aba Email do Floot, o e-mail só chega ao dono da conta do Floot.
+- **Servidor dormindo:** o selo e o painel só recebem e nunca acordam o Render. Já as páginas de ranking, vilas e
+  perfil perguntam ao jogo, e essa pergunta acorda o servidor: na primeira visita com ele dormindo a página avisa que o
+  jogo está acordando, e um minuto depois os dados aparecem.

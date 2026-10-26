@@ -215,6 +215,34 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v21: site do jogo no Floot (API `/site/*`, saúde e alertas; sem migração)
+
+O site (ranking PvP e MMR, ranks, vilas e eleição do Kage, notícias, votação de atualizações e o painel do admin ao
+vivo) roda no Floot e conversa com este servidor por duas vias. As duas só existem com `SITE_TOKEN` (32+ caracteres,
+diferente de `JWT_SECRET` e `SERVICE_TOKEN`) e `SITE_URL` (o endereço do site, sem `/` no fim) no Render.
+
+- **O site pergunta** (`src/site/siteRoutes.ts`, `siteStore.ts`): toda rota pede o segredo em `x-site-token`. Quem
+  chama é o servidor do site, nunca o navegador, então as rotas ficam fora do limite global por IP.
+  - `POST /site/login` `{ login, password }` (e-mail ou nome): devolve o mesmo JWT do jogo. Limite por IP do visitante
+    (`x-site-client-ip`, 5 em 10 min) e por conta (10 em 10 min).
+  - `GET /site/overview` (módulos, população, vilas com Kage e passiva, temporada, guerras e alianças, online),
+    `/site/elections` (abertas com votos e histórico), `/site/ranking/pvp?scope=season|global&limit`,
+    `/site/ranking/ranks?limit`, `/site/players/:username` (admins não aparecem).
+  - Com o JWT em `Authorization`: `GET /site/me` (perfil, eleição da vila e se pode votar, com o motivo) e
+    `POST /site/kage/vote` `{ candidateId }` (mesmas regras do jogo; recusa = 409 `VOTE_REFUSED`).
+  - `GET /site/admin/live` (só admin): o retrato ao vivo do mundo.
+- **O servidor avisa** (`src/site/telemetry.ts`): um batimento a cada 60 s em `{SITE_URL}/_api/game/heartbeat`
+  (online por mapa, jogadores, loop do jogo, atraso do Node, memória, banco, erros) e alertas em
+  `/_api/game/alerts`: `ligou`, `desligando` (SIGTERM: deploy ou o Render pondo para dormir), `erro` (500 e exceções),
+  `bug` (erros do navegador do jogador, mensagem `client_error`, até 3 por minuto por cliente), `instavel` (loop lento,
+  atraso acima de 250 ms, memória acima de 420 MB, banco fora ou lento) e `suspeito` (o `Sentinel`: 30 mensagens
+  inválidas por minuto, flood, 3000 ryō ou 15000 XP em 10 min, a mesma dupla vencendo 4 vezes em 24 h, 8 senhas erradas
+  em 10 min). O mesmo alerta em rajada sai uma vez e vira contagem; o texto passa por `scrub` (sem URL do banco, JWT,
+  Bearer nem os segredos). Batimentos e alertas não acordam o Render (é ele que manda); as páginas do site que
+  perguntam ao jogo (`/site/*`) acordam, como qualquer visita.
+- No site, queda = silêncio com gente jogando (o alarme do Floot dispara 2,5 min depois do último batimento e pergunta
+  ao `/health` o motivo); silêncio depois de `desligando` ou com 0 jogadores é "dormindo".
+
 ### v20: a Vila da Pedra sai do jogo (migração `db/schema_v13_sem_pedra.sql`, ANTES do deploy)
 
 - **Quatro vilas:** Folha, Névoa, Nuvem e Areia (decisão do Victor, 25/10/2026). Os códigos não mudaram (`vila_1`,
