@@ -215,6 +215,14 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v23: mapas com a imagem gerada por IA (piloto: Poço; sem migração)
+
+- Um mapa com `art` no layout é desenhado com a própria imagem da IA, cortada em blocos de 8 x 8 casas
+  (`public/mapas/<art>/`, feitos por `arte/mapas/fatiar.py`); as paredes do layout seguem o desenho e só dão
+  colisão (confira com `arte/mapas/sobrepor.py`). Como fazer: docs/mapas.md, 6.1.
+- **Poço sob a Praça:** primeiro mapa em imagem; passou a 24 x 18 (a proporção da imagem), com as tochas do desenho
+  acendendo no escuro da caverna (`lights`).
+
 ### v22: Névoa, Nuvem e Areia com o desenho das artes (sem migração)
 
 - A mesma planta nas quatro vilas, com o desenho do tema (docs/mapas.md, 7.1; referências e prévias em `arte/vilas/`).

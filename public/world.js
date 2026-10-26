@@ -74,7 +74,7 @@ export function themeAt(places, x, y) {
 /** Enfeites (bancos, lanternas...) de todos os mapas visíveis, em coordenadas do mapa atual. */
 export function visibleDeco(places) {
   const out = [];
-  for (const p of places) for (const d of p.map.deco || []) out.push({ ...d, x: d.x + p.ox, y: d.y + p.oy, t: p.map.theme });
+  for (const p of places) for (const d of p.map.deco || []) out.push({ ...d, x: d.x + p.ox, y: d.y + p.oy, t: p.map.theme, art: p.map.art });
   return out;
 }
 
@@ -99,11 +99,19 @@ export function arenaFoes(map, a, b) {
   return !!arena && arena === arenaAt(map, b.x, b.y) && v(a) === arena.village && v(b) === arena.village;
 }
 
-/** Paredes de todos os mapas visíveis, já deslocadas para coordenadas do mapa atual. */
+/**
+ * Paredes de todos os mapas visíveis, já deslocadas para coordenadas do mapa atual. `art`: a parede é de um mapa em
+ * imagem (só colisão: o desenho já está na imagem).
+ */
 export function visibleWalls(places) {
   const out = [];
-  for (const p of places) for (const w of p.map.walls) out.push({ x: w.x + p.ox, y: w.y + p.oy, w: w.w, h: w.h, k: w.k, s: w.s, t: p.map.theme });
+  for (const p of places) for (const w of p.map.walls) out.push({ x: w.x + p.ox, y: w.y + p.oy, w: w.w, h: w.h, k: w.k, s: w.s, t: p.map.theme, art: p.map.art });
   return out;
+}
+
+/** Mapas em imagem à vista: o retângulo de cada um em coordenadas do mapa atual e a pasta da arte. */
+export function artPlaces(places) {
+  return places.filter((p) => p.map.art).map((p) => ({ art: p.map.art, x: p.ox, y: p.oy, w: p.map.width, h: p.map.height }));
 }
 
 /** Nome do mapa para o aviso na tela ("Floresta"). */

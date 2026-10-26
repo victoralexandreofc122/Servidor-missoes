@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
+import { WORLD_MAPS } from '../realtime/maps.js';
 
 /*
  * Cliente web do jogo (pasta public/), servido pela própria API pública.
@@ -32,6 +33,23 @@ export const MONSTER_ART_TYPES = ['slime', 'lodo_escuro', 'lodo_sombrio', 'rei_l
 /** Folhas PNG de public/assets/<pasta>/ (a lista bate com vfxData.js e weaponData.js: test/static.test.ts confere). */
 function sheets(folder: 'vfx' | 'weapons', names: readonly string[]) {
   return names.map((n) => ({ route: `/assets/${folder}/${n}.png`, file: `assets/${folder}/${n}.png`, contentType: 'image/png', binary: true as const }));
+}
+
+/** Bloco de chão do mapa em imagem (8 x 8 casas, como CHUNK em game.js), feito por arte/mapas/fatiar.py. */
+export const MAP_ART_CHUNK = 8;
+
+/** Blocos WebP (e o minimapa) de cada mapa com `art`: public/mapas/<art>/<cx>_<cy>.webp e mini.webp. */
+function mapArt() {
+  const out: { route: string; file: string; contentType: string; binary: true }[] = [];
+  const seen = new Set<string>();
+  for (const m of Object.values(WORLD_MAPS)) {
+    if (!m.art || seen.has(m.art)) continue;
+    seen.add(m.art);
+    const names = ['mini'];
+    for (let cy = 0; cy * MAP_ART_CHUNK < m.height; cy++) for (let cx = 0; cx * MAP_ART_CHUNK < m.width; cx++) names.push(`${cx}_${cy}`);
+    for (const n of names) out.push({ route: `/mapas/${m.art}/${n}.webp`, file: `mapas/${m.art}/${n}.webp`, contentType: 'image/webp', binary: true });
+  }
+  return out;
 }
 
 const FILES = [
@@ -75,6 +93,8 @@ const FILES = [
   { route: '/img/logo.webp', file: 'img/logo.webp', contentType: 'image/webp', binary: true },
   // Fonte da interface: Barlow Condensed (SIL Open Font License, public/fonts/OFL-barlow.txt), só o alfabeto latino.
   ...[500, 600, 700].map((w) => ({ route: `/fonts/barlow-condensed-${w}.woff2`, file: `fonts/barlow-condensed-${w}.woff2`, contentType: 'font/woff2', binary: true as const })),
+  // Mapas em imagem (arte/mapas): os blocos de chão de cada mapa com `art`.
+  ...mapArt(),
 ];
 
 /** public/ fica na raiz do projeto: dois níveis acima de src/web/ (dev) e de dist/web/ (Render). */

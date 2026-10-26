@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { configurePublicApp, DEFAULT_SETTINGS } from '../src/appSetup.js';
 import { REALTIME } from '../src/realtime/config.js';
 import { SKILLS } from '../src/realtime/protocol.js';
+import { WORLD_MAPS } from '../src/realtime/maps.js';
 import { CONTENT_SECURITY_POLICY, loadPublicFiles } from '../src/web/staticFiles.js';
 import { deps } from './support/appCases.js';
 import { FakeFastify } from './support/fakeFastify.js';
@@ -69,6 +70,23 @@ describe('cliente web servido pelo Fastify', () => {
     }
     assert.match(html, /<link rel="icon" type="image\/png" sizes="32x32" href="\/img\/favicon-32\.png">/);
     assert.match(html, /class="login-logo" src="\/img\/logo\.webp"/);
+  });
+
+  it('mapas em imagem: cada mapa com `art` tem todos os blocos 8 x 8 e o minimapa, servidos como WebP', async () => {
+    const pub = app();
+    const arts = Object.values(WORLD_MAPS).filter((m) => m.art);
+    assert.ok(arts.some((m) => m.id === 'poco'), 'o Poço é em imagem');
+    for (const m of arts) {
+      const names = ['mini'];
+      for (let cy = 0; cy * 8 < m.height; cy++) for (let cx = 0; cx * 8 < m.width; cx++) names.push(`${cx}_${cy}`);
+      for (const n of names) {
+        const r = await pub.inject({ method: 'GET', url: `/mapas/${m.art}/${n}.webp` });
+        assert.equal(r.statusCode, 200, `${m.id}: ${n}`);
+        assert.equal(r.headers['content-type'], 'image/webp');
+        const body = byRoute(`/mapas/${m.art}/${n}.webp`).body;
+        assert.ok(Buffer.isBuffer(body) && body.subarray(8, 12).toString('latin1') === 'WEBP', `${m.id}: ${n}`);
+      }
+    }
   });
 
   it('só a lista fechada existe: caminhos com ../ ou arquivos do servidor dão 404', async () => {

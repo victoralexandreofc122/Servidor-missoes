@@ -38,7 +38,7 @@ O jogo é jogado num celular deitado, com a câmera vendo cerca de **20 x 11 cas
 ```
                  ┌────────────────────┐
                  │  Vila da Folha     │  80 x 80 · segura
-                 │  (Poço sob a Praça)│──── poço lacrado ────► Poço sob a Praça (24 x 20) · M13
+                 │  (Poço sob a Praça)│──── poço lacrado ────► Poço sob a Praça (24 x 18) · M13
                  └─────────┬──────────┘
                      portão sul
                  ┌─────────┴──────────┐
@@ -181,20 +181,47 @@ y 0 ▓▓▓▓▓▓┃entrada┃▓▓▓▓▓▓▓▓▓▓   vem da passa
 
 ---
 
-## 6. Poço sob a Praça (24 x 20)
+## 6. Poço sob a Praça (24 x 18)
 
 ```
 x: 0   8      16   24
-y 0 ████┃escada┃█████    desce pelo poço da Praça
+y 0 ████┃escada┃█████    parede das tochas; a escada sobe para o poço da Praça
     █   plataforma    █
-  8 █≈≈≈≈≈≈≈═══≈≈≈≈≈≈≈█   canal de água com uma ponte
+  7 █≈≈≈≈≈≈≈║═║≈≈≈≈≈≈≈█   canal de água com uma ponte de pilares
     █  salão de pedra  █   M13: o Mestre luta junto
- 18 █████┃porta┃███████   porta lacrada: a Quinta Pedra (Arco 2)
+ 13 █ ░░███┃🔥┃███ ≈≈ █   porta lacrada (a chama): a Quinta Pedra (Arco 2); entulho e poça nos cantos
 ```
 
 - **Entrada:** o poço da Praça da Vila, hoje com uma **tampa de pedra** lacrada (dá para ver, não dá para abrir).
 - Pequeno de propósito: é uma cena de luta e uma revelação, não um lugar para caçar.
 - A **porta lacrada** do fundo leva à Quinta Pedra, que é do Arco 2.
+- **Mapa em imagem** (v23, seção 6.1): o chão é `arte/mapas/referencia_poco.jpg`. O mapa passou de 24 x 20 para
+  24 x 18 para ter a proporção da imagem (casas quadradas, sem esticar o desenho).
+
+### 6.1 Mapas em imagem (v23)
+
+Um mapa com `art` no layout (`src/realtime/maps.ts`) é desenhado com a **imagem gerada por IA**, sem nada por
+código por cima: o chão, as paredes, as tochas e os enfeites já estão no desenho.
+
+1. **Fatiar:** `python3 arte/mapas/fatiar.py <imagem> <art> <largura> <altura> [--recorte x0,y0,x1,y1]` estica a
+   imagem para o mapa a 48 px por casa (a resolução do chão do jogo) e grava `public/mapas/<art>/<cx>_<cy>.webp`
+   (blocos de 8 x 8 casas) e `mini.webp` (o minimapa). O `--recorte` tira a moldura preta da imagem. Escolha o tamanho
+   do mapa com a **proporção da imagem**, ou o desenho fica esticado.
+2. **Colisão:** as paredes do layout seguem o desenho. `python3 arte/mapas/sobrepor.py <imagem> <layout.json> <saída.png>
+   --recorte ...` desenha as paredes (vermelho), a água (azul) e as portas (verde) por cima da imagem, numa grade de
+   casas, para conferir.
+3. **Luzes:** `lights` no layout marca a chama de cada tocha ou lanterna do desenho: de noite e na caverna, o jogo
+   acende a luz ali.
+4. O servidor serve os blocos de todo mapa com `art` (`src/web/staticFiles.ts`); o cliente carrega só os blocos perto
+   da câmera e monta o chão com eles (`chunkCanvas` em `public/game.js`). Paredes, enfeites e árvores desses mapas não
+   são desenhados (só dão colisão).
+
+| Mapa | Imagem | Recorte | Tamanho |
+|---|---|---|---|
+| Poço sob a Praça | `arte/mapas/referencia_poco.jpg` (1500 x 1120) | `37,34,1464,1087` | 24 x 18 |
+
+**Resolução:** o jogo mostra ~50 px por casa. Imagens com menos de ~40 px por casa (as vilas, a Floresta e a Zona
+de Conflito, com 10 a 19) ficam borradas se só esticadas: precisam passar por um ampliador de IA antes de fatiar.
 
 ---
 

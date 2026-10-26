@@ -10,7 +10,7 @@
 // com a posição oficial que chega a cada tick.
 
 import { CAMERA, FOCUS_RANGE, frameCamera, keepFocus, nextFocus, smoothing } from './targeting.js';
-import { arenaAt, arenaFoes, groundAt, inSafeZone, mapName, placements, themeAt, visibleDeco, visibleWalls } from './world.js';
+import { arenaAt, arenaFoes, artPlaces, groundAt, inSafeZone, mapName, placements, themeAt, visibleDeco, visibleWalls } from './world.js';
 import {
   ART, PROP_KINDS, buildingLights, drawAcademyDoor, drawChakraField, drawDeco, drawGateRoof, drawOakCanopy, drawProp, drawSealGlow, drawTrails,
   drawWall, fenceLanterns, propExtent,
@@ -153,6 +153,7 @@ const state = {
   serverMap: null,
   /** Mapa atual + vizinhos costurados nas saídas (world.js) e as paredes visíveis (casas e árvores). */
   places: [],
+  arts: [],                          // mapas em imagem à vista (artPlaces)
   walls: [],
   /** Enfeites visíveis (bancos, lanternas...) e os que passam POR CIMA dos jogadores (telhado do portão). */
   deco: [],
@@ -1340,7 +1341,14 @@ function buildMinimap() {
       g.fillRect(x * S, y * S, S, S);
     }
   }
+  if (map.art) {                       // mapa em imagem: a própria arte, em miniatura (4 px por casa)
+    const mini = new Image();
+    const id = state.mapId;
+    mini.onload = () => { if (minimap.mapId === id && minimap.tex === c) g.drawImage(mini, 0, 0, c.width, c.height); };
+    mini.src = `/mapas/${map.art}/mini.webp`;
+  }
   for (const w of state.walls) {
+    if (w.art) continue;
     const color = MM_WALL[w.k];
     if (!color) continue;
     g.fillStyle = color;
@@ -1543,22 +1551,26 @@ function enterMap(id, announce) {
   state.world.width = layout.width;
   state.world.height = layout.height;
   state.places = placements(state.maps, id);
+  // Mapas em imagem (layout.art): o chão, as paredes e os enfeites já estão na arte; as paredes deles só dão colisão.
+  state.arts = artPlaces(state.places);
   // Paredes de cima para baixo: o que está mais embaixo é desenhado por cima (3/4).
   state.walls = visibleWalls(state.places).sort((a, b) => a.y + a.h - (b.y + b.h));
-  const deco = visibleDeco(state.places);
+  const drawn = state.walls.filter((w) => !w.art);
+  const deco = visibleDeco(state.places).filter((d) => !d.art);
   state.deco = deco.filter((d) => d.k !== 'gate_roof' && d.k !== 'door' && d.k !== 'oak_canopy');
   state.overhead = deco.filter((d) => d.k === 'gate_roof' || d.k === 'oak_canopy');
   // Pedras-Selo acesas: o halo que respira é desenhado a cada quadro (o resto da pedra fica no bloco do chão).
-  state.glows = state.walls.filter((w) => w.k === 'seal' && w.s !== 'out');
-  // Luzes quentes que tremem a cada quadro: as lanternas da mureta da arena (a lanterna fica no bloco do chão).
-  state.lights = state.walls.filter((w) => w.k === 'fence').flatMap((w) => fenceLanterns(w).map((l) => ({
+  state.glows = drawn.filter((w) => w.k === 'seal' && w.s !== 'out');
+  // Luzes quentes que tremem a cada quadro: as lanternas da mureta da arena (a lanterna fica no bloco do chão) e as
+  // tochas e lanternas desenhadas na arte dos mapas em imagem (layout.lights: a chama; a poça de luz fica embaixo).
+  state.lights = drawn.filter((w) => w.k === 'fence').flatMap((w) => fenceLanterns(w).map((l) => ({
     x: l.x, y: w.w >= w.h ? w.y + w.h : l.y + 0.25,
-  })));
+  }))).concat(state.places.flatMap((pl) => (pl.map.lights || []).map((l) => ({ x: l.x + pl.ox, y: l.y + pl.oy + 1.25 }))));
   // Janelas e lanternas das casas: acendem de noite.
-  state.windows = state.walls.filter((w) => w.k === 'house').flatMap(buildingLights);
+  state.windows = drawn.filter((w) => w.k === 'house').flatMap(buildingLights);
   // Arenas à vista (as do mapa atual): os holofotes.
   state.arenaBoxes = state.places.flatMap((pl) => (pl.map.arenas || []).map((a) => ({ x: a.x + pl.ox, y: a.y + pl.oy, w: a.w, h: a.h })));
-  state.props = makeProps(state.walls);
+  state.props = makeProps(drawn);
   state.doors = deco.filter((d) => d.k === 'door');      // Academia: abrem conforme o tutorial (desenho a cada quadro)
   state.fields = layout.fields || [];                     // Sala de Controle: o campo que drena o chakra
   state.npcs = state.allNpcs.filter((n) => n.map === id && npcVisible(n));
@@ -4326,6 +4338,59 @@ function tileAt(x, y) {
 // Chão em BLOCOS de 8x8 casas, desenhados uma vez na resolução da arte (384 x 384 px) e guardados. Cada quadro
 // desenha só ~12 a 20 imagens em vez de ~300 casas.
 const CHUNK = 8;
+
+/*
+ * Mapas em imagem (layout.art): a arte vem pronta em blocos do mesmo tamanho, /mapas/<art>/<cx>_<cy>.webp (8 x 8
+ * casas a 48 px, feitos por arte/mapas/fatiar.py), carregados quando a câmera chega perto. O bloco do mundo só é
+ * montado com as imagens que ele cobre já carregadas (até lá aparece a cor de fundo, como um bloco ainda não montado).
+ * Uma imagem que falhou é pedida de novo depois de uns segundos.
+ */
+const ART_IMAGES_MAX = 96;
+const artImages = new Map();         // "art/cx_cy" -> { img, ok: null (chegando) | true }
+
+function artImage(art, cx, cy) {
+  const key = `${art}/${cx}_${cy}`;
+  let a = artImages.get(key);
+  if (a) {
+    artImages.delete(key);           // marca como usada agora
+    artImages.set(key, a);
+    return a;
+  }
+  a = { img: new Image(), ok: null };
+  a.img.onload = () => { a.ok = true; };
+  a.img.onerror = () => setTimeout(() => { if (artImages.get(key) === a) artImages.delete(key); }, 4000);
+  a.img.src = `/mapas/${key}.webp`;
+  artImages.set(key, a);
+  if (artImages.size > ART_IMAGES_MAX) artImages.delete(artImages.keys().next().value);
+  return a;
+}
+
+/** A casa (x, y) é de um mapa em imagem? */
+function inArt(x, y) {
+  for (const r of state.arts) if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return true;
+  return false;
+}
+
+/**
+ * Pedaços de arte que caem no bloco (cx, cy) do mundo: [{ img, x, y }] (x e y: o canto, em casas), ou null se algum
+ * ainda está chegando.
+ */
+function artPieces(cx, cy) {
+  const out = [];
+  for (const r of state.arts) {
+    const x0 = Math.max(cx * CHUNK, r.x), x1 = Math.min((cx + 1) * CHUNK, r.x + r.w);
+    const y0 = Math.max(cy * CHUNK, r.y), y1 = Math.min((cy + 1) * CHUNK, r.y + r.h);
+    if (x0 >= x1 || y0 >= y1) continue;
+    for (let ay = Math.floor((y0 - r.y) / CHUNK); r.y + ay * CHUNK < y1; ay++) {
+      for (let ax = Math.floor((x0 - r.x) / CHUNK); r.x + ax * CHUNK < x1; ax++) {
+        const a = artImage(r.art, ax, ay);
+        if (!a.ok) return null;
+        out.push({ img: a.img, x: r.x + ax * CHUNK, y: r.y + ay * CHUNK, r });
+      }
+    }
+  }
+  return out;
+}
 const CHUNK_CACHE_MAX = 64;          // 8 x 48 px = 384 px por bloco: ~64 x 576 KB = 37 MB no máximo
 const chunkCache = new Map();        // "mapa:cx,cy" -> canvas (ordem de uso = LRU; voltar a um mapa é instantâneo)
 
@@ -4346,19 +4411,23 @@ function chunkCanvas(cx, cy) {
     return c;
   }
   if (chunkBuilds >= CHUNK_BUILDS_PER_FRAME) return null;
+  const pieces = artPieces(cx, cy);
+  if (!pieces) return null;
   chunkBuilds += 1;
   c = document.createElement('canvas');
   c.width = c.height = CHUNK * PIX;
   const g = c.getContext('2d');
+  const all = !pieces.length;        // o bloco não toca mapa em imagem: tudo por código, casa por casa
+  const drawHere = (x, y) => all || !inArt(x, y);
   for (let ty = 0; ty < CHUNK; ty++) {
-    for (let tx = 0; tx < CHUNK; tx++) g.drawImage(tileAt(cx * CHUNK + tx, cy * CHUNK + ty), tx * PIX, ty * PIX);
+    for (let tx = 0; tx < CHUNK; tx++) if (drawHere(cx * CHUNK + tx, cy * CHUNK + ty)) g.drawImage(tileAt(cx * CHUNK + tx, cy * CHUNK + ty), tx * PIX, ty * PIX);
   }
   // Daqui para baixo, tudo em unidades (U por casa): a arte do mapa é a mesma em qualquer resolução.
   g.scale(ART, ART);
   // Bordas macias entre chãos diferentes (grama por cima da terra, margem da água).
   drawPatches(g, cx, cy);
-  for (let ty = 0; ty < CHUNK; ty++) for (let tx = 0; tx < CHUNK; tx++) drawFringe(g, cx * CHUNK + tx, cy * CHUNK + ty, tx * U, ty * U);
-  for (let ty = 0; ty < CHUNK; ty++) for (let tx = 0; tx < CHUNK; tx++) drawScatter(g, cx * CHUNK + tx, cy * CHUNK + ty, tx * U, ty * U);
+  for (let ty = 0; ty < CHUNK; ty++) for (let tx = 0; tx < CHUNK; tx++) if (drawHere(cx * CHUNK + tx, cy * CHUNK + ty)) drawFringe(g, cx * CHUNK + tx, cy * CHUNK + ty, tx * U, ty * U);
+  for (let ty = 0; ty < CHUNK; ty++) for (let tx = 0; tx < CHUNK; tx++) if (drawHere(cx * CHUNK + tx, cy * CHUNK + ty)) drawScatter(g, cx * CHUNK + tx, cy * CHUNK + ty, tx * U, ty * U);
   // Enfeites no chão (bancos, rosa dos ventos, lanternas, vasos) e depois as paredes baixas (muralha, prédios,
   // montanha, boneco), inclusive as do mapa vizinho além da borda. Cada uma é desenhada só nos blocos que toca (margem
   // de 8 unidades para as sombras). Árvores, pedras altas e barracas são objetos com altura: vão na camada de cima.
@@ -4379,10 +4448,19 @@ function chunkCanvas(cx, cy) {
     drawDeco(g, d, x, y, w, h);
   }
   for (const w of state.walls) {
-    if (PROP_KINDS.has(w.k)) continue;
+    if (PROP_KINDS.has(w.k) || w.art) continue;
     const x = (w.x - cx * CHUNK) * U, y = (w.y - cy * CHUNK) * U, pw = w.w * U, ph = w.h * U;
     if (x + pw < -M || y + ph < -M || x > size + M || y > size + M) continue;
     drawWall(g, w, x, y, pw, ph, U);
+  }
+  // Por fim a arte dos mapas em imagem, recortada no retângulo de cada mapa (cobre a sombra do vizinho que vaza).
+  for (const p of pieces) {
+    g.save();
+    g.beginPath();
+    g.rect((p.r.x - cx * CHUNK) * U, (p.r.y - cy * CHUNK) * U, p.r.w * U, p.r.h * U);
+    g.clip();
+    g.drawImage(p.img, (p.x - cx * CHUNK) * U, (p.y - cy * CHUNK) * U, p.img.naturalWidth / ART, p.img.naturalHeight / ART);
+    g.restore();
   }
   chunkCache.set(key, c);
   if (chunkCache.size > CHUNK_CACHE_MAX) chunkCache.delete(chunkCache.keys().next().value);
@@ -4493,7 +4571,8 @@ try {
         for (let cy = 0; cy * CHUNK < state.world.height; cy++) {
           for (let cx = 0; cx * CHUNK < state.world.width; cx++) {
             chunkBuilds = 0;
-            g.drawImage(chunkCanvas(cx, cy), cx * CHUNK * px, cy * CHUNK * px, CHUNK * px, CHUNK * px);
+            const ch = chunkCanvas(cx, cy);
+            if (ch) g.drawImage(ch, cx * CHUNK * px, cy * CHUNK * px, CHUNK * px, CHUNK * px);
           }
         }
         for (const s2 of state.glows || []) drawSealGlow(g, s2.x * px, s2.y * px, s2.w * px, s2.h * px, 0);
@@ -4579,7 +4658,8 @@ function draw(now) {
       const c = chunkCanvas(cx, cy);
       if (c) ctx.drawImage(c, toScreenX(cx * CHUNK), toScreenY(cy * CHUNK), size, size);
       else {                           // ainda não montado: cor do chão por 1 ou 2 quadros
-        ctx.fillStyle = state.maps[state.mapId]?.kind === 'village' ? '#c4c0b6' : '#4f9a3a';
+        const k = state.maps[state.mapId]?.kind;
+        ctx.fillStyle = k === 'village' ? '#c4c0b6' : k === 'cave' || k === 'interior' ? '#1a1820' : '#4f9a3a';
         ctx.fillRect(toScreenX(cx * CHUNK), toScreenY(cy * CHUNK), size, size);
       }
     }
@@ -4697,7 +4777,7 @@ function draw(now) {
   // O ar do mapa (sombras das copas, sol, pólen, brasas, vinheta) e, na caverna, o escuro em volta do jogador.
   drawAtmosphere(toScreenX, toScreenY, T, now);
   drawSky(toScreenX, toScreenY, T, now, me);
-  if (me && state.maps[state.mapId]?.kind === 'cave') drawCaveDark(toScreenX(me.x), toScreenY(me.y), T);
+  if (me && state.maps[state.mapId]?.kind === 'cave') drawCaveDark(toScreenX(me.x), toScreenY(me.y), T, toScreenX, toScreenY);
 
   // 6. Números flutuantes (dano, cura, XP, avisos) e falas do NPC.
   drawFloaters(toScreenX, toScreenY, T, now);
@@ -5369,13 +5449,43 @@ function drawSky(toScreenX, toScreenY, T, now, me) {
   ctx.restore();
 }
 
-function drawCaveDark(sx, sy, T) {
+const caveLayer = document.createElement('canvas');
+function drawCaveDark(sx, sy, T, toScreenX, toScreenY) {
   const r = T * 6.5;
-  const grad = ctx.createRadialGradient(sx, sy, T * 1.5, sx, sy, r);
+  const lights = state.lights || [];
+  if (!lights.length) {
+    const grad = ctx.createRadialGradient(sx, sy, T * 1.5, sx, sy, r);
+    grad.addColorStop(0, 'rgba(8, 4, 14, 0)');
+    grad.addColorStop(1, 'rgba(8, 4, 14, 0.82)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, viewW, viewH);
+    return;
+  }
+  // Com tochas (mapas em imagem): o escuro numa camada à parte, com um buraco de luz em cada chama.
+  const k = 0.5, w = Math.ceil(viewW * k), h = Math.ceil(viewH * k);
+  if (caveLayer.width !== w || caveLayer.height !== h) { caveLayer.width = w; caveLayer.height = h; }
+  const g = caveLayer.getContext('2d');
+  g.globalCompositeOperation = 'source-over';
+  g.clearRect(0, 0, w, h);
+  const grad = g.createRadialGradient(sx * k, sy * k, T * 1.5 * k, sx * k, sy * k, r * k);
   grad.addColorStop(0, 'rgba(8, 4, 14, 0)');
-  grad.addColorStop(1, 'rgba(8, 4, 14, 0.82)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, viewW, viewH);
+  grad.addColorStop(1, 'rgba(8, 4, 14, 0.72)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = 'destination-out';
+  const now = performance.now();
+  for (const l of lights) {
+    const lx = toScreenX(l.x) * k, ly = toScreenY(l.y - 1) * k, lr = T * 3.2 * k;
+    if (lx + lr < 0 || lx - lr > w || ly + lr < 0 || ly - lr > h) continue;
+    const flick = 0.9 + 0.1 * Math.sin(now / 130 + l.x * 7.1);
+    const gr = g.createRadialGradient(lx, ly, 0, lx, ly, lr);
+    gr.addColorStop(0, `rgba(0, 0, 0, ${0.95 * flick})`);
+    gr.addColorStop(0.5, `rgba(0, 0, 0, ${0.55 * flick})`);
+    gr.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    g.fillStyle = gr;
+    g.fillRect(lx - lr, ly - lr, lr * 2, lr * 2);
+  }
+  ctx.drawImage(caveLayer, 0, 0, viewW, viewH);
 }
 
 /**

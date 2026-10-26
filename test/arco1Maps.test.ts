@@ -153,4 +153,18 @@ describe('Arco 1: Caverna do Lodo, Clareira Queimada e Poço', () => {
     const P = WORLD_MAPS.poco;
     assert.ok(P.walls.some((w) => w.k === 'gate'), 'a porta lacrada da Quinta Pedra');
   });
+
+  it('Poço em imagem: as paredes seguem o desenho (escada, canal com ponte, porta lacrada e os dois cantos de baixo)', () => {
+    const P = WORLD_MAPS.poco;
+    assert.equal(P.art, 'poco');
+    assert.deepEqual([P.width, P.height], [24, 18], 'a proporção da imagem');
+    const reach = walkable(P, { x: 12, y: 5 });                  // o pé da escada
+    assert.ok(reach({ x: 12, y: 2.5 }), 'sobe a escada');
+    assert.ok(reach({ x: 12, y: 9 }) && reach({ x: 12, y: 12 }), 'atravessa o canal pela ponte');
+    assert.ok(reach({ x: 2, y: 15.5 }) && reach({ x: 21.5, y: 15.5 }), 'os cantos de baixo (entulho e poça)');
+    for (const [x, y, what] of [[5, 8.5, 'canal'], [19, 8.5, 'canal'], [12, 15, 'porta'], [5, 2, 'parede das tochas'], [7, 15.5, 'bloco de baixo']] as const) {
+      assert.ok(!reach({ x, y, r: 0.4 }), what);
+    }
+    assert.ok((P.lights ?? []).length >= 10, 'as tochas da arte acendem');
+  });
 });

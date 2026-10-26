@@ -9,7 +9,7 @@
  *                              Queimado, o riacho e o abismo do Arco 1 (docs/mapas.md)
  *   caverna_lodo       56 x 44  do outro lado do abismo (só com o Teleporte): túneis e o lago de lodo
  *   clareira_queimada  44 x 40  o coração da Floresta (Pedra 4, chefe); passagem sul LACRADA até a história abrir
- *   poco               24 x 20  o Poço sob a Praça; tampa LACRADA até a história abrir
+ *   poco               24 x 18  o Poço sob a Praça; tampa LACRADA até a história abrir
  *   interior_weapons / interior_clothes / interior_scrolls   salas 15 x 15 das lojas: assoalho,
  *                              paredes, balcão no meio e o lojista atrás dele; porta de saída embaixo
  *   academy_interior  Academia 64 x 16: 4 salas do tutorial (v8: fechadas; o servidor leva o jogador
@@ -165,6 +165,14 @@ export interface MapLayout {
   conflict?: boolean;
   /** Tema de cores (desenho). */
   theme?: MapTheme;
+  /**
+   * Arte do mapa em imagem: o chão, as paredes e os enfeites vêm de public/mapas/<art>/ (blocos de 8 x 8 casas, feitos
+   * por arte/mapas/fatiar.py) e o cliente não desenha nada por código nele. As paredes daqui só dão a colisão e
+   * precisam seguir o desenho (confira com arte/mapas/sobrepor.py).
+   */
+  art?: string;
+  /** Tochas e lanternas desenhadas na arte (o ponto da chama): o cliente acende a luz delas de noite e na caverna. */
+  lights?: { x: number; y: number }[];
   /** Arenas de treino de PvP (área de luta, DENTRO da cerca). */
   arenas?: Arena[];
   /** Estilo e chão padrão: 'village' = pedra clara; 'forest' = grama; 'wild' = pedra solta; 'interior' = assoalho; 'cave' = caverna (escura). */
@@ -741,23 +749,38 @@ function burnedClearing(): MapLayout {
 }
 
 /**
- * Poço sob a Praça (24 x 20): a cisterna debaixo da Vila (docs/mapas.md, seção 6). Desce-se pela escada do poço da
+ * Poço sob a Praça (24 x 18): a cisterna debaixo da Vila (docs/mapas.md, seção 6). Desce-se pela escada do poço da
  * Praça (a tampa fica lacrada até a história abrir). Canal de água com uma ponte e, no fundo, a porta lacrada da
  * Quinta Pedra (Arco 2).
+ *
+ * O chão é a imagem arte/mapas/referencia_poco.jpg (`art`), e as paredes seguem o desenho dela: a parede das tochas
+ * em cima com a escada no meio, o canal de lado a lado com a ponte de pilares, e embaixo o bloco de pedra com a porta
+ * da chama. Os cantos de baixo (entulho à esquerda, poça à direita) são chão.
  */
 function well(): MapLayout {
-  const W = 24, H = 20;
+  const W = 24, H = 18;
   const walls: Wall[] = [
-    wall('wall', 0, 0, W, 2), wall('wall', 0, 2, 1, H - 2), wall('wall', W - 1, 2, 1, H - 2),
-    wall('wall', 0, H - 2, 10, 2), wall('wall', 14, H - 2, 10, 2), wall('gate', 10, H - 2, 4, 2),   // a porta lacrada
-    wall('water', 1, 8, 10, 2), wall('water', 13, 8, 10, 2),                                          // canal (ponte no meio)
+    wall('wall', 0, 0, 10.5, 3.1), wall('wall', 13.5, 0, 10.5, 3.1),        // parede das tochas
+    wall('wall', 10.5, 0, 0.4, 4.3), wall('wall', 13.1, 0, 0.4, 4.3),       // batentes da escada
+    wall('wall', 10.9, 0, 2.2, 1.1),                                        // topo da escada (sobe para a Praça)
+    wall('wall', 0, 3.1, 0.6, H - 3.1), wall('wall', W - 0.6, 3.1, 0.6, H - 3.1),
+    wall('water', 0.6, 7.1, 9.5, 3.2), wall('water', 13.9, 7.1, 9.5, 3.2),  // canal
+    wall('wall', 10.1, 6, 0.7, 4.9), wall('wall', 13.2, 6, 0.7, 4.9),       // pilares da ponte
+    wall('wall', 4.4, 13.8, 5.8, H - 13.8), wall('wall', 13.8, 13.8, 5.7, H - 13.8),
+    wall('gate', 10.2, 13.1, 3.6, H - 13.1),                                // a porta lacrada (a chama)
+    wall('wall', 0.6, H - 0.6, W - 1.2, 0.6),
   ];
   return {
-    id: 'poco', name: 'Poço sob a Praça', kind: 'cave', width: W, height: H, safe: false, walls,
+    id: 'poco', name: 'Poço sob a Praça', kind: 'cave', width: W, height: H, safe: false, walls, art: 'poco',
+    lights: [
+      { x: 3.5, y: 1.4 }, { x: 8.55, y: 1.4 }, { x: 15.4, y: 1.4 }, { x: 20.5, y: 1.4 },
+      { x: 0.95, y: 4.8 }, { x: 23.05, y: 4.8 }, { x: 0.95, y: 12.6 }, { x: 23.05, y: 12.6 },
+      { x: 8.55, y: 14.5 }, { x: 15.4, y: 14.5 },
+    ],
     exits: [],
     doors: [],
-    areas: [area('stone', 0, 0, W, H), area('water', 1, 8, 10, 2), area('water', 13, 8, 10, 2), area('bridge', 11, 8, 2, 2)],
-    deco: [deco('ladder', 11, 2, 2, 2)],
+    areas: [area('stone', 0, 0, W, H), area('water', 1, 7, 10, 3), area('water', 14, 7, 10, 3), area('bridge', 11, 7, 2, 3)],
+    deco: [],
     safeZones: [],
   };
 }
