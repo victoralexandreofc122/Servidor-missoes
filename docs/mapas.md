@@ -244,6 +244,7 @@ código por cima: o chão, as paredes, as tochas e os enfeites já estão no des
 | Vila da Névoa | `arte/vilas/nevoa_ampliada.jpg` (6000 x 4480, ampliada) | `0,0,6000,4480` | 80 x 60 |
 | Vila da Nuvem | `arte/vilas/nuvem_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
 | Floresta | `arte/mapas/floresta_ampliada.jpg` (6000 x 4480, ampliada) | `0,0,6000,4480` | 100 x 75 |
+| Zona de Conflito | `arte/mapas/zona_ampliada.jpg` (4500 x 3360, ampliada) | `44,32,4456,3328` | 110 x 80 (esticada 2,8% na largura) |
 | Armaria | `arte/mapas/referencia_armaria.jpg` (2000 x 1493) | `56,52,1944,1493` | 17 x 13 |
 | Casa dos Pergaminhos | `arte/mapas/referencia_pergaminhos.jpg` (2000 x 1493) | `75,59,1925,1493` | 17 x 13 |
 

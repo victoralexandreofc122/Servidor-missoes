@@ -1154,12 +1154,13 @@ function academy(): MapLayout {
  */
 export const CONFLICT = {
   width: 110, height: 80,
+  // Os acampamentos do desenho (arte/mapas/referencia_zona_conflito.jpg): a fogueira e a bandeira de cada um.
   camps: [
-    { who: 'vila_1', x: 4, y: 4 }, { who: 'vila_3', x: 96, y: 4 },
-    { who: 'vila_4', x: 4, y: 68 }, { who: 'vila_5', x: 96, y: 68 }, { who: 'renegados', x: 50, y: 69 },
+    { who: 'vila_1', x: 8, y: 8 }, { who: 'vila_3', x: 89, y: 8 },
+    { who: 'vila_4', x: 8, y: 59 }, { who: 'vila_5', x: 89, y: 59 }, { who: 'renegados', x: 52, y: 63 },
   ] as const,
-  camp: { w: 10, h: 8 },
-  ruin: { x: 47, y: 32, w: 16, h: 16 },
+  camp: { w: 13, h: 10 },
+  ruin: { x: 45, y: 28, w: 22, h: 21 },
 } as const;
 export type CampOwner = (typeof CONFLICT.camps)[number]['who'];
 
@@ -1170,45 +1171,55 @@ export function conflictCamp(who: CampOwner): { box: Box; arrive: { x: number; y
   return { box: { x: c.x, y: c.y, w, h }, arrive: { x: c.x + w / 2, y: c.y + h / 2 + 1 }, post: { x: c.x + 2, y: c.y + 2 } };
 }
 
+/**
+ * Zona de Conflito em imagem (arte/mapas/referencia_zona_conflito.jpg, ampliada): um vale de terra fechado por
+ * rochas, os cinco acampamentos com fogueira e bandeira (quatro nos cantos e o dos renegados embaixo), árvores mortas,
+ * lajes de pedra caídas e a ruína de pilares no meio. O desenho é simétrico: as medidas são do quarto de cima à esquerda
+ * (em casas da imagem, 107 x 80) e o resto sai espelhado; o mapa fica com 110 x 80 (a imagem esticada 2,8%).
+ */
 function conflictZone(): MapLayout {
   const { width: W, height: H } = CONFLICT;
+  const K = W / 107;                                          // casas da imagem -> casas do mapa (largura)
+  const X = (x: number) => r2(x * K);
+  const box = (k: Wall['k'], x: number, y: number, w: number, h: number, st?: Wall['s']) => wall(k, X(x), y, r2(w * K), h, st);
+  /** Os quatro lados: o quarto de cima à esquerda, espelhado em x (107) e em y (80). */
+  const mirror = (k: Wall['k'], x: number, y: number, w: number, h: number) =>
+    [box(k, x, y, w, h), box(k, 107 - x - w, y, w, h), box(k, x, 80 - y - h, w, h), box(k, 107 - x - w, 80 - y - h, w, h)];
   const walls: Wall[] = [
-    wall('rock', 0, 0, W, 2), wall('rock', 0, H - 2, W, 2), wall('rock', 0, 2, 2, H - 4), wall('rock', W - 2, 2, 2, H - 4),
-  ];
+    // Rochas em volta (mais grossas nos cantos).
+    box('rock', 0, 0, 107, 4.5), box('rock', 0, 76.5, 107, 3.5), box('rock', 0, 4.5, 3, 72), box('rock', 104, 4.5, 3, 72),
+    ...mirror('rock', 3, 4.5, 3.5, 6), ...mirror('rock', 3, 17, 2.5, 18),
+    // Árvores mortas (o tronco) e as lajes de pedra caídas, nos quatro quartos.
+    ...mirror('tree', 31, 7, 3, 9), ...mirror('tree', 42, 8.5, 3, 7.5), ...mirror('tree', 29.5, 19, 2.5, 6),
+    ...mirror('tree', 10.5, 23, 4, 10), ...mirror('tree', 15, 23.5, 3, 7.5), ...mirror('tree', 18.5, 29, 3, 7), ...mirror('tree', 23.5, 23.5, 3, 7.5),
+    ...mirror('rock', 16, 9.5, 4.5, 2.5), ...mirror('rock', 34.5, 18, 5, 2.5), ...mirror('rock', 26.5, 34.5, 4.5, 2),
+    ...mirror('rock', 7.5, 14.5, 2.5, 3.5), ...mirror('furniture', 9.5, 7, 0.6, 7),
+  ].filter((w) => !(w.y > 55 && w.x > X(33) && w.x < X(74)));   // embaixo no meio fica o acampamento dos renegados
+  walls.push(
+    // A ruína do meio: os pilares (dá para passar entre eles) e as lajes caídas em volta.
+    box('pillar', 43.2, 27, 1.8, 11.5), box('pillar', 43.2, 40, 1.8, 9), box('pillar', 48.5, 28.5, 1.4, 4.5), box('pillar', 48.5, 42.5, 1.4, 4.5),
+    box('pillar', 57, 29.5, 1.4, 3.5), box('pillar', 57, 41.5, 1.4, 6), box('pillar', 62, 27, 1.8, 11.5), box('pillar', 62, 40, 1.8, 9),
+    box('rock', 40.2, 23.2, 4.8, 2), box('rock', 61.8, 23.2, 4.8, 2), box('rock', 51, 21.2, 5, 2), box('rock', 37, 19, 4, 2), box('rock', 67.8, 19, 4, 2),
+    box('rock', 37.3, 51, 4.8, 2), box('rock', 64.6, 51, 4.8, 2), box('rock', 45.5, 56.3, 4.8, 2), box('rock', 56.4, 56.3, 4.8, 2),
+    // Acampamento dos renegados: a barraca, os mastros e as árvores dos lados.
+    box('tent', 44.5, 66.5, 5.5, 7, 'burnt'), box('furniture', 46.5, 64, 1.2, 4), box('furniture', 60.5, 64, 0.8, 7),
+    box('tree', 36.5, 62, 6, 11), box('tree', 66, 62, 9, 12), box('tree', 30.5, 64, 2.5, 9), box('tree', 76, 64, 2.5, 9),
+  );
   const camps = CONFLICT.camps.map((c) => conflictCamp(c.who).box);
-  const ruin = CONFLICT.ruin;
-  // A ruína do meio: quatro pilares nos cantos e dois no meio dos lados (sobra espaço entre eles para passar).
-  for (const [px, py] of [[0, 0], [14, 0], [0, 14], [14, 14], [7, 0], [7, 14], [0, 7], [14, 7]] as const) {
-    walls.push(wall('pillar', ruin.x + px, ruin.y + py, 2, 2));
-  }
-  const rnd = seeded(7077);
-  for (let gx = 6; gx < W - 8; gx += 7) {
-    for (let gy = 6; gy < H - 8; gy += 7) {
-      if (rnd() > 0.5) continue;
-      const big = rnd() < 0.35;
-      const t: Wall = big
-        ? wall('rock', gx + Math.floor(rnd() * 3), gy + Math.floor(rnd() * 3), 3 + Math.floor(rnd() * 2), 2 + Math.floor(rnd() * 2))
-        : wall('tree', gx + Math.floor(rnd() * 4), gy + Math.floor(rnd() * 4), 2, 2);
-      if (camps.some((c) => overlaps(t, c, 3)) || overlaps(t, ruin, 2) || walls.some((w) => overlaps(t, w, 1))) continue;
-      walls.push(t);
-    }
-  }
-  const decos: Deco[] = [];
-  for (const c of CONFLICT.camps) {
-    const { box } = conflictCamp(c.who);
-    decos.push(deco('banner', box.x + box.w - 2, box.y + 1), deco('fire', box.x + box.w / 2 - 0.5, box.y + box.h / 2 - 1.5));
-  }
-  decos.push(deco('bones', 30, 40, 2, 1), deco('bones', 80, 22, 2, 1), deco('bones', 72, 58, 2, 1));
   return {
     id: 'zona_conflito', name: 'Zona de Conflito', kind: 'wild', theme: 'conflito', conflict: true, width: W, height: H, safe: false, walls,
+    art: 'zona',
+    lights: [
+      { x: X(14.3), y: 13.8 }, { x: X(92.7), y: 13.8 }, { x: X(14.3), y: 66.6 }, { x: X(92.7), y: 66.6 }, { x: X(53.5), y: 70.4 },
+    ],
     exits: [], doors: [],
     areas: [
-      ...camps.map((c) => area('ash', c.x, c.y, c.w, c.h)),
-      area('stone', ruin.x + 2, ruin.y + 2, ruin.w - 2, ruin.h - 2),
+      area('dirt', 0, 0, W, H), ...camps.map((c) => area('ash', c.x, c.y, c.w, c.h)),
+      area('stone', CONFLICT.ruin.x, CONFLICT.ruin.y, CONFLICT.ruin.w, CONFLICT.ruin.h),
     ],
-    deco: decos,
+    deco: [],
     safeZones: camps,
-    hunt: { x: 4, y: 14, w: W - 8, h: H - 28 },
+    hunt: { x: 6, y: 18, w: W - 12, h: H - 36 },
     huntType: 'lodo_sombrio',
   };
 }

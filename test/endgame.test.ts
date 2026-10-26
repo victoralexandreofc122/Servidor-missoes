@@ -118,7 +118,7 @@ describe('fim de jogo: cliente e servidor com a mesma conta', () => {
     assert.equal(clientEndgame.zoneFoe(view, map, me, ally, safe), false);
     assert.equal(clientEndgame.zoneFoe(view, map, me, foe, safe), true);
     assert.equal(clientEndgame.zoneFoe(view, map, me, renegade, safe), true);
-    assert.equal(clientEndgame.zoneFoe(view, map, me, { ...foe, x: 5, y: 5 }, safe), false, 'no acampamento');
+    assert.equal(clientEndgame.zoneFoe(view, map, me, { ...foe, x: 14, y: 12 }, safe), false, 'no acampamento');
     assert.equal(clientEndgame.zoneFoe(view, map, { ...me, faction: { village: null, akatsuki: 3 } }, { ...renegade, faction: { village: null, akatsuki: 5 } }, safe), false);
     assert.equal(clientEndgame.zoneFoe({ ...view, modules: ['vilas'] }, map, me, foe, safe), false, 'sem o módulo pvp');
     assert.equal(clientEndgame.factionStyle(view, me, renegade, true).bounty, 300);

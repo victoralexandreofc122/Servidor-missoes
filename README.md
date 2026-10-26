@@ -235,6 +235,8 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   a Folha liga com a entrada deslocada 9,5 casas. O abismo do desenho é largo demais para o Teleporte: na beira,
   virado para a saliência, o Teleporte salta até ela (`leaps`). O Posto de Viagem da Floresta fica na clareira da
   entrada (54,5; 8,5).
+- **Zona de Conflito:** em imagem, mantida em 110 x 80 (a imagem esticada 2,8% na largura). Os acampamentos ficam
+  onde o desenho põe as fogueiras e bandeiras; a ruína do meio com os pilares e as lajes.
 
 ### v22: Névoa, Nuvem e Areia com o desenho das artes (sem migração)
 
