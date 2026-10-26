@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { REALTIME } from '../src/realtime/config.js';
-import { SHOPS, shopDoor, shopRoom, WORLD_MAPS, type MapLayout } from '../src/realtime/maps.js';
+import { SHOPS, shopDoor, shopRoom, villagePlan, WORLD_MAPS, type MapLayout } from '../src/realtime/maps.js';
 import { blocked, moveStep, useDoor } from '../src/realtime/movement.js';
 import { mapOf, seededRandom, setupWorld, withMonsters } from './support/world.js';
 
@@ -79,7 +79,7 @@ describe('lojas: portas (mesma regra no cliente e no servidor)', () => {
   const maps = WORLD_MAPS;
   it('na Vila, empurrando a porta (para cima) entra; na sala, empurrando a porta (para baixo) sai na frente da loja', () => {
     for (const sh of SHOPS) {
-      const { door, outside } = shopDoor(sh.building);
+      const { door, outside } = shopDoor(villagePlan('map_1').shops[sh.shop]);
       const front = door.y + 0.3;                                         // encostado na fachada
       const R = shopRoom(sh.shop);
       const [ex, ey] = exitPoint(sh.shop);
@@ -95,7 +95,7 @@ describe('lojas: portas (mesma regra no cliente e no servidor)', () => {
   });
 
   it('andando de verdade (moveStep): entra pela porta, sobe até o balcão, desce e sai na Vila', () => {
-    const { door } = shopDoor(SHOPS[0].building);
+    const { door } = shopDoor(villagePlan('map_1').shops.weapons);
     let s: [string, number, number] = ['map_1', door.x + 1, door.y + 3];
     for (let i = 0; i < 30 && s[0] === 'map_1'; i++) s = moveStep(maps, s[0], s[1], s[2], 0, -1, 0.25);
     assert.equal(s[0], 'interior_weapons');
@@ -121,7 +121,7 @@ describe('lojas: portas (mesma regra no cliente e no servidor)', () => {
 
   it('cliente (JS) e servidor (TS): mesmo resultado em 20 mil passos perto das portas', () => {
     const rnd = seededRandom(5);
-    const { door } = shopDoor(SHOPS[1].building);
+    const { door } = shopDoor(villagePlan('map_1').shops.clothes);
     let st: [string, number, number] = ['map_1', door.x + 1, door.y + 2];
     let inside = 0;
     for (let i = 0; i < 20_000; i++) {
@@ -142,7 +142,7 @@ describe('lojas: servidor', () => {
     const { world, connect, run } = setupWorld(withMonsters(0));
     const a = connect('kaito');
     const b = connect('mei');                                             // fica na Vila
-    const { door, outside } = shopDoor(SHOPS[0].building);
+    const { door, outside } = shopDoor(villagePlan('map_1').shops.weapons);
     Object.assign(sess(world, a.id), { x: door.x + 1, y: door.y + 1.5 });
     walk(a, run, 1, 10, [0, -1]);
     assert.equal(mapOf(world, a.id), 'interior_weapons');

@@ -224,6 +224,10 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   acendendo no escuro da caverna (`lights`).
 - **Armaria e Casa dos Pergaminhos:** salas em imagem de 17 x 13, cada uma com a sua planta (`shopRoom()`: lojista,
   frente do balcão, chegada e saída). A Alfaiataria segue na sala 15 x 15 por código até ter imagem.
+- **Vila da Folha:** em imagem, ampliada 4x com o Real-ESRGAN (`arte/mapas/ampliar.py`), em 78 x 60 casas. Cada vila
+  em imagem tem a sua planta (`villagePlan()`: renascimento, Mestre, praça, Posto de Viagem, portão, lojas, Academia,
+  arena); NPCs, renascimento, viagem e o fim do tutorial saem dela. A borda norte da Floresta só atravessa no trecho
+  do portão da Folha. As outras três vilas seguem na planta 80 x 80 por código até ganharem a sua.
 
 ### v22: Névoa, Nuvem e Areia com o desenho das artes (sem migração)
 

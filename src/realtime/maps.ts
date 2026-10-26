@@ -423,7 +423,174 @@ export const VILLAGE_MAPS: readonly VillageMapDef[] = [
 /** Posto de Viagem de cada vila: dentro da praça, perto do portão. */
 export const TRAVEL_POST = { x: 36.5, y: 73.5 } as const;
 
+/**
+ * Planta de uma vila: o que o resto do jogo precisa saber de onde as coisas ficam. As vilas desenhadas por código
+ * usam todas a mesma (`BASE_PLAN`); cada vila em imagem tem a sua, medida no desenho.
+ */
+export interface VillagePlan {
+  w: number;
+  h: number;
+  /** Onde se aparece ao conectar e se renasce (na frente da sede). */
+  spawn: Point;
+  /** O Mestre (Sala de Missões), na diagonal do renascimento. */
+  sensei: Point;
+  /** A praça (fim do tutorial). */
+  plaza: Point;
+  /** O Posto de Viagem (quem chega de viagem aparece 2,5 casas à direita e 1,5 acima dele). */
+  travel: Point;
+  /** O portão sul: o trecho por onde se passa para a Floresta e onde se chega voltando dela. */
+  gate: { from: number; to: number; returnY: number };
+  /** O prédio de cada loja e da Academia: a porta fica no meio da fachada, embaixo (`shopDoor`). */
+  shops: Record<ShopKind, Box>;
+  academy: Box;
+  /** A área de luta da arena (dentro da cerca) e onde renasce quem perde (fora, na entrada). */
+  arena: { fight: Box; respawn: Point };
+  /** Zonas sem combate (a praça). */
+  safe: Box[];
+  /** Arco 1: o poço da praça (lacrado; leva ao Poço) e a grade onde o rio passa sob a muralha (M2). */
+  well: Box;
+  grate: Box;
+}
+
+/** Vila em imagem: a planta, a pasta da arte, as paredes (só colisão), as luzes do desenho e o chão (minimapa). */
+interface VillageArt {
+  art: string;
+  plan: VillagePlan;
+  walls: Wall[];
+  lights: Point[];
+  areas: Area[];
+}
+
+/**
+ * Árvore da arte, pela caixa da copa: bloqueia o tronco e a parte de baixo da copa (60% da largura, 55% de baixo da
+ * altura). Entre duas árvores vizinhas sobra passagem, e quem passa atrás de uma pisa na beirada de cima da copa.
+ */
+const r2 = (n: number) => Math.round(n * 100) / 100;
+const crown = (x: number, y: number, w: number, h: number): Wall => wall('tree', r2(x + w * 0.2), r2(y + h * 0.45), r2(w * 0.6), r2(h * 0.55));
+
+/**
+ * Vila da Folha em imagem (arte/vilas/referencia_folha.jpg, ampliada 4x com o Real-ESRGAN): 78 x 60 casas, a
+ * proporção do desenho. Montanha e sede em cima, hospital à esquerda, Academia à direita, o rio de lado a lado com
+ * três pontes e um braço que desce pela esquerda, as três lojas no meio, a praça com o poço embaixo, a arena à direita
+ * e o portão no meio da muralha de baixo. Árvores e prédios bloqueiam inteiros (copa e telhado): ninguém passa "atrás"
+ * deles, porque o desenho não tem camada por cima do jogador.
+ */
+const FOLHA_ART: VillageArt = {
+  art: 'folha',
+  plan: {
+    w: 78, h: 60,
+    spawn: { x: 38, y: 24.4 }, sensei: { x: 40, y: 23.4 }, plaza: { x: 38, y: 45 }, travel: { x: 37, y: 51.5 },
+    gate: { from: 36.5, to: 41.4, returnY: 57 },
+    shops: { weapons: { x: 24.6, y: 29.4, w: 7, h: 5.6 }, clothes: { x: 46.4, y: 29.4, w: 6.8, h: 5.5 }, scrolls: { x: 58.5, y: 29.4, w: 6.5, h: 5.6 } },
+    academy: { x: 50.1, y: 10.2, w: 14.5, h: 11.6 },
+    arena: { fight: { x: 58.8, y: 41.5, w: 15.4, h: 11.1 }, respawn: { x: 56.6, y: 47.4 } },
+    safe: [{ x: 22.3, y: 38, w: 33.4, h: 16.7 }],
+    well: { x: 47.3, y: 43.8, w: 3.1, h: 3 }, grate: { x: 11.2, y: 49.4, w: 5.1, h: 3.4 },
+  },
+  walls: [
+    // Muralha e o portão (as duas folhas abertas).
+    wall('wall', 0, 0, 78, 5.5), wall('wall', 0, 5.5, 1.5, 49.2), wall('wall', 76.5, 5.5, 1.5, 49.2),
+    wall('wall', 0, 54.7, 34.1, 5.3), wall('wall', 43.9, 54.7, 34.1, 5.3),
+    wall('gatepost', 34.1, 55.4, 2.15, 4.6), wall('gatepost', 41.6, 55.3, 2.3, 4.7),
+    // Montanha atrás da sede.
+    wall('rock', 19.5, 5.5, 39, 2), wall('rock', 22, 7.5, 10, 2), wall('rock', 46.5, 7.5, 12, 4.3),
+    // Prédios: sede, hospital, Academia, casas e as lojas.
+    wall('house', 31.1, 5.5, 15.5, 15, 'leader'), wall('house', 18.7, 10.6, 9.1, 10.2, 'hospital'), wall('house', 50.1, 10.2, 14.5, 11.6, 'academy'),
+    wall('house', 3.2, 6.5, 5.5, 14.3, 'home'), wall('house', 10.5, 5.8, 5.8, 4.9, 'hut'),
+    wall('house', 62.6, 5.8, 6.65, 5.3, 'home'), wall('house', 69.25, 6.8, 5.55, 7.2, 'home'), wall('house', 70, 14, 5, 7, 'home'),
+    wall('house', 2.9, 29.4, 5.6, 7.35, 'home'), wall('house', 2.9, 40, 6.7, 7.3, 'home'),
+    wall('house', 24.6, 29.4, 7, 5.6, 'shop_weapon'), wall('house', 46.4, 29.4, 6.8, 5.5, 'shop_cloth'), wall('house', 58.5, 29.4, 6.5, 5.6, 'shop_scroll'),
+    // Árvores, pela caixa da copa (crown: só o tronco e a parte de baixo bloqueiam).
+    crown(1.8, 3.2, 3.5, 4.8), crown(5, 3, 4, 4.8), crown(17.5, 6, 4.5, 5.8), crown(14.5, 15.2, 4.2, 5.8), crown(24.5, 8.2, 4, 2.4),
+    crown(27.5, 8.6, 3.5, 5), crown(28, 17.2, 4, 5.6), crown(2, 20.3, 4.3, 5.9), crown(6.3, 20.5, 4.3, 5.8), crown(10.7, 21, 4.7, 5.3),
+    crown(46.6, 8.2, 4.3, 7.5), crown(46, 17.1, 4.7, 5.4), crown(58, 7.5, 3.9, 4.3), crown(59.9, 2.7, 4.2, 5.5), crown(63, 17.1, 4.6, 5.4),
+    crown(70.3, 3, 4.7, 5.5), crown(71.6, 20.9, 4.4, 5.1),
+    crown(6.8, 28, 4.4, 5.2), crown(1.4, 37.5, 3.6, 5.1), crown(16.25, 32.5, 4.65, 5.7), crown(16.25, 42.3, 4.65, 5.5),
+    crown(1.5, 49.5, 4, 5.2), crown(4.6, 51, 4.3, 4), crown(16.7, 50.5, 3.7, 4.2), crown(22, 51, 4.6, 3.7), crown(71.4, 28.5, 5.1, 11.3),
+    crown(52, 50.5, 3.6, 4.2),
+    crown(19.5, 28.4, 4.8, 5.3), crown(32.1, 28.9, 4.7, 5.35), crown(41.2, 28.9, 4.3, 5.5), crown(53.5, 28.4, 4.1, 5.5),   // cerejeiras
+    crown(29.5, 51.5, 4.7, 3.5), crown(43.2, 51.5, 5, 3.5),
+    // O rio (com as três pontes de cima e a ponte do braço da esquerda) e a grade onde ele passa sob a muralha.
+    wall('water', 1.5, 26.9, 15.3, 2.4), wall('water', 20.1, 26.9, 16.5, 2.4), wall('water', 41.8, 26.9, 25.6, 2.4), wall('water', 70.9, 26.9, 5.6, 2.4),
+    wall('water', 11.9, 29.3, 3.7, 8.9), wall('water', 11.9, 42.1, 3.7, 12.6),
+    // Miúdos: caixotes, barris, postes, placas, pedras e as lanternas da sede.
+    wall('furniture', 9.6, 9.3, 1.1, 1.3, 'barrel'), wall('furniture', 16.2, 9.3, 0.8, 1.3, 'barrel'), wall('furniture', 2.3, 12.5, 1.3, 1.7, 'barrel'),
+    wall('furniture', 8.6, 13.4, 0.8, 2), wall('furniture', 18.8, 20.8, 2.5, 1.9),
+    wall('furniture', 32.8, 20.5, 1, 2.1), wall('furniture', 34.8, 20.5, 1.1, 2.1), wall('furniture', 41.9, 20.5, 1.1, 2), wall('furniture', 44.3, 20.5, 0.8, 2.1),
+    wall('furniture', 67.8, 10.8, 1.7, 3.8), wall('rock', 64.5, 15.5, 2.1, 1.5), wall('furniture', 68.4, 19.1, 1.2, 1.4),
+    wall('furniture', 8.4, 34.8, 1.4, 2.4), wall('furniture', 9.6, 44.7, 1.4, 2, 'barrel'), wall('furniture', 2.4, 46.4, 1.5, 2.2), wall('rock', 9.6, 33.4, 1.1, 1.2),
+    wall('furniture', 23.6, 32, 1, 3), wall('furniture', 31.6, 33, 1.2, 1.4, 'barrel'),
+    wall('furniture', 53.2, 32.3, 1.3, 2.6), wall('furniture', 45.2, 33.6, 0.9, 1.4), wall('furniture', 57.2, 33.7, 1.4, 1.8),
+    wall('furniture', 65.3, 33.2, 1.5, 1.8), wall('rock', 65.6, 30.8, 1.4, 1.2),
+    // Praça: vasos, bancos, lanternas de pedra e o poço.
+    wall('furniture', 25.2, 39.2, 1.4, 4.1), wall('furniture', 27, 38.9, 1.6, 2.4), wall('furniture', 28.9, 39.4, 4, 2.4), wall('furniture', 33.4, 38, 1.4, 3.4),
+    wall('furniture', 25.2, 48.8, 1.4, 2.4), wall('furniture', 27, 48.5, 1.6, 2.7), wall('furniture', 28.9, 49.4, 4, 1.8), wall('furniture', 33.4, 48.4, 1.4, 3),
+    wall('furniture', 34.8, 52.2, 1, 1),
+    wall('furniture', 43.2, 38.1, 1.4, 2.9), wall('furniture', 45.1, 39.4, 3.9, 2.4), wall('furniture', 49.4, 38.8, 1.6, 2.7), wall('furniture', 51.3, 39.2, 1.7, 3.9),
+    wall('furniture', 43.2, 48.3, 1.4, 3), wall('furniture', 45.1, 49.4, 3.9, 1.8), wall('furniture', 49.4, 48.6, 1.6, 2.7), wall('furniture', 51.3, 48.9, 1.5, 2.1),
+    wall('rock', 47.3, 43.8, 3.1, 3),
+    // Arena: cerca (entrada só pela esquerda), os estandartes de cima e os quatro pilares de pedra.
+    wall('fence', 58.2, 40.3, 16.6, 1.2), wall('fence', 58.2, 41.5, 0.6, 4.9), wall('fence', 58.2, 48.4, 0.6, 5.2),
+    wall('fence', 58.2, 52.6, 16.6, 1), wall('fence', 74.2, 40.3, 0.6, 13.3), wall('furniture', 61.8, 41.5, 10.4, 1.9),
+    wall('pillar', 60, 41.3, 1.6, 3.5, 'arena'), wall('pillar', 71.6, 41.3, 1.7, 3.5, 'arena'),
+    wall('pillar', 60, 48.8, 1.6, 3.6, 'arena'), wall('pillar', 71.6, 48.8, 1.7, 3.6, 'arena'),
+  ],
+  lights: [
+    { x: 33.3, y: 20.6 }, { x: 35.3, y: 20.6 }, { x: 42.4, y: 20.3 }, { x: 44.7, y: 20.7 },
+    { x: 9, y: 13.6 }, { x: 68.2, y: 11 }, { x: 69, y: 12.7 }, { x: 8.9, y: 35.2 },
+    { x: 34.1, y: 38.3 }, { x: 34.1, y: 48.6 }, { x: 43.9, y: 38.4 }, { x: 43.9, y: 48.6 },
+  ],
+  areas: [
+    area('grass', 0, 0, 78, 60), area('path', 16, 22.5, 60, 4.4), area('path', 20, 35, 52, 3), area('stone', 22.3, 38, 33.4, 14.6),
+    area('arena', 58.8, 41.5, 15.4, 11.1), area('water', 1.5, 26.9, 75, 2.4), area('water', 11.9, 29.3, 3.7, 25.4),
+    area('bridge', 16.8, 26.9, 3.3, 2.4), area('bridge', 36.6, 26.9, 5.2, 2.4), area('bridge', 67.4, 26.9, 3.5, 2.4), area('bridge', 11.1, 38.2, 5.3, 3.9),
+  ],
+};
+
+/** As vilas em imagem (as outras usam BASE_PLAN e são desenhadas por código). */
+const VILLAGE_ART: Partial<Record<MapId, VillageArt>> = { map_1: FOLHA_ART };
+
+/** A planta das vilas desenhadas por código (80 x 80, a mesma nas quatro). */
+const BASE_PLAN: VillagePlan = {
+  w: 80, h: 80,
+  spawn: { x: 40, y: 34 }, sensei: { x: 42, y: 33 }, plaza: { ...VILLAGE_PLAZA }, travel: { ...TRAVEL_POST },
+  gate: { from: VILLAGE_GATE.from, to: VILLAGE_GATE.to, returnY: VILLAGE_GATE.returnY },
+  shops: { weapons: SHOPS[0].building, clothes: SHOPS[1].building, scrolls: SHOPS[2].building },
+  academy: ACADEMY.building,
+  arena: { fight: arenaFightBox(), respawn: { ...VILLAGE_ARENA.respawn } },
+  safe: [{ x: 28, y: 55, w: 24, h: 23 }],
+  well: { x: 33, y: 65, w: 2, h: 2 }, grate: { x: 5.5, y: 77, w: 4, h: 1 },
+};
+
+/** A planta da vila `id` (o mapa). */
+export function villagePlan(id: string): VillagePlan {
+  return VILLAGE_ART[id as MapId]?.plan ?? BASE_PLAN;
+}
+
+/** Vila em imagem: as paredes, as portas e a arena saem da planta medida no desenho. */
+function artVillage(def: VillageMapDef, A: VillageArt): MapLayout {
+  const P = A.plan;
+  const doors: Door[] = SHOPS.map((sh) => {
+    const { door, outside } = shopDoor(P.shops[sh.shop]);
+    return { ...door, dir: 'north' as const, map: sh.map, at: { ...shopRoom(sh.shop).arrive }, back: { ...outside } };
+  });
+  const academy = shopDoor(P.academy);
+  doors.push({ ...academy.door, dir: 'north', map: 'academy_interior', at: { ...ACADEMY.arrive }, back: { ...academy.outside } });
+  return {
+    id: def.id, name: def.name, kind: 'village', village: def.village, theme: def.theme, width: P.w, height: P.h, safe: true,
+    walls: [...A.walls, ...(def.gate ? [] : [wall('gate', P.gate.from, P.h - 3, P.gate.to - P.gate.from, 3)])],
+    art: A.art, lights: A.lights,
+    exits: def.gate ? [{ edge: 'south', from: P.gate.from, to: P.gate.to, map: 'map_2', shift: 0 }] : [],
+    doors,
+    areas: A.areas, deco: [],
+    safeZones: P.safe.map((b) => ({ ...b })),
+    arenas: [{ ...P.arena.fight, village: def.village, respawn: { ...P.arena.respawn } }],
+  };
+}
+
 function village(def: VillageMapDef = VILLAGE_MAPS[0]!): MapLayout {
+  const A = VILLAGE_ART[def.id];
+  if (A) return artVillage(def, A);
   const W = 80, H = 80;
   const G = VILLAGE_GATE;
   const walls: Wall[] = [
@@ -496,7 +663,8 @@ function village(def: VillageMapDef = VILLAGE_MAPS[0]!): MapLayout {
     deco('planter', 21.4, 46.2, 1.6, 0.8), deco('planter', 32.6, 46.2, 1.6, 0.8), deco('planter', 44.4, 46.2, 1.6, 0.8),
     deco('planter', 55.6, 46.2, 1.6, 0.8), deco('planter', 61.4, 46.2, 1.6, 0.8), deco('planter', 72.6, 46.2, 1.6, 0.8),
     // Arco 1: a grade onde o rio passa por baixo da muralha (M2: "a água vem da Floresta") e a tampa lacrada do poço.
-    deco('grate', 5.5, 77, 4, 1), deco('well_lid', 33, 65, 2, 2),
+    deco('grate', BASE_PLAN.grate.x, BASE_PLAN.grate.y, BASE_PLAN.grate.w, BASE_PLAN.grate.h),
+    deco('well_lid', BASE_PLAN.well.x, BASE_PLAN.well.y, BASE_PLAN.well.w, BASE_PLAN.well.h),
     deco('gate_roof', G.from - 2, H - 5, G.to - G.from + 4, 2),       // telhado do portão (desenhado por cima)
     // Arena: o círculo pintado no chão, estandartes nas duas entradas e bancos para quem assiste.
     deco('ring', arenaFightBox().x, arenaFightBox().y, arenaFightBox().w, arenaFightBox().h),
@@ -688,7 +856,8 @@ function forest(): MapLayout {
   return {
     id: 'map_2', name: 'Floresta', kind: 'forest', width: W, height: H, safe: false, walls,
     exits: [
-      { edge: 'north', from: gateFrom, to: gateTo, map: 'map_1', shift: -VILLAGE_GATE.shift, arrive: VILLAGE_GATE.returnY },
+      // O trecho é o portão da Folha (a planta dela): fora dele, a borda não atravessa.
+      { edge: 'north', from: villagePlan('map_1').gate.from, to: villagePlan('map_1').gate.to, map: 'map_1', shift: 0, arrive: villagePlan('map_1').gate.returnY },
       { edge: 'south', from: south.from, to: south.to, map: 'clareira_queimada', shift: -20, arrive: 2 },
     ],
     doors: [
@@ -858,7 +1027,7 @@ function well(): MapLayout {
  * Vila, na frente da loja. Quem entra chega em (7,5; 12,8), fora dela, e continua subindo.
  */
 function interior(sh: (typeof SHOPS)[number]): MapLayout {
-  const back = shopDoor(sh.building).outside;
+  const back = shopDoor(villagePlan('map_1').shops[sh.shop]).outside;
   const A = SHOP_ART[sh.shop];
   if (A) {
     return {
@@ -932,7 +1101,7 @@ function academy(): MapLayout {
     }
   }
   // Saída: o capacho inteiro (como nas lojas, ninguém fica preso no canto). Só no passo 4.
-  doors.push({ x: 54.5, y: H - 1.6, w: 3, h: 1.6, dir: 'south', map: 'map_1', at: shopDoor(ACADEMY.building).outside, step: 4, toBack: true });
+  doors.push({ x: 54.5, y: H - 1.6, w: 3, h: 1.6, dir: 'south', map: 'map_1', at: shopDoor(villagePlan('map_1').academy).outside, step: 4, toBack: true });
   decos.push({ ...deco('door', 54.5, H - 1, 3, 1), step: 4 }, deco('mat', 55, H - 1.6, 2, 0.6));
   // Etapa 3: o vão de parede a parede (Teleporte por cima). Colide como parede para quem anda.
   const g = ACADEMY.gap;

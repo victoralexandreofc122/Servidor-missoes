@@ -134,7 +134,7 @@ describe('predição + reconciliação (cliente real x servidor real, 200 ms de 
     assert.equal(pred.map, 'map_2');
     assert.equal(results.snaps + results.smooth, 0, 'a previsão da passagem bateu com o servidor');
     assert.deepEqual([pred.x, pred.y], [s.x, s.y]);
-    assert.ok(s.y > 0 && Math.abs(s.x - 40) < 1e-9, `entrou pela trilha norte (${s.x}, ${s.y})`);
+    assert.ok(s.y > 0 && Math.abs(s.x - REALTIME.spawn.x) < 1e-9, `entrou pela trilha norte, na coluna do renascimento (${s.x}, ${s.y})`);
     assert.ok(results.mapSwitchAt > 0 && results.maxView < 0.2, `sem pulo na tela fora da costura (maior passo ${results.maxView})`);
   });
 

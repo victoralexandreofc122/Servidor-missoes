@@ -120,12 +120,14 @@ describe('GameWorld: movimento autoritativo (joystick) e game loop', () => {
   });
 
   it('diagonal (1, 1) é normalizada: mesma velocidade que em linha reta', () => {
-    const { connect, run, pos } = setup();
+    const { world, connect, run, pos } = setup();
     const a = connect('kaito');
+    const from = REALTIME.tutorialEnd;                     // a praça: espaço livre para os dois lados
+    Object.assign((world as any).sessions.get(a.id), { ...from });
     a.send({ type: 'move', dx: 1, dy: 1 });
     run(1000);
     const p = pos(a.id);
-    assert.ok(Math.abs(Math.hypot(p.x - S.x, p.y - S.y) - 5) < 0.02, `andou ${Math.hypot(p.x - S.x, p.y - S.y)}`);
+    assert.ok(Math.abs(Math.hypot(p.x - from.x, p.y - from.y) - 5) < 0.02, `andou ${Math.hypot(p.x - from.x, p.y - from.y)}`);
   });
 
   it('meia força (0.5) anda na metade da velocidade; soltar (0, 0) para e o tick não envia mais nada', () => {

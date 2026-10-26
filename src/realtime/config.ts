@@ -5,7 +5,7 @@
 import { buildSkills, type JutsuCode, type Mechanic } from './jutsus.js';
 import type { AttributeRules } from './stats.js';
 import {
-  ACADEMY, CONFLICT, REFUGE, SHOPS, TRAVEL_POST, VILLAGE_MAPS, VILLAGE_PLAZA, WORLD_MAPS, conflictCamp, shopRoom, type MapId, type MapLayout, type ShopKind,
+  ACADEMY, CONFLICT, REFUGE, SHOPS, VILLAGE_MAPS, WORLD_MAPS, conflictCamp, shopRoom, villagePlan, type MapId, type MapLayout, type ShopKind,
 } from './maps.js';
 import type { EndgameModule } from './endgame.js';
 
@@ -259,9 +259,9 @@ export const REALTIME: Readonly<RealtimeConfig> = {
   maps: WORLD_MAPS,
   /** Avenida da Vila, em frente à sede: onde o jogador aparece ao conectar e renasce (a posição ainda não é salva). */
   startMap: 'map_1',
-  spawn: { x: 40, y: 34 },
+  spawn: { ...villagePlan('map_1').spawn },
   /** Fim do tutorial da Academia: a Praça da Vila (zona segura), já no mundo aberto. */
-  tutorialEnd: { ...VILLAGE_PLAZA },
+  tutorialEnd: { ...villagePlan('map_1').plaza },
 
   /**
    * Movimento autoritativo: o cliente manda só a DIREÇÃO (joystick, de -1 a 1) e o servidor
@@ -385,12 +385,12 @@ export const REALTIME: Readonly<RealtimeConfig> = {
    * embaixo da barra de cima. Conversar: até 2,5 casas de distância.
    */
   npcs: [
-    { id: 'sensei', name: 'Mestre', map: 'map_1', x: 42, y: 33, range: 2.5, role: 'sensei' },
-    // As outras vilas têm o seu Mestre no mesmo lugar (a mesma Sala de Missões).
-    ...VILLAGE_MAPS.slice(1).map((v): NpcConfig => ({ id: `sensei_${v.id}`, name: 'Mestre', map: v.id, x: 42, y: 33, range: 2.5, role: 'sensei' })),
+    { id: 'sensei', name: 'Mestre', map: 'map_1', ...villagePlan('map_1').sensei, range: 2.5, role: 'sensei' },
+    // As outras vilas têm o seu Mestre no lugar equivalente da planta delas (a mesma Sala de Missões).
+    ...VILLAGE_MAPS.slice(1).map((v): NpcConfig => ({ id: `sensei_${v.id}`, name: 'Mestre', map: v.id, ...villagePlan(v.id).sensei, range: 2.5, role: 'sensei' })),
     // Postos de Viagem (fim de jogo): na praça de cada vila, na clareira da Floresta, nos acampamentos da Zona de
     // Conflito e no Refúgio. Levam para a própria vila, a Floresta, a Zona e as vilas aliadas.
-    ...VILLAGE_MAPS.map((v): NpcConfig => ({ id: `travel_${v.id}`, name: 'Posto de Viagem', map: v.id, x: TRAVEL_POST.x, y: TRAVEL_POST.y, range: 2.5, role: 'travel' })),
+    ...VILLAGE_MAPS.map((v): NpcConfig => ({ id: `travel_${v.id}`, name: 'Posto de Viagem', map: v.id, ...villagePlan(v.id).travel, range: 2.5, role: 'travel' })),
     { id: 'travel_map_2', name: 'Posto de Viagem', map: 'map_2', x: 46, y: 6, range: 2.5, role: 'travel' },
     ...CONFLICT.camps.map((c): NpcConfig => ({ id: `travel_zona_${c.who}`, name: 'Posto de Viagem', map: 'zona_conflito', ...conflictCamp(c.who).post, range: 2.5, role: 'travel' })),
     { id: 'travel_refugio', name: 'Posto de Viagem', map: 'refugio', x: REFUGE.post.x, y: REFUGE.post.y, range: 2.5, role: 'travel' },

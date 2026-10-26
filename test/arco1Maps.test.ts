@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { GameWorld } from '../src/realtime/gameWorld.js';
-import { CAVE_POI, CLEARING_POI, FOREST_ABYSS, FOREST_POI, WORLD_MAPS, type MapLayout } from '../src/realtime/maps.js';
+import { CAVE_POI, CLEARING_POI, FOREST_ABYSS, FOREST_POI, WORLD_MAPS, villagePlan, type MapLayout } from '../src/realtime/maps.js';
 import { PLAYER_RADIUS, blocked } from '../src/realtime/movement.js';
 import { FakeConn, placeIn, seededRandom } from './support/world.js';
 
@@ -148,7 +148,12 @@ describe('Arco 1: Caverna do Lodo, Clareira Queimada e Poço', () => {
     for (const m of Object.values(WORLD_MAPS)) {
       assert.ok(!m.doors.some((d) => d.map === 'poco') && !m.exits.some((e) => e.map === 'poco'), m.id);
     }
-    const deco = WORLD_MAPS.map_1.deco.map((d) => d.k);
+    // Na Folha (em imagem) o poço e a grade estão no desenho: a planta marca onde (o poço é obstáculo, a grade é rio).
+    const plan = villagePlan('map_1');
+    const at = (b: { x: number; y: number; w: number; h: number }) => [b.x + b.w / 2, b.y + b.h / 2] as const;
+    assert.ok(blocked(...at(plan.well), WORLD_MAPS.map_1.walls) && blocked(...at(plan.grate), WORLD_MAPS.map_1.walls));
+    // Nas vilas desenhadas por código, a tampa e a grade são enfeites.
+    const deco = WORLD_MAPS.vila_nevoa.deco.map((d) => d.k);
     assert.ok(deco.includes('well_lid') && deco.includes('grate'));
     const P = WORLD_MAPS.poco;
     assert.ok(P.walls.some((w) => w.k === 'gate'), 'a porta lacrada da Quinta Pedra');

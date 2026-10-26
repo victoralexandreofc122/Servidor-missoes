@@ -43,7 +43,7 @@ import {
 } from './effects.js';
 import { NO_CLASS, PvpStats, reportText, toClassRows } from './pvpStats.js';
 import {
-  ACADEMY, REFUGE, TRAVEL_POST, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, type Arena, type CampOwner, type HuntZone, type MapId,
+  ACADEMY, REFUGE, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
   type MapLayout,
 } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
@@ -2579,7 +2579,7 @@ export class GameWorld {
     s.substituteUntil = 0;
     // Fim da Academia: a praça da vila dele (renegado: o Refúgio).
     const home = this.homeOf(s.village);
-    const at = step < 4 ? academySpawn(step) : home.map === 'refugio' ? home : this.config.tutorialEnd;
+    const at = step < 4 ? academySpawn(step) : home.map === 'refugio' ? home : this.plazaOf(home.map);
     this.transfer(s, step >= 4 ? home.map : 'academy_interior', at.x, at.y, 'tutorial');
     s.lastUpdate = this.now();
     s.dirty = true;
@@ -3746,7 +3746,19 @@ export class GameWorld {
   private homeOf(village: Village | null): { map: MapId; x: number; y: number } {
     if (!this.on('vilas')) return { map: this.config.startMap, ...this.config.spawn };
     if (village === null) return { map: 'refugio', ...REFUGE.spawn };
-    return { map: VILLAGE_INFO[village].map as MapId, ...this.config.spawn };
+    const map = VILLAGE_INFO[village].map as MapId;
+    return { map, ...(map === this.config.startMap ? this.config.spawn : villagePlan(map).spawn) };
+  }
+
+  /** A praça da vila (fim do tutorial): a da planta de cada vila; a vila inicial usa a da configuração. */
+  private plazaOf(map: MapId): { x: number; y: number } {
+    return map === this.config.startMap ? this.config.tutorialEnd : villagePlan(map).plaza;
+  }
+
+  /** Onde se chega de viagem numa vila: ao lado do Posto de Viagem dela. */
+  private travelArrival(map: MapId): { map: MapId; x: number; y: number } {
+    const post = villagePlan(map).travel;
+    return { map, x: post.x + 2.5, y: post.y - 1.5 };
   }
 
   /** Passiva da vila: 1 + o bônus no que a vila dá, 1 no resto (renegado não tem; módulo desligado: nada). */
@@ -4152,11 +4164,11 @@ export class GameWorld {
   private arrival(s: Session, to: string): { map: MapId; x: number; y: number } {
     if (to === 'casa') {
       const home = this.homeOf(s.village);
-      return home.map === 'refugio' ? home : { map: home.map, x: TRAVEL_POST.x + 2.5, y: TRAVEL_POST.y - 1.5 };
+      return home.map === 'refugio' ? home : this.travelArrival(home.map);
     }
     if (to === 'map_2') return { map: 'map_2', x: 44, y: 8 };
     if (to === 'zona_conflito') return { map: 'zona_conflito', ...conflictCamp((s.village ?? 'renegados') as CampOwner).arrive };
-    return { map: VILLAGE_INFO[to as Village].map as MapId, x: TRAVEL_POST.x + 2.5, y: TRAVEL_POST.y - 1.5 };
+    return this.travelArrival(VILLAGE_INFO[to as Village].map as MapId);
   }
 
   private travel(s: Session, to: string, t: number): void {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { npcLine } from '../src/realtime/gameWorld.js';
+import { villagePlan } from '../src/realtime/maps.js';
 import { NPC_OFFERS, type Missions, type TalkOutcome } from '../src/realtime/missions.js';
 import type { MissionOffer, MissionView } from '../src/realtime/protocol.js';
 import { FakeConn, setupWorld } from './support/world.js';
@@ -79,7 +80,7 @@ describe('NPC Mestre: no mapa e conversa', () => {
     const { connect, state, calls } = setup();
     state.current = mission(2);
     const a = connect('kaito');
-    assert.deepEqual(a.conn.of('welcome')[0].world.npcs[0], { id: 'sensei', name: 'Mestre', map: 'map_1', x: 42, y: 33, range: 2.5, role: 'sensei' });
+    assert.deepEqual(a.conn.of('welcome')[0].world.npcs[0], { id: 'sensei', name: 'Mestre', map: 'map_1', ...villagePlan('map_1').sensei, range: 2.5, role: 'sensei' });
     assert.ok(a.conn.of('welcome')[0].world.npcs.slice(1).every((n: any) => (n.shop && n.map.startsWith('interior_')) || n.map === 'academy_interior'
       || n.role === 'travel' || (n.role === 'sensei' && n.map.startsWith('vila_'))),
       'os outros são lojistas (dentro das lojas), os da Academia, os Postos de Viagem e os Mestres das outras vilas');

@@ -4675,9 +4675,10 @@ function draw(now) {
   const gx0 = Math.ceil(left), gx1 = Math.floor(right);
   const gy0 = Math.ceil(top), gy1 = Math.floor(bottom);
   const sTop = 0, sBottom = viewH, sLeft = 0, sRight = viewW;
-  // Só nas vilas e salas (calçamento, assoalho): na natureza, a grade parece quadriculado e tira a beleza do mapa.
+  // Só nas vilas e salas (calçamento, assoalho): na natureza, a grade parece quadriculado e tira a beleza do mapa. Nos
+  // mapas em imagem também não (o desenho já tem o seu piso).
   const kind = state.maps[state.mapId]?.kind;
-  if (kind === 'village' || kind === 'interior') {
+  if ((kind === 'village' || kind === 'interior') && !state.maps[state.mapId]?.art) {
     ctx.beginPath();
     for (let x = gx0; x <= gx1; x++) { const sx = toScreenX(x) + 0.5; ctx.moveTo(sx, sTop); ctx.lineTo(sx, sBottom); }
     for (let y = gy0; y <= gy1; y++) { const sy = toScreenY(y) + 0.5; ctx.moveTo(sLeft, sy); ctx.lineTo(sRight, sy); }

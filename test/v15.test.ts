@@ -5,7 +5,7 @@ import { DEFAULT_APPEARANCE, OPEN_VILLAGES, villageAllowed, type Appearance } fr
 import { REALTIME, type CombatConfig, type RealtimeConfig } from '../src/realtime/config.js';
 import type { Progression } from '../src/realtime/gameWorld.js';
 import { ITEM_BY_CODE } from '../src/realtime/items.js';
-import { VILLAGE_ARENA, arenaAt, arenaFightBox } from '../src/realtime/maps.js';
+import { arenaAt, villagePlan } from '../src/realtime/maps.js';
 import { PLAYER_RADIUS, blocked } from '../src/realtime/movement.js';
 import type { Profile } from '../src/realtime/profile.js';
 import { FakeConn, placeIn, setupWorld } from './support/world.js';
@@ -21,8 +21,10 @@ const SK = REALTIME.combat.skills;
 const BA = REALTIME.combat.basicAttack;
 const VILA = REALTIME.maps.map_1;
 const ARENA = VILA.arenas![0]!;
-const IN = { x: 64, y: 64 };                                  // meio da arena, longe dos pilares
-const STREET = { x: 66, y: 53 };                              // rua de baixo, logo acima da arena
+const IN = { x: 66, y: 47 };                                  // meio da arena, longe dos pilares
+const STREET = { x: 66, y: 38.5 };                            // gramado logo acima da arena
+/** A cerca da esquerda (de cima da entrada): a arena da Folha só se entra por esse lado. */
+const FENCE = VILA.walls.find((w) => w.k === 'fence' && w.h > 4 && w.w < 1)!;
 const F = { x: 10, y: 50 };                                    // clareira da Floresta
 
 function config(combat: Partial<CombatConfig> = {}, monsters: Partial<CombatConfig['monsters']> = {}): RealtimeConfig {
@@ -75,28 +77,27 @@ function fakeProgression() {
 }
 
 describe('v15: arena da Vila (layout)', () => {
-  it('cerca de madeira no campo de treino com 2 entradas (norte e oeste); a luta é dentro dela; quem perde renasce fora', () => {
+  it('cerca de madeira com a entrada pela esquerda; a luta é dentro dela; quem perde renasce fora', () => {
+    const P = villagePlan('map_1');
     assert.equal(VILA.village, 'vila_1');
-    assert.deepEqual({ ...ARENA, respawn: undefined }, { ...arenaFightBox(), village: 'vila_1', respawn: undefined });
-    const f = VILLAGE_ARENA.fence;
-    const n = VILLAGE_ARENA.north, w = VILLAGE_ARENA.west;
-    for (let x = f.x + 0.25; x < f.x + f.w; x += 0.5) {
-      const gap = x > n.from + PLAYER_RADIUS && x < n.to - PLAYER_RADIUS;   // o corpo do ninja passa
-      assert.equal(blocked(x, f.y + 0.25, VILA.walls), !gap, `cerca de cima em x=${x}`);
-      assert.ok(blocked(x, f.y + f.h - 0.25, VILA.walls), `cerca de baixo em x=${x}`);
+    assert.deepEqual(ARENA, { ...P.arena.fight, village: 'vila_1', respawn: P.arena.respawn });
+    const fx = FENCE.x, fy = 40.3, fw = 16.6, fh = 13.3;      // a cerca, de fora a fora (como no desenho)
+    for (let x = fx + 0.25; x < fx + fw; x += 0.5) {
+      assert.ok(blocked(x, fy + 0.25, VILA.walls), `cerca de cima em x=${x}`);
+      assert.ok(blocked(x, fy + fh - 0.25, VILA.walls), `cerca de baixo em x=${x}`);
     }
-    for (let y = f.y + 0.75; y < f.y + f.h - 0.5; y += 0.5) {
-      const gap = y > w.from + PLAYER_RADIUS && y < w.to - PLAYER_RADIUS;
-      assert.equal(blocked(f.x + 0.25, y, VILA.walls), !gap, `cerca da esquerda em y=${y}`);
-      assert.ok(blocked(f.x + f.w - 0.25, y, VILA.walls), `cerca da direita em y=${y}`);
+    for (let y = fy + 0.75; y < fy + fh - 0.5; y += 0.5) {
+      const gap = y > 46.4 + PLAYER_RADIUS && y < 48.4 - PLAYER_RADIUS;   // a entrada: o corpo do ninja passa
+      assert.equal(blocked(fx + 0.25, y, VILA.walls), !gap, `cerca da esquerda em y=${y}`);
+      assert.ok(blocked(fx + fw - 0.25, y, VILA.walls), `cerca da direita em y=${y}`);
     }
-    assert.equal(VILA.walls.filter((x) => x.k === 'pillar').length, 2, 'dois pilares de cobertura');
-    for (const p of VILLAGE_ARENA.pillars) assert.ok(arenaAt(VILA, p.x + 0.5, p.y + 0.5), 'pilares dentro da arena');
+    const pillars = VILA.walls.filter((x) => x.k === 'pillar');
+    assert.equal(pillars.length, 4, 'os quatro pilares de pedra do desenho');
+    for (const p of pillars) assert.ok(arenaAt(VILA, p.x + p.w / 2, p.y + p.h / 2), 'pilares dentro da arena');
     assert.ok(arenaAt(VILA, IN.x, IN.y) && !blocked(IN.x, IN.y, VILA.walls));
     assert.equal(arenaAt(VILA, STREET.x, STREET.y), undefined);
     const r = ARENA.respawn;
     assert.ok(!blocked(r.x, r.y, VILA.walls) && !arenaAt(VILA, r.x, r.y), 'renasce fora da cerca, num lugar livre');
-    assert.ok(VILA.walls.filter((x) => x.k === 'dummy').length === 1, 'o boneco de treino continua no campo, fora da arena');
     assert.equal(REALTIME.maps.map_2.village, undefined, 'a Floresta não é mapa de vila');
   });
 });
@@ -127,9 +128,8 @@ describe('v15: arena da Vila (PvP de treino)', () => {
     const { world: w, join, at } = world();
     const a = join('kaito');
     const b = join('mei');
-    const f = VILLAGE_ARENA.fence;
-    at(a, 'map_1', f.x + 1, IN.y - 3);                         // dentro, colado na cerca da esquerda
-    at(b, 'map_1', f.x - 0.4, IN.y - 3);                       // fora, do outro lado da cerca
+    at(a, 'map_1', FENCE.x + 1, IN.y - 3);                     // dentro, colado na cerca da esquerda
+    at(b, 'map_1', FENCE.x - 0.4, IN.y - 3);                   // fora, do outro lado da cerca
     Object.assign(session(w, a.id), { fx: -1, fy: 0 });
     a.send({ type: 'attack', targetId: b.id });
     b.send({ type: 'attack', targetId: a.id });

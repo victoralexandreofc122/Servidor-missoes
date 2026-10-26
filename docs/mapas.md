@@ -219,6 +219,7 @@ código por cima: o chão, as paredes, as tochas e os enfeites já estão no des
 | Mapa | Imagem | Recorte | Tamanho |
 |---|---|---|---|
 | Poço sob a Praça | `arte/mapas/referencia_poco.jpg` (1500 x 1120) | `37,34,1464,1087` | 24 x 18 |
+| Vila da Folha | `arte/vilas/folha_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
 | Armaria | `arte/mapas/referencia_armaria.jpg` (2000 x 1493) | `56,52,1944,1493` | 17 x 13 |
 | Casa dos Pergaminhos | `arte/mapas/referencia_pergaminhos.jpg` (2000 x 1493) | `75,59,1925,1493` | 17 x 13 |
 
@@ -227,7 +228,12 @@ frente do balcão, a chegada e a porta de saída. A Alfaiataria continua na sala
 até ter imagem.
 
 **Resolução:** o jogo mostra ~50 px por casa. Imagens com menos de ~40 px por casa (as vilas, a Floresta e a Zona
-de Conflito, com 10 a 19) ficam borradas se só esticadas: precisam passar por um ampliador de IA antes de fatiar.
+de Conflito, com 10 a 19) ficam borradas se só esticadas: passam antes pelo ampliador de IA (`arte/mapas/ampliar.py`,
+Real-ESRGAN x4plus, 4x), e o fatiador usa a ampliada.
+
+**Vilas em imagem:** cada uma tem a sua planta (`VillagePlan`: renascimento, Mestre, praça, Posto de Viagem, portão,
+prédios das lojas e da Academia, arena, zona segura, poço e grade). O servidor pega tudo dela (`villagePlan(mapa)`):
+os NPCs, onde se nasce e renasce, onde se chega de viagem e o fim do tutorial.
 
 ---
 
@@ -237,9 +243,26 @@ de Conflito, com 10 a 19) ficam borradas se só esticadas: precisam passar por u
   canal vem da Floresta. Por baixo da terra."
 - **Tampa do poço** na Praça, à esquerda da rosa dos ventos: tampa de pedra com um selo gravado.
 
+**Em imagem (v23):** a Folha é `arte/vilas/referencia_folha.jpg`, ampliada 4x (`folha_ampliada.jpg`), em **78 x 60**
+casas. A planta dela (`villagePlan('map_1')` em `src/realtime/maps.ts`) foi medida no desenho:
+
+| O quê | Onde (casas) |
+|---|---|
+| Renascimento / Mestre | (38; 24,4) / (40; 23,4), na rua em frente à escada da sede |
+| Praça (fim do tutorial) | (38, 45), sobre a rosa dos ventos; a praça inteira é zona segura |
+| Posto de Viagem | (37; 51,5), na praça, perto do portão |
+| Lojas (porta no meio da fachada) | Armas x 24,6..31,6 · Roupas x 46,4..53,2 · Pergaminhos x 58,5..65; fachadas em y 35 |
+| Academia | x 50,1..64,6, porta embaixo (y 21,8) |
+| Arena | dentro da cerca (x 58,8..74,2, y 41,5..52,6), entrada só pela esquerda; quem perde renasce em (56,6; 47,4) |
+| Portão sul (Floresta) | x 36,5..41,4; voltando da Floresta, chega-se em y 57 |
+| Poço / grade do rio | o poço da praça (x 47,3..50,4) / a grade no braço do rio (y 49,4..52,8) |
+
+As árvores bloqueiam só o tronco e a parte de baixo da copa (`crown`): entre duas árvores sobra passagem. As outras
+vilas continuam na planta antiga (80 x 80, `BASE_PLAN`) até ganharem a sua.
+
 ### 7.1 Névoa, Nuvem e Areia (v22)
 
-As quatro vilas têm a **mesma planta** (as mesmas colisões, portas e praça); o desenho muda com o tema do mapa,
+Névoa, Nuvem e Areia têm a **mesma planta** (as mesmas colisões, portas e praça); o desenho muda com o tema do mapa,
 seguindo as artes de referência em `arte/vilas/` (a prévia de cada uma no jogo está ao lado, `jogo_*.jpg`).
 
 | Vila | O que muda no desenho |

@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { REALTIME } from '../src/realtime/config.js';
 import { GameWorld, blinkTarget, type JoiningPlayer } from '../src/realtime/gameWorld.js';
 import { JUTSUS, jutsuLevel, substitutionCooldownMs, teleportRange } from '../src/realtime/jutsus.js';
-import { ACADEMY, WORLD_MAPS, academySpawn, shopDoor } from '../src/realtime/maps.js';
+import { ACADEMY, WORLD_MAPS, academySpawn, shopDoor, villagePlan } from '../src/realtime/maps.js';
 import { blocked, moveStep } from '../src/realtime/movement.js';
 import type { NinjaStore } from '../src/realtime/ninjaStore.js';
 import { FakeConn, seededRandom } from './support/world.js';
@@ -71,8 +71,8 @@ describe('v7/v8: Academia (mapa: salas fechadas, saída travada pelo tutorial)',
     assert.equal(s[0], 'academy_interior', 'passo 3: a saída está trancada');
     s = ['academy_interior', 56, 12];
     for (let i = 0; i < 30 && s[0] === 'academy_interior'; i++) s = moveStep(maps, s[0], s[1], s[2], 0, 1, 0.25, { tutorial: 4 });
-    assert.deepEqual(s, ['map_1', shopDoor(ACADEMY.building).outside.x, shopDoor(ACADEMY.building).outside.y]);
-    const { door } = shopDoor(ACADEMY.building);
+    assert.deepEqual(s, ['map_1', shopDoor(villagePlan('map_1').academy).outside.x, shopDoor(villagePlan('map_1').academy).outside.y]);
+    const { door } = shopDoor(villagePlan('map_1').academy);
     assert.deepEqual(moveStep(maps, 'map_1', door.x + 1, door.y + 0.3, 0, -1, 0.1, { tutorial: 4 }), ['academy_interior', ACADEMY.arrive.x, ACADEMY.arrive.y]);
     for (const x of [54.8, 55.5, 56, 56.5, 57.2]) {                 // ninguém fica preso no canto do vão
       let e: [string, number, number] = ['academy_interior', x, 11];
