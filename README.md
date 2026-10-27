@@ -215,6 +215,20 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v25: boneco novo desenhado por código, com esqueleto 3D, camadas e física do pano (sem migração)
+
+- O personagem não é mais um atlas de imagens. O aparelho desenha cada quadro em pixel art a partir de um esqueleto
+  3D animado (`public/rig.js`), com o corpo base e as camadas presas nos mesmos ossos (`public/rigArt.js`), e guarda
+  o quadro (`public/figure.js`). Detalhes em [arte/personagem-rig/LEIAME.md](arte/personagem-rig/LEIAME.md).
+- As animações são mais suaves: 12 a 20 quadros por ciclo, contra 3 antes. O boneco gira suave entre as direções e
+  mistura a pose na troca de animação. As animações novas são corrida ninja, meditar, tranco ao levar golpe e caído
+  de joelhos.
+- Camadas: corpo, olhos, boca, cabelo, bandana, camisa, calça, conjunto, acessórios (porta-kunai, bolsa), sapatos,
+  capa e as armas na mão e nas costas, na profundidade certa. Os visuais, cores e estilos são os mesmos de antes.
+- A capa tem física: fica presa por cima dos ombros, cai pelas costas e se dobra por cima do braço e do joelho que vão
+  para trás. As pontas da bandana e o cabelo longo pendem e balançam com o movimento.
+- Os atlas `public/sprites/chibi_*.png` saíram. `public/spriteData.js` agora só guarda as paletas.
+
 ### v24: habilidades em linha só nas 4 direções, mira com prévia e ✕ do foco (sem migração)
 
 - Fogo, Sombra, Relâmpago e Kunais (todos os tiers) só saem para cima, baixo, esquerda ou direita. Segurar e arrastar
@@ -520,6 +534,7 @@ o boneco fica na pose de carregar chakra, com o selo do carneiro).
 - **Cliente** (`public/sprites.js`): 2 atlas pequenos (`public/sprites/chibi_*.png`, mapas de índice) + dados
   (`public/spriteData.js`, gerado). Cada célula é recolorida uma vez por visual (cache), desenhada plano a plano;
   escala inteira em pixels do aparelho a partir de 2x (pixel art sem borrar). Até os atlas chegarem, o boneco antigo.
+  (Desde a v25 o boneco é desenhado por código, sem atlas: veja a v25.)
 - **Criador** novo: botões e amostras de cor no lugar dos seletores de cor livre.
 - Regerar a arte: `python3 arte/personagem-chibi/gerador/export.py` e `.../export_game.py` (precisa de numpy e Pillow).
 

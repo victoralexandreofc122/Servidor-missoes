@@ -67,11 +67,13 @@ const FILES = [
   { route: '/prediction.js', file: 'prediction.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/styles.css', file: 'styles.css', contentType: 'text/css; charset=utf-8' },
   { route: '/hud.css', file: 'hud.css', contentType: 'text/css; charset=utf-8' },
-  // Personagem em sprites (arte/personagem-chibi): o desenhista, os dados e os atlas de cada gênero.
+  // Personagem (v25, arte/personagem-rig): desenhado por código no aparelho. Visual e opções, paletas, esqueleto 3D
+  // animado, pixel art em camadas e o cache de quadros.
   { route: '/sprites.js', file: 'sprites.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/spriteData.js', file: 'spriteData.js', contentType: 'text/javascript; charset=utf-8' },
-  { route: '/sprites/chibi_m.png', file: 'sprites/chibi_m.png', contentType: 'image/png', binary: true },
-  { route: '/sprites/chibi_f.png', file: 'sprites/chibi_f.png', contentType: 'image/png', binary: true },
+  { route: '/rig.js', file: 'rig.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/rigArt.js', file: 'rigArt.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/figure.js', file: 'figure.js', contentType: 'text/javascript; charset=utf-8' },
   // Efeitos dos golpes e armas em pixel art (arte/armas-vfx): o código, os dados e as folhas (abaixo, em VFX_SHEETS/WEAPON_SHEETS).
   { route: '/vfx.js', file: 'vfx.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/vfxData.js', file: 'vfxData.js', contentType: 'text/javascript; charset=utf-8' },

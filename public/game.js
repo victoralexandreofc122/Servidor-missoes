@@ -17,14 +17,13 @@ import {
   drawWall, fenceLanterns, propExtent,
 } from './mapArt.js';
 import { dirFrom, drawBackItem, drawCharacter, drawHandItem } from './character.js';
-import {
-  DEFAULT_APPEARANCE, DEFAULT_SHOES, OPTIONS, anchorsOf, drawCell, drawShoeIcon, fallbackColors, loadSprites, normalizeLook,
-  pickFrame, spriteScale, spritesReady, swatchOf, viewOf,
-} from './sprites.js';
+import { DEFAULT_APPEARANCE, DEFAULT_SHOES, OPTIONS, drawShoeIcon, fallbackColors, normalizeLook, spriteScale, swatchOf } from './sprites.js';
+import { drawFigure, figureCanvas } from './figure.js';
+import { pickAnim } from './rig.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
 import { drawBackWeapon, drawHandWeapon, drawWeaponIcon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
-import { VILLAGE_NAMES, drawCape, drawRenegadeScratch, egOn, factionStyle, mapAccess, mountEndgameUI, shopFactor, zoneFoe } from './endgame.js';
+import { VILLAGE_NAMES, egOn, factionStyle, mapAccess, mountEndgameUI, shopFactor, zoneFoe } from './endgame.js';
 import { mountAdminUI } from './adminPanel.js';
 import { drawMonsterArt, drawMonsterPortrait, loadMonsterSprites, monsterArtReady, monsterDeathMs, playMonster } from './monsterSprites.js';
 
@@ -993,6 +992,10 @@ function handleMessage(msg) {
       const text = heal ? `+${msg.amount}` : `-${msg.amount}${msg.shielded ? ' 🛡' : ''}`;
       addFloater(target.x, target.y - 0.6, text, color, mine || msg.target === 'monster' ? 1.15 : 0.9);
       if (!heal) vfx.play('hit', target.x, target.y - 0.15, { start: now, scale: 0.8 });
+      // Ninja atingido: o tranco do golpe (sem cortar o próprio golpe ou jutsu no meio).
+      if (!heal && msg.target === 'player' && !(target.act && target.act.kind !== 'dano' && now - target.act.start < 450)) {
+        target.act = { kind: 'dano', start: now };
+      }
       if (msg.target === 'monster') {
         // Monstro: tranco de golpe (sem cortar um ataque ou um golpe marcado no meio); vida cheia de novo = voltou para casa.
         if (!heal && !(target.anim && now < target.anim.until)) playMonster(target, 'hit', now);
@@ -1223,16 +1226,15 @@ function drawBust(c, look) {
   g.clearRect(0, 0, c.width, c.height);
   g.imageSmoothingEnabled = false;
   const s = 2;
-  const [view, flip] = viewOf(0);
-  const { anim, frame } = pickFrame({ moving: false }, 0);
-  return drawCell(g, (c.width - 64 * s) / 2, -4 * s, s, look, view, flip, anim, frame) != null;
+  g.drawImage(figureCanvas(look), (c.width - 64 * s) / 2, -12 * s, 64 * s, 96 * s);
+  return true;
 }
 
-/** O retrato do canto: refeito quando o visual muda (ou quando os desenhos do boneco terminam de carregar). */
+/** O retrato do canto: refeito quando o visual muda. */
 function updatePortrait() {
   const look = state.me.look || state.players.get(state.meId)?.look;
   if (!look) return;
-  const key = `${JSON.stringify(look)}:${spritesReady(look.gender)}`;
+  const key = JSON.stringify(look);
   if (key === updatePortrait.key) return;
   if (drawBust(ui.portrait, look)) updatePortrait.key = key;
 }
@@ -2314,6 +2316,8 @@ ui.shopClose.addEventListener('click', closeShop);
  */
 let eqSel = null;            // código do item escolhido na grade
 let eqDir = 0;               // para onde o boneco grande olha (o ↻ gira)
+/** O boneco grande da tela de equipamentos (o giro dele é dele, não o do boneco no mapa). */
+const equipDoll = {};
 let eqFigureAt = 0;
 
 /** Como cada tipo de item vai no boneco: o espaço, o pedido ao servidor e o nome do botão. */
@@ -2422,16 +2426,11 @@ function drawItemIcon(c, code) {
 }
 
 /** Pedaço do próprio boneco (cabeça com a bandana, a roupa, a calça) para os espaços do visual. */
-const LOOK_CROPS = { head: [10, 2, 44, 44], chest: [14, 44, 36, 26], legs: [16, 64, 32, 30] };
+const LOOK_CROPS = { head: [10, 10, 44, 46], chest: [14, 52, 36, 26], legs: [16, 68, 32, 26] };
 function drawLookIcon(c, look, part) {
   const g = c.getContext('2d');
   g.clearRect(0, 0, c.width, c.height);
-  const tmp = document.createElement('canvas');
-  tmp.width = 64;
-  tmp.height = 96;
-  const [view, flip] = viewOf(0);
-  const { anim, frame } = pickFrame({ moving: false }, 0);
-  if (drawCell(tmp.getContext('2d'), 0, 0, 1, look, view, flip, anim, frame) == null) return;
+  const tmp = figureCanvas(look);
   const [x, y, w, h] = LOOK_CROPS[part];
   const s = Math.min(c.width / w, c.height / h);
   g.imageSmoothingEnabled = false;
@@ -2609,7 +2608,8 @@ function drawEquipFigure(now, force = false) {
   const saved = dpr;
   dpr = 1;                                        // canvas próprio, 1:1: escala 3 inteira (T = 184)
   try {
-    drawSpriteCharacter(g, { ...me, moving: false, act: null, meditating: false, thrown: null }, c.width / 2, 196, 184, look, eqDir, now, me.gear);
+    Object.assign(equipDoll, { ...me, moving: false, act: null, meditating: false, thrown: null, _fig: equipDoll._fig });
+    drawSpriteCharacter(g, equipDoll, c.width / 2, 196, 184, look, eqDir, now, me.gear);
   } finally {
     dpr = saved;
   }
@@ -3537,15 +3537,15 @@ function drawCreatorPreview(phase) {
   g.clearRect(0, 0, c.width, c.height);
   g.fillStyle = '#8d8a84';
   g.fillRect(0, c.height - 16, c.width, 16);
-  const [view, flip] = viewOf(creatorDir);
-  const { anim, frame } = pickFrame({ moving: true, walk: phase }, 0);
-  // Canvas 128x192 = a célula 64x96 em escala 2 (pixel art sem borrar). Sem os atlas: o boneco antigo.
+  // Canvas 128x192 = a célula 64x96 em escala 2 (pixel art sem borrar), andando e virando suave entre as direções.
   const gear = state.players.get(state.meId)?.gear;
   const shoes = gear && 'feet' in gear ? gear.feet : DEFAULT_SHOES;     // o sapato que ele calça (não muda no Criador)
-  if (drawCell(g, 0, 0, 2, { ...creatorLook, shoes }, view, flip, anim, frame) == null) {
-    drawCharacter(g, c.width / 2, c.height - 70, 128, fallbackColors(creatorLook), creatorDir, phase, true);
-  }
+  creatorWalker.moving = true;
+  creatorWalker.walk = phase;
+  drawFigure(g, creatorWalker, 0, 0, 2, { ...creatorLook, shoes }, creatorDir, performance.now());
 }
+/** O boneco da prévia do Criador (guarda o giro suave entre uma direção e outra). */
+const creatorWalker = { moving: true, walk: 0 };
 function setCreator(field, value) {
   creatorLook = { ...creatorLook, [field]: value };
   // Trocar o gênero já sugere os olhos e o cabelo (dá para mudar depois).
@@ -3593,7 +3593,6 @@ function renderCreatorOptions() {
     return row;
   }));
 }
-loadSprites();   // atlas do personagem (2 PNGs pequenos); até chegarem, o jogo desenha o boneco antigo
 loadVfx();       // folhas dos efeitos dos golpes (assets/vfx); até chegarem, os efeitos desenhados à mão
 loadWeapons();   // armas em pixel art (assets/weapons); até chegarem, as armas de retângulos
 loadMonsterSprites();   // monstros em sprites (assets/monsters); até chegarem, os slimes desenhados à mão
@@ -6460,67 +6459,55 @@ function drawFloaters(toScreenX, toScreenY, T, now) {
 }
 
 /**
- * Boneco em sprites com os pés em (sx, sy + 0,42·T), como o boneco antigo. Arma na mão e itens nas costas
- * vão nas âncoras do quadro (atrás do corpo quando o braço está atrás). Devolve o topo da cabeça, ou null
- * se o atlas do gênero ainda não chegou (o chamador desenha o boneco antigo).
+ * Boneco (desenhado por código: esqueleto 3D + pixel art em camadas, figure.js) com os pés em (sx, sy + 0,42·T), como o
+ * boneco antigo. A arma da mão e os itens das costas entram na profundidade certa (atrás do corpo quando o braço está
+ * atrás; o punho fecha por cima do cabo). A capa e a bandana riscada do renegado são camadas do próprio boneco.
+ * Devolve o topo da cabeça (tela).
  */
-const VIEW_NAMES = ['frente', 'lado', 'costas'];
 function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
-  if (!spritesReady(look.gender)) return null;
   const s = spriteScale(T, dpr);
-  const [view, flip] = viewOf(dir);
-  const { anim, frame } = pickFrame(p, now);
   const left = Math.round((sx - 32 * s) * dpr) / dpr;
   const top = Math.round((sy + T * 0.42 - 93 * s) * dpr) / dpr;
-  let onPlane = null;
-  const ax = (x) => (flip ? left + (64 - x) * s : left + x * s);
   // O sapato (camada própria): o que o servidor diz que ele calça (null = descalço); NPC e prévia, a sandália de sempre.
   const shod = { ...look, shoes: gear && 'feet' in gear ? gear.feet : DEFAULT_SHOES };
-  // Fim de jogo (v16): a capa (camada própria) e a bandana riscada do renegado.
-  const cape = p.faction?.cape || null;
-  const capeVillage = p.faction ? (p.faction.village ?? p.faction.renegadeFrom) : look.village;
-  const an = (gear && (gear.hand || gear.back || gear.scroll)) || cape ? anchorsOf(look.gender, anim, view, frame) : null;
-  if (an) {
-    gear = gear || { hand: null, back: null, scroll: null };
-    // Ordem do paperdoll:
-    //  - capa: atrás do corpo (de frente e de lado) ou por cima do corpo e debaixo do cabelo (de costas);
-    //  - costas: atrás do corpo (de frente e de lado) ou por cima de tudo (de costas), à frente da capa;
-    //  - mão: logo ANTES do plano do braço que segura (o punho fecha por cima do cabo); no selo do jutsu, some.
+  // Fim de jogo (v16): a capa e a bandana riscada do renegado (camadas do boneco).
+  const opts = {
+    cape: p.faction?.cape || null,
+    capeVillage: p.faction ? (p.faction.village ?? p.faction.renegadeFrom) : look.village,
+    renegade: !!(p.faction && p.faction.village === null),
+  };
+  if (gear && (gear.hand || gear.back || gear.scroll)) {
     // No golpe com arma, a espada / Shuriken Gigante sai das costas para a mão (a bainha vazia fica nas costas).
+    // No selo do jutsu, a arma da mão some.
     const u = (T / 16) * 1.3;
     const R = (px, py, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(px), Math.round(py), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); };
-    const backX = ax(an.costas[0]), backY = top + an.costas[1] * s;
-    const strike = anim === 'golpe' && an.mao;
+    const { anim, t } = pickAnim(p, now);
+    const strike = anim === 'golpe';
     // Arremesso (Shuriken Gigante): na mão só no preparo; some no lançamento e enquanto voa.
-    const thrownGone = gear.back && isThrown(gear.back) && ((strike && frame > 0) || (p.thrown && now < p.thrown.until));
+    const thrownGone = gear.back && isThrown(gear.back) && ((strike && t > 0.25) || (p.thrown && now < p.thrown.until));
     const inHand = gear.hand || (strike && !thrownGone && gear.back && drawnForStrike(gear.back) && weaponReady(gear.back, 'mao') ? gear.back : null);
-    const back = () => {
-      for (const code of [gear.back, gear.scroll]) {
-        if (!code || (thrownGone && code === gear.back)) continue;
-        if (code === inHand) {
-          if (weaponReady(code, 'bainha')) drawBackWeapon(g, code, backX, backY, s, view, flip, dpr, true);
-        } else if (weaponReady(code)) {
-          drawBackWeapon(g, code, backX, backY, s, view, flip, dpr);
-        } else {
-          drawBackItem(R, backX, backY - 2.75 * u, u, dir, code);
+    if (gear.back || gear.scroll) {
+      opts.back = (bx, by, view, flip) => {
+        for (const code of [gear.back, gear.scroll]) {
+          if (!code || (thrownGone && code === gear.back)) continue;
+          if (code === inHand) {
+            if (weaponReady(code, 'bainha')) drawBackWeapon(g, code, bx, by, s, view, flip, dpr, true);
+          } else if (weaponReady(code)) {
+            drawBackWeapon(g, code, bx, by, s, view, flip, dpr);
+          } else {
+            drawBackItem(R, bx, by - 2.75 * u, u, dir, code);
+          }
         }
-      }
-    };
-    const hand = () => {
-      if (weaponReady(inHand, 'mao')) drawHandWeapon(g, inHand, ax(an.mao[0]), top + an.mao[1] * s, s, an.mao[3] ?? 90, flip, dpr);
-      else if (dir !== 3) drawHandItem(R, ax(an.mao[0]) - u, top + an.mao[1] * s - 0.6 * u, u, dir === 0 ? 1 : dir, inHand);
-    };
-    const handPlane = inHand && an.mao && anim !== 'jutsu' ? an.mao[2] : -1;
-    const capePlane = cape ? (dir === 3 ? 3 : 0) : -1;
-    onPlane = (plane) => {
-      if (plane === capePlane) drawCape(g, cape, capeVillage, VIEW_NAMES[view], ax, top, s, an.costas);
-      if (plane === (dir === 3 ? 4 : 0)) back();
-      if (plane === handPlane) hand();
-    };
+      };
+    }
+    if (inHand && anim !== 'jutsu') {
+      opts.hand = (hx, hy, deg) => {
+        if (weaponReady(inHand, 'mao')) drawHandWeapon(g, inHand, hx, hy, s, deg, false, dpr);
+        else if (dir !== 3) drawHandItem(R, hx - u, hy - 0.6 * u, u, dir === 0 ? 1 : dir, inHand);
+      };
+    }
   }
-  const minY = drawCell(g, left, top, s, shod, view, flip, anim, frame, onPlane);
-  if (p.faction && p.faction.village === null) drawRenegadeScratch(g, VIEW_NAMES[view], ax, top, s);
-  return minY == null ? null : top + minY * s;
+  return drawFigure(g, p, left, top, s, shod, dir, now, opts).top;
 }
 
 /** Empurrão da Água: o boneco escorrega do lugar antigo até o novo em 180 ms (só o desenho; a posição já é a nova). */

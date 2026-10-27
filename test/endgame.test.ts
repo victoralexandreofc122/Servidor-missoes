@@ -126,18 +126,30 @@ describe('fim de jogo: cliente e servidor com a mesma conta', () => {
     assert.equal(clientEndgame.factionStyle(view, me, { faction: { village: 'vila_1', kage: 'vila_1' } }, false).prefix, '👑 ');
   });
 
-  it('capa e bandana riscada desenham nas 3 vistas sem erro (canvas falso)', () => {
-    const calls: string[] = [];
-    const g = new Proxy({}, {
-      get: (_t, k) => (k === 'fillStyle' || k === 'strokeStyle' || k === 'font' || k === 'lineWidth' || k === 'textAlign' || k === 'textBaseline' ? '' : (...a: unknown[]) => void calls.push(String(k), ...a.map(String))),
-      set: () => true,
-    });
+  it('capa e bandana riscada: camadas do boneco nas 4 direções, com o emblema nas costas e o risco na placa', async () => {
+    const RIG = await import(new URL('../public/rig.js', import.meta.url).href);
+    const ART = await import(new URL('../public/rigArt.js', import.meta.url).href);
+    const look = { v: 2, gender: 'm', skin: 'claro', hairStyle: 'espetado', hairColor: 'preto', eyeStyle: 'masculino', eyeColor: 'azul',
+      outfit: 'basica', shirtColor: 'azul_marinho', pantsColor: 'cinza', bandana: true, village: 'vila_3' };
+    const count = (f: any, hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      let n = 0;
+      for (let i = 0; i < f.rgba.length; i += 4) if (f.rgba[i + 3] && f.rgba[i] === r && f.rgba[i + 1] === g && f.rgba[i + 2] === b) n++;
+      return n;
+    };
+    const px = (f: any) => { let n = 0; for (let i = 3; i < f.rgba.length; i += 4) if (f.rgba[i]) n++; return n; };
     for (const cape of ['capa_viagem', 'capa_vila', 'manto_kage', 'manto_akatsuki', 'manto_campeao']) {
-      for (const view of ['frente', 'lado', 'costas']) clientEndgame.drawCape(g, cape, 'vila_3', view, (x: number) => x, 0, 1, [32, 63]);
+      for (const dir of [0, 1, 2, 3]) {
+        const only = ART.renderFigure(look, RIG.poseOf('andar', 0.25), RIG.YAW_OF_DIR[dir], { cape, capeVillage: 'vila_3', only: ['capa'], flow: 0.35 });
+        assert.ok(px(only) > 20, `${cape} na direção ${dir}`);
+      }
     }
-    for (const view of ['frente', 'lado', 'costas']) clientEndgame.drawRenegadeScratch(g, view, (x: number) => x, 0, 1);
-    assert.ok(calls.includes('fill'));
-    assert.ok(!calls.some((c) => c === 'NaN'));
+    // De costas: as nuvens vermelhas da Akatsuki aparecem; a capa cobre as costas e os ombros.
+    const back = ART.renderFigure(look, RIG.poseOf('parado', 0.1), RIG.YAW_OF_DIR[3], { cape: 'manto_akatsuki' });
+    assert.ok(count(back, '#c8261e') > 10, 'nuvens da Akatsuki');
+    // Renegado: a placa da bandana ganha o risco escuro (de frente).
+    const scratch = (renegade: boolean) => count(ART.renderFigure(look, RIG.poseOf('parado', 0.1), 0, { renegade }), '#1b1512');
+    assert.ok(scratch(true) >= 4 && scratch(false) === 0);
   });
 
   it('o preço da vila no cliente é o do banco (guerra +10%, aliança −5%)', () => {

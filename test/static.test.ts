@@ -32,19 +32,18 @@ describe('cliente web servido pelo Fastify', () => {
     assert.match(String(r.json()), /<canvas id="game"/);
   });
 
-  it('v9: sprites do personagem (módulos e os 2 atlas PNG) com o tipo certo e ETag', async () => {
+  it('v25: o boneco desenhado por código (visual, paletas, esqueleto, pixel art e cache) com o tipo certo e ETag', async () => {
     const pub = app();
-    for (const [url, type] of [['/sprites.js', 'text/javascript; charset=utf-8'], ['/spriteData.js', 'text/javascript; charset=utf-8'],
-      ['/sprites/chibi_m.png', 'image/png'], ['/sprites/chibi_f.png', 'image/png']] as const) {
+    for (const url of ['/sprites.js', '/spriteData.js', '/rig.js', '/rigArt.js', '/figure.js']) {
       const r = await pub.inject({ method: 'GET', url });
       assert.equal(r.statusCode, 200, url);
-      assert.equal(r.headers['content-type'], type, url);
+      assert.equal(r.headers['content-type'], 'text/javascript; charset=utf-8', url);
       const again = await pub.inject({ method: 'GET', url, headers: { 'if-none-match': String(r.headers.etag) } });
       assert.equal(again.statusCode, 304, url);
     }
-    const png = byRoute('/sprites/chibi_f.png').body;
-    assert.ok(Buffer.isBuffer(png), 'PNG lido como bytes (não como texto)');
-    assert.deepEqual([...(png as Buffer).subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10], 'assinatura PNG intacta');
+    for (const url of ['/sprites/chibi_m.png', '/sprites/chibi_f.png']) {
+      assert.equal((await pub.inject({ method: 'GET', url })).statusCode, 404, `${url}: o atlas antigo saiu`);
+    }
   });
 
   it('/game.js, /targeting.js, /world.js e /styles.css com o tipo certo; If-None-Match igual ao ETag: 304', async () => {

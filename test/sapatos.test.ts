@@ -11,6 +11,8 @@ import { FakeConn, setupWorld } from './support/world.js';
 
 const S = await import(new URL('../public/sprites.js', import.meta.url).href);
 const { SPRITES } = await import(new URL('../public/spriteData.js', import.meta.url).href);
+const RIG = await import(new URL('../public/rig.js', import.meta.url).href);
+const ART = await import(new URL('../public/rigArt.js', import.meta.url).href);
 const SHOES = ITEMS.filter((i) => i.kind === 'shoes');
 
 function join(w: ReturnType<typeof setupWorld>, username: string, extra: Record<string, unknown> = {}) {
@@ -27,28 +29,34 @@ describe('sapatos: catálogo e desenho', () => {
     assert.equal(STARTER_SHOES, 'sandalia_ninja');
   });
 
-  it('o cliente desenha cada sapato com o mesmo desenho e as mesmas cores do servidor, e o desenho existe no atlas', () => {
+  it('o cliente desenha cada sapato com o mesmo desenho e as mesmas cores do servidor, como camada própria do boneco', () => {
     assert.deepEqual(S.SHOES, Object.fromEntries(SHOES.map((i) => [i.code, { sprite: i.look!.sprite, colors: [...i.look!.colors] }])));
     assert.equal(S.DEFAULT_SHOES, STARTER_SHOES);
-    assert.ok(SPRITES.slots.indexOf('sapato') > SPRITES.slots.indexOf('conjunto'), 'o sapato vem depois da roupa (a bota cobre a barra)');
+    const pixels = (code: string, only?: string[]) => {
+      const f = ART.renderFigure({ ...S.DEFAULT_APPEARANCE, shoes: code }, RIG.poseOf('parado', 0.1), RIG.YAW_OF_DIR[2], { only });
+      let n = 0;
+      for (let i = 3; i < f.rgba.length; i += 4) if (f.rgba[i]) n++;
+      return n;
+    };
     for (const { sprite, colors } of Object.values(S.SHOES) as { sprite: string; colors: string[] }[]) {
-      for (const g of ['m', 'f']) {
-        assert.ok(SPRITES.generos[g].celulas[`parado/sapato/${sprite}/1/0/0`], `${sprite} (${g}) no atlas`);
-        assert.ok(SPRITES.generos[g].celulas[`andar/sapato/${sprite}/1/1/1`], `${sprite} (${g}) andando de lado`);
-      }
       for (const c of colors) assert.ok(SPRITES.paletas.roupa[c], `cor ${c}`);
+      assert.ok(['sandalia', 'bota'].includes(sprite), sprite);
     }
+    for (const code of Object.keys(S.SHOES)) assert.ok(pixels(code, ['sapato']) > 30, `${code}: a camada sozinha tem desenho`);
+    assert.ok(pixels('botas_viagem', ['sapato']) > pixels('sandalia_ninja', ['sapato']), 'a bota sobe pela canela; a sandália deixa os dedos de fora');
+    assert.equal(pixels('tamanco_falso', ['sapato']), 0, 'código estranho: descalço');
   });
 
   it('a roupa não tem mais sandália: sem sapato o pé fica descalço; com sapato, a camada "sapato" com as cores dele', () => {
     const look = { ...S.DEFAULT_APPEARANCE, outfit: 'vila' };
-    assert.deepEqual(S.itemsFor(look).sapato, [], 'descalço');
-    assert.deepEqual(S.itemsFor({ ...look, shoes: 'botas_viagem' }).sapato, ['bota']);
-    assert.deepEqual(S.itemsFor({ ...look, shoes: 'sandalia_couro' }).sapato, ['sandalia']);
-    assert.deepEqual(S.itemsFor({ ...look, shoes: 'tamanco_falso' }).sapato, [], 'código estranho: descalço');
-    const ramps = S.rampsFor({ ...look, shoes: 'botas_ninja' }, 'sapato');
-    assert.deepEqual([ramps[5], ramps[6], ramps[7]], [SPRITES.paletas.roupa.preto, SPRITES.paletas.roupa.cinza, SPRITES.paletas.roupa.marrom]);
-    assert.notEqual(S.colorKey({ ...look, shoes: 'botas_ninja' }, 'sapato'), S.colorKey({ ...look, shoes: 'botas_viagem' }, 'sapato'));
+    assert.equal(S.layersFor(look).includes('sapato'), false, 'descalço');
+    assert.equal(S.layersFor({ ...look, shoes: 'botas_viagem' }).includes('sapato'), true);
+    assert.equal(S.layersFor({ ...look, shoes: 'tamanco_falso' }).includes('sapato'), false, 'código estranho: descalço');
+    const m = ART.materialsFor({ ...look, shoes: 'botas_ninja' });
+    const base = (name: string) => SPRITES.paletas.roupa[name][2];
+    const hex = (rgb: number[]) => `#${rgb.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+    assert.deepEqual([m.sapato, m.sapato2, m.sola].map((x: any) => hex(x.rgb[2])), [base('preto'), base('cinza'), base('marrom')]);
+    assert.equal(ART.materialsFor(look).sapato, undefined);
   });
 
   it('gearOf: o sapato vai nos pés; outro tipo de item não vira sapato', () => {

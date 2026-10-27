@@ -10,7 +10,8 @@ import { loadPublicFiles } from '../src/web/staticFiles.js';
  */
 const { VFX } = await import(new URL('../public/vfxData.js', import.meta.url).href);
 const { ARMAS } = await import(new URL('../public/weaponData.js', import.meta.url).href);
-const { SPRITES } = await import(new URL('../public/spriteData.js', import.meta.url).href);
+const RIG = await import(new URL('../public/rig.js', import.meta.url).href);
+const ART = await import(new URL('../public/rigArt.js', import.meta.url).href);
 const V = await import(new URL('../public/vfx.js', import.meta.url).href);
 const W = await import(new URL('../public/weapons.js', import.meta.url).href);
 
@@ -94,16 +95,24 @@ describe('armas no boneco', () => {
     assert.deepEqual([0, 11, 12, 90, 180, -90, 359, 720].map(W.angleFrame), [0, 0, 1, 4, 8, 12, 0, 0]);
   });
 
-  it('âncora da mão em todas as vistas traz o ângulo da lâmina; o golpe tem os 3 quadros em todas', () => {
-    for (const [g, info] of Object.entries<any>(SPRITES.generos)) {
-      for (const [key, an] of Object.entries<any>(info.ancoras)) {
-        assert.ok(an.mao, `${g} ${key}: mão`);
-        assert.equal(an.mao.length, 4, `${g} ${key}`);
-        assert.ok(Number.isInteger(an.mao[3]) && an.mao[3] >= -180 && an.mao[3] <= 180, `${g} ${key}: ${an.mao[3]}`);
+  it('âncora da mão em todas as animações e direções traz o ângulo da lâmina; no golpe ela vai de trás para a frente', () => {
+    const look = { v: 2, gender: 'm', skin: 'claro', hairStyle: 'espetado', hairColor: 'preto', eyeStyle: 'masculino', eyeColor: 'azul',
+      outfit: 'vila', shirtColor: 'azul_marinho', pantsColor: 'cinza', bandana: true, village: 'vila_1' };
+    for (const anim of Object.keys(RIG.ANIMS)) {
+      for (const dir of [0, 1, 2, 3]) {
+        for (const t of [0, 0.4, 0.9]) {
+          const an = ART.renderFigure(look, RIG.poseOf(anim, t), RIG.YAW_OF_DIR[dir]).anchors;
+          assert.equal(an.hand.length, 4, `${anim} ${dir}`);
+          assert.ok(an.hand[3] >= 0 && an.hand[3] < 360, `${anim} ${dir} ${t}: ${an.hand[3]}`);
+          assert.ok(an.hand[0] > 0 && an.hand[0] < 64 && an.hand[1] > 0 && an.hand[1] < 96, `${anim} ${dir} ${t}: mão dentro da célula`);
+        }
       }
-      for (let view = 0; view < 3; view++) for (let f = 0; f < 3; f++) assert.ok(info.ancoras[`golpe/${view}/${f}`], `${g} golpe ${view}/${f}`);
     }
-    assert.ok(SPRITES.animacoes.golpe, 'animação do golpe com arma');
+    // Olhando para a direita: preparo com a lâmina para trás (esquerda da tela), corte com ela para a frente (direita).
+    const at = (t: number) => ART.renderFigure(look, RIG.poseOf('golpe', t), RIG.YAW_OF_DIR[2]).anchors.hand[3];
+    const cosOf = (deg: number) => Math.cos((deg * Math.PI) / 180);
+    assert.ok(cosOf(at(0)) < 0, `preparo: ${at(0)}°`);
+    assert.ok(cosOf(at(0.4)) > 0.5, `corte: ${at(0.4)}°`);
   });
 });
 

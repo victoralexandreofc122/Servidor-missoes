@@ -1,5 +1,9 @@
 # Personagem chibi em camadas (64x96)
 
+> **Aposentado na v25.** O jogo agora desenha o boneco por código: esqueleto 3D animado com o corpo e as camadas em
+> pixel art (`arte/personagem-rig/`). Esta pasta fica como referência: os olhos e as paletas aprovados vieram daqui.
+> Não rode mais o `export_game.py`. Ele regravaria o `public/spriteData.js` antigo, com o atlas.
+
 Este é o personagem que o jogo usa desde a v9. Ele substitui o boneco de retângulos (`public/character.js`) e os
 testes de arte anteriores (`paper-doll/`, `personagem-base/`, `rig-ia/`).
 
