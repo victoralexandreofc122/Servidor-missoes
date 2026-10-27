@@ -53,9 +53,10 @@ describe('sapatos: catálogo e desenho', () => {
     assert.equal(S.layersFor({ ...look, shoes: 'botas_viagem' }).includes('sapato'), true);
     assert.equal(S.layersFor({ ...look, shoes: 'tamanco_falso' }).includes('sapato'), false, 'código estranho: descalço');
     const m = ART.materialsFor({ ...look, shoes: 'botas_ninja' });
-    const base = (name: string) => SPRITES.paletas.roupa[name][2];
+    const tone = (name: string, i: number) => SPRITES.paletas.roupa[name][i];
     const hex = (rgb: number[]) => `#${rgb.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
-    assert.deepEqual([m.sapato, m.sapato2, m.sola].map((x: any) => hex(x.rgb[2])), [base('preto'), base('cinza'), base('marrom')]);
+    // Couro (sapato e detalhe) é um tom mais escuro que o pano da mesma cor; a sola é a cor 3 (cinza clara na Bota Ninja).
+    assert.deepEqual([m.sapato, m.sapato2, m.sola].map((x: any) => hex(x.rgb[2])), [tone('preto', 1), tone('preto', 1), tone('cinza', 2)]);
     assert.equal(ART.materialsFor(look).sapato, undefined);
   });
 

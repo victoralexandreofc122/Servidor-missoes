@@ -48,6 +48,29 @@ describe('v9 + v25: visual e boneco desenhado por código (cliente)', () => {
     assert.deepEqual(S.layersFor(LOOK), ['corpo', 'olhos', 'boca', 'cabelo', 'camisa', 'calca', 'conjunto', 'acessorio', 'chapeu']);
     assert.deepEqual(S.layersFor({ ...LOOK, outfit: 'basica', bandana: false, shoes: 'botas_ninja' }),
       ['corpo', 'olhos', 'boca', 'cabelo', 'camisa', 'calca', 'sapato']);
+    assert.deepEqual(S.layersFor({ ...LOOK, outfit: 'casaco', bandana: false }), ['corpo', 'olhos', 'boca', 'cabelo', 'camisa', 'casaco', 'calca', 'acessorio']);
+  });
+
+  it('v26: casaco com capuz (cor da camisa, blusa ameixa no V, faixa preta) e o cabelo bagunçado em mechas de lâmina', () => {
+    const coat = { ...LOOK, outfit: 'casaco', shirtColor: 'petroleo', pantsColor: 'preto', hairStyle: 'baguncado', bandana: false, shoes: 'botas_ninja' };
+    const has = (f: any, hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      for (let i = 0; i < f.rgba.length; i += 4) if (f.rgba[i + 3] && f.rgba[i] === r && f.rgba[i + 1] === g && f.rgba[i + 2] === b) return true;
+      return false;
+    };
+    const roupa = SPRITES.paletas.roupa;
+    const front = ART.renderFigure(coat, RIG.poseOf('parado', 0.1), 0);
+    assert.ok(has(front, roupa.petroleo[2]), 'o casaco na cor escolhida');
+    assert.ok(has(front, roupa.ameixa[2]), 'a blusa cor de ameixa aparece no V do casaco');
+    const back = ART.renderFigure(coat, RIG.poseOf('parado', 0.1), RIG.YAW_OF_DIR[3]);
+    assert.ok(!has(back, roupa.ameixa[2]), 'de costas, a blusa fica escondida');
+    // As abas do casaco têm física: na corrida voam para trás (de lado, para a esquerda da tela quando olha para a direita).
+    const leftmost = (f: any) => { for (let x = 0; x < 64; x++) for (let y = 40; y < 90; y++) if (f.rgba[(y * 64 + x) * 4 + 3]) return x; return 64; };
+    const coatOnly = (anim: string, t: number, flow: number) => ART.renderFigure(coat, RIG.poseOf(anim, t), RIG.YAW_OF_DIR[2], { only: ['casaco'], flow, phase: t });
+    assert.ok(leftmost(coatOnly('correr', 0.25, 1)) < leftmost(coatOnly('parado', 0.1, 0.06)) - 2, 'correndo, a aba vai para trás');
+    // Cabelo bagunçado: mechas em lâmina (triângulos), com o traço escuro entre elas.
+    const hair = ART.renderFigure(coat, RIG.poseOf('parado', 0.1), 0, { only: ['cabelo'] });
+    assert.ok(has(hair, ART.OUTLINE) && has(hair, SPRITES.paletas.cabelo.preto[2]));
   });
 
   it('conjunto e bandana têm as cores da VILA (travadas); camisa e calça, as do jogador', () => {
@@ -133,6 +156,48 @@ describe('v9 + v25: visual e boneco desenhado por código (cliente)', () => {
     assert.ok(!colors(only).has(SPRITES.paletas.pele.canela[2]), 'só a camada do cabelo: sem pele');
   });
 
+  it('acabamento: sem furinho vazio dentro do traço e sem cisco solto, em toda animação, no giro, nos 3 cabelos e com capa', () => {
+    const looks = [
+      { ...LOOK, gender: 'm', eyeStyle: 'masculino', hairStyle: 'baguncado', outfit: 'casaco', shirtColor: 'petroleo', bandana: false, shoes: 'botas_ninja' },
+      { ...LOOK, gender: 'm', eyeStyle: 'masculino', hairStyle: 'espetado', shoes: 'sandalia_ninja' },
+      LOOK,
+    ];
+    for (const [n, look] of looks.entries()) {
+      for (const anim of Object.keys(RIG.ANIMS)) {
+        for (const k of [0, 3, 5, 8]) {
+          const t = (k % 4) / 4;
+          const f = ART.renderFigure(look, RIG.poseOf(anim, t), (k / 16) * Math.PI * 2, { flow: 0.4, phase: t, cape: n === 2 ? 'capa_vila' : undefined });
+          const on = (x: number, y: number) => x >= 0 && y >= 0 && x < 64 && y < 96 && f.rgba[(y * 64 + x) * 4 + 3] > 0;
+          const where = `${look.hairStyle} ${anim} t${t} giro ${k}`;
+          for (let y = 1; y < 95; y++) {
+            for (let x = 1; x < 63; x++) {
+              if (!on(x, y)) assert.ok(!(on(x - 1, y) && on(x + 1, y) && on(x, y - 1) && on(x, y + 1)), `${where}: furinho em ${x},${y}`);
+            }
+          }
+          // O boneco é um pedaço só (vizinhos de 8): nenhuma ponta de mecha flutuando.
+          const seen = new Uint8Array(64 * 96);
+          let pieces = 0;
+          for (let s = 0; s < 64 * 96; s++) {
+            if (!f.rgba[s * 4 + 3] || seen[s]) continue;
+            pieces++;
+            const stack = [s];
+            seen[s] = 1;
+            while (stack.length) {
+              const i = stack.pop()!;
+              for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                  const x = (i % 64) + dx, y = Math.floor(i / 64) + dy, j = y * 64 + x;
+                  if (on(x, y) && !seen[j]) { seen[j] = 1; stack.push(j); }
+                }
+              }
+            }
+          }
+          assert.equal(pieces, 1, `${where}: pedaços soltos`);
+        }
+      }
+    }
+  });
+
   it('cache do navegador: quadro de cada instante, giro em 16 passos pela frente, chave só do que muda o desenho', () => {
     assert.equal(F.frameIndex('andar', 0), 0);
     assert.equal(F.frameIndex('andar', 0.999), F.FRAMES.andar - 1);
@@ -148,6 +213,21 @@ describe('v9 + v25: visual e boneco desenhado por código (cliente)', () => {
     assert.ok(seen.some((y) => Math.abs(y) < 0.2) && !seen.some((y) => Math.abs(y) > 2.5), 'passa pela frente');
     assert.ok(Math.abs(seen[seen.length - 1] - Math.PI / 2) < 1e-9, 'chega');
     assert.equal(F.stepYaw(0, Math.PI / 2, 0), 0, 'sem tempo, não gira');
+    // Andar para cima vira de costas (e para baixo, de frente), com quadros de 16 ms ou bem curtos, sem voltar no meio.
+    for (const [from, to] of [[0, 3], [3, 0], [1, 2], [2, 1], [1, 3], [3, 2]] as [number, number][]) {
+      for (const dt of [16, 1]) {
+        let y = RIG.YAW_OF_DIR[from], back = 0, last = 0;
+        for (let k = 0; k < 3000 && Math.abs(Math.sin((y - RIG.YAW_OF_DIR[to]) / 2)) > 1e-9; k++) {
+          const next = F.stepYaw(y, RIG.YAW_OF_DIR[to], dt);
+          const turn = Math.sin(next - y);
+          if (last && Math.sign(turn) !== Math.sign(last)) back++;
+          if (turn) last = turn;
+          y = next;
+        }
+        assert.ok(Math.abs(Math.sin((y - RIG.YAW_OF_DIR[to]) / 2)) < 1e-9, `${from}->${to} (${dt} ms) chega`);
+        assert.equal(back, 0, `${from}->${to} (${dt} ms) não troca de sentido`);
+      }
+    }
     assert.notEqual(F.lookKey(LOOK), F.lookKey({ ...LOOK, hairColor: 'loiro' }));
     assert.notEqual(F.lookKey(LOOK), F.lookKey(LOOK, { cape: 'manto_kage' }));
     assert.equal(F.lookKey(LOOK), F.lookKey({ ...LOOK, v: 2 }));

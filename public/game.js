@@ -3499,8 +3499,8 @@ const CREATOR_FIELDS = [
   ['shirtColor', 'Camisa', 'swatch'], ['pantsColor', 'Calça', 'swatch'], ['bandana', 'Bandana da vila', 'seg'],
 ];
 const CREATOR_LABEL = {
-  m: 'Masculino', f: 'Feminino', espetado: 'Espetado', longo_lateral: 'Longo', masculino: 'Sem cílios', cilios: 'Com cílios',
-  basica: 'Camisa e calça', vila: 'Conjunto da vila', true: 'Com bandana', false: 'Sem',
+  m: 'Masculino', f: 'Feminino', espetado: 'Espetado', longo_lateral: 'Longo', baguncado: 'Bagunçado', masculino: 'Sem cílios', cilios: 'Com cílios',
+  basica: 'Camisa e calça', vila: 'Conjunto da vila', casaco: 'Casaco com capuz', true: 'Com bandana', false: 'Sem',
 };
 const creatorLabel = (field, v) => (field === 'village' ? VILLAGE_NAMES[v] || String(v) : CREATOR_LABEL[String(v)] || String(v).replace(/_/g, ' '));
 /**
@@ -3563,7 +3563,8 @@ function renderCreatorOptions() {
     row.hidden = (field === 'shirtColor' || field === 'pantsColor') && creatorLook.outfit === 'vila';
     const name = document.createElement('span');
     name.className = 'opt-title';
-    name.textContent = title;
+    // Com o casaco, a "cor da camisa" é a cor do casaco (a blusa de dentro é sempre cor de ameixa).
+    name.textContent = field === 'shirtColor' && creatorLook.outfit === 'casaco' ? 'Casaco' : title;
     const box = document.createElement('div');
     box.className = kind === 'seg' ? 'seg' : 'swatches';
     for (const value of OPTIONS[field]) {
@@ -3605,7 +3606,7 @@ ui.creatorRandom.addEventListener('click', () => {
   creatorLook.village = pick(OPTIONS.village.filter(villageOpen));      // só entre as vilas abertas
   creatorLook.gender = gender;
   creatorLook.eyeStyle = gender === 'f' ? 'cilios' : 'masculino';
-  if (Math.random() < 0.75) creatorLook.hairStyle = gender === 'f' ? 'longo_lateral' : 'espetado';
+  if (Math.random() < 0.5) creatorLook.hairStyle = gender === 'f' ? 'longo_lateral' : pick(['espetado', 'baguncado']);
   renderCreatorOptions();
 });
 ui.creatorCancel.addEventListener('click', closeCreator);

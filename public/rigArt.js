@@ -1,14 +1,20 @@
 // O boneco em PIXEL ART desenhado por código em cima do esqueleto 3D (rig.js).
 //
+// Estilo (v26, da folha de referência do Victor): chibi de cabeça grande e olhos grandes, traço escuro grosso em volta
+// de tudo (por fora e entre as peças), cor chapada com um tom de sombra e um pouco de luz onde bate de frente, e brilho
+// só no cabelo, nos olhos e no metal.
+//
 // Cada parte do corpo é uma forma 3D simples presa num osso: elipsoides (cabeça, tronco, quadril, mãos, pés) e tubos
-// (braços, pernas, mechas de cabelo). As camadas (roupa, sapato, cabelo, bandana, capa, acessórios) são as MESMAS formas
-// um pouco maiores, presas nos mesmos ossos: por isso cabem certinho no corpo em qualquer pose e em qualquer direção.
+// (braços, pernas, mechas de cabelo). As camadas são as MESMAS formas um pouco maiores, presas nos mesmos ossos: por isso
+// cabem certinho no corpo em qualquer pose e em qualquer direção. Camadas: corpo (o boneco base inteiro, com a roupa de
+// baixo), olhos, boca, cabelo, camisa (a veste de cima de dentro), casaco, conjunto (o colete da vila), calca, sapato,
+// acessorio, chapeu (a bandana) e capa. A arma é a arte de weapons.js, presa na âncora da mão (anchors.hand).
 //
 // O desenho é feito pixel a pixel numa célula 64 x 96 (sem borrar):
 //   1. cada forma marca, em cada pixel que cobre, a profundidade, a normal e o material (fica a mais perto da câmera);
-//   2. a luz (de cima, da esquerda e da frente) escolhe o tom da rampa do material (luz, base, sombra), em faixas;
-//   3. olhos, boca e símbolos são carimbos de pixel art (desenhados à mão, nunca deformados) no lugar certo do rosto;
-//   4. contorno escuro por fora e linhas por dentro onde uma parte passa na frente da outra (o "traço" de anime).
+//   2. a luz (de cima, da esquerda e da frente) escolhe o tom: base ou sombra, e luz só onde bate bem de frente;
+//   3. olhos, boca, nariz e símbolos são carimbos de pixel art (desenhados à mão, nunca deformados) no lugar certo;
+//   4. o traço: por fora do boneco e por dentro, onde uma peça passa na frente da outra.
 //
 // Tudo aqui é PURO (sem DOM): o jogo usa no navegador (figure.js guarda o resultado em canvas) e a prancha de arte e os
 // testes usam no Node.
@@ -54,12 +60,16 @@ function tint(hex, k) {
 /** Rampa de 5 tons [contorno, sombra, base, luz, brilho] a partir de uma cor "#rrggbb" (capas). */
 export const rampFromHex = (hex) => [tint(hex, -0.62), tint(hex, -0.28), hex, tint(hex, 0.13), tint(hex, 0.3)];
 
+/** O traço (por fora e por dentro): quase preto, puxado para o azul, como o da referência. */
+export const OUTLINE = '#15121d';
+
 /**
- * Material: os tons [fundo, sombra, base, luz, brilho] e o contorno. `hi` = a partir de que luz usa o brilho (só no
- * cabelo e no metal). Os limites das faixas: luz acima de `lt`, sombra abaixo de `sh`, fundo abaixo de `dp`.
+ * Material: os tons [fundo, sombra, base, luz, brilho]. `hi` = a partir de que luz usa o brilho (só no cabelo e no
+ * metal). Os limites das faixas: luz acima de `lt`, sombra abaixo de `sh`, fundo abaixo de `dp`. O padrão é o "cel" da
+ * referência: quase tudo na base, a sombra do lado de lá e a luz só onde bate bem de frente.
  */
-function material(tones, out, extra = {}) {
-  return { rgb: tones.map(rgbOf), out: rgbOf(out), lt: 0.6, sh: -0.02, dp: -0.62, hi: 2, ...extra };
+function material(tones, extra = {}) {
+  return { rgb: tones.map(rgbOf), out: rgbOf(OUTLINE), lt: 0.8, sh: 0.08, dp: -2, hi: 2, ...extra };
 }
 
 /** Materiais de um visual: pele, cabelo, olhos, roupas (cores do jogador e da vila), metal, capa. */
@@ -67,12 +77,16 @@ export function materialsFor(look, opts = {}) {
   const skin = PAL.pele[look.skin] || PAL.pele.claro;
   const hair = PAL.cabelo[look.hairColor] || PAL.cabelo.castanho;
   const vila = VILAS[look.village] || VILAS.vila_1;
-  const cloth = (name) => { const r = PAL.roupa[name] || PAL.roupa.cinza; return material([r[1], r[1], r[2], r[3], r[4]], r[0]); };
+  const ramp = (name) => PAL.roupa[name] || PAL.roupa.cinza;
+  const cloth = (name) => { const r = ramp(name); return material([r[1], r[1], r[2], r[3], r[4]]); };
+  /** Forro (o lado de dentro do pano): um tom abaixo, sem luz. */
+  const lining = (name) => { const r = ramp(name); return material([r[0], r[0], r[1], r[1], r[1]], { lt: 2 }); };
   const shoe = SHOES[look.shoes];
   const m = {
-    pele: material([skin[4], skin[3], skin[2], skin[1], skin[0]], skin[6], { lt: 0.72, sh: -0.12, dp: -0.7 }),
-    rosto: material([skin[3], skin[3], skin[2], skin[1], skin[0]], skin[6], { lt: 2, sh: -0.3, dp: -2 }),
-    cabelo: material([hair[1], hair[1], hair[2], hair[3], hair[4]], hair[0], { lt: 0.56, sh: -0.08, hi: 0.93 }),
+    pele: material([skin[3], skin[3], skin[2], skin[1], skin[0]], { lt: 2, sh: 0.02 }),
+    rosto: material([skin[3], skin[3], skin[2], skin[1], skin[0]], { lt: 2, sh: -0.42 }),
+    cabelo: material([hair[1], hair[1], hair[2], hair[3], hair[4]], { lt: 0.72, sh: -0.06, hi: 0.95 }),
+    cabeloDentro: material([hair[1], hair[1], hair[1], hair[2], hair[2]], { lt: 2 }),
     cueca: cloth('cinza'),
     camisa: cloth(look.shirtColor),
     logo: cloth(vila.logo),
@@ -83,17 +97,23 @@ export function materialsFor(look, opts = {}) {
     terno: cloth(vila.conjunto[1]),
     faixa_vila: cloth(vila.conjunto[2]),
     bandana: cloth(vila.bandana),
-    aco: (() => { const r = PAL.roupa.aco; return material([r[1], r[1], r[2], r[3], r[4]], r[0], { lt: 0.45, sh: -0.2, hi: 0.82 }); })(),
+    aco: (() => { const r = ramp('aco'); return material([r[1], r[1], r[2], r[3], r[4]], { lt: 0.45, sh: -0.2, hi: 0.82 }); })(),
     couro: cloth('marrom'),
     preto: cloth('preto'),
+    // Casaco com capuz (v26): o casaco na cor da camisa escolhida, o forro um tom abaixo e a blusa de dentro cor de ameixa.
+    casaco: cloth(look.shirtColor),
+    casacoForro: lining(look.shirtColor),
+    interna: cloth('ameixa'),
   };
-  if (shoe) { m.sapato = cloth(shoe.colors[0]); m.sapato2 = cloth(shoe.colors[1]); m.sola = cloth(shoe.colors[2]); }
+  // Sapato de couro: um tom mais escuro que o pano da mesma cor (a bota preta se separa da calça preta).
+  const leather = (name) => { const r = ramp(name); return material([r[0], r[0], r[1], r[2], r[3]]); };
+  if (shoe) { m.sapato = leather(shoe.colors[0]); m.sapato2 = leather(shoe.colors[1]); m.sola = cloth(shoe.colors[2]); }
   if (opts.cape) {
     const [c, dark, trim] = capeColors(opts.cape, opts.capeVillage ?? look.village);
     const r = rampFromHex(c), d = rampFromHex(dark), t = rampFromHex(trim);
-    m.capa = material([r[1], r[1], r[2], r[3], r[4]], r[0], { lt: 0.78, sh: -0.3 });
-    m.forro = material([d[0], d[1], d[1], d[2], d[2]], d[0]);
-    m.barra = material([t[1], t[1], t[2], t[3], t[4]], t[0]);
+    m.capa = material([r[1], r[1], r[2], r[3], r[4]], { sh: -0.2 });
+    m.forro = material([d[0], d[1], d[1], d[2], d[2]], { lt: 2 });
+    m.barra = material([t[1], t[1], t[2], t[3], t[4]]);
   }
   return m;
 }
@@ -106,7 +126,7 @@ export const SHOES = {
   sandalia_ninja: { sprite: 'sandalia', colors: ['azul_marinho', 'creme', 'preto'] },
   sandalia_couro: { sprite: 'sandalia', colors: ['marrom', 'creme', 'preto'] },
   botas_viagem: { sprite: 'bota', colors: ['marrom', 'creme', 'preto'] },
-  botas_ninja: { sprite: 'bota', colors: ['preto', 'cinza', 'marrom'] },
+  botas_ninja: { sprite: 'bota', colors: ['preto', 'preto', 'cinza'] },
 };
 
 /** Capas do fim de jogo: [pano, forro, barra]. A da vila usa a cor da vila. Mesmas cores de endgame.js. */
@@ -259,286 +279,513 @@ function drawTriangle(buf, p) {
   }
 }
 
-// ------------------------------------------------------------------ cena: corpo e camadas
+// ------------------------------------------------------------------ cena: o boneco base e as camadas
 
 /**
  * Monta as formas de um boneco já resolvido (S = solve(pose, yaw, gênero)). Cada forma: { k: 'e'|'t'|'tri', mat,
- * grp (grupo: o traço por dentro só aparece entre grupos diferentes), layer (a camada), ... }.
- * opts: { cape, capeVillage, flow (0 parado .. 1 correndo: a capa e a faixa da bandana vão para trás), phase (0..1) }.
+ * grp (grupo: o traço por dentro aparece entre grupos diferentes), layer (a camada), ... }.
+ * opts: { cape, capeVillage, renegade, flow (0 parado .. 1 correndo: pano e cabelo vão para trás), phase (0..1) }.
+ *
+ * Camada a camada, na ordem em que se veste: o boneco base inteiro (com a roupa de baixo), a camisa (veste de cima de
+ * dentro), o colete do conjunto da vila, o casaco com capuz, a calça, os acessórios, os sapatos, o cabelo, a bandana
+ * e a capa. Olhos e boca são carimbos (fim do arquivo).
  */
 export function buildScene(S, look, mats, opts = {}) {
+  const c = sceneContext(S, look, mats, opts);
+  bodyLayer(c);
+  c.colliders = bodyColliders(c);
+  shirtLayer(c);
+  vestLayer(c);
+  coatLayer(c);
+  pantsLayer(c);
+  accessoryLayer(c);
+  shoesLayer(c);
+  hairLayer(c);
+  hatLayer(c);
+  if (opts.cape) capeLayer(c);
+  c.stamps.push({ layer: 'olhos', kind: 'olhos' }, { layer: 'boca', kind: 'boca' });
+  return { prims: c.prims, stamps: c.stamps, head: c.head, hx: c.hx, hy: c.hy, hz: c.hz };
+}
+
+const add3 = (r, d) => [r[0] + d, r[1] + d, r[2] + d];
+/** Braços, pernas, mãos e pés: traço por dentro mesmo quando passam só um pouco na frente do corpo. */
+const LIMB = { lineThr: 0.5 };
+const DEG = Math.PI / 180;
+
+/** Medidas e ajudantes de uma cena (as camadas usam as mesmas medidas do corpo base, para caberem nele). */
+function sceneContext(S, look, mats, opts) {
   const { J, R, B } = S;
-  const prims = [];
-  const stamps = [];
   const fem = look.gender === 'f';
+  const prims = [], stamps = [];
   let gid = 0;
-  const G = () => ++gid;
-  const P = (o) => { o.id = prims.length; prims.push(o); return o; };
-  const ell = (layer, grp, mat, c, m, r, extra) => P({ k: 'e', layer, grp, mat, c, m, r, ...extra });
-  const tube = (layer, grp, mat, a, b, ra, rb, extra) => P({ k: 't', layer, grp, mat, a, b, ra, rb, ...extra });
-  const at = (base, rot, v) => add(base, apply(rot, v));
-  const flow = opts.flow || 0;
-  const phase = opts.phase || 0;
+  const c = { S, J, R, B, look, mats, opts, fem, prims, stamps, outfit: look.outfit, flow: opts.flow || 0, phase: opts.phase || 0, g: {} };
+  c.G = () => ++gid;
+  c.P = (o) => { o.id = prims.length; prims.push(o); return o; };
+  c.ell = (layer, grp, mat, ctr, m, r, extra) => c.P({ k: 'e', layer, grp, mat, c: ctr, m, r, ...extra });
+  c.tube = (layer, grp, mat, a, b, ra, rb, extra) => c.P({ k: 't', layer, grp, mat, a, b, ra, rb, ...extra });
+  c.at = (base, rot, v) => add(base, apply(rot, v));
+  c.hx = B.head * 0.97; c.hy = B.head; c.hz = B.head * 0.92;
+  c.headC = J.head; c.headR = R.head;
+  c.chestC = c.at(J.chest, R.chest, [0, 1.3, 0]);
+  c.chestR = fem ? [6.6, 6.4, 4.4] : [7.3, 6.6, 4.5];
+  c.bellyC = c.at(J.waist, R.chest, [0, 3.2, 0.2]);
+  c.bellyR = fem ? [5.5, 4.8, 4.0] : [6.0, 4.8, 4.1];
+  c.pelvisC = c.at(J.pelvis, R.pelvis, [0, -0.4, 0]);
+  c.pelvisR = fem ? [6.7, 4.6, 4.4] : [6.3, 4.4, 4.3];
+  c.rArm = { up: fem ? [2.7, 2.3] : [3.0, 2.5], fore: fem ? [2.3, 1.9] : [2.5, 2.1] };
+  c.rLeg = { thigh: [fem ? 4.0 : 3.9, 3.0], shin: [3.0, 2.1] };
+  c.footC = (key) => c.at(J[`ankle${key}`], R[`foot${key}`], [0, -B.ankle + 1.6, (B.foot - 1.6) / 2]);
+  c.footLen = (B.foot + 1.6) / 2 + 0.6;
+  return c;
+}
 
-  // ---- cabeça (o rosto e as orelhas)
-  const hx = B.head * 0.97, hy = B.head, hz = B.head * 0.92;
-  const headR = R.head, headC = J.head;
-  const gHead = G();
-  const head = ell('corpo', gHead, mats.rosto, headC, headR, [hx, hy, hz], { face: true });
-  for (const side of [1, -1]) ell('corpo', gHead, mats.pele, at(headC, headR, [side * hx * 0.94, -hy * 0.16, -hz * 0.08]), headR, [1.7, 3.2, 2.4], { ear: side });
-  // ---- pescoço, tronco, quadril
-  const gTorso = G();
-  const neckTop = at(J.headBase, headR, [0, 3, -0.6]);
-  tube('corpo', gTorso, mats.pele, J.neck, neckTop, fem ? 2.3 : 2.6, fem ? 2.2 : 2.5, { bias: -0.55 });
-  const chestC = at(J.chest, R.chest, [0, 1.3, 0]);
-  const chestR = fem ? [6.6, 6.4, 4.4] : [7.3, 6.6, 4.5];
-  const bellyC = at(J.waist, R.chest, [0, 3.2, 0.2]);
-  const bellyR = fem ? [5.5, 4.8, 4.0] : [6.0, 4.8, 4.1];
-  const pelvisC = at(J.pelvis, R.pelvis, [0, -0.4, 0]);
-  const pelvisR = fem ? [6.7, 4.6, 4.4] : [6.3, 4.4, 4.3];
-  ell('corpo', gTorso, mats.pele, chestC, R.chest, chestR);
-  ell('corpo', gTorso, mats.pele, bellyC, R.chest, bellyR);
-  ell('corpo', gTorso, mats.pele, pelvisC, R.pelvis, pelvisR);
-  // Roupa de baixo (o corpo base nunca fica pelado): quadril e o comecinho das coxas.
-  ell('corpo', gTorso, mats.cueca, pelvisC, R.pelvis, add3(pelvisR, 0.35), { clip: (q) => q[1] < 1.6 });
-  // ---- braços e mãos
-  const limbs = {};
-  for (const [side, key] of [[1, 'L'], [-1, 'R']]) {
-    const g = G();
-    limbs[`arm${key}`] = g;
+/** O boneco base inteiro: cabeça (crânio + queixo), orelhas, pescoço, tronco, braços, mãos, pernas, pés e a roupa de baixo. */
+function bodyLayer(c) {
+  const { J, R, mats, ell, tube, at, G, hx, hy, hz, headC, headR, g } = c;
+  g.head = G(); g.ear = G(); g.torso = G(); g.under = G();
+  // Cabeça: crânio redondo e o queixo mais estreito embaixo (o rosto afina, como na referência).
+  c.head = ell('corpo', g.head, mats.rosto, at(headC, headR, [0, 1.5, -0.3]), headR, [hx, hy * 0.92, hz], { face: true });
+  ell('corpo', g.head, mats.rosto, at(headC, headR, [0, -hy * 0.46, hz * 0.13]), headR, [hx * 0.68, hy * 0.56, hz * 0.8], { face: true });
+  for (const side of [1, -1]) {
+    // Orelha com a concha (um tom de sombra no meio).
+    ell('corpo', g.ear, mats.pele, at(headC, headR, [side * hx * 0.93, -hy * 0.18, -hz * 0.1]), headR, [1.8, 3.2, 2.4],
+      { lineThr: 0.3, paint: (q) => (q[0] * side > 0.9 && Math.abs(q[1]) < 1.8 && Math.abs(q[2]) < 1.1 ? [null, 1] : null) });
+  }
+  // Pescoço (na sombra da cabeça), tronco e quadril.
+  tube('corpo', g.torso, mats.pele, J.neck, at(J.headBase, headR, [0, 3, -0.6]), c.fem ? 2.3 : 2.6, c.fem ? 2.2 : 2.5, { bias: -0.6 });
+  ell('corpo', g.torso, mats.pele, c.chestC, R.chest, c.chestR);
+  ell('corpo', g.torso, mats.pele, c.bellyC, R.chest, c.bellyR);
+  ell('corpo', g.torso, mats.pele, c.pelvisC, R.pelvis, c.pelvisR);
+  // Roupa de baixo (o boneco base nunca fica pelado): quadril e o comecinho das coxas.
+  ell('corpo', g.under, mats.cueca, c.pelvisC, R.pelvis, add3(c.pelvisR, 0.35), { clip: (q) => q[1] < 1.6 });
+  for (const key of ['L', 'R']) {
+    g[`arm${key}`] = G(); g[`hand${key}`] = G();
     const sh = J[`shoulder${key}`], el = J[`elbow${key}`], wr = J[`wrist${key}`], hd = J[`hand${key}`];
-    ell('corpo', gTorso, mats.pele, sh, R.chest, [3.2, 3.1, 3.1]);
-    tube('corpo', g, mats.pele, sh, el, fem ? 2.7 : 3.0, fem ? 2.3 : 2.5, LIMB);
-    tube('corpo', g, mats.pele, el, wr, fem ? 2.3 : 2.5, fem ? 1.9 : 2.1, LIMB);
-    const hands = S.pose.hands;
-    const gh = G();
-    if (hands === 'aberta') {
-      ell('corpo', gh, mats.pele, mix(wr, hd, 0.7), R[`fore${key}`], [2.9, 3.4, 1.7], LIMB);
-    } else {
-      ell('corpo', gh, mats.pele, mix(wr, hd, 0.7), R[`fore${key}`], [2.9, 3.0, 2.8], LIMB);
-    }
+    ell('corpo', g.torso, mats.pele, sh, R.chest, [3.2, 3.1, 3.1]);
+    tube('corpo', g[`arm${key}`], mats.pele, sh, el, ...c.rArm.up, LIMB);
+    tube('corpo', g[`arm${key}`], mats.pele, el, wr, ...c.rArm.fore, LIMB);
+    const fore = R[`fore${key}`];
+    if (c.S.pose.hands === 'aberta') ell('corpo', g[`hand${key}`], mats.pele, mix(wr, hd, 0.7), fore, [2.9, 3.4, 1.7], LIMB);
+    // Punho fechado, com a dobra dos dedos.
+    else ell('corpo', g[`hand${key}`], mats.pele, mix(wr, hd, 0.7), fore, [2.9, 3.0, 2.8], { ...LIMB, paint: (q) => (q[2] > 1.5 && Math.abs(q[1] + 0.5) < 0.42 ? [null, 1] : null) });
   }
-  // ---- pernas e pés
-  for (const [side, key] of [[1, 'L'], [-1, 'R']]) {
-    const g = G();
-    limbs[`leg${key}`] = g;
+  for (const key of ['L', 'R']) {
+    g[`leg${key}`] = G(); g[`foot${key}`] = G();
     const hp = J[`hip${key}`], kn = J[`knee${key}`], an = J[`ankle${key}`];
-    tube('corpo', g, mats.pele, hp, kn, fem ? 4.0 : 3.9, 3.0, LIMB);
-    tube('corpo', g, mats.pele, kn, an, 3.0, 2.1, LIMB);
-    ell('corpo', g, mats.cueca, hp, R[`thigh${key}`], [4.3, 3.2, 4.3], { clip: (q) => q[1] > -2.2 });
-    const gf = G();
-    limbs[`foot${key}`] = gf;
-    const fr = R[`foot${key}`];
-    ell('corpo', gf, mats.pele, at(an, fr, [0, -B.ankle + 1.6, (B.foot - 1.6) / 2]), fr, [2.4, 1.7, (B.foot + 1.6) / 2 + 0.6], LIMB);
+    tube('corpo', g[`leg${key}`], mats.pele, hp, kn, ...c.rLeg.thigh, LIMB);
+    tube('corpo', g[`leg${key}`], mats.pele, kn, an, ...c.rLeg.shin, LIMB);
+    ell('corpo', g.under, mats.cueca, hp, R[`thigh${key}`], [4.3, 3.2, 4.3], { clip: (q) => q[1] > -2.2 });
+    ell('corpo', g[`foot${key}`], mats.pele, c.footC(key), R[`foot${key}`], [2.4, 1.7, c.footLen], LIMB);
   }
+}
 
-  // Corpo (com a roupa por cima) para o pano encostar: capa e pontas da bandana são empurradas para fora dele.
-  const vestOn = look.outfit === 'vila' ? 1 : 0;
-  const colliders = [
-    { k: 'e', c: headC, m: headR, r: [hx + 2.6, hy + 2.6, hz + 2.6] },
-    { k: 'e', c: chestC, m: R.chest, r: add3(chestR, 1 + vestOn) },
-    { k: 'e', c: bellyC, m: R.chest, r: add3(bellyR, 1 + vestOn) },
-    { k: 'e', c: pelvisC, m: R.pelvis, r: add3(pelvisR, 1.2) },
+/** O corpo (com a roupa por cima) para o pano encostar: capa, abas do casaco e pontas da bandana são empurradas para fora. */
+function bodyColliders(c) {
+  const { J, R } = c;
+  const thick = c.outfit === 'vila' ? 1 : c.outfit === 'casaco' ? 1.5 : 0;
+  const skirt = c.outfit === 'casaco' ? 1.6 : 0;          // as abas do casaco em volta das pernas
+  const list = [
+    { k: 'e', c: c.headC, m: c.headR, r: [c.hx + 2.6, c.hy + 2.6, c.hz + 2.6] },
+    { k: 'e', c: c.chestC, m: R.chest, r: add3(c.chestR, 1 + thick) },
+    { k: 'e', c: c.bellyC, m: R.chest, r: add3(c.bellyR, 1 + thick) },
+    { k: 'e', c: c.pelvisC, m: R.pelvis, r: add3(c.pelvisR, 1.2 + skirt) },
   ];
   for (const key of ['L', 'R']) {
-    colliders.push({ k: 't', a: J[`shoulder${key}`], b: J[`shoulder${key}`], ra: 4.1, rb: 4.1 });
-    colliders.push({ k: 't', a: J[`shoulder${key}`], b: J[`elbow${key}`], ra: 3.7, rb: 3.3 });
-    colliders.push({ k: 't', a: J[`elbow${key}`], b: J[`hand${key}`], ra: 3.3, rb: 3.2 });
-    colliders.push({ k: 't', a: J[`hip${key}`], b: J[`knee${key}`], ra: 4.9, rb: 4.0 });
-    colliders.push({ k: 't', a: J[`knee${key}`], b: J[`ankle${key}`], ra: 4.0, rb: 3.2 });
-    colliders.push({ k: 't', a: J[`heel${key}`], b: J[`toe${key}`], ra: 2.8, rb: 2.8 });
+    const a = thick * 0.4;
+    list.push({ k: 't', a: J[`shoulder${key}`], b: J[`shoulder${key}`], ra: 4.1 + a, rb: 4.1 + a });
+    list.push({ k: 't', a: J[`shoulder${key}`], b: J[`elbow${key}`], ra: 3.7 + a, rb: 3.3 + a });
+    list.push({ k: 't', a: J[`elbow${key}`], b: J[`hand${key}`], ra: 3.3 + a, rb: 3.2 });
+    list.push({ k: 't', a: J[`hip${key}`], b: J[`knee${key}`], ra: 4.9 + skirt * 0.8, rb: 4.0 + skirt * 0.6 });
+    list.push({ k: 't', a: J[`knee${key}`], b: J[`ankle${key}`], ra: 4.0, rb: 3.2 });
+    list.push({ k: 't', a: J[`heel${key}`], b: J[`toe${key}`], ra: 2.8, rb: 2.8 });
   }
+  return list;
+}
 
-  // ---- roupas (as mesmas formas, um pouco maiores)
-  const vest = look.outfit === 'vila';
+/** Camisa (a veste de cima de dentro): básica, a blusa do conjunto da vila ou a blusa de dentro do casaco. */
+function shirtLayer(c) {
+  const { J, R, mats, ell, tube, at, G, g } = c;
+  g.shirt = G();
+  if (c.outfit === 'casaco') {
+    // Blusa cor de ameixa com decote em V e a faixa preta na cintura (as mangas são as do casaco).
+    const cr = c.chestR[1];
+    const vNeck = (q) => !(q[2] > 0 && q[1] > cr * 0.2 && Math.abs(q[0]) < (q[1] - cr * 0.2) * 0.7);
+    ell('camisa', g.shirt, mats.interna, c.chestC, R.chest, add3(c.chestR, 0.5), { clip: vNeck });
+    ell('camisa', g.shirt, mats.interna, c.bellyC, R.chest, add3(c.bellyR, 0.5));
+    ell('camisa', g.shirt, mats.interna, c.pelvisC, R.pelvis, add3(c.pelvisR, 0.95), { clip: (q) => q[1] > 0.6 });
+    g.sash = G();
+    ell('camisa', g.sash, mats.preto, c.bellyC, R.chest, add3(c.bellyR, 0.95), { clip: (q) => q[1] < -c.bellyR[1] * 0.22 && q[1] > -c.bellyR[1] * 0.95, lineThr: 0.25 });
+    return;
+  }
+  const vest = c.outfit === 'vila';
   const top = vest ? mats.terno : mats.camisa;
-  const legs = vest ? mats.terno : mats.calca;
-  // Camisa (básica: manga comprida, gola creme e o símbolo no peito) ou o macacão escuro do conjunto da vila.
-  ell('camisa', gTorso, top, chestC, R.chest, add3(chestR, 0.6));
-  ell('camisa', gTorso, top, bellyC, R.chest, add3(bellyR, 0.6));
-  ell('camisa', gTorso, top, pelvisC, R.pelvis, add3(pelvisR, 0.95), { clip: (q) => q[1] > 0.4 });
+  ell('camisa', g.shirt, top, c.chestC, R.chest, add3(c.chestR, 0.6));
+  ell('camisa', g.shirt, top, c.bellyC, R.chest, add3(c.bellyR, 0.6));
+  // A barra da camisa cai por cima da calça (um degrau: o traço da cintura aparece).
+  ell('camisa', g.shirt, top, c.pelvisC, R.pelvis, add3(c.pelvisR, 1.25), { clip: (q) => q[1] > 0.2 });
   for (const key of ['L', 'R']) {
     const sh = J[`shoulder${key}`], el = J[`elbow${key}`], wr = J[`wrist${key}`];
-    ell('camisa', gTorso, top, sh, R.chest, [3.8, 3.7, 3.7]);
-    tube('camisa', limbs[`arm${key}`], top, sh, el, (fem ? 2.7 : 3.0) + 0.6, (fem ? 2.3 : 2.5) + 0.55, LIMB);
-    tube('camisa', limbs[`arm${key}`], top, el, mix(el, wr, 0.82), (fem ? 2.3 : 2.5) + 0.55, (fem ? 1.9 : 2.1) + 0.6,
+    const gs = (g[`sleeve${key}`] = G());
+    ell('camisa', g.shirt, top, sh, R.chest, [3.8, 3.7, 3.7]);
+    tube('camisa', gs, top, sh, el, c.rArm.up[0] + 0.6, c.rArm.up[1] + 0.55, LIMB);
+    tube('camisa', gs, top, el, mix(el, wr, 0.82), c.rArm.fore[0] + 0.55, c.rArm.fore[1] + 0.6,
       { ...LIMB, paint: (k) => (k > 0.86 ? [vest ? mats.terno : mats.gola, 1] : null) });
   }
   // Gola: um anel em volta da base do pescoço.
-  const gGola = G();
+  g.collar = G();
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * TAU;
-    ell('camisa', gGola, vest ? mats.colete : mats.gola, at(J.neck, R.chest, [Math.sin(a) * 3.0, -0.6, Math.cos(a) * 2.5 - 0.2]), R.chest,
+    ell('camisa', g.collar, vest ? mats.colete : mats.gola, at(J.neck, R.chest, [Math.sin(a) * 3.0, -0.6, Math.cos(a) * 2.5 - 0.2]), R.chest,
       vest ? [2.2, 2.0, 2.2] : [1.5, 1.3, 1.5]);
   }
-  if (!vest) stamps.push({ layer: 'camisa', kind: 'simbolo', at: at(chestC, R.chest, [3.6, 1.2, chestR[2] + 0.4]), mat: mats.logo, normal: apply(R.chest, [0.35, 0, 0.94]), size: 'p' });
-  // Colete do conjunto da vila: por cima da camisa, com bolsos no peito, zíper e o símbolo nas costas.
-  if (vest) {
-    const gv = G();
-    const pockets = (q) => {
-      if (q[2] < 1) return null;
-      const ax = Math.abs(q[0]);
-      if (ax < 0.7) return [null, 0];                                      // zíper
-      const inX = ax > 1.6 && ax < 6.4, inY = q[1] > -3.2 && q[1] < 3.4;
-      if (inX && inY && (Math.abs(q[1] - 3.4) < 0.65 || Math.abs(q[1] + 3.2) < 0.65 || Math.abs(ax - 1.6) < 0.6 || Math.abs(ax - 6.4) < 0.6)) return [null, 1];
-      if (inX && Math.abs(q[1] - 1.4) < 0.55) return [null, 1];             // tampa do bolso
-      return null;
+  if (!vest) c.stamps.push({ layer: 'camisa', kind: 'simbolo', at: at(c.chestC, R.chest, [3.6, 1.2, c.chestR[2] + 0.4]), mat: mats.logo, normal: apply(R.chest, [0.35, 0, 0.94]), size: 'p' });
+}
+
+/** Colete do conjunto da vila: por cima da camisa, com bolsos no peito, zíper, gola alta e o símbolo nas costas. */
+function vestLayer(c) {
+  if (c.outfit !== 'vila') return;
+  const { J, R, mats, ell, at, G } = c;
+  const gv = G();
+  const pockets = (q) => {
+    if (q[2] < 1) return null;
+    const ax = Math.abs(q[0]);
+    if (ax < 0.7) return [null, 5];                                       // zíper
+    const inX = ax > 1.6 && ax < 6.4, inY = q[1] > -3.2 && q[1] < 3.4;
+    if (inX && inY && (Math.abs(q[1] - 3.4) < 0.6 || Math.abs(q[1] + 3.2) < 0.6 || Math.abs(ax - 1.6) < 0.55 || Math.abs(ax - 6.4) < 0.55)) return [null, 1];
+    if (inX && Math.abs(q[1] - 1.4) < 0.5) return [null, 1];               // tampa do bolso
+    return null;
+  };
+  ell('conjunto', gv, mats.colete, c.chestC, R.chest, add3(c.chestR, 1.5), { paint: pockets });
+  ell('conjunto', gv, mats.colete, c.bellyC, R.chest, add3(c.bellyR, 1.5), { paint: (q) => (q[2] > 1 && Math.abs(q[0]) < 0.7 ? [null, 5] : null), clip: (q) => q[1] > -3 });
+  for (const key of ['L', 'R']) ell('conjunto', gv, mats.colete, J[`shoulder${key}`], R.chest, [3.4, 4.2, 4.4], { clip: (q) => q[1] > -0.5 });
+  c.stamps.push({ layer: 'conjunto', kind: 'simbolo', at: at(c.chestC, R.chest, [0, 0.5, -(c.chestR[2] + 1.6)]), mat: mats.logo, normal: apply(R.chest, [0, 0, -1]), size: 'g' });
+}
+
+/**
+ * Casaco com capuz (v26, a roupa da referência): aberto na frente (lapelas mais claras, a blusa e a faixa aparecem no
+ * V), mangas largas com o punho dobrado, o capuz caído atrás do pescoço e as abas de pano da cintura até o joelho,
+ * com física (balançam no passo, voam para trás na corrida e se dobram por cima da perna).
+ */
+function coatLayer(c) {
+  if (c.outfit !== 'casaco') return;
+  const { J, R, mats, ell, tube, at, G, g } = c;
+  g.coat = G(); g.hood = G();
+  // Abertura da frente: em V no peito (mais aberta em cima), estreita na barriga.
+  const open = (q, r) => lerp(2.3, 4.9, clamp((q[1] + r[1]) / (2 * r[1]), 0, 1));
+  const front = (r, chest) => {
+    const w = (q) => (chest ? open(q, r) : 2.3);
+    return {
+      clip: (q) => !(q[2] > 0 && Math.abs(q[0]) < w(q)),
+      paint: (q) => {
+        if (q[2] > 0 && Math.abs(q[0]) < w(q) + 1.15) return [null, 3];                 // lapela (dobra mais clara)
+        if (q[2] < -r[2] * 0.55 && Math.abs(q[0]) < 0.45) return [null, 1];             // costura das costas
+        return null;
+      },
     };
-    ell('conjunto', gv, mats.colete, chestC, R.chest, add3(chestR, 1.5), { paint: pockets });
-    ell('conjunto', gv, mats.colete, bellyC, R.chest, add3(bellyR, 1.5), { paint: (q) => (q[2] > 1 && Math.abs(q[0]) < 0.7 ? [null, 0] : null), clip: (q) => q[1] > -3 });
-    for (const key of ['L', 'R']) ell('conjunto', gv, mats.colete, J[`shoulder${key}`], R.chest, [3.4, 4.2, 4.4], { clip: (q) => q[1] > -0.5 });
-    stamps.push({ layer: 'conjunto', kind: 'simbolo', at: at(chestC, R.chest, [0, 0.5, -(chestR[2] + 1.6)]), mat: mats.logo, normal: apply(R.chest, [0, 0, -1]), size: 'g' });
+  };
+  const cr = add3(c.chestR, 1.3), br = add3(c.bellyR, 1.3);
+  ell('casaco', g.coat, mats.casaco, c.chestC, R.chest, cr, front(cr, true));
+  ell('casaco', g.coat, mats.casaco, c.bellyC, R.chest, br, front(br, false));
+  for (const key of ['L', 'R']) {
+    const sh = J[`shoulder${key}`], el = J[`elbow${key}`], wr = J[`wrist${key}`];
+    const gs = (g[`coatArm${key}`] = G());
+    ell('casaco', g.coat, mats.casaco, sh, R.chest, [4.4, 4.3, 4.4]);
+    tube('casaco', gs, mats.casaco, sh, el, c.rArm.up[0] + 1.2, c.rArm.up[1] + 1.25, LIMB);
+    // A manga alarga no punho e o punho é dobrado (um tom de sombra).
+    tube('casaco', gs, mats.casaco, el, mix(el, wr, 0.96), c.rArm.fore[0] + 1.25, c.rArm.fore[1] + 1.6, { ...LIMB, paint: (k) => (k > 0.8 ? [null, 1] : null) });
   }
-  // Calça (básica: até o meio da canela, com faixas creme até o tornozelo; da vila: inteira, com faixas embaixo).
-  ell('calca', gTorso, legs, pelvisC, R.pelvis, add3(pelvisR, 0.7), { clip: (q) => q[1] < 1.5 });
+  // Capuz caído: um rolo grosso atrás do pescoço que sobe dos dois lados, com o lado de dentro na sombra.
+  ell('casaco', g.hood, mats.casaco, at(J.neck, R.chest, [0, 0.8, -3.0]), R.chest, [7.0, 4.4, 3.9],
+    { lineThr: 0.4, paint: (q) => (q[1] > 0.6 && q[2] > -1.2 ? [mats.casacoForro, 1] : null) });
+  ell('casaco', g.hood, mats.casaco, at(J.neck, R.chest, [0, 3.2, -4.6]), R.chest, [5.2, 3.0, 2.7], { lineThr: 0.4 });
+  // Abas: pano em volta da cintura (aberto na frente), caindo até o joelho.
+  const NU = 12, NV = 5;
+  const ring = [], radial = [];
+  const ringY = c.pelvisR[1] * 0.55 + 0.4;
+  for (let i = 0; i <= NU; i++) {
+    const th = lerp(22 * DEG, 338 * DEG, i / NU);
+    ring.push(at(c.pelvisC, R.pelvis, [Math.sin(th) * (c.pelvisR[0] + 1.7), ringY, Math.cos(th) * (c.pelvisR[2] + 1.7)]));
+    radial.push(norm(apply(R.pelvis, [Math.sin(th), 0, Math.cos(th)])));
+  }
+  const kneeY = Math.min(J.kneeL[1], J.kneeR[1]);
+  const L = Math.max(5, ring[NU >> 1][1] - (kneeY - 0.6));
+  const ls = (L / NV) * 1.04;
+  // As abas encostam no quadril e nas pernas com a calça (não nos braços: as mãos passam por fora delas).
+  const legs = [{ k: 'e', c: c.pelvisC, m: R.pelvis, r: add3(c.pelvisR, 1.4) }];
+  for (const key of ['L', 'R']) {
+    legs.push({ k: 't', a: J[`hip${key}`], b: J[`knee${key}`], ra: c.rLeg.thigh[0] + 1.5, rb: c.rLeg.thigh[1] + 1.4 });
+    legs.push({ k: 't', a: J[`knee${key}`], b: J[`ankle${key}`], ra: c.rLeg.shin[0] + 1.3, rb: c.rLeg.shin[1] + 1.3 });
+  }
+  const back = scl(norm([R.pelvis[2], 0, R.pelvis[8]]), -1);
+  const grid = drape(c.S, ring, radial, NV, ls, legs, back, {
+    flow: Math.min(1.85, c.flow * 1.85), phase: c.phase, spread: 1.6, open: (j) => (j === 0 ? 0 : 0.6 * j),
+    // A frente cai reta (perto das pernas); a parte de trás abre só um pouco (parado, o casaco cai reto, sem virar
+    // sino) e é um pouco mais comprida (a cauda do casaco). Andando e correndo, quem leva a aba para trás é o vento.
+    fan: (u) => { const back = 0.5 - 0.5 * Math.cos(u * TAU); return 0.08 + 0.12 * back; },
+    longer: (u) => 1 + 0.14 * (0.5 - 0.5 * Math.cos(u * TAU)),
+  });
+  // Bolsos (a abertura, um traço) e a barra (um tom de sombra).
+  const paint = (u, v) => {
+    if (v > 0.86) return [null, 1];
+    const pu = Math.min(Math.abs(u - 0.16), Math.abs(u - 0.84));
+    if (pu < 0.055 && v > 0.22 && v < 0.3) return [null, 5];
+    return null;
+  };
+  emitCloth(c, grid, { layer: 'casaco', grp: G(), mat: mats.casaco, back: mats.casacoForro, paint });
+}
+
+/** Calça: básica (até o meio da canela, com faixas), a do conjunto (inteira, com faixas) ou a larga do casaco. */
+function pantsLayer(c) {
+  const { J, R, mats, ell, tube, G, g } = c;
+  g.pants = G();
+  const vest = c.outfit === 'vila', coat = c.outfit === 'casaco';
+  const legsMat = vest ? mats.terno : mats.calca;
+  ell('calca', g.pants, legsMat, c.pelvisC, R.pelvis, add3(c.pelvisR, 0.7), { clip: (q) => q[1] < 1.5 });
   for (const key of ['L', 'R']) {
     const hp = J[`hip${key}`], kn = J[`knee${key}`], an = J[`ankle${key}`];
-    const g = limbs[`leg${key}`];
+    const gl = (g[`pants${key}`] = G());
+    const baggy = coat ? 1.35 : 0.7;
+    tube('calca', gl, legsMat, hp, kn, c.rLeg.thigh[0] + baggy, c.rLeg.thigh[1] + baggy, LIMB);
+    if (coat) {
+      // Inteira e larga: com bota, enfiada no cano; sem bota, com a barra dobrada no tornozelo.
+      const boots = SHOES[c.look.shoes]?.sprite === 'bota';
+      tube('calca', gl, legsMat, kn, boots ? mix(kn, an, 0.6) : an, c.rLeg.shin[0] + baggy, (boots ? lerp(c.rLeg.shin[0], c.rLeg.shin[1], 0.6) : c.rLeg.shin[1]) + baggy + 0.3,
+        { ...LIMB, paint: (k) => (!boots && k > 0.86 ? [null, 1] : null) });
+      continue;
+    }
     const cut = vest ? 0.7 : 0.5;
-    tube('calca', g, legs, hp, kn, (fem ? 4.0 : 3.9) + 0.7, 3.0 + 0.7, LIMB);
-    tube('calca', g, legs, kn, mix(kn, an, cut), 3.0 + 0.7, lerp(3.0, 2.1, cut) + 0.75, LIMB);
+    tube('calca', gl, legsMat, kn, mix(kn, an, cut), c.rLeg.shin[0] + 0.7, lerp(c.rLeg.shin[0], c.rLeg.shin[1], cut) + 0.75, LIMB);
     const wrap = vest ? mats.faixa_vila : mats.faixa;
-    tube('calca', g, wrap, mix(kn, an, cut - 0.08), an, lerp(3.0, 2.1, cut) + 0.3, 2.1 + 0.45,
+    tube('calca', gl, wrap, mix(kn, an, cut - 0.08), an, lerp(c.rLeg.shin[0], c.rLeg.shin[1], cut) + 0.3, c.rLeg.shin[1] + 0.45,
       { ...LIMB, paint: (k) => (Math.floor(k * 6) % 2 ? [null, 1] : null) });
   }
-  // Acessório do conjunto: porta-kunai preso na coxa direita (com a faixa) e a bolsinha atrás da cintura.
-  if (vest) {
+}
+
+/** Acessórios: porta-kunai na coxa e bolsinha na cintura (conjunto da vila); o nó da faixa com as pontas (casaco). */
+function accessoryLayer(c) {
+  const { J, R, mats, ell, tube, at, G, g } = c;
+  if (c.outfit === 'vila') {
     const kn = J.kneeR, hp = J.hipR, tr = R.thighR;
-    const ga = G();
     const mid = mix(hp, kn, 0.55);
-    ell('acessorio', limbs.legR, mats.faixa_vila, mid, tr, [4.5, 1.6, 4.5], { paint: (q) => (Math.abs(q[1]) > 0.8 ? [null, 1] : null) });
-    ell('acessorio', ga, mats.preto, at(mid, tr, [-4.2, -0.4, 0.6]), tr, [1.5, 2.8, 2.5]);
-    ell('acessorio', G(), mats.couro, at(pelvisC, R.pelvis, [0, 0.8, -(pelvisR[2] + 0.6)]), R.pelvis, [3.6, 2.0, 1.8]);
+    ell('acessorio', g.pantsR, mats.faixa_vila, mid, tr, [4.5, 1.6, 4.5], { paint: (q) => (Math.abs(q[1]) > 0.8 ? [null, 1] : null) });
+    ell('acessorio', G(), mats.preto, at(mid, tr, [-4.2, -0.4, 0.6]), tr, [1.5, 2.8, 2.5]);
+    ell('acessorio', G(), mats.couro, at(c.pelvisC, R.pelvis, [0, 0.8, -(c.pelvisR[2] + 0.6)]), R.pelvis, [3.6, 2.0, 1.8]);
   }
-  // Sapatos.
-  const shoe = SHOES[look.shoes];
-  if (shoe) {
-    for (const key of ['L', 'R']) {
-      const an = J[`ankle${key}`], kn = J[`knee${key}`], fr = R[`foot${key}`];
-      const fc = at(an, fr, [0, -B.ankle + 1.6, (B.foot - 1.6) / 2]);
-      const fl = (B.foot + 1.6) / 2 + 0.6;
-      const g = limbs[`foot${key}`];
-      if (shoe.sprite === 'bota') {
-        ell('sapato', g, mats.sapato, fc, fr, [2.9, 2.2, fl + 0.5], { ...LIMB, paint: (q) => (q[1] < -1.2 ? [mats.sola, null] : null) });
-        tube('sapato', limbs[`leg${key}`], mats.sapato, an, mix(an, kn, 0.5), 2.1 + 0.8, lerp(2.1, 3.0, 0.5) + 0.8,
-          { paint: (k) => (k > 0.82 ? [mats.sapato2, null] : null) });
-      } else {
-        // Sandália ninja: sola, calcanhar e peito do pé fechados, dedos de fora; sobe um pouco no tornozelo.
-        ell('sapato', g, mats.sapato, fc, fr, [2.8, 2.1, fl + 0.4],
-          { ...LIMB, clip: (q) => q[2] < fl * 0.25 || q[1] < -1.1, paint: (q) => (q[1] < -1.1 ? [mats.sola, null] : null) });
-        tube('sapato', limbs[`leg${key}`], mats.sapato, an, mix(an, kn, 0.16), 2.1 + 0.6, 2.4 + 0.6);
+  if (c.outfit === 'casaco') {
+    // Nó da faixa na frente (no vão do casaco) com duas pontas curtas que pendem e balançam.
+    const gk = G();
+    const knot = at(c.bellyC, R.chest, [0.6, -c.bellyR[1] * 0.6, c.bellyR[2] + 1.2]);
+    ell('acessorio', gk, mats.preto, knot, R.chest, [1.5, 1.2, 1.1], { lineThr: 0.3 });
+    const side = apply(R.chest, [1, 0, 0]);
+    for (const [dx, n] of [[-0.5, 2], [0.6, 3]]) {
+      const start = add(knot, apply(R.chest, [dx, -0.9, 0.2]));
+      const sway = Math.sin((c.phase * 2 + dx) * TAU) * (0.08 + c.flow * 0.2);
+      const pts = hangChain(start, n, 1.5, swingDir(c.S, c.flow * 0.7, sway), c.colliders, side);
+      for (let i = 0; i + 1 < pts.length; i++) tube('acessorio', gk, mats.preto, pts[i], pts[i + 1], 0.85, 0.7, { lineThr: 0.3 });
+    }
+  }
+}
+
+/** Sapatos: sandália ninja (dedos de fora, sobe um pouco no tornozelo) ou bota (cano até o meio da canela, com a dobra). */
+function shoesLayer(c) {
+  const shoe = SHOES[c.look.shoes];
+  if (!shoe) return;
+  const { J, R, mats, ell, tube, at, g } = c;
+  for (const key of ['L', 'R']) {
+    const an = J[`ankle${key}`], kn = J[`knee${key}`], fr = R[`foot${key}`];
+    const fc = c.footC(key), fl = c.footLen;
+    const gf = g[`foot${key}`], gl = g[`leg${key}`];
+    if (shoe.sprite === 'bota') {
+      // Bota grossa: o pé largo com a sola clara e o cano até o meio da canela, com a borda dobrada.
+      ell('sapato', gf, mats.sapato, at(fc, fr, [0, 0.25, 0.2]), fr, [3.4, 2.7, fl + 0.9], { ...LIMB, paint: (q) => (q[1] < -1.55 ? [mats.sola, null] : null) });
+      tube('sapato', gl, mats.sapato, an, mix(an, kn, 0.5), c.rLeg.shin[1] + 1.7, lerp(c.rLeg.shin[1], c.rLeg.shin[0], 0.5) + 1.6,
+        { ...LIMB, paint: (k) => (k > 0.88 ? [mats.sapato2, null] : null) });
+    } else {
+      ell('sapato', gf, mats.sapato, fc, fr, [2.8, 2.1, fl + 0.4],
+        { ...LIMB, clip: (q) => q[2] < fl * 0.25 || q[1] < -1.1, paint: (q) => (q[1] < -1.1 ? [mats.sola, null] : null) });
+      tube('sapato', gl, mats.sapato, an, mix(an, kn, 0.16), c.rLeg.shin[1] + 0.6, c.rLeg.shin[1] + 0.9);
+    }
+  }
+}
+
+/** Cabelo: a calota (até a linha do cabelo) e as mechas do penteado (cada mecha com o seu traço) ou os mantos (liso). */
+function hairLayer(c) {
+  const { S, mats, ell, tube, at, G, hx, hy, hz, headC, headR } = c;
+  const hair = hairShapes(c.look.hairStyle, hx, hy, hz);
+  // A calota e as mechas de trás são um grupo só: o traço aparece só onde uma mecha passa na frente da outra (como na
+  // referência), não em volta de cada mecha. A franja tem o seu grupo (traço em cima do rosto).
+  const gHair = G(), gBangs = G();
+  ell('cabelo', gHair, mats.cabelo, headC, headR, [hx + 1.4, hy + 1.4, hz + 1.4],
+    { clip: (q) => q[1] > hair.line(q[2] / (hz + 1.4), q[0] / (hx + 1.4)), tex: (q) => strands(Math.atan2(q[0], q[2]) * 3.2 + q[1] * 0.05) * 0.6 });
+  for (const lock of hair.locks) {
+    const pts = lock.pts.map((v) => at(headC, headR, v));
+    for (let i = 0; i + 1 < pts.length; i++) {
+      tube('cabelo', lock.front ? gBangs : gHair, mats.cabelo, pts[i], pts[i + 1], lock.r[i], lock.r[i + 1], { lineThr: lock.front ? 0.9 : 1.3, radial: headC, radialK: 0.45 });
+    }
+  }
+  // Mechas em lâmina (a ponta afiada do anime): duas metades com uma crista no meio, cada uma com o seu traço.
+  for (const b of hair.blades || []) {
+    const geo = bladeGeometry(b, hx, hy, hz);
+    const grp = G();
+    const W3 = (v) => at(headC, headR, v);
+    const N = (v) => norm(apply(headR, v));
+    const base = { layer: 'cabelo', grp, mat: mats.cabelo, back: mats.cabeloDentro, lineThr: b.front ? 0.6 : 0.7 };
+    for (let i = 0; i + 1 < geo.ridge.length; i++) {
+      const out = N(geo.n[i]);
+      for (const [e, en] of [[geo.left, geo.nl], [geo.right, geo.nr]]) {
+        c.P({ k: 'tri', ...base, v: [W3(geo.ridge[i]), W3(e[i]), W3(geo.ridge[i + 1])], uv: [[0, 0], [0, 0], [0, 0]], vn: [N(geo.n[i]), N(en[i]), N(geo.n[i + 1])], out });
+        c.P({ k: 'tri', ...base, v: [W3(e[i]), W3(e[i + 1]), W3(geo.ridge[i + 1])], uv: [[0, 0], [0, 0], [0, 0]], vn: [N(en[i]), N(en[i + 1]), N(geo.n[i + 1])], out });
       }
     }
   }
-
-  // ---- cabelo
-  const hair = hairShapes(look.hairStyle, hx, hy, hz);
-  const gHair = G();
-  const hairline = hair.line;
-  ell('cabelo', gHair, mats.cabelo, headC, headR, [hx + 1.4, hy + 1.4, hz + 1.4],
-    { clip: (q) => q[1] > hairline(q[2] / (hz + 1.4), q[0] / (hx + 1.4)), tex: (q) => strands(Math.atan2(q[0], q[2]) * 5.2 + q[1] * 0.05) });
-  for (const lock of hair.locks) {
-    const g = lock.front ? G() : gHair;
-    const pts = lock.pts.map((v) => at(headC, headR, v));
-    for (let i = 0; i + 1 < pts.length; i++) {
-      tube('cabelo', g, mats.cabelo, pts[i], pts[i + 1], lock.r[i], lock.r[i + 1], { lineThr: lock.front ? 1.2 : 2.4, radial: headC });
-    }
-  }
-  // Mantos de cabelo (cabelo liso): elipsoides presos na cabeça, com as pontas recortadas.
   for (const sh of hair.sheets || []) {
-    let c = at(headC, headR, sh.c), m = headR;
+    let ctr = at(headC, headR, sh.c), m = headR;
     if (sh.hang) {
-      // Mecha que pende: presa no alto dela (na cabeça), cai na direção da gravidade (para trás com o vento da corrida,
-      // balançando com o passo), não na direção da cabeça.
+      // Mecha que pende: presa no alto dela, cai na direção da gravidade (para trás com o vento, balançando no passo).
       const top = at(headC, headR, [sh.c[0], sh.c[1] + sh.r[1] * 0.55, sh.c[2]]);
-      const sway = Math.sin(phase * TAU * (flow > 0.2 ? 2 : 1)) * (0.04 + flow * 0.1);
-      const down = scl(swingDir(S, flow * 0.5, sway, sh.c[0] > 0 ? -0.15 : sh.c[0] < 0 ? 0.15 : 0), 1);
+      const sway = Math.sin(c.phase * TAU * (c.flow > 0.2 ? 2 : 1)) * (0.04 + c.flow * 0.1);
+      const down = swingDir(S, c.flow * 0.5, sway, sh.c[0] > 0 ? -0.15 : sh.c[0] < 0 ? 0.15 : 0);
       const yh = scl(down, -1);
       const hxv = apply(headR, [1, 0, 0]);
       const xh = norm(sub(hxv, scl(yh, dot(hxv, yh))));
       const zh = cross(xh, yh);
       m = [xh[0], yh[0], zh[0], xh[1], yh[1], zh[1], xh[2], yh[2], zh[2]];
-      c = add(top, scl(down, sh.r[1] * 0.55));
+      ctr = add(top, scl(down, sh.r[1] * 0.55));
     }
-    ell('cabelo', sh.front ? G() : gHair, mats.cabelo, c, m, sh.r,
-      { clip: sh.clip, paint: sh.paint, lineThr: sh.front ? 1 : 2.4, tex: (q) => strands(q[0] / 2.4 + q[1] * 0.04 + sh.c[0]) });
+    ell('cabelo', G(), mats.cabelo, ctr, m, sh.r, { clip: sh.clip, paint: sh.paint, lineThr: sh.front ? 0.8 : 2.4, tex: (q) => strands(q[0] / 2.4 + q[1] * 0.04 + sh.c[0]) });
   }
-
-  // ---- bandana (faixa, placa de metal com o símbolo e o nó com as pontas atrás)
-  if (look.bandana) {
-    const gb = G();
-    const band = (q) => q[1] > hy * 0.16 && q[1] < hy * 0.42;
-    ell('chapeu', gb, mats.bandana, headC, headR, [hx + 2.0, hy + 2.0, hz + 2.0], { clip: band, zb: 3 });
-    const gp = G();
-    ell('chapeu', gp, mats.aco, headC, headR, [hx + 2.7, hy + 2.7, hz + 2.7],
-      { clip: (q) => q[1] > hy * 0.13 && q[1] < hy * 0.45 && q[2] > 0 && Math.abs(q[0]) < hx * 0.36, zb: 3, lineThr: 0.25 });
-    stamps.push({ layer: 'chapeu', kind: 'placa', at: at(headC, headR, [0, hy * 0.29, hz + 2.7]), normal: apply(headR, [0, 0.25, 0.97]), village: look.village, scratch: !!opts.renegade, mat: mats.aco });
-    const knot = at(headC, headR, [0, hy * 0.3, -(hz + 3.6)]);
-    ell('chapeu', gb, mats.bandana, knot, headR, [2.4, 2.0, 1.8], { zb: 2 });
-    // Pontas da bandana: duas correntinhas de pano caindo do nó (gravidade, vento da corrida e encostando na cabeça e
-    // nas costas).
-    const tailBack = norm(sub(knot, headC));
-    for (const side of [1, -1]) {
-      const start = add(knot, apply(headR, [side * 1.2, -0.6, 0]));
-      const flutter = Math.sin((phase * 2 + side * 0.23) * TAU) * (0.15 + flow * 0.4);
-      // (a cabeça, para as pontas, é a cabeça com o volume do cabelo: elas caem por cima dele)
-      const hairy = [{ k: 'e', c: headC, m: headR, r: [hx + 4.2, hy + 4.2, hz + 4.2] }, ...colliders.slice(1)];
-      const pts = hangChain(start, 5, 2.2, swingDir(S, flow, flutter, side * 0.25), hairy, tailBack);
-      for (let i = 0; i + 1 < pts.length; i++) {
-        tube('chapeu', gb, mats.bandana, pts[i], pts[i + 1], lerp(1.4, 0.9, i / 4), lerp(1.4, 0.9, (i + 1) / 4), { zb: 2 });
-      }
-    }
-  }
-
-  // ---- capa
-  if (opts.cape) capeShapes({ ...S, chestBack: chestR[2] + 1.2 + vestOn }, mats, opts, P, stamps, G(), colliders);
-
-  // ---- rosto: olhos, sobrancelhas e boca (carimbos)
-  stamps.push({ layer: 'olhos', kind: 'olhos', head, hx, hy, hz }, { layer: 'boca', kind: 'boca', head, hx, hy, hz });
-  return { prims, stamps, head, hx, hy, hz };
 }
 
-const add3 = (r, d) => [r[0] + d, r[1] + d, r[2] + d];
+/** Bandana: faixa, placa de metal (símbolo da vila gravado, rebites; riscada no renegado), nó e as duas pontas com física. */
+function hatLayer(c) {
+  if (!c.look.bandana) return;
+  const { S, mats, ell, tube, at, G, hx, hy, hz, headC, headR } = c;
+  const gb = G(), gp = G();
+  ell('chapeu', gb, mats.bandana, headC, headR, [hx + 2.0, hy + 2.0, hz + 2.0], { clip: (q) => q[1] > hy * 0.16 && q[1] < hy * 0.42, zb: 3 });
+  ell('chapeu', gp, mats.aco, headC, headR, [hx + 2.7, hy + 2.7, hz + 2.7],
+    { clip: (q) => q[1] > hy * 0.13 && q[1] < hy * 0.45 && q[2] > 0 && Math.abs(q[0]) < hx * 0.36, zb: 3, lineThr: 0.25 });
+  const plate = (x) => ({ layer: 'chapeu', at: at(headC, headR, [x, hy * 0.29, hz + 2.7]), normal: apply(headR, [0, 0.25, 0.97]), mat: mats.aco });
+  c.stamps.push({ ...plate(0), kind: 'placa', village: c.look.village, scratch: !!c.opts.renegade });
+  for (const s of [1, -1]) c.stamps.push({ ...plate(s * hx * 0.29), kind: 'rebite' });
+  const knot = at(headC, headR, [0, hy * 0.3, -(hz + 3.6)]);
+  ell('chapeu', gb, mats.bandana, knot, headR, [2.4, 2.0, 1.8], { zb: 2 });
+  // Pontas: duas correntinhas de pano caindo do nó, por cima do cabelo.
+  const tailBack = norm(sub(knot, headC));
+  const hairy = [{ k: 'e', c: headC, m: headR, r: [hx + 4.2, hy + 4.2, hz + 4.2] }, ...c.colliders.slice(1)];
+  for (const side of [1, -1]) {
+    const start = add(knot, apply(headR, [side * 1.2, -0.6, 0]));
+    const flutter = Math.sin((c.phase * 2 + side * 0.23) * TAU) * (0.15 + c.flow * 0.4);
+    const pts = hangChain(start, 5, 2.2, swingDir(S, c.flow, flutter, side * 0.25), hairy, tailBack);
+    for (let i = 0; i + 1 < pts.length; i++) tube('chapeu', gb, mats.bandana, pts[i], pts[i + 1], lerp(1.4, 0.9, i / 4), lerp(1.4, 0.9, (i + 1) / 4), { zb: 2 });
+  }
+}
+
+/** Capa: presa por cima dos ombros, cai pelas costas até o meio da canela (física do pano), com a barra e o emblema. */
+function capeLayer(c) {
+  const { J, R, B, mats, opts } = c;
+  const NU = 10, NV = 9;
+  const back = scl(norm([R.pelvis[2], 0, R.pelvis[8]]), -1);
+  const thick = c.outfit === 'vila' ? 1 : c.outfit === 'casaco' ? 1.6 : 0;
+  const back3 = c.chestR[2] + 1.2 + thick;
+  const collar = [], radial = [];
+  for (let i = 0; i <= NU; i++) {
+    const u = 2 * (i / NU) - 1, u2 = u * u;
+    const local = [-u * (B.shoulder + 3.2 + thick * 0.5), lerp(B.chest + 0.7 + thick * 0.5, B.shoulderY + 3.2 + thick * 0.5, u2), lerp(-back3, 0.4, u2 * u2)];
+    collar.push(add(J.waist, apply(R.chest, local)));
+    radial.push(norm(apply(R.chest, [local[0] * 0.7, 0, local[2] - 1])));
+  }
+  const L = Math.max(10, collar[NU >> 1][1] - 7);
+  const ls = (L / NV) * 1.1;
+  const grid = drape(c.S, collar, radial, NV, ls, c.colliders, back, { flow: c.flow, phase: c.phase, fan: 0.16, spread: 2.1 });
+  const vn = emitCloth(c, grid, { layer: 'capa', grp: c.G(), mat: mats.capa, back: mats.forro, paint: (u, v) => (v > 0.9 ? [mats.barra, null] : null) });
+  // Emblema nas costas (só aparece se o lado de fora estiver virado para a câmera ali).
+  const point = (u, v) => {
+    const fi = u * NU, fj = v * NV, i = Math.min(NU - 1, Math.floor(fi)), j = Math.min(NV - 1, Math.floor(fj));
+    const ku = fi - i, kv = fj - j;
+    const p = mix(mix(grid[j][i], grid[j][i + 1], ku), mix(grid[j + 1][i], grid[j + 1][i + 1], ku), kv);
+    const n = norm(mix(mix(vn[j][i], vn[j][i + 1], ku), mix(vn[j + 1][i], vn[j + 1][i + 1], ku), kv));
+    return [add(p, scl(n, 0.3)), n];
+  };
+  const emblem = { manto_akatsuki: [[0.4, 0.34, 'nuvem'], [0.6, 0.52, 'nuvem'], [0.43, 0.72, 'nuvem']], manto_kage: [[0.5, 0.45, 'kage']],
+    manto_campeao: [[0.5, 0.42, 'circulo']], capa_vila: [[0.5, 0.42, 'circulo_vila']] }[opts.cape] || [];
+  for (const [u, v, kind] of emblem) {
+    const [p, n] = point(u, v);
+    c.stamps.push({ layer: 'capa', kind: 'capa', emblem: kind, at: p, normal: n, mat: mats.barra, cape: opts.cape });
+  }
+}
+
 /** Fios do cabelo: listras de luz e sombra (o brilho do cabelo fica quebrado em mechas, como no anime). */
 const strands = (t) => { const f = t - Math.floor(t); return f < 0.18 ? -0.22 : f < 0.5 ? 0.06 : 0; };
-/** Braços, pernas, mãos e pés: traço por dentro mesmo quando passam só um pouco na frente do corpo. */
-const LIMB = { lineThr: 0.6 };
+
+/**
+ * Mecha em lâmina, no espaço da cabeça: sai da base (az0, el0) e vai até a ponta (az1, el1), `out` px para fora do
+ * cabelo, curvando `bend` px para fora no meio. Larga na base (`w`), afina até a ponta (0), com uma crista no meio
+ * (`ridge`) que divide a luz: um lado claro, o outro na sombra.
+ */
+function bladeGeometry(b, hx, hy, hz) {
+  const R = [hx + 1.4, hy + 1.4, hz + 1.4];
+  const S = (az, el, out = 0) => {
+    const a = az * DEG, e = el * DEG;
+    return [Math.sin(a) * Math.cos(e) * (R[0] + out), Math.sin(e) * (R[1] + out), Math.cos(a) * Math.cos(e) * (R[2] + out)];
+  };
+  const lift = b.lift ?? 0.7;
+  const p0 = S(b.a0, b.e0, lift - 1.2), p2 = S(b.a1, b.e1, b.out);
+  const p1 = S((b.a0 + b.a1) / 2 + (b.twist || 0), (b.e0 + b.e1) / 2, lift + (b.bend ?? 1.2));
+  const ridge = [], left = [], right = [], n = [], nl = [], nr = [];
+  const NS = 6;
+  for (let i = 0; i <= NS; i++) {
+    const t = i / NS, u = 1 - t;
+    const B = [0, 1, 2].map((k) => u * u * p0[k] + 2 * u * t * p1[k] + t * t * p2[k]);
+    const T = norm([0, 1, 2].map((k) => 2 * u * (p1[k] - p0[k]) + 2 * t * (p2[k] - p1[k])));
+    const n0 = norm([B[0] / (R[0] * R[0]), B[1] / (R[1] * R[1]), B[2] / (R[2] * R[2])]);
+    let side = cross(T, n0);
+    if (len(side) < 0.2) side = cross(T, [0, 0, 1]);
+    side = norm(side);
+    const w = b.w * Math.pow(u, 0.9), h = (b.ridge ?? 1.2) * Math.pow(u, 0.7);
+    ridge.push(add(B, scl(n0, h)));
+    left.push(sub(B, scl(side, w)));
+    right.push(add(B, scl(side, w)));
+    n.push(n0);
+    nl.push(norm(sub(scl(n0, 0.55), scl(side, 0.85))));
+    nr.push(norm(add(scl(n0, 0.55), scl(side, 0.85))));
+  }
+  return { ridge, left, right, n, nl, nr };
+}
 
 /**
  * Formas de cada penteado, no espaço da cabeça (x esquerda, y cima, z frente): `line(f, s)` = altura da linha do
- * cabelo (f: 1 frente, -1 nuca; s: lado) e as mechas (tubos com 2 ou 3 pontos e raios).
+ * cabelo (f: 1 frente, -1 nuca; s: lado), as mechas (tubos com 3 pontos e raios) e os mantos (cabelo liso).
  */
 function hairShapes(style, hx, hy, hz) {
   const R = [hx + 0.6, hy + 0.6, hz + 0.6];
   // Ponto na superfície da cabeça: az (graus; 0 = frente, +90 = esquerda dele), el (graus; 90 = topo), + fora.
   const S = (az, el, out = 0) => {
-    const a = (az * Math.PI) / 180, e = (el * Math.PI) / 180;
+    const a = az * DEG, e = el * DEG;
     return [Math.sin(a) * Math.cos(e) * (R[0] + out), Math.sin(e) * (R[1] + out), Math.cos(a) * Math.cos(e) * (R[2] + out)];
   };
   const locks = [];
-  // Mecha espetada: da base (az, el) até a ponta na direção (az2, el2) a `len` px da cabeça, curvando um pouco.
-  const spike = (az, el, az2, el2, ln, rb, bend = 1.2) => {
+  // Mecha: da base (az, el) até a ponta na direção (az2, el2) a `len` px da cabeça, curvando (`bend`, para fora).
+  const spike = (az, el, az2, el2, ln, rb, bend = 1.2, tip = 0.45) => {
     const base = S(az, el, -1.6);
-    const tip = S(az2, el2, ln);
-    const mid = add(mix(base, tip, 0.5), scl(norm(S(az2, el2, 0)), bend));
-    locks.push({ pts: [base, mid, tip], r: [rb, rb * 0.6, 0.45] });
+    const end = S(az2, el2, ln);
+    const mid = add(mix(base, end, 0.5), scl(norm(S(az2, el2, 0)), bend));
+    locks.push({ pts: [base, mid, end], r: [rb, rb * 0.62, tip] });
   };
   // Franja: da base no alto da testa até a ponta na frente do rosto (rente à cabeça).
   const bang = (az, el, az2, el2, rb, out = 1.6) => {
     const base = S(az, el, -1.2);
-    const tip = S(az2, el2, out);
+    const end = S(az2, el2, out);
     const mid = S((az + az2) / 2, (el + el2) / 2, out + 1.6);
-    locks.push({ pts: [base, mid, tip], r: [rb, rb * 0.7, 0.5], front: true });
+    locks.push({ pts: [base, mid, end], r: [rb, rb * 0.62, 0.4], front: true });
   };
   if (style === 'longo_lateral') {
-    // Liso e comprido (como o antigo): franja de lado com as pontas recortadas, duas mechas emoldurando o rosto até o
-    // peito e a cortina de trás até as costas. As mechas são mantos lisos (elipsoides), não tubos.
+    // Liso e comprido: franja de lado com as pontas recortadas, duas mechas emoldurando o rosto até o peito e a
+    // cortina de trás até as costas (mantos lisos, que pendem com a gravidade).
     const tri = (t) => Math.abs((((t % 1) + 1) % 1) - 0.5) * 2;
     const teeth = (x, w = 3.4, h = 2.2) => h * tri(x / w + 0.25);
     const fr = [hx + 2.0, hy + 2.0, hz + 2.0];
     const sheets = [
-      { c: [0, 0, 0], r: fr, front: true,
-        clip: (q) => q[2] > hz * 0.1 && q[1] > hy * (0.1 - 0.2 * (q[0] / fr[0])) + teeth(q[0] + 40) },
+      { c: [0, 0, 0], r: fr, front: true, clip: (q) => q[2] > hz * 0.1 && q[1] > hy * (0.1 - 0.2 * (q[0] / fr[0])) + teeth(q[0] + 40) },
     ];
     for (const s of [1, -1]) {
       const r = [4.4, hy * 0.98, hz * 0.6];
@@ -551,31 +798,68 @@ function hairShapes(style, hx, hy, hz) {
       paint: (q) => (q[1] < -hy * 0.15 && tri(q[0] / 3.1) < 0.16 ? [null, 1] : null) });
     return { line: (f) => (f > 0 ? hy * (0.05 + 0.2 * f) : hy * (0.05 - 0.95 * -f)), locks, sheets };
   }
-  // Espetado (padrão): coroa de pontas para cima e para trás, franja em pontas sobre a testa.
-  spike(0, 58, 0, 80, 7.5, 4.6);
-  for (const s of [1, -1]) {
-    spike(s * 34, 52, s * 42, 66, 8.5, 4.6);
-    spike(s * 70, 36, s * 84, 40, 8, 4.4);
-    spike(s * 112, 34, s * 120, 34, 8, 4.4);
-    spike(s * 148, 26, s * 154, 18, 7.5, 4.4);
-    spike(s * 100, 6, s * 108, -8, 6, 3.6);
-    spike(s * 160, -2, s * 164, -18, 6, 3.8);
+  if (style === 'baguncado') {
+    // Bagunçado (o da referência): mechas em lâmina saindo do redemoinho (atrás, no alto): a franja cheia caindo
+    // sobre a testa até a sobrancelha (a do meio desce entre os olhos), mechas para os lados, na frente das orelhas,
+    // algumas pontas espetadas para cima e para trás e a nuca.
+    const blades = [];
+    const B = (a0, e0, a1, e1, out, w, extra = {}) => blades.push({ a0, e0, a1, e1, out, w, ...extra });
+    // franja: poucas mechas largas, de comprimentos diferentes (a do meio desce entre os olhos; entre elas aparece a
+    // testa); as de fora param acima do olho, para o perfil mostrar o rosto
+    B(-2, 68, -6, -18, 1.1, 5.6, { front: true, bend: 1.9 });
+    B(28, 64, 40, -12, 1.1, 5.2, { front: true, bend: 1.7 });
+    B(-32, 64, -42, -10, 1.1, 5.2, { front: true, bend: 1.7 });
+    B(54, 58, 62, -8, 1.3, 4.4, { front: true, bend: 1.5 });
+    B(-56, 58, -62, -6, 1.3, 4.4, { front: true, bend: 1.5 });
+    // lados: na frente da orelha, descendo até a bochecha, e as laterais abrindo para fora
+    B(-76, 52, -84, -30, 1.3, 4.2, { front: true });
+    B(78, 52, 86, -28, 1.3, 4.2, { front: true });
+    B(-96, 62, -114, 18, 4.4, 5.6, { bend: 1.8 });
+    B(98, 62, 116, 20, 4.4, 5.6, { bend: 1.8 });
+    // topo: mechas deitadas que levantam na ponta (volume), e para trás
+    B(170, 82, 40, 64, 1.0, 7.0, { bend: 2.0 });
+    B(-170, 82, -48, 62, 0.9, 7.0, { bend: 1.8 });
+    B(120, 70, 70, 40, 2.4, 6.0, { bend: 1.8 });                // volume do topo, abrindo para os lados
+    B(-120, 70, -72, 40, 2.4, 6.0, { bend: 1.8 });
+    B(172, 76, 128, 58, 5.0, 5.6, { bend: 2.4 });
+    B(-172, 76, -132, 56, 5.0, 5.6, { bend: 2.4 });
+    // trás e nuca
+    B(178, 72, 172, 30, 6.0, 6.0, { bend: 2.2 });
+    B(150, 58, 138, 12, 5.0, 5.2, { bend: 1.8 });
+    B(-150, 58, -140, 14, 5.0, 5.2, { bend: 1.8 });
+    B(176, 42, 182, -16, 2.6, 5.2);
+    B(128, 32, 122, -12, 2.2, 4.4);
+    B(-130, 32, -124, -10, 2.2, 4.4);
+    return { line: (f) => (f > 0 ? hy * (0.06 + 0.16 * f) : hy * (0.06 - 0.82 * -f)), locks, blades };
   }
-  spike(180, 48, 180, 54, 8, 4.6);
-  spike(180, 8, 180, -10, 6.5, 4.2);
-  for (const [az, el, az2, el2, rb] of [[0, 46, 0, 2, 4.2], [24, 44, 28, 0, 4.0], [-24, 44, -28, 0, 4.0], [50, 38, 58, -4, 3.8], [-50, 38, -58, -4, 3.8]]) bang(az, el, az2, el2, rb);
-  for (const s of [1, -1]) bang(s * 66, 24, s * 72, -22, 3.2, 1.2);
-  return { line: (f) => (f > 0 ? hy * (0.06 + 0.16 * f) : hy * (0.06 - 0.8 * -f)), locks };
+  // Espetado (estilo Naruto): coroa de pontas em cone, para cima, para os lados e para trás, e a franja em lâminas.
+  spike(0, 58, 0, 80, 7.5, 4.6, 1.2, 0.3);
+  for (const s of [1, -1]) {
+    spike(s * 34, 52, s * 42, 66, 8.5, 4.6, 1.2, 0.3);
+    spike(s * 70, 36, s * 84, 40, 8, 4.4, 1.2, 0.3);
+    spike(s * 112, 34, s * 120, 34, 8, 4.4, 1.2, 0.3);
+    spike(s * 148, 26, s * 154, 18, 7.5, 4.4, 1.2, 0.3);
+    spike(s * 100, 6, s * 108, -8, 6, 3.6, 1.2, 0.3);
+    spike(s * 160, -2, s * 164, -18, 6, 3.8, 1.2, 0.3);
+  }
+  spike(180, 48, 180, 54, 8, 4.6, 1.2, 0.3);
+  spike(180, 8, 180, -10, 6.5, 4.2, 1.2, 0.3);
+  const blades = [];
+  for (const [a0, e0, a1, e1, w] of [[0, 62, 2, -2, 5.4], [26, 60, 30, 2, 5.0], [-26, 60, -30, 2, 5.0], [50, 54, 60, -4, 4.6], [-50, 54, -60, -4, 4.6]]) {
+    blades.push({ a0, e0, a1, e1, out: 1.4, w, front: true, bend: 1.6 });
+  }
+  for (const s of [1, -1]) blades.push({ a0: s * 72, e0: 44, a1: s * 78, e1: -20, out: 1.2, w: 3.8, front: true });
+  return { line: (f) => (f > 0 ? hy * (0.06 + 0.16 * f) : hy * (0.06 - 0.8 * -f)), locks, blades };
 }
 
-// ------------------------------------------------------------------ física do pano (capa, pontas da bandana)
+// ------------------------------------------------------------------ física do pano (capa, abas do casaco, pontas)
 //
-// O pano é uma grade de pontos ligados (colunas que caem da gola). A cada quadro ele é resolvido do zero (o quadro fica
-// guardado, então a física tem de sair só da pose): a gravidade puxa cada ponto (para trás também, com o vento de
-// andar e correr), cada ponto fica a uma distância fixa do de cima (o pano não estica) e é empurrado para fora do corpo
-// (cabeça com o cabelo, tronco com a roupa, ombros, braços, coxas, canelas e pés). Repetindo isso algumas vezes, o pano
-// assenta nos ombros, cai pelas costas e se dobra por cima do braço e do joelho que vão para trás, em vez de ser
-// atravessado por eles.
+// O pano é uma grade de pontos ligados (colunas que caem de uma borda presa no corpo). A cada quadro ele é resolvido do
+// zero (o quadro fica guardado, então a física tem de sair só da pose): a gravidade puxa cada ponto (para trás também,
+// com o vento de andar e correr), cada ponto fica a uma distância fixa do de cima (o pano não estica), as colunas
+// vizinhas não se afastam mais do que o pano deixa, e cada ponto é empurrado para fora do corpo (cabeça com o cabelo,
+// tronco com a roupa, ombros, braços, quadril, coxas, canelas e pés). Repetindo isso algumas vezes, o pano assenta e se
+// dobra por cima do braço e do joelho que vão para trás, em vez de ser atravessado por eles.
 
 const MARGIN = 0.7;
 
@@ -612,7 +896,7 @@ function swingDir(S, flow, flutter = 0, sideK = 0) {
   return norm(add(add(scl([0, -1, 0], Math.cos(ang)), scl(back, Math.sin(ang))), scl(side, sideK * (0.2 + flow * 0.3))));
 }
 
-/** Uma corrente de `n` elos de `ls` px pendurada em `start` (pontas da bandana). */
+/** Uma corrente de `n` elos de `ls` px pendurada em `start` (pontas da bandana, pontas da faixa). */
 function hangChain(start, n, ls, dir, colliders, fallback) {
   const pts = [start];
   for (let i = 1; i <= n; i++) pts.push(add(start, scl(dir, ls * i)));
@@ -627,54 +911,35 @@ function hangChain(start, n, ls, dir, colliders, fallback) {
 }
 
 /**
- * Capa: presa numa gola em volta da base do pescoço, assenta por cima dos ombros, cai pelas costas até o meio da canela
- * e encosta no corpo (física acima). Desenhada em triângulos com a normal suave; por fora a cor da capa (com a barra e
- * o emblema), por dentro o forro.
+ * Pano pendurado numa borda (`ring`: os pontos presos, `radial`: para fora em cada um): NV fileiras de elos de `ls` px.
+ * o: { flow, phase, fan (abre em leque), spread (quanto a barra pode abrir em relação à borda), open (afastamento inicial) }.
  */
-function capeShapes(S, mats, opts, P, stamps, grp, colliders) {
-  const { J, R, B } = S;
-  const flow = opts.flow || 0, phase = opts.phase || 0;
-  const NU = 10, NV = 9;
-  const fwd = norm([R.pelvis[2], 0, R.pelvis[8]]);
-  const back = scl(fwd, -1);
-  // Borda de cima: presa por cima dos ombros (de uma ponta do ombro à outra, passando atrás do pescoço), como um manto.
-  const back3 = S.chestBack ?? 5.6;
-  const collar = [], radial = [];
-  for (let i = 0; i <= NU; i++) {
-    const c = 2 * (i / NU) - 1, c2 = c * c;
-    const local = [-c * (B.shoulder + 3.2), lerp(B.chest + 0.7, B.shoulderY + 3.2, c2), lerp(-back3, 0.4, c2 * c2)];
-    collar.push(add(J.waist, apply(R.chest, local)));
-    radial.push(norm(apply(R.chest, [local[0] * 0.7, 0, local[2] - 1])));
-  }
-  const L = Math.max(10, collar[NU >> 1][1] - 7);
-  const ls = (L / NV) * 1.1;
-  // Ponto de partida: abre a partir da gola (por cima dos ombros) e desce.
+function drape(S, ring, radial, NV, ls, colliders, fallback, o = {}) {
+  const NU = ring.length - 1;
+  const flow = o.flow || 0, phase = o.phase || 0, spread = o.spread ?? 2;
+  // Leque e comprimento podem mudar por coluna (a parte de trás do casaco abre mais e é mais comprida).
+  const fanOf = (i) => (typeof o.fan === 'function' ? o.fan(i / NU) : o.fan ?? 0.16);
+  const lsOf = (i) => ls * (o.longer ? o.longer(i / NU) : 1);
+  const open = o.open || ((j) => (j === 0 ? 0 : 0.8 + 0.4 * j));
   const grid = [];
-  for (let j = 0; j <= NV; j++) {
-    const row = [];
-    for (let i = 0; i <= NU; i++) {
-      const open = j === 0 ? 0 : 0.8 + 0.4 * j;
-      row.push(add(add(collar[i], scl(radial[i], open)), [0, -ls * j * 0.9, 0]));
-    }
-    grid.push(row);
-  }
-  // Física: gravidade (com vento e um leque para os lados), comprimento fixo de cada elo, corpo e chão.
+  for (let j = 0; j <= NV; j++) grid.push(ring.map((p, i) => add(add(p, scl(radial[i], open(j))), [0, -lsOf(i) * j * 0.9, 0])));
   const pull = grid.map((row, j) => row.map((_, i) => {
     const flutter = Math.sin((phase * 2 + (i / NU) * 0.7 + (j / NV) * 0.5) * TAU) * (0.05 + flow * 0.22) * (j / NV);
-    return scl(norm(add(swingDir(S, flow, flutter), scl(radial[i], 0.16))), ls * 0.45);
+    return scl(norm(add(swingDir(S, flow, flutter), scl(radial[i], fanOf(i)))), lsOf(i) * 0.45);
   }));
+  const rest = ring.slice(0, NU).map((p, i) => len(sub(ring[i + 1], p)));
   for (let it = 0; it < 9; it++) {
     for (let j = 1; j <= NV; j++) {
       const v = j / NV;
       for (let i = 0; i <= NU; i++) {
         let p = add(grid[j][i], pull[j][i]);
         const up = grid[j - 1][i];
-        p = add(up, scl(norm(sub(p, up)), ls));
-        grid[j][i] = collide(p, colliders, back);
+        p = add(up, scl(norm(sub(p, up)), lsOf(i)));
+        grid[j][i] = collide(p, colliders, fallback);
       }
       // O pano não abre mais do que a largura dele (as colunas vizinhas se puxam).
-      const wmax = lerp(ls * 0.9, ls * 1.25, v);
       for (let i = 0; i < NU; i++) {
+        const wmax = rest[i] * lerp(1.05, spread, v);
         const a = grid[j][i], b = grid[j][i + 1], d = sub(b, a), dl = len(d);
         if (dl <= wmax) continue;
         const fix = scl(d, (dl - wmax) / dl / 2);
@@ -683,8 +948,17 @@ function capeShapes(S, mats, opts, P, stamps, grp, colliders) {
       }
     }
   }
-  for (let j = 1; j <= NV; j++) for (let i = 0; i <= NU; i++) grid[j][i] = collide(grid[j][i], colliders, back);
-  // Normais suaves, viradas para fora (para longe da linha da coluna do boneco).
+  for (let j = 1; j <= NV; j++) for (let i = 0; i <= NU; i++) grid[j][i] = collide(grid[j][i], colliders, fallback);
+  return grid;
+}
+
+/**
+ * O pano em triângulos com a normal suave (virada para fora: para longe da linha da coluna do boneco). Por fora `mat`
+ * (com `paint(u, v)`), por dentro `back` (o forro). Devolve as normais dos vértices.
+ */
+function emitCloth(c, grid, base) {
+  const { J } = c;
+  const NV = grid.length - 1, NU = grid[0].length - 1;
   const spineA = J.pelvis, spineB = J.neck;
   const outOf = (p) => {
     const ab = sub(spineB, spineA), k = clamp(dot(sub(p, spineA), ab) / dot(ab, ab), 0, 1.2);
@@ -696,50 +970,36 @@ function capeShapes(S, mats, opts, P, stamps, grp, colliders) {
     const n = norm(cross(tu, tv));
     return dot(n, outOf(p)) < 0 ? scl(n, -1) : n;
   }));
-  const paint = (u, v) => (v > 0.9 ? [mats.barra, null] : null);
   const uv = (ii, jj) => [ii / NU, jj / NV];
   for (let j = 0; j < NV; j++) {
     for (let i = 0; i < NU; i++) {
-      const a = grid[j][i], b = grid[j][i + 1], c = grid[j + 1][i], d = grid[j + 1][i + 1];
+      const a = grid[j][i], b = grid[j][i + 1], d0 = grid[j + 1][i], d1 = grid[j + 1][i + 1];
       const out1 = norm(add(add(vn[j][i], vn[j][i + 1]), vn[j + 1][i]));
       const out2 = norm(add(add(vn[j][i + 1], vn[j + 1][i + 1]), vn[j + 1][i]));
-      P({ k: 'tri', layer: 'capa', grp, mat: mats.capa, back: mats.forro, v: [a, b, c], uv: [uv(i, j), uv(i + 1, j), uv(i, j + 1)],
-        vn: [vn[j][i], vn[j][i + 1], vn[j + 1][i]], out: out1, paint });
-      P({ k: 'tri', layer: 'capa', grp, mat: mats.capa, back: mats.forro, v: [b, d, c], uv: [uv(i + 1, j), uv(i + 1, j + 1), uv(i, j + 1)],
-        vn: [vn[j][i + 1], vn[j + 1][i + 1], vn[j + 1][i]], out: out2, paint });
+      c.P({ k: 'tri', ...base, v: [a, b, d0], uv: [uv(i, j), uv(i + 1, j), uv(i, j + 1)], vn: [vn[j][i], vn[j][i + 1], vn[j + 1][i]], out: out1 });
+      c.P({ k: 'tri', ...base, v: [b, d1, d0], uv: [uv(i + 1, j), uv(i + 1, j + 1), uv(i, j + 1)], vn: [vn[j][i + 1], vn[j + 1][i + 1], vn[j + 1][i]], out: out2 });
     }
   }
-  // Emblema nas costas (só aparece se o lado de fora estiver virado para a câmera ali).
-  const at = (u, v) => {
-    const fi = u * NU, fj = v * NV, i = Math.min(NU - 1, Math.floor(fi)), j = Math.min(NV - 1, Math.floor(fj));
-    const ku = fi - i, kv = fj - j;
-    const p = mix(mix(grid[j][i], grid[j][i + 1], ku), mix(grid[j + 1][i], grid[j + 1][i + 1], ku), kv);
-    const n = norm(mix(mix(vn[j][i], vn[j][i + 1], ku), mix(vn[j + 1][i], vn[j + 1][i + 1], ku), kv));
-    return [add(p, scl(n, 0.3)), n];
-  };
-  const emblem = { manto_akatsuki: [[0.4, 0.34, 'nuvem'], [0.6, 0.52, 'nuvem'], [0.43, 0.72, 'nuvem']], manto_kage: [[0.5, 0.45, 'kage']],
-    manto_campeao: [[0.5, 0.42, 'circulo']], capa_vila: [[0.5, 0.42, 'circulo_vila']] }[opts.cape] || [];
-  for (const [u, v, kind] of emblem) {
-    const [p, n] = at(u, v);
-    stamps.push({ layer: 'capa', kind: 'capa', emblem: kind, at: p, normal: n, mat: mats.barra, cape: opts.cape });
-  }
+  return vn;
 }
 
 // ------------------------------------------------------------------ carimbos (rosto, símbolos)
 
 /**
- * Olhos tirados do boneco antigo (aprovados): de frente (o olho que fica à esquerda da tela; o outro é o espelho) e de
- * lado (olhando para a esquerda). Letras: K contorno, P pupila, W branco, 1-3 íris (escuro -> claro).
- * As linhas 0-1 são a sobrancelha.
+ * Olhos (base: os aprovados do boneco antigo, redesenhados no estilo da referência): de frente (o olho que fica à
+ * esquerda da tela; o outro é o espelho) e de perfil (olhando para a esquerda). Letras: K traço, P pupila, W branco,
+ * H brilho, 1-3 íris (escuro -> claro). As linhas 0-2 são a sobrancelha: o masculino não tem (fica sob a franja, como
+ * na referência); a do `foco` entra por cima. O cílio de cima sobe para o canto de fora e o brilho fica logo abaixo
+ * dele: o olho fica aberto e calmo (com a pupila colada no cílio, ele parecia caído e com sono).
  */
 const EYES = {
   masculino: {
-    frente: ['..KKKKK.', '.KK...K.', '........', '..KKKK..', 'KKKKKKK.', 'KKKKKKKK', '.KPWPPPW', '.WPPPPPW', '.WP111PW', '..W2222W', '...232..', '....22..'],
-    lado: ['.KKKKK.', 'KK.....', '.......', '.KKKK..', 'KKKKKKK', '.KPWPWK', '.KPPPWK', '.K11PW.', '..22PW.', '..232..', '...22..'],
+    frente: ['........', '........', '........', '...KKKKK', 'KKKKKKKK', '.K1HH1PK', '.W1HPP1W', '.W11PP2W', '.W12223W', '..W233W.'],
+    lado: ['.......', '.......', '.......', '..KKKKK', 'KKKKKKK', '.KHP11W', '.KPP12W', '.W1122W', '..1223.', '..W33..'],
   },
   cilios: {
-    frente: ['...KKKK..', '..K....K.', '.........', '...KKKK..', '.KKKKKKK.', 'KKKKKKKKK', 'KKKPWPPPW', '..WPPPPPW', '..WP111PW', '...W2222W', '....232..', '.....22..'],
-    lado: ['..KKKK.', '.K....K', 'KK.....', '.KKKKK.', '.KKKKKKK', '..KPWPWK', '..KPPPWK', '..K11PW.', '...22PW.', '...232..', '....22..'],
+    frente: ['...KKKK..', '..K....K.', '.........', '....KKKKK', 'KKKKKKKKK', 'KKK1HH1PK', '.KW1HPP1W', '..W11PP2W', '..W12223W', '.KKW233W.'],
+    lado: ['..KKKK.', '.K....K', 'KK.....', 'KKKKKKK', 'KKKKKKK', 'KKHP11W', '.KPP12W', '.W1122W', '..1223.', '.KW33..'],
   },
 };
 /** Expressões: trocam as linhas do olho (a partir da 3) mantendo o tamanho. */
@@ -748,9 +1008,10 @@ const EXPR = {
   dor: { frente: ['........', '........', 'KK......', '..KKK...', '.....KK.', '..KKK...', 'KK......'], lado: ['.......', '.......', 'KK.....', '..KKK..', '....KK.', '..KKK..', 'KK.....'] },
 };
 const BROW_FOCO = { frente: ['.KK.....', '...KKKK.', '......KK'], lado: ['KK.....', '.KKKK..', '....KK.'] };
+/** Bocas: a = tom da boca, b = tom escuro da boca, K traço, t língua, W dentes. */
 const MOUTHS = {
-  calma: { frente: ['a..a', '.bb.'], lado: ['ba'] },
-  sorriso: { frente: ['a..a', '.bb.'], lado: ['ba'] },
+  calma: { frente: ['.bbb.'], lado: ['bb'] },
+  sorriso: { frente: ['a...a', '.bbb.'], lado: ['ba'] },
   grito: { frente: ['.bbb.', 'bKKKb', 'bKtKb', '.bbb.'], lado: ['bb', 'Kb', 'tb', 'bb'] },
   dentes: { frente: ['bbbbb', 'bWWWb', 'bbbbb'], lado: ['bb', 'Wb', 'bb'] },
 };
@@ -809,6 +1070,8 @@ export function renderFigure(look, pose, yaw, opts = {}) {
   if (opts.only) {
     for (let i = 0; i < W * H; i++) if (buf.part[i] >= 0 && scene.prims[buf.part[i]].support && !buf.stamped?.[i]) { col[i] = -1; depth[i] = -Infinity; }
   }
+  closePockets(col, depth);
+  if (!opts.only) dropSpecks(col, depth);            // camadas soltas (prancha, ícone) têm peças pequenas de verdade: a boca
   const rgba = new Uint8ClampedArray(W * H * 4);
   let top = H;
   for (let i = 0; i < W * H; i++) {
@@ -828,6 +1091,63 @@ export function renderFigure(look, pose, yaw, opts = {}) {
     anchors.flip = !anchors.flip;
   }
   return { rgba, depth, top, mirror, anchors };
+}
+
+/**
+ * Bolsões: 1 px vazio cercado pelos 4 lados (ou 2 px vazios em linha, cercados) vira traço. Eles aparecem onde a ponta
+ * fina de uma mecha ou de um pano quase encosta em outra peça e, de longe, parecem pontinhos soltos (na pixel art feita
+ * à mão não existem). Um vão de verdade (entre o braço e o corpo, entre as pernas) é mais largo ou aberto de um lado.
+ */
+function closePockets(col, depth) {
+  const ink = pack(rgbOf(OUTLINE));
+  const on = (j) => (col[j] >= 0 ? 1 : 0);
+  const fill = [];
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      if (col[i] >= 0) continue;
+      const n = on(i - 1) + on(i + 1) + on(i - W) + on(i + W);
+      if (n === 4) { fill.push(i); continue; }
+      if (n !== 3) continue;
+      // par: o vizinho vazio também só tem uma saída (de volta para este)
+      const j = !on(i - 1) ? i - 1 : !on(i + 1) ? i + 1 : !on(i - W) ? i - W : i + W;
+      const jx = j % W, jy = (j / W) | 0;
+      if (jx < 1 || jy < 1 || jx >= W - 1 || jy >= H - 1) continue;
+      if (on(j - 1) + on(j + 1) + on(j - W) + on(j + W) === 3) fill.push(i);
+    }
+  }
+  for (const i of fill) {
+    let z = Infinity;
+    for (const j of [i - 1, i + 1, i - W, i + W]) if (col[j] >= 0 && depth[j] < z) z = depth[j];
+    col[i] = ink;
+    depth[i] = z;
+  }
+}
+
+/**
+ * Ciscos: pedacinho solto (até 10 px, contando o traço) longe do resto do boneco. É a ponta de uma mecha fina que o
+ * desenho perdeu no meio: sozinha, vira uma cruzinha de traço flutuando perto da cabeça.
+ */
+function dropSpecks(col, depth) {
+  const seen = new Uint8Array(W * H), stack = new Int32Array(W * H), piece = new Int32Array(11);
+  for (let s = 0; s < W * H; s++) {
+    if (col[s] < 0 || seen[s]) continue;
+    let top = 0, n = 0;
+    stack[top++] = s; seen[s] = 1;
+    while (top) {
+      const i = stack[--top];
+      if (n < 11) piece[n] = i;
+      n++;
+      const x = i % W, y = (i / W) | 0;
+      for (let b = Math.max(0, y - 1); b <= Math.min(H - 1, y + 1); b++) {
+        for (let a = Math.max(0, x - 1); a <= Math.min(W - 1, x + 1); a++) {
+          const j = b * W + a;
+          if (col[j] >= 0 && !seen[j]) { seen[j] = 1; stack[top++] = j; }
+        }
+      }
+    }
+    if (n <= 10) for (let k = 0; k < n; k++) { col[piece[k]] = -1; depth[piece[k]] = -Infinity; }
+  }
 }
 
 function flipX(arr, k) {
@@ -891,6 +1211,9 @@ function stamp(buf, scene, col, st, S, look, pose, mats) {
   } else if (st.kind === 'simbolo') {
     rows = (SYMBOLS[look.village] || SYMBOLS.vila_1)[st.size];
     colors = { K: pack(st.mat.rgb[2]) };
+  } else if (st.kind === 'rebite') {
+    rows = ['K'];
+    colors = { K: pack(st.mat.rgb[0]) };
   } else if (st.kind === 'capa') {
     rows = CAPE_EMBLEMS[st.emblem];
     colors = { R: pack(st.emblem === 'nuvem' ? rgbOf('#c8261e') : st.mat.rgb[2]), W: pack(rgbOf('#f4ead8')) };
@@ -918,15 +1241,16 @@ function face(buf, scene, col, S, look, pose, part) {
   const eyePal = PAL.olho[look.eyeColor] || PAL.olho.azul;
   const skin = PAL.pele[look.skin] || PAL.pele.claro;
   const colors = {
-    K: 0x141022, W: 0xfcfcff, P: pack(rgbOf(eyePal[0])), 1: pack(rgbOf(eyePal[1])), 2: pack(rgbOf(eyePal[2])), 3: pack(rgbOf(eyePal[3])),
-    a: pack(rgbOf(skin[8])), b: pack(rgbOf(skin[9])), t: pack(rgbOf(skin[7])),
+    K: pack(rgbOf(OUTLINE)), W: 0xf4f6fa, H: 0xffffff, P: pack(rgbOf(eyePal[0])), 1: pack(rgbOf(eyePal[1])), 2: pack(rgbOf(eyePal[2])), 3: pack(rgbOf(eyePal[3])),
+    a: pack(rgbOf(skin[8])), b: pack(rgbOf(skin[9])), t: pack(rgbOf(skin[7])), s: pack(rgbOf(skin[3])),
   };
   const style = EYES[look.eyeStyle] || EYES.masculino;
   const view = side ? 'lado' : 'frente';
   let rows = style[view].slice();
   const e = EXPR[pose.eyes];
   if (e) rows = rows.map((r, j) => (j >= 3 ? (e[view][j - 3] ?? '.'.repeat(r.length)).padEnd(r.length, '.').slice(0, r.length) : r));
-  if (pose.eyes === 'foco') rows = rows.map((r, j) => (j < 3 ? BROW_FOCO[view][j].padEnd(r.length, '.').slice(0, r.length) : j === 6 ? 'K'.repeat(r.length) : r));
+  // Foco: sobrancelha franzida e a pálpebra de cima abaixada (cobre o alto da íris): o olhar fica estreito e firme.
+  if (pose.eyes === 'foco') rows = rows.map((r, j) => (j < 3 ? BROW_FOCO[view][j].padEnd(r.length, '.').slice(0, r.length) : j < 5 ? '.'.repeat(r.length) : j === 5 ? 'K'.repeat(r.length) : r));
   const surf = (x, y) => {
     const k = 1 - (x / hx) ** 2 - (y / hy) ** 2;
     return [x, y, hz * Math.sqrt(Math.max(0, k))];
@@ -954,19 +1278,24 @@ function face(buf, scene, col, S, look, pose, part) {
     // O olho de perto (o de longe some atrás do nariz); olhando para a direita, espelha o desenho.
     const toRight = fwd[0] > 0;
     const near = apply(R, [1, 0, 0])[2] > 0 ? 1 : -1;
-    if (part === 'olhos') put(surf(near * ex * 0.92, ey), rows, toRight);
+    // Recuado da borda do rosto, como na referência; o cabelo longo cobre o lado do rosto, então ali ele fica na frente.
+    const back = look.hairStyle === 'longo_lateral' ? 0.92 : 1.45;
+    if (part === 'olhos') put(surf(near * ex * back, ey), rows, toRight);
     else put(surf(near * hx * 0.12, -hy * 0.8), mouth, toRight);
   } else if (part === 'olhos') {
     put(surf(-ex, ey), rows, false);
     put(surf(ex, ey), rows, true);
   } else {
     put(surf(0, -hy * 0.8), mouth, false);
+    put(surf(hx * 0.05, -hy * 0.62), ['s'], false);                     // nariz: um pontinho de sombra
   }
 }
 
+/** A partir de quanto uma peça de outro grupo precisa passar na frente para ganhar o traço por dentro. */
+const LINE_T = 0.35;
+
 /**
- * Contorno: por fora (o pixel vazio encostado no boneco pega a cor de contorno de quem está mais perto) e por dentro
- * (onde uma parte de outro grupo passa bem na frente). Devolve a profundidade de cada pixel (o contorno pega a do
+ * Traço: por fora (o pixel vazio encostado no boneco) e por dentro (onde uma peça de outro grupo passa na frente). Devolve a profundidade de cada pixel (o contorno pega a do
  * vizinho), para fatiar o boneco na frente/atrás da arma.
  */
 function outline(buf, scene, col) {
@@ -980,7 +1309,7 @@ function outline(buf, scene, col) {
       if (p >= 0) {
         depth[i] = buf.z[i];
         const me = prims[p];
-        const thr = me.lineThr ?? 1.8;
+        const thr = me.lineThr ?? LINE_T;
         for (let d = 0; d < 4; d++) {
           const j = d === 0 ? (y > 0 ? i - W : -1) : d === 1 ? (y < H - 1 ? i + W : -1) : d === 2 ? (x > 0 ? i - 1 : -1) : x < W - 1 ? i + 1 : -1;
           if (j < 0) continue;

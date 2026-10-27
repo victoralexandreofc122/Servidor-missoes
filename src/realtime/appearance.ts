@@ -26,7 +26,7 @@ export const SKIN_BASE = {
 
 export const HAIR_BASE = {
   castanho: '#8e4e36',
-  preto: '#2e2a3a',
+  preto: '#262a36',
   castanho_escuro: '#58362a',
   ruivo: '#b24628',
   laranja: '#e47a30',
@@ -60,6 +60,9 @@ export const EYE_BASE = {
   turquesa: '#1eaab6',
 } as const;
 
+/** Cores novas da v26 (o casaco da referência): fora da conversão do visual antigo. */
+export const V26_CLOTH: readonly string[] = ['petroleo', 'ameixa'];
+
 /** Cores de roupa que o jogador escolhe (camisa e calça básicas). Os metais ficam só para itens. */
 export const CLOTH_BASE = {
   azul_marinho: '#363e6e',
@@ -80,6 +83,8 @@ export const CLOTH_BASE = {
   cinza: '#80828e',
   preto: '#34323e',
   turquesa: '#28a0a0',
+  petroleo: '#2a6a82',
+  ameixa: '#5a2a41',
 } as const;
 
 type Names<T> = [keyof T & string, ...(keyof T & string)[]];
@@ -90,10 +95,13 @@ export const HAIR_COLORS = names(HAIR_BASE);
 export const EYE_COLORS = names(EYE_BASE);
 export const CLOTH_COLORS = names(CLOTH_BASE);
 export const GENDERS = ['m', 'f'] as const;
-export const HAIR_STYLES = ['espetado', 'longo_lateral'] as const;
+export const HAIR_STYLES = ['espetado', 'longo_lateral', 'baguncado'] as const;
 export const EYE_STYLES = ['masculino', 'cilios'] as const;
-/** basica = camisa + calça nas cores do jogador; vila = conjunto da vila (cores da vila). */
-export const OUTFITS = ['basica', 'vila'] as const;
+/**
+ * basica = camisa + calça nas cores do jogador; vila = conjunto da vila (cores da vila); casaco = casaco com capuz na
+ * cor da camisa, com a blusa de dentro cor de ameixa e a calça na cor da calça (v26).
+ */
+export const OUTFITS = ['basica', 'vila', 'casaco'] as const;
 /** As quatro vilas: Folha, Névoa, Nuvem e Areia. A Pedra (vila_2) saiu na v13; os códigos das outras não mudaram. */
 export const VILLAGES = ['vila_1', 'vila_3', 'vila_4', 'vila_5'] as const;
 export type Village = (typeof VILLAGES)[number];
@@ -155,13 +163,16 @@ export function nearestName<T extends Record<string, string>>(table: T, hex: str
 }
 
 /** Visual antigo (5 cores) -> visual novo, com as cores da paleta mais parecidas. A capa não existe mais. */
+/** Cores de roupa da conversão do visual antigo: as de antes da v26 (as novas não mudam quem já foi convertido). */
+const LEGACY_CLOTH = Object.fromEntries(Object.entries(CLOTH_BASE).filter(([name]) => !V26_CLOTH.includes(name))) as Record<string, string>;
+
 export function fromLegacy(old: LegacyAppearance): Appearance {
   return {
     ...DEFAULT_APPEARANCE,
     skin: nearestName(SKIN_BASE, old.skin),
     hairColor: nearestName(HAIR_BASE, old.hair),
-    shirtColor: nearestName(CLOTH_BASE, old.shirt),
-    pantsColor: nearestName(CLOTH_BASE, old.pants),
+    shirtColor: nearestName(LEGACY_CLOTH, old.shirt) as Appearance['shirtColor'],
+    pantsColor: nearestName(LEGACY_CLOTH, old.pants) as Appearance['pantsColor'],
   };
 }
 

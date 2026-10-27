@@ -13,16 +13,18 @@ export { SHOES };
 const P = SPRITES.paletas;
 const VILAS = SPRITES.vilas;
 const METAIS = new Set(['aco', 'ouro', 'bronze']);
+/** Cores novas da v26: fora da conversão do visual antigo (a mesma regra do servidor). */
+const V26_CLOTH = new Set(['petroleo', 'ameixa']);
 
 /** Opções do Criador (mesmos nomes que o servidor aceita, em src/realtime/appearance.ts). */
 export const OPTIONS = {
   gender: ['m', 'f'],
   skin: Object.keys(P.pele),
-  hairStyle: ['espetado', 'longo_lateral'],
+  hairStyle: ['espetado', 'longo_lateral', 'baguncado'],
   hairColor: Object.keys(P.cabelo),
   eyeStyle: ['masculino', 'cilios'],
   eyeColor: Object.keys(P.olho),
-  outfit: ['basica', 'vila'],
+  outfit: ['basica', 'vila', 'casaco'],
   shirtColor: Object.keys(P.roupa).filter((n) => !METAIS.has(n)),
   pantsColor: Object.keys(P.roupa).filter((n) => !METAIS.has(n)),
   bandana: [true, false],
@@ -45,7 +47,7 @@ function nearest(table, hex, baseIndex = 2) {
   const [r, g, b] = rgbOf(hex);
   let best = null, bestD = Infinity;
   for (const [name, ramp] of Object.entries(table)) {
-    if (METAIS.has(name)) continue;
+    if (METAIS.has(name) || (table === P.roupa && V26_CLOTH.has(name))) continue;
     const [r2, g2, b2] = rgbOf(ramp[baseIndex]);
     const d = 2 * (r - r2) ** 2 + 4 * (g - g2) ** 2 + 3 * (b - b2) ** 2;
     if (d < bestD) { bestD = d; best = name; }
@@ -83,12 +85,12 @@ export function fallbackColors(look) {
 
 /**
  * Camadas do boneco para este visual (cada uma é um conjunto de formas presas nos ossos, em rigArt.js): corpo, olhos,
- * boca e cabelo sempre; camisa e calça (básica) ou conjunto da vila; bandana; sapato só calçado.
+ * boca e cabelo sempre; a roupa (camisa e calça básicas; o conjunto da vila com o porta-kunai; ou o casaco com capuz por
+ * cima da blusa, com o nó da faixa); bandana; sapato só calçado.
  */
 export function layersFor(look) {
-  const basic = look.outfit !== 'vila';
-  return ['corpo', 'olhos', 'boca', 'cabelo', ...(basic ? ['camisa', 'calca'] : ['camisa', 'calca', 'conjunto', 'acessorio']),
-    ...(look.bandana ? ['chapeu'] : []), ...(SHOES[look.shoes] ? ['sapato'] : [])];
+  const outfit = { vila: ['camisa', 'calca', 'conjunto', 'acessorio'], casaco: ['camisa', 'casaco', 'calca', 'acessorio'] }[look.outfit] || ['camisa', 'calca'];
+  return ['corpo', 'olhos', 'boca', 'cabelo', ...outfit, ...(look.bandana ? ['chapeu'] : []), ...(SHOES[look.shoes] ? ['sapato'] : [])];
 }
 
 /** Cor da amostra de uma opção do Criador (o tom do meio da rampa; vila = cor da bandana). */

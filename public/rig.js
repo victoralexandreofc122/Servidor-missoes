@@ -39,12 +39,12 @@ export const inv = (m) => [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]]
 // ------------------------------------------------------------------ proporções (chibi: cabeça grande)
 
 /**
- * Medidas do corpo por gênero (chibi, no tamanho do boneco antigo: ~80 px até a ponta do cabelo). Pernas 19,4
- * (coxa + canela + tornozelo), tronco 15, pescoço 1,4 e cabeça de raio 17 (a cabeça é quase metade da altura).
+ * Medidas do corpo por gênero (chibi, no tamanho do boneco antigo: ~78 px até a ponta do cabelo). Pernas 18,4
+ * (coxa + canela + tornozelo), tronco 15, pescoço 3 e cabeça de raio 17 (a cabeça é quase metade da altura).
  */
 export const BODY = {
-  m: { hip: 3.7, thigh: 9.4, shin: 8.4, ankle: 1.6, foot: 5, chest: 14.4, shoulder: 7.4, shoulderY: 12.6, upper: 8.2, fore: 7.4, neck: 3, head: 17, headY: 15 },
-  f: { hip: 3.9, thigh: 9.2, shin: 8.2, ankle: 1.6, foot: 4.6, chest: 13.8, shoulder: 6.6, shoulderY: 12, upper: 7.8, fore: 7.1, neck: 3, head: 16.8, headY: 14.8 },
+  m: { hip: 3.7, thigh: 8.9, shin: 7.9, ankle: 1.6, foot: 5, chest: 14.4, shoulder: 7.4, shoulderY: 12.6, upper: 8.2, fore: 7.4, neck: 3, head: 17, headY: 15 },
+  f: { hip: 3.9, thigh: 8.7, shin: 7.7, ankle: 1.6, foot: 4.6, chest: 13.8, shoulder: 6.6, shoulderY: 12, upper: 7.8, fore: 7.1, neck: 3, head: 16.8, headY: 14.8 },
 };
 
 // ------------------------------------------------------------------ poses
@@ -239,7 +239,7 @@ export const ANIMS = {
   morto: {
     loop: true, ms: 1000,
     pose: () => over(basePose(), {
-      root: { x: 0, y: 0, z: -3.5, pitch: 0.12, yaw: 0, roll: 0.04 },
+      root: { x: 0, y: 0, z: -4.5, pitch: 0.12, yaw: 0, roll: 0.04 },
       spine: { pitch: 0.3, yaw: 0, roll: 0.05 },
       head: { pitch: 0.45, yaw: 0, roll: 0.12 },
       armL: { fwd: 0.25, out: 0.2, twist: 0, elbow: 0.35 },

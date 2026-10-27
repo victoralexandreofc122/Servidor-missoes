@@ -36,7 +36,9 @@ describe('v9: visual em sprites (nomes de paleta)', () => {
   it('visual antigo (5 cores) vira o novo com a cor da paleta mais parecida; a capa some', () => {
     assert.equal(nearestName(SKIN_BASE, '#fdddb8'), 'claro');
     assert.equal(nearestName(HAIR_BASE, '#111111'), 'preto');
-    assert.equal(nearestName(CLOTH_BASE, '#2f5d8a'), 'azul_marinho');
+    assert.equal(nearestName(CLOTH_BASE, '#2a6a82'), 'petroleo');
+    // As cores novas da v26 ficam fora da conversão do visual antigo: quem era azul continua azul-marinho.
+    assert.equal(fromLegacy({ ...OLD, shirt: '#2f5d8a' }).shirtColor, 'azul_marinho');
     const v = fromLegacy(OLD);
     assert.equal(AppearanceSchema.safeParse(v).success, true);
     assert.deepEqual(

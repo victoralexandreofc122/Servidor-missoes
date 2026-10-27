@@ -120,7 +120,7 @@ export const ITEMS: readonly ItemDef[] = [
   },
   {
     code: 'botas_ninja', name: 'Botas Ninja', kind: 'shoes', icon: '👢', price: 900, shop: 'clothes', hold: 'feet',
-    look: { sprite: 'bota', colors: ['preto', 'cinza', 'marrom'] },
+    look: { sprite: 'bota', colors: ['preto', 'preto', 'cinza'] },
   },
 ];
 

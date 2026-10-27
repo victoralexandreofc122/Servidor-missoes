@@ -17,11 +17,15 @@ const CW = 64, CH = 96;
 const BASE = { v: 2, gender: 'm', skin: 'claro', hairStyle: 'espetado', hairColor: 'castanho', eyeStyle: 'masculino', eyeColor: 'azul',
   outfit: 'basica', shirtColor: 'azul_marinho', pantsColor: 'cinza', bandana: true, village: 'vila_1', shoes: 'sandalia_ninja' };
 const DIRS = [0, 1, 3, 2];
+/** O visual da folha de referência do Victor (v26): cabelo preto bagunçado, casaco azul-petróleo com capuz, botas. */
+const REF = { v: 2, gender: 'm', skin: 'pessego', hairStyle: 'baguncado', hairColor: 'preto', eyeStyle: 'masculino', eyeColor: 'azul_claro',
+  outfit: 'casaco', shirtColor: 'petroleo', pantsColor: 'preto', bandana: false, village: 'vila_1', shoes: 'botas_ninja' };
 
 function cells() {
   const list = [];
   if (set === 'visuais') {
     const looks = [
+      REF,
       BASE,
       { ...BASE, outfit: 'vila', hairColor: 'loiro', eyeColor: 'azul_claro' },
       { ...BASE, gender: 'f', hairStyle: 'longo_lateral', eyeStyle: 'cilios', hairColor: 'rosa', eyeColor: 'verde', skin: 'pessego', shirtColor: 'vermelho', pantsColor: 'preto', bandana: false, shoes: 'botas_ninja' },
@@ -33,7 +37,7 @@ function cells() {
     for (const anim of Object.keys(ANIMS)) {
       for (const d of [0, 1]) {
         const n = 8;
-        list.push(Array.from({ length: n }, (_, k) => ({ look: BASE, anim, t: ANIMS[anim].loop ? k / n : k / (n - 1), yaw: YAW_OF_DIR[d] })));
+        list.push(Array.from({ length: n }, (_, k) => ({ look: REF, anim, t: ANIMS[anim].loop ? k / n : k / (n - 1), yaw: YAW_OF_DIR[d] })));
       }
     }
   } else if (set === 'giro') {
@@ -46,14 +50,17 @@ function cells() {
     }
   } else if (set === 'camadas') {
     // Cada camada sozinha (presa nos mesmos ossos do corpo base) e o boneco montado, de frente, de lado e de costas.
-    const look = { ...BASE, outfit: 'vila', shoes: 'sandalia_ninja' };
-    const opts = { cape: 'capa_vila' };
-    const layers = [['corpo'], ['olhos', 'boca'], ['cabelo'], ['chapeu'], ['camisa'], ['calca'], ['conjunto'], ['acessorio'], ['sapato'], ['capa'], null];
+    const look = { ...REF };
+    const opts = {};
+    const layers = [['corpo'], ['olhos', 'boca'], ['cabelo'], ['camisa'], ['casaco'], ['calca'], ['acessorio'], ['sapato'], null];
     for (const d of [0, 1, 3]) {
       list.push(layers.map((only) => ({ look, anim: 'parado', t: 0.1, yaw: YAW_OF_DIR[d], opts: { ...opts, only: only || undefined, noAnchor: true } })));
     }
-    const fem = { ...look, gender: 'f', hairStyle: 'longo_lateral', eyeStyle: 'cilios', outfit: 'basica', bandana: false, hairColor: 'preto', shoes: 'botas_viagem' };
-    list.push(layers.map((only) => ({ look: fem, anim: 'parado', t: 0.1, yaw: YAW_OF_DIR[0], opts: { only: only || undefined, noAnchor: true } })));
+    const vila = { ...BASE, outfit: 'vila', shoes: 'sandalia_ninja' };
+    const layersVila = [['corpo'], ['olhos', 'boca'], ['cabelo'], ['camisa'], ['conjunto'], ['calca'], ['acessorio'], ['sapato'], ['chapeu'], ['capa'], null];
+    list.push(layersVila.map((only) => ({ look: vila, anim: 'parado', t: 0.1, yaw: YAW_OF_DIR[0], opts: { cape: 'capa_vila', only: only || undefined, noAnchor: true } })));
+    const fem = { ...vila, gender: 'f', hairStyle: 'longo_lateral', eyeStyle: 'cilios', outfit: 'basica', bandana: false, hairColor: 'preto', shoes: 'botas_viagem' };
+    list.push(layersVila.map((only) => ({ look: fem, anim: 'parado', t: 0.1, yaw: YAW_OF_DIR[0], opts: { only: only || undefined, noAnchor: true } })));
   } else if (set === 'olhos') {
     for (const eyes of ['abertos', 'fechados', 'foco', 'dor']) {
       for (const mouth of ['calma', 'grito', 'dentes']) {

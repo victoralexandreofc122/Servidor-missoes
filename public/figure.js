@@ -41,9 +41,12 @@ export const yawOfIndex = (i) => wrap((i * TAU) / YAW_STEPS);
  */
 export function stepYaw(cur, target, dt) {
   let d = wrap(target - cur);
-  if (Math.abs(Math.abs(d) - Math.PI) < 0.02 || Math.abs(wrap(cur + d / 2)) > Math.PI / 2 + 0.02) {
+  // Só na meia-volta os dois caminhos empatam. Esquerda <-> direita: o que passa pela frente ganha com folga. Frente <->
+  // costas: os dois passam por um lado e ficam quase iguais, então vale o mais curto; trocar por qualquer diferença
+  // pequena virava o giro a cada quadro e o boneco nunca ficava de costas.
+  if (Math.abs(d) > Math.PI - 0.05) {
     const alt = d > 0 ? d - TAU : d + TAU;
-    if (Math.abs(wrap(cur + alt / 2)) < Math.abs(wrap(cur + d / 2))) d = alt;
+    if (Math.abs(wrap(cur + alt / 2)) < Math.abs(wrap(cur + d / 2)) - 0.5) d = alt;
   }
   const step = TURN_SPEED * Math.max(0, dt);
   if (Math.abs(d) <= step) return wrap(target);

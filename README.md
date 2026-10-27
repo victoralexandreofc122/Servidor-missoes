@@ -215,6 +215,24 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v26: boneco no estilo da folha de referência (sem migração)
+
+- Estilo novo em todos os visuais: contorno escuro uniforme por fora e por dentro (onde uma peça passa na frente da
+  outra), sombreado em faixas de 2 a 3 tons, cabeça e olhos grandes. Detalhes em
+  [arte/personagem-rig/LEIAME.md](arte/personagem-rig/LEIAME.md).
+- Novo no Criador: o cabelo **Bagunçado** (mechas em lâmina, franja em mechas de comprimentos diferentes, mechas na
+  frente da orelha até a bochecha) e a roupa **Casaco com capuz** (casaco aberto na cor escolhida, blusa ameixa no V,
+  faixa preta na cintura, capuz caído nas costas, calça larga presa na bota). As abas do casaco têm física: parado
+  caem retas, andando abrem e correndo voam para trás.
+- Cores novas de roupa: petróleo e ameixa. As botas ninja ficaram escuras, com a sola clara.
+- Olhos redesenhados: abertos e calmos, com o brilho logo abaixo do cílio. No perfil, o olho fica recuado da borda do
+  rosto. No "foco", a pálpebra abaixa.
+- Acabamento: o desenho fecha furinhos vazios dentro do traço e apaga pontas de mecha soltas em todo quadro. Um teste
+  confere todas as animações, o giro, os 3 cabelos e a capa.
+- Correção: andando para cima, o boneco não virava de costas (o giro de frente para costas trocava de sentido a cada
+  quadro). Agora ele vira em ~0,2 s.
+- Sem migração: o banco só confere o formato dos nomes e as 12 chaves do visual.
+
 ### v25: boneco novo desenhado por código, com esqueleto 3D, camadas e física do pano (sem migração)
 
 - O personagem não é mais um atlas de imagens. O aparelho desenha cada quadro em pixel art a partir de um esqueleto
