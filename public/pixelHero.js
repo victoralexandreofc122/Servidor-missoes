@@ -641,7 +641,8 @@ const SK = 1.1;
 // 0,25/0,5; as ações novas (jutsu, golpe) giram já a partir de 10%.
 let ENCURTA = [0.25, 0.5];
 export const ABRE_BRACO = 0.2;  // rad, para fora, de frente/costas
-export const ABRE_PERNA = 1;    // px de cada lado, de frente/costas // px do herói por px do esqueleto (pernas: 18 px aqui, ~16,8 no rig)
+export const ABRE_PERNA = 0;    // (V39) deslocamento lateral das pernas: trocado pela abertura em A
+export const ABRE_A = 0.12;     // rad, cada perna para fora no quadril (pernas em A), de frente/costas // px do herói por px do esqueleto (pernas: 18 px aqui, ~16,8 no rig)
 
 /** Juntas do herói (pose neutra, coordenadas contínuas) por vista. e/d = lado da TELA; f/t = perto/longe (perfil). */
 const PIVOTS = {
@@ -847,9 +848,12 @@ export function skeletonFrame(view, anim, t) {
     // que vem para perto desce mais na tela e a que vai para longe sobe: a perna da frente fica legível.
     const prof = v === 'direita' ? 0 : Math.max(-2, Math.min(0, (P1[`ankle${S}`][2] - P0[`ankle${S}`][2]) * 0.55 * SK)); // só a de longe sobe: o corpo não pula
     const quad2 = plus(plus(J.quadril, sc(P0[`hip${S}`], P1[`hip${S}`])), [v !== 'direita' ? -fora * ABRE_PERNA : 0, prof]);
-    const coxa = T(quad2, boneM(P0[`hip${S}`], P0[`knee${S}`], P1[`hip${S}`], P1[`knee${S}`]), J.quadril);
+    // Pernas em "A" (estilo Nin Online): de frente/costas cada perna gira ABRE_A para fora no quadril, os pés ficam
+    // mais longe um do outro que os quadris e abre um triângulo vazio entre elas. O pé continua reto no chão.
+    const Ra = v !== 'direita' ? rotM(fora * ABRE_A) : [1, 0, 0, 1];
+    const coxa = T(quad2, mulM(Ra, boneM(P0[`hip${S}`], P0[`knee${S}`], P1[`hip${S}`], P1[`knee${S}`])), J.quadril);
     const joe2 = fwd(coxa, J.joelho);
-    const canela = T(joe2, boneM(P0[`knee${S}`], P0[`ankle${S}`], P1[`knee${S}`], P1[`ankle${S}`]), J.joelho);
+    const canela = T(joe2, mulM(Ra, boneM(P0[`knee${S}`], P0[`ankle${S}`], P1[`knee${S}`], P1[`ankle${S}`])), J.joelho);
     const tor2 = fwd(canela, J.tornozelo);
     // O pé não encolhe nem estica (bota rígida); de lado, gira com o osso do pé.
     const pe = T(tor2, v === 'direita' ? rotM(ang(P1[`ankle${S}`], P1[`toe${S}`]) - ang(P0[`ankle${S}`], P0[`toe${S}`])) : [1, 0, 0, 1], J.tornozelo);
@@ -974,7 +978,9 @@ function skeletonPosed({ parts, stamps }, view, { anim, t, bob = null }) {
   const vb = view === 'esquerda' ? 'direita' : view, kM = vb === 'frente' ? 'e' : vb === 'costas' ? 'd' : 'f';
   const LM = X.lados[kM], Jm = PIVOTS[vb][kM];
   const pm = fwd(LM.mao, [Jm.pulso[0], Jm.pulso[1] + 4.4]), pc = fwd(LM.mao, Jm.pulso), pe = fwd(LM.mao, Jm.cotovelo);
-  let grau = (Math.atan2(pc[1] - pe[1], pc[0] - pe[0]) * 180) / Math.PI;
+  // A arma da mão aponta para fora (de frente/costas) ou para a frente (de lado), girando com o antebraço; ninguém
+  // segura a kunai apontando para o chão.
+  let grau = (Math.atan2(pc[1] - pe[1], pc[0] - pe[0]) * 180) / Math.PI + (kM === 'e' ? 90 : -90);
   const costas = fwd(X.tronco, [32, 56]);
   const ancoras = { mao: [mj(pm)[0], mj(pm)[1], X.mirror ? 180 - grau : grau], costas: mj(costas), vista: { frente: 0, direita: 1, costas: 2 }[vb],
     flip: X.mirror, costasNaFrente: vb === 'costas' };
@@ -1181,6 +1187,18 @@ function segmentosDe(hairKey, view, pose, opts, parts, stamps) {
     return { ordem: i, camada: g.camada, rgba };
   });
 }
+
+/**
+ * Como cada arma das costas aparece em cada vista (o jogo e a prancha seguem isto). `frente`: desenhada por cima do
+ * boneco (de roupa e acessório); `atras`: por trás; `ponta`: de lado, uma arma comprida atravessada nas costas é vista
+ * de ponta, então só aparece o fim do cabo/bainha (`ponta` px da ponta esquerda da arte), por cima, junto às costas.
+ */
+export const ARMAS_COSTAS = {
+  padrao: { frente: 'atras', costas: 'frente', lado: 'atras' },
+  katana: { frente: 'atras', costas: 'frente', lado: 'ponta', ponta: 9 },
+  scroll: { frente: 'atras', costas: 'frente', lado: 'ponta', ponta: 7 },
+  fuma_shuriken: { frente: 'atras', costas: 'frente', lado: 'frente', ladoRecuo: 14 }, // de lado: por cima, 14 px para trás (nas costas)
+};
 
 export const VIEWS = ['frente', 'costas', 'direita', 'esquerda'];
 

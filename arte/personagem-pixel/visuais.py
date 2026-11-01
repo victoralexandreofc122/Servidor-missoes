@@ -14,16 +14,27 @@ def comp(base_png, anc, look):
     tela = Image.new('RGBA', (120, 120), (0, 0, 0, 0)); ox, oy = 28, 12
     fig = Image.open(base_png).convert('RGBA')
     costas = look.get('costasArma')
+    REG = {'katana': ('ponta', 9), 'scroll': ('ponta', 7), 'fuma_shuriken': ('frente', 0)}  # = ARMAS_COSTAS (pixelHero.js), de lado
+    modo = 'frente' if anc['costasNaFrente'] else 'atras'
+    if anc['vista'] == 1 and costas in REG: modo = REG[costas][0]
+    fr = None
     if costas:
         a, img = folha(costas, 'costas')
         if a:
             w, h = a['quadro']; v = anc['vista']; dx, dy = a['desloc'][v]
-            fr = img.crop((v * w, 0, v * w + w, h))
-            if anc['flip']: fr = fr.transpose(Image.FLIP_LEFT_RIGHT); dx = -dx
-            pos = (int(round(ox + anc['costas'][0] + dx - a['ancora'][0])), int(round(oy + anc['costas'][1] + dy - a['ancora'][1])))
-            if not anc['costasNaFrente']: tela.alpha_composite(fr, pos)
+            if modo == 'ponta':
+                # De ponta: só o fim do cabo, junto às costas (do lado de trás do boneco).
+                n = REG[costas][1]; fr = img.crop((0, 0, n, h)); bb = fr.getbbox(); fr = fr.crop(bb)
+                atras = -1 if not anc['flip'] else 1
+                pos = (int(round(ox + anc['costas'][0] + atras * 8 - fr.width / 2)), int(round(oy + anc['costas'][1] - 10)))
+            else:
+                fr = img.crop((v * w, 0, v * w + w, h))
+                if anc['flip']: fr = fr.transpose(Image.FLIP_LEFT_RIGHT); dx = -dx
+                if v == 1 and modo == 'frente': dx += (14 if anc['flip'] else -14)  # de lado fica nas costas, não no peito
+                pos = (int(round(ox + anc['costas'][0] + dx - a['ancora'][0])), int(round(oy + anc['costas'][1] + dy - a['ancora'][1])))
+            if modo == 'atras': tela.alpha_composite(fr, pos)
     tela.alpha_composite(fig, (ox, oy))
-    if costas and a and anc['costasNaFrente']: tela.alpha_composite(fr, pos)
+    if fr is not None and modo in ('frente', 'ponta'): tela.alpha_composite(fr, pos)
     mao = look.get('maoArma')
     if mao:
         a, img = folha(mao, 'mao')

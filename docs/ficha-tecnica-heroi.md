@@ -260,3 +260,8 @@ Prévias: `arte/personagem-pixel/v38_camadas/` (galeria de 12 visuais, camadas s
 - Prévias: `arte/personagem-pixel/v39_camadas/` (galeria com as armas, visuais andando, camadas por vista).
 - Rosto sem boca (como no Nin Online): `boca: 'nenhuma'` é o padrão; ficam olhos, sobrancelhas, nariz e bochecha.
   As bocas `sorriso`, `neutra` e `brava` continuam disponíveis no `look`, para expressões.
+- V39.1: pernas em "A" (cada perna gira `ABRE_A` = 0,12 rad para fora no quadril, pés mais afastados que os quadris,
+  triângulo vazio entre elas; o pé fica reto). A arma da mão aponta para fora (frente/costas) ou para a frente (lado)
+  e gira com o antebraço (nada de kunai apontando para o chão). Armas das costas por vista em `ARMAS_COSTAS`: de
+  lado a fūma shuriken fica por cima da roupa, nas costas (14 px para trás); katana e pergaminho, atravessados nas
+  costas, aparecem de ponta (só o fim do cabo).
