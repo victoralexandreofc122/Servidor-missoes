@@ -243,3 +243,18 @@ Cores das roupas em `CORES`: petroleo, vinho, preto, areia, azul_marinho, laranj
 vermelho, roxo. Ordem de desenho: corpo, roupa de baixo, sapato, roupa de cima, conjunto, faixa, capuz, cabelo,
 bandana; a katana fica atrás do corpo (de frente e de lado) e por cima do casaco (de costas); a kunai vai na mão.
 Prévias: `arte/personagem-pixel/v38_camadas/` (galeria de 12 visuais, camadas separadas, visuais andando).
+
+## V39: braços e pernas afastados, armas do jogo e camadas completas
+
+- Estilo Nin Online: de frente e de costas os braços giram `ABRE_BRACO` (0,2 rad) para fora no ombro e cada perna abre
+  `ABRE_PERNA` (1 px); vale parado e em todas as animações (menos nas poses-chave do jutsu e do golpe). A pose parada
+  agora também passa pelo esqueleto.
+- Armas: as do jogo (`public/assets/weapons`, `ARMAS` em `weaponData.js`). O boneco devolve `ancoras`: `mao`
+  [x, y, ângulo do antebraço] (mão direita do herói), `costas` [x, y], `vista` (0 frente, 1 lado, 2 costas), `flip`
+  e `costasNaFrente` (só de costas a arma das costas fica na frente do corpo). Visual: `maoArma`, `costasArma`
+  (códigos de `ARMAS`: kunai, kunai_training, tanto, katana, fuma_shuriken, scroll).
+- Camadas completas: `renderHero(..., { segmentos: true })` devolve a lista de trechos de trás para a frente, cada
+  um com a imagem inteira do item (desenhado sozinho, com contorno). A ordem muda por vista e uma camada pode voltar
+  (cabelo de trás e franja; mãos por cima das mangas). Nomes: corpo, cabelo, olhos, boca, roupa_cima, roupa_baixo,
+  sapato, capuz, conjunto, bandana, faixa (+ armas pelas âncoras).
+- Prévias: `arte/personagem-pixel/v39_camadas/` (galeria com as armas, visuais andando, camadas por vista).

@@ -637,7 +637,9 @@ export function runPose(view, k) {
 const SK = 1.1;
 // Limite do giro de osso encurtado: [abaixo disto não gira, faixa até girar inteiro]. Andar e correr (aprovados) usam
 // 0,25/0,5; as ações novas (jutsu, golpe) giram já a partir de 10%.
-let ENCURTA = [0.25, 0.5]; // px do herói por px do esqueleto (pernas: 18 px aqui, ~16,8 no rig)
+let ENCURTA = [0.25, 0.5];
+export const ABRE_BRACO = 0.2;  // rad, para fora, de frente/costas
+export const ABRE_PERNA = 1;    // px de cada lado, de frente/costas // px do herói por px do esqueleto (pernas: 18 px aqui, ~16,8 no rig)
 
 /** Juntas do herói (pose neutra, coordenadas contínuas) por vista. e/d = lado da TELA; f/t = perto/longe (perfil). */
 const PIVOTS = {
@@ -822,6 +824,16 @@ export function skeletonFrame(view, anim, t) {
       cot2 = cotovelo;
       mao = T(cot2, rotM(ang(cotovelo, pulso) - ang(J.cotovelo, J.pulso)), J.cotovelo);
     }
+    // V39 (estilo Nin Online): de frente/costas os braços ficam afastados do corpo (giram ABRE_BRACO para fora no
+    // ombro) e as pernas abrem ABRE_PERNA px cada; assim roupas e bonecos se distinguem melhor. Não vale nas
+    // poses-chave desenhadas (jutsu, golpe), que já dizem onde está a mão.
+    const fora = k === 'e' ? 1 : -1;
+    if (v !== 'direita' && !(alv && alv[k])) {
+      const Rb = rotM(fora * ABRE_BRACO);
+      braco = T(braco.o, mulM(Rb, braco.M), braco.c);
+      cot2 = fwd(braco, J.cotovelo);
+      mao = T(cot2, mulM(Rb, mao.M), mao.c);
+    }
     // De frente/costas o balanço é para a câmera: a mão que vem para perto desce e entra um pouco, a que vai para
     // longe sobe e sai (como a perna da frente).
     if (v !== 'direita') {
@@ -832,7 +844,7 @@ export function skeletonFrame(view, anim, t) {
     // De frente/costas o passo vai para a câmera (profundidade), que a tela quase não mostra (TILT 0,18). Aqui a perna
     // que vem para perto desce mais na tela e a que vai para longe sobe: a perna da frente fica legível.
     const prof = v === 'direita' ? 0 : Math.max(-2, Math.min(0, (P1[`ankle${S}`][2] - P0[`ankle${S}`][2]) * 0.55 * SK)); // só a de longe sobe: o corpo não pula
-    const quad2 = plus(plus(J.quadril, sc(P0[`hip${S}`], P1[`hip${S}`])), [0, prof]);
+    const quad2 = plus(plus(J.quadril, sc(P0[`hip${S}`], P1[`hip${S}`])), [v !== 'direita' ? -fora * ABRE_PERNA : 0, prof]);
     const coxa = T(quad2, boneM(P0[`hip${S}`], P0[`knee${S}`], P1[`hip${S}`], P1[`knee${S}`]), J.quadril);
     const joe2 = fwd(coxa, J.joelho);
     const canela = T(joe2, boneM(P0[`knee${S}`], P0[`ankle${S}`], P1[`knee${S}`], P1[`ankle${S}`]), J.joelho);
@@ -955,7 +967,16 @@ function skeletonPosed({ parts, stamps }, view, { anim, t, bob = null }) {
   const mj = (q) => [X.mirror ? 64 - q[0] : q[0], q[1] + dy];
   const juntas = { tronco: [mj(X.tronco.o), mj(fwd(X.tronco, PIVOTS[view === 'esquerda' ? 'direita' : view].pescoco))],
     lados: Object.values(X.lados).map((L) => L.juntas.map(mj)) };
-  return { parts: shifted, stamps: stamps.map((q) => ({ ...q, x: q.x + hx, y: q.y + hy })), juntas };
+  // Âncoras das armas (como as do boneco antigo): a mão direita do herói (de frente é a da esquerda da tela; de costas,
+  // a da direita; de lado, a de perto) com o ângulo do antebraço, e o meio das costas. O jogo desenha a arte da arma.
+  const vb = view === 'esquerda' ? 'direita' : view, kM = vb === 'frente' ? 'e' : vb === 'costas' ? 'd' : 'f';
+  const LM = X.lados[kM], Jm = PIVOTS[vb][kM];
+  const pm = fwd(LM.mao, [Jm.pulso[0], Jm.pulso[1] + 4.4]), pc = fwd(LM.mao, Jm.pulso), pe = fwd(LM.mao, Jm.cotovelo);
+  let grau = (Math.atan2(pc[1] - pe[1], pc[0] - pe[0]) * 180) / Math.PI;
+  const costas = fwd(X.tronco, [32, 56]);
+  const ancoras = { mao: [mj(pm)[0], mj(pm)[1], X.mirror ? 180 - grau : grau], costas: mj(costas), vista: { frente: 0, direita: 1, costas: 2 }[vb],
+    flip: X.mirror, costasNaFrente: vb === 'costas' };
+  return { parts: shifted, stamps: stamps.map((q) => ({ ...q, x: q.x + hx, y: q.y + hy })), juntas, ancoras };
 }
 
 // ---------------------------------------------------------------- montagem
@@ -1124,32 +1145,39 @@ function vestir(P, vista) {
     }
     out.push(...nov);
   }
-  // --- armas: kunai na mão (aponta para baixo), katana na bainha atravessada nas costas.
-  const aco = ['#f4f6fa', '#c5cbd6', '#8e96a6', '#5f6676'], cabo = ['#5a4a6a', '#3a2e48', '#261e30', '#18121e'], ouro = ['#ffe08a', '#e0b040', '#a07a20', '#6e5214'];
-  if (/kunai/.test(L.arma)) {
-    const [k, cx] = vista === 'frente' ? ['_e', 21.3] : vista === 'costas' ? ['_d', 42.7] : ['', 31.6];
-    const lam = poly([[cx - 1.6, 71], [cx + 1.6, 71], [cx, 78.4]]), anel = ell(cx, 70.6, 1.2, 1.2);
-    depois(`mao${k}`, part(`kunai${k}`, 'arma', or(lam, anel), aco, { shade: { l: [-1, 0], s: [1, 0] }, group: 'arma' }));
-  }
-  if (/katana/.test(L.arma)) {
-    const bainha = ['#3b3f50', '#262935', '#191b24', '#101118'];
-    let parts = [];
-    if (vista === 'costas') {
-      parts = [part('katana_bainha', 'arma', poly([[42, 48], [44, 50], [24, 74], [22, 72]]), bainha, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana' }),
-        part('katana_cabo', 'arma', poly([[44.6, 42.4], [47, 44.6], [44, 50], [42, 48]]), cabo, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana_cabo', strokes: [[0, [[44, 45], [46, 45]]]] }),
-        part('katana_guarda', 'arma', poly([[40.6, 46.6], [45, 48.2], [43.6, 51.2], [39.4, 49.6]]), ouro, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana_guarda' })];
-      out.push(...parts); // nas costas fica por cima do casaco
-    } else {
-      // De frente o cabo aparece acima do ombro (atrás da cabeça); de lado a bainha passa atrás do corpo.
-      parts = vista === 'frente'
-        ? [part('katana_cabo', 'arma', poly([[44, 40], [47.4, 42.6], [44, 48], [41.2, 45.6]]), cabo, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana_cabo' }),
-          part('katana_guarda', 'arma', poly([[39.6, 44.6], [44.6, 46.6], [43.4, 49.6], [38.4, 47.6]]), ouro, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana_guarda' })]
-        : [part('katana_bainha', 'arma', poly([[21, 47], [23.4, 46], [34, 72], [31.6, 73]]), bainha, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana' }),
-          part('katana_cabo', 'arma', poly([[16.6, 39], [19.4, 38], [23.4, 46], [21, 47]]), cabo, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana_cabo' })];
-      out.unshift(...parts); // atrás de tudo
-    }
-  }
+  // --- armas: não são desenhadas aqui. O jogo já tem a arte delas (public/assets/weapons, ARMAS em weaponData.js) e
+  // desenha cada uma na âncora que o boneco devolve (`ancoras`: a mão com o ângulo do antebraço e o meio das costas).
   return out;
+}
+
+/** Nome de cada camada para fora (o que o jogo e o editor de visual usam). */
+export const NOME_CAMADA = { corpo: 'corpo', cabelo: 'cabelo', olhos: 'olhos', boca: 'boca', camisa: 'roupa_cima', calca: 'roupa_baixo',
+  sapato: 'sapato', casaco: 'capuz', conjunto: 'conjunto', bandana: 'bandana', acessorio: 'faixa' };
+
+/**
+ * Prioridade de desenho por vista: a ordem em que as camadas entram, de trás para a frente. Uma camada pode aparecer
+ * mais de uma vez (o cabelo de trás antes da cabeça e a franja depois; as mãos por cima das mangas). Cada trecho vem
+ * com a imagem COMPLETA do item (desenhado sozinho): empilhando os trechos nessa ordem, sai o boneco.
+ */
+function segmentosDe(hairKey, view, pose, opts, parts, stamps) {
+  const segs = [];
+  for (const p of parts) {
+    const nome = NOME_CAMADA[p.layer] || p.layer;
+    const ult = segs[segs.length - 1];
+    if (ult && ult.camada === nome) ult.partes.push(p.name); else segs.push({ camada: nome, partes: [p.name] });
+    if (p.origin === 'cabeca' || p.name === 'cabeca') segs[segs.length - 1].temCabeca = true;
+  }
+  // Olhos e boca logo depois do trecho da cabeça (antes da franja).
+  const iCab = segs.findIndex((g) => g.temCabeca);
+  if (iCab >= 0 && stamps.length) segs.splice(iCab + 1, 0, { camada: 'olhos', carimbo: 'olhos' }, { camada: 'boca', carimbo: 'boca' });
+  return segs.map((g, i) => {
+    let rgba;
+    if (g.carimbo) {
+      rgba = new Uint8Array(W * H * 4);
+      for (const q of stamps) if (q.layer === g.carimbo) rgba.set([...hex(q.c), 255], (q.y * W + q.x) * 4);
+    } else rgba = renderHero0(hairKey, view, pose, { ...opts, segmentos: false, soPartes: g.partes }).rgba;
+    return { ordem: i, camada: g.camada, rgba };
+  });
 }
 
 export const VIEWS = ['frente', 'costas', 'direita', 'esquerda'];
@@ -1162,8 +1190,11 @@ export function renderHero(hairKey = 'C', view = 'frente', pose = null, opts = {
 function renderHero0(hairKey, view, pose, opts) {
   ESTILO_CALCADO = opts.calcado || 'bota';
   const base = viewParts(hairKey, view, { bracoAtras: !!(pose && pose.bracoAtras) });
-  const posedRes = pose ? (pose.skel ? skeletonPosed(base, view, pose.skel) : posed(base, pose)) : base;
-  const { parts, stamps } = posedRes;
+  const posedRes = pose ? (pose.skel ? skeletonPosed(base, view, pose.skel) : posed(base, pose)) : skeletonPosed(base, view, { anim: null, t: 0 });
+  let { parts, stamps } = posedRes;
+  // Camadas completas: cada item desenhado sozinho, inteiro (sem o que fica na frente dele), com o próprio contorno.
+  if (opts.soPartes) { parts = parts.filter((p) => opts.soPartes.includes(p.name)); stamps = []; }
+  if (opts.segmentos) return { ...renderHero0(hairKey, view, pose, { ...opts, segmentos: false }), segmentos: segmentosDe(hairKey, view, pose, opts, parts, stamps) };
   // Sombreado em conjunto: peças separadas para animar (pernas, botas) testam a luz contra a união com as irmãs.
   const byName = new Map(parts.map((p) => [p.name, p]));
   for (const p of parts) p.shadeMask = p.shadeAlso.length ? or(p.mask, ...p.shadeAlso.map((n) => byName.get(n)?.mask).filter(Boolean)) : p.mask;
@@ -1301,5 +1332,5 @@ function renderHero0(hairKey, view, pose, opts) {
     const L = layerOf[i];
     (layers[L] ??= new Uint8Array(W * H * 4)).set([r, g, b, 255], i * 4);
   }
-  return { w: W, h: H, rgba, layers, juntas: posedRes.juntas };
+  return { w: W, h: H, rgba, layers, juntas: posedRes.juntas, ancoras: posedRes.ancoras };
 }
