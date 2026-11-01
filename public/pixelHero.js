@@ -674,6 +674,13 @@ function boneM(a, b, a2, b2, minR = 0.45) {
   const w = Math.max(0, Math.min(1, (raw - ENCURTA[0]) / ENCURTA[1]));
   return mulM(rotM(d * w), S);
 }
+/** Osso para um alvo desenhado: gira sempre e encurta até 40% (sem o limite de osso apontando para a câmera). */
+function boneMAlvo(a, b, a2, b2) {
+  const u = [Math.cos(ang(a, b)), Math.sin(ang(a, b))];
+  const r = Math.max(0.4, Math.min(1.2, len(a2, b2) / Math.max(0.01, len(a, b))));
+  const S = [1 + (r - 1) * u[0] * u[0], (r - 1) * u[0] * u[1], (r - 1) * u[0] * u[1], 1 + (r - 1) * u[1] * u[1]];
+  return mulM(rotM(ang(a2, b2) - ang(a, b)), S);
+}
 const T = (o, M, c) => ({ o, M, c });
 const fwd = (t, p) => { const v = apM(t.M, [p[0] - t.c[0], p[1] - t.c[1]]); return [t.o[0] + v[0], t.o[1] + v[1]]; };
 function inverseOf(M) { const det = M[0] * M[3] - M[1] * M[2]; return [M[3] / det, -M[1] / det, -M[2] / det, M[0] / det]; }
@@ -695,33 +702,56 @@ function affineMask(m, t, dx = 0, dy = 0) {
  * Cada uma é uma função t (0..1, um quadro por chave) -> pose.
  */
 const pz = (patch) => { const b = basePose(), o = { ...b }; for (const [k, v] of Object.entries(patch)) o[k] = v && typeof v === 'object' ? { ...b[k], ...v } : v; return o; };
-const GOLPE = [
-  pz({ spine: { pitch: 0.12, yaw: -0.55, roll: 0.04 }, armR: { fwd: -0.7, out: 0.3, twist: 0, elbow: 1.5 }, armL: { fwd: 0.7, out: 0.1, twist: 0, elbow: 1.4 },
-    legL: { fwd: 0.35, out: 0.14, knee: 0.55, foot: 0 }, legR: { fwd: -0.35, out: 0.12, knee: 0.5, foot: 0 } }),
-  pz({ spine: { pitch: 0.16, yaw: -0.75, roll: 0.06 }, armR: { fwd: -1.0, out: 0.35, twist: 0, elbow: 1.8 }, armL: { fwd: 0.85, out: 0.05, twist: 0, elbow: 1.3 },
-    legL: { fwd: 0.4, out: 0.14, knee: 0.75, foot: 0 }, legR: { fwd: -0.4, out: 0.12, knee: 0.7, foot: 0 } }),
-  // Impacto: braço do soco totalmente esticado para a frente (na altura do ombro), o outro recolhido no quadril.
-  pz({ root: { x: 0, y: 0, z: 1.4, pitch: 0.14, yaw: 0, roll: 0 }, spine: { pitch: 0.18, yaw: 0.4, roll: -0.04 }, armR: { fwd: 1.62, out: 0, twist: 0, elbow: 0 },
-    armL: { fwd: -0.3, out: 0.25, twist: 0, elbow: 1.7 }, legL: { fwd: 0.5, out: 0.14, knee: 0.35, foot: 0 }, legR: { fwd: -0.5, out: 0.12, knee: 0.1, foot: -0.2 } }),
-  // Último quadro: o soco segura esticado (acompanhamento), só o corpo assenta um pouco.
-  pz({ root: { x: 0, y: 0, z: 1.2, pitch: 0.1, yaw: 0, roll: 0 }, spine: { pitch: 0.12, yaw: 0.35, roll: -0.02 }, armR: { fwd: 1.57, out: 0, twist: 0, elbow: 0 },
-    armL: { fwd: -0.2, out: 0.22, twist: 0, elbow: 1.6 }, legL: { fwd: 0.45, out: 0.14, knee: 0.4, foot: 0 }, legR: { fwd: -0.45, out: 0.12, knee: 0.2, foot: -0.1 } }),
-];
-// Jutsu (selagem), 5 quadros: prepara, selo na frente do peito (os dois antebraços sobem até as mãos se juntarem no
-// meio do peito), selo firme com a base baixa, solta com as palmas para a frente, volta.
-const SELO = { armL: { fwd: 1.0, out: -0.75, twist: 0, elbow: 2.3 }, armR: { fwd: 1.0, out: -0.75, twist: 0, elbow: 2.3 } };
+// Ações (V37): pernas e tronco pelo esqueleto (pz), braços por POSE-CHAVE desenhada para cada vista (`alvos`):
+// cotovelo e pulso no desenho do herói (coordenadas da pose parada, presas ao tronco). Assim cada quadro é legível de
+// propósito, como um animador faria, em vez de depender da projeção do esqueleto.
+//   alvos: { frente|costas|direita: { corpo: [dx, dy], e|d|f|t: { cot: [x, y], pulso: [x, y], atras } } }
+const espelhaE = (q) => ({ cot: [64 - q.cot[0], q.cot[1]], pulso: [64 - q.pulso[0], q.pulso[1]], atras: q.atras });
+const FB = (e, d, corpo = [0, 0], atrasCostas = false) => ({
+  frente: { corpo, e, d },
+  // De costas a tela é espelhada (a mão esquerda do herói fica à esquerda da tela) e o que está na frente do peito fica
+  // escondido atrás do corpo.
+  costas: { corpo, e: { ...espelhaE(d), atras: atrasCostas }, d: { ...espelhaE(e), atras: atrasCostas } },
+});
+const pernasBase = { legL: { fwd: 0.1, out: 0.22, knee: 0.4, foot: 0 }, legR: { fwd: -0.1, out: 0.22, knee: 0.4, foot: 0 } };
+
+// Jutsu inspirado no Naruto: base aberta e firme, as duas mãos juntas na frente do peito, logo abaixo do queixo, com os
+// cotovelos bem abertos (o selo do tigre); troca de selo (mãos cruzadas); e solta abrindo os braços.
 const JUTSU = [
-  pz({ spine: { pitch: 0.04, yaw: 0, roll: 0 }, armL: { fwd: 0.5, out: -0.2, twist: 0, elbow: 1.4 }, armR: { fwd: 0.5, out: -0.2, twist: 0, elbow: 1.4 } }),
-  pz({ selo: true, spine: { pitch: 0.06, yaw: 0, roll: 0 }, ...SELO, legL: { fwd: 0.12, out: 0.2, knee: 0.35, foot: 0 }, legR: { fwd: -0.12, out: 0.2, knee: 0.35, foot: 0 } }),
-  pz({ selo: true, spine: { pitch: 0.1, yaw: 0, roll: 0 }, ...SELO, legL: { fwd: 0.14, out: 0.24, knee: 0.6, foot: 0 }, legR: { fwd: -0.14, out: 0.24, knee: 0.6, foot: 0 } }),
-  pz({ root: { x: 0, y: 0, z: 1.0, pitch: 0.1, yaw: 0, roll: 0 }, spine: { pitch: 0.16, yaw: 0, roll: 0 }, armL: { fwd: 1.45, out: -0.12, twist: 0, elbow: 0.1 },
-    armR: { fwd: 1.45, out: -0.12, twist: 0, elbow: 0.1 }, legL: { fwd: 0.36, out: 0.2, knee: 0.45, foot: 0 }, legR: { fwd: -0.36, out: 0.2, knee: 0.2, foot: -0.2 } }),
-  pz({ spine: { pitch: 0.04, yaw: 0, roll: 0 }, armL: { fwd: 0.4, out: 0.1, twist: 0, elbow: 0.8 }, armR: { fwd: 0.4, out: 0.1, twist: 0, elbow: 0.8 } }),
+  { ...pz({ ...pernasBase }), alvos: { ...FB({ cot: [21, 57], pulso: [25, 61] }, { cot: [43, 57], pulso: [39, 61] }),
+    direita: { f: { cot: [33, 57], pulso: [36, 61] }, t: { cot: [32, 57], pulso: [35, 61] } } } },
+  { ...pz({ ...pernasBase, legL: { fwd: 0.12, out: 0.3, knee: 0.6, foot: 0 }, legR: { fwd: -0.12, out: 0.3, knee: 0.6, foot: 0 } }),
+    alvos: { ...FB({ cot: [18.5, 53.5], pulso: [30.8, 50.6] }, { cot: [45.5, 53.5], pulso: [33.2, 50.6] }, [0, 1], true),
+      direita: { corpo: [0, 1], f: { cot: [35.6, 56], pulso: [37, 49.6] }, t: { cot: [34.4, 56.4], pulso: [36.2, 50] } } } },
+  { ...pz({ ...pernasBase, legL: { fwd: 0.14, out: 0.34, knee: 0.85, foot: 0 }, legR: { fwd: -0.14, out: 0.34, knee: 0.85, foot: 0 } }),
+    alvos: { ...FB({ cot: [18, 53], pulso: [30.8, 50] }, { cot: [46, 53], pulso: [33.2, 50] }, [0, 2], true),
+      direita: { corpo: [0, 2], f: { cot: [35.6, 55.6], pulso: [37, 49] }, t: { cot: [34.4, 56], pulso: [36.2, 49.4] } } } },
+  { ...pz({ ...pernasBase, legL: { fwd: 0.14, out: 0.34, knee: 0.85, foot: 0 }, legR: { fwd: -0.14, out: 0.34, knee: 0.85, foot: 0 } }),
+    alvos: { ...FB({ cot: [19, 52], pulso: [33.4, 50.4] }, { cot: [45, 55], pulso: [30.6, 52.6] }, [0, 2], true),
+      direita: { corpo: [0, 2], f: { cot: [36, 54.6], pulso: [37.4, 48.6] }, t: { cot: [33.6, 57], pulso: [36.6, 52] } } } },
+  { ...pz({ ...pernasBase, legL: { fwd: 0.2, out: 0.36, knee: 0.5, foot: 0 }, legR: { fwd: -0.2, out: 0.36, knee: 0.5, foot: 0 } }),
+    alvos: { ...FB({ cot: [16.4, 55], pulso: [12.6, 60] }, { cot: [47.6, 55], pulso: [51.4, 60] }, [0, 1]),
+      direita: { corpo: [0, 1], f: { cot: [37, 53], pulso: [43, 52] }, t: { cot: [26, 53.6], pulso: [20.6, 55] } } } },
 ];
-export const HERO_ANIMS = { golpe: (t) => GOLPE[Math.max(0, Math.min(3, Math.round(t * 3)))], jutsu: (t) => JUTSU[Math.max(0, Math.min(4, Math.round(t * 4)))] };
-export const GOLPE_MS = [140, 110, 70, 120];   // antecipação 250 ms, impacto 70 ms, volta 120 ms
-export const JUTSU_T = [0, 0.25, 0.5, 0.75, 1];  // 5 quadros: prepara, selo, selo firme, solta, volta
-export const JUTSU_MS = [90, 110, 200, 140, 110];
+
+// Ataque simples: arma (braço do soco recua até o quadril, corpo vai para trás), soco (braço reto para a frente, corpo
+// avança) e segura. De frente o soco vem para a câmera: o punho vai para o meio, logo abaixo do queixo.
+const GOLPE = [
+  { ...pz({ legL: { fwd: 0.3, out: 0.14, knee: 0.4, foot: 0 }, legR: { fwd: -0.3, out: 0.12, knee: 0.35, foot: 0 } }),
+    alvos: { ...FB({ cot: [19.6, 56], pulso: [23.6, 61] }, { cot: [41, 55], pulso: [37.4, 55] }, [0, 1]),
+      direita: { corpo: [-2, 1], f: { cot: [25.6, 55], pulso: [27, 60] }, t: { cot: [34, 55.6], pulso: [37.6, 53] } } } },
+  { ...pz({ legL: { fwd: 0.45, out: 0.14, knee: 0.45, foot: 0 }, legR: { fwd: -0.45, out: 0.12, knee: 0.2, foot: -0.2 } }),
+    alvos: { ...FB({ cot: [26, 54], pulso: [31, 55] }, { cot: [42.6, 56], pulso: [41.6, 61] }, [0, 1]),
+      direita: { corpo: [2, 0], f: { cot: [37.4, 50.4], pulso: [44.4, 50.4] }, t: { cot: [27, 54.6], pulso: [26.4, 60] } } } },
+  { ...pz({ legL: { fwd: 0.45, out: 0.14, knee: 0.45, foot: 0 }, legR: { fwd: -0.45, out: 0.12, knee: 0.2, foot: -0.2 } }),
+    alvos: { ...FB({ cot: [26, 54], pulso: [31, 55] }, { cot: [42.6, 56], pulso: [41.6, 61] }, [0, 1]),
+      direita: { corpo: [1, 0], f: { cot: [37.4, 50.4], pulso: [44.4, 50.4] }, t: { cot: [27, 54.6], pulso: [26.4, 60] } } } },
+];
+export const HERO_ANIMS = { golpe: (t) => GOLPE[Math.max(0, Math.min(2, Math.round(t * 2)))], jutsu: (t) => JUTSU[Math.max(0, Math.min(4, Math.round(t * 4)))] };
+export const GOLPE_T = [0, 0.5, 1];
+export const GOLPE_MS = [180, 90, 220];        // arma 180 ms, soco rápido 90 ms, segura 220 ms
+export const JUTSU_T = [0, 0.25, 0.5, 0.75, 1];  // prepara, selo, selo firme, troca de selo, solta
+export const JUTSU_MS = [100, 140, 220, 160, 160];
 
 /** Transformações de cada osso do herói num quadro. */
 export function skeletonFrame(view, anim, t) {
@@ -732,6 +762,7 @@ export function skeletonFrame(view, anim, t) {
   // De costas, a caminhada é amostrada meio quadro adiante: em t = 1/6 e 2/6 a vista saía quase igual (quadro repetido).
   let pose1 = anim ? (HERO_ANIMS[anim] ? HERO_ANIMS[anim](t) : poseOf(anim, anim === 'andar' && v === 'costas' ? t + 1 / 12 : t)) : basePose();
   if (anim === 'andar') for (const a of ['armL', 'armR']) pose1[a] = { ...pose1[a], fwd: pose1[a].fwd * 1.3, elbow: 0.2 };
+  ENCURTA = HERO_ANIMS[anim] ? [0.1, 0.25] : [0.25, 0.5];
   ENCURTA = HERO_ANIMS[anim] ? [0.1, 0.25] : [0.25, 0.5];
   // De lado, quem soca é o braço de perto (o de longe fica escondido atrás do corpo): troca os lados do golpe.
   if (anim === 'golpe' && v === 'direita') {
@@ -752,7 +783,8 @@ export function skeletonFrame(view, anim, t) {
   const sc = (a, b) => [(b[0] - a[0]) * SK, (b[1] - a[1]) * SK];
   const plus = (p, d) => [p[0] + d[0], p[1] + d[1]];
   const dPelvis = sc(P0.pelvis, P1.pelvis);
-  const cintura2 = plus(piv.cintura, dPelvis);
+  const alv = R1.pose.alvos ? R1.pose.alvos[v] : null;
+  const cintura2 = plus(plus(piv.cintura, dPelvis), alv?.corpo || [0, 0]);
   const tronco = T(cintura2, rotM(ang(P1.waist, P1.neck) - ang(P0.waist, P0.neck)), piv.cintura);
   const pescoco2 = fwd(tronco, piv.pescoco);
   const X = { tronco, pelve: T(cintura2, [1, 0, 0, 1], piv.cintura), cabeca: T(pescoco2, [1, 0, 0, 1], piv.pescoco), lados: {} };
@@ -813,8 +845,15 @@ export function skeletonFrame(view, anim, t) {
     // De costas o casaco é uma peça só: as duas metades levam o MESMO movimento (correndo, a barra vem para a câmera:
     // abre e sobe um pouco).
     if (v === 'costas') aba = T(cintura2, anim === 'correr' ? [1.12, 0, 0, 0.9 + trem] : [1, 0, 0, 1], piv.cintura);
+    // Pose-chave desenhada (ações): cotovelo e pulso vão para os alvos, presos ao tronco.
+    const A = alv && alv[k];
+    if (A) {
+      const c2 = fwd(tronco, A.cot), p2 = fwd(tronco, A.pulso);
+      braco = T(ombro2, boneMAlvo(J.ombro, J.cotovelo, ombro2, c2), J.ombro);
+      mao = T(c2, boneMAlvo(J.cotovelo, J.pulso, c2, p2), J.cotovelo);
+    }
     // Braço atrás do tronco (de frente/costas, na corrida ninja): vai para trás das outras peças.
-    const atras = v !== 'direita' && P1[`elbow${S}`][2] < P1.chest[2] - 1.5;
+    const atras = A ? !!A.atras : v !== 'direita' && P1[`elbow${S}`][2] < P1.chest[2] - 1.5;
     X.lados[k] = { braco, mao, coxa, canela, pe, aba, joelhoY: J.joelho[1], cotoveloY: J.cotovelo[1], atras,
       juntas: [ombro2, cot2, fwd(mao, J.pulso), quad2, joe2, tor2, fwd(pe, J.ponta)] };
   }
