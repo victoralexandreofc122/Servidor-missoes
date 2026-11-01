@@ -86,3 +86,31 @@ O atacante usa os 4 jutsus da classe e o ataque básico, com 0,4 s entre um toqu
 - Com piso de 250 e teto de 1,6x, todo mundo aguenta de 2,5 a 4,7 golpes fortes. Isso chega perto dos 6 a 10 s quando
   se contam recargas, chakra e erros.
 - Limites destas contas: tudo acerta, ninguém se move, não há escudo da Pedra nem cura, e as builds são extremas.
+
+## Ideia do Victor: vida por nível
+
+Cada nível dá vida fixa (+6 por nível = +354 no nível 60), somada à Vitalidade. Contas com a curva achatada e o nível
+de uso até +15%. Tempo para matar em segundos (mesmas premissas de antes: tudo acerta, 0,4 s entre toques).
+
+Vidas no nível 60 com +6 por nível: Tanque 733, Meio a meio 640, builds de dano 454.
+
+| Atacante \ defensor | Tanque | Meio a meio | Dano Ninjutsu | Dano Taijutsu | Dano Armas |
+| --- | --- | --- | --- | --- | --- |
+| Tanque | 11,1 | 9,7 | 6,2 | 6,2 | 6,2 |
+| Meio a meio | 9,0 | 6,9 | 4,1 | 4,1 | 4,1 |
+| Dano Ninjutsu | 7,6 | 6,2 | 3,1 | 3,1 | 3,1 |
+| Dano Taijutsu | 2,1 | 1,7 | 1,3 | 1,3 | 1,3 |
+| Dano Armas | 2,1 | 2,1 | 1,3 | 1,3 | 1,3 |
+
+Outros valores: +5 por nível deixa o Ninjutsu entre 2,1 e 6,9 s; +8 por nível deixa entre 4,8 e 9,7 s. O Taijutsu e
+as Armas ficam abaixo de 2,5 s em todos.
+
+**Por que Taijutsu e Armas continuam rápidos:** os jutsus deles são baratos e voltam rápido (soco: 5 de chakra e 0,5 s
+de recarga; kunais: 10 de chakra e 1,2 s). O Ninjutsu acaba o chakra (100) em 2 ou 3 jutsus fortes; o Taijutsu e as
+Armas não. A vida por nível resolve a vida; a recarga desses dois precisa de um ajuste próprio no PvP.
+
+| Ajuste extra no PvP | Dano Taijutsu contra (Tanque / Meio / Dano) | Dano Armas contra (Tanque / Meio / Dano) |
+| --- | --- | --- |
+| Nenhum | 2,1 / 1,7 / 1,3 | 2,1 / 2,1 / 1,3 |
+| Teto de 1,6x no dano dos atributos | 3,3 / 2,9 / 2,1 | 4,3 / 2,9 / 2,1 |
+| Recarga e custo: Taijutsu x4, Armas x2,5 | 5,5 / 4,1 / 2,0 | 4,4 / 3,7 / 2,3 |
