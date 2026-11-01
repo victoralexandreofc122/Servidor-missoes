@@ -387,6 +387,12 @@ function sideParts(bracoAtras = false) {
   P.push(part('capuz', 'casaco', or(ell(25.4, 49.4, 5.4, 4), poly([[21.6, 47], [28, 46.4], [29, 52], [26, 57], [22, 54.6]])), PAL.casaco,
     { shade: { l: [-1, -2], s: [2, 1], d: [1, 1] }, group: 'capuz', strokes: [[2, [[23, 51], [25, 55]]]] }));
   P.push(part('capuz_forro', 'casaco', ell(27.6, 47.4, 2.8, 1.8), pal4(PAL.casaco[3]), { group: 'capuz', sep: false }));
+  // V36: braço de longe (como no jogo de referência): o mesmo braço, um tom mais escuro, atrás do corpo e 2 px mais
+  // para trás; parado aparece só uma faixa nas costas, em movimento aparece inteiro (no selo, as duas mãos).
+  const mangaT = [[25.6, 48.4], [30.4, 48.6], [32, 52], [31.8, 57], [32.4, 63.6], [25.2, 63.6], [25.6, 56.6], [24.8, 51]];
+  P.push(part('manga_t', 'casaco', poly(mangaT), darker(PAL.casaco), { shade: { s: [1, 0], d: [0, 1] }, group: 'braco_tras' }));
+  P.push(part('punho_t', 'casaco', poly([[24.8, 62.6], [32.6, 62.6], [33, 66], [24.4, 66]]), darker(PAL.casaco), { shade: { s: [1, 0], d: [0, 1] }, group: 'braco_tras' }));
+  P.push(part('mao_t', 'corpo', ell(29, 68.4, 3.1, 3), darker(PAL.pele), { shade: { s: [1, 1] }, group: 'braco_tras' }));
   P.push(...legsAndBoots('direita'));
   P.push(part('pescoco', 'corpo', poly([[29, 44], [35, 44], [35, 51], [29, 51]]), PAL.pele, { shade: { s: [2, 0] }, recv: true, group: 'pele' }));
   // Camisa: só a faixa da frente aparece pela abertura do casaco.
@@ -459,7 +465,7 @@ function sideStamps() {
 export function segmentOf(name) {
   let m = /^(perna|bota|sola|punho_bota|dedos|tira)_([edft])$/.exec(name);
   if (m) return `perna_${m[2]}`;
-  m = /^(manga|punho|mao)(?:_([ed]))?$/.exec(name);
+  m = /^(manga|punho|mao)(?:_([edt]))?$/.exec(name);
   if (m) return m[2] ? `braco_${m[2]}` : 'braco';
   m = /^aba(?:_([ed]))?$/.exec(name);
   if (m) return m[1] ? `aba_${m[1]}` : 'aba';
@@ -643,7 +649,7 @@ function boneOf(name) {
   if (name.startsWith('cabelo') || name === 'cabeca' || name === 'orelha') return ['cabeca'];
   let m = /^(perna)_([edft])$/.exec(name); if (m) return [m[2], 'perna'];
   m = /^(bota|sola|punho_bota|dedos|tira)_([edft])$/.exec(name); if (m) return [m[2], 'pe'];
-  m = /^(manga|punho|mao)(?:_([ed]))?$/.exec(name); if (m) return [m[2] || 'f', m[1] === 'manga' ? 'braco' : 'mao'];
+  m = /^(manga|punho|mao)(?:_([edt]))?$/.exec(name); if (m) return [m[2] || 'f', m[1] === 'manga' ? 'braco' : 'mao'];
   m = /^aba(?:_([ed]))?$/.exec(name); if (m) return [m[1] || 'f', 'aba'];
   if (name === 'quadril') return ['pelve'];
   return ['tronco'];
