@@ -192,3 +192,15 @@ abas da barra, mangas, punhos, capuz), `calca`, `acessorio` (faixa e nó), `sapa
   juntas.
 - Perfil: a têmpora acima da orelha é coberta de cabelo (com pele ali parecia calvície).
 - Braços parados para trás durante a corrida (não balançam), como no boneco anterior.
+
+## Calçados: molde único (V33)
+
+- Seguindo o jogo de referência do Victor: de frente e de costas cada pé é uma **coluna reta da largura da perna**
+  (7 px, centros em x 27,6 e 36,4), com a ponta arredondada, a sola na linha 88 e **2 px de vão** entre os pés;
+  nada sai para os lados. De lado, a coluna (6 px) ganha um **bico curto e redondo** de 3 px para a frente.
+- Peças sempre com os mesmos nomes (`bota_*`, `sola_*`, `punho_bota_*`, `tira_*`, `dedos_*`; `*` = e/d ou f/t), presas
+  ao osso do pé, então qualquer calçado anima igual. O pé de longe no perfil usa as rampas um tom abaixo.
+- Calçado novo = um estilo em `CALCADOS` (`public/pixelHero.js`): cor do cano, punho dobrado (sim/não), faixas de
+  atadura (sim/não), tira, dedos de fora (sim/não) e cor da sola. Hoje: `bota` (herói) e `sandalia` (sandália ninja:
+  atadura clara na canela, tira escura, dedos de fora e sola marrom). Uso:
+  `renderHero('C', vista, pose, { calcado: 'sandalia' })`.

@@ -63,7 +63,7 @@ const part = (name, layer, mask, pal, o = {}) => ({ name, layer, mask, pal, grou
  * Pernas e botas de frente ou de costas, uma peça por lado (para animar), mas sombreadas como um conjunto
  * (shadeAlso), para a pose neutra sair idêntica à V28.
  */
-function legsFB(botaE, botaD, knees) {
+function legsFB(vista, knees) {
   const P = [];
   const quadril = poly([[24, 63], [40, 63], [40.3, 71], [23.7, 71]]);
   const half = (x0, x1) => inside((x) => x >= x0 && x < x1);
@@ -71,14 +71,59 @@ function legsFB(botaE, botaD, knees) {
   const sh = { l: [-3, 0], s: [1, 0], d: [1, 1] };
   P.push(part('perna_e', 'calca', and(pernas, half(0, 32)), PAL.calca, { shade: sh, recv: true, group: 'calca', shadeAlso: ['perna_d'], marks: knees ? knees[0] : [] }));
   P.push(part('perna_d', 'calca', and(pernas, half(32, 64)), PAL.calca, { shade: sh, recv: true, group: 'calca', shadeAlso: ['perna_e'], marks: knees ? knees[1] : [] }));
-  const SOLA = ['#7a6a6c', '#5a4c4f', '#5a4c4f', '#3a3033'];
-  for (const [k, b, pu, o] of [['e', botaE, [[23.4, 79], [31.9, 79], [31.9, 81.4], [23.4, 81.4]], 'd'], ['d', botaD, [[33, 79], [40.6, 79], [40.6, 81.4], [33, 81.4]], 'e']]) {
-    P.push(part(`bota_${k}`, 'sapato', poly(b), PAL.sapato, { shade: { l: [-2, -1], s: [2, 0], d: [1, 0] }, recv: true, group: 'bota', shadeAlso: [`bota_${o}`] }));
-    P.push(part(`sola_${k}`, 'sapato', and(poly(b), rows(87.6, 90)), SOLA, { shade: { l: [-1, 0] }, group: 'sola', sep: false, shadeAlso: [`sola_${o}`] }));
+  P.push(...calcado(vista, 'e'), ...calcado(vista, 'd'));
+  return P;
+}
+
+
+// ---------------------------------------------------------------- calçados (V33): um molde só para todos
+//
+// Padrão do jogo de referência: de frente e de costas cada pé é uma COLUNA reta da largura da perna (nada saindo para
+// os lados), com a ponta arredondada e a sola na linha 88; os dois pés separados pelo vão das pernas. De lado, a
+// coluna ganha um bico curto para a frente. Todo calçado novo é só um ESTILO deste molde (cores e detalhes); a forma,
+// as peças e os nomes (bota_*, sola_*, punho_bota_*, dedos_*, tira_*) são sempre os mesmos, para animar igual.
+export const CALCADOS = {
+  bota: { nome: 'Bota ninja', cano: PAL.sapato, punho: true, sola: ['#7a6a6c', '#5a4c4f', '#5a4c4f', '#3a3033'] },
+  sandalia: { nome: 'Sandália ninja', cano: ['#e8e4dc', '#c9c3b8', '#a39c91', '#7d776e'], faixas: true, dedos: true,
+    sola: ['#5a4038', '#3e2c26', '#3e2c26', '#2a1d19'], tira: ['#4a5160', '#30353f', '#22262e', '#171a20'] },
+};
+let ESTILO_CALCADO = 'bota';
+
+/** Molde do pé. lado: e/d (frente/costas), f/t (perfil). Devolve as peças do calçado nesse lado. */
+function calcado(vista, lado, est = CALCADOS[ESTILO_CALCADO]) {
+  const P = [];
+  const longe = lado === 't';
+  const pal = (p0) => (longe ? darker(p0) : p0);
+  const grp = (g) => (longe ? 'perna_tras' : g);
+  const irm = (n) => (lado === 'e' ? [`${n}_d`] : lado === 'd' ? [`${n}_e`] : []);
+  let forma, punho, dedos, tira;
+  if (vista === 'perfil') {
+    const cx = lado === 'f' ? 34.4 : 27.8;   // centro da canela
+    // Coluna da canela + bico curto e redondo para a frente.
+    forma = poly([[cx - 3.2, 79], [cx + 3.2, 79], [cx + 3.2, 84.6], [cx + 5.4, 85.6], [cx + 6, 87.4], [cx + 5.6, 89], [cx - 3.2, 89]]);
+    punho = poly([[cx - 3.4, 79], [cx + 3.4, 79], [cx + 3.4, 81.4], [cx - 3.4, 81.4]]);
+    dedos = poly([[cx + 2, 86.4], [cx + 5.4, 86.2], [cx + 5.8, 87.6], [cx + 2, 87.6]]);
+    tira = poly([[cx - 3.2, 84.6], [cx + 4.4, 84.6], [cx + 4.4, 85.8], [cx - 3.2, 85.8]]);
+  } else {
+    const cx = lado === 'e' ? 27.6 : 36.4;   // centro da perna na tela; vão de 2 px entre os pés
+    forma = poly([[cx - 3.2, 79], [cx + 3.2, 79], [cx + 3.2, 87.4], [cx + 2.4, 89], [cx - 2.4, 89], [cx - 3.2, 87.4]]);
+    punho = poly([[cx - 3.4, 79], [cx + 3.4, 79], [cx + 3.4, 81.4], [cx - 3.4, 81.4]]);
+    dedos = vista === 'frente' ? poly([[cx - 2, 85.8], [cx + 2, 85.8], [cx + 2, 87.6], [cx - 2, 87.6]]) : null;
+    tira = poly([[cx - 3.2, 84.4], [cx + 3.2, 84.4], [cx + 3.2, 85.6], [cx - 3.2, 85.6]]);
   }
-  for (const [k, pu, o] of [['e', [[23.4, 79], [31.9, 79], [31.9, 81.4], [23.4, 81.4]], 'd'], ['d', [[33, 79], [40.6, 79], [40.6, 81.4], [33, 81.4]], 'e']]) {
-    P.push(part(`punho_bota_${k}`, 'sapato', poly(pu), PAL.sapato, { shade: { l: [-2, -1], s: [1, 0], d: [0, 1] }, group: 'punho_bota', shadeAlso: [`punho_bota_${o}`] }));
+  const sola = and(forma, rows(87.6, 90));
+  P.push(part(`bota_${lado}`, 'sapato', forma, pal(est.cano), { shade: longe ? { s: [1, 0], d: [0, 1] } : { l: [-2, -1], s: [2, 0], d: [1, 0] },
+    recv: !longe, group: grp('bota'), shadeAlso: irm('bota'),
+    strokes: est.faixas ? [[2, [[forma === null ? 0 : 0, 0], [0, 0]]]].slice(1) : [] }));
+  if (est.faixas) {
+    // Faixas da sandália ninja: 2 voltas de atadura na canela (traços de sombra inclinados).
+    const b = P[P.length - 1], cx = vista === 'perfil' ? (lado === 'f' ? 34.4 : 27.8) : (lado === 'e' ? 27.6 : 36.4);
+    b.strokes = [[2, [[cx - 3, 81], [cx + 3, 80]]], [2, [[cx - 3, 83], [cx + 3, 82]]]];
   }
+  P.push(part(`sola_${lado}`, 'sapato', sola, pal(est.sola), { shade: longe ? {} : { l: [-1, 0] }, group: grp('sola'), sep: false, shadeAlso: irm('sola') }));
+  if (est.punho) P.push(part(`punho_bota_${lado}`, 'sapato', punho, pal(est.cano), { shade: { l: [-2, -1], s: [1, 0], d: [0, 1] }, group: grp('punho_bota'), shadeAlso: irm('punho_bota') }));
+  if (est.tira) P.push(part(`tira_${lado}`, 'sapato', and(tira, forma), pal(est.tira), { shade: { l: [-1, 0], s: [1, 0] }, group: grp('tira'), shadeAlso: irm('tira') }));
+  if (est.dedos && dedos) P.push(part(`dedos_${lado}`, 'corpo', and(dedos, forma), pal(PAL.pele), { shade: { l: [-1, 0], s: [1, 0] }, group: grp('dedos'), shadeAlso: irm('dedos') }));
   return P;
 }
 
@@ -93,7 +138,7 @@ function bodyParts() {
   P.push(part('capuz_forro', 'casaco', ell(32, 47.8, 6.4, 2.6), [PAL.casaco[3], PAL.casaco[3], PAL.casaco[3], PAL.casaco[3]], { group: 'capuz', sep: false }));
 
   // Pernas (calça larga presa na bota) e botas (cano com punho, bico para fora, a direita um pouco diferente).
-  P.push(...legsFB([[24, 80], [31.9, 80], [31.9, 89], [21.2, 89], [21.6, 86.4], [23.6, 85.2]], [[33, 80], [40, 80], [40.6, 85.4], [42.4, 86.6], [43, 89], [33, 89]],
+  P.push(...legsFB('frente',
     [[[26, 75, 0], [27, 75, 0], [27, 76, 0], [28, 77, 2], [29, 77, 2]], [[35, 75, 0], [36, 75, 0], [36, 76, 0], [37, 77, 2], [38, 77, 2]]]));
 
   // Pescoço e tronco (camisa vinho com gola alta), faixa na cintura.
@@ -274,19 +319,14 @@ const darker = (pal) => [pal[1], pal[2], pal[2], pal[3]];
 /** Pernas, botas e solas: de frente/costas (lado a lado) ou de lado (uma atrás da outra). */
 function legsAndBoots(view) {
   const P = [];
-  if (view === 'costas') return legsFB([[24, 80], [31.9, 80], [31.9, 89], [23.2, 89], [23.2, 85]], [[33, 80], [40.4, 80], [41, 89], [33, 89]]);
+  if (view === 'costas') return legsFB('costas');
   // De lado (virado para a direita): a perna de trás é um tom mais escura, a da frente fica um pouco adiante.
   P.push(part('perna_t', 'calca', poly([[24.6, 66], [30.6, 66], [30.4, 83], [25.4, 83]]), darker(PAL.calca), { shade: { s: [1, 0] }, group: 'perna_tras' }));
-  const bT = [[25, 80], [31, 80], [31, 85.4], [34.4, 86.2], [34.8, 89], [24.6, 89]];
-  P.push(part('bota_t', 'sapato', poly(bT), darker(PAL.sapato), { shade: { s: [1, 0], d: [0, 1] }, group: 'perna_tras' }));
-  P.push(part('sola_t', 'sapato', and(poly(bT), rows(87.6, 90)), pal4('#4a3e41'), { group: 'perna_tras', sep: false }));
+  P.push(...calcado('perfil', 't'));
   P.push(part('quadril', 'calca', poly([[27, 63], [37.4, 63], [37.6, 71], [27, 71]]), PAL.calca, { shade: { l: [-3, 0], s: [1, 0], d: [1, 1] }, recv: true, group: 'calca', shadeAlso: ['perna_f'] }));
   P.push(part('perna_f', 'calca', poly([[31, 70], [37.6, 70], [37.2, 83], [31.4, 83]]), PAL.calca,
     { shade: { l: [-3, 0], s: [1, 0], d: [1, 1] }, recv: true, group: 'calca', shadeAlso: ['quadril'], marks: [[33, 75, 0], [34, 75, 0], [35, 76, 2], [36, 76, 2]] }));
-  const bF = [[31.4, 80], [37.8, 80], [38, 85], [42.4, 85.8], [43, 89], [31.2, 89]];
-  P.push(part('bota_f', 'sapato', poly(bF), PAL.sapato, { shade: { l: [-2, -1], s: [2, 0], d: [1, 0] }, recv: true, group: 'bota' }));
-  P.push(part('sola_f', 'sapato', and(poly(bF), rows(87.6, 90)), ['#7a6a6c', '#5a4c4f', '#5a4c4f', '#3a3033'], { shade: { l: [-1, 0] }, group: 'sola', sep: false }));
-  P.push(part('punho_bota_f', 'sapato', poly([[31, 79], [38.2, 79], [38.2, 81.4], [31, 81.4]]), PAL.sapato, { shade: { l: [-2, -1], s: [1, 0], d: [0, 1] }, group: 'punho_bota' }));
+  P.push(...calcado('perfil', 'f'));
   return P;
 }
 
@@ -417,7 +457,7 @@ function sideStamps() {
 // crescendo de 0 no alto da aba até sh na ponta). Pixels inteiros: nada de rotação, para não sujar o pixel art.
 
 export function segmentOf(name) {
-  let m = /^(perna|bota|sola|punho_bota)_([edft])$/.exec(name);
+  let m = /^(perna|bota|sola|punho_bota|dedos|tira)_([edft])$/.exec(name);
   if (m) return `perna_${m[2]}`;
   m = /^(manga|punho|mao)(?:_([ed]))?$/.exec(name);
   if (m) return m[2] ? `braco_${m[2]}` : 'braco';
@@ -599,7 +639,7 @@ PIVOTS.costas = PIVOTS.frente;
 function boneOf(name) {
   if (name.startsWith('cabelo') || name === 'cabeca' || name === 'orelha') return ['cabeca'];
   let m = /^(perna)_([edft])$/.exec(name); if (m) return [m[2], 'perna'];
-  m = /^(bota|sola|punho_bota)_([edft])$/.exec(name); if (m) return [m[2], 'pe'];
+  m = /^(bota|sola|punho_bota|dedos|tira)_([edft])$/.exec(name); if (m) return [m[2], 'pe'];
   m = /^(manga|punho|mao)(?:_([ed]))?$/.exec(name); if (m) return [m[2] || 'f', m[1] === 'manga' ? 'braco' : 'mao'];
   m = /^aba(?:_([ed]))?$/.exec(name); if (m) return [m[1] || 'f', 'aba'];
   if (name === 'quadril') return ['pelve'];
@@ -751,7 +791,7 @@ function skeletonPosed({ parts, stamps }, view, { anim, t, bob = null }) {
   }
   // Chão: o pé mais baixo volta para a linha 88 (no ar, os dois ficam acima).
   let low = 0;
-  for (const q of out) if (/^(bota|sola)_/.test(q.origin)) for (let i = q.mask.length - 1; i >= 0; i--) if (q.mask[i]) { low = Math.max(low, Math.floor(i / W)); break; }
+  for (const q of out) if (/^(bota|sola|dedos|tira)_/.test(q.origin)) for (let i = q.mask.length - 1; i >= 0; i--) if (q.mask[i]) { low = Math.max(low, Math.floor(i / W)); break; }
   const dy = 88 - X.ar - low;
   const cab = mir(X.cabeca);
   const shifted = dy ? out.map((q) => ({ ...q, mask: moveMask(q.mask, 0, dy, 0), subs: q.subs.map((m) => moveMask(m, 0, dy, 0)),
@@ -802,7 +842,8 @@ function viewParts(hairKey, view, opts = {}) {
 export const VIEWS = ['frente', 'costas', 'direita', 'esquerda'];
 
 /** Monta o boneco numa vista. Devolve { w, h, rgba, layers: { nome: rgba } }. */
-export function renderHero(hairKey = 'C', view = 'frente', pose = null) {
+export function renderHero(hairKey = 'C', view = 'frente', pose = null, opts = {}) {
+  ESTILO_CALCADO = opts.calcado || 'bota';
   const base = viewParts(hairKey, view, { bracoAtras: !!(pose && pose.bracoAtras) });
   const posedRes = pose ? (pose.skel ? skeletonPosed(base, view, pose.skel) : posed(base, pose)) : base;
   const { parts, stamps } = posedRes;
