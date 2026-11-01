@@ -10,6 +10,8 @@ novo segue estas regras. Código: `public/pixelHero.js`. Prévias: `arte/persona
 - **V29:** frente idêntica à V28 (conferido pixel a pixel). Costas: mechas da nuca com grupos de azul intermediário,
   capuz com gola, forro, tecido e 2 dobras, fenda da barra mais curta com costura. Lados: perna e bota de trás 2 px mais
   para trás, para os dois pés se lerem separados.
+- **V29.1 (em avaliação):** só a caminhada mudou; os sprites parados são os da V29. Código da V29 congelado em
+  `arte/personagem-pixel/v29/`. Testes em `arte/personagem-pixel/v29_1/`.
 
 ## Diretriz de produção
 
@@ -93,10 +95,18 @@ Medição da V28 nas 4 vistas (pixels opacos, com contorno):
   da tela.
 - Movimento só em pixels inteiros (deslocar e inclinar a barra), sem rotação: o agrupamento de pixels não se perde.
 - Peças separadas para animar são sombreadas em conjunto com as irmãs (`shadeAlso`), e a pose neutra é igual à V28.
-- **Andar (`WALK`):** 6 quadros de 110 ms (contato, descida, passagem, contato do outro pé, descida, passagem), a
-  mesma tabela para as 4 vistas. O corpo desce 1 px na descida e sobe 1 px na passagem; o cabelo acompanha com 1
-  quadro de atraso. O pé que avança sobe até 2 px; o pé de apoio fica sempre na linha 88. De lado, as pernas avançam
-  3 px para cada lado e o braço de perto balança ao contrário da perna de perto; a barra do casaco fica para trás.
+- **Andar (`WALK`, V29.1):** 6 quadros (contato, descida, passagem, contato do outro pé, descida, passagem), a mesma
+  tabela para as 4 vistas. O corpo desce 1 px na descida e sobe 1 px na passagem. O pé de trás ergue o calcanhar 1 px
+  no contato e sai 2 px do chão na descida; o pé de apoio fica sempre na linha 88.
+  - Frente e costas: no contato as pernas abrem 1 px (passada); o braço oposto à perna que avança desce 1 px e entra
+    1 px; as abas balançam juntas para o lado da perna que avança.
+  - Lado: pernas e braço **giram** (inclinação a partir do quadril, linha 66, e do ombro, linha 50); bota, punho e mão
+    andam inteiros. O alto da coxa fica sempre sob o casaco. Pé a 3 px para a frente/trás.
+  - Cabelo: a massa vai junto com a cabeça (a franja não desliza); só as pontas acima da linha 17 atrasam 1 px
+    (esticam quando o corpo desce, encolhem quando sobe). Silhueta permanente intacta.
+  - Velocidade: 110 ms por quadro (660 ms por ciclo) em uso; 750 e 840 ms em avaliação.
+  - Registro: V29 tinha o cabelo inteiro com 1 quadro de atraso (a franja deslizava), pernas da frente/costas só
+    subindo (parecia marchar) e a perna de trás do perfil andando inteira (aparecia como faixa escura atrás da barra).
 
 ## Camadas
 

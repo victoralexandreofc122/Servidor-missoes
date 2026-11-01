@@ -415,17 +415,26 @@ export function segmentOf(name) {
   return 'corpo';
 }
 
-function moveMask(m, dx, dy, sh) {
-  if (!dx && !dy && !sh) return m;
+/**
+ * Desloca uma máscara. sh inclina: a linha shTop fica parada e a partir de shBot o deslocamento é sh inteiro (sem
+ * shTop/shBot, vale o alto e o pé da própria máscara). tip: as linhas acima de tip.y andam tip.dy a mais (movimento
+ * secundário das pontas do cabelo); para cima, a ponta estica (fica também onde estava), sem abrir buraco.
+ */
+function moveMask(m, dx, dy, sh, shTop, shBot, tip) {
+  if (!dx && !dy && !sh && !(tip && tip.dy)) return m;
   let y0 = H, y1 = 0;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (m[y * W + x]) { if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  const top = shTop ?? y0, bot = shBot ?? y1;
   const r = new Uint8Array(W * H);
+  const put = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) r[y * W + x] = 1; };
   for (let y = 0; y < H; y++) {
-    const sx = sh ? Math.round((sh * Math.max(0, Math.min(1, (y - y0) / Math.max(1, y1 - y0))))) : 0;
+    const sx = sh ? Math.round(sh * Math.max(0, Math.min(1, (y - top) / Math.max(1, bot - top)))) : 0;
     for (let x = 0; x < W; x++) {
       if (!m[y * W + x]) continue;
-      const nx = x + dx + sx, ny = y + dy;
-      if (nx >= 0 && ny >= 0 && nx < W && ny < H) r[ny * W + nx] = 1;
+      if (tip && tip.dy && y < tip.y) {
+        put(x + dx + sx, y + dy + tip.dy);
+        if (tip.dy < 0) put(x + dx + sx, y + dy);
+      } else put(x + dx + sx, y + dy);
     }
   }
   return r;
@@ -435,10 +444,11 @@ function moveMask(m, dx, dy, sh) {
 function posed({ parts, stamps }, pose) {
   const T = (seg) => pose[seg] ?? {};
   const moved = parts.map((p) => {
-    const { dx = 0, dy = 0, sh = 0 } = T(segmentOf(p.name));
-    if (!dx && !dy && !sh) return p;
+    const { dx = 0, dy = 0, sh = 0, shTop, shBot, tip } = T(segmentOf(p.name));
+    if (!dx && !dy && !sh && !(tip && tip.dy)) return p;
     const mv = (pts) => pts.map(([x, y]) => [x + dx, y + dy]);
-    return { ...p, mask: moveMask(p.mask, dx, dy, sh), subs: p.subs.map((m) => moveMask(m, dx, dy, sh)),
+    const mm = (m) => moveMask(m, dx, dy, sh, shTop, shBot, tip);
+    return { ...p, mask: mm(p.mask), subs: p.subs.map(mm),
       marks: p.marks.map(([x, y, t]) => [x + dx, y + dy, t]), strokes: p.strokes.map(([t, pts]) => [t, mv(pts)]) };
   });
   const { dx = 0, dy = 0 } = T('corpo');
@@ -446,43 +456,52 @@ function posed({ parts, stamps }, pose) {
 }
 
 /**
- * Caminhada em 6 quadros (contato, descida, passagem, contato do outro pé, descida, passagem).
- * A = perna da esquerda da tela (de frente/costas) ou a de perto (de lado); B = a outra.
- * Tabela única para as 4 vistas: mesmo ritmo, mesmo sobe-e-desce, mesma duração do passo.
+ * Caminhada em 6 quadros (V29.1): contato, descida, passagem, contato do outro pé, descida, passagem.
+ * Uma tabela só para as 4 vistas: mesmo ritmo, mesmo sobe-e-desce, mesma duração do passo.
+ *   [A avanço, A ergue, B avanço, B ergue, corpo dy]
+ * A = perna da esquerda da tela (frente/costas) ou a de perto (lado); B = a outra. "Ergue" é o calcanhar/pé saindo do
+ * chão: 1 px no contato (o pé de trás levanta o calcanhar) e 2 px na descida; o pé de apoio fica na linha 88.
  */
 export const WALK = [
-  // [A avanço, A ergue, B avanço, B ergue, corpo dy]
-  [3, 0, -3, 0, 0],
-  [1, 0, -1, 1, 1],
-  [-1, 0, 1, 2, -1],
-  [-3, 0, 3, 0, 0],
-  [-1, 1, 1, 0, 1],
-  [1, 2, -1, 0, -1],
+  [3, 0, -3, 1, 0],
+  [1, 0, -1, 2, 1],
+  [-1, 0, 1, 1, -1],
+  [-3, 1, 3, 0, 0],
+  [-1, 2, 1, 0, 1],
+  [1, 1, -1, 0, -1],
 ];
-export const WALK_MS = 110; // por quadro: 660 ms por ciclo de 2 passos
+export const WALK_MS = 110; // por quadro (660 ms por ciclo); em avaliação: 125 (750 ms) e 140 (840 ms)
 
 export function walkPose(view, k) {
-  const [aX, aY, bX, bY, bob] = WALK[k % WALK.length];
-  const prevBob = WALK[(k + WALK.length - 1) % WALK.length][4];
-  const P = { corpo: { dy: bob }, cabelo: { dy: prevBob === -1 && bob !== -1 ? bob - 1 : bob } };
+  const n = WALK.length;
+  const [aX, aY, bX, bY, bob] = WALK[k % n];
+  const prev = WALK[(k + n - 1) % n][4];
+  // Cabelo: a massa vai junto com a cabeça (a franja não desliza); só as pontas do alto atrasam 1 px.
+  const P = { corpo: { dy: bob }, cabelo: { dy: bob, tip: { y: 17, dy: bob > prev ? -1 : bob < prev ? 1 : 0 } } };
   if (view === 'direita' || view === 'esquerda') {
-    const f = view === 'direita' ? 1 : -1;            // para onde o boneco anda na tela
-    // Perna de perto (f) e de trás (t) avançam em x; o braço de perto balança ao contrário da perna de perto.
-    P.perna_f = { dx: f * aX, dy: -aY };
-    P.perna_t = { dx: f * bX, dy: -bY };
-    P.braco = { dx: -f * Math.sign(aX) * (Math.abs(aX) >= 3 ? 2 : 1), dy: bob };
-    // A barra do casaco fica para trás e balança com o passo.
+    const f = view === 'direita' ? 1 : -1;
+    // Pernas giram no quadril (inclinação, não deslocamento): o alto da coxa fica escondido sob o casaco e o pé
+    // vai 3 px para a frente ou para trás. A bota (linha 80 para baixo) anda inteira.
+    P.perna_f = { sh: f * aX, shTop: 66, shBot: 80, dy: -aY };
+    P.perna_t = { sh: f * bX, shTop: 66, shBot: 80, dy: -bY };
+    // Braço gira no ombro, ao contrário da perna de perto; punho e mão andam inteiros.
+    P.braco = { sh: -f * Math.round((aX * 2) / 3), shTop: 50, shBot: 63, dy: bob };
     P.aba = { dy: bob, sh: -f * (bob === -1 ? 2 : 1) };
     return P;
   }
-  // De frente e de costas: o pé que avança sobe um pouco; o braço do lado oposto vem junto (sobe 1 px).
-  const e = 'e', d = 'd';                               // e/d = esquerda/direita da TELA nas duas vistas
-  P[`perna_${e}`] = { dy: -aY };
-  P[`perna_${d}`] = { dy: -bY };
-  P[`braco_${e}`] = { dy: bob + (bX > 0 ? -1 : 0) };
-  P[`braco_${d}`] = { dy: bob + (aX > 0 ? -1 : 0) };
-  P[`aba_${e}`] = { dy: bob, sh: aY ? -1 : 0 };
-  P[`aba_${d}`] = { dy: bob, sh: bY ? 1 : 0 };
+  // De frente e de costas (e/d = lados da TELA). No contato as pernas abrem 1 px (passada) e o pé de trás ergue o
+  // calcanhar; na descida ele sai do chão; na passagem volta para perto da outra. O braço do lado oposto à perna
+  // que avança vem para a frente: desce 1 px e entra 1 px.
+  const contatoA = k % n === 0, contatoB = k % n === 3;
+  P.perna_e = { dx: contatoA || contatoB ? -1 : 0, dy: -aY };
+  P.perna_d = { dx: contatoA || contatoB ? 1 : 0, dy: -bY };
+  const aFrente = aX > 0, bFrente = bX > 0;           // qual perna está à frente neste quadro
+  P.braco_e = { dx: bFrente && Math.abs(bX) >= 1 ? 1 : 0, dy: bob + (bFrente ? 1 : 0) };
+  P.braco_d = { dx: aFrente && Math.abs(aX) >= 1 ? -1 : 0, dy: bob + (aFrente ? 1 : 0) };
+  // As abas balançam juntas para o lado da perna que avança.
+  const lado = aX >= 2 ? -1 : bX >= 2 ? 1 : 0;
+  P.aba_e = { dy: bob, sh: lado };
+  P.aba_d = { dy: bob, sh: lado };
   return P;
 }
 
