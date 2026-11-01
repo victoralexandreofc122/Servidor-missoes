@@ -123,33 +123,32 @@ Medição da V28 nas 4 vistas (pixels opacos, com contorno):
   - Registro V29.1 → V29.2: abas abrindo no contato e na descida (antes balançavam juntas para um lado só), braço
     sempre com o mesmo deslocamento, velocidade 660 → 750 ms.
 
-- **Correr (`RUN`, protótipo V30, em avaliação):** 6 poses únicas por direção, 24 quadros, 90 ms por quadro =
-  540 ms por ciclo (proposta). Contato, recolhe, **voo** (os 2 pés fora do chão, quadros 2 e 5), contato do outro
-  pé, recolhe, voo. Corpo 0/+1/−2 (3 px de sobe-e-desce, contra 2 px na caminhada).
-  - Lado: tronco inclinado (o peito e a cabeça 2 px à frente do quadril, inclinação entre as linhas 66 e 50; a
-    cabeça anda inteira, sem deformar). Pés a 5 px para a frente/trás (3 na caminhada) e até 4 px do chão. Braço com
-    balanço de 4 px. Barra do casaco voa 3 px para trás, 4 px no voo. Pontas do cabelo 1 px para trás e com atraso.
-  - Frente e costas: cabeça e peito 1 px mais baixos (o tronco inclinado visto de frente). Pés sobem até 4 px. Braço
-    oposto à perna da frente sobe 2 px e entra 1 px; o outro desce 1 px e abre 1 px. Abas sempre abertas 1 px, 2 px
-    no contato.
-  - Conta da passada (1 casa = 92 / 1,5 ≈ 61,3 px do boneco; o pé de apoio recua 6 px por passo andando e 10 px
-    correndo):
+- **Correr (`RUN`, V30.1, em avaliação): igual à corrida do boneco anterior** (rig v27, `correr` em `public/rig.js`),
+  por decisão do Victor. O protótipo V30 (braços balançando, 540 ms) foi arquivado em
+  `arte/personagem-pixel/v30_corrida/arquivo_prototipo_540ms/`.
+  - Como no anterior: corrida ninja com o tronco bem inclinado (de lado, cabeça e ombros 8 px à frente do quadril e
+    3 px abaixo; a cabeça anda inteira), os **dois braços esticados para trás** (de lado, um desenho próprio do braço
+    quase na horizontal, com a mão atrás das costas; de frente e de costas, as mãos abrem 2 px dos lados), passada
+    longa (pé a 6 px para a frente/trás, joelho subindo até 5 px), um instante no ar (quadros 2 e 5) e a barra do
+    casaco voando para trás (6 px, 7 px no voo). **Ciclo de 440 ms**, o mesmo do anterior: quadros de 70/80 ms
+    (70, 80, 70, 70, 80, 70).
+  - 6 poses únicas por direção, 4 direções = 24 quadros. Limpeza extra só nos quadros da corrida (as bordas
+    inclinadas em degrau deixavam pixels sem vizinho da mesma cor).
+  - Conta da passada (1 casa ≈ 61,3 px; o pé de apoio recua 12 px por passo correndo e 6 px andando):
 
-    | | Caminhada | Corrida 480 ms | **Corrida 540 ms** | Corrida 600 ms |
-    |---|---|---|---|---|
-    | Velocidade no jogo | 5 casas/s (307 px/s) | 8 casas/s (491 px/s) | 8 casas/s | 8 casas/s |
-    | Passos por segundo | 2,67 | 4,17 (1,56x) | **3,70 (1,39x)** | 3,33 (1,25x) |
-    | Distância por passo | 1,88 casa | 1,92 casa (1,02x) | **2,16 casas (1,15x)** | 2,40 casas (1,28x) |
-    | Pé desenhado por ciclo | 12 px | 20 px | 20 px | 20 px |
-    | Deslocamento por ciclo | 230 px | 236 px | **265 px** | 294 px |
-    | Deslizamento (desloc. / pé) | 19,2x | 11,8x | **13,2x** | 14,7x |
+    | | Caminhada 750 ms | Corrida 440 ms |
+    |---|---|---|
+    | Velocidade no jogo | 5 casas/s (307 px/s) | 8 casas/s (491 px/s), 1,6x |
+    | Passos por segundo | 2,67 | 4,55 (1,70x) |
+    | Distância por passo | 1,88 casa | 1,76 casa (0,94x) |
+    | Pé desenhado por ciclo | 12 px | 24 px |
+    | Deslocamento por ciclo | 230 px | 216 px |
+    | Deslizamento (desloc. / pé) | 19,2x | 9,0x |
 
-    A corrida é 1,6x mais rápida que a caminhada. Corredores de verdade ganham velocidade com passo mais rápido **e**
-    mais longo; 540 ms divide isso (1,39 x 1,15 = 1,6). 480 ms seria uma caminhada acelerada (o mesmo passo,
-    só mais rápido); 600 ms deixa o passo lento demais para parecer corrida. O deslizamento do pé cai de 19x para 13x
-    (o pé desenhado anda 1,7x mais), então a corrida patina menos que a caminhada.
-  - Integração: o quadro avança pela distância (1 ciclo a cada 4,32 casas na corrida, 3,75 na caminhada), mas a
-    duração-alvo do ciclo (540 / 750 ms) é que define a passada. Isso só fecha de verdade no jogo, com o boneco novo.
+    A corrida parece mais rápida pela cadência (1,7x), pela postura e pelo pé desenhado com o dobro do curso; o
+    deslizamento cai para menos da metade. A distância por passo fica um pouco menor que andando (0,94x): é o preço de
+    manter os 440 ms do anterior. Com 8 casas/s, o quadro avança a cada 0,59 casa (1 ciclo a cada 3,52 casas).
+
 - **Achado na validação (caminhada oficial, não corrigido):** com a regra mais rígida de pixel solto (nenhum vizinho
   da mesma cor, nem na diagonal), o quadro 0 do lado direito tem 6 pixels soltos a mais que a pose parada (punho,
   calça e barra inclinados). Correção possível: a limpeza também nos quadros inclinados. Aguarda decisão.

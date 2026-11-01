@@ -339,7 +339,7 @@ function backParts() {
 }
 
 /** Lado direito (perfil): cabeça de perfil com orelha, cabelo com as mesmas 4 pontas, casaco aberto na frente. */
-function sideParts() {
+function sideParts(bracoAtras = false) {
   const P = [];
   // Capuz atrás do pescoço (nas costas do perfil) e a perna/bota de trás.
   P.push(part('capuz', 'casaco', or(ell(25.4, 49.4, 5.4, 4), poly([[21.6, 47], [28, 46.4], [29, 52], [26, 57], [22, 54.6]])), PAL.casaco,
@@ -361,10 +361,18 @@ function sideParts() {
     strokes: [[2, [[27, 68], [25, 78]]], [2, [[31, 70], [30, 80]]]] }));
   P.push(part('lapela', 'casaco', poly([[33, 47.4], [35.6, 48.6], [36.4, 55], [35, 58], [34, 52]]), PAL.casaco, { shade: { l: [0, -2], d: [1, 0] }, group: 'casaco', sep: false }));
   // Braço (o de perto): manga larga pendendo ao lado do corpo, dobra no cotovelo, punho em sino, mão.
+  if (bracoAtras) {
+    // Corrida ninja: braço esticado para trás a partir do ombro, quase na horizontal, mão aberta atrás das costas.
+    P.push(part('manga', 'casaco', poly([[33.4, 48.6], [28, 48.2], [22, 50.6], [17.4, 53.4], [18.6, 57.6], [23.4, 56], [29, 54.6], [33.4, 54]]), PAL.casaco,
+      { shade: { l: [-1, -2], s: [1, 2], d: [1, 1] }, group: 'manga', strokes: [[2, [[25, 53], [23, 54]]]] }));
+    P.push(part('punho', 'casaco', poly([[14.4, 52.6], [19.2, 52], [20.2, 58.2], [15.2, 59.4]]), PAL.casaco, { shade: { l: [-1, -1], s: [1, 1], d: [0, 1] }, group: 'punho' }));
+    P.push(part('mao', 'corpo', ell(12.6, 56.4, 2.6, 2.8), PAL.pele, { shade: { l: [-1, -1], s: [1, 1], d: [1, 1] }, group: 'mao', recv: true }));
+  } else {
   P.push(part('manga', 'casaco', poly([[27.6, 48.4], [32.4, 48.6], [34, 52], [33.8, 57], [34.4, 63.6], [27.2, 63.6], [27.6, 56.6], [26.8, 51]]), PAL.casaco,
     { shade: { l: [-1, -2], s: [2, 1], d: [1, 1] }, group: 'manga', strokes: [[2, [[29, 56], [31, 58]]], [2, [[32, 58], [33, 60]]]] }));
   P.push(part('punho', 'casaco', poly([[26.8, 62.6], [34.6, 62.6], [35, 66], [26.4, 66]]), PAL.casaco, { shade: { l: [0, -1], s: [2, 1], d: [0, 1] }, group: 'punho' }));
   P.push(part('mao', 'corpo', ell(31, 68.4, 3.1, 3), PAL.pele, { shade: { l: [-1, -1], s: [2, 1], d: [1, 1] }, group: 'mao', recv: true, marks: [[33, 67, 0]] }));
+  }
   // Cabelo de trás (nuca), depois a cabeça de perfil com nariz e queixo, a orelha, e o cabelo da frente.
   P.push(part('cabelo_tras', 'cabelo', or(ell(29, 32, 14.6, 13.6), poly([[15.6, 32], [26, 30], [27.4, 45.6], [22, 44], [17.6, 41]])), [PAL.cabelo[1], PAL.cabelo[2], PAL.cabelo[2], PAL.cabelo[2]],
     { shade: { l: [-2, -2], s: [3, 1], d: [1, 1] }, group: 'cabelo', sep: false }));
@@ -508,54 +516,55 @@ export function walkPose(view, k) {
 }
 
 /**
- * Corrida em 6 quadros (protótipo V30): contato, recolhe, voo, contato do outro pé, recolhe, voo.
- * Mesma ideia da caminhada (uma tabela para as 4 vistas), com mais amplitude e uma fase de voo (os dois pés fora do
- * chão). [A avanço, A ergue, B avanço, B ergue, corpo dy]. De lado o avanço é a inclinação da perna no quadril.
+ * Corrida ninja em 6 quadros (V30.1), igual à corrida do boneco anterior (rig v27, `correr` em public/rig.js):
+ * tronco bem inclinado com a cabeça à frente, os DOIS braços esticados para trás (não balançam), passada longa com o
+ * joelho subindo, um instante no ar, a barra do casaco voando para trás. Ciclo de 440 ms, como o anterior.
+ *   [A avanço, A ergue, B avanço, B ergue, corpo dy]  (A = perna da esquerda da tela / a de perto de lado)
  */
 export const RUN = [
-  [5, 0, -5, 2, 0],
-  [2, 0, -3, 4, 1],
-  [-2, 1, 2, 3, -2],
-  [-5, 2, 5, 0, 0],
-  [-3, 4, 2, 0, 1],
-  [2, 3, -2, 1, -2],
+  [6, 0, -6, 2, 0],
+  [3, 0, -4, 4, 1],
+  [-2, 2, 4, 5, -2],
+  [-6, 2, 6, 0, 0],
+  [-4, 4, 3, 0, 1],
+  [4, 5, -2, 2, -2],
 ];
-export const RUN_MS = 90; // por quadro: 540 ms por ciclo (em avaliação; ver a conta na ficha)
+export const RUN_MS = [70, 80, 70, 70, 80, 70]; // 440 ms por ciclo, como o `correr` do rig (ms: 440)
 
 export function runPose(view, k) {
   const n = RUN.length, q = k % n;
   const [aX, aY, bX, bY, bob] = RUN[q];
   const prev = RUN[(q + n - 1) % n][4];
   const lag = bob > prev ? -1 : bob < prev ? 1 : 0;   // pontas do cabelo atrasam o sobe-e-desce
+  const tremor = q % 3 === 1 ? 1 : 0;                  // braços quase parados: só 1 px de tranco no "recolhe"
   if (view === 'direita' || view === 'esquerda') {
     const f = view === 'direita' ? 1 : -1;
-    const L = 2 * f;                                   // tronco inclinado: o peito e a cabeça 2 px à frente do quadril
+    const L = 8 * f;                                   // inclinação: cabeça e ombros 8 px à frente do quadril e 3 px abaixo
     return {
-      corpo: { dy: bob, sh: L, shTop: 66, shBot: 50 },
-      // Pontas do cabelo: atrasam e ficam 1 px para trás com o vento.
-      cabelo: { dx: L, dy: bob, tip: { y: 17, dy: lag, dx: -f } },
+      corpo: { dy: bob + 3, sh: L, shTop: 66, shBot: 50 },
+      cabelo: { dx: L, dy: bob + 3, tip: { y: 17, dy: lag, dx: -2 * f } },
       perna_f: { sh: f * aX, shTop: 66, shBot: 80, dy: -aY },
       perna_t: { sh: f * bX, shTop: 66, shBot: 80, dy: -bY },
-      // Braço: balanço maior, oposto à perna de perto, preso no ombro que foi junto com o tronco.
-      braco: { dx: L, sh: -f * Math.round(aX * 0.8), shTop: 50, shBot: 63, dy: bob },
-      // Barra do casaco voa para trás: 3 px, e 4 px no voo.
-      aba: { dy: bob, sh: -f * (bob === -2 ? 4 : 3) },
+      // Braço esticado para trás a partir do ombro (que foi junto com o tronco): a mão fica atrás do quadril.
+      // Braço esticado para trás (desenho próprio, sideParts(true)); só acompanha o ombro e dá 1 px de tranco.
+      bracoAtras: true, limpeza: true,
+      braco: { dx: L, dy: bob + 3 - tremor },
+      aba: { dy: bob, sh: -f * (bob === -2 ? 7 : 6) },
     };
   }
-  // De frente e de costas: o tronco inclinado aparece como a cabeça e o peito 1 px mais baixos.
+  // De frente e de costas: o tronco inclinado aparece como cabeça e peito 2 px mais baixos; os braços vão para trás e
+  // para fora (as mãos abrem 2 px dos lados do corpo e sobem 1 px); joelhos sobem bem (até 5 px); abas voam abertas.
   const contato = q === 0 || q === 3;
-  const aFrente = aX > 0, bFrente = bX > 0;
   return {
-    corpo: { dy: bob + 1 },
-    cabelo: { dy: bob + 1, tip: { y: 17, dy: lag } },
+    limpeza: true,
+    corpo: { dy: bob + 2 },
+    cabelo: { dy: bob + 2, tip: { y: 17, dy: lag } },
     perna_e: { dx: contato ? -1 : 0, dy: -aY },
     perna_d: { dx: contato ? 1 : 0, dy: -bY },
-    // Braço oposto à perna da frente sobe 2 px e entra 1 px (vem para o peito); o outro desce 1 px e abre 1 px.
-    braco_e: bFrente ? { dx: 1, dy: bob + 1 - 2 } : { dx: -1, dy: bob + 1 + 1 },
-    braco_d: aFrente ? { dx: -1, dy: bob + 1 - 2 } : { dx: 1, dy: bob + 1 + 1 },
-    // Casaco reage à velocidade: as abas abrem sempre 1 px, 2 px no contato.
-    aba_e: { dy: bob + 1, sh: contato ? -2 : -1 },
-    aba_d: { dy: bob + 1, sh: contato ? 2 : 1 },
+    braco_e: { dx: -2, dy: bob + 1 - tremor },
+    braco_d: { dx: 2, dy: bob + 1 - tremor },
+    aba_e: { dy: bob, sh: contato ? -3 : -2 },
+    aba_d: { dy: bob, sh: contato ? 3 : 2 },
   };
 }
 
@@ -566,10 +575,10 @@ const hex = (s) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), pa
 export function renderHeroFront(hairKey = 'A') { return renderHero(hairKey, 'frente'); }
 
 /** Peças (de trás para a frente) e carimbos do rosto de uma vista. */
-function viewParts(hairKey, view) {
+function viewParts(hairKey, view, opts = {}) {
   if (view === 'esquerda') {
     // Lado esquerdo: a geometria do direito espelhada ANTES do sombreado, para a luz continuar vindo da esquerda.
-    const { parts, stamps } = viewParts(hairKey, 'direita');
+    const { parts, stamps } = viewParts(hairKey, 'direita', opts);
     const mm = (m) => { const r = new Uint8Array(W * H); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) r[y * W + x] = m[y * W + (W - 1 - x)]; return r; };
     return {
       parts: parts.map((p) => ({ ...p, mask: mm(p.mask), subs: p.subs.map(mm), marks: p.marks.map(([x, y, t]) => [W - 1 - x, y, t]),
@@ -578,7 +587,7 @@ function viewParts(hairKey, view) {
     };
   }
   if (view === 'costas') return { parts: backParts(), stamps: [] };
-  if (view === 'direita') return { parts: sideParts(), stamps: sideStamps() };
+  if (view === 'direita') return { parts: sideParts(opts.bracoAtras), stamps: sideStamps() };
   const parts = [...bodyParts()];
   // O cabelo de trás vai antes da cabeça; mechas e franja, depois.
   const hair = HAIR[hairKey]();
@@ -592,7 +601,7 @@ export const VIEWS = ['frente', 'costas', 'direita', 'esquerda'];
 
 /** Monta o boneco numa vista. Devolve { w, h, rgba, layers: { nome: rgba } }. */
 export function renderHero(hairKey = 'C', view = 'frente', pose = null) {
-  const base = viewParts(hairKey, view);
+  const base = viewParts(hairKey, view, { bracoAtras: !!(pose && pose.bracoAtras) });
   const { parts, stamps } = pose ? posed(base, pose) : base;
   // Sombreado em conjunto: peças separadas para animar (pernas, botas) testam a luz contra a união com as irmãs.
   const byName = new Map(parts.map((p) => [p.name, p]));
@@ -679,6 +688,19 @@ export function renderHero(hairKey = 'C', view = 'frente', pose = null) {
     const cnt = {}; for (const j of nb) if (col[j] && same(own[j], own[i])) cnt[col[j]] = (cnt[col[j]] || 0) + 1;
     const best = Object.entries(cnt).sort((a, b) => b[1] - a[1]).find(([, n]) => n >= (parts[own[i]].layer === 'cabelo' ? 2 : 3));
     if (best) { col[i] = best[0]; tone[i] = parts[own[i]].pal.indexOf(best[0]); }
+  }
+
+  // Limpeza extra das poses inclinadas (corrida): a borda inclinada em degraus deixa pixels sem nenhum vizinho da mesma
+  // cor, nem na diagonal. Viram a cor mais comum entre os vizinhos em cruz da mesma peça. Não roda na pose parada nem
+  // na caminhada oficial (congelada).
+  if (pose && pose.limpeza) for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+    const i = y * W + x; if (!col[i] || keep.has(i)) continue;
+    let alone = true;
+    for (let dy = -1; dy <= 1 && alone; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && col[i + dy * W + dx] === col[i]) { alone = false; break; }
+    if (!alone) continue;
+    const cnt = {}; for (const j of [i - 1, i + 1, i - W, i + W]) if (col[j] && same(own[j], own[i])) cnt[col[j]] = (cnt[col[j]] || 0) + 1;
+    const best = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
+    if (best && best[1] >= 2) { col[i] = best[0]; tone[i] = parts[own[i]].pal.indexOf(best[0]); }
   }
 
   // Brilho do cabelo: arco de 2 px acompanhando a curva do alto da cabeça (só no tom de luz/base).

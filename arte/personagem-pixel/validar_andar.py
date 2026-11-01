@@ -8,6 +8,7 @@ VS = ['frente', 'costas', 'direita', 'esquerda']; N = 6
 MS = int(sys.argv[3]) if len(sys.argv) > 3 else 125
 VOO = {int(x) for x in sys.argv[4].split(',')} if len(sys.argv) > 4 else set()
 OUT = (20, 24, 43)
+ROSTO = {(255, 255, 255), (20, 40, 79), (47, 109, 181), (111, 180, 232), (140, 63, 69), (236, 154, 143), (16, 23, 43), (217, 151, 132), (255, 228, 204)}
 def load(v, k): return Image.open(f'{pasta}/{pref}_{v}_{k}.png').convert('RGBA')
 def px(im): return im.load()
 ok = True
@@ -26,7 +27,7 @@ for v in VS:
     def bob(p):
         best = None
         for dy in range(-3, 4):
-            m = max(sum(1 for y in range(34, 57) for x in range(16, 48) if p[x + dx, y + dy] == neutro[x, y]) for dx in range(-3, 4))
+            m = max(sum(1 for y in range(34, 57) for x in range(16, 48) if p[x + dx, y + dy] == neutro[x, y]) for dx in range(-9, 10))
             if best is None or m > best[0]: best = (m, dy)
         return best[1]
     heads = [bob(p) for p in P]
@@ -37,6 +38,7 @@ for v in VS:
             for x in range(1, 63):
                 q = p[x, y]
                 if q[3] == 0 or q[:3] == OUT: continue
+                if q[:3] in ROSTO: continue  # carimbos do rosto (olhos, boca, nariz, blush) são desenho
                 if 33 <= y <= 46 and 18 <= x <= 46: continue
                 # solto = nenhum dos 8 vizinhos tem a mesma cor (traço diagonal de 1 px é desenho, não sujeira)
                 if all(p[x + dx, y + dy] != q for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy): c += 1
