@@ -182,3 +182,13 @@ abas da barra, mangas, punhos, capuz), `calca`, `acessorio` (faixa e nó), `sapa
 - Mãos: manter o tamanho, desenhar o polegar como parte da silhueta, separar palma e polegar por cor, sem dedos.
 - Contraste do cabelo sobre água: testado em grama, terra e água (`previa_andar_no_mapa.png`). A cabeça se lê nos 3;
   na água a massa da nuca e as laterais ficam próximas do fundo. Resolver nos tons de azul, sem contorno claro.
+
+## Corrida oficial (V32, aprovada)
+
+- Corrida pelo esqueleto palito 3D (`renderHero('C', vista, { skel: { anim: 'correr', t }, limpeza: true })`), 6 poses
+  por direção, 24 quadros, 440 ms (70/80/70/70/80/70 ms). Cópia congelada em `arte/personagem-pixel/corrida_oficial/`.
+- Casaco: de lado voa para trás (giro fixo de 0,95 rad na cintura, com tremor leve), sem seguir a perna; de frente a
+  barra encurta e abre (some para trás das pernas); de costas o casaco é inteiro (sem fenda) e as duas metades se movem
+  juntas.
+- Perfil: a têmpora acima da orelha é coberta de cabelo (com pele ali parecia calvície).
+- Braços parados para trás durante a corrida (não balançam), como no boneco anterior.
