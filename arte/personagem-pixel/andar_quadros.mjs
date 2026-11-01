@@ -23,4 +23,8 @@ for (const [tag, m] of [['v29', v29], ['v291', v291], ['atual', atual]]) {
     writeFileSync(`${out}/${tag}_${v}_${k}.png`, png(f.w, f.h, f.rgba));
   }
 }
+for (const v of atual.VIEWS) for (let k = 0; k < atual.RUN.length; k++) {
+  const f = atual.renderHero('C', v, atual.runPose(v, k));
+  writeFileSync(`${out}/correr_${v}_${k}.png`, png(f.w, f.h, f.rgba));
+}
 console.log('ok');

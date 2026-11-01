@@ -421,19 +421,19 @@ export function segmentOf(name) {
  * secundário das pontas do cabelo); para cima, a ponta estica (fica também onde estava), sem abrir buraco.
  */
 function moveMask(m, dx, dy, sh, shTop, shBot, tip) {
-  if (!dx && !dy && !sh && !(tip && tip.dy)) return m;
+  if (!dx && !dy && !sh && !(tip && (tip.dy || tip.dx))) return m;
   let y0 = H, y1 = 0;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (m[y * W + x]) { if (y < y0) y0 = y; if (y > y1) y1 = y; }
   const top = shTop ?? y0, bot = shBot ?? y1;
   const r = new Uint8Array(W * H);
   const put = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) r[y * W + x] = 1; };
   for (let y = 0; y < H; y++) {
-    const sx = sh ? Math.round(sh * Math.max(0, Math.min(1, (y - top) / Math.max(1, bot - top)))) : 0;
+    const sx = sh ? Math.round(sh * Math.max(0, Math.min(1, (y - top) / (bot - top || 1)))) : 0; // bot < top: inclina para cima
     for (let x = 0; x < W; x++) {
       if (!m[y * W + x]) continue;
-      if (tip && tip.dy && y < tip.y) {
-        put(x + dx + sx, y + dy + tip.dy);
-        if (tip.dy < 0) put(x + dx + sx, y + dy);
+      if (tip && (tip.dy || tip.dx) && y < tip.y) {
+        put(x + dx + sx + (tip.dx || 0), y + dy + (tip.dy || 0));
+        if ((tip.dy || 0) < 0 || tip.dx) put(x + dx + sx, y + dy);
       } else put(x + dx + sx, y + dy);
     }
   }
@@ -445,14 +445,16 @@ function posed({ parts, stamps }, pose) {
   const T = (seg) => pose[seg] ?? {};
   const moved = parts.map((p) => {
     const { dx = 0, dy = 0, sh = 0, shTop, shBot, tip } = T(segmentOf(p.name));
-    if (!dx && !dy && !sh && !(tip && tip.dy)) return p;
+    if (!dx && !dy && !sh && !(tip && (tip.dy || tip.dx))) return p;
     const mv = (pts) => pts.map(([x, y]) => [x + dx, y + dy]);
     const mm = (m) => moveMask(m, dx, dy, sh, shTop, shBot, tip);
     return { ...p, mask: mm(p.mask), subs: p.subs.map(mm),
       marks: p.marks.map(([x, y, t]) => [x + dx, y + dy, t]), strokes: p.strokes.map(([t, pts]) => [t, mv(pts)]) };
   });
-  const { dx = 0, dy = 0 } = T('corpo');
-  return { parts: moved, stamps: stamps.map((q) => ({ ...q, x: q.x + dx, y: q.y + dy })) };
+  // O rosto acompanha o corpo, inclusive a inclinação do tronco (na altura do rosto ela já é inteira).
+  const { dx = 0, dy = 0, sh = 0, shTop, shBot } = T('corpo');
+  const lean = (y) => (sh && shTop !== undefined ? Math.round(sh * Math.max(0, Math.min(1, (y - shTop) / (shBot - shTop)))) : 0);
+  return { parts: moved, stamps: stamps.map((q) => ({ ...q, x: q.x + dx + lean(q.y), y: q.y + dy })) };
 }
 
 /**
@@ -503,6 +505,58 @@ export function walkPose(view, k) {
   P.aba_e = { dy: bob, sh: contato || aY === 2 ? -1 : 0 };
   P.aba_d = { dy: bob, sh: contato || bY === 2 ? 1 : 0 };
   return P;
+}
+
+/**
+ * Corrida em 6 quadros (protótipo V30): contato, recolhe, voo, contato do outro pé, recolhe, voo.
+ * Mesma ideia da caminhada (uma tabela para as 4 vistas), com mais amplitude e uma fase de voo (os dois pés fora do
+ * chão). [A avanço, A ergue, B avanço, B ergue, corpo dy]. De lado o avanço é a inclinação da perna no quadril.
+ */
+export const RUN = [
+  [5, 0, -5, 2, 0],
+  [2, 0, -3, 4, 1],
+  [-2, 1, 2, 3, -2],
+  [-5, 2, 5, 0, 0],
+  [-3, 4, 2, 0, 1],
+  [2, 3, -2, 1, -2],
+];
+export const RUN_MS = 90; // por quadro: 540 ms por ciclo (em avaliação; ver a conta na ficha)
+
+export function runPose(view, k) {
+  const n = RUN.length, q = k % n;
+  const [aX, aY, bX, bY, bob] = RUN[q];
+  const prev = RUN[(q + n - 1) % n][4];
+  const lag = bob > prev ? -1 : bob < prev ? 1 : 0;   // pontas do cabelo atrasam o sobe-e-desce
+  if (view === 'direita' || view === 'esquerda') {
+    const f = view === 'direita' ? 1 : -1;
+    const L = 2 * f;                                   // tronco inclinado: o peito e a cabeça 2 px à frente do quadril
+    return {
+      corpo: { dy: bob, sh: L, shTop: 66, shBot: 50 },
+      // Pontas do cabelo: atrasam e ficam 1 px para trás com o vento.
+      cabelo: { dx: L, dy: bob, tip: { y: 17, dy: lag, dx: -f } },
+      perna_f: { sh: f * aX, shTop: 66, shBot: 80, dy: -aY },
+      perna_t: { sh: f * bX, shTop: 66, shBot: 80, dy: -bY },
+      // Braço: balanço maior, oposto à perna de perto, preso no ombro que foi junto com o tronco.
+      braco: { dx: L, sh: -f * Math.round(aX * 0.8), shTop: 50, shBot: 63, dy: bob },
+      // Barra do casaco voa para trás: 3 px, e 4 px no voo.
+      aba: { dy: bob, sh: -f * (bob === -2 ? 4 : 3) },
+    };
+  }
+  // De frente e de costas: o tronco inclinado aparece como a cabeça e o peito 1 px mais baixos.
+  const contato = q === 0 || q === 3;
+  const aFrente = aX > 0, bFrente = bX > 0;
+  return {
+    corpo: { dy: bob + 1 },
+    cabelo: { dy: bob + 1, tip: { y: 17, dy: lag } },
+    perna_e: { dx: contato ? -1 : 0, dy: -aY },
+    perna_d: { dx: contato ? 1 : 0, dy: -bY },
+    // Braço oposto à perna da frente sobe 2 px e entra 1 px (vem para o peito); o outro desce 1 px e abre 1 px.
+    braco_e: bFrente ? { dx: 1, dy: bob + 1 - 2 } : { dx: -1, dy: bob + 1 + 1 },
+    braco_d: aFrente ? { dx: -1, dy: bob + 1 - 2 } : { dx: 1, dy: bob + 1 + 1 },
+    // Casaco reage à velocidade: as abas abrem sempre 1 px, 2 px no contato.
+    aba_e: { dy: bob + 1, sh: contato ? -2 : -1 },
+    aba_d: { dy: bob + 1, sh: contato ? 2 : 1 },
+  };
 }
 
 // ---------------------------------------------------------------- montagem
