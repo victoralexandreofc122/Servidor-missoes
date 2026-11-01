@@ -665,7 +665,10 @@ export function skeletonFrame(view, anim, t) {
     const braco = T(ombro2, boneM(P0[`shoulder${S}`], P0[`elbow${S}`], P1[`shoulder${S}`], P1[`elbow${S}`]), J.ombro);
     const cot2 = fwd(braco, J.cotovelo);
     const mao = T(cot2, boneM(P0[`elbow${S}`], P0[`wrist${S}`], P1[`elbow${S}`], P1[`wrist${S}`]), J.cotovelo);
-    const quad2 = plus(J.quadril, sc(P0[`hip${S}`], P1[`hip${S}`]));
+    // De frente/costas o passo vai para a câmera (profundidade), que a tela quase não mostra (TILT 0,18). Aqui a perna
+    // que vem para perto desce mais na tela e a que vai para longe sobe: a perna da frente fica legível.
+    const prof = v === 'direita' ? 0 : Math.max(-2, Math.min(0, (P1[`ankle${S}`][2] - P0[`ankle${S}`][2]) * 0.55 * SK)); // só a de longe sobe: o corpo não pula
+    const quad2 = plus(plus(J.quadril, sc(P0[`hip${S}`], P1[`hip${S}`])), [0, prof]);
     const coxa = T(quad2, boneM(P0[`hip${S}`], P0[`knee${S}`], P1[`hip${S}`], P1[`knee${S}`]), J.quadril);
     const joe2 = fwd(coxa, J.joelho);
     const canela = T(joe2, boneM(P0[`knee${S}`], P0[`ankle${S}`], P1[`knee${S}`], P1[`ankle${S}`]), J.joelho);
@@ -682,6 +685,8 @@ export function skeletonFrame(view, anim, t) {
     if (anim === 'correr' && v === 'direita') aba = T(cintura2, rotM(0.95 + trem), piv.cintura);
     // De frente, voar para trás = a barra some para trás das pernas: encurta e abre para os lados.
     if (anim === 'correr' && v === 'frente') aba = T(cintura2, mulM(rotM((k === 'e' ? 0.16 : -0.16) + trem), [1, 0, 0, 0.62]), piv.cintura);
+    // Andando de frente, a aba do lado da perna que vem para a câmera abre para o lado e mostra a perna.
+    if (anim === 'andar' && v === 'frente' && P1[`ankle${S}`][2] - P0[`ankle${S}`][2] > 1) aba = T(cintura2, rotM(k === 'e' ? 0.16 : -0.16), piv.cintura);
     // De costas o casaco é uma peça só: as duas metades levam o MESMO movimento (correndo, a barra vem para a câmera:
     // abre e sobe um pouco).
     if (v === 'costas') aba = T(cintura2, anim === 'correr' ? [1.12, 0, 0, 0.9 + trem] : [1, 0, 0, 1], piv.cintura);
