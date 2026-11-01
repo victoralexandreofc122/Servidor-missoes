@@ -1,0 +1,122 @@
+[
+{
+"bandana": "vila",
+"conjunto": "colete_vila",
+"maoArma": "kunai",
+"costasArma": "katana"
+},
+{
+"maoArma": "tanto"
+},
+{
+"capuz": "nenhum",
+"cima": "manga_longa",
+"corCima": "laranja",
+"corBaixo": "azul_marinho",
+"bandana": "vila",
+"sapato": "sandalia",
+"cabelo": "loiro",
+"olhos": "azul",
+"costasArma": "scroll"
+},
+{
+"capuz": "nenhum",
+"cima": "camiseta",
+"corCima": "preto",
+"baixo": "bermuda",
+"corBaixo": "areia",
+"sapato": "sandalia",
+"cabelo": "castanho",
+"olhos": "castanho",
+"pele": "moreno",
+"maoArma": "kunai"
+},
+{
+"capuz": "nenhum",
+"cima": "regata",
+"corCima": "branco",
+"corBaixo": "preto",
+"sapato": "tenis",
+"cabelo": "branco",
+"olhos": "vermelho",
+"pele": "escuro",
+"costasArma": "katana"
+},
+{
+"capuz": "casaco",
+"corCapuz": "preto",
+"corCima": "vermelho",
+"corBaixo": "preto",
+"bandana": "renegado",
+"corBandana": "preto",
+"olhos": "roxo",
+"costasArma": "katana"
+},
+{
+"capuz": "nenhum",
+"conjunto": "colete_vila",
+"corCima": "azul_marinho",
+"corBaixo": "azul_marinho",
+"bandana": "vila",
+"sapato": "sandalia",
+"cabelo": "ruivo",
+"olhos": "verde",
+"pele": "claro",
+"maoArma": "kunai_training"
+},
+{
+"capuz": "nenhum",
+"conjunto": "colete_anbu",
+"cima": "regata",
+"corCima": "preto",
+"corBaixo": "preto",
+"sapato": "bota",
+"cabelo": "roxo",
+"olhos": "cinza",
+"maoArma": "kunai",
+"costasArma": "katana"
+},
+{
+"capuz": "casaco",
+"corCapuz": "areia",
+"corCima": "verde_vila",
+"corBaixo": "areia",
+"sapato": "sandalia",
+"bandana": "vila",
+"corBandana": "vermelho",
+"cabelo": "castanho",
+"olhos": "verde",
+"pele": "moreno"
+},
+{
+"capuz": "casaco",
+"corCapuz": "vinho",
+"corCima": "preto",
+"corBaixo": "cinza",
+"sapato": "tenis",
+"cabelo": "rosa",
+"olhos": "verde",
+"costasArma": "fuma_shuriken"
+},
+{
+"capuz": "nenhum",
+"cima": "camiseta",
+"corCima": "vermelho",
+"baixo": "bermuda",
+"corBaixo": "preto",
+"sapato": "tenis",
+"cabelo": "loiro",
+"olhos": "azul",
+"pele": "claro",
+"maoArma": "kunai"
+},
+{
+"capuz": "casaco",
+"corCapuz": "azul_marinho",
+"conjunto": "colete_vila",
+"corCima": "preto",
+"bandana": "vila",
+"cabelo": "branco",
+"costasArma": "katana"
+}
+]
