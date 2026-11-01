@@ -27,4 +27,9 @@ for (const v of atual.VIEWS) for (let k = 0; k < atual.RUN.length; k++) {
   const f = atual.renderHero('C', v, atual.runPose(v, k));
   writeFileSync(`${out}/correr_${v}_${k}.png`, png(f.w, f.h, f.rgba));
 }
+// V31: caminhada e corrida pelo esqueleto palito 3D (rig.js), 6 quadros cada.
+for (const [tag, anim] of [['skandar', 'andar'], ['skcorrer', 'correr']]) for (const v of atual.VIEWS) for (let k = 0; k < 6; k++) {
+  const f = atual.renderHero('C', v, { skel: { anim, t: k / 6 }, limpeza: true });
+  writeFileSync(`${out}/${tag}_${v}_${k}.png`, png(f.w, f.h, f.rgba));
+}
 console.log('ok');

@@ -153,6 +153,25 @@ Medição da V28 nas 4 vistas (pixels opacos, com contorno):
   da mesma cor, nem na diagonal), o quadro 0 do lado direito tem 6 pixels soltos a mais que a pose parada (punho,
   calça e barra inclinados). Correção possível: a limpeza também nos quadros inclinados. Aguarda decisão.
 
+- **V31: animação pelo esqueleto palito 3D (em avaliação).** As mesmas peças desenhadas à mão, agora presas aos ossos
+  do esqueleto de `public/rig.js` (o mesmo das animações do boneco anterior). Código: `skeletonFrame` e
+  `skeletonPosed` em `public/pixelHero.js`; uso: `renderHero('C', vista, { skel: { anim, t }, limpeza: true })`.
+  - Ossos: tronco (cintura → pescoço), braço (ombro → cotovelo), antebraço (cotovelo → pulso), coxa (quadril →
+    joelho), canela (joelho → tornozelo) e pé (tornozelo → ponta). Juntas do herói em `PIVOTS` (por vista).
+  - Cada peça gira com o osso (diferença de ângulo na tela entre a pose e a pose neutra) e encurta quando o osso
+    aponta para a câmera. Osso com menos de 25% do comprimento na tela não gira (ângulo instável). Braços e pernas são
+    cortados no cotovelo e no joelho com 1 linha de sobra. Bota rígida (de lado gira com o pé). Cabeça não gira (rosto
+    à mão), só anda com o pescoço. Aba do casaco: metade do giro da coxa do mesmo lado mais o vento (andar 0,35,
+    correr 1), cortada na linha 85. Braço que vai para trás do tronco (de frente/costas) é desenhado atrás dele.
+  - Só depois de girar vêm o sombreado, os traços e o contorno. Limpeza extra: pixel sem vizinho da mesma cor vira a
+    cor dos vizinhos; degrau solto de borda inclinada desce um tom; sola girada fica lisa.
+  - Chão: o pé mais baixo volta para a linha 88; no ar, sobe o `air` do esqueleto (1 px na corrida).
+  - Conferido: pose neutra pelo esqueleto = V29 (0 pixels diferentes nas 4 vistas); caminhada oficial V29.2
+    inalterada; `validar_andar.py` OK na caminhada (pés na linha nos 6 quadros) e na corrida (no ar nos quadros
+    1, 2, 4 e 5, como no esqueleto); cabe no quadro (x de 4 a 60).
+  - Tempo: caminhada 750 ms (a escolhida), corrida 440 ms (como a anterior). Prévias em
+    `arte/personagem-pixel/v31_esqueleto/` (com o palito desenhado por cima).
+
 ## Camadas
 
 `corpo` (cabeça, pescoço, mãos), `olhos`, `boca` (boca, nariz, blush), `cabelo`, `camisa`, `casaco` (corpo, lapelas,

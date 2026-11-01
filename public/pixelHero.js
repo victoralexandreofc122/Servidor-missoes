@@ -1,3 +1,5 @@
+import { solve, basePose, poseOf, YAW_OF_DIR } from './rig.js';
+
 // Herói em pixel art desenhado à mão (proposta v28): pose parada de frente, 3 penteados.
 //
 // Quadro 64 x 96, personagem de ~48 x 72, pés na linha 88. Cada peça é uma forma em pixels (elipse ou polígono)
@@ -568,6 +570,185 @@ export function runPose(view, k) {
   };
 }
 
+// ---------------------------------------------------------------- animação pelo esqueleto palito 3D (V31)
+//
+// O esqueleto de public/rig.js (o mesmo das animações do boneco anterior) dá, a cada quadro, onde cada junta está na
+// tela. Cada peça desenhada à mão anda presa a um osso: tronco (cintura -> pescoço), braço (ombro -> cotovelo),
+// antebraço (cotovelo -> pulso), coxa (quadril -> joelho), canela (joelho -> tornozelo) e pé (tornozelo -> ponta).
+// Do osso vêm o giro (diferença de ângulo na tela entre a pose e a pose neutra) e o encurtamento (o osso que aponta
+// para a câmera fica mais curto na tela). Braços e pernas são cortados no cotovelo e no joelho (com 1 linha de
+// sobra, para a junta não abrir). A forma é girada, e SÓ DEPOIS vêm o sombreado, os traços e o contorno: a luz e o
+// traço continuam limpos em qualquer ângulo. A cabeça não gira (o rosto é desenhado à mão): só anda com o pescoço.
+
+const SK = 1.1; // px do herói por px do esqueleto (pernas: 18 px aqui, ~16,8 no rig)
+
+/** Juntas do herói (pose neutra, coordenadas contínuas) por vista. e/d = lado da TELA; f/t = perto/longe (perfil). */
+const PIVOTS = {
+  frente: { cintura: [32, 64], pescoco: [32, 47],
+    e: { ombro: [21.6, 50], cotovelo: [21.2, 57], pulso: [21.2, 64], quadril: [28, 66], joelho: [28, 76], tornozelo: [27.6, 84], ponta: [23, 87] },
+    d: { ombro: [42.4, 50], cotovelo: [42.8, 57], pulso: [42.8, 64], quadril: [36, 66], joelho: [36, 76], tornozelo: [36.4, 84], ponta: [41, 87] } },
+  direita: { cintura: [31, 64], pescoco: [32, 47],
+    f: { ombro: [30.4, 50], cotovelo: [30.8, 57], pulso: [31, 64], quadril: [34.4, 66], joelho: [34.4, 76], tornozelo: [34.6, 84], ponta: [41, 87] },
+    t: { ombro: [30.4, 50], cotovelo: [30.8, 57], pulso: [31, 64], quadril: [28, 66], joelho: [27.8, 76], tornozelo: [28, 84], ponta: [33.6, 87] } },
+};
+PIVOTS.costas = PIVOTS.frente;
+
+/** Osso de cada peça: [lado, membro] ou 'tronco' / 'cabeca' / 'pelve'. */
+function boneOf(name) {
+  if (name.startsWith('cabelo') || name === 'cabeca' || name === 'orelha') return ['cabeca'];
+  let m = /^(perna)_([edft])$/.exec(name); if (m) return [m[2], 'perna'];
+  m = /^(bota|sola|punho_bota)_([edft])$/.exec(name); if (m) return [m[2], 'pe'];
+  m = /^(manga|punho|mao)(?:_([ed]))?$/.exec(name); if (m) return [m[2] || 'f', m[1] === 'manga' ? 'braco' : 'mao'];
+  m = /^aba(?:_([ed]))?$/.exec(name); if (m) return [m[1] || 'f', 'aba'];
+  if (name === 'quadril') return ['pelve'];
+  return ['tronco'];
+}
+
+// Afim 2D: p -> o + M (p - c). M = [a, b, c, d] (linha a linha).
+const rotM = (t) => [Math.cos(t), -Math.sin(t), Math.sin(t), Math.cos(t)];
+const mulM = (A, B) => [A[0] * B[0] + A[1] * B[2], A[0] * B[1] + A[1] * B[3], A[2] * B[0] + A[3] * B[2], A[2] * B[1] + A[3] * B[3]];
+const apM = (M, v) => [M[0] * v[0] + M[1] * v[1], M[2] * v[0] + M[3] * v[1]];
+const ang = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]);
+const len = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+/** Giro + encurtamento ao longo do osso: leva o osso neutro (a->b) ao osso da pose (a2->b2). */
+function boneM(a, b, a2, b2, minR = 0.45) {
+  const u = [Math.cos(ang(a, b)), Math.sin(ang(a, b))];
+  const raw = len(a2, b2) / Math.max(0.01, len(a, b));
+  const r = Math.max(minR, Math.min(1.25, raw));
+  const S = [1 + (r - 1) * u[0] * u[0], (r - 1) * u[0] * u[1], (r - 1) * u[0] * u[1], 1 + (r - 1) * u[1] * u[1]];
+  // Osso quase apontando para a câmera: o ângulo na tela fica instável (um palito de 1 px pode apontar para qualquer
+  // lado). Quanto mais curto na tela, menos ele gira; abaixo de 25% do comprimento, não gira.
+  let d = ang(a2, b2) - ang(a, b); d = Math.atan2(Math.sin(d), Math.cos(d));
+  const w = Math.max(0, Math.min(1, (raw - 0.25) / 0.5));
+  return mulM(rotM(d * w), S);
+}
+const T = (o, M, c) => ({ o, M, c });
+const fwd = (t, p) => { const v = apM(t.M, [p[0] - t.c[0], p[1] - t.c[1]]); return [t.o[0] + v[0], t.o[1] + v[1]]; };
+function inverseOf(M) { const det = M[0] * M[3] - M[1] * M[2]; return [M[3] / det, -M[1] / det, -M[2] / det, M[0] / det]; }
+
+/** Aplica o afim a uma máscara (amostra de trás para a frente: cada pixel de destino busca a origem). */
+function affineMask(m, t, dx = 0, dy = 0) {
+  const Mi = inverseOf(t.M), r = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const q = [x + 0.5 - dx - t.o[0], y + 0.5 - dy - t.o[1]];
+    const v = apM(Mi, q), sx = Math.floor(t.c[0] + v[0]), sy = Math.floor(t.c[1] + v[1]);
+    if (sx >= 0 && sy >= 0 && sx < W && sy < H && m[sy * W + sx]) r[y * W + x] = 1;
+  }
+  return r;
+}
+
+/** Transformações de cada osso do herói num quadro. */
+export function skeletonFrame(view, anim, t) {
+  const mirror = view === 'esquerda';
+  const v = mirror ? 'direita' : view;
+  const yaw = YAW_OF_DIR[{ frente: 0, costas: 3, direita: 2 }[v]];
+  const R0 = solve(basePose(), yaw), R1 = solve(anim ? poseOf(anim, t) : basePose(), yaw);
+  const P0 = R0.P, P1 = R1.P;
+  const piv = PIVOTS[v];
+  // Qual lado do esqueleto (L/R) é cada lado do herói: pela posição na tela (frente/costas) ou pela profundidade (perfil).
+  const sides = v === 'direita'
+    ? (P0.hipL[2] > P0.hipR[2] ? { f: 'L', t: 'R' } : { f: 'R', t: 'L' })
+    : (P0.hipL[0] < P0.hipR[0] ? { e: 'L', d: 'R' } : { e: 'R', d: 'L' });
+  const sc = (a, b) => [(b[0] - a[0]) * SK, (b[1] - a[1]) * SK];
+  const plus = (p, d) => [p[0] + d[0], p[1] + d[1]];
+  const dPelvis = sc(P0.pelvis, P1.pelvis);
+  const cintura2 = plus(piv.cintura, dPelvis);
+  const tronco = T(cintura2, rotM(ang(P1.waist, P1.neck) - ang(P0.waist, P0.neck)), piv.cintura);
+  const pescoco2 = fwd(tronco, piv.pescoco);
+  const X = { tronco, pelve: T(cintura2, [1, 0, 0, 1], piv.cintura), cabeca: T(pescoco2, [1, 0, 0, 1], piv.pescoco), lados: {} };
+  for (const [k, S] of Object.entries(sides)) {
+    const J = piv[k];
+    const ombro2 = fwd(tronco, J.ombro);
+    const braco = T(ombro2, boneM(P0[`shoulder${S}`], P0[`elbow${S}`], P1[`shoulder${S}`], P1[`elbow${S}`]), J.ombro);
+    const cot2 = fwd(braco, J.cotovelo);
+    const mao = T(cot2, boneM(P0[`elbow${S}`], P0[`wrist${S}`], P1[`elbow${S}`], P1[`wrist${S}`]), J.cotovelo);
+    const quad2 = plus(J.quadril, sc(P0[`hip${S}`], P1[`hip${S}`]));
+    const coxa = T(quad2, boneM(P0[`hip${S}`], P0[`knee${S}`], P1[`hip${S}`], P1[`knee${S}`]), J.quadril);
+    const joe2 = fwd(coxa, J.joelho);
+    const canela = T(joe2, boneM(P0[`knee${S}`], P0[`ankle${S}`], P1[`knee${S}`], P1[`ankle${S}`]), J.joelho);
+    const tor2 = fwd(canela, J.tornozelo);
+    // O pé não encolhe nem estica (bota rígida); de lado, gira com o osso do pé.
+    const pe = T(tor2, v === 'direita' ? rotM(ang(P1[`ankle${S}`], P1[`toe${S}`]) - ang(P0[`ankle${S}`], P0[`toe${S}`])) : [1, 0, 0, 1], J.tornozelo);
+    // Aba do casaco: presa na cintura, acompanha metade do giro da coxa do mesmo lado.
+    // Mais o vento: a barra vai para trás (de lado) ou abre (de frente/costas), mais na corrida.
+    const flow = anim === 'correr' ? 1 : anim === 'andar' ? 0.35 : 0;
+    const vento = v === 'direita' ? 0.32 * flow : (k === 'e' ? 0.14 : -0.14) * flow;
+    const aba = T(cintura2, rotM(0.5 * (ang(P1[`hip${S}`], P1[`knee${S}`]) - ang(P0[`hip${S}`], P0[`knee${S}`])) + vento), piv.cintura);
+    // Braço atrás do tronco (de frente/costas, na corrida ninja): vai para trás das outras peças.
+    const atras = v !== 'direita' && P1[`elbow${S}`][2] < P1.chest[2] - 1.5;
+    X.lados[k] = { braco, mao, coxa, canela, pe, aba, joelhoY: J.joelho[1], cotoveloY: J.cotovelo[1], atras,
+      juntas: [ombro2, cot2, fwd(mao, J.pulso), quad2, joe2, tor2, fwd(pe, J.ponta)] };
+  }
+  X.ar = Math.round(((R1.pose.air || 0) * SK)); // px no ar (os dois pés fora do chão)
+  X.mirror = mirror;
+  return X;
+}
+
+/** Pose pelo esqueleto: { anim, t, flow } -> peças giradas. */
+function skeletonPosed({ parts, stamps }, view, { anim, t }) {
+  const X = skeletonFrame(view, anim, t);
+  const mir = (tr) => (X.mirror ? { o: [64 - tr.o[0], tr.o[1]], c: [64 - tr.c[0], tr.c[1]], M: [tr.M[0], -tr.M[1], -tr.M[2], tr.M[3]] } : tr);
+  const side = (k) => X.lados[X.mirror ? k : k] || X.lados.f;
+  const out = [];
+  const pieces = new Map(); // nome original -> nomes das peças
+  const plan = (p) => {
+    const [k, limb] = boneOf(p.name);
+    if (k === 'tronco') return [[p.mask, X.tronco, '']];
+    if (k === 'pelve') return [[p.mask, X.pelve, '']];
+    if (k === 'cabeca') return [[p.mask, X.cabeca, '']];
+    const L = side(k);
+    if (limb === 'pe') return [[p.mask, L.pe, '']];
+    if (limb === 'mao') return [[p.mask, L.mao, '']];
+    if (limb === 'aba') return [[p.mask, L.aba, '']];
+    // Braço e perna: corta no cotovelo/joelho, com 1 linha de sobra de cada lado.
+    const cut = limb === 'braco' ? L.cotoveloY : L.joelhoY;
+    const [A, B] = limb === 'braco' ? [L.braco, L.mao] : [L.coxa, L.canela];
+    return [[and(p.mask, rows(0, cut + 1)), A, ''], [and(p.mask, rows(cut - 1, 96)), B, '~2']];
+  };
+  for (const p of parts) {
+    const pl = plan(p);
+    pieces.set(p.name, pl.map(([, , suf]) => p.name + suf));
+    for (const [mask, tr0] of pl) void mask, void tr0;
+  }
+  for (const p of parts) {
+    for (const [mask, tr0, suf] of plan(p)) {
+      const tr = mir(tr0);
+      const fm = (pt) => fwd(tr, [pt[0] + 0.5, pt[1] + 0.5]).map(Math.floor);
+      const sib = [...p.shadeAlso.flatMap((n) => pieces.get(n) || [n]), ...pieces.get(p.name).filter((n) => n !== p.name + suf)];
+      // Sola girada vira uma escada fina: a luz de 1 px na ponta de cada degrau sobraria solta. Girada, fica lisa.
+      const shade = /^sola/.test(p.name) && Math.abs(tr.M[2]) > 0.05 ? {} : p.shade;
+      out.push({ ...p, shade, name: p.name + suf, mask: affineMask(mask, tr), subs: p.subs.map((m) => affineMask(m, tr)),
+        marks: p.marks.map(([x, y, tt]) => [...fm([x, y]), tt]),
+        strokes: p.strokes.map(([tt, pts]) => [tt, pts.map((q) => fwd(tr, q))]), shadeAlso: sib, origin: p.name });
+    }
+  }
+  // A barra do casaco girando pela cintura não pode passar do chão (a ponta de fora desceria abaixo dos pés).
+  for (const q of out) if (boneOf(q.origin)[1] === 'aba') q.mask = and(q.mask, rows(0, 86));
+  // Ordem por profundidade: braço que foi para trás do tronco é desenhado antes de tudo.
+  const behind = out.filter((q) => { const [k, limb] = boneOf(q.origin); return (limb === 'braco' || limb === 'mao') && side(k)?.atras; });
+  if (behind.length) { const rest = out.filter((q) => !behind.includes(q)); out.length = 0; out.push(...behind, ...rest); }
+  // Chão: o pé mais baixo volta para a linha 88 (no ar, os dois ficam acima).
+  let low = 0;
+  for (const q of out) if (/^(bota|sola)_/.test(q.origin)) for (let i = q.mask.length - 1; i >= 0; i--) if (q.mask[i]) { low = Math.max(low, Math.floor(i / W)); break; }
+  const dy = 88 - X.ar - low;
+  const cab = mir(X.cabeca);
+  const shifted = dy ? out.map((q) => ({ ...q, mask: moveMask(q.mask, 0, dy, 0), subs: q.subs.map((m) => moveMask(m, 0, dy, 0)),
+    marks: q.marks.map(([x, y, tt]) => [x, y + dy, tt]), strokes: q.strokes.map(([tt, pts]) => [tt, pts.map(([x, y]) => [x, y + dy])]) })) : out;
+  const hx = Math.round(cab.o[0] - cab.c[0]), hy = Math.round(cab.o[1] - cab.c[1]) + dy;
+  // Movimento secundário: as pontas do alto do cabelo atrasam 1 px em relação ao sobe-e-desce da cabeça.
+  if (anim) {
+    const P = skeletonFrame(view, anim, t - 1 / 6).cabeca, C = X.cabeca;
+    const lag = Math.sign(Math.round((P.o[1] - C.o[1]) * 2) / 2);
+    if (lag) for (const q of shifted) if (q.origin.startsWith('cabelo')) { q.mask = moveMask(q.mask, 0, 0, 0, undefined, undefined, { y: 17 + hy, dy: lag }); }
+  }
+  // Palito (para a prancha): as juntas do herói nesta pose, já no chão.
+  const mj = (q) => [X.mirror ? 64 - q[0] : q[0], q[1] + dy];
+  const juntas = { tronco: [mj(X.tronco.o), mj(fwd(X.tronco, PIVOTS[view === 'esquerda' ? 'direita' : view].pescoco))],
+    lados: Object.values(X.lados).map((L) => L.juntas.map(mj)) };
+  return { parts: shifted, stamps: stamps.map((q) => ({ ...q, x: q.x + hx, y: q.y + hy })), juntas };
+}
+
 // ---------------------------------------------------------------- montagem
 
 const hex = (s) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)];
@@ -602,7 +783,8 @@ export const VIEWS = ['frente', 'costas', 'direita', 'esquerda'];
 /** Monta o boneco numa vista. Devolve { w, h, rgba, layers: { nome: rgba } }. */
 export function renderHero(hairKey = 'C', view = 'frente', pose = null) {
   const base = viewParts(hairKey, view, { bracoAtras: !!(pose && pose.bracoAtras) });
-  const { parts, stamps } = pose ? posed(base, pose) : base;
+  const posedRes = pose ? (pose.skel ? skeletonPosed(base, view, pose.skel) : posed(base, pose)) : base;
+  const { parts, stamps } = posedRes;
   // Sombreado em conjunto: peças separadas para animar (pernas, botas) testam a luz contra a união com as irmãs.
   const byName = new Map(parts.map((p) => [p.name, p]));
   for (const p of parts) p.shadeMask = p.shadeAlso.length ? or(p.mask, ...p.shadeAlso.map((n) => byName.get(n)?.mask).filter(Boolean)) : p.mask;
@@ -701,6 +883,8 @@ export function renderHero(hairKey = 'C', view = 'frente', pose = null) {
     const cnt = {}; for (const j of [i - 1, i + 1, i - W, i + W]) if (col[j] && same(own[j], own[i])) cnt[col[j]] = (cnt[col[j]] || 0) + 1;
     const best = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
     if (best && best[1] >= 2) { col[i] = best[0]; tone[i] = parts[own[i]].pal.indexOf(best[0]); }
+    // Degrau solto numa borda inclinada: sombra profunda vira sombra, luz vira base (um tom mais perto do vizinho).
+    else if (own[i] >= 0 && (tone[i] === 3 || tone[i] === 0)) { const t2 = tone[i] === 3 ? 2 : 1; col[i] = parts[own[i]].pal[t2]; tone[i] = t2; }
   }
 
   // Brilho do cabelo: arco de 2 px acompanhando a curva do alto da cabeça (só no tom de luz/base).
@@ -738,5 +922,5 @@ export function renderHero(hairKey = 'C', view = 'frente', pose = null) {
     const L = layerOf[i];
     (layers[L] ??= new Uint8Array(W * H * 4)).set([r, g, b, 255], i * 4);
   }
-  return { w: W, h: H, rgba, layers };
+  return { w: W, h: H, rgba, layers, juntas: posedRes.juntas };
 }
