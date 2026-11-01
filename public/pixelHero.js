@@ -386,10 +386,12 @@ function sideParts(bracoAtras = false) {
   const franja = [[33, 23.6], [46.4, 25.6], [47, 30], [45.4, 33], [43.6, 30.4], [41.4, 34.4], [39.4, 30.6], [37, 35.4], [35.6, 31], [33.4, 33.6], [31.6, 28]];
   const costeleta = [[30.6, 27], [35, 27], [35, 33], [33.8, 39.4], [32.4, 34]];
   const crown = [[[20, 25], [23, 18.4], [29, 15.4], [27.4, 20], [25, 26]], [[26, 26], [28.4, 18.6], [34.4, 14.6], [33.6, 20.4], [31.6, 27]], [[32.4, 27], [34, 19.4], [38.6, 15.4], [41.2, 19.6], [38.6, 27]]];
-  const mass = or(and(ell(31, 30.6, 16, 14), rows(0, 27.5)), poly([[15.2, 27], [27.6, 27], [27.4, 34], [23, 41], [17, 38]]), ...tufts.map(poly), poly(franja), poly(costeleta));
+  // V32: a têmpora (entre a nuca e a costeleta, acima da orelha) fica coberta de cabelo; com pele ali parecia calvície.
+  const tempora = [[22, 27], [35, 27], [35, 33], [33.6, 38], [31.6, 35], [29.6, 38.4], [27.6, 35.4], [25.4, 39], [22, 37]];
+  const mass = or(and(ell(31, 30.6, 16, 14), rows(0, 27.5)), poly([[15.2, 27], [27.6, 27], [27.4, 34], [23, 41], [17, 38]]), poly(tempora), ...tufts.map(poly), poly(franja), poly(costeleta));
   P.push(part('cabelo', 'cabelo', mass, PAL.cabelo, {
     shade: { l: [-2, -3], s: [3, 2], d: [1, 1] }, group: 'cabelo', sep: true,
-    subs: [...tufts, ...crown, costeleta, [[33, 24], [40, 25], [37, 35.4]], [[39, 25], [47, 26], [45.4, 33]]].map(poly),
+    subs: [...tufts, ...crown, costeleta, tempora, [[33, 24], [40, 25], [37, 35.4]], [[39, 25], [47, 26], [45.4, 33]]].map(poly),
     strokes: [[FIO, [[30, 18], [35, 24], [37, 33]]], [FIO, [[31, 18], [39, 24], [41.4, 32]]], [FIO, [[29, 18], [32, 24], [33.4, 31]]], [FIO, [[28, 19], [22, 27], [20, 34]]]],
   }));
   return P;
