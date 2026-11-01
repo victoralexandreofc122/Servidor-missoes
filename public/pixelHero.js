@@ -60,9 +60,11 @@ const part = (name, layer, mask, pal, o = {}) => ({ name, layer, mask, pal, grou
 
 function bodyParts() {
   const P = [];
-  // Capuz caído nas costas: aparece como gola grossa em volta do pescoço.
-  P.push(part('capuz', 'casaco', or(ell(32, 50, 11.5, 4.6), sym([[32, 44.5], [24, 45.5], [21, 49]])), [PAL.casaco[1], PAL.casaco[2], PAL.casaco[3], PAL.casaco[3]],
-    { shade: { l: [0, -2], s: [0, 2], d: [1, 1] }, group: 'capuz' }));
+  // Capuz caído nas costas: um rolo grosso e macio atrás do pescoço que sobe pelos lados até a altura do queixo,
+  // com o forro escuro aparecendo atrás da nuca.
+  const capuz = or(ell(32, 49.6, 11.6, 3.6), ell(24.4, 48.6, 4.6, 3.2), ell(39.6, 48.6, 4.6, 3.2));
+  P.push(part('capuz', 'casaco', capuz, PAL.casaco, { shade: { l: [-1, -2], s: [2, 2], d: [1, 1] }, group: 'capuz', strokes: [[2, [[22, 47], [24, 49]]], [2, [[42, 47], [40, 49]]]] }));
+  P.push(part('capuz_forro', 'casaco', ell(32, 47.8, 6.4, 2.6), [PAL.casaco[3], PAL.casaco[3], PAL.casaco[3], PAL.casaco[3]], { group: 'capuz', sep: false }));
 
   // Pernas (calça larga presa na bota), com a fenda entre elas.
   const quadril = poly([[24, 63], [40, 63], [40.3, 71], [23.7, 71]]);
@@ -87,25 +89,25 @@ function bodyParts() {
   P.push(part('no_faixa', 'acessorio', or(poly([[33, 62], [36, 62], [36, 66], [33, 66]]), poly([[33.6, 65], [35.6, 65], [36.6, 70.4], [34.2, 70.4]])), PAL.faixa,
     { shade: { l: [-1, -1], s: [1, 1] }, group: 'no' }));
 
-  // Casaco: silhueta aberta na frente (V até a faixa, abre de novo embaixo), barra em duas pontas separadas.
-  const fora = [[32, 47.4], [25, 47.4], [21.4, 49.6], [20.4, 53], [20.6, 64], [20, 70], [32, 70]];
-  const abertura = poly([[27.8, 47], [36.2, 47], [34.4, 56], [33.6, 63], [36, 71], [28, 71], [30.4, 63], [29.6, 56]]);
+  // Casaco: ombros redondos e caídos, aberto na frente (V até a faixa, abre de novo embaixo), barra em duas abas.
+  // Tecido fosco: luz só no alto dos ombros e das mangas, sombra larga do lado direito.
+  const fora = [[32, 47.4], [26.4, 47.4], [22.6, 48.4], [20.2, 50.8], [19.6, 55], [20, 64], [19.6, 70], [32, 70]];
+  const abertura = poly([[27.6, 47], [36.4, 47], [34.4, 56], [33.6, 63], [36, 71], [28, 71], [30.4, 63], [29.6, 56]]);
   P.push(part('casaco', 'casaco', minus(sym(fora), abertura), PAL.casaco,
-    { shade: { l: [-2, -2], s: [3, 1], d: [1, 1] }, recv: true,
-      marks: [[23, 50, 3], [24, 51, 3], [25, 50, 2], [40, 50, 3], [39, 51, 3], [38, 50, 2], [26, 60, 2], [26, 61, 2], [37, 59, 2], [37, 60, 2]] }));
-  // Lapelas: tira clara ao longo da abertura.
-  const lapE = [[25.4, 47], [28, 47], [29.8, 56], [29, 59], [27, 52]];
-  P.push(part('lapela_e', 'casaco', poly(lapE), PAL.casaco, { shade: { l: [-1, 0], s: [2, 1] }, group: 'lapela' }));
-  P.push(part('lapela_d', 'casaco', poly(mir(lapE)), PAL.casaco, { shade: { l: [-1, 0], s: [1, 1], d: [1, 0] }, group: 'lapela' }));
-  // Barra: duas abas soltas (cada uma vai balançar sozinha nas animações).
-  const abaE = [[20.4, 65.6], [30.6, 65.6], [28.8, 73], [24.6, 73.6], [18.6, 75.2], [19.6, 70]];
-  P.push(part('aba_e', 'casaco', poly(abaE), PAL.casaco, { shade: { l: [-2, -1], s: [3, 1], d: [1, 1] }, group: 'aba_e', marks: [[24, 69, 2], [24, 70, 2], [23, 71, 2]] }));
-  P.push(part('aba_d', 'casaco', poly(mir(abaE)), PAL.casaco, { shade: { l: [-1, -1], s: [3, 1], d: [1, 1] }, group: 'aba_d', marks: [[39, 69, 2], [39, 70, 2], [40, 71, 3]] }));
+    { shade: { l: [-1, -3], s: [4, 1], d: [1, 1] }, recv: true, strokes: [[2, [[24, 49], [25, 51]]], [2, [[40, 49], [39, 51]]]] }));
+  // Lapelas: dobra do tecido ao longo da abertura, com o vinco escuro do lado de dentro.
+  const lapE = [[25, 47.4], [27.8, 47], [29.8, 56], [29.2, 59], [26.8, 52]];
+  P.push(part('lapela_e', 'casaco', poly(lapE), PAL.casaco, { shade: { l: [0, -2], d: [1, 0] }, group: 'lapela' }));
+  P.push(part('lapela_d', 'casaco', poly(mir(lapE)), PAL.casaco, { shade: { s: [1, 0], d: [-1, 0] }, group: 'lapela' }));
+  // Barra: duas abas soltas e um pouco abertas em sino (cada uma vai balançar sozinha nas animações).
+  const abaE = [[20, 65.6], [30.6, 65.6], [29.4, 73.2], [24.4, 73.8], [18, 75.2], [18.8, 70.4]];
+  P.push(part('aba_e', 'casaco', poly(abaE), PAL.casaco, { shade: { s: [4, 1], d: [1, 1] }, group: 'aba_e', strokes: [[2, [[24, 69], [23, 72]]]] }));
+  P.push(part('aba_d', 'casaco', poly(mir(abaE)), PAL.casaco, { shade: { s: [3, 1], d: [1, 1] }, group: 'aba_d', strokes: [[3, [[40, 69], [41, 72]]]] }));
 
-  // Braços: mangas largas com punho dobrado e o punho fechado.
-  const mangaE = [[22.6, 49], [25, 51.4], [24.8, 58], [24.2, 63.6], [17.2, 63.6], [17.6, 57], [19.4, 51]];
-  P.push(part('manga_e', 'casaco', poly(mangaE), PAL.casaco, { shade: { l: [-2, -2], s: [2, 1], d: [1, 1] }, group: 'manga', marks: [[22, 56, 2], [21, 57, 2]] }));
-  P.push(part('manga_d', 'casaco', poly(mir(mangaE)), PAL.casaco, { shade: { l: [-1, -2], s: [3, 1], d: [1, 1] }, group: 'manga', marks: [[42, 56, 3], [43, 57, 3]] }));
+  // Braços: mangas largas e fofas, com a dobra do cotovelo, punho dobrado e a mão fechada.
+  const mangaE = [[22.4, 48.6], [25, 51], [24.8, 58], [24.4, 63.6], [17.2, 63.6], [17.6, 56.6], [19.2, 50.6]];
+  P.push(part('manga_e', 'casaco', poly(mangaE), PAL.casaco, { shade: { l: [-1, -2], s: [3, 1], d: [1, 1] }, group: 'manga', strokes: [[2, [[19, 57], [22, 56]]]] }));
+  P.push(part('manga_d', 'casaco', poly(mir(mangaE)), PAL.casaco, { shade: { l: [0, -2], s: [4, 1], d: [1, 1] }, group: 'manga', strokes: [[3, [[42, 56], [45, 57]]]] }));
   const punhoMangaE = [[17.2, 62.6], [24.4, 62.6], [24.6, 66], [16.8, 66]];
   P.push(part('punho_e', 'casaco', poly(punhoMangaE), PAL.casaco, { shade: { l: [0, -1], s: [2, 1], d: [0, 1] }, group: 'punho' }));
   P.push(part('punho_d', 'casaco', poly(mir(punhoMangaE)), PAL.casaco, { shade: { l: [0, -1], s: [2, 1], d: [0, 1] }, group: 'punho' }));
@@ -146,67 +148,83 @@ export function faceStamps() {
 
 // ---------------------------------------------------------------- cabelos
 
-const HS = { l: [-1, -1], s: [2, 1], d: [1, 1] };
-const lock = (name, pts, o = {}) => part(name, 'cabelo', poly(pts), PAL.cabelo, { shade: HS, group: 'cabelo', sep: false, ...o });
-const fr = (name, pts, o = {}) => lock(name, pts, { group: 'franja', sep: true, shade: { l: [-1, -2], s: [2, 1], d: [1, 1] }, ...o });
+// O cabelo é UMA massa só na frente (topo, tufos, franja e laterais juntos), sombreada de uma vez: assim não há
+// borda de "capacete" entre a calota e a franja. As mechas aparecem pelos fios (traços de sombra que saem do
+// redemoinho e descem até o vão entre as pontas) e pelas pontas da silhueta e da franja.
+const FIO = '#161f38';
 const back = (ry = 14.6) => part('cabelo_tras', 'cabelo', or(ell(32, 31, 16.4, ry), sym([[32, 30], [15.6, 32], [16.4, 43.6], [19.4, 45.4], [20, 38]])), PAL.cabelo,
   { shade: { l: [-2, -2], s: [3, 1], d: [1, 1] }, group: 'cabelo', sep: false });
-/** Calota: a massa do alto da cabeça, na frente do crânio, até a linha do cabelo. */
-const cap = (strokes, cy = 31, ry = 13.6) => part('calota', 'cabelo', and(ell(32, cy, 16, ry), rows(0, 27.5)), PAL.cabelo,
-  { shade: { l: [-3, -3], s: [3, 2], d: [1, 1] }, group: 'cabelo', sep: false, strokes });
-const lados = () => [
-  fr('lat_e', [[15.4, 27], [21.6, 27], [20.8, 36], [19.8, 45], [17.4, 39.6], [15.6, 35]], { shade: { l: [-2, -1], s: [2, 1], d: [1, 1] } }),
-  fr('lat_d', [[48.6, 27], [42.4, 27], [43.2, 36], [44.8, 44.6], [46.8, 39], [48.4, 34]], { shade: { l: [-1, -1], s: [1, 1], d: [1, 0] } }),
+function hairFront({ dome = [32, 30.6, 16.6, 14.2], tufts, fringe, sides, strands, lights = [] }) {
+  const mask = or(and(ell(...dome), rows(0, 27)), ...tufts.map(poly), poly(fringe), ...sides.map(poly));
+  return part('cabelo', 'cabelo', mask, PAL.cabelo, {
+    shade: { l: [-2, -3], s: [3, 2], d: [1, 1] }, group: 'cabelo', sep: true,
+    strokes: [...strands.map((pts) => [FIO, pts]), ...lights.map((pts) => [0, pts])],
+  });
+}
+const SIDES = [
+  [[15.4, 26], [21.6, 27], [21, 36], [19.8, 45.4], [17.2, 40], [15.4, 34]],
+  [[48.6, 26], [42.4, 27], [43, 36], [45, 45], [46.8, 39.4], [48.6, 34]],
 ];
+const SIDE_STRANDS = [[[18, 28], [18.6, 36], [19.4, 42]], [[46, 28], [45.6, 36], [45, 41]]];
 
-/** Três propostas: { tras: peças atrás da cabeça, frente: peças na frente }. 5 a 7 mechas, franja e 2 laterais. */
+/** Três propostas: { tras: atrás da cabeça, frente: na frente }. */
 export const HAIR = {
-  // A: bagunçado como a referência: tufos em leque para os lados e para cima, franja em 4 pontas.
+  // A: como a referência: volume redondo, pontas macias varridas para a direita, franja em mechas até os olhos
+  // com uma mecha comprida entre eles, laterais até o queixo.
   A: () => ({
-    tras: [back(),
-      lock('m1', [[20, 30], [12.6, 27.6], [15.4, 25.4], [13.2, 20.4], [18.6, 21.4], [22, 25]]),
-      lock('m2', [[19.4, 22], [20.4, 15.2], [25.8, 13.2], [24.8, 16.6], [31, 16.2], [30, 21]]),
-      lock('m3', [[28, 18], [33.6, 12.2], [40.8, 11.8], [37.6, 14.6], [43, 17.4], [40, 22]]),
-      lock('m4', [[40, 20], [47.6, 18.4], [52, 15.4], [50.4, 21.4], [52.8, 25], [46, 28]]),
-      lock('m5', [[44, 27], [50.6, 30.4], [47, 33]])],
-    frente: [cap([[2, [[34, 18], [27, 21], [22, 26]]], [2, [[34, 18], [31, 22], [28, 27]]], [2, [[35, 18], [39, 21], [42, 26]]], [2, [[36, 18], [36, 22], [35, 27]]]]),
-      fr('f1', [[18.4, 25], [27.4, 25], [27, 30], [24.6, 36.6], [22.4, 32.4], [19.4, 33.4], [19.6, 29]]),
-      fr('f2', [[24.6, 25], [34, 25], [33, 30.4], [30.6, 37.2], [28.4, 32]]),
-      fr('f3', [[31, 25], [41, 25], [39.6, 30], [39.6, 36], [36.6, 31.6], [34.4, 33.6]]),
-      fr('f4', [[38, 25], [45.8, 25.6], [45, 30], [45.6, 35], [42.4, 31.4]]),
-      ...lados()],
+    tras: [back()],
+    frente: [hairFront({
+      tufts: [
+        [[17, 27], [12.2, 25.6], [14.6, 23.8], [12.6, 20.4], [17.4, 21], [19, 18], [22, 22]],
+        [[19, 22], [19.6, 15.6], [23, 16.2], [24.4, 12.4], [28, 15.4], [31, 14], [31, 20]],
+        [[30, 17], [35, 11.2], [37.4, 14], [42.6, 12.6], [44, 18], [40, 21]],
+        [[42, 19], [48.6, 17.4], [51.8, 14.6], [51, 20], [53.2, 23.6], [48, 26.4]],
+      ],
+      fringe: [[16.6, 24], [47.4, 24], [47.6, 29], [45.6, 33.8], [43.8, 30.4], [41.4, 35.4], [39.2, 30.8], [35.4, 36.2], [34.4, 31.2], [32.2, 39],
+        [30.4, 31.4], [28.2, 35.8], [26, 30.6], [23.4, 35.6], [21.8, 30.6], [19.6, 33], [17.4, 29]],
+      sides: SIDES,
+      strands: [[[33, 17], [26, 22], [21.8, 30]], [[33, 17], [28, 23], [26, 30]], [[34, 18], [31, 25], [30.4, 31]], [[35, 18], [35, 25], [34.4, 31]],
+        [[36, 18], [38.6, 24], [39.2, 30]], [[37, 17], [42, 22], [43.8, 30]], [[30, 16], [24, 18], [19, 23]], [[38, 16], [44, 17], [49, 21]], ...SIDE_STRANDS],
+      lights: [[[22, 26], [21, 28]], [[27, 26], [26, 28]], [[32, 27], [32, 30]], [[37, 26], [37, 28]]],
+    })],
   }),
-  // B: franja longa varrida de lado (da esquerda para a direita), coroa mais lisa com 2 redemoinhos.
+  // B: mais solto e comprido: franja varrida para a esquerda em 3 mechas largas, topo redondo com 2 redemoinhos.
   B: () => ({
-    tras: [back(14),
-      lock('m1', [[17, 28], [12.4, 21.6], [20, 21.4]]),
-      lock('m2', [[22, 21], [24.6, 12.6], [29, 18.6]]),
-      lock('m3', [[29, 18], [35.4, 11.6], [37.4, 19]]),
-      lock('m4', [[38, 19], [46.6, 15.6], [44.6, 24]]),
-      lock('m5', [[44, 24], [51.6, 24.6], [47.4, 31]])],
-    frente: [cap([[2, [[33, 18], [26, 22], [21, 27]]], [2, [[33, 18], [38, 22], [41, 27]]]], 30.6, 13.4),
-      fr('f1', [[18.4, 25.6], [30, 23.6], [36.4, 25.4], [32, 29.4], [28.6, 34], [25.8, 37.8], [25.2, 31.6], [21.6, 34.2], [21.4, 29.8]]),
-      fr('f2', [[30, 24], [42, 24.4], [43, 27], [38.6, 29.4], [35.4, 34.2], [34.6, 29.6]]),
-      fr('f3', [[40, 25], [46, 26.4], [45, 31.6], [43, 35.2], [41.8, 29.8]]),
-      ...lados()],
+    tras: [back(14.6)],
+    frente: [hairFront({
+      dome: [32, 30.4, 16.8, 14],
+      tufts: [
+        [[18, 27], [11.6, 27.4], [14, 24.6], [12, 21.6], [18, 22]],
+        [[20, 21], [21.4, 15], [26.4, 13.6], [25.6, 16.4], [30, 18]],
+        [[29, 18], [32.6, 12.8], [38.6, 13.2], [36.6, 15.4], [42.6, 17.6], [44, 22]],
+        [[43, 21], [49.6, 20.4], [52, 24.8], [48.6, 27.6]],
+      ],
+      fringe: [[16.6, 24], [47.4, 24], [47.4, 30], [45.8, 34], [44.6, 30.6], [40.6, 33.6], [38.6, 30.6], [33.6, 35.6], [31.6, 31.4], [26.6, 37.4],
+        [26.6, 31.6], [22.4, 35.4], [21.6, 31], [18.8, 33.4], [17.4, 29]],
+      sides: SIDES,
+      strands: [[[38, 17], [33, 22], [26.6, 31.6]], [[39, 18], [36, 24], [31.6, 31.4]], [[40, 18], [40, 24], [38.6, 30.6]], [[41, 19], [44, 24], [44.6, 30.6]],
+        [[37, 17], [29, 20], [21.6, 31]], [[30, 16], [24, 18], [18, 24]], ...SIDE_STRANDS],
+      lights: [[[24, 26], [23, 28]], [[30, 25], [28, 28]], [[36, 26], [35, 28]], [[42, 26], [42, 28]]],
+    })],
   }),
-  // C: espetado para cima, 7 pontas na coroa, franja curta em 5 pontas retas.
+  // C: espetado: pontas mais altas e finas no alto, franja mais curta em 5 mechas.
   C: () => ({
-    tras: [back(14),
-      lock('m1', [[17, 29], [10.6, 22], [20, 23]]),
-      lock('m2', [[18.6, 24], [15.6, 13.6], [25, 21]]),
-      lock('m3', [[23, 21], [24.4, 9.6], [30, 19.6]]),
-      lock('m4', [[28, 20], [32.6, 7.4], [36.6, 20]]),
-      lock('m5', [[34, 20], [40.6, 9.6], [41.6, 21.6]]),
-      lock('m6', [[39.4, 21.6], [48.6, 13.6], [46, 25]]),
-      lock('m7', [[44.6, 25], [53.4, 22], [47.6, 30.6]])],
-    frente: [cap([[2, [[32, 20], [25, 24], [22, 27]]], [2, [[32, 20], [31, 27]]], [2, [[33, 20], [40, 24], [42, 27]]]], 31.4, 13.2),
-      fr('f1', [[18.4, 25.2], [26, 25], [25, 29], [23.4, 34.6], [20.6, 30]]),
-      fr('f2', [[23, 25], [31, 25], [29.6, 30], [27.6, 35.6], [25.6, 30]]),
-      fr('f3', [[28.4, 25], [36, 25], [34.4, 30], [32.4, 36.2], [30.6, 30]]),
-      fr('f4', [[33.6, 25], [41, 25], [39.6, 30], [37.8, 35.4], [36, 30]]),
-      fr('f5', [[38.6, 25], [45.8, 25.6], [44.6, 30], [43, 34.6], [41, 30]]),
-      ...lados()],
+    tras: [back(14)],
+    frente: [hairFront({
+      dome: [32, 31, 16.4, 13.8],
+      tufts: [
+        [[17, 28], [11, 23.4], [16, 23.6], [14.4, 17.4], [21, 21]],
+        [[20, 21], [20.4, 12.6], [25, 17], [26.6, 9.6], [30, 17]],
+        [[29, 18], [33.4, 8.4], [36, 15.4], [40.6, 10.6], [41, 19]],
+        [[40, 20], [47.6, 14.4], [47, 19], [53, 20.6], [47.6, 27]],
+      ],
+      fringe: [[16.6, 24], [47.4, 24], [47.4, 29], [45.4, 33.4], [43, 30], [40.4, 34.6], [38.4, 30], [35.2, 35.2], [33.4, 30.4], [30.6, 36],
+        [29, 30.4], [26.2, 34.6], [24.6, 30], [21.8, 34], [20.8, 30], [18.8, 32.4], [17.4, 29]],
+      sides: SIDES,
+      strands: [[[33, 18], [25, 23], [20.8, 30]], [[33, 18], [27, 24], [24.6, 30]], [[33, 18], [30, 25], [29, 30.4]], [[34, 18], [34, 25], [33.4, 30.4]],
+        [[35, 18], [38, 24], [38.4, 30]], [[36, 18], [42, 23], [43, 30]], [[31, 17], [24, 14.6]], [[35, 17], [40, 12.6]], ...SIDE_STRANDS],
+      lights: [[[23, 26], [22, 28]], [[28, 26], [27, 28]], [[36, 26], [36, 28]], [[41, 26], [41, 28]]],
+    })],
   }),
 };
 
@@ -245,7 +263,7 @@ export function renderHeroFront(hairKey = 'A') {
       const [x0, y0] = pts[k - 1], [x1, y1] = pts[k], n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
       for (let q = 0; q <= n; q++) {
         const x = Math.round(x0 + ((x1 - x0) * q) / n), y = Math.round(y0 + ((y1 - y0) * q) / n), i = y * W + x;
-        if (own[i] === pi) { col[i] = p.pal[t]; tone[i] = t; }
+        if (own[i] === pi) { col[i] = typeof t === 'string' ? t : p.pal[t]; tone[i] = typeof t === 'string' ? 2 : t; }
       }
     }
   });
@@ -283,7 +301,7 @@ export function renderHeroFront(hairKey = 'A') {
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x; if (layerOf[i] !== 'cabelo' || tone[i] > 1) continue;
     const dx = x + 0.5 - 31, dy = y + 0.5 - 31, r = Math.hypot(dx, dy), a = (Math.atan2(dy, dx) * 180) / Math.PI;
-    if (r >= 11.2 && r < 13.2 && a > -150 && a < -62 && ((Math.floor(a / 9) & 3) !== 3)) col[i] = PAL.brilho;
+    if (r >= 11.6 && r < 12.8 && a > -140 && a < -70 && ((Math.floor(a / 7) % 3) !== 2)) col[i] = PAL.brilho;
   }
 
   // Rosto por cima da cabeça, só onde a pele aparece.
