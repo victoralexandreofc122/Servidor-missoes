@@ -94,20 +94,20 @@ function bodyParts() {
   const fora = [[32, 47.4], [26.4, 47.4], [22.6, 48.4], [20.2, 50.8], [19.6, 55], [20, 64], [19.6, 70], [32, 70]];
   const abertura = poly([[27.6, 47], [36.4, 47], [34.4, 56], [33.6, 63], [36, 71], [28, 71], [30.4, 63], [29.6, 56]]);
   P.push(part('casaco', 'casaco', minus(sym(fora), abertura), PAL.casaco,
-    { shade: { l: [-1, -3], s: [4, 1], d: [1, 1] }, recv: true, strokes: [[2, [[24, 49], [25, 51]]], [2, [[40, 49], [39, 51]]]] }));
+    { shade: { l: [-1, -3], s: [4, 0], d: [1, 1] }, recv: true }));
   // Lapelas: dobra do tecido ao longo da abertura, com o vinco escuro do lado de dentro.
   const lapE = [[25, 47.4], [27.8, 47], [29.8, 56], [29.2, 59], [26.8, 52]];
-  P.push(part('lapela_e', 'casaco', poly(lapE), PAL.casaco, { shade: { l: [0, -2], d: [1, 0] }, group: 'lapela' }));
-  P.push(part('lapela_d', 'casaco', poly(mir(lapE)), PAL.casaco, { shade: { s: [1, 0], d: [-1, 0] }, group: 'lapela' }));
+  P.push(part('lapela_e', 'casaco', poly(lapE), PAL.casaco, { shade: { l: [0, -2], d: [1, 0] }, group: 'casaco', sep: false }));
+  P.push(part('lapela_d', 'casaco', poly(mir(lapE)), PAL.casaco, { shade: { s: [1, 0], d: [-1, 0] }, group: 'casaco', sep: false }));
   // Barra: duas abas soltas e um pouco abertas em sino (cada uma vai balançar sozinha nas animações).
-  const abaE = [[20, 65.6], [30.6, 65.6], [29.4, 73.2], [24.4, 73.8], [18, 75.2], [18.8, 70.4]];
-  P.push(part('aba_e', 'casaco', poly(abaE), PAL.casaco, { shade: { s: [4, 1], d: [1, 1] }, group: 'aba_e', strokes: [[2, [[24, 69], [23, 72]]]] }));
-  P.push(part('aba_d', 'casaco', poly(mir(abaE)), PAL.casaco, { shade: { s: [3, 1], d: [1, 1] }, group: 'aba_d', strokes: [[3, [[40, 69], [41, 72]]]] }));
+  const abaE = [[19.6, 65.6], [30.6, 65.6], [29.8, 82.4], [24.4, 83], [18.4, 83.8], [18.6, 74]];
+  P.push(part('aba_e', 'casaco', poly(abaE), PAL.casaco, { shade: { l: [-1, 0], s: [4, 0], d: [1, 1] }, group: 'casaco', sep: false }));
+  P.push(part('aba_d', 'casaco', poly(mir(abaE)), PAL.casaco, { shade: { s: [4, 0], d: [1, 1] }, group: 'casaco', sep: false }));
 
   // Braços: mangas largas e fofas, com a dobra do cotovelo, punho dobrado e a mão fechada.
   const mangaE = [[22.4, 48.6], [25, 51], [24.8, 58], [24.4, 63.6], [17.2, 63.6], [17.6, 56.6], [19.2, 50.6]];
-  P.push(part('manga_e', 'casaco', poly(mangaE), PAL.casaco, { shade: { l: [-1, -2], s: [3, 1], d: [1, 1] }, group: 'manga', strokes: [[2, [[19, 57], [22, 56]]]] }));
-  P.push(part('manga_d', 'casaco', poly(mir(mangaE)), PAL.casaco, { shade: { l: [0, -2], s: [4, 1], d: [1, 1] }, group: 'manga', strokes: [[3, [[42, 56], [45, 57]]]] }));
+  P.push(part('manga_e', 'casaco', poly(mangaE), PAL.casaco, { shade: { l: [-1, -2], s: [3, 1], d: [1, 1] }, group: 'manga' }));
+  P.push(part('manga_d', 'casaco', poly(mir(mangaE)), PAL.casaco, { shade: { l: [0, -2], s: [4, 1], d: [1, 1] }, group: 'manga' }));
   const punhoMangaE = [[17.2, 62.6], [24.4, 62.6], [24.6, 66], [16.8, 66]];
   P.push(part('punho_e', 'casaco', poly(punhoMangaE), PAL.casaco, { shade: { l: [0, -1], s: [2, 1], d: [0, 1] }, group: 'punho' }));
   P.push(part('punho_d', 'casaco', poly(mir(punhoMangaE)), PAL.casaco, { shade: { l: [0, -1], s: [2, 1], d: [0, 1] }, group: 'punho' }));
@@ -184,8 +184,11 @@ export const HAIR = {
         [30.4, 31.4], [28.2, 35.8], [26, 30.6], [23.4, 35.6], [21.8, 30.6], [19.6, 33], [17.4, 29]],
       sides: SIDES,
       strands: [[[33, 17], [26, 22], [21.8, 30]], [[33, 17], [28, 23], [26, 30]], [[34, 18], [31, 25], [30.4, 31]], [[35, 18], [35, 25], [34.4, 31]],
-        [[36, 18], [38.6, 24], [39.2, 30]], [[37, 17], [42, 22], [43.8, 30]], [[30, 16], [24, 18], [19, 23]], [[38, 16], [44, 17], [49, 21]], ...SIDE_STRANDS],
-      lights: [[[22, 26], [21, 28]], [[27, 26], [26, 28]], [[32, 27], [32, 30]], [[37, 26], [37, 28]]],
+        [[36, 18], [38.6, 24], [39.2, 30]], [[37, 17], [42, 22], [43.8, 30]], [[30, 16], [24, 18], [19, 23]], [[38, 16], [44, 17], [49, 21]],
+        [[32, 16], [27, 15]], [[34, 15], [36, 12.6]], [[36, 16], [41, 14]], [[31, 17], [21, 20], [15, 24]], [[39, 18], [46, 20], [51, 23]], ...SIDE_STRANDS],
+      lights: [[[22, 26], [21, 28]], [[27, 26], [26, 28]], [[32, 27], [32, 30]], [[37, 26], [37, 28]],
+        [[24, 18], [21, 20]], [[28, 17], [25, 19]], [[33, 14], [35, 13]], [[38, 15], [41, 15]], [[44, 18], [47, 19]], [[18, 22], [16, 23]],
+        [[27, 21], [24, 24]], [[31, 21], [29, 24]], [[38, 21], [40, 24]]],
     })],
   }),
   // B: mais solto e comprido: franja varrida para a esquerda em 3 mechas largas, topo redondo com 2 redemoinhos.
@@ -203,8 +206,11 @@ export const HAIR = {
         [26.6, 31.6], [22.4, 35.4], [21.6, 31], [18.8, 33.4], [17.4, 29]],
       sides: SIDES,
       strands: [[[38, 17], [33, 22], [26.6, 31.6]], [[39, 18], [36, 24], [31.6, 31.4]], [[40, 18], [40, 24], [38.6, 30.6]], [[41, 19], [44, 24], [44.6, 30.6]],
-        [[37, 17], [29, 20], [21.6, 31]], [[30, 16], [24, 18], [18, 24]], ...SIDE_STRANDS],
-      lights: [[[24, 26], [23, 28]], [[30, 25], [28, 28]], [[36, 26], [35, 28]], [[42, 26], [42, 28]]],
+        [[37, 17], [29, 20], [21.6, 31]], [[30, 16], [24, 18], [18, 24]],
+        [[36, 16], [33, 14]], [[38, 16], [41, 15]], [[40, 18], [47, 21]], [[34, 17], [26, 16.6], [21, 18]], ...SIDE_STRANDS],
+      lights: [[[24, 26], [23, 28]], [[30, 25], [28, 28]], [[36, 26], [35, 28]], [[42, 26], [42, 28]],
+        [[23, 17], [26, 15]], [[30, 15], [33, 14]], [[39, 16], [42, 17]], [[45, 20], [48, 22]], [[17, 23], [15, 25]],
+        [[26, 21], [23, 24]], [[32, 20], [29, 23]], [[37, 21], [38, 24]]],
     })],
   }),
   // C: espetado: pontas mais altas e finas no alto, franja mais curta em 5 mechas.
