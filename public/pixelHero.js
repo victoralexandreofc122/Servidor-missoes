@@ -660,9 +660,9 @@ function boneM(a, b, a2, b2, minR = 0.45) {
   const r = Math.max(minR, Math.min(1.25, raw));
   const S = [1 + (r - 1) * u[0] * u[0], (r - 1) * u[0] * u[1], (r - 1) * u[0] * u[1], 1 + (r - 1) * u[1] * u[1]];
   // Osso quase apontando para a câmera: o ângulo na tela fica instável (um palito de 1 px pode apontar para qualquer
-  // lado). Quanto mais curto na tela, menos ele gira; abaixo de 25% do comprimento, não gira.
+  // lado). Quanto mais curto na tela, menos ele gira; abaixo de 10% do comprimento, não gira.
   let d = ang(a2, b2) - ang(a, b); d = Math.atan2(Math.sin(d), Math.cos(d));
-  const w = Math.max(0, Math.min(1, (raw - 0.25) / 0.5));
+  const w = Math.max(0, Math.min(1, (raw - 0.1) / 0.25));
   return mulM(rotM(d * w), S);
 }
 const T = (o, M, c) => ({ o, M, c });
@@ -680,6 +680,38 @@ function affineMask(m, t, dx = 0, dy = 0) {
   return r;
 }
 
+/**
+ * Animações próprias do herói (por cima das do rig.js). Golpe sem arma: 4 quadros, antecipação mais forte que o
+ * impacto (2 quadros armando, torcendo o tronco para trás e agachando; 1 quadro de impacto curto; 1 de volta).
+ * Cada uma é uma função t (0..1, um quadro por chave) -> pose.
+ */
+const pz = (patch) => { const b = basePose(), o = { ...b }; for (const [k, v] of Object.entries(patch)) o[k] = v && typeof v === 'object' ? { ...b[k], ...v } : v; return o; };
+const GOLPE = [
+  pz({ spine: { pitch: 0.12, yaw: -0.55, roll: 0.04 }, armR: { fwd: -0.7, out: 0.3, twist: 0, elbow: 1.5 }, armL: { fwd: 0.7, out: 0.1, twist: 0, elbow: 1.4 },
+    legL: { fwd: 0.35, out: 0.14, knee: 0.55, foot: 0 }, legR: { fwd: -0.35, out: 0.12, knee: 0.5, foot: 0 } }),
+  pz({ spine: { pitch: 0.16, yaw: -0.75, roll: 0.06 }, armR: { fwd: -1.0, out: 0.35, twist: 0, elbow: 1.8 }, armL: { fwd: 0.85, out: 0.05, twist: 0, elbow: 1.3 },
+    legL: { fwd: 0.4, out: 0.14, knee: 0.75, foot: 0 }, legR: { fwd: -0.4, out: 0.12, knee: 0.7, foot: 0 } }),
+  pz({ root: { x: 0, y: 0, z: 1.4, pitch: 0.14, yaw: 0, roll: 0 }, spine: { pitch: 0.18, yaw: 0.4, roll: -0.04 }, armR: { fwd: 1.5, out: -0.1, twist: 0, elbow: 0.05 },
+    armL: { fwd: -0.2, out: 0.25, twist: 0, elbow: 1.6 }, legL: { fwd: 0.5, out: 0.14, knee: 0.35, foot: 0 }, legR: { fwd: -0.5, out: 0.12, knee: 0.1, foot: -0.2 } }),
+  pz({ spine: { pitch: 0.06, yaw: 0.1, roll: 0 }, armR: { fwd: 0.5, out: 0.1, twist: 0, elbow: 1.0 }, armL: { fwd: 0.4, out: 0.12, twist: 0, elbow: 1.0 },
+    legL: { fwd: 0.15, out: 0.1, knee: 0.25, foot: 0 }, legR: { fwd: -0.15, out: 0.1, knee: 0.25, foot: 0 } }),
+];
+// Jutsu (selagem), 5 quadros: prepara, selo na frente do peito (os dois antebraços sobem até as mãos se juntarem no
+// meio do peito), selo firme com a base baixa, solta com as palmas para a frente, volta.
+const SELO = { armL: { fwd: 1.0, out: -0.75, twist: 0, elbow: 2.3 }, armR: { fwd: 1.0, out: -0.75, twist: 0, elbow: 2.3 } };
+const JUTSU = [
+  pz({ spine: { pitch: 0.04, yaw: 0, roll: 0 }, armL: { fwd: 0.5, out: -0.2, twist: 0, elbow: 1.4 }, armR: { fwd: 0.5, out: -0.2, twist: 0, elbow: 1.4 } }),
+  pz({ selo: true, spine: { pitch: 0.06, yaw: 0, roll: 0 }, ...SELO, legL: { fwd: 0.12, out: 0.2, knee: 0.35, foot: 0 }, legR: { fwd: -0.12, out: 0.2, knee: 0.35, foot: 0 } }),
+  pz({ selo: true, spine: { pitch: 0.1, yaw: 0, roll: 0 }, ...SELO, legL: { fwd: 0.14, out: 0.24, knee: 0.6, foot: 0 }, legR: { fwd: -0.14, out: 0.24, knee: 0.6, foot: 0 } }),
+  pz({ root: { x: 0, y: 0, z: 1.0, pitch: 0.1, yaw: 0, roll: 0 }, spine: { pitch: 0.16, yaw: 0, roll: 0 }, armL: { fwd: 1.45, out: -0.12, twist: 0, elbow: 0.1 },
+    armR: { fwd: 1.45, out: -0.12, twist: 0, elbow: 0.1 }, legL: { fwd: 0.36, out: 0.2, knee: 0.45, foot: 0 }, legR: { fwd: -0.36, out: 0.2, knee: 0.2, foot: -0.2 } }),
+  pz({ spine: { pitch: 0.04, yaw: 0, roll: 0 }, armL: { fwd: 0.4, out: 0.1, twist: 0, elbow: 0.8 }, armR: { fwd: 0.4, out: 0.1, twist: 0, elbow: 0.8 } }),
+];
+export const HERO_ANIMS = { golpe: (t) => GOLPE[Math.max(0, Math.min(3, Math.round(t * 3)))], jutsu: (t) => JUTSU[Math.max(0, Math.min(4, Math.round(t * 4)))] };
+export const GOLPE_MS = [140, 110, 70, 120];   // antecipação 250 ms, impacto 70 ms, volta 120 ms
+export const JUTSU_T = [0, 0.25, 0.5, 0.75, 1];  // 5 quadros: prepara, selo, selo firme, solta, volta
+export const JUTSU_MS = [90, 110, 200, 140, 110];
+
 /** Transformações de cada osso do herói num quadro. */
 export function skeletonFrame(view, anim, t) {
   const mirror = view === 'esquerda';
@@ -687,7 +719,7 @@ export function skeletonFrame(view, anim, t) {
   const yaw = YAW_OF_DIR[{ frente: 0, costas: 3, direita: 2 }[v]];
   // Caminhada: balanço dos braços 1,3x o do esqueleto, com o braço quase reto (pendendo do ombro, sem "bengala").
   // De costas, a caminhada é amostrada meio quadro adiante: em t = 1/6 e 2/6 a vista saía quase igual (quadro repetido).
-  const pose1 = anim ? poseOf(anim, anim === 'andar' && v === 'costas' ? t + 1 / 12 : t) : basePose();
+  const pose1 = anim ? (HERO_ANIMS[anim] ? HERO_ANIMS[anim](t) : poseOf(anim, anim === 'andar' && v === 'costas' ? t + 1 / 12 : t)) : basePose();
   if (anim === 'andar') for (const a of ['armL', 'armR']) pose1[a] = { ...pose1[a], fwd: pose1[a].fwd * 1.3, elbow: 0.2 };
   const R0 = solve(basePose(), yaw), R1 = solve(pose1, yaw);
   const P0 = R0.P, P1 = R1.P;
@@ -706,9 +738,28 @@ export function skeletonFrame(view, anim, t) {
   for (const [k, S] of Object.entries(sides)) {
     const J = piv[k];
     const ombro2 = fwd(tronco, J.ombro);
-    const braco = T(ombro2, boneM(P0[`shoulder${S}`], P0[`elbow${S}`], P1[`shoulder${S}`], P1[`elbow${S}`]), J.ombro);
-    const cot2 = fwd(braco, J.cotovelo);
+    let braco = T(ombro2, boneM(P0[`shoulder${S}`], P0[`elbow${S}`], P1[`shoulder${S}`], P1[`elbow${S}`]), J.ombro);
+    let cot2 = fwd(braco, J.cotovelo);
     let mao = T(cot2, boneM(P0[`elbow${S}`], P0[`wrist${S}`], P1[`elbow${S}`], P1[`wrist${S}`]), J.cotovelo);
+    // Braço bem dobrado de frente/costas (selo de mão, guarda): o giro por osso perde o lugar da mão, porque os dois
+    // ossos apontam para a câmera. Aqui a mão vai para onde o esqueleto põe o pulso (relativo ao ombro) e o cotovelo
+    // se ajeita sozinho (cinemática inversa de 2 ossos, cotovelo para fora do corpo).
+    if (v !== 'direita' && (R1.pose[`arm${S}`]?.elbow || 0) > 1.0) {
+      const a = len(J.ombro, J.cotovelo), b = len(J.cotovelo, J.pulso);
+      // No selo as duas mãos se juntam no meio do peito (o esqueleto deixa o pulso perto do ombro, visto de frente).
+      const alvo = R1.pose.selo ? fwd(tronco, [32 + (k === 'e' ? -1.6 : 1.6), 56]) : plus(ombro2, sc(P1[`shoulder${S}`], P1[`wrist${S}`]));
+      let dx = alvo[0] - ombro2[0], dy = alvo[1] - ombro2[1], d = Math.hypot(dx, dy);
+      if (d > a + b - 0.5) { const f = (a + b - 0.5) / d; dx *= f; dy *= f; d = a + b - 0.5; }
+      d = Math.max(d, Math.abs(a - b) + 0.5);
+      const base = Math.atan2(dy, dx), cosA = (a * a + d * d - b * b) / (2 * a * d);
+      const fora = k === 'e' ? 1 : -1;                  // cotovelo abre para o lado de fora da tela
+      const angA = base + fora * Math.acos(Math.max(-1, Math.min(1, cosA))) * (dx * fora < 0 ? 1 : -1);
+      const cotovelo = [ombro2[0] + a * Math.cos(angA), ombro2[1] + a * Math.sin(angA)];
+      const pulso = [ombro2[0] + dx, ombro2[1] + dy];
+      braco = T(ombro2, rotM(ang(ombro2, cotovelo) - ang(J.ombro, J.cotovelo)), J.ombro);
+      cot2 = cotovelo;
+      mao = T(cot2, rotM(ang(cotovelo, pulso) - ang(J.cotovelo, J.pulso)), J.cotovelo);
+    }
     // De frente/costas o balanço é para a câmera: a mão que vem para perto desce e entra um pouco, a que vai para
     // longe sobe e sai (como a perna da frente).
     if (v !== 'direita') {
