@@ -204,3 +204,5 @@ abas da barra, mangas, punhos, capuz), `calca`, `acessorio` (faixa e nó), `sapa
   atadura (sim/não), tira, dedos de fora (sim/não) e cor da sola. Hoje: `bota` (herói) e `sandalia` (sandália ninja:
   atadura clara na canela, tira escura, dedos de fora e sola marrom). Uso:
   `renderHero('C', vista, pose, { calcado: 'sandalia' })`.
+- **Aprovado (V33):** o cano do calçado (até o tornozelo, linha 84) anda com a canela; só o pé (bico e sola) gira com o
+  osso do pé, a partir do tornozelo, com 1 linha de sobra. Vale para todo estilo de `CALCADOS`.
