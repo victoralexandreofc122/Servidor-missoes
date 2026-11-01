@@ -677,7 +677,7 @@ export function skeletonFrame(view, anim, t) {
     let aba = T(cintura2, rotM(0.5 * (ang(P1[`hip${S}`], P1[`knee${S}`]) - ang(P0[`hip${S}`], P0[`knee${S}`])) + vento), piv.cintura);
     // V32: correndo, o casaco voa para trás e não segue a perna (que o cortava). Leve tremor por quadro.
     const trem = 0.05 * Math.sin(t * Math.PI * 4);
-    if (anim === 'correr' && v === 'direita') aba = T(cintura2, rotM(0.6 + trem), piv.cintura);
+    if (anim === 'correr' && v === 'direita') aba = T(cintura2, rotM(0.95 + trem), piv.cintura);
     // De frente, voar para trás = a barra some para trás das pernas: encurta e abre para os lados.
     if (anim === 'correr' && v === 'frente') aba = T(cintura2, mulM(rotM((k === 'e' ? 0.16 : -0.16) + trem), [1, 0, 0, 0.62]), piv.cintura);
     // De costas o casaco é uma peça só: as duas metades levam o MESMO movimento (correndo, a barra vem para a câmera:
