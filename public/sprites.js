@@ -5,7 +5,7 @@
 // Tudo aqui é puro (testado no Node em test/sprites.test.ts), menos o ícone do sapato, que usa o canvas.
 
 import { SPRITES } from './spriteData.js';
-import { SHOES } from './rigArt.js';
+import { ACCESSORIES, SHOES } from './rigArt.js';
 import { figureCanvas } from './figure.js';
 
 export { SHOES };
@@ -24,7 +24,7 @@ export const OPTIONS = {
   hairColor: Object.keys(P.cabelo),
   eyeStyle: ['masculino', 'cilios'],
   eyeColor: Object.keys(P.olho),
-  outfit: ['basica', 'vila', 'casaco'],
+  outfit: ['basica', 'vila'],
   shirtColor: Object.keys(P.roupa).filter((n) => !METAIS.has(n)),
   pantsColor: Object.keys(P.roupa).filter((n) => !METAIS.has(n)),
   bandana: [true, false],
@@ -85,12 +85,12 @@ export function fallbackColors(look) {
 
 /**
  * Camadas do boneco para este visual (cada uma é um conjunto de formas presas nos ossos, em rigArt.js): corpo, olhos,
- * boca e cabelo sempre; a roupa (camisa e calça básicas; o conjunto da vila com o porta-kunai; ou o casaco com capuz por
- * cima da blusa, com o nó da faixa); bandana; sapato só calçado.
+ * boca e cabelo sempre; a roupa (camisa e calça básicas ou o conjunto da vila com o porta-kunai); o acessório por cima
+ * (o casaco com capuz); bandana; sapato só calçado.
  */
 export function layersFor(look) {
-  const outfit = { vila: ['camisa', 'calca', 'conjunto', 'acessorio'], casaco: ['camisa', 'casaco', 'calca', 'acessorio'] }[look.outfit] || ['camisa', 'calca'];
-  return ['corpo', 'olhos', 'boca', 'cabelo', ...outfit, ...(look.bandana ? ['chapeu'] : []), ...(SHOES[look.shoes] ? ['sapato'] : [])];
+  const outfit = look.outfit === 'vila' ? ['camisa', 'calca', 'conjunto', 'acessorio'] : ['camisa', 'calca'];
+  return ['corpo', 'olhos', 'boca', 'cabelo', ...outfit, ...(ACCESSORIES[look.accessory] ? ['casaco'] : []), ...(look.bandana ? ['chapeu'] : []), ...(SHOES[look.shoes] ? ['sapato'] : [])];
 }
 
 /** Cor da amostra de uma opção do Criador (o tom do meio da rampa; vila = cor da bandana). */
@@ -123,8 +123,10 @@ export function spriteScale(T, dpr) {
  * false = não é sapato (quem chama desenha outra coisa).
  */
 export function drawShoeIcon(g, code, w, h) {
-  if (!SHOES[code]) return false;
-  const c = figureCanvas({ ...DEFAULT_APPEARANCE, shoes: code }, { only: ['sapato'], dir: 2 });
+  // O sapato (de lado) e o acessório (o casaco, de frente) são a própria camada do boneco, sozinha.
+  const c = SHOES[code] ? figureCanvas({ ...DEFAULT_APPEARANCE, shoes: code }, { only: ['sapato'], dir: 2 })
+    : ACCESSORIES[code] ? figureCanvas({ ...DEFAULT_APPEARANCE, accessory: code }, { only: ['casaco'], dir: 0 }) : null;
+  if (!c) return false;
   const px = c.getContext('2d').getImageData(0, 0, 64, 96).data;
   let x0 = 64, y0 = 96, x1 = -1, y1 = -1;
   for (let y = 0; y < 96; y++) for (let x = 0; x < 64; x++) {

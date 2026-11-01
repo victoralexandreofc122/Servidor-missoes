@@ -1004,3 +1004,28 @@ Use o admin para ir a cada vila (`/admin ir vila_areia 40 52`, `vila_nevoa`, `vi
 2. **Névoa:** bambu perto das lojas e da praça, grama mais fria e poças no chão.
 3. **Nuvem:** nuvens no alto do morro e bandeiras vinho na praça; dá para andar por cima delas (são enfeite).
 4. Viaje de uma vila para a outra e volte: cada vila mantém as árvores dela (sem palmeira na Névoa, por exemplo).
+
+---
+
+## Passo 29 — Atualização v27: o casaco com capuz vira acessório (SQL **antes** do deploy)
+
+**Banco primeiro.** No Neon, abra o **SQL Editor**, confira no seletor que o branch é o `production` e rode o arquivo
+`db/schema_v14_acessorio.sql` inteiro. Ele segue as regras de sempre (sem bloco `DO $$`, tudo dentro de
+`BEGIN; ... COMMIT;`) e pode rodar de novo. Ela:
+
+- cria o tipo de item `accessory` e os quatro casacos com capuz na Alfaiataria (petróleo, preto, vinho e verde, 1.200 ryō);
+- cria `players.equipped_accessory` (o acessório equipado, só um que o jogador tem);
+- quem tinha escolhido "Casaco com capuz" como roupa no Criador ganha o casaco da mesma cor, já equipado, e a roupa
+  volta para "Camisa e calça".
+
+Para conferir depois: `SELECT code FROM game.items WHERE kind = 'accessory';` mostra os quatro casacos.
+
+**Depois o código:** publique a `main` (o Render faz o deploy sozinho). Sem a migração, o servidor novo não sobe: o
+log do Render pede para rodar este arquivo e o Render mantém a versão anterior no ar.
+
+### Testar no celular
+
+1. **Alfaiataria:** os quatro casacos com capuz aparecem à venda, com "acessório (por cima da roupa)".
+2. **Equipamentos:** o espaço **Acessório** não tem mais cadeado. Vista um casaco: ele aparece por cima da camisa e
+   calça (ou do conjunto da vila), é uma peça só nas costas e todos veem. **Tirar** volta à roupa.
+3. **Criador:** a linha **Roupa** só tem "Camisa e calça" e "Conjunto da vila".

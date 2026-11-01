@@ -98,10 +98,10 @@ export const GENDERS = ['m', 'f'] as const;
 export const HAIR_STYLES = ['espetado', 'longo_lateral', 'baguncado'] as const;
 export const EYE_STYLES = ['masculino', 'cilios'] as const;
 /**
- * basica = camisa + calça nas cores do jogador; vila = conjunto da vila (cores da vila); casaco = casaco com capuz na
- * cor da camisa, com a blusa de dentro cor de ameixa e a calça na cor da calça (v26).
+ * basica = camisa + calça nas cores do jogador; vila = conjunto da vila (cores da vila). O casaco com capuz (v26) virou
+ * acessório na v27 (item equipado no slot Acessório, por cima da roupa; migração v14).
  */
-export const OUTFITS = ['basica', 'vila', 'casaco'] as const;
+export const OUTFITS = ['basica', 'vila'] as const;
 /** As quatro vilas: Folha, Névoa, Nuvem e Areia. A Pedra (vila_2) saiu na v13; os códigos das outras não mudaram. */
 export const VILLAGES = ['vila_1', 'vila_3', 'vila_4', 'vila_5'] as const;
 export type Village = (typeof VILLAGES)[number];

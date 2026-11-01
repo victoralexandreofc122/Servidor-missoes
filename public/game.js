@@ -138,7 +138,7 @@ const state = {
    * Progressão (v7), SEMPRE a do servidor: passo do tutorial (trava as portas da Academia), ryō,
    * itens, arma equipada, classes, jutsus aprendidos -> usos (o nível sai do uso) e Kage.
    */
-  ninja: { tutorialStep: 4, ryo: 0, items: {}, equipped: null, equippedScroll: null, equippedShoes: null, classes: { primary: null, secondary: null }, jutsus: {}, kageCandidate: false, isAdmin: false, cape: null, display: { cape: true, weapon: true, scroll: true } },
+  ninja: { tutorialStep: 4, ryo: 0, items: {}, equipped: null, equippedScroll: null, equippedShoes: null, equippedAccessory: null, classes: { primary: null, secondary: null }, jutsus: {}, kageCandidate: false, isAdmin: false, cape: null, display: { cape: true, weapon: true, scroll: true } },
   /** Fim de jogo (v16): o estado político que o servidor manda (`endgame`) ou null (módulos desligados / sem a v11). */
   endgame: null,
   /** Histórico do chat (o servidor manda as últimas 100 ao conectar; as novas entram no fim). */
@@ -212,7 +212,7 @@ const state = {
 /** Gear vindo da rede: só códigos curtos (o desenho ignora o que não conhece). */
 const safeGear = (g) => {
   const ok = (c) => (typeof c === 'string' && /^[a-z][a-z0-9_]{0,31}$/.test(c) ? c : null);
-  return { hand: ok(g?.hand), back: ok(g?.back), scroll: ok(g?.scroll), feet: ok(g?.feet) };
+  return { hand: ok(g?.hand), back: ok(g?.back), scroll: ok(g?.scroll), feet: ok(g?.feet), body: ok(g?.body) };
 };
 
 // ------------------------------------------------------------------ login / cadastro
@@ -627,7 +627,7 @@ function handleMessage(msg) {
     }
     case 'inventory':
       if (msg.cape !== undefined) state.ninja.cape = msg.cape;
-      Object.assign(state.ninja, { ryo: msg.ryo, items: msg.items, equipped: msg.equipped, equippedScroll: msg.equippedScroll ?? null, equippedShoes: msg.equippedShoes ?? null });
+      Object.assign(state.ninja, { ryo: msg.ryo, items: msg.items, equipped: msg.equipped, equippedScroll: msg.equippedScroll ?? null, equippedShoes: msg.equippedShoes ?? null, equippedAccessory: msg.equippedAccessory ?? null });
       renderInventory();
       renderResetButton();
       renderShopItems();
@@ -2219,7 +2219,7 @@ function renderShopItems() {
     const price = document.createElement('small');
     price.className = 'price';
     const have = state.ninja.items?.[item.code] || 0;
-    price.textContent = `${ryoText(priceOf(item))}${item.damage ? ` · +${item.damage} de dano` : ''}${item.throw ? ' · de arremesso' : ''}${item.kind === 'cape' ? ' · capa' : item.kind === 'shoes' ? ' · sapato' : ''}${have ? ` · você tem ${have}` : ''}`;
+    price.textContent = `${ryoText(priceOf(item))}${item.damage ? ` · +${item.damage} de dano` : ''}${item.throw ? ' · de arremesso' : ''}${item.kind === 'cape' ? ' · capa' : item.kind === 'shoes' ? ' · sapato' : item.kind === 'accessory' ? ' · acessório (por cima da roupa)' : ''}${have ? ` · você tem ${have}` : ''}`;
     n.append(price);
     const b = document.createElement('button');
     b.type = 'button';
@@ -2326,6 +2326,7 @@ const EQUIP_KIND = {
   scroll: { slot: 'scroll', current: (n) => n.equippedScroll, send: (code) => ({ type: 'equip', item: code, slot: 'scroll' }), on: 'Tirar', off: 'Nas costas' },
   cape: { slot: 'cape', current: (n) => n.cape, send: (code) => ({ type: 'equip', item: code, slot: 'cape' }), on: 'Tirar', off: 'Vestir' },
   shoes: { slot: 'feet', current: (n) => n.equippedShoes, send: (code) => ({ type: 'equip', item: code, slot: 'feet' }), on: 'Descalçar', off: 'Calçar' },
+  accessory: { slot: 'accessory', current: (n) => n.equippedAccessory, send: (code) => ({ type: 'equip', item: code, slot: 'body' }), on: 'Tirar', off: 'Vestir' },
 };
 /** O que está no espaço `slot` da tela (arma, pergaminho, capa ou sapato). */
 const slotItem = (n, slot) => Object.values(EQUIP_KIND).find((k) => k.slot === slot)?.current(n) ?? null;
@@ -2571,7 +2572,8 @@ ui.equipInfo.addEventListener('click', () => {
   const more = def?.kind === 'weapon' ? ` · arma · +${def.damage} de dano · ${weaponWhere(def)}`
     : def?.kind === 'scroll' ? ' · pergaminho (pode ir nas costas)'
       : def?.kind === 'cape' ? ' · capa (todos veem; dá para esconder no ⚙️)'
-        : def?.kind === 'shoes' ? ' · sapato (vai nos pés; todos veem)' : ` · ×${qty}`;
+        : def?.kind === 'shoes' ? ' · sapato (vai nos pés; todos veem)'
+          : def?.kind === 'accessory' ? ' · acessório (por cima da roupa; todos veem)' : ` · ×${qty}`;
   ui.equipDetail.replaceChildren(name, document.createTextNode(more));
 });
 ui.equipTurn.addEventListener('click', () => { eqDir = [0, 1, 3, 2][([0, 1, 3, 2].indexOf(eqDir) + 1) % 4]; drawEquipFigure(performance.now(), true); });
@@ -2583,6 +2585,7 @@ for (const el of ui.invPanel.querySelectorAll('.eq-slot')) {
     const code = slotItem(n, slot);
     if (code) { eqSel = code; renderInventory(); }
     else if (slot === 'feet') ui.equipDetail.textContent = 'Descalço. Os sapatos são vendidos na Alfaiataria.';
+    else if (slot === 'accessory') ui.equipDetail.textContent = 'Nenhum acessório. Os casacos com capuz são vendidos na Alfaiataria.';
   });
 }
 for (const tab of ui.invPanel.querySelectorAll('.eq-tab')) {
@@ -3500,7 +3503,7 @@ const CREATOR_FIELDS = [
 ];
 const CREATOR_LABEL = {
   m: 'Masculino', f: 'Feminino', espetado: 'Espetado', longo_lateral: 'Longo', baguncado: 'Bagunçado', masculino: 'Sem cílios', cilios: 'Com cílios',
-  basica: 'Camisa e calça', vila: 'Conjunto da vila', casaco: 'Casaco com capuz', true: 'Com bandana', false: 'Sem',
+  basica: 'Camisa e calça', vila: 'Conjunto da vila', true: 'Com bandana', false: 'Sem',
 };
 const creatorLabel = (field, v) => (field === 'village' ? VILLAGE_NAMES[v] || String(v) : CREATOR_LABEL[String(v)] || String(v).replace(/_/g, ' '));
 /**
@@ -3542,7 +3545,7 @@ function drawCreatorPreview(phase) {
   const shoes = gear && 'feet' in gear ? gear.feet : DEFAULT_SHOES;     // o sapato que ele calça (não muda no Criador)
   creatorWalker.moving = true;
   creatorWalker.walk = phase;
-  drawFigure(g, creatorWalker, 0, 0, 2, { ...creatorLook, shoes }, creatorDir, performance.now());
+  drawFigure(g, creatorWalker, 0, 0, 2, { ...creatorLook, shoes, accessory: gear?.body ?? null }, creatorDir, performance.now());
 }
 /** O boneco da prévia do Criador (guarda o giro suave entre uma direção e outra). */
 const creatorWalker = { moving: true, walk: 0 };
@@ -3563,8 +3566,7 @@ function renderCreatorOptions() {
     row.hidden = (field === 'shirtColor' || field === 'pantsColor') && creatorLook.outfit === 'vila';
     const name = document.createElement('span');
     name.className = 'opt-title';
-    // Com o casaco, a "cor da camisa" é a cor do casaco (a blusa de dentro é sempre cor de ameixa).
-    name.textContent = field === 'shirtColor' && creatorLook.outfit === 'casaco' ? 'Casaco' : title;
+    name.textContent = title;
     const box = document.createElement('div');
     box.className = kind === 'seg' ? 'seg' : 'swatches';
     for (const value of OPTIONS[field]) {
@@ -6470,7 +6472,7 @@ function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
   const left = Math.round((sx - 32 * s) * dpr) / dpr;
   const top = Math.round((sy + T * 0.42 - 93 * s) * dpr) / dpr;
   // O sapato (camada própria): o que o servidor diz que ele calça (null = descalço); NPC e prévia, a sandália de sempre.
-  const shod = { ...look, shoes: gear && 'feet' in gear ? gear.feet : DEFAULT_SHOES };
+  const shod = { ...look, shoes: gear && 'feet' in gear ? gear.feet : DEFAULT_SHOES, accessory: gear?.body ?? null };
   // Fim de jogo (v16): a capa e a bandana riscada do renegado (camadas do boneco).
   const opts = {
     cape: p.faction?.cape || null,

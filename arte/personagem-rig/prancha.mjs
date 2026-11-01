@@ -19,7 +19,7 @@ const BASE = { v: 2, gender: 'm', skin: 'claro', hairStyle: 'espetado', hairColo
 const DIRS = [0, 1, 3, 2];
 /** O visual da folha de referência do Victor (v26): cabelo preto bagunçado, casaco azul-petróleo com capuz, botas. */
 const REF = { v: 2, gender: 'm', skin: 'pessego', hairStyle: 'baguncado', hairColor: 'preto', eyeStyle: 'masculino', eyeColor: 'azul_claro',
-  outfit: 'casaco', shirtColor: 'petroleo', pantsColor: 'preto', bandana: false, village: 'vila_1', shoes: 'botas_ninja' };
+  outfit: 'basica', shirtColor: 'vinho', pantsColor: 'preto', bandana: false, village: 'vila_1', shoes: 'botas_ninja', accessory: 'casaco_petroleo' };
 
 function cells() {
   const list = [];
@@ -52,7 +52,7 @@ function cells() {
     // Cada camada sozinha (presa nos mesmos ossos do corpo base) e o boneco montado, de frente, de lado e de costas.
     const look = { ...REF };
     const opts = {};
-    const layers = [['corpo'], ['olhos', 'boca'], ['cabelo'], ['camisa'], ['casaco'], ['calca'], ['acessorio'], ['sapato'], null];
+    const layers = [['corpo'], ['olhos', 'boca'], ['cabelo'], ['camisa'], ['calca'], ['sapato'], ['casaco'], null];
     for (const d of [0, 1, 3]) {
       list.push(layers.map((only) => ({ look, anim: 'parado', t: 0.1, yaw: YAW_OF_DIR[d], opts: { ...opts, only: only || undefined, noAnchor: true } })));
     }

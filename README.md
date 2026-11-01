@@ -215,6 +215,16 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v27: o casaco com capuz vira acessório (migração `db/schema_v14_acessorio.sql`, ANTES do deploy)
+
+- O casaco com capuz saiu das roupas do Criador e virou item do espaço **Acessório** na Tela de Equipamentos (que
+  perdeu o cadeado). Ele fica por cima da roupa equipada (camisa e calça ou o conjunto da vila), é uma peça só nas
+  costas e todos veem.
+- Quatro casacos na Alfaiataria: petróleo, preto, vinho e verde (1.200 ryō cada).
+- Quem usava o casaco como roupa (v26) ganha o casaco da mesma cor, já equipado; a roupa volta para "Camisa e calça".
+- Boneco: olhos, nariz e boca no meio do rosto, franja mais curta e o casaco sem a costura no meio das costas.
+- Passo a passo no DEPLOY.md (Passo 29).
+
 ### v26: boneco no estilo da folha de referência (sem migração)
 
 - Estilo novo em todos os visuais: contorno escuro uniforme por fora e por dentro (onde uma peça passa na frente da

@@ -48,11 +48,12 @@ describe('v9 + v25: visual e boneco desenhado por código (cliente)', () => {
     assert.deepEqual(S.layersFor(LOOK), ['corpo', 'olhos', 'boca', 'cabelo', 'camisa', 'calca', 'conjunto', 'acessorio', 'chapeu']);
     assert.deepEqual(S.layersFor({ ...LOOK, outfit: 'basica', bandana: false, shoes: 'botas_ninja' }),
       ['corpo', 'olhos', 'boca', 'cabelo', 'camisa', 'calca', 'sapato']);
-    assert.deepEqual(S.layersFor({ ...LOOK, outfit: 'casaco', bandana: false }), ['corpo', 'olhos', 'boca', 'cabelo', 'camisa', 'casaco', 'calca', 'acessorio']);
+    assert.deepEqual(S.layersFor({ ...LOOK, outfit: 'basica', bandana: false, accessory: 'casaco_petroleo' }), ['corpo', 'olhos', 'boca', 'cabelo', 'camisa', 'calca', 'casaco']);
+    assert.deepEqual(S.layersFor({ ...LOOK, accessory: 'casaco_preto' }).slice(4), ['camisa', 'calca', 'conjunto', 'acessorio', 'casaco', 'chapeu'], 'o casaco vai por cima do conjunto');
   });
 
-  it('v26: casaco com capuz (cor da camisa, blusa ameixa no V, faixa preta) e o cabelo bagunçado em mechas de lâmina', () => {
-    const coat = { ...LOOK, outfit: 'casaco', shirtColor: 'petroleo', pantsColor: 'preto', hairStyle: 'baguncado', bandana: false, shoes: 'botas_ninja' };
+  it('v27: casaco com capuz é acessório (cor do item, por cima da roupa) e o cabelo bagunçado em mechas de lâmina', () => {
+    const coat = { ...LOOK, outfit: 'basica', shirtColor: 'vermelho', pantsColor: 'preto', hairStyle: 'baguncado', bandana: false, shoes: 'botas_ninja', accessory: 'casaco_petroleo' };
     const has = (f: any, hex: string) => {
       const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
       for (let i = 0; i < f.rgba.length; i += 4) if (f.rgba[i + 3] && f.rgba[i] === r && f.rgba[i + 1] === g && f.rgba[i + 2] === b) return true;
@@ -60,10 +61,12 @@ describe('v9 + v25: visual e boneco desenhado por código (cliente)', () => {
     };
     const roupa = SPRITES.paletas.roupa;
     const front = ART.renderFigure(coat, RIG.poseOf('parado', 0.1), 0);
-    assert.ok(has(front, roupa.petroleo[2]), 'o casaco na cor escolhida');
-    assert.ok(has(front, roupa.ameixa[2]), 'a blusa cor de ameixa aparece no V do casaco');
+    assert.ok(has(front, roupa.petroleo[2]), 'o casaco na cor do item');
+    assert.ok(has(front, roupa.vermelho[2]), 'a camisa equipada aparece no V do casaco');
     const back = ART.renderFigure(coat, RIG.poseOf('parado', 0.1), RIG.YAW_OF_DIR[3]);
-    assert.ok(!has(back, roupa.ameixa[2]), 'de costas, a blusa fica escondida');
+    assert.ok(!has(back, roupa.vermelho[2]), 'de costas, o casaco cobre a camisa (uma peça só)');
+    const plain = ART.renderFigure({ ...coat, accessory: null }, RIG.poseOf('parado', 0.1), 0);
+    assert.ok(!has(plain, roupa.petroleo[2]), 'sem o acessório, sem casaco');
     // As abas do casaco têm física: na corrida voam para trás (de lado, para a esquerda da tela quando olha para a direita).
     const leftmost = (f: any) => { for (let x = 0; x < 64; x++) for (let y = 40; y < 90; y++) if (f.rgba[(y * 64 + x) * 4 + 3]) return x; return 64; };
     const coatOnly = (anim: string, t: number, flow: number) => ART.renderFigure(coat, RIG.poseOf(anim, t), RIG.YAW_OF_DIR[2], { only: ['casaco'], flow, phase: t });
@@ -158,7 +161,7 @@ describe('v9 + v25: visual e boneco desenhado por código (cliente)', () => {
 
   it('acabamento: sem furinho vazio dentro do traço e sem cisco solto, em toda animação, no giro, nos 3 cabelos e com capa', () => {
     const looks = [
-      { ...LOOK, gender: 'm', eyeStyle: 'masculino', hairStyle: 'baguncado', outfit: 'casaco', shirtColor: 'petroleo', bandana: false, shoes: 'botas_ninja' },
+      { ...LOOK, gender: 'm', eyeStyle: 'masculino', hairStyle: 'baguncado', outfit: 'basica', bandana: false, shoes: 'botas_ninja', accessory: 'casaco_petroleo' },
       { ...LOOK, gender: 'm', eyeStyle: 'masculino', hairStyle: 'espetado', shoes: 'sandalia_ninja' },
       LOOK,
     ];

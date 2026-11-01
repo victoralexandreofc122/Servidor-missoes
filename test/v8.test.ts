@@ -467,12 +467,12 @@ describe('v8: chat com canais e histórico persistente', () => {
 
 describe('v8: equipamento visível no boneco (paperdoll)', () => {
   it('gearOf: kunai e espada curta na mão; espada longa e Shuriken Gigante nas costas; pergaminho nas costas', () => {
-    assert.deepEqual(gearOf('kunai', null), { hand: 'kunai', back: null, scroll: null, feet: null });
-    assert.deepEqual(gearOf('tanto', 'scroll_fire'), { hand: 'tanto', back: null, scroll: 'scroll_fire', feet: null });
-    assert.deepEqual(gearOf('katana', null), { hand: null, back: 'katana', scroll: null, feet: null });
-    assert.deepEqual(gearOf('fuma_shuriken', null), { hand: null, back: 'fuma_shuriken', scroll: null, feet: null }, 'duas mãos: nada na mão');
-    assert.deepEqual(gearOf('scroll_fire', 'kunai'), { hand: null, back: null, scroll: null, feet: null }, 'tipos trocados não aparecem');
-    assert.deepEqual(gearOf(null, null), { hand: null, back: null, scroll: null, feet: null });
+    assert.deepEqual(gearOf('kunai', null), { hand: 'kunai', back: null, scroll: null, feet: null, body: null });
+    assert.deepEqual(gearOf('tanto', 'scroll_fire'), { hand: 'tanto', back: null, scroll: 'scroll_fire', feet: null, body: null });
+    assert.deepEqual(gearOf('katana', null), { hand: null, back: 'katana', scroll: null, feet: null, body: null });
+    assert.deepEqual(gearOf('fuma_shuriken', null), { hand: null, back: 'fuma_shuriken', scroll: null, feet: null, body: null }, 'duas mãos: nada na mão');
+    assert.deepEqual(gearOf('scroll_fire', 'kunai'), { hand: null, back: null, scroll: null, feet: null, body: null }, 'tipos trocados não aparecem');
+    assert.deepEqual(gearOf(null, null), { hand: null, back: null, scroll: null, feet: null, body: null });
   });
 
   it('equipar muda o boneco para TODOS no mapa (player_gear) e quem chega depois já vê', async () => {
@@ -482,18 +482,18 @@ describe('v8: equipamento visível no boneco (paperdoll)', () => {
     const b = join('mei');
     a.send({ type: 'equip', item: 'kunai' });
     await flush();
-    assert.deepEqual(b.conn.last('player_gear'), { type: 'player_gear', playerId: a.id, gear: { hand: 'kunai', back: null, scroll: null, feet: null } });
+    assert.deepEqual(b.conn.last('player_gear'), { type: 'player_gear', playerId: a.id, gear: { hand: 'kunai', back: null, scroll: null, feet: null, body: null } });
     a.send({ type: 'equip', item: 'scroll_fire', slot: 'scroll' });
     await new Promise((r) => setTimeout(r, 300));
-    assert.deepEqual(b.conn.last('player_gear').gear, { hand: 'kunai', back: null, scroll: 'scroll_fire', feet: null });
+    assert.deepEqual(b.conn.last('player_gear').gear, { hand: 'kunai', back: null, scroll: 'scroll_fire', feet: null, body: null });
     assert.equal(a.conn.last('inventory').equippedScroll, 'scroll_fire');
     a.send({ type: 'equip', item: 'katana' });
     await new Promise((r) => setTimeout(r, 300));
     // Uma arma de ataque por vez: a espada longa TIRA a kunai da mão (nunca as duas); o pergaminho não é arma.
-    assert.deepEqual(b.conn.last('player_gear').gear, { hand: null, back: 'katana', scroll: 'scroll_fire', feet: null });
+    assert.deepEqual(b.conn.last('player_gear').gear, { hand: null, back: 'katana', scroll: 'scroll_fire', feet: null, body: null });
     assert.equal(a.conn.last('inventory').equipped, 'katana');
     const c = join('rin');
-    assert.deepEqual(c.conn.last('welcome').players.find((p: any) => p.id === a.id).gear, { hand: null, back: 'katana', scroll: 'scroll_fire', feet: null });
+    assert.deepEqual(c.conn.last('welcome').players.find((p: any) => p.id === a.id).gear, { hand: null, back: 'katana', scroll: 'scroll_fire', feet: null, body: null });
   });
 
   it('slot errado ou item que não tem: recusado sem tocar no banco', async () => {

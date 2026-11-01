@@ -100,11 +100,10 @@ export function materialsFor(look, opts = {}) {
     aco: (() => { const r = ramp('aco'); return material([r[1], r[1], r[2], r[3], r[4]], { lt: 0.45, sh: -0.2, hi: 0.82 }); })(),
     couro: cloth('marrom'),
     preto: cloth('preto'),
-    // Casaco com capuz (v26): o casaco na cor da camisa escolhida, o forro um tom abaixo e a blusa de dentro cor de ameixa.
-    casaco: cloth(look.shirtColor),
-    casacoForro: lining(look.shirtColor),
-    interna: cloth('ameixa'),
   };
+  // Casaco com capuz (acessório, v27): o casaco na cor do item, o forro um tom abaixo.
+  const acc = ACCESSORIES[look.accessory];
+  if (acc) { m.casaco = cloth(acc.color); m.casacoForro = lining(acc.color); }
   // Sapato de couro: um tom mais escuro que o pano da mesma cor (a bota preta se separa da calça preta).
   const leather = (name) => { const r = ramp(name); return material([r[0], r[0], r[1], r[2], r[3]]); };
   if (shoe) { m.sapato = leather(shoe.colors[0]); m.sapato2 = leather(shoe.colors[1]); m.sola = cloth(shoe.colors[2]); }
@@ -127,6 +126,17 @@ export const SHOES = {
   sandalia_couro: { sprite: 'sandalia', colors: ['marrom', 'creme', 'preto'] },
   botas_viagem: { sprite: 'bota', colors: ['marrom', 'creme', 'preto'] },
   botas_ninja: { sprite: 'bota', colors: ['preto', 'preto', 'cinza'] },
+};
+
+/**
+ * Acessórios (slot Acessório, camada "casaco"): o item equipado -> desenho e cor. Ficam POR CIMA da roupa equipada
+ * (camisa e calça ou o conjunto da vila). Mesma tabela do servidor (`coat` em src/realtime/items.ts; o teste confere).
+ */
+export const ACCESSORIES = {
+  casaco_petroleo: { kind: 'casaco', color: 'petroleo' },
+  casaco_preto: { kind: 'casaco', color: 'preto' },
+  casaco_vinho: { kind: 'casaco', color: 'vinho' },
+  casaco_verde: { kind: 'casaco', color: 'verde_escuro' },
 };
 
 /** Capas do fim de jogo: [pano, forro, barra]. A da vila usa a cor da vila. Mesmas cores de endgame.js. */
@@ -318,7 +328,7 @@ function sceneContext(S, look, mats, opts) {
   const fem = look.gender === 'f';
   const prims = [], stamps = [];
   let gid = 0;
-  const c = { S, J, R, B, look, mats, opts, fem, prims, stamps, outfit: look.outfit, flow: opts.flow || 0, phase: opts.phase || 0, g: {} };
+  const c = { S, J, R, B, look, mats, opts, fem, prims, stamps, outfit: look.outfit, coat: ACCESSORIES[look.accessory]?.kind === 'casaco', flow: opts.flow || 0, phase: opts.phase || 0, g: {} };
   c.G = () => ++gid;
   c.P = (o) => { o.id = prims.length; prims.push(o); return o; };
   c.ell = (layer, grp, mat, ctr, m, r, extra) => c.P({ k: 'e', layer, grp, mat, c: ctr, m, r, ...extra });
@@ -382,8 +392,8 @@ function bodyLayer(c) {
 /** O corpo (com a roupa por cima) para o pano encostar: capa, abas do casaco e pontas da bandana são empurradas para fora. */
 function bodyColliders(c) {
   const { J, R } = c;
-  const thick = c.outfit === 'vila' ? 1 : c.outfit === 'casaco' ? 1.5 : 0;
-  const skirt = c.outfit === 'casaco' ? 1.6 : 0;          // as abas do casaco em volta das pernas
+  const thick = (c.outfit === 'vila' ? 1 : 0) + (c.coat ? 1.5 : 0);
+  const skirt = c.coat ? 1.6 : 0;                         // as abas do casaco em volta das pernas
   const list = [
     { k: 'e', c: c.headC, m: c.headR, r: [c.hx + 2.6, c.hy + 2.6, c.hz + 2.6] },
     { k: 'e', c: c.chestC, m: R.chest, r: add3(c.chestR, 1 + thick) },
@@ -402,21 +412,10 @@ function bodyColliders(c) {
   return list;
 }
 
-/** Camisa (a veste de cima de dentro): básica, a blusa do conjunto da vila ou a blusa de dentro do casaco. */
+/** Camisa (a veste de cima de dentro): básica ou a blusa do conjunto da vila. */
 function shirtLayer(c) {
   const { J, R, mats, ell, tube, at, G, g } = c;
   g.shirt = G();
-  if (c.outfit === 'casaco') {
-    // Blusa cor de ameixa com decote em V e a faixa preta na cintura (as mangas são as do casaco).
-    const cr = c.chestR[1];
-    const vNeck = (q) => !(q[2] > 0 && q[1] > cr * 0.2 && Math.abs(q[0]) < (q[1] - cr * 0.2) * 0.7);
-    ell('camisa', g.shirt, mats.interna, c.chestC, R.chest, add3(c.chestR, 0.5), { clip: vNeck });
-    ell('camisa', g.shirt, mats.interna, c.bellyC, R.chest, add3(c.bellyR, 0.5));
-    ell('camisa', g.shirt, mats.interna, c.pelvisC, R.pelvis, add3(c.pelvisR, 0.95), { clip: (q) => q[1] > 0.6 });
-    g.sash = G();
-    ell('camisa', g.sash, mats.preto, c.bellyC, R.chest, add3(c.bellyR, 0.95), { clip: (q) => q[1] < -c.bellyR[1] * 0.22 && q[1] > -c.bellyR[1] * 0.95, lineThr: 0.25 });
-    return;
-  }
   const vest = c.outfit === 'vila';
   const top = vest ? mats.terno : mats.camisa;
   ell('camisa', g.shirt, top, c.chestC, R.chest, add3(c.chestR, 0.6));
@@ -467,9 +466,11 @@ function vestLayer(c) {
  * com física (balançam no passo, voam para trás na corrida e se dobram por cima da perna).
  */
 function coatLayer(c) {
-  if (c.outfit !== 'casaco') return;
+  if (!c.coat) return;
   const { J, R, mats, ell, tube, at, G, g } = c;
   g.coat = G(); g.hood = G();
+  // Por cima do colete da vila, o casaco fica um pouco mais largo.
+  const over = c.outfit === 'vila' ? 0.9 : 0;
   // Abertura da frente: em V no peito (mais aberta em cima), estreita na barriga.
   const open = (q, r) => lerp(2.3, 4.9, clamp((q[1] + r[1]) / (2 * r[1]), 0, 1));
   const front = (r, chest) => {
@@ -482,14 +483,14 @@ function coatLayer(c) {
       },
     };
   };
-  const cr = add3(c.chestR, 1.3), br = add3(c.bellyR, 1.3);
+  const cr = add3(c.chestR, 1.3 + over), br = add3(c.bellyR, 1.3 + over);
   ell('casaco', g.coat, mats.casaco, c.chestC, R.chest, cr, front(cr, true));
   ell('casaco', g.coat, mats.casaco, c.bellyC, R.chest, br, front(br, false));
   for (const key of ['L', 'R']) {
     const sh = J[`shoulder${key}`], el = J[`elbow${key}`], wr = J[`wrist${key}`];
     const gs = (g[`coatArm${key}`] = G());
     ell('casaco', g.coat, mats.casaco, sh, R.chest, [4.4, 4.3, 4.4]);
-    tube('casaco', gs, mats.casaco, sh, el, c.rArm.up[0] + 1.2, c.rArm.up[1] + 1.25, LIMB);
+    tube('casaco', gs, mats.casaco, sh, el, c.rArm.up[0] + 1.2 + over * 0.5, c.rArm.up[1] + 1.25 + over * 0.5, LIMB);
     // A manga alarga no punho e o punho é dobrado (um tom de sombra).
     tube('casaco', gs, mats.casaco, el, mix(el, wr, 0.96), c.rArm.fore[0] + 1.25, c.rArm.fore[1] + 1.6, { ...LIMB, paint: (k) => (k > 0.8 ? [null, 1] : null) });
   }
@@ -533,25 +534,17 @@ function coatLayer(c) {
   emitCloth(c, grid, { layer: 'casaco', grp: G(), mat: mats.casaco, back: mats.casacoForro, paint });
 }
 
-/** Calça: básica (até o meio da canela, com faixas), a do conjunto (inteira, com faixas) ou a larga do casaco. */
+/** Calça: básica (até o meio da canela, com faixas) ou a do conjunto (inteira, com faixas). */
 function pantsLayer(c) {
   const { J, R, mats, ell, tube, G, g } = c;
   g.pants = G();
-  const vest = c.outfit === 'vila', coat = c.outfit === 'casaco';
+  const vest = c.outfit === 'vila';
   const legsMat = vest ? mats.terno : mats.calca;
   ell('calca', g.pants, legsMat, c.pelvisC, R.pelvis, add3(c.pelvisR, 0.7), { clip: (q) => q[1] < 1.5 });
   for (const key of ['L', 'R']) {
     const hp = J[`hip${key}`], kn = J[`knee${key}`], an = J[`ankle${key}`];
     const gl = (g[`pants${key}`] = G());
-    const baggy = coat ? 1.35 : 0.7;
-    tube('calca', gl, legsMat, hp, kn, c.rLeg.thigh[0] + baggy, c.rLeg.thigh[1] + baggy, LIMB);
-    if (coat) {
-      // Inteira e larga: com bota, enfiada no cano; sem bota, com a barra dobrada no tornozelo.
-      const boots = SHOES[c.look.shoes]?.sprite === 'bota';
-      tube('calca', gl, legsMat, kn, boots ? mix(kn, an, 0.6) : an, c.rLeg.shin[0] + baggy, (boots ? lerp(c.rLeg.shin[0], c.rLeg.shin[1], 0.6) : c.rLeg.shin[1]) + baggy + 0.3,
-        { ...LIMB, paint: (k) => (!boots && k > 0.86 ? [null, 1] : null) });
-      continue;
-    }
+    tube('calca', gl, legsMat, hp, kn, c.rLeg.thigh[0] + 0.7, c.rLeg.thigh[1] + 0.7, LIMB);
     const cut = vest ? 0.7 : 0.5;
     tube('calca', gl, legsMat, kn, mix(kn, an, cut), c.rLeg.shin[0] + 0.7, lerp(c.rLeg.shin[0], c.rLeg.shin[1], cut) + 0.75, LIMB);
     const wrap = vest ? mats.faixa_vila : mats.faixa;
@@ -560,7 +553,7 @@ function pantsLayer(c) {
   }
 }
 
-/** Acessórios: porta-kunai na coxa e bolsinha na cintura (conjunto da vila); o nó da faixa com as pontas (casaco). */
+/** Acessórios do conjunto da vila: porta-kunai na coxa e bolsinha na cintura. */
 function accessoryLayer(c) {
   const { J, R, mats, ell, tube, at, G, g } = c;
   if (c.outfit === 'vila') {
@@ -569,19 +562,6 @@ function accessoryLayer(c) {
     ell('acessorio', g.pantsR, mats.faixa_vila, mid, tr, [4.5, 1.6, 4.5], { paint: (q) => (Math.abs(q[1]) > 0.8 ? [null, 1] : null) });
     ell('acessorio', G(), mats.preto, at(mid, tr, [-4.2, -0.4, 0.6]), tr, [1.5, 2.8, 2.5]);
     ell('acessorio', G(), mats.couro, at(c.pelvisC, R.pelvis, [0, 0.8, -(c.pelvisR[2] + 0.6)]), R.pelvis, [3.6, 2.0, 1.8]);
-  }
-  if (c.outfit === 'casaco') {
-    // Nó da faixa na frente (no vão do casaco) com duas pontas curtas que pendem e balançam.
-    const gk = G();
-    const knot = at(c.bellyC, R.chest, [0.6, -c.bellyR[1] * 0.6, c.bellyR[2] + 1.2]);
-    ell('acessorio', gk, mats.preto, knot, R.chest, [1.5, 1.2, 1.1], { lineThr: 0.3 });
-    const side = apply(R.chest, [1, 0, 0]);
-    for (const [dx, n] of [[-0.5, 2], [0.6, 3]]) {
-      const start = add(knot, apply(R.chest, [dx, -0.9, 0.2]));
-      const sway = Math.sin((c.phase * 2 + dx) * TAU) * (0.08 + c.flow * 0.2);
-      const pts = hangChain(start, n, 1.5, swingDir(c.S, c.flow * 0.7, sway), c.colliders, side);
-      for (let i = 0; i + 1 < pts.length; i++) tube('acessorio', gk, mats.preto, pts[i], pts[i + 1], 0.85, 0.7, { lineThr: 0.3 });
-    }
   }
 }
 
@@ -684,7 +664,7 @@ function capeLayer(c) {
   const { J, R, B, mats, opts } = c;
   const NU = 10, NV = 9;
   const back = scl(norm([R.pelvis[2], 0, R.pelvis[8]]), -1);
-  const thick = c.outfit === 'vila' ? 1 : c.outfit === 'casaco' ? 1.6 : 0;
+  const thick = Math.max(c.outfit === 'vila' ? 1 : 0, c.coat ? 1.6 : 0);
   const back3 = c.chestR[2] + 1.2 + thick;
   const collar = [], radial = [];
   for (let i = 0; i <= NU; i++) {
