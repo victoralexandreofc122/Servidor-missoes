@@ -14,7 +14,7 @@ def comp(base_png, anc, look):
     tela = Image.new('RGBA', (120, 120), (0, 0, 0, 0)); ox, oy = 28, 12
     fig = Image.open(base_png).convert('RGBA')
     costas = look.get('costasArma')
-    REG = {'katana': ('frente', 0), 'scroll': ('ponta', 7), 'fuma_shuriken': ('frente', 0)}  # = ARMAS_COSTAS (pixelHero.js), de lado
+    REG = {'katana': ('atras', 0), 'scroll': ('ponta', 7), 'fuma_shuriken': ('frente', 0)}  # = ARMAS_COSTAS (pixelHero.js), de lado
     modo = 'frente' if anc['costasNaFrente'] else 'atras'
     if anc['vista'] == 1 and costas in REG: modo = REG[costas][0]
     fr = None
