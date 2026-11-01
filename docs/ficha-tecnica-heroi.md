@@ -206,3 +206,15 @@ abas da barra, mangas, punhos, capuz), `calca`, `acessorio` (faixa e nó), `sapa
   `renderHero('C', vista, pose, { calcado: 'sandalia' })`.
 - **Aprovado (V33):** o cano do calçado (até o tornozelo, linha 84) anda com a canela; só o pé (bico e sola) gira com o
   osso do pé, a partir do tornozelo, com 1 linha de sobra. Vale para todo estilo de `CALCADOS`.
+
+## Caminhada oficial (V34, aprovada; substitui a V29.2)
+
+- Pelo esqueleto palito 3D: `renderHero('C', vista, { skel: { anim: 'andar', t, bob: true }, limpeza: true })`,
+  6 poses por direção, 24 quadros, 750 ms (125 ms por quadro). Cópia congelada em
+  `arte/personagem-pixel/caminhada_oficial_v34/`. A V29.2 segue guardada em `andar_oficial/`.
+- Joelho e cotovelo dobram pelo esqueleto; sobe-e-desce do corpo da tabela `WALK` (V29.2).
+- De lado as pernas ficam centradas sob o tronco (a média dos tornozelos volta para baixo do quadril).
+- Braços: balanço 1,3x o do esqueleto, braço quase reto (cotovelo 0,2); de frente/costas a mão que vem para a câmera
+  desce e entra, a que vai para longe sobe e sai.
+- Pernas de frente/costas: a perna que vai para longe sobe até 2 px; de frente a aba do lado da perna que avança abre.
+- De costas a caminhada é amostrada meio quadro adiante (sem quadro repetido). Validada com `validar_andar.py`.
