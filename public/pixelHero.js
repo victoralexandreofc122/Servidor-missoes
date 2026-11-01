@@ -622,7 +622,10 @@ export function runPose(view, k) {
 // sobra, para a junta não abrir). A forma é girada, e SÓ DEPOIS vêm o sombreado, os traços e o contorno: a luz e o
 // traço continuam limpos em qualquer ângulo. A cabeça não gira (o rosto é desenhado à mão): só anda com o pescoço.
 
-const SK = 1.1; // px do herói por px do esqueleto (pernas: 18 px aqui, ~16,8 no rig)
+const SK = 1.1;
+// Limite do giro de osso encurtado: [abaixo disto não gira, faixa até girar inteiro]. Andar e correr (aprovados) usam
+// 0,25/0,5; as ações novas (jutsu, golpe) giram já a partir de 10%.
+let ENCURTA = [0.25, 0.5]; // px do herói por px do esqueleto (pernas: 18 px aqui, ~16,8 no rig)
 
 /** Juntas do herói (pose neutra, coordenadas contínuas) por vista. e/d = lado da TELA; f/t = perto/longe (perfil). */
 const PIVOTS = {
@@ -660,9 +663,9 @@ function boneM(a, b, a2, b2, minR = 0.45) {
   const r = Math.max(minR, Math.min(1.25, raw));
   const S = [1 + (r - 1) * u[0] * u[0], (r - 1) * u[0] * u[1], (r - 1) * u[0] * u[1], 1 + (r - 1) * u[1] * u[1]];
   // Osso quase apontando para a câmera: o ângulo na tela fica instável (um palito de 1 px pode apontar para qualquer
-  // lado). Quanto mais curto na tela, menos ele gira; abaixo de 10% do comprimento, não gira.
+  // lado). Quanto mais curto na tela, menos ele gira (limites em ENCURTA).
   let d = ang(a2, b2) - ang(a, b); d = Math.atan2(Math.sin(d), Math.cos(d));
-  const w = Math.max(0, Math.min(1, (raw - 0.1) / 0.25));
+  const w = Math.max(0, Math.min(1, (raw - ENCURTA[0]) / ENCURTA[1]));
   return mulM(rotM(d * w), S);
 }
 const T = (o, M, c) => ({ o, M, c });
@@ -721,6 +724,7 @@ export function skeletonFrame(view, anim, t) {
   // De costas, a caminhada é amostrada meio quadro adiante: em t = 1/6 e 2/6 a vista saía quase igual (quadro repetido).
   const pose1 = anim ? (HERO_ANIMS[anim] ? HERO_ANIMS[anim](t) : poseOf(anim, anim === 'andar' && v === 'costas' ? t + 1 / 12 : t)) : basePose();
   if (anim === 'andar') for (const a of ['armL', 'armR']) pose1[a] = { ...pose1[a], fwd: pose1[a].fwd * 1.3, elbow: 0.2 };
+  ENCURTA = HERO_ANIMS[anim] ? [0.1, 0.25] : [0.25, 0.5];
   const R0 = solve(basePose(), yaw), R1 = solve(pose1, yaw);
   const P0 = R0.P, P1 = R1.P;
   const piv = PIVOTS[v];
