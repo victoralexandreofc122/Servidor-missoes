@@ -177,14 +177,15 @@ rodada de 50 s, preparação de 10 s e um desempate final explícito (mais vida 
 
 **Já decidido pelo Victor:** jutsus aprendidos no duelo; melhor de 3 rodadas; ordem das fases do brainstorm.
 
-**Para decidir antes de escrever código:**
+**Decidido pelo Victor depois da revisão (2026-11-01):**
 
-1. **Níveis de uso:** aceitar a regra "mudam a forma, não o total" (com teto de +15%) e os 3 níveis calculados pelo
-   contador de usos (0 / 150 / 600)? Contar só usos que acertam?
-2. **Bônus de MMR do novato:** fator limitado nas primeiras 30 partidas, ou só K alto nas 10 primeiras?
-3. **Prioridade:** o PvP passa na frente da cabeça desenhada à mão, do site no Floot e das salas com imagem?
-4. **Interruptor do duelo:** um módulo `duelo` próprio (ligado mesmo com poucos jogadores), separado do módulo `pvp`
-   que liga com 60.
+1. **Níveis de uso:** aceita a regra "mudam a forma, não o total", com teto de +15% de dano sobre o nível 1; 3 níveis
+   calculados pelo contador de usos (0 / 150 / 600); só contam os usos que acertam um alvo válido.
+2. **Bônus de MMR do novato:** fator limitado (entre 1 e 1,5) que só vale enquanto o jogador menos experiente tiver
+   menos de 30 partidas de duelo.
+3. **Prioridade:** o PvP passa **na frente de tudo** (cabeça desenhada à mão, site no Floot, salas com imagem e Arco 1).
+4. **Interruptor:** o duelo ganha um módulo próprio (`duelo`), que funciona com poucos jogadores, separado do módulo
+   `pvp` (que liga com 60).
 
 **Ordem proposta (revisada):**
 
