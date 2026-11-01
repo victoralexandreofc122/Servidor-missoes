@@ -92,7 +92,7 @@ function bodyParts() {
   // Casaco: ombros redondos e caídos, aberto na frente (V até a faixa, abre de novo embaixo), barra em duas abas.
   // Tecido fosco: luz só no alto dos ombros e das mangas, sombra larga do lado direito.
   const fora = [[32, 47.4], [26.6, 47.4], [23.4, 48.4], [21.6, 50.6], [21.6, 55], [22.4, 62], [22, 70], [32, 70]];
-  const abertura = poly([[27.6, 47], [36.4, 47], [34.4, 56], [33.6, 63], [36, 71], [28, 71], [30.4, 63], [29.6, 56]]);
+  const abertura = poly([[27.6, 47], [36.4, 47], [34.4, 56], [33.6, 63], [34.4, 71], [29.6, 71], [30.4, 63], [29.6, 56]]);
   P.push(part('casaco', 'casaco', minus(sym(fora), abertura), PAL.casaco,
     { shade: { l: [-1, -3], s: [4, 0], d: [1, 1] }, recv: true }));
   // Lapelas: dobra do tecido ao longo da abertura, com o vinco escuro do lado de dentro.
@@ -100,7 +100,7 @@ function bodyParts() {
   P.push(part('lapela_e', 'casaco', poly(lapE), PAL.casaco, { shade: { l: [0, -2], d: [1, 0] }, group: 'casaco', sep: false }));
   P.push(part('lapela_d', 'casaco', poly(mir(lapE)), PAL.casaco, { shade: { s: [1, 0], d: [-1, 0] }, group: 'casaco', sep: false }));
   // Barra: duas abas soltas e um pouco abertas em sino (cada uma vai balançar sozinha nas animações).
-  const abaE = [[22.4, 64.6], [30.6, 64.6], [30, 82.4], [23.4, 83.2], [15.6, 84.2], [18.6, 75]];
+  const abaE = [[22.4, 64.6], [30.6, 64.6], [29.6, 70], [28, 76], [26, 82.6], [21, 83.4], [15.6, 84.2], [18.6, 75]];
   P.push(part('aba_e', 'casaco', poly(abaE), PAL.casaco, { shade: { l: [-1, 0], s: [4, 0], d: [1, 1] }, group: 'casaco', sep: false }));
   P.push(part('aba_d', 'casaco', poly(mir(abaE)), PAL.casaco, { shade: { s: [4, 0], d: [1, 1] }, group: 'casaco', sep: false }));
 
