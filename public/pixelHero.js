@@ -696,7 +696,7 @@ export function skeletonFrame(view, anim, t) {
 }
 
 /** Pose pelo esqueleto: { anim, t, flow } -> peças giradas. */
-function skeletonPosed({ parts, stamps }, view, { anim, t }) {
+function skeletonPosed({ parts, stamps }, view, { anim, t, bob = null }) {
   const X = skeletonFrame(view, anim, t);
   const mir = (tr) => (X.mirror ? { o: [64 - tr.o[0], tr.o[1]], c: [64 - tr.c[0], tr.c[1]], M: [tr.M[0], -tr.M[1], -tr.M[2], tr.M[3]] } : tr);
   const side = (k) => X.lados[X.mirror ? k : k] || X.lados.f;
@@ -738,6 +738,12 @@ function skeletonPosed({ parts, stamps }, view, { anim, t }) {
   // Ordem por profundidade: braço que foi para trás do tronco é desenhado antes de tudo.
   const behind = out.filter((q) => { const [k, limb] = boneOf(q.origin); return (limb === 'braco' || limb === 'mao') && side(k)?.atras; });
   if (behind.length) { const rest = out.filter((q) => !behind.includes(q)); out.length = 0; out.push(...behind, ...rest); }
+  // Opção V31b: sobe-e-desce da caminhada V29.2 (WALK) no corpo, que a caminhada do esqueleto não tem.
+  if (bob) {
+    const b = WALK[Math.round(t * 6) % 6][4];
+    if (b) for (const q of out) { const l = boneOf(q.origin)[1]; if (l !== 'perna' && l !== 'pe') { q.mask = moveMask(q.mask, 0, b, 0); q.subs = q.subs.map((m) => moveMask(m, 0, b, 0)); q.marks = q.marks.map(([x, y, tt]) => [x, y + b, tt]); q.strokes = q.strokes.map(([tt, pts]) => [tt, pts.map(([x, y]) => [x, y + b])]); } }
+    stamps = stamps.map((q) => ({ ...q, y: q.y + b }));
+  }
   // Chão: o pé mais baixo volta para a linha 88 (no ar, os dois ficam acima).
   let low = 0;
   for (const q of out) if (/^(bota|sola)_/.test(q.origin)) for (let i = q.mask.length - 1; i >= 0; i--) if (q.mask[i]) { low = Math.max(low, Math.floor(i / W)); break; }
