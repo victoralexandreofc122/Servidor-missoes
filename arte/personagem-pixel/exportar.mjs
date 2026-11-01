@@ -4,7 +4,7 @@
 //   node arte/personagem-pixel/exportar.mjs pasta_de_saida
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
-import { renderHeroFront, HAIR } from '../../public/pixelHero.js';
+import { renderHeroFront, renderHero, HAIR, VIEWS } from '../../public/pixelHero.js';
 import { YAW_OF_DIR, poseOf } from '../../public/rig.js';
 import { renderFigure } from '../../public/rigArt.js';
 
@@ -26,10 +26,16 @@ for (const k of Object.keys(HAIR)) {
   writeFileSync(`${out}/frente_${k}.png`, png(f.w, f.h, f.rgba));
   for (const [L, buf] of Object.entries(f.layers)) writeFileSync(`${out}/camada_${k}_${L}.png`, png(f.w, f.h, buf));
 }
+for (const v of VIEWS) {
+  const f = renderHero('C', v);
+  writeFileSync(`${out}/C_${v}.png`, png(f.w, f.h, f.rgba));
+}
 const REF = { v: 2, gender: 'm', skin: 'pessego', hairStyle: 'baguncado', hairColor: 'preto', eyeStyle: 'masculino', eyeColor: 'azul_claro',
   outfit: 'basica', shirtColor: 'vinho', pantsColor: 'preto', bandana: false, village: 'vila_1', shoes: 'botas_ninja', accessory: 'casaco_petroleo' };
-const fig = renderFigure(REF, poseOf('parado', 0.1), YAW_OF_DIR[0], { noAnchor: true });
-const rgba = fig.rgba ?? fig.data ?? fig.pixels;
-if (rgba) writeFileSync(`${out}/atual.png`, png(fig.w ?? 64, fig.h ?? 96, new Uint8Array(rgba.buffer ?? rgba)));
-else console.log('formato do renderFigure:', Object.keys(fig));
+const dirs = { atual: 0, atual_frente: 0, atual_costas: 3, atual_direita: 2, atual_esquerda: 1 };
+for (const [name, d] of Object.entries(dirs)) {
+  const fig = renderFigure(REF, poseOf('parado', 0.1), YAW_OF_DIR[d], { noAnchor: true });
+  const rgba = fig.rgba ?? fig.data ?? fig.pixels;
+  writeFileSync(`${out}/${name}.png`, png(fig.w ?? 64, fig.h ?? 96, new Uint8Array(rgba.buffer ?? rgba)));
+}
 console.log('ok');
