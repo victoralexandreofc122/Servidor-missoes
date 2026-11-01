@@ -700,10 +700,12 @@ const GOLPE = [
     legL: { fwd: 0.35, out: 0.14, knee: 0.55, foot: 0 }, legR: { fwd: -0.35, out: 0.12, knee: 0.5, foot: 0 } }),
   pz({ spine: { pitch: 0.16, yaw: -0.75, roll: 0.06 }, armR: { fwd: -1.0, out: 0.35, twist: 0, elbow: 1.8 }, armL: { fwd: 0.85, out: 0.05, twist: 0, elbow: 1.3 },
     legL: { fwd: 0.4, out: 0.14, knee: 0.75, foot: 0 }, legR: { fwd: -0.4, out: 0.12, knee: 0.7, foot: 0 } }),
-  pz({ root: { x: 0, y: 0, z: 1.4, pitch: 0.14, yaw: 0, roll: 0 }, spine: { pitch: 0.18, yaw: 0.4, roll: -0.04 }, armR: { fwd: 1.5, out: -0.1, twist: 0, elbow: 0.05 },
-    armL: { fwd: -0.2, out: 0.25, twist: 0, elbow: 1.6 }, legL: { fwd: 0.5, out: 0.14, knee: 0.35, foot: 0 }, legR: { fwd: -0.5, out: 0.12, knee: 0.1, foot: -0.2 } }),
-  pz({ spine: { pitch: 0.06, yaw: 0.1, roll: 0 }, armR: { fwd: 0.5, out: 0.1, twist: 0, elbow: 1.0 }, armL: { fwd: 0.4, out: 0.12, twist: 0, elbow: 1.0 },
-    legL: { fwd: 0.15, out: 0.1, knee: 0.25, foot: 0 }, legR: { fwd: -0.15, out: 0.1, knee: 0.25, foot: 0 } }),
+  // Impacto: braço do soco totalmente esticado para a frente (na altura do ombro), o outro recolhido no quadril.
+  pz({ root: { x: 0, y: 0, z: 1.4, pitch: 0.14, yaw: 0, roll: 0 }, spine: { pitch: 0.18, yaw: 0.4, roll: -0.04 }, armR: { fwd: 1.62, out: 0, twist: 0, elbow: 0 },
+    armL: { fwd: -0.3, out: 0.25, twist: 0, elbow: 1.7 }, legL: { fwd: 0.5, out: 0.14, knee: 0.35, foot: 0 }, legR: { fwd: -0.5, out: 0.12, knee: 0.1, foot: -0.2 } }),
+  // Último quadro: o soco segura esticado (acompanhamento), só o corpo assenta um pouco.
+  pz({ root: { x: 0, y: 0, z: 1.2, pitch: 0.1, yaw: 0, roll: 0 }, spine: { pitch: 0.12, yaw: 0.35, roll: -0.02 }, armR: { fwd: 1.57, out: 0, twist: 0, elbow: 0 },
+    armL: { fwd: -0.2, out: 0.22, twist: 0, elbow: 1.6 }, legL: { fwd: 0.45, out: 0.14, knee: 0.4, foot: 0 }, legR: { fwd: -0.45, out: 0.12, knee: 0.2, foot: -0.1 } }),
 ];
 // Jutsu (selagem), 5 quadros: prepara, selo na frente do peito (os dois antebraços sobem até as mãos se juntarem no
 // meio do peito), selo firme com a base baixa, solta com as palmas para a frente, volta.
@@ -728,9 +730,18 @@ export function skeletonFrame(view, anim, t) {
   const yaw = YAW_OF_DIR[{ frente: 0, costas: 3, direita: 2 }[v]];
   // Caminhada: balanço dos braços 1,3x o do esqueleto, com o braço quase reto (pendendo do ombro, sem "bengala").
   // De costas, a caminhada é amostrada meio quadro adiante: em t = 1/6 e 2/6 a vista saía quase igual (quadro repetido).
-  const pose1 = anim ? (HERO_ANIMS[anim] ? HERO_ANIMS[anim](t) : poseOf(anim, anim === 'andar' && v === 'costas' ? t + 1 / 12 : t)) : basePose();
+  let pose1 = anim ? (HERO_ANIMS[anim] ? HERO_ANIMS[anim](t) : poseOf(anim, anim === 'andar' && v === 'costas' ? t + 1 / 12 : t)) : basePose();
   if (anim === 'andar') for (const a of ['armL', 'armR']) pose1[a] = { ...pose1[a], fwd: pose1[a].fwd * 1.3, elbow: 0.2 };
   ENCURTA = HERO_ANIMS[anim] ? [0.1, 0.25] : [0.25, 0.5];
+  // De lado, quem soca é o braço de perto (o de longe fica escondido atrás do corpo): troca os lados do golpe.
+  if (anim === 'golpe' && v === 'direita') {
+    const near = solve(basePose(), yaw).P;
+    if (near.shoulderL[2] > near.shoulderR[2]) {
+      const sw = { ...pose1, armL: pose1.armR, armR: pose1.armL, legL: pose1.legR, legR: pose1.legL };
+      sw.spine = { ...pose1.spine, yaw: -pose1.spine.yaw, roll: -pose1.spine.roll };
+      pose1 = sw; // cópia: as poses do GOLPE são compartilhadas e não podem ser alteradas
+    }
+  }
   const R0 = solve(basePose(), yaw), R1 = solve(pose1, yaw);
   const P0 = R0.P, P1 = R1.P;
   const piv = PIVOTS[v];
