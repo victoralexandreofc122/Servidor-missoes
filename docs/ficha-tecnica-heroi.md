@@ -10,8 +10,11 @@ novo segue estas regras. Código: `public/pixelHero.js`. Prévias: `arte/persona
 - **V29:** frente idêntica à V28 (conferido pixel a pixel). Costas: mechas da nuca com grupos de azul intermediário,
   capuz com gola, forro, tecido e 2 dobras, fenda da barra mais curta com costura. Lados: perna e bota de trás 2 px mais
   para trás, para os dois pés se lerem separados.
-- **V29.1 (em avaliação):** só a caminhada mudou; os sprites parados são os da V29. Código da V29 congelado em
-  `arte/personagem-pixel/v29/`. Testes em `arte/personagem-pixel/v29_1/`.
+- **V29.1:** só a caminhada mudou; os sprites parados são os da V29. Código da V29 congelado em
+  `arte/personagem-pixel/v29/`; o da V29.1 em `v29_1/codigo/`. Testes em `arte/personagem-pixel/v29_1/` (660 e 840 ms
+  arquivados em `v29_1/arquivo/`).
+- **V29.2 = caminhada oficial (congelada):** só a frente e as costas da caminhada mudaram (passada, abas). Cópia fixa
+  em `arte/personagem-pixel/andar_oficial/` (código, folha de sprites, GIFs). Não mexer sem necessidade comprovada.
 
 ## Diretriz de produção
 
@@ -95,18 +98,30 @@ Medição da V28 nas 4 vistas (pixels opacos, com contorno):
   da tela.
 - Movimento só em pixels inteiros (deslocar e inclinar a barra), sem rotação: o agrupamento de pixels não se perde.
 - Peças separadas para animar são sombreadas em conjunto com as irmãs (`shadeAlso`), e a pose neutra é igual à V28.
-- **Andar (`WALK`, V29.1):** 6 quadros (contato, descida, passagem, contato do outro pé, descida, passagem), a mesma
-  tabela para as 4 vistas. O corpo desce 1 px na descida e sobe 1 px na passagem. O pé de trás ergue o calcanhar 1 px
-  no contato e sai 2 px do chão na descida; o pé de apoio fica sempre na linha 88.
-  - Frente e costas: no contato as pernas abrem 1 px (passada); o braço oposto à perna que avança desce 1 px e entra
-    1 px; as abas balançam juntas para o lado da perna que avança.
+- **Andar oficial (`WALK`, V29.2):** 6 poses únicas por direção, 4 direções = **24 quadros**, sem quadro repetido.
+  **125 ms por quadro = 750 ms por ciclo** (2 passos). No GIF, 120/130 ms alternados (o formato só aceita centésimos;
+  a soma do ciclo é exatamente 750 ms). A mesma tabela vale para as 4 vistas. O corpo desce 1 px na descida e sobe
+  1 px na passagem. O pé de trás ergue o calcanhar 1 px no contato e sai 2 px do chão na descida; o pé de apoio fica
+  sempre na linha 88.
+  - Frente e costas: no contato as pernas abrem 1 px cada (vão de 3 px entre os pés; nunca menos de 1 px) e as duas
+    abas abrem 1 px na barra; na descida, a aba do lado do pé que sobe abre 1 px; na passagem, fechadas. O braço oposto
+    à perna que avança desce 1 px e entra 1 px.
   - Lado: pernas e braço **giram** (inclinação a partir do quadril, linha 66, e do ombro, linha 50); bota, punho e mão
     andam inteiros. O alto da coxa fica sempre sob o casaco. Pé a 3 px para a frente/trás.
   - Cabelo: a massa vai junto com a cabeça (a franja não desliza); só as pontas acima da linha 17 atrasam 1 px
     (esticam quando o corpo desce, encolhem quando sobe). Silhueta permanente intacta.
-  - Velocidade: 110 ms por quadro (660 ms por ciclo) em uso; 750 e 840 ms em avaliação.
-  - Registro: V29 tinha o cabelo inteiro com 1 quadro de atraso (a franja deslizava), pernas da frente/costas só
-    subindo (parecia marchar) e a perna de trás do perfil andando inteira (aparecia como faixa escura atrás da barra).
+  - Validação (`arte/personagem-pixel/validar_andar.py`): pés na linha 89 (contorno) nos 24 quadros; corpo
+    0/+1/-1/0/+1/-1 nas 4 vistas; troca último→primeiro do mesmo tamanho das outras (0,89 a 0,98 da média: sem salto);
+    nenhum pixel solto a mais que a pose neutra.
+  - Sincronia com o deslocamento: o jogador anda 5 casas/s e uma casa vale ~61 px do boneco (`spriteScale`:
+    92 / 1,5). Em 750 ms ele anda **3,75 casas (~230 px)**, enquanto o pé de apoio recua só 12 px por ciclo. Nenhum
+    sprite deste tamanho cobre isso sem o pé "patinar" (o boneco atual tem o mesmo efeito). Regra: avançar o quadro
+    pela **distância** andada, 1 ciclo a cada 3,75 casas (1 quadro a cada 0,625 casa). A 5 casas/s isso dá os 750 ms;
+    com Lentidão ou bônus de velocidade, o passo acompanha sozinho.
+  - Registro V29 → V29.1: o cabelo inteiro atrasava 1 quadro (a franja deslizava), as pernas da frente/costas só
+    subiam (parecia marchar) e a perna de trás do perfil andava inteira (faixa escura atrás da barra).
+  - Registro V29.1 → V29.2: abas abrindo no contato e na descida (antes balançavam juntas para um lado só), braço
+    sempre com o mesmo deslocamento, velocidade 660 → 750 ms.
 
 ## Camadas
 

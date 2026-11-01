@@ -470,7 +470,7 @@ export const WALK = [
   [-1, 2, 1, 0, 1],
   [1, 1, -1, 0, -1],
 ];
-export const WALK_MS = 110; // por quadro (660 ms por ciclo); em avaliação: 125 (750 ms) e 140 (840 ms)
+export const WALK_MS = 125; // por quadro: 750 ms por ciclo (escolha do Victor; 660 e 840 ms arquivados em v29_1/arquivo)
 
 export function walkPose(view, k) {
   const n = WALK.length;
@@ -489,19 +489,19 @@ export function walkPose(view, k) {
     P.aba = { dy: bob, sh: -f * (bob === -1 ? 2 : 1) };
     return P;
   }
-  // De frente e de costas (e/d = lados da TELA). No contato as pernas abrem 1 px (passada) e o pé de trás ergue o
-  // calcanhar; na descida ele sai do chão; na passagem volta para perto da outra. O braço do lado oposto à perna
-  // que avança vem para a frente: desce 1 px e entra 1 px.
-  const contatoA = k % n === 0, contatoB = k % n === 3;
-  P.perna_e = { dx: contatoA || contatoB ? -1 : 0, dy: -aY };
-  P.perna_d = { dx: contatoA || contatoB ? 1 : 0, dy: -bY };
+  // De frente e de costas (e/d = lados da TELA), V29.2.
+  //  - Contato: as pernas abrem 1 px cada (passada) e as duas abas abrem 1 px na barra, mostrando os pés.
+  //  - Descida: o pé de trás sai 2 px do chão e a aba do lado dele abre 1 px.
+  //  - Passagem: o pé de trás desce para 1 px, abas fechadas.
+  //  Assim os pés nunca encostam (o vão é de no mínimo 1 px e de 3 px no contato) e cada passo tem um lado claro.
+  const q = k % n, contato = q === 0 || q === 3;
+  P.perna_e = { dx: contato ? -1 : 0, dy: -aY };
+  P.perna_d = { dx: contato ? 1 : 0, dy: -bY };
   const aFrente = aX > 0, bFrente = bX > 0;           // qual perna está à frente neste quadro
-  P.braco_e = { dx: bFrente && Math.abs(bX) >= 1 ? 1 : 0, dy: bob + (bFrente ? 1 : 0) };
-  P.braco_d = { dx: aFrente && Math.abs(aX) >= 1 ? -1 : 0, dy: bob + (aFrente ? 1 : 0) };
-  // As abas balançam juntas para o lado da perna que avança.
-  const lado = aX >= 2 ? -1 : bX >= 2 ? 1 : 0;
-  P.aba_e = { dy: bob, sh: lado };
-  P.aba_d = { dy: bob, sh: lado };
+  P.braco_e = { dx: bFrente ? 1 : 0, dy: bob + (bFrente ? 1 : 0) };
+  P.braco_d = { dx: aFrente ? -1 : 0, dy: bob + (aFrente ? 1 : 0) };
+  P.aba_e = { dy: bob, sh: contato || aY === 2 ? -1 : 0 };
+  P.aba_d = { dy: bob, sh: contato || bY === 2 ? 1 : 0 };
   return P;
 }
 
