@@ -40,7 +40,6 @@
 "cabelo": "branco",
 "olhos": "vermelho",
 "pele": "escuro",
-"boca": "brava",
 "costasArma": "katana"
 },
 {
@@ -51,7 +50,6 @@
 "bandana": "renegado",
 "corBandana": "preto",
 "olhos": "roxo",
-"boca": "neutra",
 "costasArma": "katana"
 },
 {
@@ -75,7 +73,6 @@
 "sapato": "bota",
 "cabelo": "roxo",
 "olhos": "cinza",
-"boca": "neutra",
 "maoArma": "kunai",
 "costasArma": "katana"
 },
@@ -111,7 +108,6 @@
 "cabelo": "loiro",
 "olhos": "azul",
 "pele": "claro",
-"boca": "brava",
 "maoArma": "kunai"
 },
 {

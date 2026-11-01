@@ -204,7 +204,8 @@ export function faceStamps() {
   const sob = brava ? [[23, 32], [24, 33], [25, 33], [26, 34], [37, 34], [38, 33], [39, 33], [40, 32]] : [[23, 34], [24, 33], [25, 33], [26, 33], [37, 33], [38, 33], [39, 33], [40, 34]];
   for (const [x, y] of sob) put('olhos', x, y, PAL.cabelo[2]);
   put('boca', 32, 43, PAL.pele[2]); put('boca', 31, 42, PAL.pele[0]); // nariz: sombra embaixo/direita e luz em cima
-  if (LOOK.boca === 'neutra') { put('boca', 30, 45, PAL.boca); put('boca', 31, 45, PAL.boca); put('boca', 32, 45, PAL.boca); put('boca', 33, 45, PAL.boca); }
+  if (LOOK.boca === 'nenhuma') { /* sem boca, como no Nin Online: o rosto fica só com olhos, nariz e bochecha */ }
+  else if (LOOK.boca === 'neutra') { put('boca', 30, 45, PAL.boca); put('boca', 31, 45, PAL.boca); put('boca', 32, 45, PAL.boca); put('boca', 33, 45, PAL.boca); }
   else if (brava) { for (const [x, y] of [[30, 45], [31, 45], [32, 45], [33, 45], [31, 46], [32, 46]]) put('boca', x, y, y === 46 ? '#5a1e24' : PAL.boca); }
   else { put('boca', 30, 44, PAL.boca); put('boca', 31, 45, PAL.boca); put('boca', 32, 45, PAL.boca); put('boca', 33, 44, PAL.boca); put('boca', 31, 46, PAL.pele[2]); put('boca', 32, 46, PAL.pele[2]); }
   for (const [x, y] of [[21, 43], [22, 43], [41, 43], [42, 43]]) put('boca', x, y, PAL.blush);
@@ -454,7 +455,8 @@ function sideStamps() {
   const put = (layer, x, y, c) => px.push({ layer, x, y, c });
   OLHO_LADO.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') put('olhos', 38 + x, 36 + y, PAL.olho[ch]); }));
   for (const [x, y] of [[38, 33], [39, 33], [40, 33], [41, 34]]) put('olhos', x, y, PAL.cabelo[2]);
-  if (LOOK.boca === 'neutra') { put('boca', 41, 45, PAL.boca); put('boca', 42, 45, PAL.boca); put('boca', 43, 45, PAL.boca); }
+  if (LOOK.boca === 'nenhuma') { /* sem boca */ }
+  else if (LOOK.boca === 'neutra') { put('boca', 41, 45, PAL.boca); put('boca', 42, 45, PAL.boca); put('boca', 43, 45, PAL.boca); }
   else if (LOOK.boca === 'brava') { put('boca', 41, 45, PAL.boca); put('boca', 42, 45, PAL.boca); put('boca', 41, 46, '#5a1e24'); put('boca', 42, 46, '#5a1e24'); }
   else { put('boca', 41, 45, PAL.boca); put('boca', 42, 45, PAL.boca); put('boca', 43, 44, PAL.boca); put('boca', 41, 46, PAL.pele[2]); }
   put('boca', 44, 43, PAL.pele[2]); put('boca', 44, 41, PAL.pele[0]);
@@ -1039,7 +1041,7 @@ export const CORES = {
 };
 CALCADOS.tenis = { nome: 'Tênis', cano: ['#f4f6fa', '#d8dce6', '#a9afbf', '#7a8193'], punho: false, sola: ['#ffffff', '#e8e8e8', '#c8c8c8', '#9a9a9a'],
   tira: ['#e8564a', '#c22f2a', '#8a1d1d', '#5c1214'] };
-export const VISUAL_PADRAO = { pele: 'pessego', cabelo: 'preto_azulado', olhos: 'azul', boca: 'sorriso', cima: 'manga_longa', corCima: 'vinho',
+export const VISUAL_PADRAO = { pele: 'pessego', cabelo: 'preto_azulado', olhos: 'azul', boca: 'nenhuma', cima: 'manga_longa', corCima: 'vinho',
   baixo: 'calca', corBaixo: 'grafite', sapato: 'bota', capuz: 'casaco', corCapuz: 'petroleo', conjunto: 'nenhum', bandana: 'nenhuma', corBandana: 'azul_marinho', arma: 'nenhuma' };
 let LOOK = { ...VISUAL_PADRAO };
 

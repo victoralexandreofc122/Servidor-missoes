@@ -258,3 +258,5 @@ Prévias: `arte/personagem-pixel/v38_camadas/` (galeria de 12 visuais, camadas s
   (cabelo de trás e franja; mãos por cima das mangas). Nomes: corpo, cabelo, olhos, boca, roupa_cima, roupa_baixo,
   sapato, capuz, conjunto, bandana, faixa (+ armas pelas âncoras).
 - Prévias: `arte/personagem-pixel/v39_camadas/` (galeria com as armas, visuais andando, camadas por vista).
+- Rosto sem boca (como no Nin Online): `boca: 'nenhuma'` é o padrão; ficam olhos, sobrancelhas, nariz e bochecha.
+  As bocas `sorriso`, `neutra` e `brava` continuam disponíveis no `look`, para expressões.
