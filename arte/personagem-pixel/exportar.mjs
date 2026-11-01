@@ -39,3 +39,10 @@ for (const [name, d] of Object.entries(dirs)) {
   writeFileSync(`${out}/${name}.png`, png(fig.w ?? 64, fig.h ?? 96, new Uint8Array(rgba.buffer ?? rgba)));
 }
 console.log('ok');
+
+// Caminhada: 6 quadros por vista (WALK em public/pixelHero.js), um PNG por quadro.
+import { walkPose, WALK } from '../../public/pixelHero.js';
+for (const v of VIEWS) for (let k = 0; k < WALK.length; k++) {
+  const f = renderHero('C', v, walkPose(v, k));
+  writeFileSync(`${out}/andar_${v}_${k}.png`, png(f.w, f.h, f.rgba));
+}

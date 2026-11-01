@@ -3,6 +3,14 @@
 A versão V28 do herói (cabelo C, pose parada de frente) é a referência principal. Toda vista, animação e personagem
 novo segue estas regras. Código: `public/pixelHero.js`. Prévias: `arte/personagem-pixel/`.
 
+## Versões
+
+- **V28 (congelada):** as 4 vistas paradas aprovadas. Cópia fixa em `arte/personagem-pixel/v28/` (os 4 PNG e o código
+  `pixelHero.v28.js`). Nunca é sobrescrita: melhorias viram V29, V30... e cada uma é comparada com a V28.
+- **V29:** frente idêntica à V28 (conferido pixel a pixel). Costas: mechas da nuca com grupos de azul intermediário,
+  capuz com gola, forro, tecido e 2 dobras, fenda da barra mais curta com costura. Lados: perna e bota de trás 2 px mais
+  para trás, para os dois pés se lerem separados.
+
 ## Diretriz de produção
 
 1. Não redesenhar a frente V28 sem autorização do Victor.
@@ -51,6 +59,8 @@ Medição da V28 nas 4 vistas (pixels opacos, com contorno):
 - Fonte única: de cima, ligeiramente à esquerda da tela. O lado esquerdo é a geometria do direito espelhada **antes**
   do sombreado, para a luz não inverter.
 - 4 tons por material: luz, base, sombra, sombra profunda. A sombra profunda aparece só nas bordas de baixo e da direita.
+  Exceção: o cabelo tem 3 tons (luz, base, sombra) mais o brilho; a sombra profunda do cabelo é a própria sombra,
+  porque a sombra (`#10172b`) já fica a um passo do contorno. Não há quarta cor de propósito.
 - Sombra projetada: a peça da frente escurece 1 a 2 px embaixo/à direita dela (franja na testa, cabeça no pescoço).
 - Profundidade: o que está atrás (cabelo da nuca, perna e bota de trás no perfil) usa a rampa um tom abaixo.
 
@@ -59,7 +69,7 @@ Medição da V28 nas 4 vistas (pixels opacos, com contorno):
 | Material | Luz | Base | Sombra | Profunda |
 |---|---|---|---|---|
 | Pele | `#ffe4cc` | `#f5c6a2` | `#d99784` | `#a5636e` |
-| Cabelo | `#3e5c8a` | `#1f2a44` | `#10172b` | `#10172b` (brilho `#7fa3d1`, fios `#161f38`) |
+| Cabelo (3 tons) | `#3e5c8a` | `#1f2a44` | `#10172b` | = sombra (brilho `#7fa3d1`, fios `#161f38`) |
 | Casaco | `#4fb3bf` | `#1f7f8f` | `#145561` | `#0d3a44` |
 | Camisa | `#9c3a50` | `#7a2438` | `#4d1424` | `#330c19` |
 | Calça | `#565b6e` | `#3b3f50` | `#292c3a` | `#1b1d28` |
@@ -76,6 +86,18 @@ Medição da V28 nas 4 vistas (pixels opacos, com contorno):
 - **Só de costas:** 6 mechas da nuca, saindo do redemoinho em ponta e descendo até a linha ~46.
 - **Detalhe de luz (pode variar):** fios escuros saindo do redemoinho, o brilho em arco no alto à esquerda.
 
+## Animação
+
+- Peças agrupadas em segmentos: `corpo` (cabeça, tronco, rosto), `cabelo`, `braco_e/d` (de lado: `braco`),
+  `perna_e/d` (de lado: `perna_f` de perto e `perna_t` de trás), `aba_e/d` (de lado: `aba`). E/D = esquerda/direita
+  da tela.
+- Movimento só em pixels inteiros (deslocar e inclinar a barra), sem rotação: o agrupamento de pixels não se perde.
+- Peças separadas para animar são sombreadas em conjunto com as irmãs (`shadeAlso`), e a pose neutra é igual à V28.
+- **Andar (`WALK`):** 6 quadros de 110 ms (contato, descida, passagem, contato do outro pé, descida, passagem), a
+  mesma tabela para as 4 vistas. O corpo desce 1 px na descida e sobe 1 px na passagem; o cabelo acompanha com 1
+  quadro de atraso. O pé que avança sobe até 2 px; o pé de apoio fica sempre na linha 88. De lado, as pernas avançam
+  3 px para cada lado e o braço de perto balança ao contrário da perna de perto; a barra do casaco fica para trás.
+
 ## Camadas
 
 `corpo` (cabeça, pescoço, mãos), `olhos`, `boca` (boca, nariz, blush), `cabelo`, `camisa`, `casaco` (corpo, lapelas,
@@ -84,4 +106,5 @@ abas da barra, mangas, punhos, capuz), `calca`, `acessorio` (faixa e nó), `sapa
 ## Pendências conhecidas
 
 - Mãos: manter o tamanho, desenhar o polegar como parte da silhueta, separar palma e polegar por cor, sem dedos.
-- Contraste do cabelo sobre água: testar grama, terra e água; resolver nos tons de azul, sem contorno claro.
+- Contraste do cabelo sobre água: testado em grama, terra e água (`previa_andar_no_mapa.png`). A cabeça se lê nos 3;
+  na água a massa da nuca e as laterais ficam próximas do fundo. Resolver nos tons de azul, sem contorno claro.
