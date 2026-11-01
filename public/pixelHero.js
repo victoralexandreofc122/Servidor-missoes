@@ -685,11 +685,10 @@ export function skeletonFrame(view, anim, t) {
   const mirror = view === 'esquerda';
   const v = mirror ? 'direita' : view;
   const yaw = YAW_OF_DIR[{ frente: 0, costas: 3, direita: 2 }[v]];
-  // Caminhada: o balanço dos braços do esqueleto é curto para um boneco deste tamanho; aqui ele é 1,8x maior, para a
-  // mão que vai para a frente e a que vai para trás se lerem (o cotovelo dobra mais na que vem para a frente).
+  // Caminhada: balanço dos braços 1,3x o do esqueleto, com o braço quase reto (pendendo do ombro, sem "bengala").
   // De costas, a caminhada é amostrada meio quadro adiante: em t = 1/6 e 2/6 a vista saía quase igual (quadro repetido).
   const pose1 = anim ? poseOf(anim, anim === 'andar' && v === 'costas' ? t + 1 / 12 : t) : basePose();
-  if (anim === 'andar') for (const a of ['armL', 'armR']) pose1[a] = { ...pose1[a], fwd: pose1[a].fwd * 1.8, elbow: pose1[a].elbow + Math.max(0, pose1[a].fwd) * 0.6 };
+  if (anim === 'andar') for (const a of ['armL', 'armR']) pose1[a] = { ...pose1[a], fwd: pose1[a].fwd * 1.3, elbow: 0.2 };
   const R0 = solve(basePose(), yaw), R1 = solve(pose1, yaw);
   const P0 = R0.P, P1 = R1.P;
   const piv = PIVOTS[v];
@@ -746,6 +745,14 @@ export function skeletonFrame(view, anim, t) {
     const atras = v !== 'direita' && P1[`elbow${S}`][2] < P1.chest[2] - 1.5;
     X.lados[k] = { braco, mao, coxa, canela, pe, aba, joelhoY: J.joelho[1], cotoveloY: J.cotovelo[1], atras,
       juntas: [ombro2, cot2, fwd(mao, J.pulso), quad2, joe2, tor2, fwd(pe, J.ponta)] };
+  }
+  // De lado, as pernas ficam centradas sob o tronco: a média dos dois tornozelos volta para baixo do quadril (o
+  // esqueleto deixava as duas pernas para trás do corpo em parte do passo).
+  if (v === 'direita' && anim === 'andar') {
+    const ks = Object.keys(X.lados);
+    const avg = ks.reduce((a, k) => a + fwd(X.lados[k].canela, piv[k].tornozelo)[0] - piv[k].tornozelo[0], 0) / ks.length;
+    for (const k of ks) for (const n of ['coxa', 'canela', 'pe']) { const q = X.lados[k][n]; X.lados[k][n] = T([q.o[0] - avg, q.o[1]], q.M, q.c); }
+    for (const k of ks) { const j = X.lados[k].juntas; for (let i = 3; i < j.length; i++) j[i] = [j[i][0] - avg, j[i][1]]; }
   }
   X.ar = Math.round(((R1.pose.air || 0) * SK)); // px no ar (os dois pés fora do chão)
   X.mirror = mirror;
