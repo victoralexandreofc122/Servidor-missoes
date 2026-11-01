@@ -828,6 +828,7 @@ export function skeletonFrame(view, anim, t) {
   }
   X.ar = Math.round(((R1.pose.air || 0) * SK)); // px no ar (os dois pés fora do chão)
   X.mirror = mirror;
+  X.acao = !!HERO_ANIMS[anim]; // ombreira presa ao tronco só nas ações (andar e correr aprovados ficam como estão)
   return X;
 }
 
@@ -852,6 +853,12 @@ function skeletonPosed({ parts, stamps }, view, { anim, t, bob = null }) {
     // Braço e perna: corta no cotovelo/joelho, com 1 linha de sobra de cada lado.
     const cut = limb === 'braco' ? L.cotoveloY : L.joelhoY;
     const [A, B] = limb === 'braco' ? [L.braco, L.mao] : [L.coxa, L.canela];
+    // Ombro: o alto da manga (até 2 linhas abaixo do ombro) fica preso ao tronco, como uma ombreira; o braço gira por
+    // baixo dela. Assim o ombro não descola nem abre buraco quando o braço cruza o peito ou sobe.
+    if (limb === 'braco' && X.acao) {
+      const capY = PIVOTS[view === 'esquerda' ? 'direita' : view][k]?.ombro?.[1] ?? 50;
+      return [[and(p.mask, rows(capY - 1, cut + 1)), A, ''], [and(p.mask, rows(cut - 1, 96)), B, '~2'], [and(p.mask, rows(0, capY + 2)), X.tronco, '~0']];
+    }
     return [[and(p.mask, rows(0, cut + 1)), A, ''], [and(p.mask, rows(cut - 1, 96)), B, '~2']];
   };
   for (const p of parts) {
