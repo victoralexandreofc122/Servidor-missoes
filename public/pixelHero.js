@@ -685,7 +685,12 @@ export function skeletonFrame(view, anim, t) {
   const mirror = view === 'esquerda';
   const v = mirror ? 'direita' : view;
   const yaw = YAW_OF_DIR[{ frente: 0, costas: 3, direita: 2 }[v]];
-  const R0 = solve(basePose(), yaw), R1 = solve(anim ? poseOf(anim, t) : basePose(), yaw);
+  // Caminhada: o balanço dos braços do esqueleto é curto para um boneco deste tamanho; aqui ele é 1,8x maior, para a
+  // mão que vai para a frente e a que vai para trás se lerem (o cotovelo dobra mais na que vem para a frente).
+  // De costas, a caminhada é amostrada meio quadro adiante: em t = 1/6 e 2/6 a vista saía quase igual (quadro repetido).
+  const pose1 = anim ? poseOf(anim, anim === 'andar' && v === 'costas' ? t + 1 / 12 : t) : basePose();
+  if (anim === 'andar') for (const a of ['armL', 'armR']) pose1[a] = { ...pose1[a], fwd: pose1[a].fwd * 1.8, elbow: pose1[a].elbow + Math.max(0, pose1[a].fwd) * 0.6 };
+  const R0 = solve(basePose(), yaw), R1 = solve(pose1, yaw);
   const P0 = R0.P, P1 = R1.P;
   const piv = PIVOTS[v];
   // Qual lado do esqueleto (L/R) é cada lado do herói: pela posição na tela (frente/costas) ou pela profundidade (perfil).
@@ -704,7 +709,14 @@ export function skeletonFrame(view, anim, t) {
     const ombro2 = fwd(tronco, J.ombro);
     const braco = T(ombro2, boneM(P0[`shoulder${S}`], P0[`elbow${S}`], P1[`shoulder${S}`], P1[`elbow${S}`]), J.ombro);
     const cot2 = fwd(braco, J.cotovelo);
-    const mao = T(cot2, boneM(P0[`elbow${S}`], P0[`wrist${S}`], P1[`elbow${S}`], P1[`wrist${S}`]), J.cotovelo);
+    let mao = T(cot2, boneM(P0[`elbow${S}`], P0[`wrist${S}`], P1[`elbow${S}`], P1[`wrist${S}`]), J.cotovelo);
+    // De frente/costas o balanço é para a câmera: a mão que vem para perto desce e entra um pouco, a que vai para
+    // longe sobe e sai (como a perna da frente).
+    if (v !== 'direita') {
+      const dz = (P1[`wrist${S}`][2] - P0[`wrist${S}`][2]) * SK;
+      const dentro = k === 'e' ? 1 : -1;
+      mao = T([mao.o[0] + dentro * Math.max(-1, Math.min(1, dz * 0.25)), mao.o[1] + Math.max(-2, Math.min(2, dz * 0.4))], mao.M, mao.c);
+    }
     // De frente/costas o passo vai para a câmera (profundidade), que a tela quase não mostra (TILT 0,18). Aqui a perna
     // que vem para perto desce mais na tela e a que vai para longe sobe: a perna da frente fica legível.
     const prof = v === 'direita' ? 0 : Math.max(-2, Math.min(0, (P1[`ankle${S}`][2] - P0[`ankle${S}`][2]) * 0.55 * SK)); // só a de longe sobe: o corpo não pula
