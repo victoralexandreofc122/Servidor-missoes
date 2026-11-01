@@ -218,3 +218,28 @@ abas da barra, mangas, punhos, capuz), `calca`, `acessorio` (faixa e nó), `sapa
   desce e entra, a que vai para longe sobe e sai.
 - Pernas de frente/costas: a perna que vai para longe sobe até 2 px; de frente a aba do lado da perna que avança abre.
 - De costas a caminhada é amostrada meio quadro adiante (sem quadro repetido). Validada com `validar_andar.py`.
+
+## Camadas e visual equipável (V38)
+
+Uso: `renderHero('C', vista, pose, { look })`, com `look` parcial (o que faltar vem de `VISUAL_PADRAO`, que é o herói
+aprovado: com ele, todas as vistas e animações saem idênticas às versões congeladas). Cada camada sai separada em
+`layers` e anda presa aos mesmos ossos (parado, andar, correr, jutsu, golpe).
+
+| Camada | Chave do `look` | Opções |
+|---|---|---|
+| corpo base | `pele` | pessego, claro, moreno, escuro |
+| cabelo | `cabelo` | preto_azulado, castanho, loiro, ruivo, branco, rosa, roxo |
+| olhos | `olhos` | azul, verde, castanho, vermelho, roxo, cinza |
+| boca | `boca` | sorriso, neutra, brava (a brava também fecha as sobrancelhas) |
+| roupa de cima | `cima`, `corCima` | manga_longa, camiseta (antebraço de fora), regata (braço de fora) |
+| roupa de baixo | `baixo`, `corBaixo` | calca, bermuda (canela de fora) |
+| sapato | `sapato` | bota, sandalia, tenis (molde único de calçados) |
+| capuz | `capuz`, `corCapuz` | casaco (casaco com capuz), nenhum (as mangas viram as da roupa de cima, mais justas) |
+| conjunto | `conjunto` | nenhum, colete_vila (verde, zíper, bolsos, espiral nas costas), colete_anbu (cinza) |
+| bandana | `bandana`, `corBandana` | nenhuma, vila (placa com o símbolo), renegado (símbolo riscado); nó e pontas atrás |
+| armas | `arma` | nenhuma, kunai (na mão), katana (bainha nas costas), kunai_katana |
+
+Cores das roupas em `CORES`: petroleo, vinho, preto, areia, azul_marinho, laranja, verde_vila, cinza, branco, grafite,
+vermelho, roxo. Ordem de desenho: corpo, roupa de baixo, sapato, roupa de cima, conjunto, faixa, capuz, cabelo,
+bandana; a katana fica atrás do corpo (de frente e de lado) e por cima do casaco (de costas); a kunai vai na mão.
+Prévias: `arte/personagem-pixel/v38_camadas/` (galeria de 12 visuais, camadas separadas, visuais andando).

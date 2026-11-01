@@ -200,9 +200,13 @@ export function faceStamps() {
     void flip;
   }
   // Sobrancelhas de 1 px, levemente arqueadas.
-  for (const [x, y] of [[23, 34], [24, 33], [25, 33], [26, 33], [37, 33], [38, 33], [39, 33], [40, 34]]) put('olhos', x, y, PAL.cabelo[2]);
+  const brava = LOOK.boca === 'brava';
+  const sob = brava ? [[23, 32], [24, 33], [25, 33], [26, 34], [37, 34], [38, 33], [39, 33], [40, 32]] : [[23, 34], [24, 33], [25, 33], [26, 33], [37, 33], [38, 33], [39, 33], [40, 34]];
+  for (const [x, y] of sob) put('olhos', x, y, PAL.cabelo[2]);
   put('boca', 32, 43, PAL.pele[2]); put('boca', 31, 42, PAL.pele[0]); // nariz: sombra embaixo/direita e luz em cima
-  put('boca', 30, 44, PAL.boca); put('boca', 31, 45, PAL.boca); put('boca', 32, 45, PAL.boca); put('boca', 33, 44, PAL.boca); put('boca', 31, 46, PAL.pele[2]); put('boca', 32, 46, PAL.pele[2]);
+  if (LOOK.boca === 'neutra') { put('boca', 30, 45, PAL.boca); put('boca', 31, 45, PAL.boca); put('boca', 32, 45, PAL.boca); put('boca', 33, 45, PAL.boca); }
+  else if (brava) { for (const [x, y] of [[30, 45], [31, 45], [32, 45], [33, 45], [31, 46], [32, 46]]) put('boca', x, y, y === 46 ? '#5a1e24' : PAL.boca); }
+  else { put('boca', 30, 44, PAL.boca); put('boca', 31, 45, PAL.boca); put('boca', 32, 45, PAL.boca); put('boca', 33, 44, PAL.boca); put('boca', 31, 46, PAL.pele[2]); put('boca', 32, 46, PAL.pele[2]); }
   for (const [x, y] of [[21, 43], [22, 43], [41, 43], [42, 43]]) put('boca', x, y, PAL.blush);
   return px;
 }
@@ -212,7 +216,7 @@ export function faceStamps() {
 // O cabelo é UMA massa só na frente (topo, tufos, franja e laterais juntos), sombreada de uma vez: assim não há
 // borda de "capacete" entre a calota e a franja. As mechas aparecem pelos fios (traços de sombra que saem do
 // redemoinho e descem até o vão entre as pontas) e pelas pontas da silhueta e da franja.
-const FIO = '#161f38';
+let FIO = '#161f38';
 const back = (ry = 14.6) => part('cabelo_tras', 'cabelo', or(ell(32, 31, 16.4, ry), sym([[32, 30], [15.6, 32], [16.4, 43.6], [19.4, 45.4], [20, 38]])),
   [PAL.cabelo[1], PAL.cabelo[2], PAL.cabelo[2], PAL.cabelo[2]],
   { shade: { l: [-2, -2], s: [3, 1], d: [1, 1] }, group: 'cabelo', sep: false });
@@ -396,7 +400,7 @@ function sideParts(bracoAtras = false) {
   P.push(...legsAndBoots('direita'));
   P.push(part('pescoco', 'corpo', poly([[29, 44], [35, 44], [35, 51], [29, 51]]), PAL.pele, { shade: { s: [2, 0] }, recv: true, group: 'pele' }));
   // Camisa: só a faixa da frente aparece pela abertura do casaco.
-  P.push(part('camisa', 'camisa', poly([[33, 47.6], [37, 47.8], [38.6, 50], [38.8, 56], [38, 64.5], [33, 64.5]]), PAL.camisa, { shade: { l: [-1, -1], s: [1, 1] }, recv: true }));
+  P.push(part('camisa', 'camisa', poly([[26.6, 47.4], [33, 47.4], [37, 47.8], [38.6, 50], [38.8, 56], [38, 64.5], [26, 64.5], [25.4, 56], [25.6, 50]]), PAL.camisa, { shade: { l: [-1, -1], s: [1, 1] }, recv: true }));
   P.push(part('gola', 'camisa', poly([[31.6, 46.4], [36.4, 46.6], [36.6, 49.4], [31.6, 49.8]]), PAL.camisa, { shade: { l: [0, -1], s: [0, 1] }, group: 'gola' }));
   P.push(part('faixa', 'acessorio', poly([[30, 62.6], [39.2, 62.6], [39.2, 65.4], [30, 65.4]]), PAL.faixa, { shade: { l: [0, -1], s: [0, 1] } }));
   P.push(part('no_faixa', 'acessorio', or(poly([[37.4, 62.4], [39.6, 62.4], [39.6, 65.6], [37.4, 65.6]]), poly([[37.8, 65], [39.2, 65], [39.8, 68.4], [38.4, 68.4]])), PAL.faixa,
@@ -450,7 +454,9 @@ function sideStamps() {
   const put = (layer, x, y, c) => px.push({ layer, x, y, c });
   OLHO_LADO.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') put('olhos', 38 + x, 36 + y, PAL.olho[ch]); }));
   for (const [x, y] of [[38, 33], [39, 33], [40, 33], [41, 34]]) put('olhos', x, y, PAL.cabelo[2]);
-  put('boca', 41, 45, PAL.boca); put('boca', 42, 45, PAL.boca); put('boca', 43, 44, PAL.boca); put('boca', 41, 46, PAL.pele[2]);
+  if (LOOK.boca === 'neutra') { put('boca', 41, 45, PAL.boca); put('boca', 42, 45, PAL.boca); put('boca', 43, 45, PAL.boca); }
+  else if (LOOK.boca === 'brava') { put('boca', 41, 45, PAL.boca); put('boca', 42, 45, PAL.boca); put('boca', 41, 46, '#5a1e24'); put('boca', 42, 46, '#5a1e24'); }
+  else { put('boca', 41, 45, PAL.boca); put('boca', 42, 45, PAL.boca); put('boca', 43, 44, PAL.boca); put('boca', 41, 46, PAL.pele[2]); }
   put('boca', 44, 43, PAL.pele[2]); put('boca', 44, 41, PAL.pele[0]);
   for (const [x, y] of [[38, 43], [39, 43]]) put('boca', x, y, PAL.blush);
   return px;
@@ -646,7 +652,10 @@ PIVOTS.costas = PIVOTS.frente;
 
 /** Osso de cada peça: [lado, membro] ou 'tronco' / 'cabeca' / 'pelve'. */
 function boneOf(name) {
-  if (name.startsWith('cabelo') || name === 'cabeca' || name === 'orelha') return ['cabeca'];
+  if (name.startsWith('cabelo') || name.startsWith('bandana') || name === 'cabeca' || name === 'orelha') return ['cabeca'];
+  let w = /^(kunai)(?:_([edt]))?$/.exec(name); if (w) return [w[2] || 'f', 'mao'];
+  w = /^antebraco(?:_([edt]))?$/.exec(name); if (w) return [w[1] || 'f', 'mao'];
+  w = /^canela_([edft])$/.exec(name); if (w) return [w[1], 'perna'];
   let m = /^(perna)_([edft])$/.exec(name); if (m) return [m[2], 'perna'];
   m = /^(bota|sola|punho_bota|dedos|tira)_([edft])$/.exec(name); if (m) return [m[2], 'pe'];
   m = /^(manga|punho|mao)(?:_([edt]))?$/.exec(name); if (m) return [m[2] || 'f', m[1] === 'manga' ? 'braco' : 'mao'];
@@ -967,21 +976,190 @@ function viewParts(hairKey, view, opts = {}) {
       stamps: stamps.map((q) => ({ ...q, x: W - 1 - q.x })),
     };
   }
-  if (view === 'costas') return { parts: backParts(), stamps: [] };
-  if (view === 'direita') return { parts: sideParts(opts.bracoAtras), stamps: sideStamps() };
+  if (view === 'costas') return { parts: vestir(backParts(), 'costas'), stamps: [] };
+  if (view === 'direita') return { parts: vestir(sideParts(opts.bracoAtras), 'direita'), stamps: sideStamps() };
   const parts = [...bodyParts()];
   // O cabelo de trás vai antes da cabeça; mechas e franja, depois.
   const hair = HAIR[hairKey]();
   const head = parts.findIndex((p) => p.name === 'cabeca');
   parts.splice(head, 0, ...hair.tras);
   parts.push(...hair.frente);
-  return { parts, stamps: faceStamps() };
+  return { parts: vestir(parts, 'frente'), stamps: faceStamps() };
+}
+
+// ---------------------------------------------------------------- visual equipável (V38): camadas e variações
+//
+// O visual (`look`) escolhe cada camada. Cada camada é um conjunto de peças com nome próprio, presas aos mesmos ossos,
+// então tudo anima igual (parado, andar, correr, jutsu, golpe) nas 4 vistas.
+//   pele, cabelo (cor), olhos (cor), boca (expressão)          -> camadas corpo, cabelo, olhos, boca
+//   cima: manga_longa | camiseta | regata  + corCima            -> roupa_cima
+//   baixo: calca | bermuda + corBaixo                           -> roupa_baixo
+//   sapato: bota | sandalia | tenis                             -> sapato
+//   capuz: casaco | nenhum + corCapuz (casaco com capuz)        -> capuz
+//   conjunto: nenhum | colete_vila | colete_anbu                -> conjunto
+//   bandana: nenhuma | vila | renegado + corBandana             -> bandana
+//   arma: nenhuma | kunai | katana | kunai_katana               -> arma
+export const PELES = { pessego: ['#ffe4cc', '#f5c6a2', '#d99784', '#a5636e'], claro: ['#fff0e2', '#fbd9bf', '#e3a996', '#b4747c'],
+  moreno: ['#e9b98f', '#c98f63', '#a06548', '#6d4034'], escuro: ['#a77a5c', '#7d5640', '#57392b', '#3a2420'] };
+export const CABELOS = { preto_azulado: [['#3e5c8a', '#1f2a44', '#10172b', '#10172b'], '#7fa3d1', '#161f38'],
+  castanho: [['#9a6a44', '#6b4428', '#43291a', '#43291a'], '#d0a378', '#4f311d'], loiro: [['#f6dc7a', '#dcae3e', '#a5761f', '#a5761f'], '#fff3b8', '#b8862a'],
+  ruivo: [['#e0683c', '#b23b22', '#7a2214', '#7a2214'], '#ffab80', '#8a2a17'], branco: [['#f4f6fa', '#c9cfdc', '#8d95a8', '#8d95a8'], '#ffffff', '#a2a9ba'],
+  rosa: [['#f6a8c8', '#d96b9c', '#a1436e', '#a1436e'], '#ffd6e8', '#b04f7c'],
+  roxo: [['#8a6ac8', '#5a3e94', '#38265e', '#38265e'], '#c4b0f0', '#40296a'] };
+export const OLHOS = { azul: ['#2f6db5', '#6fb4e8'], verde: ['#2e8a52', '#6fd08e'], castanho: ['#6b4224', '#b07a48'], vermelho: ['#a8202c', '#ec5a5a'],
+  roxo: ['#6a3aa8', '#b088e8'], cinza: ['#5a6070', '#a9b0c0'] };
+const rampa = (base) => base; // as rampas abaixo já vêm em 4 tons (luz, base, sombra, profunda)
+export const CORES = {
+  petroleo: ['#4fb3bf', '#1f7f8f', '#145561', '#0d3a44'], vinho: ['#9c3a50', '#7a2438', '#4d1424', '#330c19'], preto: ['#4d505e', '#2e3039', '#1e1f26', '#131418'],
+  areia: ['#e8d3a4', '#c9ad74', '#9c8150', '#6e5734'], azul_marinho: ['#4a6aa8', '#2c447a', '#1c2c52', '#121c36'], laranja: ['#ffa64d', '#e8761e', '#b0531a', '#7a3812'],
+  verde_vila: ['#7f9c5a', '#5a7a3a', '#3e5628', '#29391b'], cinza: ['#8a8f9e', '#5f6473', '#424654', '#2b2e38'], branco: ['#ffffff', '#dfe2ea', '#b4b9c6', '#878d9c'],
+  grafite: ['#565b6e', '#3b3f50', '#292c3a', '#1b1d28'],
+  vermelho: ['#e8564a', '#c22f2a', '#8a1d1d', '#5c1214'], roxo: ['#9a7ad0', '#6e4fa8', '#4a3474', '#2f204c'],
+};
+CALCADOS.tenis = { nome: 'Tênis', cano: ['#f4f6fa', '#d8dce6', '#a9afbf', '#7a8193'], punho: false, sola: ['#ffffff', '#e8e8e8', '#c8c8c8', '#9a9a9a'],
+  tira: ['#e8564a', '#c22f2a', '#8a1d1d', '#5c1214'] };
+export const VISUAL_PADRAO = { pele: 'pessego', cabelo: 'preto_azulado', olhos: 'azul', boca: 'sorriso', cima: 'manga_longa', corCima: 'vinho',
+  baixo: 'calca', corBaixo: 'grafite', sapato: 'bota', capuz: 'casaco', corCapuz: 'petroleo', conjunto: 'nenhum', bandana: 'nenhuma', corBandana: 'azul_marinho', arma: 'nenhuma' };
+let LOOK = { ...VISUAL_PADRAO };
+
+/** Aplica as cores do visual na paleta (e devolve como desfazer). */
+function aplicarVisual(look) {
+  const antes = { ...PAL, olho: { ...PAL.olho } }, fio = FIO, look0 = LOOK;
+  LOOK = { ...VISUAL_PADRAO, ...look };
+  PAL.pele = PELES[LOOK.pele] || PAL.pele;
+  const c = CABELOS[LOOK.cabelo]; if (c) { PAL.cabelo = c[0]; PAL.brilho = c[1]; FIO = c[2]; }
+  const o = OLHOS[LOOK.olhos]; if (o) { PAL.olho.D = o[0]; PAL.olho.L = o[1]; }
+  PAL.camisa = CORES[LOOK.corCima] || PAL.camisa; PAL.calca = CORES[LOOK.corBaixo] || PAL.calca;
+  PAL.casaco = CORES[LOOK.corCapuz] || PAL.casaco;
+  if (LOOK.pele === 'escuro' || LOOK.pele === 'moreno') PAL.blush = '#c9786a';
+  return () => { Object.assign(PAL, antes); PAL.olho = antes.olho; FIO = fio; LOOK = look0; };
+}
+
+/** Afina 1 px de cada lado (manga de camisa é mais justa que a do casaco). */
+const afina = (m) => m.map((v, i) => (v && m[i - 1] && m[i + 1] ? 1 : 0));
+
+/** Veste o boneco: tira, troca e acrescenta peças conforme o visual. */
+function vestir(P, vista) {
+  const L = LOOK;
+  let out = [...P];
+  const idx = (n) => out.findIndex((q) => q.name === n);
+  const antes = (n, ...novas) => { const i = idx(n); out.splice(i < 0 ? out.length : i, 0, ...novas); };
+  const depois = (n, ...novas) => { const i = idx(n); out.splice(i < 0 ? out.length : i + 1, 0, ...novas); };
+  const lado = vista === 'direita';
+  // De costas não havia camisa (o casaco cobria tudo): o tronco da roupa de cima entra antes do casaco.
+  if (vista === 'costas' && idx('camisa') < 0) {
+    const pi = idx('pescoco');
+    out.splice(pi + 1, 0, part('camisa', 'camisa', sym([[32, 47.6], [27.6, 47.6], [24, 50], [24.4, 64.5], [32, 64.5]]), PAL.camisa,
+      { shade: { l: [-2, -1], s: [2, 1], d: [1, 1] }, recv: true }), part('gola', 'camisa', sym([[32, 46.6], [28.4, 46.6], [28.4, 49.4], [32, 50.2]]), PAL.camisa, { shade: { l: [0, -1], s: [0, 1] }, group: 'gola' }));
+  }
+  // De lado, com o casaco, a camisa é só a faixa da frente (como na versão aprovada); sem ele, o tronco inteiro.
+  if (lado && L.capuz !== 'nenhum') { const c = out[idx('camisa')]; if (c) c.mask = and(c.mask, inside((x) => x >= 33)); }
+  // --- capuz (casaco com capuz): sem ele, as mangas viram mangas da roupa de cima.
+  if (L.capuz === 'nenhum') {
+    out = out.filter((q) => q.layer !== 'casaco' || /^(manga|punho)/.test(q.name));
+    for (const q of out) if (/^(manga|punho)/.test(q.name)) {
+      const longe = q.name.endsWith('_t');
+      q.layer = 'camisa'; q.mask = afina(q.mask); q.pal = longe ? darker(PAL.camisa) : PAL.camisa;
+      q.group = longe ? 'braco_tras' : q.name.startsWith('punho') ? 'punho_camisa' : 'manga_camisa'; q.strokes = [];
+    }
+    // camiseta: do cotovelo para baixo é pele; regata: o braço todo é pele.
+    if (L.cima !== 'manga_longa') {
+      const novas = [];
+      for (const q of out) if (/^(manga|punho)/.test(q.name)) {
+        const longe = q.name.endsWith('_t'), suf = q.name.replace(/^(manga|punho)/, '');
+        const pele = longe ? darker(PAL.pele) : PAL.pele;
+        if (q.name.startsWith('punho') || L.cima === 'regata') { q.pal = pele; q.layer = 'corpo'; q.group = longe ? 'braco_tras' : 'mao'; continue; }
+        novas.push([q.name, part(`antebraco${suf}`, 'corpo', and(q.mask, rows(56, 96)), pele, { shade: q.shade, group: longe ? 'braco_tras' : 'mao' })]);
+        q.mask = and(q.mask, rows(0, 57));
+      }
+      for (const [n, np] of novas) depois(n, np);
+    }
+  }
+  // --- roupa de baixo: bermuda (da metade da canela para baixo é pele).
+  if (L.baixo === 'bermuda') {
+    for (const q of [...out]) if (/^perna_[edft]$/.test(q.name)) {
+      const k = q.name.slice(-1), longe = k === 't';
+      depois(q.name, part(`canela_${k}`, 'corpo', and(q.mask, rows(76, 96)), longe ? darker(PAL.pele) : PAL.pele,
+        { shade: { l: [-2, 0], s: [1, 0] }, group: longe ? 'perna_tras' : 'canela', shadeAlso: k === 'e' ? ['canela_d'] : k === 'd' ? ['canela_e'] : [] }));
+      q.mask = and(q.mask, rows(0, 77));
+    }
+  }
+  // --- conjunto: colete (por cima da roupa de cima, por baixo do casaco).
+  if (L.conjunto !== 'nenhum') {
+    const cor = L.conjunto === 'colete_anbu' ? CORES.cinza : CORES.verde_vila;
+    const sh = { l: [-2, -1], s: [2, 1], d: [1, 1] };
+    let corpo, gola, marks = [], strokes = [];
+    if (vista === 'direita') {
+      corpo = poly([[26.2, 47.6], [33.4, 47.6], [37.4, 48.6], [39.2, 51], [39.4, 56], [38.6, 64.8], [25.6, 64.8], [25, 56], [25.2, 50]]);
+      gola = poly([[30, 45.6], [36.6, 45.8], [37, 49.4], [30, 49.6]]);
+      strokes = [[2, [[34, 55], [37, 55], [37, 58], [34, 58]]]];
+    } else {
+      corpo = sym([[32, 47.6], [26.6, 47.6], [23.2, 49.6], [23, 56], [23.6, 64.8], [32, 64.8]]);
+      gola = sym([[32, 45.6], [27, 45.6], [27, 49.6], [32, 50.2]]);
+      strokes = vista === 'frente' ? [[3, [[32, 50], [32, 64]]], [2, [[25, 55], [28, 55], [28, 58], [25, 58]]], [2, [[36, 55], [39, 55], [39, 58], [36, 58]]]]
+        : [[3, [[32, 49], [32, 52]]]];
+      if (vista === 'costas' && L.conjunto === 'colete_vila') strokes.push(...[[[30, 54], [33, 54], [34, 56], [33, 58], [30, 58], [29, 56], [30, 55], [32, 55], [32, 57]]].map((pts) => ['#c22f2a', pts]));
+    }
+    const novas = [part('colete', 'conjunto', corpo, cor, { shade: sh, recv: true, strokes }), part('colete_gola', 'conjunto', gola, cor, { shade: { l: [0, -1], s: [1, 1] }, group: 'colete_gola' })];
+    { const ic = out.findIndex((q) => q.layer === 'casaco' && !/^(manga|punho|capuz)/.test(q.name)); const ig = idx('gola');
+      out.splice(ig >= 0 && (ic < 0 || ig < ic) ? ig + 1 : ic >= 0 ? ic : out.length, 0, ...novas); }
+  }
+  // --- bandana: faixa na testa com a placa de metal (riscada no renegado), nó e pontas atrás.
+  if (L.bandana !== 'nenhuma') {
+    const cor = CORES[L.corBandana] || CORES.azul_marinho, aco = ['#eef1f6', '#c5cbd6', '#8e96a6', '#5f6676'];
+    const nov = [];
+    const band = (pts, extra = {}) => part('bandana', 'bandana', poly(pts), cor, { shade: { l: [0, -1], s: [0, 1], d: [1, 1] }, ...extra });
+    const simbolo = (cx, cy) => L.bandana === 'renegado' ? [[3, [[cx - 4, cy + 1], [cx + 4, cy - 1]]]] : [[3, [[cx - 2, cy - 1], [cx + 1, cy - 1], [cx + 2, cy], [cx + 1, cy + 1], [cx - 1, cy + 1], [cx - 1, cy]]]];
+    if (vista === 'frente') {
+      nov.push(band([[16.6, 25], [47.4, 25], [47.4, 28.6], [16.6, 28.6]]));
+      nov.push(part('bandana_placa', 'bandana', poly([[24.6, 24.2], [39.4, 24.2], [39.4, 29.4], [24.6, 29.4]]), aco, { shade: { l: [-1, -1], s: [1, 1], d: [0, 1] }, strokes: simbolo(32, 26.8) }));
+    } else if (vista === 'costas') {
+      nov.push(band([[15.6, 25.4], [48.4, 25.4], [48.4, 28.8], [15.6, 28.8]]));
+      nov.push(part('bandana_no', 'bandana', poly([[29.6, 24.6], [34.4, 24.6], [34.4, 29.6], [29.6, 29.6]]), cor, { shade: { l: [-1, -1], s: [1, 1] }, group: 'bandana_no' }));
+      nov.push(part('bandana_pontas', 'bandana', or(poly([[30, 29], [32, 29], [30.6, 39], [28.4, 38.4]]), poly([[32, 29], [34, 29], [35.6, 38.4], [33.4, 39]])), cor, { shade: { l: [-1, 0], s: [1, 0] }, group: 'bandana_pontas' }));
+    } else {
+      nov.push(band([[17, 25.2], [46.6, 26], [46.4, 29.4], [17, 28.8]]));
+      nov.push(part('bandana_placa', 'bandana', poly([[38.6, 24.6], [46.8, 25.4], [46.6, 30], [38.6, 29.6]]), aco, { shade: { l: [-1, -1], s: [1, 1] }, strokes: simbolo(42.6, 27.4) }));
+      nov.push(part('bandana_pontas', 'bandana', or(poly([[16.4, 25.6], [19, 26], [16, 36], [13.6, 35]]), poly([[16, 27], [18.6, 28], [18.4, 38.6], [16, 38.4]])), cor, { shade: { l: [-1, 0], s: [1, 0] }, group: 'bandana_pontas' }));
+    }
+    out.push(...nov);
+  }
+  // --- armas: kunai na mão (aponta para baixo), katana na bainha atravessada nas costas.
+  const aco = ['#f4f6fa', '#c5cbd6', '#8e96a6', '#5f6676'], cabo = ['#5a4a6a', '#3a2e48', '#261e30', '#18121e'], ouro = ['#ffe08a', '#e0b040', '#a07a20', '#6e5214'];
+  if (/kunai/.test(L.arma)) {
+    const [k, cx] = vista === 'frente' ? ['_e', 21.3] : vista === 'costas' ? ['_d', 42.7] : ['', 31.6];
+    const lam = poly([[cx - 1.6, 71], [cx + 1.6, 71], [cx, 78.4]]), anel = ell(cx, 70.6, 1.2, 1.2);
+    depois(`mao${k}`, part(`kunai${k}`, 'arma', or(lam, anel), aco, { shade: { l: [-1, 0], s: [1, 0] }, group: 'arma' }));
+  }
+  if (/katana/.test(L.arma)) {
+    const bainha = ['#3b3f50', '#262935', '#191b24', '#101118'];
+    let parts = [];
+    if (vista === 'costas') {
+      parts = [part('katana_bainha', 'arma', poly([[42, 48], [44, 50], [24, 74], [22, 72]]), bainha, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana' }),
+        part('katana_cabo', 'arma', poly([[44.6, 42.4], [47, 44.6], [44, 50], [42, 48]]), cabo, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana_cabo', strokes: [[0, [[44, 45], [46, 45]]]] }),
+        part('katana_guarda', 'arma', poly([[40.6, 46.6], [45, 48.2], [43.6, 51.2], [39.4, 49.6]]), ouro, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana_guarda' })];
+      out.push(...parts); // nas costas fica por cima do casaco
+    } else {
+      // De frente o cabo aparece acima do ombro (atrás da cabeça); de lado a bainha passa atrás do corpo.
+      parts = vista === 'frente'
+        ? [part('katana_cabo', 'arma', poly([[44, 40], [47.4, 42.6], [44, 48], [41.2, 45.6]]), cabo, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana_cabo' }),
+          part('katana_guarda', 'arma', poly([[39.6, 44.6], [44.6, 46.6], [43.4, 49.6], [38.4, 47.6]]), ouro, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana_guarda' })]
+        : [part('katana_bainha', 'arma', poly([[21, 47], [23.4, 46], [34, 72], [31.6, 73]]), bainha, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana' }),
+          part('katana_cabo', 'arma', poly([[16.6, 39], [19.4, 38], [23.4, 46], [21, 47]]), cabo, { shade: { l: [-1, -1], s: [1, 1] }, group: 'katana_cabo' })];
+      out.unshift(...parts); // atrás de tudo
+    }
+  }
+  return out;
 }
 
 export const VIEWS = ['frente', 'costas', 'direita', 'esquerda'];
 
 /** Monta o boneco numa vista. Devolve { w, h, rgba, layers: { nome: rgba } }. */
 export function renderHero(hairKey = 'C', view = 'frente', pose = null, opts = {}) {
+  const restaura = aplicarVisual(opts.look || {});
+  try { return renderHero0(hairKey, view, pose, { ...opts, calcado: (opts.look && opts.look.sapato) || opts.calcado }); } finally { restaura(); }
+}
+function renderHero0(hairKey, view, pose, opts) {
   ESTILO_CALCADO = opts.calcado || 'bota';
   const base = viewParts(hairKey, view, { bracoAtras: !!(pose && pose.bracoAtras) });
   const posedRes = pose ? (pose.skel ? skeletonPosed(base, view, pose.skel) : posed(base, pose)) : base;
