@@ -478,7 +478,6 @@ function coatLayer(c) {
       clip: (q) => !(q[2] > 0 && Math.abs(q[0]) < w(q)),
       paint: (q) => {
         if (q[2] > 0 && Math.abs(q[0]) < w(q) + 1.15) return [null, 3];                 // lapela (dobra mais clara)
-        if (q[2] < -r[2] * 0.55 && Math.abs(q[0]) < 0.45) return [null, 1];             // costura das costas
         return null;
       },
     };
@@ -806,11 +805,11 @@ function hairShapes(style, hx, hy, hz) {
     const B = (a0, e0, a1, e1, out, w, extra = {}) => blades.push({ a0, e0, a1, e1, out, w, ...extra });
     // franja: poucas mechas largas, de comprimentos diferentes (a do meio desce entre os olhos; entre elas aparece a
     // testa); as de fora param acima do olho, para o perfil mostrar o rosto
-    B(-2, 68, -6, -18, 1.1, 5.6, { front: true, bend: 1.9 });
-    B(28, 64, 40, -12, 1.1, 5.2, { front: true, bend: 1.7 });
-    B(-32, 64, -42, -10, 1.1, 5.2, { front: true, bend: 1.7 });
-    B(54, 58, 62, -8, 1.3, 4.4, { front: true, bend: 1.5 });
-    B(-56, 58, -62, -6, 1.3, 4.4, { front: true, bend: 1.5 });
+    B(-2, 68, -6, -8, 1.1, 5.6, { front: true, bend: 1.9 });
+    B(28, 64, 40, -2, 1.1, 5.2, { front: true, bend: 1.7 });
+    B(-32, 64, -42, 0, 1.1, 5.2, { front: true, bend: 1.7 });
+    B(54, 58, 62, 2, 1.3, 4.4, { front: true, bend: 1.5 });
+    B(-56, 58, -62, 4, 1.3, 4.4, { front: true, bend: 1.5 });
     // lados: na frente da orelha, descendo até a bochecha, e as laterais abrindo para fora
     B(-76, 52, -84, -30, 1.3, 4.2, { front: true });
     B(78, 52, 86, -28, 1.3, 4.2, { front: true });
@@ -1272,7 +1271,7 @@ function face(buf, scene, col, S, look, pose, part) {
       }
     }
   };
-  const ey = -hy * 0.42, ex = hx * 0.5;
+  const ey = -hy * 0.32, ex = hx * 0.5;                                // olhos no meio do rosto (mais para baixo parecia caído)
   const mouth = (MOUTHS[pose.mouth] || MOUTHS.calma)[view];
   if (side) {
     // O olho de perto (o de longe some atrás do nariz); olhando para a direita, espelha o desenho.
@@ -1286,8 +1285,8 @@ function face(buf, scene, col, S, look, pose, part) {
     put(surf(-ex, ey), rows, false);
     put(surf(ex, ey), rows, true);
   } else {
-    put(surf(0, -hy * 0.8), mouth, false);
-    put(surf(hx * 0.05, -hy * 0.62), ['s'], false);                     // nariz: um pontinho de sombra
+    put(surf(0, -hy * 0.74), mouth, false);
+    put(surf(hx * 0.05, -hy * 0.55), ['s'], false);                     // nariz: um pontinho de sombra
   }
 }
 
