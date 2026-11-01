@@ -33,3 +33,21 @@ existem no jogo hoje).
 fechar os furos da fase 2: fórmula do MMR de prévia (início 1.000, K = 24, fator `1 + 0,5 x (30 - n) / 30`), regras de
 borda da partida (convite, ocupação, desconexão, queda do servidor), tamanho da área (18 x 12 casas), glossário,
 critério de pronto e data para rever a prioridade (15/12/2026). O `CLAUDE.md` ganhou o PvP em 1º nas "Próximas entregas".
+
+## Fase 4 (visão geral intermediária): resolução
+
+O Victor pediu os números antes de decidir o bloqueador (`revisao_egm/numeros_atributos_pvp.md`) e trouxe uma saída
+própria: **vida por nível no jogo todo** (+6 por nível acima do 1). Para Taijutsu e Armas, que continuavam matando em
+1 a 2 s, escolheu **custo e recarga maiores no PvP** (x4 e x2,5). O critério do simulador passou a ser "todo confronto
+entre 2 e 12 s; meio a meio contra meio a meio entre 6 e 10 s".
+
+| # | Achado da fase 4 | Correção aplicada |
+|---|---|---|
+| 1 | Simulador não tinha como passar | Vida por nível, custo e recarga de Taijutsu e Armas, 5 builds em números, critério novo. |
+| 2 | Fontes de dano fora da tabela | Tabela com cada tipo de dano; poderes da Akatsuki desligados no duelo; curva achatada vale para cura e escudo. |
+| 3 | Controle de monstro | Orçamento só quando quem causa é jogador; monstro segue o `controlDr`; `applyStatus`/`applyEffect` recebem quem causou. |
+| 4 | Segunda escala de níveis de uso | Nesta entrega, os níveis 1 a 4 de hoje com +0/+5/+10/+15% no PvP; os 3 níveis e o limite por lançamento vão para a entrega da forma nova. |
+| 5 | `pvpHitDamage` mexendo no PvE | Só quando o alvo é jogador (`hitTarget`/`damagePlayer`), com teste que trava o dano do PvE. |
+| 6 | Bot escondido | Fora do pronto; depois da noite de duelo, como "ninja sem conexão", só treino. |
+| 7 | Escopo e pronto | Pronto técnico separado da meta de comunidade; MMR de prévia no passo 2b. |
+| 8-14 | Detalhes | Aviso no chão adiado; dano cortado no registro; pior caso de passiva e clima no simulador; interruptor ligado por padrão e troca temporária; chakra a 1/3 da meditação e sem vida voltando no duelo; orçamento conta o tempo real; cronômetro para na desconexão. |
