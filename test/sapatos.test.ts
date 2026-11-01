@@ -61,8 +61,8 @@ describe('sapatos: catálogo e desenho', () => {
   });
 
   it('gearOf: o sapato vai nos pés; outro tipo de item não vira sapato', () => {
-    assert.deepEqual(gearOf(null, null, 'botas_viagem'), { hand: null, back: null, scroll: null, feet: 'botas_viagem' });
-    assert.deepEqual(gearOf('kunai', null, 'kunai'), { hand: 'kunai', back: null, scroll: null, feet: null });
+    assert.deepEqual(gearOf(null, null, 'botas_viagem'), { hand: null, back: null, scroll: null, feet: 'botas_viagem', body: null });
+    assert.deepEqual(gearOf('kunai', null, 'kunai'), { hand: 'kunai', back: null, scroll: null, feet: null, body: null });
     assert.equal(gearOf(null, null).feet, null);
   });
 });
@@ -74,7 +74,7 @@ describe('sapatos no jogo: calçar, descalçar e todos veem', () => {
     const b = join(w, 'mei');
     assert.equal(b.conn.last('welcome').players.find((p: any) => p.id === a.id).gear.feet, 'sandalia_ninja');
     a.send({ type: 'equip', item: 'botas_viagem', slot: 'feet' });
-    assert.deepEqual(b.conn.last('player_gear'), { type: 'player_gear', playerId: a.id, gear: { hand: null, back: null, scroll: null, feet: 'botas_viagem' } });
+    assert.deepEqual(b.conn.last('player_gear'), { type: 'player_gear', playerId: a.id, gear: { hand: null, back: null, scroll: null, feet: 'botas_viagem', body: null } });
     assert.equal(a.conn.last('inventory').equippedShoes, 'botas_viagem');
     a.send({ type: 'equip', item: null, slot: 'feet' });
     assert.equal(b.conn.last('player_gear').gear.feet, null, 'descalço');

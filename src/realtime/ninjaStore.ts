@@ -55,7 +55,7 @@ export interface NinjaStore {
   extractionFailures(playerId: string): Promise<ExtractionFailures>;
   buy(playerId: string, item: string, qty: number): Promise<StoreResult<{ ryo: number; items: Inventory }>>;
   /** Arma (slot weapon), pergaminho nas costas (slot scroll) ou sapato (slot feet). O banco confere que o jogador tem o item. */
-  equip(playerId: string, item: string | null, slot?: 'weapon' | 'scroll' | 'feet'): Promise<StoreResult<{ equipped: string | null }>>;
+  equip(playerId: string, item: string | null, slot?: 'weapon' | 'scroll' | 'feet' | 'body'): Promise<StoreResult<{ equipped: string | null }>>;
   applyKage(playerId: string): Promise<StoreResult<{ already: boolean }>>;
   /** Item ganho em combate (pergaminho que caiu do monstro). */
   addItem(playerId: string, item: string, qty: number): Promise<Inventory>;
@@ -83,6 +83,7 @@ export const NINJA_SQL = {
   equip: `UPDATE game.players SET equipped_weapon = $2 WHERE id = $1 RETURNING equipped_weapon AS equipped`,
   equipScroll: `UPDATE game.players SET equipped_scroll = $2 WHERE id = $1 RETURNING equipped_scroll AS equipped`,
   equipShoes: `UPDATE game.players SET equipped_shoes = $2 WHERE id = $1 RETURNING equipped_shoes AS equipped`,
+  equipAccessory: `UPDATE game.players SET equipped_accessory = $2 WHERE id = $1 RETURNING equipped_accessory AS equipped`,
   /** Gastou o último pergaminho que levava nas costas: ele sai das costas. Devolve o que ficou. */
   dropSpentScroll: `
     UPDATE game.players p
@@ -99,6 +100,8 @@ export const NINJA_SQL = {
   bootCheck: `SELECT tutorial_step, ryo, equipped_weapon, attr_weapons FROM game.players LIMIT 0`,
   /** Checagem de boot: a migração v12 (sapatos) foi aplicada? Sem ela o servidor não sobe (o login lê a coluna). */
   bootCheckV12: `SELECT equipped_shoes FROM game.players LIMIT 0`,
+  /** Checagem de boot: a migração v14 (acessório: o casaco) foi aplicada? Sem ela o servidor não sobe. */
+  bootCheckV14: `SELECT equipped_accessory FROM game.players LIMIT 0`,
   /** A v10 (proteção contra azar) é opcional: sem ela o jogo sobe e o boot só avisa. */
   bootCheckV10: `SELECT to_regprocedure('game.extraction_failures(uuid)') IS NOT NULL AS ok`,
 } as const;
@@ -206,7 +209,7 @@ export function makeNinjaStore(db: Db): NinjaStore {
 
     async equip(playerId, item, slot = 'weapon') {
       try {
-        const sql = slot === 'scroll' ? NINJA_SQL.equipScroll : slot === 'feet' ? NINJA_SQL.equipShoes : NINJA_SQL.equip;
+        const sql = slot === 'scroll' ? NINJA_SQL.equipScroll : slot === 'feet' ? NINJA_SQL.equipShoes : slot === 'body' ? NINJA_SQL.equipAccessory : NINJA_SQL.equip;
         const row = (await db.query<{ equipped: string | null }>(sql, [playerId, item])).rows[0];
         if (!row) return { ok: false, text: 'Jogador não encontrado.' };
         return { ok: true, equipped: row.equipped };

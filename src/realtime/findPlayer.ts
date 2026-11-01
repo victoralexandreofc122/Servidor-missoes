@@ -10,7 +10,7 @@ export const FIND_PLAYER_SQL = `
   SELECT p.id, p.username, p.total_xp, r.code AS rank_code, r.name AS rank_name, r.can_be_sensei,
          p.level, p.stat_points, p.attr_vitality, p.attr_chakra, p.is_admin,
          p.attr_agility, p.attr_taijutsu, p.attr_ninjutsu, p.attr_weapons, p.kit_a, p.kit_b, p.appearance,
-         p.tutorial_step, p.ryo, p.equipped_weapon, p.equipped_scroll, p.equipped_shoes, c.primary_class, c.secondary_class,
+         p.tutorial_step, p.ryo, p.equipped_weapon, p.equipped_scroll, p.equipped_shoes, p.equipped_accessory, c.primary_class, c.secondary_class,
          COALESCE((SELECT json_object_agg(j.jutsu_code, j.usage_count) FROM game.player_jutsus j WHERE j.player_id = p.id), '{}'::json) AS jutsus,
          COALESCE((SELECT json_object_agg(i.item_code, i.quantity) FROM game.player_items i WHERE i.player_id = p.id), '{}'::json) AS items,
          EXISTS (SELECT 1 FROM game.hokage_candidates h WHERE h.player_id = p.id) AS kage_candidate
@@ -43,6 +43,7 @@ interface Row {
   equipped_weapon: string | null;
   equipped_scroll: string | null;
   equipped_shoes: string | null;
+  equipped_accessory: string | null;
   primary_class: string | null;
   secondary_class: string | null;
   jutsus: Record<string, number>;
@@ -83,6 +84,8 @@ export function makeFindPlayer(db: Queryable) {
       equippedScroll: row.equipped_scroll,
       // v12: sapato calçado (null = descalço).
       equippedShoes: row.equipped_shoes,
+      // v14: acessório por cima da roupa (o casaco).
+      equippedAccessory: row.equipped_accessory,
       // v8: Modo Administrador (só por SQL; os comandos /admin conferem de novo no banco).
       isAdmin: row.is_admin,
       classes: { primary: isClass(row.primary_class) ? row.primary_class : null, secondary: isClass(row.secondary_class) ? row.secondary_class : null },

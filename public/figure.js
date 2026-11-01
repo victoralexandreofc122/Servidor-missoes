@@ -59,7 +59,7 @@ export const flowOf = (anim) => (anim === 'correr' ? 1 : anim === 'andar' ? 0.35
 /** Só o que muda o desenho do boneco (a chave do cache). */
 export function lookKey(look, opts = {}) {
   return [look.gender, look.skin, look.hairStyle, look.hairColor, look.eyeStyle, look.eyeColor, look.outfit, look.shirtColor,
-    look.pantsColor, look.bandana ? 1 : 0, look.village, look.shoes || '-', opts.cape || '-', opts.cape ? opts.capeVillage || '-' : '-',
+    look.pantsColor, look.bandana ? 1 : 0, look.village, look.shoes || '-', look.accessory || '-', opts.cape || '-', opts.cape ? opts.capeVillage || '-' : '-',
     opts.renegade ? 1 : 0].join('|');
 }
 

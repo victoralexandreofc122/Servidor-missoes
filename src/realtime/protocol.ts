@@ -213,7 +213,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('choose_class'), class: z.enum(CLASSES) }),
   z.object({ type: z.literal('extract'), class: z.enum(CLASSES), level: z.number().int().min(1).max(4) }),
   z.object({ type: z.literal('buy'), item: z.enum(ITEM_CODES), qty: z.number().int().min(1).max(99) }),
-  z.object({ type: z.literal('equip'), item: z.enum(ITEM_CODES).nullable(), slot: z.enum(['weapon', 'scroll', 'cape', 'feet']).optional() }),
+  z.object({ type: z.literal('equip'), item: z.enum(ITEM_CODES).nullable(), slot: z.enum(['weapon', 'scroll', 'cape', 'feet', 'body']).optional() }),
   z.object({ type: z.literal('kage_apply') }),
   z.object({ type: z.literal('hokage_apply') }),   // nome antigo (cliente em cache, até a v15)
   z.object({ type: z.literal('reset_attributes') }),
@@ -364,6 +364,8 @@ export interface NinjaView {
   equippedScroll: string | null;
   /** Sapato calçado (null = descalço). */
   equippedShoes: string | null;
+  /** Acessório por cima da roupa (o casaco; null = nenhum). */
+  equippedAccessory: string | null;
   classes: { primary: ClassCode | null; secondary: ClassCode | null };
   /** Jutsus aprendidos -> quantas vezes o servidor contou o uso (o nível sai daí). */
   jutsus: Record<string, number>;
@@ -571,7 +573,7 @@ export type ServerMessage =
   /** Mudou a fase do dia ou o clima (para todos). `changed`: o que mudou (o cliente avisa na tela). */
   | { type: 'sky'; sky: SkyView; changed: 'phase' | 'weather' | 'both' }
   | { type: 'tutorial'; step: number }
-  | { type: 'inventory'; ryo: number; items: Record<string, number>; equipped: string | null; equippedScroll: string | null; equippedShoes: string | null; cape?: string | null }
+  | { type: 'inventory'; ryo: number; items: Record<string, number>; equipped: string | null; equippedScroll: string | null; equippedShoes: string | null; equippedAccessory: string | null; cape?: string | null }
   | { type: 'classes'; primary: ClassCode | null; secondary: ClassCode | null }
   | { type: 'jutsus'; jutsus: Record<string, number> }
   | { type: 'jutsu_level'; skill: Skill; level: number }
@@ -679,6 +681,7 @@ export const REALTIME_ERRORS = {
   TRAVEL_TOO_FAR: 'Fale com o Posto de Viagem.',
   NOT_A_CAPE: 'Isso não é uma capa.',
   NOT_SHOES: 'Só sapatos vão nos pés.',
+  NOT_ACCESSORY: 'Esse item não é um acessório.',
 } as const;
 export type RealtimeErrorCode = keyof typeof REALTIME_ERRORS;
 

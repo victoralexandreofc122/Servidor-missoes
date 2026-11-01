@@ -23,7 +23,7 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
 export interface ItemDef {
   code: string;
   name: string;
-  kind: 'weapon' | 'scroll' | 'cape' | 'shoes';
+  kind: 'weapon' | 'scroll' | 'cape' | 'shoes' | 'accessory';
   icon: string;
   /** Arma: dano somado ao Ataque Básico (escala com o atributo Armas). */
   damage?: number;
@@ -32,7 +32,9 @@ export interface ItemDef {
   price: number | null;
   shop: ShopKind | null;
   /** Onde aparece no boneco quando equipado. */
-  hold: 'hand' | 'back' | 'feet';
+  hold: 'hand' | 'back' | 'feet' | 'body';
+  /** Acessório (casaco): a cor (nome da rampa de roupa dos sprites). Fica por cima da roupa equipada. */
+  coat?: string;
   /** Sapato: o desenho no boneco e as cores (nomes das rampas de roupa dos sprites). */
   look?: ShoeLook;
   /** Ocupa as duas mãos (nenhuma arma de mão aparece junto). */
@@ -122,6 +124,11 @@ export const ITEMS: readonly ItemDef[] = [
     code: 'botas_ninja', name: 'Botas Ninja', kind: 'shoes', icon: '👢', price: 900, shop: 'clothes', hold: 'feet',
     look: { sprite: 'bota', colors: ['preto', 'preto', 'cinza'] },
   },
+  // Acessórios (migração v14): o casaco com capuz, por cima da roupa equipada (camisa e calça ou o conjunto da vila).
+  { code: 'casaco_petroleo', name: 'Casaco com Capuz (petróleo)', kind: 'accessory', icon: '🧥', price: 1200, shop: 'clothes', hold: 'body', coat: 'petroleo' },
+  { code: 'casaco_preto', name: 'Casaco com Capuz (preto)', kind: 'accessory', icon: '🧥', price: 1200, shop: 'clothes', hold: 'body', coat: 'preto' },
+  { code: 'casaco_vinho', name: 'Casaco com Capuz (vinho)', kind: 'accessory', icon: '🧥', price: 1200, shop: 'clothes', hold: 'body', coat: 'vinho' },
+  { code: 'casaco_verde', name: 'Casaco com Capuz (verde)', kind: 'accessory', icon: '🧥', price: 1200, shop: 'clothes', hold: 'body', coat: 'verde_escuro' },
 ];
 
 /** O sapato com que todo ninja começa (a migração v12 dá e calça). */
@@ -148,16 +155,20 @@ export interface Gear {
   back: string | null;
   scroll: string | null;
   feet: string | null;
+  /** Acessório por cima da roupa (o casaco). */
+  body: string | null;
 }
 
-export function gearOf(weapon: string | null, scroll: string | null, shoes: string | null = null): Gear {
+export function gearOf(weapon: string | null, scroll: string | null, shoes: string | null = null, accessory: string | null = null): Gear {
   const w = weapon ? ITEM_BY_CODE.get(weapon) : undefined;
   const s = scroll ? ITEM_BY_CODE.get(scroll) : undefined;
   const f = shoes ? ITEM_BY_CODE.get(shoes) : undefined;
+  const a = accessory ? ITEM_BY_CODE.get(accessory) : undefined;
   return {
     hand: w && w.kind === 'weapon' && w.hold === 'hand' && !w.twoHanded ? w.code : null,
     back: w && w.kind === 'weapon' && w.hold === 'back' ? w.code : null,
     scroll: s && s.kind === 'scroll' ? s.code : null,
     feet: f && f.kind === 'shoes' ? f.code : null,
+    body: a && a.kind === 'accessory' ? a.code : null,
   };
 }

@@ -46,7 +46,7 @@ sombreado em 2 a 3 tons, cabelo preto bagunçado em mechas, olhos grandes, casac
 | `cabelo` | `espetado` (coroa de pontas, franja em lâminas), `longo_lateral` (liso, franja de lado, mechas que pendem) e `baguncado` (mechas em lâmina saindo do redemoinho) | cabelo |
 | `chapeu` | Bandana: faixa, placa de metal com o símbolo da vila (riscado no renegado), rebites, nó e pontas | vila + aço |
 | `camisa` | Camisa básica (manga comprida, gola, símbolo no peito), a blusa escura do conjunto ou a blusa ameixa do casaco (gola em V e faixa preta) | jogador / vila |
-| `casaco` | Casaco com capuz: aberto em V, lapelas, mangas largas com punho dobrado, capuz caído nas costas, abas até o joelho com bolsos | cor da camisa |
+| `casaco` | Acessório (v27, slot Acessório): casaco com capuz por cima da roupa equipada, aberto em V, lapelas, mangas largas com punho dobrado, capuz caído nas costas, abas até o joelho com bolsos | cor do item |
 | `calca` | Calça básica até a canela com faixas, a calça inteira do conjunto ou a larga do casaco (presa na bota) | jogador / vila |
 | `conjunto` | Colete da vila (bolsos, zíper, gola alta, símbolo nas costas) | vila |
 | `acessorio` | Porta-kunai na coxa e bolsinha (conjunto) ou o nó da faixa com as pontas (casaco) | preto, couro |

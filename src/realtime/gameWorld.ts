@@ -184,6 +184,8 @@ export interface JoiningPlayer {
   equippedScroll?: string | null;
   /** v18 (migração v12): sapato calçado (null = descalço). Sem isto (testes): o da sessão antiga, ou descalço. */
   equippedShoes?: string | null;
+  /** v27 (migração v14): acessório por cima da roupa (o casaco). Sem isto (testes): o da sessão antiga, ou nenhum. */
+  equippedAccessory?: string | null;
   /** v8: Modo Administrador (players.is_admin). Sem isto: false. */
   isAdmin?: boolean;
   /** v16: vila, renegado, Kage, Akatsuki, recompensa e capa (do banco, migração v11). Sem isto: da sessão antiga ou do visual. */
@@ -308,6 +310,8 @@ interface Session {
   equippedScroll: string | null;
   /** Sapato calçado (equipamento dos pés; null = descalço). */
   equippedShoes: string | null;
+  /** Acessório por cima da roupa (o casaco; null = nenhum). */
+  equippedAccessory: string | null;
   /**
    * Compensação de lag (PvP): onde ele esteve nos últimos `lagComp.trailMs` (um ponto por tick), o ping medido pelo
    * servidor (média; 0 = ainda não medido) e o "sync" que espera resposta.
@@ -638,10 +642,10 @@ export class GameWorld {
    * muda o que os outros veem: a arma continua valendo no golpe. O sapato sempre aparece.
    */
   private gear(s: Session): Gear {
-    const g = gearOf(s.equipped, s.equippedScroll, s.equippedShoes);
+    const g = gearOf(s.equipped, s.equippedScroll, s.equippedShoes, s.equippedAccessory);
     return {
       hand: s.display.weapon ? g.hand : null, back: s.display.weapon ? g.back : null, scroll: s.display.scroll ? g.scroll : null,
-      feet: g.feet,
+      feet: g.feet, body: g.body,
     };
   }
 
@@ -756,7 +760,7 @@ export class GameWorld {
   private ninjaView(s: Session): NinjaView {
     return {
       tutorialStep: s.tutorial, ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll,
-      equippedShoes: s.equippedShoes, classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin,
+      equippedShoes: s.equippedShoes, equippedAccessory: s.equippedAccessory, classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin,
       villageSwitches: s.villageSwitches, cape: s.cape, display: { ...s.display },
     };
   }
@@ -865,6 +869,7 @@ export class GameWorld {
       isAdmin: player.isAdmin ?? previous?.isAdmin ?? false,
       equippedScroll: player.equippedScroll !== undefined ? player.equippedScroll : (previous?.equippedScroll ?? null),
       equippedShoes: player.equippedShoes !== undefined ? player.equippedShoes : (previous?.equippedShoes ?? null),
+      equippedAccessory: player.equippedAccessory !== undefined ? player.equippedAccessory : (previous?.equippedAccessory ?? null),
       trail: [],
       effects: previous?.effects ?? new Map(),
       rttMs: previous?.rttMs ?? 0,
@@ -2504,7 +2509,7 @@ export class GameWorld {
   private sendInventory(s: Session): void {
     this.sendTo(s, {
       type: 'inventory', ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll,
-      equippedShoes: s.equippedShoes, cape: s.cape,
+      equippedShoes: s.equippedShoes, equippedAccessory: s.equippedAccessory, cape: s.cape,
     });
   }
 
@@ -2723,22 +2728,24 @@ export class GameWorld {
    * sapato (slot feet; null = descalço). O boneco muda para TODOS (player_gear). Etapa 4 da Academia: equipar a
    * arma é o primeiro passo; acertar o boneco com ela conclui.
    */
-  private equip(session: Session, item: string | null, slot: 'weapon' | 'scroll' | 'feet'): void {
+  private equip(session: Session, item: string | null, slot: 'weapon' | 'scroll' | 'feet' | 'body'): void {
     if (item !== null) {
       const kind = ITEM_BY_CODE.get(item)?.kind;
       if (slot === 'weapon' && kind !== 'weapon') return this.sendError(session, 'NOT_A_WEAPON');
       if (slot === 'scroll' && kind !== 'scroll') return this.sendError(session, 'NOT_A_SCROLL');
       if (slot === 'feet' && kind !== 'shoes') return this.sendError(session, 'NOT_SHOES');
+      if (slot === 'body' && kind !== 'accessory') return this.sendError(session, 'NOT_ACCESSORY');
       if (!((session.items[item] ?? 0) > 0)) return this.sendError(session, 'ITEM_NOT_OWNED');
     }
     const finish = (current: Session, equipped: string | null) => {
       const before = this.gear(current);
       if (slot === 'scroll') current.equippedScroll = equipped;
       else if (slot === 'feet') current.equippedShoes = equipped;
+      else if (slot === 'body') current.equippedAccessory = equipped;
       else current.equipped = equipped;
       this.sendInventory(current);
       const after = this.gear(current);
-      if (before.hand !== after.hand || before.back !== after.back || before.scroll !== after.scroll || before.feet !== after.feet) {
+      if (before.hand !== after.hand || before.back !== after.back || before.scroll !== after.scroll || before.feet !== after.feet || before.body !== after.body) {
         this.broadcastGear(current);
       }
       if (slot === 'weapon' && equipped && current.tutorial === 3) {
