@@ -1195,7 +1195,8 @@ function segmentosDe(hairKey, view, pose, opts, parts, stamps) {
  */
 export const ARMAS_COSTAS = {
   padrao: { frente: 'atras', costas: 'frente', lado: 'atras' },
-  katana: { frente: 'atras', costas: 'frente', lado: 'ponta', ponta: 9 },
+  // De lado a katana aparece inteira na cintura (bainha na altura do quadril, como espada de cintura), por cima.
+  katana: { frente: 'atras', costas: 'frente', lado: 'frente', ladoCaboNaFrente: true },
   scroll: { frente: 'atras', costas: 'frente', lado: 'ponta', ponta: 7 },
   fuma_shuriken: { frente: 'atras', costas: 'frente', lado: 'frente', ladoRecuo: 14 }, // de lado: por cima, 14 px para trás (nas costas)
 };

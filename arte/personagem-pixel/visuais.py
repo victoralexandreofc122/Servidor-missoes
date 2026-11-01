@@ -14,7 +14,7 @@ def comp(base_png, anc, look):
     tela = Image.new('RGBA', (120, 120), (0, 0, 0, 0)); ox, oy = 28, 12
     fig = Image.open(base_png).convert('RGBA')
     costas = look.get('costasArma')
-    REG = {'katana': ('ponta', 9), 'scroll': ('ponta', 7), 'fuma_shuriken': ('frente', 0)}  # = ARMAS_COSTAS (pixelHero.js), de lado
+    REG = {'katana': ('frente', 0), 'scroll': ('ponta', 7), 'fuma_shuriken': ('frente', 0)}  # = ARMAS_COSTAS (pixelHero.js), de lado
     modo = 'frente' if anc['costasNaFrente'] else 'atras'
     if anc['vista'] == 1 and costas in REG: modo = REG[costas][0]
     fr = None
@@ -29,8 +29,11 @@ def comp(base_png, anc, look):
                 pos = (int(round(ox + anc['costas'][0] + atras * 8 - fr.width / 2)), int(round(oy + anc['costas'][1] - 10)))
             else:
                 fr = img.crop((v * w, 0, v * w + w, h))
-                if anc['flip']: fr = fr.transpose(Image.FLIP_LEFT_RIGHT); dx = -dx
-                if v == 1 and modo == 'frente': dx += (14 if anc['flip'] else -14)  # de lado fica nas costas, não no peito
+                vira = anc['flip']
+                if v == 1 and costas == 'katana': vira = not vira  # espada de cintura: o cabo vai para a frente
+                if vira: fr = fr.transpose(Image.FLIP_LEFT_RIGHT)
+                if anc['flip']: dx = -dx
+                if v == 1 and modo == 'frente' and costas == 'fuma_shuriken': dx += (14 if anc['flip'] else -14)  # de lado fica nas costas, não no peito
                 pos = (int(round(ox + anc['costas'][0] + dx - a['ancora'][0])), int(round(oy + anc['costas'][1] + dy - a['ancora'][1])))
             if modo == 'atras': tela.alpha_composite(fr, pos)
     tela.alpha_composite(fig, (ox, oy))
