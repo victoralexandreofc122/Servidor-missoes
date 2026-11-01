@@ -298,14 +298,14 @@ function backParts() {
   const fora = [[32, 47.4], [26.6, 47.4], [23.4, 48.4], [21.6, 50.6], [21.6, 55], [22.4, 62], [22, 70], [32, 70]];
   const abaE = [[22.4, 64.6], [32, 64.6], [32, 84], [21, 83.4], [15.6, 84.2], [18.6, 75]];
   const corpo = or(sym(fora), poly(abaE), poly(mir(abaE)));
-  const fenda = poly([[31.8, 76], [32.2, 76], [33.6, 84.6], [30.4, 84.6]]);
+  const fenda = new Uint8Array(W * H); // V32: sem fenda, o casaco fica inteiro de costas
   const inteiro = minus(corpo, fenda), sh = { l: [-1, -3], s: [2, 0], d: [1, 1] };
   const baixo = rows(66, 96), esq = inside((x) => x < 32);
   P.push(part('casaco', 'casaco', minus(inteiro, baixo), PAL.casaco, { shade: sh, recv: true, shadeAlso: ['aba_e', 'aba_d'] }));
   P.push(part('aba_e', 'casaco', and(and(inteiro, baixo), esq), PAL.casaco, { shade: sh, recv: true, group: 'casaco', shadeAlso: ['casaco', 'aba_d'],
     strokes: [[2, [[26, 66], [25, 75]]]] }));
   P.push(part('aba_d', 'casaco', minus(and(inteiro, baixo), esq), PAL.casaco, { shade: sh, recv: true, group: 'casaco', shadeAlso: ['casaco', 'aba_e'],
-    strokes: [[2, [[32, 66], [32, 75]]], [2, [[38, 67], [39, 76]]]] }));
+    strokes: [[2, [[38, 67], [39, 76]]]] }));
   const mangaE = [[22.6, 48.2], [25.2, 50.4], [24.6, 57], [24.8, 63.6], [17.8, 63.6], [18.6, 56.6], [19.4, 50.4]];
   P.push(part('manga_e', 'casaco', poly(mangaE), PAL.casaco, { shade: { l: [-1, -2], s: [2, 1], d: [1, 1] }, group: 'manga', strokes: [[2, [[19, 55], [21, 57]]]] }));
   P.push(part('manga_d', 'casaco', poly(mir(mangaE)), PAL.casaco, { shade: { l: [-1, -2], s: [2, 1], d: [1, 1] }, group: 'manga', strokes: [[2, [[44, 55], [42, 57]]]] }));
@@ -674,7 +674,15 @@ export function skeletonFrame(view, anim, t) {
     // Mais o vento: a barra vai para trás (de lado) ou abre (de frente/costas), mais na corrida.
     const flow = anim === 'correr' ? 1 : anim === 'andar' ? 0.35 : 0;
     const vento = v === 'direita' ? 0.32 * flow : (k === 'e' ? 0.14 : -0.14) * flow;
-    const aba = T(cintura2, rotM(0.5 * (ang(P1[`hip${S}`], P1[`knee${S}`]) - ang(P0[`hip${S}`], P0[`knee${S}`])) + vento), piv.cintura);
+    let aba = T(cintura2, rotM(0.5 * (ang(P1[`hip${S}`], P1[`knee${S}`]) - ang(P0[`hip${S}`], P0[`knee${S}`])) + vento), piv.cintura);
+    // V32: correndo, o casaco voa para trás e não segue a perna (que o cortava). Leve tremor por quadro.
+    const trem = 0.05 * Math.sin(t * Math.PI * 4);
+    if (anim === 'correr' && v === 'direita') aba = T(cintura2, rotM(0.6 + trem), piv.cintura);
+    // De frente, voar para trás = a barra some para trás das pernas: encurta e abre para os lados.
+    if (anim === 'correr' && v === 'frente') aba = T(cintura2, mulM(rotM((k === 'e' ? 0.16 : -0.16) + trem), [1, 0, 0, 0.62]), piv.cintura);
+    // De costas o casaco é uma peça só: as duas metades levam o MESMO movimento (correndo, a barra vem para a câmera:
+    // abre e sobe um pouco).
+    if (v === 'costas') aba = T(cintura2, anim === 'correr' ? [1.12, 0, 0, 0.9 + trem] : [1, 0, 0, 1], piv.cintura);
     // Braço atrás do tronco (de frente/costas, na corrida ninja): vai para trás das outras peças.
     const atras = v !== 'direita' && P1[`elbow${S}`][2] < P1.chest[2] - 1.5;
     X.lados[k] = { braco, mao, coxa, canela, pe, aba, joelhoY: J.joelho[1], cotoveloY: J.cotovelo[1], atras,
