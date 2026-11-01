@@ -753,7 +753,9 @@ function skeletonPosed({ parts, stamps }, view, { anim, t, bob = null }) {
     if (k === 'pelve') return [[p.mask, X.pelve, '']];
     if (k === 'cabeca') return [[p.mask, X.cabeca, '']];
     const L = side(k);
-    if (limb === 'pe') return [[p.mask, L.pe, '']];
+    // Calçado: o cano (até o tornozelo) anda com a canela; só o pé (do tornozelo para baixo) gira com o osso do pé.
+    // Assim a bota acompanha o ângulo da perna e não parece solta dela.
+    if (limb === 'pe') return [[and(p.mask, rows(0, 85)), L.canela, ''], [and(p.mask, rows(84, 96)), L.pe, '~2']];
     if (limb === 'mao') return [[p.mask, L.mao, '']];
     if (limb === 'aba') return [[p.mask, L.aba, '']];
     // Braço e perna: corta no cotovelo/joelho, com 1 linha de sobra de cada lado.
