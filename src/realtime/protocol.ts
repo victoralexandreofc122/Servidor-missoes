@@ -480,6 +480,8 @@ export interface WorldInfo {
   respawnMs: number;
   /** range = alcance máximo (Fogo: raio da área); ausente = habilidade em si mesmo (nível 1 do jutsu). */
   skills: Record<Skill, SkillInfo>;
+  /** v28: custo e recarga de cada jutsu nas áreas de PvP (arena das vilas e Zona de Conflito). */
+  pvpSkills: Record<Skill, { cost: number; cooldownMs: number }>;
   meditationRegenMultiplier: number;
   npcs: NpcView[];
   basicAttack: { range: number; cooldownMs: number };

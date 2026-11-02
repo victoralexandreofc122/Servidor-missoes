@@ -1,0 +1,127 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { describe, it } from 'node:test';
+import { DEFAULT_APPEARANCE } from '../src/realtime/appearance.js';
+import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
+import { BASE_SKILLS } from '../src/realtime/jutsus.js';
+import { PVP_SHIELD, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type HitInfo } from '../src/realtime/pvpBalance.js';
+import { NO_ATTRIBUTES, derivedStats, type Attributes } from '../src/realtime/stats.js';
+import { FakeConn, placeIn, setupWorld } from './support/world.js';
+
+/*
+ * Passo 1d do plano do duelo: tabela de equilíbrio do PvP (pvpBalance.ts). Os números da coluna "contra jogador" do
+ * plano (nível 60, tier 4, nível de uso 4, 59 pontos no atributo) e o uso dela no jogo, na arena das vilas.
+ */
+
+const C = REALTIME.combat;
+const SCALE = C.damageScale;
+const base = {
+  maxHp: C.player.maxHp, maxChakra: C.player.maxChakra, meditationChakraPerSec: 15,
+  walkSpeed: 0, runSpeed: 0, attackCooldownMs: C.basicAttack.cooldownMs,
+};
+const stats = (a: Partial<Attributes>) => derivedStats(base, C.attributes, { ...NO_ATTRIBUTES, ...a }, 60);
+const hit = (mechanic: keyof typeof BASE_SKILLS, extra: Partial<HitInfo> = {}): HitInfo => ({
+  base: BASE_SKILLS[mechanic].damage ?? 0, tier: 4, useLevel: 4, weapon: 0, scaling: BASE_SKILLS[mechanic].scaling ?? 'ninjutsu',
+  passive: 1, sky: 1, ...(BASE_SKILLS[mechanic].burn ? { burn: { base: BASE_SKILLS[mechanic].burn!, ms: 3000 } } : {}), ...extra,
+});
+
+describe('pvpBalance: números do plano (nível 60, tier 4, nível de uso 4, 59 pontos)', () => {
+  it('dano contra jogador: Fogo 40 + 15, Água 32, Relâmpago 48, Soco 56, Kunai com Espada Longa 67', () => {
+    const nin = stats({ ninjutsu: 59 });
+    assert.equal(pvpHitDamage(hit('fire'), nin, SCALE), 40);
+    assert.equal(pvpBurnPerTick(hit('fire'), nin, SCALE) * 3, 15);
+    assert.equal(pvpHitDamage(hit('water'), nin, SCALE), 32);
+    assert.equal(pvpHitDamage(hit('lightning'), nin, SCALE), 48);
+    assert.equal(pvpHitDamage(hit('taijutsu'), stats({ taijutsu: 59 }), SCALE), 56);
+    assert.equal(pvpHitDamage(hit('weapons', { weapon: 28 }), stats({ weapons: 59 }), SCALE), 67);
+  });
+
+  it('nível 1 (tier 1, nível de uso 1, sem pontos): a curva achatada não mexe no tier 1', () => {
+    const zero = stats({});
+    assert.equal(pvpHitDamage(hit('fire', { tier: 1, useLevel: 1 }), zero, SCALE), 10);
+    assert.equal(pvpHitDamage(hit('lightning', { tier: 1, useLevel: 1 }), zero, SCALE), 12);
+  });
+
+  it('custo e recarga: Taijutsu x4 e Armas x2,5; o resto igual', () => {
+    assert.deepEqual(pvpCostCooldown('taijutsu', 5, 500), { cost: 20, cooldownMs: 2000 });
+    assert.deepEqual(pvpCostCooldown('weapons', 10, 1200), { cost: 25, cooldownMs: 3000 });
+    assert.deepEqual(pvpCostCooldown('fire', 20, 1500), { cost: 20, cooldownMs: 1500 });
+  });
+
+  it('escudo da Pedra 0,5 / 0,55 / 0,6 / 0,65; cura com a curva achatada e o bônus de uso do PvP', () => {
+    assert.deepEqual([...PVP_SHIELD], [0.5, 0.55, 0.6, 0.65]);
+    assert.equal(Math.round(pvpHeal(30, 4, 4, 1)), 50);                       // 30 x 1,45 x 1,15
+    assert.equal(pvpHeal(30, 1, 1, 1), 30);
+  });
+});
+
+// ---------------------------------------------------------------- no jogo: arena da Folha
+const IN = { x: 66, y: 47 };                                       // meio da arena (test/v15.test.ts)
+const F = { x: 51, y: 10 };                                        // clareira da Floresta
+
+function config(): RealtimeConfig {
+  return {
+    ...REALTIME,
+    combat: {
+      ...REALTIME.combat,
+      monsters: { ...C.monsters, count: 0, stepMs: 1e12, attackDamage: 0 },
+      player: { ...C.player, hpRegenPerSec: 0 },
+    },
+  };
+}
+
+function arena() {
+  const w = setupWorld(config());
+  const world = w.world as any;
+  world.skyEffectsAt = () => null;
+  const join = (username: string) => {
+    const conn = new FakeConn();
+    const id = randomUUID();
+    const h = w.world.join({ id, username, appearance: { ...DEFAULT_APPEARANCE, village: 'vila_1' } }, conn);
+    return { id, conn, send: (msg: unknown) => h.receive(JSON.stringify(msg)) };
+  };
+  const at = (p: { id: string }, map: string, x: number, y: number) => {
+    placeIn(w.world, p.id, map, x, y);
+    Object.assign(world.sessions.get(p.id), { x, y, fx: 1, fy: 0 });
+  };
+  const ses = (id: string) => world.sessions.get(id);
+  return { ...w, world, join, at, ses };
+}
+
+describe('pvpBalance no jogo (arena das vilas)', () => {
+  it('Taijutsu na arena custa 20 de chakra (x4) e recarrega em 2 s; fora dela, 5 e 0,5 s; o welcome manda os números', () => {
+    const { join, at, ses, clock } = arena();
+    const a = join('kaito');
+    assert.deepEqual(a.conn.last('welcome').world.pvpSkills.taijutsu, { cost: 20, cooldownMs: 2000 });
+    at(a, 'map_1', IN.x, IN.y);
+    Object.assign(ses(a.id), { chakra: 100, cooldowns: {} });
+    a.send({ type: 'cast', skill: 'taijutsu' });
+    assert.equal(a.conn.last('cast_failed'), undefined);
+    assert.equal(ses(a.id).chakra, 80);
+    assert.equal(ses(a.id).cooldowns.taijutsu - clock.now(), 2000);
+    at(a, 'map_2', F.x, F.y);
+    Object.assign(ses(a.id), { chakra: 100, cooldowns: {} });
+    a.send({ type: 'cast', skill: 'taijutsu' });
+    assert.equal(ses(a.id).chakra, 95, 'na Floresta, o custo de sempre');
+  });
+
+  it('Relâmpago tier 4 num ninja na arena sai da tabela do PvP; no monstro, o dano de fora', () => {
+    const { world, join, at, ses } = arena();
+    const a = join('kaito');
+    const b = join('mei');
+    at(a, 'map_1', IN.x, IN.y);
+    at(b, 'map_1', IN.x + 2, IN.y);
+    const s = ses(a.id);
+    s.attributes = { ...NO_ATTRIBUTES, ninjutsu: 59 };
+    s.stats = world.statsFor(s.village, s.attributes, 60);
+    s.jutsus.set('lightning_4', 2000);
+    s.kits[s.activeKit] = [...s.kits[s.activeKit].slice(0, 3), 'lightning_4'];
+    Object.assign(s, { chakra: 1000, cooldowns: {} });
+    const hpBefore = ses(b.id).hp = 1000;
+    a.send({ type: 'cast', skill: 'lightning_4', targetId: b.id });
+    assert.equal(a.conn.last('cast_failed'), undefined);
+    const esperado = pvpHitDamage(hit('lightning', { passive: world.passive(s, 'jutsu') }), s.stats, SCALE);
+    assert.equal(hpBefore - ses(b.id).hp, esperado, `PvP: ${esperado}`);
+    assert.ok(esperado < 60, 'bem abaixo dos 105 contra monstro');
+  });
+});
