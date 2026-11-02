@@ -84,3 +84,27 @@ export function looseTrees(spots: readonly Box[], avoid: readonly Box[], count: 
   }
   return out;
 }
+
+/**
+ * v29 (pedido do Victor): árvores ESPALHADAS ao acaso dentro das regiões de mata, nunca muito juntas (`minDist` casas
+ * entre os troncos), para dar para passar entre elas. Cada uma colide só no tronco. Evita as caixas de `avoid` (com
+ * folga de `margin`) e os lugares abertos `keepOpen` (clareiras e trilhas ficam livres).
+ */
+export function scatterTrees(regions: readonly Box[], keepOpen: readonly Box[], avoid: readonly Box[], minDist: number, seed = 13, margin = 1.5): Piece[] {
+  const r = seeded(seed);
+  const out: Piece[] = [];
+  const area = regions.reduce((s, b) => s + b.w * b.h, 0);
+  const tries = Math.ceil(area / (minDist * minDist)) * 12;
+  const total = regions.reduce((s, b) => s + b.w * b.h, 0);
+  for (let i = 0; i < tries; i++) {
+    // sorteia uma região pelo tamanho e um ponto nela
+    let pick = r() * total, b = regions[0]!;
+    for (const reg of regions) { pick -= reg.w * reg.h; if (pick <= 0) { b = reg; break; } }
+    const x = b.x + r() * b.w, y = b.y + 0.5 + r() * Math.max(0, b.h - 0.5);
+    if (keepOpen.some((o) => x > o.x - 0.6 && x < o.x + o.w + 0.6 && y > o.y - 0.3 && y < o.y + o.h + 1.2)) continue;
+    if (avoid.some((o) => x > o.x - margin && x < o.x + o.w + margin && y > o.y - margin && y < o.y + o.h + margin + 1)) continue;
+    if (out.some((p) => Math.hypot(p.x - x, p.y - y) < minDist)) continue;
+    out.push({ k: 'tree', x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, size: Math.round((1.6 + r() * 0.7) * 10) / 10, seed: Math.floor(r() * 1000) });
+  }
+  return out;
+}

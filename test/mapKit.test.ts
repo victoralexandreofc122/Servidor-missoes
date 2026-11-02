@@ -14,22 +14,19 @@ const inBox = (b: { x: number; y: number; w: number; h: number }, x: number, y: 
 describe('mapas por código: Floresta (v29)', () => {
   it('a Floresta é desenhada por código (sem a pintura) e tem peças', () => {
     assert.equal(F.art, undefined);
-    assert.ok((F.pieces ?? []).length > 100, `${F.pieces?.length} peças`);
+    assert.ok((F.pieces ?? []).length > 60, `${F.pieces?.length} peças`);
   });
 
-  it('árvore da borda: o pé dela está dentro da colisão da mata fechada (o ninja para no tronco)', () => {
-    const thicket = F.walls.filter((w) => w.k === 'thicket');
-    for (const p of (F.pieces ?? []).filter((q) => q.edge)) {
-      // a base do tronco encosta na colisão da mata (no máximo 0,05 casa para dentro): nem parede antes do tronco,
-      // nem tronco solto fora dela
-      assert.ok(thicket.some((t) => inBox(t, p.x, p.y)), `árvore em ${p.x},${p.y}: o pé está fora da mata`);
-      assert.ok(footBox(p).h > 0);
-    }
+  it('árvores espalhadas: sempre com espaço para passar entre duas (troncos a 3 casas ou mais)', () => {
+    const ps = F.pieces ?? [];
+    for (const a of ps) for (const b of ps) if (a !== b) assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= 3, `árvores coladas em ${a.x},${a.y}`);
+    // mata fechada só nas bordas do mapa, no sul e em volta da saliência (nada no meio da Floresta)
+    for (const w of F.walls.filter((q) => q.k === 'thicket')) assert.ok(w.y < 2.6 || w.x < 2.6 || w.x + w.w > F.width - 2.6 || w.y >= 63 - 1e-6 || w.x >= 72.5 - 1e-6, `mata fechada no meio: ${JSON.stringify(w)}`);
   });
 
   it('árvore solta: colide SÓ no pé (o tronco), nunca na copa', () => {
     const feet = F.walls.filter((w) => w.k === 'foot');
-    const loose = (F.pieces ?? []).filter((q) => !q.edge);
+    const loose = F.pieces ?? [];
     assert.ok(loose.length > 0);
     assert.equal(feet.length, loose.length, 'uma colisão por árvore solta');
     for (const p of loose) {

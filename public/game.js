@@ -1320,8 +1320,8 @@ function updateTargetWindow(f) {
  * ninjas (verde), portas e saídas (roxo) e a seta do jogador no meio.
  */
 const MM_GROUND = {
-  stone: '#8d8a84', grass: '#4f9a3a', darkgrass: '#2a5a2c', moss: '#5b8a62', desert: '#e4c38a', stonebridge: '#b6aa94', sand: '#d9c08a', water: '#3a8ad0', bridge: '#8b5a2b',
-  path: '#b8935c', trail: '#9a7a50', wood: '#7a5230', arena: '#3e4761', dirt: '#6f6150', ash: '#4a4744', cave: '#2a2236',
+  stone: '#8d8a84', grass: '#4a5a2a', darkgrass: '#2f3a1e', moss: '#5b8a62', desert: '#e4c38a', stonebridge: '#b6aa94', sand: '#d9c08a', water: '#3a8ad0', bridge: '#8b5a2b',
+  path: '#7a5a38', trail: '#9a7a50', wood: '#7a5230', arena: '#3e4761', dirt: '#6f6150', ash: '#4a4744', cave: '#2a2236',
   burnt: '#3a2e26', pebbles: '#8a8478', lodo: '#5e2a86', void: '#0b1020',
 };
 const MM_WALL = {
@@ -4075,17 +4075,17 @@ function grassTile(seed, flowers) {
 function pathTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
-    g.fillStyle = '#b8935c';
+    g.fillStyle = '#7a5a38';
     g.fillRect(0, 0, U, U);
     for (let i = 0; i < 30; i++) {
-      g.fillStyle = r() < 0.5 ? '#a8834e' : '#c9a56d';
+      g.fillStyle = r() < 0.5 ? '#6a4e30' : '#8a6a44';
       g.fillRect(Math.floor(r() * U), Math.floor(r() * U), 1, 1);
     }
     for (let i = 0; i < 3; i++) {          // pedrinhas
-      g.fillStyle = '#8d7350';
+      g.fillStyle = '#5a4430';
       const x = Math.floor(r() * (U - 2)), y = Math.floor(r() * (U - 2));
       g.fillRect(x, y, 2, 1);
-      g.fillStyle = '#d7bd8c';
+      g.fillStyle = '#9a7a54';
       g.fillRect(x, y - 1, 1, 1);
     }
   });
@@ -4163,8 +4163,9 @@ function grassHD(seed, pal, extra) {
 }
 
 /** Grama da Floresta (mais escura) e a dos gramados da Vila. */
-const DARK_GRASS = ['#2d6230', '#1f4a24', '#2f6a33', '#3f8040', '#6aa85a'];
-const LAWN = ['#4f9a3a', '#3a7a2b', '#4c9238', '#5fae47', '#8fd06a'];
+// v29: verde-oliva escuro e terroso (referência da Floresta), no jogo todo
+const DARK_GRASS = ['#2f3a1e', '#222b15', '#36421f', '#4a5428', '#7a8040'];
+const LAWN = ['#4a5a2a', '#38461f', '#4e5e2c', '#64733a', '#9aa35a'];
 /** Grama úmida da Névoa: verde frio, puxado para o azul. */
 const MOSS = ['#5b8a62', '#41684a', '#527f5a', '#6c9a70', '#a2c6a0'];
 
@@ -5156,12 +5157,12 @@ function drawPuddle(g, cx, cy, r) {
  * ponte, arena) fica reto. Sem isso, cada casa é um quadrado e o mapa parece grade.
  */
 const EDGE = {
-  grass: { p: 6, base: '#4f9a3a', dark: '#3a7a2b', tip: '#6cbd52', blades: true },
+  grass: { p: 6, base: '#4a5a2a', dark: '#38461f', tip: '#64733a', blades: true },
   moss: { p: 6, base: '#5b8a62', dark: '#41684a', tip: '#7aa67c', blades: true },
   desert: { p: 3, base: '#e4c38a', dark: '#d4ae70', tip: '#f0d6a4' },
-  darkgrass: { p: 6, base: '#2d6230', dark: '#1f4a24', tip: '#3f8040', blades: true },
+  darkgrass: { p: 6, base: '#2f3a1e', dark: '#222b15', tip: '#4a5428', blades: true },
   burnt: { p: 4, base: '#2e2a22', dark: '#1f1c17', tip: '#40382c' },
-  path: { p: 3, base: '#b8935c', dark: '#a8834e', tip: '#c9a56d' },
+  path: { p: 3, base: '#7a5a38', dark: '#6a4e30', tip: '#8a6a44' },
   sand: { p: 3, base: '#e2cd96', dark: '#d3bb80', tip: '#eedcab' },
   pebbles: { p: 2, base: '#8a8478', dark: '#6f6a60', tip: '#a39d90' },
   dirt: { p: 2, base: '#6f6150', dark: '#5f5242', tip: '#806f5c' },

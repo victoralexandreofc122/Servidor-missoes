@@ -21,7 +21,7 @@
  * lanternas...) são só desenho. A regra de atravessar a borda fica em movement.ts e
  * public/movement.js: a mesma conta nos dois.
  */
-import { footBox, looseTrees, thicketEdge, type Piece } from './mapKit.js';
+import { footBox, scatterTrees, type Piece } from './mapKit.js';
 import type { Village } from './appearance.js';
 import type { Box } from './movement.js';
 
@@ -870,9 +870,10 @@ function forest(): MapLayout {
     { x: 0, y: 0, w: W, h: b.y }, { x: 0, y: b.y + b.h, w: W, h: H - b.y - b.h },
     { x: 0, y: b.y, w: b.x, h: b.h }, { x: b.x + b.w, y: b.y, w: W - b.x - b.w, h: b.h },
   ];
-  const thicket = carve(W, H, [...open, cliff, abyss], 'thicket');
+  // v29: onde antes era mata fechada, agora árvores espalhadas com espaço entre elas (o Victor não quer paredes de
+  // mata). As regiões de mata são só onde as árvores nascem; não colidem.
+  const woods = carve(W, H, [...open, cliff, abyss], 'thicket');
   const walls: Wall[] = [
-    ...thicket,
     ...carve(W, H, [...open, ...outside(cliff)], 'cliff'),
     ...carve(W, H, [...open, ...outside(abyss)], 'pit').map((w) => ({ ...w, s: 'chasm' as const })),
     // Pedra-Selo 1 (apagada: a Tsubaki acha na M3) no meio do lago; pedras e moitas da clareira.
@@ -897,11 +898,20 @@ function forest(): MapLayout {
   ];
   // Peças: as árvores da borda da mata (pé dentro da colisão da mata) e algumas soltas nos gramados (colidem no pé).
   const trails = [{ x: 45, y: 0, w: 7, h: 16 }, { x: 46, y: 16, w: 5.5, h: 47 }, { x: 47, y: 63, w: 4, h: 12 }];
-  const loose = looseTrees([{ x: 20, y: 6, w: 20, h: 8 }, { x: 18, y: 41.5, w: 28, h: 9.5 }], [...walls, ...trails], 5);
-  // Nada de árvore da borda na frente dos lugares da história (Carvalho, Pedras-Selo, barracas, troncos, caverna).
-  const landmarks = walls.filter((w) => w.k !== 'thicket' && w.k !== 'cliff' && w.k !== 'pit');
-  const nearLandmark = (p: Piece) => landmarks.some((w) => p.x > w.x - 1.2 && p.x < w.x + w.w + 1.2 && p.y > w.y - 0.5 && p.y < w.y + w.h + 2.5);
-  const pieces: Piece[] = [...thicketEdge(thicket, walls, W, H).filter((p) => !nearLandmark(p)), ...loose];
+  // Mata fechada SÓ onde o jogo precisa de parede: a borda do mapa, o sul (a passagem sul fica fechada pelos troncos
+  // até a M14) e em volta da saliência da caverna (só se chega saltando). O resto: árvores espalhadas.
+  const solidZones: Box[] = [
+    { x: 0, y: 0, w: W, h: 2.5 }, { x: 0, y: 0, w: 2.5, h: H }, { x: W - 2.5, y: 0, w: 2.5, h: H },
+    { x: 0, y: 63, w: W, h: H - 63 }, { x: 72.5, y: 43, w: W - 72.5, h: H - 43 },
+  ];
+  const cut = (a: Box, b: Box): Box | null => {
+    const x0 = Math.max(a.x, b.x), y0 = Math.max(a.y, b.y), x1 = Math.min(a.x + a.w, b.x + b.w), y1 = Math.min(a.y + a.h, b.y + b.h);
+    return x1 - x0 > 0.01 && y1 - y0 > 0.01 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+  };
+  for (const wd of woods) for (const z of solidZones) { const c = cut(wd, z); if (c) walls.push({ ...c, k: 'thicket' }); }
+  const landmarks = walls.filter((w) => w.k !== 'cliff' && w.k !== 'pit' && w.k !== 'thicket');
+  const loose = scatterTrees(woods, [...open.filter((o) => o.w * o.h < 300), ...trails], [...landmarks, ...solidZones], 3.6, 13, 1.2);
+  const pieces: Piece[] = loose;
   walls.push(...loose.map((p) => ({ ...footBox(p), k: 'foot' as const })));
   return {
     id: 'map_2', name: 'Floresta', kind: 'forest', width: W, height: H, safe: false, walls, pieces,

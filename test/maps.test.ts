@@ -56,7 +56,7 @@ describe('mapas: layout', () => {
     assert.deepEqual([VILA.id, VILA.kind, VILA.width, VILA.height, VILA.safe, VILA.art], ['map_1', 'village', 78, 60, true, 'folha']);
     assert.deepEqual([FLORESTA.id, FLORESTA.kind, FLORESTA.width, FLORESTA.height, FLORESTA.safe, FLORESTA.art], ['map_2', 'forest', 100, 75, false, undefined]);   // v29: Floresta desenhada por código
     assert.deepEqual(buildMaps(), WORLD_MAPS, 'a floresta tem semente fixa: igual em todo boot');
-    assert.ok(FLORESTA.walls.filter((w) => w.k === 'thicket').length > 20, 'a mata em volta das clareiras e trilhas (v29: mata fechada)');
+    assert.ok((FLORESTA.pieces ?? []).length > 60, 'árvores espalhadas em volta das clareiras e trilhas (v29)');
     const styles = VILA.walls.filter((w) => w.k === 'house').map((w) => w.s);
     for (const s of ['leader', 'hospital', 'academy', 'shop_weapon', 'shop_cloth', 'shop_scroll'] as const) assert.ok(styles.includes(s), s);
     assert.deepEqual(VILA.deco, [], 'os enfeites estão no desenho');
