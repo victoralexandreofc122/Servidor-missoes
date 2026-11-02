@@ -14,7 +14,7 @@ const SK = REALTIME.combat.skills;
 const BA = REALTIME.combat.basicAttack;
 
 /** Monstros parados e posicionados à mão. */
-const config: RealtimeConfig = { ...REALTIME, combat: { ...REALTIME.combat, monsters: { ...M, count: 0, stepMs: 1e12 } } };
+const config: RealtimeConfig = { ...REALTIME, combat: { ...REALTIME.combat, damageScale: { jutsu: 1, basic: 1 }, monsters: { ...M, count: 0, stepMs: 1e12 } } };
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 const sess = (world: any, id: string) => world.sessions.get(id);
 const monsterHp = (world: any, id: string) => world.monsterList().find((m: any) => m.id === id)?.hp;

@@ -126,6 +126,11 @@ export interface CombatConfig {
    */
   basicAttack: { damage: number; range: number; arcDeg: number; cooldownMs: number };
   /**
+   * Fator do dano base (v28, plano do duelo): jutsus e poderes x `jutsu`; Ataque Básico e arma x `basic` (inclusive a
+   * arma somada nos jutsus de Armas). Entra no golpe, antes dos atributos. A cura não usa.
+   */
+  damageScale: { jutsu: number; basic: number };
+  /**
    * PvP ABERTO (os mapas de fronteira do Arco 2): as hitboxes também acertam outros jogadores fora da zona
    * segura e fora da Academia. Nunca vale em mapa de vila. Desligado, fora das arenas todo jogador é aliado
    * (a Cura pega os outros).
@@ -305,6 +310,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     // Chakra só volta meditando: 5 x 3 = 15/s. Vida volta 1/s só com o chakra cheio.
     player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 1, chakraRegenPerSec: 5, respawnMs: 5000, meditationRegenMultiplier: 3 },
     basicAttack: { damage: 12, range: 1.6, arcDeg: 90, cooldownMs: 600 },
+    damageScale: { jutsu: 0.4, basic: 0.5 },
     pvp: false,
     arena: { respawnMs: 3000, protectMs: 5000 },
     controlDr: { windowMs: 8000, factors: [1, 0.5, 0.25, 0] },
@@ -336,7 +342,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     },
     monsterTypes: {
       // Sala 1: destruir 3 com o Ataque Básico (2 golpes cada). Não batem.
-      dummy: { maxHp: 24, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 2500 },
+      dummy: { maxHp: 12, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 2500 },
       // Sala de Jutsus: ARMADILHA de lâminas que bate (fraco) em quem chega perto: treina a Substituição.
       sparring: { maxHp: 400, xp: 0, attackRange: 1.6, attackDamage: 6, attackEveryMs: 1800, stationary: true, respawnMs: 2500 },
       // Zona de Conflito: lodo sombrio, mais forte que o slime (para quem já é Chunin).

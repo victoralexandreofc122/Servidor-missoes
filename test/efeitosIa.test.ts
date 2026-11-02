@@ -23,6 +23,7 @@ function config(monsterDamage = 0): RealtimeConfig {
     ...REALTIME,
     combat: {
       ...REALTIME.combat,
+      damageScale: { jutsu: 1, basic: 1 },  // testes de mecânica: dano base de antes da v28 (os números novos estão em pveDamage)
       monsters: { ...REALTIME.combat.monsters, count: 0, attackDamage: monsterDamage },
       player: { ...REALTIME.combat.player, hpRegenPerSec: 0 },
     },

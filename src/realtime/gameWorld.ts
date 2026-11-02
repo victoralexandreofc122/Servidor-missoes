@@ -1596,7 +1596,8 @@ export class GameWorld {
     // Passiva da Nuvem: +10% no dano dos jutsus.
     // Clima e hora (ao ar livre): Fogo no dia quente, Água e Raio na chuva... (weather.ts).
     const sky = this.skyEffectsAt(session.map);
-    const dmg = scaledDamage((cfg.damage ?? 0) + weaponBonus,
+    const scale = this.config.combat.damageScale;
+    const dmg = scaledDamage((cfg.damage ?? 0) * scale.jutsu + weaponBonus * scale.basic,
       damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * jutsuPower(level) * this.passive(session, 'jutsu') * (sky?.damage[mechanic] ?? 1));
     const lasting = (ms: number) => Math.round(ms * (sky?.status[mechanic] ?? 1));
     const reach = cfg.range ?? cfg.radius ?? 0;
@@ -2209,8 +2210,10 @@ export class GameWorld {
     // FÍSICO: base x Taijutsu + a arma equipada x Armas (Kunai de Treino: +10).
     // Passiva da Areia: +10% no que a arma soma.
     if (safe) return;
-    const damage = scaledDamage(cfg.damage, session.stats.physicalMultiplier)
-      + scaledDamage(this.weaponDamage(session) * this.passive(session, 'weapons'), session.stats.weaponMultiplier);
+    // v28: dano base x damageScale.basic; o bônus de Armas vale pela metade no Ataque Básico; um arredondamento só.
+    const scale = this.config.combat.damageScale.basic;
+    const damage = Math.round(cfg.damage * scale * session.stats.physicalMultiplier
+      + this.weaponDamage(session) * this.passive(session, 'weapons') * scale * (1 + (session.stats.weaponMultiplier - 1) / 2));
     if (thrown) {
       this.launch(session, session.fx, session.fy, {
         weapon: weapon!.code, speed: thrown.speed, range: thrown.range, damage: Math.round(damage * thrown.damageFactor), radius: 0,
@@ -4337,7 +4340,7 @@ export class GameWorld {
     if (s.chakra < def.cost) return fail('NO_CHAKRA');
     const targets = this.targetsFor(s, true);
     const focused = targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined;
-    const dmg = (base: number) => scaledDamage(base, damageMultiplier(s.stats, 'ninjutsu'));
+    const dmg = (base: number) => scaledDamage(base * this.config.combat.damageScale.jutsu, damageMultiplier(s.stats, 'ninjutsu'));
     const layout = this.layout(s.map);
     let tx: number | undefined;
     let ty: number | undefined;

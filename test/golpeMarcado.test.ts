@@ -18,6 +18,7 @@ function config(pvp = false): RealtimeConfig {
     ...REALTIME,
     combat: {
       ...REALTIME.combat,
+      damageScale: { jutsu: 1, basic: 1 },  // testes de mecânica: dano base de antes da v28 (os números novos estão em pveDamage)
       pvp,
       monsters: { ...REALTIME.combat.monsters, count: 0, attackDamage: 0 },
       player: { ...REALTIME.combat.player, hpRegenPerSec: 0 },

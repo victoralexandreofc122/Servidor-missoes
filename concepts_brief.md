@@ -670,6 +670,10 @@ Proposta do Claude, confirmada pelo simulador: o bônus do atributo Armas vale p
      `efeitosIa` e o da 1a): passam a usar um ajudante `pveDamage(skill)` em `test/support/` em vez do número cru.
      O boneco do tutorial vai a 12 de vida (`config.ts`, `dummy`), para `test/v7.test.ts:148` continuar com 2
      golpes. Anotar o PvE (Slime, Rei Lodo).
+     **Feito (02/11/2026):** Slime (60 de vida) no nível 1 cai com 6 Ataques Básicos com a Kunai de Treino (11 cada)
+     ou 6 Fogos (10 + 3); Rei Lodo (1.000) cai com 12 Fogos tier 4 no nível 60 (87 + 30). Os testes de mecânica
+     antigos rodam com o fator neutro (`damageScale` 1); os números novos ficam em `test/pveDamage.test.ts`. A loja
+     ainda mostra o dano base da arma ("+14 de dano"), que no golpe vale metade.
    - 1c. Vida por nível: `derivedStats(base, regras, atributos, nível)`; `computeStats` recebe o nível e roda também
      ao subir de nível; a vida atual ganha os +6 na subida; no `join`, o nível vem de `player.level` antes de calcular
      a vida. Mudam `test/v8.test.ts` (linhas 194, 200 e 232). Casos: nível 60 com 59 de Vitalidade = 733; subir de

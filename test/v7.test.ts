@@ -353,8 +353,8 @@ describe('v7: jutsus aprendidos e nível pelo uso', () => {
 });
 
 describe('v7: Armas, loja, Extração e classe (servidor)', () => {
-  it('Ataque Básico com a Kunai de Treino: +10 de dano; o atributo Armas escala a arma', () => {
-    for (const [weapons, expected] of [[0, 22], [4, 24]] as const) {
+  it('Ataque Básico com a Kunai de Treino: +10 de dano base (x0,5 na v28); o atributo Armas escala a arma pela metade', () => {
+    for (const [weapons, expected] of [[0, 11], [20, 13]] as const) {
       const { join, sess, world } = setup();
       const p = join('kaito', { equipped: 'kunai_training', items: { kunai_training: 1 }, attributes: { vitality: 0, chakra: 0, agility: 0, taijutsu: 0, ninjutsu: 0, weapons } });
       const s = sess(p.id);

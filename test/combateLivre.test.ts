@@ -18,6 +18,7 @@ function config(pvp = false): RealtimeConfig {
     ...REALTIME,
     combat: {
       ...REALTIME.combat,
+      damageScale: { jutsu: 1, basic: 1 },  // testes de mecânica: dano base de antes da v28 (os números novos estão em pveDamage)
       pvp,
       monsters: { ...REALTIME.combat.monsters, count: 0, stepMs: 1e12, attackDamage: 0 },
       player: { ...REALTIME.combat.player, hpRegenPerSec: 0 },
@@ -45,6 +46,7 @@ describe('combate livre: Água empurra, Fogo vai longe', () => {
     assert.equal(SK.water_2.push, 2, 'o tier 2 empurra mais');
     w.clock.advance(SK.water.cooldownMs);
     const dummy = w.world.spawnMonster({ x: F.x + 2, y: F.y }, undefined, 'map_2', 'dummy');
+    (w.world as any).monsters.get(dummy.id).hp = 999;   // o boneco tem 12 de vida (v28): aguenta a Água para o teste ver que não sai do lugar
     a.send({ type: 'cast', skill: 'water' });
     assert.deepEqual([monster(w.world, dummy.id).x, monster(w.world, dummy.id).y], [F.x + 2, F.y], 'boneco de treino fica');
   });

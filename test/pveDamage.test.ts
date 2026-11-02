@@ -70,20 +70,21 @@ function golpear(g: Golpe): { dano: number; queimadura: number } {
 }
 
 /**
- * Dano de hoje (antes do passo 1b). Cada linha: pontos no atributo do golpe, tier, nível de uso e
- * "dano direto + queimadura somada nos 3 s". Contra um monstro, sem clima e sem passiva de vila.
- * Os jutsus de Armas usam a Kunai de Treino (+10 de dano base).
+ * Dano contra monstros na v28 (passo 1b: jutsus x0,4; Ataque Básico e arma x0,5; o bônus de Armas vale pela metade
+ * no Ataque Básico). Antes da v28 era, por exemplo, Fogo 25+9 / 218+75 e Ataque Básico com Espada Longa 40 / 79.
+ * Cada linha: pontos no atributo do golpe, tier, nível de uso e "dano direto + queimadura somada nos 3 s". Contra um
+ * monstro, sem clima e sem passiva de vila. Os jutsus de Armas usam a Kunai de Treino (+10 de dano base).
  */
 const ESPERADO: Record<string, string[]> = {
-  fire: ['0 T1 U1 25+9', '0 T1 U4 33+12', '0 T4 U1 70+24', '0 T4 U4 91+30', '59 T1 U1 60+21', '59 T1 U4 78+27', '59 T4 U1 168+57', '59 T4 U4 218+75'],
-  water: ['0 T1 U1 20+0', '0 T1 U4 26+0', '0 T4 U1 56+0', '0 T4 U4 73+0', '59 T1 U1 48+0', '59 T1 U4 62+0', '59 T4 U1 134+0', '59 T4 U4 174+0'],
-  lightning: ['0 T1 U1 30+0', '0 T1 U4 39+0', '0 T4 U1 84+0', '0 T4 U4 109+0', '59 T1 U1 72+0', '59 T1 U4 93+0', '59 T4 U1 201+0', '59 T4 U4 261+0'],
-  taijutsu: ['0 T1 U1 35+0', '0 T1 U4 46+0', '0 T4 U1 98+0', '0 T4 U4 127+0', '59 T1 U1 84+0', '59 T1 U4 109+0', '59 T4 U1 235+0', '59 T4 U4 305+0'],
-  weapons: ['0 T1 U1 28+0', '0 T1 U4 36+0', '0 T4 U1 60+0', '0 T4 U4 78+0', '59 T1 U1 67+0', '59 T1 U4 87+0', '59 T4 U1 144+0', '59 T4 U4 187+0'],
+  fire: ['0 T1 U1 10+3', '0 T1 U4 13+6', '0 T4 U1 28+9', '0 T4 U4 36+12', '59 T1 U1 24+9', '59 T1 U4 31+12', '59 T4 U1 67+24', '59 T4 U4 87+30'],
+  water: ['0 T1 U1 8+0', '0 T1 U4 10+0', '0 T4 U1 22+0', '0 T4 U4 29+0', '59 T1 U1 19+0', '59 T1 U4 25+0', '59 T4 U1 54+0', '59 T4 U4 70+0'],
+  lightning: ['0 T1 U1 12+0', '0 T1 U4 16+0', '0 T4 U1 34+0', '0 T4 U4 44+0', '59 T1 U1 29+0', '59 T1 U4 37+0', '59 T4 U1 80+0', '59 T4 U4 105+0'],
+  taijutsu: ['0 T1 U1 14+0', '0 T1 U4 18+0', '0 T4 U1 39+0', '0 T4 U4 51+0', '59 T1 U1 34+0', '59 T1 U4 44+0', '59 T4 U1 94+0', '59 T4 U4 122+0'],
+  weapons: ['0 T1 U1 12+0', '0 T1 U4 16+0', '0 T4 U1 25+0', '0 T4 U4 33+0', '59 T1 U1 29+0', '59 T1 U4 38+0', '59 T4 U1 60+0', '59 T4 U4 78+0'],
   attack: [
-    'sem arma {} 12', 'sem arma {"taijutsu":59} 29', 'sem arma {"weapons":59} 12',
-    'kunai_training {} 22', 'kunai_training {"taijutsu":59} 39', 'kunai_training {"weapons":59} 36',
-    'katana {} 40', 'katana {"taijutsu":59} 57', 'katana {"weapons":59} 79',
+    'sem arma {} 6', 'sem arma {"taijutsu":59} 14', 'sem arma {"weapons":59} 6',
+    'kunai_training {} 11', 'kunai_training {"taijutsu":59} 19', 'kunai_training {"weapons":59} 14',
+    'katana {} 20', 'katana {"taijutsu":59} 28', 'katana {"weapons":59} 30',
   ],
 };
 
@@ -100,7 +101,7 @@ const JUTSUS: [classe: string, atributo: Partial<Attributes>, dist: number][] = 
   ['weapons', W59, 2],
 ];
 
-describe('passo 1a: dano contra monstros de hoje (trava antes do equilíbrio)', () => {
+describe('dano contra monstros (passos 1a e 1b do duelo)', () => {
   for (const [classe, attr, dist] of JUTSUS) {
     it(`${classe}: tiers 1 e 4, níveis de uso 1 e 4, com 0 e 59 pontos`, () => {
       const linhas: string[] = [];
