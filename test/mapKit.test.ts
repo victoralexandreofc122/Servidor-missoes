@@ -20,9 +20,10 @@ describe('mapas por código: Floresta (v29)', () => {
   it('árvore da borda: o pé dela está dentro da colisão da mata fechada (o ninja para no tronco)', () => {
     const thicket = F.walls.filter((w) => w.k === 'thicket');
     for (const p of (F.pieces ?? []).filter((q) => q.edge)) {
-      const f = footBox(p);
-      const cx = f.x + f.w / 2, cy = f.y + f.h / 2;
-      assert.ok(thicket.some((t) => inBox(t, cx, cy)), `árvore em ${p.x},${p.y}: o pé está fora da mata`);
+      // a base do tronco encosta na colisão da mata (no máximo 0,05 casa para dentro): nem parede antes do tronco,
+      // nem tronco solto fora dela
+      assert.ok(thicket.some((t) => inBox(t, p.x, p.y)), `árvore em ${p.x},${p.y}: o pé está fora da mata`);
+      assert.ok(footBox(p).h > 0);
     }
   });
 

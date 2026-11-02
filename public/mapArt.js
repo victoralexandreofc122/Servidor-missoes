@@ -1127,7 +1127,7 @@ export function drawWall(g, wall, x, y, w, h, tile) {
  */
 function drawThicket(g, wall, x, y, w, h, tile) {
   // Grade do MAPA (casas), não do bloco: dois blocos vizinhos desenham os mesmos tufos na emenda (sem linha reta).
-  g.fillStyle = '#10261a';
+  g.fillStyle = '#1c2414';
   g.fillRect(x, y, w, h);
   g.save();
   g.beginPath(); g.rect(x, y, w, h); g.clip();
@@ -1181,10 +1181,11 @@ export function drawProp(g, wall, x, y, w, h, tile) {
 }
 
 /** Cores das copas: [contorno, sombra, meio, luz, brilho]. Três verdes para a mata não parecer carimbada. */
+// v29: verde-oliva escuro e terroso, como a referência da Floresta (antes: verdes saturados e frios).
 const LEAVES = [
-  ['#13301a', '#1f5226', '#2f7a34', '#4fa046', '#8fd16a'],
-  ['#102c27', '#1b4c3b', '#29704e', '#41925f', '#86c98a'],
-  ['#1b3214', '#2d581e', '#45802a', '#69a63c', '#b5d96a'],
+  ['#141a0d', '#2f3d1f', '#4e5a2a', '#6f7a38', '#a3a85a'],
+  ['#12190f', '#283a22', '#3f5530', '#5c7240', '#93a463'],
+  ['#1a1a0c', '#3a3c1c', '#5a5a28', '#7f7c3a', '#b3ab5c'],
 ];
 
 /**

@@ -61,7 +61,7 @@ export function thicketEdge(blocks: readonly Box[], solid: readonly Box[], W: nu
     // embaixo (o lado aberto está ao sul): o pé na borda de baixo; a copa sobe para dentro da mata
     for (let x = b.x + 0.7; x < b.x + b.w - 0.5; x += step()) if (free(x, b.y + b.h + 0.3)) put(x, b.y + b.h);
     // em cima (aberto ao norte): o pé logo dentro da borda; a copa passa por cima do caminho
-    for (let x = b.x + 0.7; x < b.x + b.w - 0.5; x += step()) if (free(x, b.y - 0.3)) put(x, b.y + 0.4);
+    for (let x = b.x + 0.7; x < b.x + b.w - 0.5; x += step()) if (free(x, b.y - 0.3)) put(x, b.y + 0.05);   // tronco NA linha (sem parede antes dele)
     // dos lados: o tronco encostado na borda
     for (let y = b.y + 1.2; y < b.y + b.h - 0.2; y += step()) {
       if (free(b.x - 0.3, y)) put(b.x + 0.25, y);
