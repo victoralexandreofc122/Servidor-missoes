@@ -18,7 +18,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   `public/figure.js` cache e giro). Detalhes em `arte/personagem-rig/LEIAME.md`. O estilo segue a folha de referência
   do Victor (chibi, contorno escuro, sombreado em 2-3 tons). Toda mudança de arte é comparada lado a lado com a
   referência e conferida dentro do jogo antes de fechar.
-- **Versão atual:** v27 (o casaco com capuz é acessório, migração v14). Histórico completo no `README.md`.
+- **Versão atual:** v28 (equilíbrio do PvP, passo 1 do duelo, sem migração). Histórico completo no `README.md`.
 
 ## Documentos
 

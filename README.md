@@ -215,6 +215,23 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v28: equilíbrio do PvP, passo 1 do duelo (sem migração)
+
+Plano completo em `concepts_brief.md` (revisado pelo método EGM; relatórios em `revisao_egm/`).
+
+- **Dano base menor no jogo todo:** jutsus e poderes da Akatsuki a 40%; Ataque Básico e arma a 50%
+  (`combat.damageScale`). O bônus do atributo Armas vale pela metade no Ataque Básico. A cura não muda. Os monstros
+  ficaram com a vida de antes (o Slime cai com 6 golpes no nível 1). O boneco da Academia tem 12 de vida (2 golpes).
+- **Vida por nível:** +6 de vida por nível acima do 1, somada à Vitalidade (nível 60: até 733).
+- **Tabela de equilíbrio do PvP** (`src/realtime/pvpBalance.ts`), só nas áreas de PvP (arena das vilas e Zona de
+  Conflito) e só de jogador em jogador: curva de tier achatada (tier 4 = 1,45x), nível de uso +0/+5/+10/+15%,
+  Taijutsu x4, Armas x2,5 e Relâmpago x2 no custo e na recarga, escudo da Pedra 50 a 65%, cura com a curva achatada.
+- **Orçamento de controle:** de jogador em jogador, no máximo 1,5 s por golpe e 2,5 s sem agir a cada 15 s (silêncio
+  pela metade). Controle de monstro segue o teto de antes.
+- **Rede de segurança:** um ninja tira de outro no máximo 50% da vida em 2 s; os cortes aparecem no Painel do Admin.
+- **Simulador de duelos** (`src/realtime/pvpSim.ts`) no `npm run verify`: 5 builds no nível 60, duelos de 6 a 30 s,
+  nenhuma build vence todas, o atordoamento sempre pega.
+
 ### v27: o casaco com capuz vira acessório (migração `db/schema_v14_acessorio.sql`, ANTES do deploy)
 
 - O casaco com capuz saiu das roupas do Criador e virou item do espaço **Acessório** na Tela de Equipamentos (que
