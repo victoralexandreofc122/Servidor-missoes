@@ -197,7 +197,7 @@ describe('v8: atributos com rendimento decrescente (soft cap) e sem teto', () =>
     await flush();
     const after = p.conn.last('progress');
     assert.equal(after.attributes.vitality, 11);
-    assert.equal(after.derived.maxHp - before, Math.round(100 + 10 * effectivePoints(11, 0.05)) - before, 'o servidor calcula o ganho');
+    assert.equal(after.derived.maxHp - before, Math.round(100 + 6 * 10 + 10 * effectivePoints(11, 0.05)) - before, 'o servidor calcula o ganho (nível 11: +60 de vida por nível)');
     p.send({ type: 'spend_point', attribute: 'chakraMax' });
     assert.equal(p.conn.last('error').code, 'INVALID_MESSAGE', 'os atributos antigos não existem mais');
   });
@@ -229,8 +229,8 @@ describe('v8: atributos com rendimento decrescente (soft cap) e sem teto', () =>
     await flush();
     assert.deepEqual(calls, [[p.id, 500]]);
     assert.deepEqual([p.conn.last('progress').statPoints, p.conn.last('progress').attributes.vitality], [6, 0]);
-    assert.equal(s.stats.maxHp, 100);
-    assert.equal(s.hp, 100, 'vida cortada no máximo novo');
+    assert.equal(s.stats.maxHp, 136, 'nível 7: 100 + 6 x 6 da vida por nível');
+    assert.equal(s.hp, 136, 'vida cortada no máximo novo');
     assert.equal(p.conn.last('inventory').ryo, 200);
     assert.match(p.conn.last('notice').text, /Atributos redefinidos \(-500 ryō\)/);
   });

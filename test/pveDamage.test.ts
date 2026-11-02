@@ -130,3 +130,29 @@ describe('dano contra monstros (passos 1a e 1b do duelo)', () => {
   });
 });
 
+
+describe('vida por nível (passo 1c do duelo)', () => {
+  it('+6 de vida por nível acima do 1, somada à Vitalidade: nível 60 com 59 de Vitalidade = 733', () => {
+    const { world, connect } = setupWorld(config());
+    const w = world as any;
+    const vida = (level: number, vitality: number) => w.statsFor(null, { ...NO_ATTRIBUTES, vitality }, level).maxHp;
+    assert.equal(vida(1, 0), 100);
+    assert.equal(vida(2, 0), 106);
+    assert.equal(vida(60, 0), 454);
+    assert.equal(vida(60, 59), 733);
+    const a = connect('ninja', {});
+    const s = w.sessions.get(a.id);
+    assert.equal(s.stats.maxHp, 100, 'nível 1 entra com 100');
+  });
+
+  it('subir de nível soma 6 na vida máxima e na atual', () => {
+    const { world, connect } = setupWorld(config());
+    const w = world as any;
+    const a = connect('ninja');
+    const s = w.sessions.get(a.id);
+    s.hp = 50;
+    w.applyXp(a.id, 'ninja', 100, { totalXp: 100, rank: s.rank, promoted: false, level: 2, levelsGained: 1, statPoints: 1 });
+    assert.equal(s.stats.maxHp, 106);
+    assert.equal(s.hp, 56);
+  });
+});

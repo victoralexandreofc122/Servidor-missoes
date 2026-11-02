@@ -28,6 +28,8 @@ export interface AttributeRules {
    * 100%, o 10º vale 69% e o 50º vale 29% (Vitalidade: +10, +6,9 e +2,9 de vida).
    */
   softCap: number;
+  /** Vida que cada nível acima do 1 dá, além da Vitalidade (v28: 6; nível 60 = +354). */
+  hpPerLevel: number;
   /** Quanto o 1º ponto de cada atributo vale (os seguintes rendem menos, pelo soft cap). */
   perPoint: Attributes;
   /** Chakra também acelera a meditação: chakra/s do 1º ponto (com o mesmo soft cap). */
@@ -88,14 +90,14 @@ export function effectivePoints(points: number, softCap: number): number {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
-export function derivedStats(base: BaseStats, rules: AttributeRules, a: Attributes): DerivedStats {
+export function derivedStats(base: BaseStats, rules: AttributeRules, a: Attributes, level = 1): DerivedStats {
   const p = rules.perPoint;
   const e = (points: number) => effectivePoints(points, rules.softCap);
   const chakra = e(a.chakra);
   const agility = e(a.agility);
   const speedBonus = Math.min(rules.maxSpeedBonus, agility * p.agility);
   return {
-    maxHp: Math.round(base.maxHp + e(a.vitality) * p.vitality),
+    maxHp: Math.round(base.maxHp + rules.hpPerLevel * (Math.max(1, level) - 1) + e(a.vitality) * p.vitality),
     maxChakra: Math.round(base.maxChakra + chakra * p.chakra),
     meditationChakraPerSec: round2(base.meditationChakraPerSec + chakra * rules.chakraRegenPerPoint),
     walkSpeed: round2(base.walkSpeed + speedBonus),

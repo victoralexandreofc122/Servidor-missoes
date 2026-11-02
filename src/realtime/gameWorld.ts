@@ -670,14 +670,14 @@ export class GameWorld {
   }
 
   /** Stats da sessão: os dos atributos com a passiva da vila (Névoa: velocidade). */
-  private statsFor(village: Village | null, attributes: Attributes): DerivedStats {
-    const base = this.computeStats(attributes);
+  private statsFor(village: Village | null, attributes: Attributes, level = 1): DerivedStats {
+    const base = this.computeStats(attributes, level);
     const speed = this.passiveOf(village, 'speed');
     if (speed === 1) return base;
     return { ...base, walkSpeed: round2(base.walkSpeed * speed), runSpeed: round2(base.runSpeed * speed) };
   }
 
-  private computeStats(attributes: Attributes): DerivedStats {
+  private computeStats(attributes: Attributes, level = 1): DerivedStats {
     const p = this.config.combat.player;
     return derivedStats(
       {
@@ -685,7 +685,7 @@ export class GameWorld {
         walkSpeed: this.config.speedTilesPerSecond, runSpeed: this.config.runSpeedTilesPerSecond,
         attackCooldownMs: this.config.combat.basicAttack.cooldownMs,
       },
-      this.config.combat.attributes, attributes,
+      this.config.combat.attributes, attributes, level,
     );
   }
 
@@ -782,7 +782,7 @@ export class GameWorld {
     const bandana = eg ? (eg.village ?? eg.renegadeFrom) : null;
     if (appearance && bandana && appearance.village !== bandana) appearance = { ...appearance, village: bandana };
     const village: Village | null = eg ? eg.village : previous ? previous.village : (appearance?.village ?? 'vila_1');
-    const stats = this.statsFor(village, attributes);
+    const stats = this.statsFor(village, attributes, player.level ?? previous?.level ?? 1);
     const kits: Kits = player.kits ?? previous?.kits ?? DEFAULT_KITS;
     const tutorial = player.tutorialStep ?? previous?.tutorial ?? 4;
     // Quem não terminou o tutorial nasce na Academia, na sala do passo em que está; os outros, na praça da vila deles.
@@ -2333,7 +2333,7 @@ export class GameWorld {
     const before = s.stats;
     s.statPoints = statPoints;
     s.attributes = { ...attributes };
-    s.stats = this.statsFor(s.village, s.attributes);
+    s.stats = this.statsFor(s.village, s.attributes, s.level);
     if (!s.dead) {
       s.hp = Math.min(s.stats.maxHp, s.hp + Math.max(0, s.stats.maxHp - before.maxHp));
       s.chakra = Math.min(s.stats.maxChakra, s.chakra + Math.max(0, s.stats.maxChakra - before.maxChakra));
@@ -3113,6 +3113,8 @@ export class GameWorld {
       session.rank = result.rank;
       if (result.level !== undefined) session.level = result.level;
       if (result.statPoints !== undefined) session.statPoints = result.statPoints;
+      // Vida por nível (v28): subiu de nível, a vida máxima sobe e a atual sobe junto.
+      if (levelsGained > 0) this.applyAttributes(session, session.statPoints, session.attributes);
       this.sendTo(session, { type: 'xp', gained, totalXp: result.totalXp, rank: result.rank, promoted: result.promoted });
       this.sendTo(session, { type: 'progress', ...this.progressView(session) });
       if (levelsGained > 0) {

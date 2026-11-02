@@ -319,6 +319,8 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       // Sem teto de pontos (v8): o ponto investido com n pontos já no atributo vale base / (1 + n x 0,05).
       // Vitalidade: 1º ponto +10 de vida, 10º +6,9, 50º +2,9 (59 pontos = +279, e não +590).
       softCap: 0.05,
+      // Vida por nível (v28, plano do duelo): +6 por nível acima do 1, no jogo todo (nível 60: +354).
+      hpPerLevel: 6,
       // vitalidade +10 vida · chakra +10 de chakra máximo (e +1/s meditando, abaixo) · agilidade +0,5 velocidade
       // taijutsu +5% no corpo a corpo (Ataque Básico e o soco 👊) · ninjutsu +5% nos jutsus elementais
       // armas +5% no dano da arma equipada (Kunai: +10 de base) e nos jutsus da classe Armas
