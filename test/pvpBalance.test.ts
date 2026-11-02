@@ -43,7 +43,8 @@ describe('pvpBalance: números do plano (nível 60, tier 4, nível de uso 4, 59 
     assert.equal(pvpHitDamage(hit('lightning', { tier: 1, useLevel: 1 }), zero, SCALE), 12);
   });
 
-  it('custo e recarga: Taijutsu x4 e Armas x2,5; o resto igual', () => {
+  it('custo e recarga: Taijutsu x4, Armas x2,5 e Relâmpago x2; o resto igual', () => {
+    assert.deepEqual(pvpCostCooldown('lightning', 20, 2000), { cost: 40, cooldownMs: 4000 });
     assert.deepEqual(pvpCostCooldown('taijutsu', 5, 500), { cost: 20, cooldownMs: 2000 });
     assert.deepEqual(pvpCostCooldown('weapons', 10, 1200), { cost: 25, cooldownMs: 3000 });
     assert.deepEqual(pvpCostCooldown('fire', 20, 1500), { cost: 20, cooldownMs: 1500 });
