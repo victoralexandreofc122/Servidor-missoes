@@ -133,3 +133,19 @@ export function ccAllow(log: readonly CcEntry[], t: number, kind: CcKind, wantMs
   if (d < wantMs && added < CC_BUDGET.minMs) return 0;
   return d <= 0 ? 0 : d;
 }
+
+// ---------------------------------------------------------------- rede de segurança (passo 1f)
+/**
+ * Rede de segurança: o dano que um ninja recebe de UM outro ninja, em qualquer trecho de 2 s, fica limitado a 50% da
+ * vida máxima. Conta o dano depois do escudo e dos Cinco Corações; o que passar é cortado.
+ */
+export const SAFETY_NET = { windowMs: 2000, maxShare: 0.5 } as const;
+export interface NetHit { t: number; dmg: number }
+
+/** Quanto do golpe passa (e quanto é cortado), dado o que esse atacante já tirou nos últimos 2 s. */
+export function safetyNet(history: readonly NetHit[], t: number, maxHp: number, dmg: number): { allowed: number; cut: number } {
+  const recent = history.filter((h) => h.t > t - SAFETY_NET.windowMs).reduce((s, h) => s + h.dmg, 0);
+  const room = Math.max(0, Math.floor(maxHp * SAFETY_NET.maxShare) - recent);
+  const allowed = Math.min(Math.max(0, dmg), room);
+  return { allowed, cut: Math.max(0, dmg - allowed) };
+}

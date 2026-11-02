@@ -38,6 +38,8 @@ export class PvpStats {
   readonly classes = new Map<string, ClassTally>();
   readonly moves = new Map<string, MoveTally>();
   readonly fights: Record<PvpPlace, number> = { arena: 0, conflito: 0, aberto: 0 };
+  /** v28: cortes da rede de segurança (quantas vezes, quanto dano) e a versão da tabela de equilíbrio. */
+  readonly safety = { cuts: 0, damage: 0, version: '' };
 
   constructor(readonly since: number) {}
 
@@ -62,6 +64,13 @@ export class PvpStats {
     this.cls(attackerClass).damage += amount;
   }
 
+  /** A rede de segurança cortou dano (pvpBalance.ts). */
+  safetyCut(amount: number, version: string): void {
+    this.safety.cuts += 1;
+    this.safety.damage += amount;
+    this.safety.version = version;
+  }
+
   /** Um ninja derrubou outro: a vitória e a derrota por classe, e o abate para o golpe que derrubou. */
   kill(label: string | undefined, winnerClass: string, loserClass: string, place: PvpPlace): void {
     this.fights[place] += 1;
@@ -76,7 +85,7 @@ export class PvpStats {
       .sort((a, b) => b.wins - a.wins || b.damage - a.damage);
     const moves = [...this.moves].map(([label, m]) => ({ label, name: moveName(label), ...m, perHit: m.hits ? Math.round(m.damage / m.hits) : 0 }))
       .sort((a, b) => b.damage - a.damage);
-    return { minutes: Math.max(0, Math.floor((now - this.since) / 60_000)), fights: { ...this.fights }, classes, moves };
+    return { minutes: Math.max(0, Math.floor((now - this.since) / 60_000)), fights: { ...this.fights }, classes, moves, safety: { ...this.safety } };
   }
 }
 
@@ -86,6 +95,8 @@ export interface PvpReport {
   fights: Record<PvpPlace, number>;
   classes: { code: string; name: string; wins: number; losses: number; damage: number; winRate: number | null }[];
   moves: { label: string; name: string; damage: number; hits: number; kills: number; perHit: number }[];
+  /** v28: cortes da rede de segurança. */
+  safety: { cuts: number; damage: number; version: string };
 }
 
 /** Zona de Conflito no banco: vitórias e derrotas por classe Primária nos últimos N dias. */
@@ -121,6 +132,7 @@ export function reportText(r: PvpReport, db: { days: number; rows: PvpClassRow[]
   lines.push(r.classes.length
     ? `Por classe: ${r.classes.map((c) => `${c.name} ${c.wins}V/${c.losses}D (${pct(c.winRate)}), ${c.damage} de dano`).join(' · ')}`
     : 'Por classe: nenhuma luta ainda.');
+  if (r.safety?.cuts) lines.push(`Rede de segurança: ${r.safety.cuts} cortes, ${r.safety.damage} de dano cortado (tabela ${r.safety.version}).`);
   if (r.moves.length) lines.push(`Por golpe: ${r.moves.slice(0, 8).map((m) => `${m.name} ${m.damage} (${m.hits} acertos, ${m.perHit} por acerto, ${m.kills} abates)`).join(' · ')}`);
   if (db) {
     lines.push(db.rows.length

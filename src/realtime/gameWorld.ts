@@ -25,7 +25,7 @@ import {
   ACADEMY_JUTSUS, CLASSES, CLASS_INFO, EXTRACTION, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
   BASE_SKILLS, jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
-import { CC_BUDGET, PVP_SHIELD, ccAllow, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
+import { CC_BUDGET, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
@@ -230,6 +230,8 @@ interface Session {
   controlDr: Record<MonsterStatus, { n: number; until: number }>;
   /** v28: orçamento único de controle (controle vindo de jogador; pvpBalance.ts). */
   ccLog: CcEntry[];
+  /** v28: rede de segurança: o dano de cada atacante nos últimos 2 s. */
+  netLog: Map<string, NetHit[]>;
   /** Acabou de renascer: nenhum jogador o machuca até este instante. */
   protectedUntil: number;
   dead: boolean;
@@ -828,6 +830,7 @@ export class GameWorld {
       diedIn: previous?.diedIn,
       controlDr: { stunned: { n: 0, until: 0 }, rooted: { n: 0, until: 0 } },
       ccLog: [],
+      netLog: new Map(),
       protectedUntil: previous?.protectedUntil ?? 0,
       cooldowns: { ...(previous?.cooldowns ?? {}) },
       xp: player.xp ?? previous?.xp ?? 0,
@@ -3212,6 +3215,15 @@ export class GameWorld {
       dmg = Math.round(amount * (1 - session.heartsCut));
       session.hearts -= 1;
       shielded = true;
+    }
+    // v28: rede de segurança (área de PvP, golpe de outro ninja): no máximo 50% da vida em 2 s por atacante.
+    if (by && by !== session && this.inPvpArea(by)) {
+      const log = (session.netLog.get(by.id) ?? []).filter((h) => h.t > t - SAFETY_NET.windowMs);
+      const net = safetyNet(log, t, session.stats.maxHp, dmg);
+      if (net.cut > 0) this.pvpStats.safetyCut(net.cut, PVP_BALANCE_VERSION);
+      dmg = net.allowed;
+      log.push({ t, dmg });
+      session.netLog.set(by.id, log);
     }
     const before = session.hp;
     session.hp = Math.max(0, session.hp - dmg);

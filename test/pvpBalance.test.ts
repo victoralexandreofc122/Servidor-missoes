@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { DEFAULT_APPEARANCE } from '../src/realtime/appearance.js';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { BASE_SKILLS } from '../src/realtime/jutsus.js';
-import { PVP_SHIELD, ccAllow, ccUsed, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from '../src/realtime/pvpBalance.js';
+import { PVP_BALANCE_VERSION, PVP_SHIELD, ccAllow, safetyNet, ccUsed, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from '../src/realtime/pvpBalance.js';
 import { NO_ATTRIBUTES, derivedStats, type Attributes } from '../src/realtime/stats.js';
 import { FakeConn, placeIn, setupWorld } from './support/world.js';
 
@@ -147,5 +147,40 @@ describe('orçamento de controle (passo 1e)', () => {
     assert.equal(ccUsed([e('stunned', 0, 1000), e('silencio', 0, 3000)], -15_000), 2000, '1 s cheio + 2 s pela metade');
     const log = [e('stunned', 0, 1500)];
     assert.equal(ccAllow(log, 0, 'silencio', 9600), 3000, 'silêncio: 1,5 s de peso no máximo = 3 s reais');
+  });
+});
+
+describe('rede de segurança (passo 1f)', () => {
+  it('um atacante tira no máximo 50% da vida em 2 s; o que passa é cortado; a janela anda; outro atacante não soma', () => {
+    assert.deepEqual(safetyNet([], 0, 454, 300), { allowed: 227, cut: 73 });
+    assert.deepEqual(safetyNet([{ t: 0, dmg: 200 }], 1000, 454, 100), { allowed: 27, cut: 73 });
+    assert.deepEqual(safetyNet([{ t: 0, dmg: 227 }], 2001, 454, 100), { allowed: 100, cut: 0 }, 'passou de 2 s');
+  });
+
+  it('no jogo (arena): o golpe que passaria de 50% é cortado, conta depois do escudo e entra no relatório do admin', () => {
+    const { world, join, at, ses, clock } = arena();
+    const a = join('kaito');
+    const b = join('mei');
+    const c = join('rin');
+    at(a, 'map_1', IN.x, IN.y);
+    at(b, 'map_1', IN.x + 1, IN.y);
+    at(c, 'map_1', IN.x, IN.y + 1);
+    const vb = ses(b.id);
+    vb.stats = { ...vb.stats, maxHp: 400 };                    // vida grande: o teste é o corte, não a morte
+    const half = Math.floor(vb.stats.maxHp / 2);
+    vb.hp = vb.stats.maxHp;
+    world.damagePlayer(vb, half - 10, clock.now(), ses(a.id), ses(a.id), 'attack');
+    world.damagePlayer(vb, 40, clock.now(), ses(a.id), ses(a.id), 'attack');
+    assert.equal(vb.stats.maxHp - vb.hp, half, 'o segundo golpe só tira 10');
+    world.damagePlayer(vb, 15, clock.now(), ses(c.id), ses(c.id), 'attack');
+    assert.equal(vb.stats.maxHp - vb.hp, half + 15, 'outro atacante não soma');
+    vb.shield = 0.5;
+    clock.advance(2001);
+    world.damagePlayer(vb, 100, clock.now(), ses(a.id), ses(a.id), 'attack');
+    assert.equal(vb.stats.maxHp - vb.hp, half + 15 + 50, 'escudo antes: 100 vira 50, sem corte');
+    const r = world.pvpStats.report(clock.now());
+    assert.equal(r.safety.cuts, 1);
+    assert.equal(r.safety.damage, 30);
+    assert.equal(r.safety.version, PVP_BALANCE_VERSION);
   });
 });

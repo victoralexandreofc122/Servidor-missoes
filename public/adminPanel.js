@@ -228,6 +228,7 @@ export function mountAdminUI(api) {
     const f = r.report.fights;
     out.push(
       el('p', { class: 'adm-hint strong', textContent: `${f.arena + f.conflito + f.aberto} lutas em ${r.report.minutes} min (arena ${f.arena} · Zona de Conflito ${f.conflito} · aberto ${f.aberto})` }),
+      el('p', { class: 'adm-hint', textContent: r.report.safety?.cuts ? `Rede de segurança: ${r.report.safety.cuts} cortes, ${r.report.safety.damage} de dano cortado (tabela ${r.report.safety.version})` : 'Rede de segurança: nenhum corte.' }),
       el('h3', { class: 'adm-group', textContent: 'Por classe (desde que ligou)' }),
       table(['Classe', 'V', 'D', '% vit.', 'Dano'], r.report.classes.map((c) => [c.name, c.wins, c.losses, pct(c.winRate), c.damage])),
       el('h3', { class: 'adm-group', textContent: 'Por golpe' }),
