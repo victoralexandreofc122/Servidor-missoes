@@ -1117,6 +1117,8 @@ function drawThicket(g, wall, x, y, w, h, tile) {
       g.fillStyle = pal[3]; g.beginPath(); g.arc(cx - R * 0.32, cy - R * 0.38, R * 0.36, 0, Math.PI * 2); g.fill();
     }
   }
+  g.fillStyle = 'rgba(10, 14, 6, 0.38)';             // v29: floresta funda (mais escura que as árvores soltas)
+  g.fillRect(x, y, w, h);
   g.restore();
 }
 
@@ -1172,7 +1174,7 @@ function drawTree(g, baseX, baseY, size, seed, tile, palette) {
   const r = rng(seed);
   const pal = palette || LEAVES[seed % 3];
   const R = tile * 0.5 * size * (0.92 + r() * 0.12);     // raio da copa
-  const tw = tile * 0.16 * size, th = tile * 0.42 * size;
+  const tw = tile * (size > 2.5 ? 0.21 : 0.16) * size, th = tile * 0.42 * size;   // v29: tronco mais grosso nas grandes
   // sombra no chão (para baixo e à direita: luz de cima à esquerda)
   g.fillStyle = 'rgba(0, 0, 0, 0.26)';
   g.beginPath(); g.ellipse(baseX + R * 0.25, baseY - 1, R * 0.95, R * 0.34, 0, 0, Math.PI * 2); g.fill();
@@ -1183,6 +1185,11 @@ function drawTree(g, baseX, baseY, size, seed, tile, palette) {
   fr(g, '#4a2e17', baseX + tw * 0.15, baseY - th * 0.7, FINE * 2, th * 0.5);
   fr(g, '#3b2412', baseX - tw / 2 - 2, baseY - 2, 2.5, 1.6);
   fr(g, '#3b2412', baseX + tw / 2 - 0.5, baseY - 2, 2.5, 1.6);
+  if (size > 2.5) {                                    // v29: raízes que abrem na base e uma risca de casca
+    g.fillStyle = '#3b2412';
+    for (const k of [-1, 1]) { g.beginPath(); g.moveTo(baseX + k * tw * 0.35, baseY - th * 0.25); g.quadraticCurveTo(baseX + k * tw * 0.7, baseY - 1, baseX + k * tw * 1.05, baseY); g.lineTo(baseX + k * tw * 0.4, baseY); g.closePath(); g.fill(); }
+    fr(g, '#4a2e17', baseX - tw * 0.1, baseY - th * 0.85, FINE * 2, th * 0.6);
+  }
   // copa: bolhas sobrepostas
   const cx = baseX, cy = baseY - th - R * 0.62;
   const blobs = [[0, 0.05, 0.78], [-0.52, 0.22, 0.56], [0.52, 0.22, 0.56], [-0.3, -0.38, 0.58], [0.32, -0.36, 0.56], [0, 0.42, 0.6], [0.02, -0.6, 0.42]];
@@ -1655,18 +1662,18 @@ function drawTent(g, x, y, w, h, seed) {
   g.fillStyle = 'rgba(10, 8, 4, 0.35)';
   g.beginPath(); g.ellipse(cx + 3, base + 1, w / 2 + 3, 5, 0, 0, Math.PI * 2); g.fill();
   const poly = (pts, color) => { g.fillStyle = color; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (const q of pts.slice(1)) g.lineTo(q[0], q[1]); g.closePath(); g.fill(); };
-  poly([[B.x, B.y - 1], [x - 1, base - D], [x - 1, base + 0.5], [F.x, F.y - 1]], '#2a2016');               // contorno
-  poly([[B.x, B.y - 1], [x + w + 1, base - D], [x + w + 1, base + 0.5], [F.x, F.y - 1]], '#2a2016');
-  poly([[B.x, B.y], [x, base - D], [x, base], [F.x, F.y]], '#b9a684');                                       // água da esquerda (luz)
-  poly([[B.x, B.y], [x + w, base - D], [x + w, base], [F.x, F.y]], '#8d7c60');                               // água da direita (sombra)
+  poly([[B.x, B.y - 1], [x - 1, base - D], [x - 1, base + 0.5], [F.x, F.y - 1]], '#1e1a17');               // contorno
+  poly([[B.x, B.y - 1], [x + w + 1, base - D], [x + w + 1, base + 0.5], [F.x, F.y - 1]], '#1e1a17');
+  poly([[B.x, B.y], [x, base - D], [x, base], [F.x, F.y]], '#8a7a5a');                                       // água da esquerda (luz)
+  poly([[B.x, B.y], [x + w, base - D], [x + w, base], [F.x, F.y]], '#5e5040');                               // água da direita (sombra)
   g.strokeStyle = 'rgba(60, 45, 30, 0.45)'; g.lineWidth = FINE * 2;                                          // costuras da lona
   for (const t of [0.33, 0.66]) {
     g.beginPath(); g.moveTo(B.x + (x - B.x) * t, B.y + (base - D - B.y) * t); g.lineTo(F.x + (x - F.x) * t, F.y + (base - F.y) * t); g.stroke();
     g.beginPath(); g.moveTo(B.x + (x + w - B.x) * t, B.y + (base - D - B.y) * t); g.lineTo(F.x + (x + w - F.x) * t, F.y + (base - F.y) * t); g.stroke();
   }
-  poly([[F.x, F.y], [x + 1.5, base], [x + w - 1.5, base]], '#a8956f');                                       // a frente
+  poly([[F.x, F.y], [x + 1.5, base], [x + w - 1.5, base]], '#7a6a4e');                                       // a frente
   poly([[F.x, F.y + 4], [cx - w * 0.2, base], [cx + w * 0.2, base]], '#1b130c');                             // a entrada
-  poly([[F.x, F.y + 4], [cx + w * 0.2, base], [cx + w * 0.3, base - 2]], '#c8b693');                         // a aba dobrada
+  poly([[F.x, F.y + 4], [cx + w * 0.2, base], [cx + w * 0.3, base - 2]], '#9a8a66');                         // a aba dobrada
   fr(g, '#5a3a1e', F.x - 0.8, F.y - 3, 1.6, 4);                                                               // vara
   fr(g, '#3a2614', F.x - 0.4, F.y - 4, 0.8, 1.2);
   g.strokeStyle = 'rgba(70, 55, 35, 0.8)'; g.lineWidth = FINE * 2;                                           // cordas e estacas

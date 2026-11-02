@@ -892,8 +892,9 @@ function forest(): MapLayout {
     ...carve(W, H, [...open, ...outside(abyss)], 'pit').map((w) => ({ ...w, s: 'chasm' as const })),
     // Pedra-Selo 1 (apagada: a Tsubaki acha na M3) no meio do lago; pedras e moitas da clareira.
     wall('seal', FOREST_PLACES.pedra1.x, FOREST_PLACES.pedra1.y, FOREST_PLACES.pedra1.w, FOREST_PLACES.pedra1.h, 'out'),
-    wall('rock', 20, 9, 4.5, 3.6), wall('rock', 25, 10, 2.5, 3.5), wall('rock', 6.4, 20.7, 2.7, 3.4), wall('rock', 9, 6, 4, 3),
-    wall('rock', 13.5, 6, 3.5, 1.6), wall('rock', 61.5, 4.8, 2, 1.7), wall('furniture', 42.8, 5, 0.8, 1.6), wall('furniture', 49, 37.8, 0.8, 1.3),
+    // v29: pedras de 1 a 2 casas (antes até 4,5), no meio de onde ficavam
+    wall('rock', 21.5, 10.2, 1.8, 1.4), wall('rock', 25.5, 11, 1.3, 1.1), wall('rock', 7, 21.7, 1.4, 1.2), wall('rock', 10.2, 6.8, 1.6, 1.3),
+    wall('rock', 14.5, 6.2, 1.5, 1.1), wall('rock', 61.8, 5, 1.4, 1.2), wall('furniture', 42.8, 5, 0.8, 1.6), wall('furniture', 49, 37.8, 0.8, 1.3),
     // O sumidouro (o riacho some aqui: é a água do canal da Vila, M2).
     wall('sink', 65, 16, 9, 6.6),
     // Velho Carvalho: o tronco e as raízes, com a Pedra-Selo 2 acesa na frente.
@@ -906,7 +907,7 @@ function forest(): MapLayout {
     wall('tent', 10, 50.6, 3.6, 3.2, 'burnt'), wall('tent', 22.3, 49.6, 3.6, 3.2, 'burnt'), wall('tent', 11, 62.8, 3.4, 3, 'burnt'), wall('tent', 25.7, 62.4, 3.6, 3.2, 'burnt'),
     // v29: barris do tamanho de um barril (antes 3 casas), no meio de onde ficavam
     wall('furniture', 7.6, 56.6, 1.1, 1.4, 'barrel'), wall('furniture', 16, 49.4, 1.1, 1.4, 'barrel'), wall('furniture', 29.8, 60.5, 1.1, 1.4, 'barrel'), wall('furniture', 16.5, 67, 1.1, 1.4, 'barrel'),
-    wall('rock', 16.8, 57.2, 4.6, 3.2), wall('rock', 18.3, 42.8, 2.7, 2.3),
+    wall('rock', 18.3, 58.2, 1.6, 1.3), wall('rock', 18.8, 43.4, 1.5, 1.2),
     crown(54, 51.5, 7.5, 14.5),                    // o pinheiro na beira
     // Passagem sul: troncos queimados fecham o caminho até a história abrir (M14).
     wall('logs', 45.5, 66, 7.5, 2.4),

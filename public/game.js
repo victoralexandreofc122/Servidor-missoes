@@ -5179,10 +5179,12 @@ function drawFringe(g, x, y, ux, uy) {
       if (!other || other.p <= me.p) continue;
       let h = cellHash(x * 3 + dx + 7, y * 3 + dy + 11);
       const next = () => (h = (h * 1103515245 + 12345) >>> 0) / 4294967296;
-      const n = other.blades ? 7 : 9;
+      // v29: bordas orgânicas (o pedido do Victor: divisão suave): tufos maiores e mais fundos, de 0,15 a 0,5 casa,
+      // que passam do canto da casa e escondem o degrau da grade.
+      const n = other.blades ? 9 : 10;
       for (let i = 0; i < n; i++) {
-        const t = ((i + next()) / n) * U;                       // ao longo da borda
-        const depth = other.blades ? 0.8 + next() * 2.2 : 1 + next() * 3.2;   // quanto avança
+        const t = ((i - 0.6 + next() * 1.2) / (n - 1)) * U;     // ao longo da borda (passa um pouco do canto)
+        const depth = U * (0.15 + next() * 0.35);               // quanto avança
         const ex = dx === 0 ? ux + t : dx === -1 ? ux : ux + U;
         const ey = dy === 0 ? uy + t : dy === -1 ? uy : uy + U;
         const ix = -dx, iy = -dy;                              // para dentro desta casa
