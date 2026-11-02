@@ -114,3 +114,31 @@ Armas não. A vida por nível resolve a vida; a recarga desses dois precisa de u
 | Nenhum | 2,1 / 1,7 / 1,3 | 2,1 / 2,1 / 1,3 |
 | Teto de 1,6x no dano dos atributos | 3,3 / 2,9 / 2,1 | 4,3 / 2,9 / 2,1 |
 | Recarga e custo: Taijutsu x4, Armas x2,5 | 5,5 / 4,1 / 2,0 | 4,4 / 3,7 / 2,3 |
+
+## Redução do dano base no jogo todo (pedido do Victor, fase 5)
+
+Dano base dos jutsus e do ataque básico (com a arma) multiplicado por um fator, no jogo todo. Os monstros ficam com a
+vida de hoje. Nível 1 = tier 1, nível de uso 1, 0 pontos. Nível 60 = tier 4, nível de uso 4, 59 pontos no atributo.
+"Contra jogador" usa a curva achatada do PvP (1,45 e +15%). Duelo: vida por nível (+6), Taijutsu x4 e Armas x2,5 na
+recarga e no custo, 2 kits (8 jutsus), chakra voltando 5 por segundo, tudo acerta, 0,4 s entre toques.
+
+| Habilidade (nível 1 / nível 60 contra monstro / nível 60 contra jogador) | Hoje | Jutsus 60%, básico 70% | Jutsus 50%, básico 60% | Jutsus 40%, básico 50% | Jutsus 30%, básico 40% | Jutsus 25%, básico 35% |
+| --- | --- | --- | --- | --- | --- | --- |
+| Fogo (+ queimadura) | 25+9 / 218+78 / 100+36 | 15+6 / 131+48 / 60+21 | 13+6 / 109+39 / 50+18 | 10+3 / 87+30 / 40+15 | 8+3 / 65+24 / 30+12 | 6+3 / 54+21 / 25+9 |
+| Água | 20 / 174 / 80 | 12 / 105 / 48 | 10 / 87 / 40 | 8 / 70 / 32 | 6 / 52 / 24 | 5 / 44 / 20 |
+| Relâmpago | 30 / 261 / 120 | 18 / 157 / 72 | 15 / 131 / 60 | 12 / 105 / 48 | 9 / 78 / 36 | 8 / 65 / 30 |
+| Soco (Taijutsu) | 35 / 305 / 140 | 21 / 183 / 84 | 18 / 152 / 70 | 14 / 122 / 56 | 11 / 91 / 42 | 9 / 76 / 35 |
+| Kunai (Armas) | 28 / 244 / 149 | 18 / 155 / 97 | 15 / 131 / 82 | 12 / 106 / 67 | 9 / 82 / 52 | 8 / 70 / 45 |
+| Ataque básico | 22 / 79 | 15 / 55 | 13 / 47 | 11 / 40 | 9 / 32 | 8 / 28 |
+
+| Resultado | Hoje | 60/70 | 50/60 | 40/50 | 30/40 | 25/35 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Duelo mais rápido (dano x dano) | 2,0 s | 4,1 s | 4,8 s | 6,2 s | 8,4 s | 9,8 s |
+| Meio a meio x meio a meio | 7,0 s | 11,6 s | 13,8 s | 16,8 s | 22,5 s | 26,2 s |
+| Duelo mais longo (tanque x tanque) | 11,0 s | 16,3 s | 19,3 s | 24,1 s | 30,1 s | 35,2 s |
+| Maior parte da vida em 2 s | 100% | 66% | 56% | 46% | 37% | 32% |
+| Slime (60 de vida) no nível 1 | 3 golpes | 4 | 5 | 6 | 8 | 10 |
+| Rei Lodo (1.000) com Fogo tier 4 no nível 60 | 5 Fogos | 8 | 10 | 12 | 16 | 19 |
+
+Os tempos são o melhor caso para quem ataca; numa luta de verdade (erros, movimento, esquiva) ficam maiores. A rodada
+tem 50 s.
