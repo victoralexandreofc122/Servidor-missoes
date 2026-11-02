@@ -877,6 +877,17 @@ function drawFurniture(g, x, y, w, h, kind, seed) {
       g.fillStyle = '#6a4224'; g.fillRect(cx - rx * 0.6, top - 0.5, rx * 1.2, 1);
       return;
     }
+    case 'sign': {                                    // v29: placa de madeira: poste (a colisão) e a tábua no alto
+      const cx = x + w / 2, foot = y + h, U = h / 0.3;
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(cx + 2, foot, U * 0.3, U * 0.08, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#1e1a17'; g.fillRect(cx - U * 0.07, foot - U * 1.3, U * 0.14, U * 1.3);
+      g.fillStyle = '#6b4424'; g.fillRect(cx - U * 0.05, foot - U * 1.28, U * 0.1, U * 1.27);
+      g.fillStyle = '#1e1a17'; g.fillRect(cx - U * 0.5, foot - U * 1.32, U * 1.0, U * 0.36);
+      g.fillStyle = '#8a5a30'; g.fillRect(cx - U * 0.48, foot - U * 1.3, U * 0.96, U * 0.32);
+      g.fillStyle = '#a8743e'; g.fillRect(cx - U * 0.48, foot - U * 1.3, U * 0.96, U * 0.08);
+      g.fillStyle = '#4a2e16'; g.fillRect(cx - U * 0.3, foot - U * 1.16, U * 0.6, U * 0.04);
+      return;
+    }
     case 'crate': {                                   // v29: caixote em 3/4: tampa clara, frente média, lado escuro, ripas
       const d = h * 0.3;
       g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 2, y + h - 2, w, 3);

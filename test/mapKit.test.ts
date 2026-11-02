@@ -85,3 +85,15 @@ describe('Velho Carvalho (v29)', () => {
     assert.equal(blocked(oak.x + oak.w / 2, oak.y - 3, F.walls), false);
   });
 });
+
+describe('sem parede invisível (v29, revisão EGM da Floresta)', () => {
+  it('toda colisão da Floresta tem desenho: nenhum móvel sem tipo (era o que virava parede invisível sem a pintura)', () => {
+    for (const w of F.walls) assert.ok(!(w.k === 'furniture' && !w.s), `móvel sem desenho em ${w.x},${w.y}`);
+  });
+  it('a trilha de terra não tem nada que bloqueie (fora os troncos da passagem sul, fechada até a M14)', () => {
+    const walls = F.walls.filter((w) => w.k !== 'logs');
+    for (const a of F.areas.filter((q) => q.g === 'path')) {
+      for (let y = a.y + 0.5; y < a.y + a.h - 0.5; y += 0.5) assert.equal(blocked(a.x + a.w / 2, y, walls), false, `trilha bloqueada em y=${y}`);
+    }
+  });
+});

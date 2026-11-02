@@ -59,7 +59,7 @@ export interface Wall extends Box {
    * pergaminhos, mesa de pergaminhos, barril).
    */
   s?: 'leader' | 'hospital' | 'academy' | 'shop_weapon' | 'shop_cloth' | 'shop_scroll' | 'home' | 'hut'
-    | 'sword_rack' | 'spear_rack' | 'shield_rack' | 'mannequin' | 'cloth_shelf' | 'scroll_shelf' | 'scroll_table' | 'barrel' | 'crate'
+    | 'sword_rack' | 'spear_rack' | 'shield_rack' | 'mannequin' | 'cloth_shelf' | 'scroll_shelf' | 'scroll_table' | 'barrel' | 'crate' | 'sign'
     | 'lit' | 'out' | 'fall' | 'burnt' | 'chasm' | 'mouth'
     // pilar da arena da vila: bloco de ardósia com moldura dourada (os da Zona de Conflito são ruína)
     | 'arena'
@@ -895,7 +895,10 @@ function forest(): MapLayout {
     wall('seal', FOREST_PLACES.pedra1.x, FOREST_PLACES.pedra1.y, FOREST_PLACES.pedra1.w, FOREST_PLACES.pedra1.h, 'out'),
     // v29: pedras de 1 a 2 casas (antes até 4,5), no meio de onde ficavam
     wall('rock', 21.5, 10.2, 1.8, 1.4), wall('rock', 25.5, 11, 1.3, 1.1), wall('rock', 7, 21.7, 1.4, 1.2), wall('rock', 10.2, 6.8, 1.6, 1.3),
-    wall('rock', 14.5, 6.2, 1.5, 1.1), wall('rock', 61.8, 5, 1.4, 1.2), wall('furniture', 42.8, 5, 0.8, 1.6), wall('furniture', 49, 37.8, 0.8, 1.3),
+    wall('rock', 14.5, 6.2, 1.5, 1.1), wall('rock', 61.8, 5, 1.4, 1.2), 
+    // v29: placas de madeira (antes só existiam na pintura e viravam parede invisível); colidem só no poste,
+    // a que ficava em cima da trilha foi para a beira dela
+    wall('furniture', 43.05, 6.3, 0.3, 0.3, 'sign'), wall('furniture', 51.6, 38.8, 0.3, 0.3, 'sign'),
     // O sumidouro (o riacho some aqui: é a água do canal da Vila, M2).
     wall('sink', 65, 16, 9, 6.6),
     // Velho Carvalho: o tronco e as raízes, com a Pedra-Selo 2 acesa na frente.
