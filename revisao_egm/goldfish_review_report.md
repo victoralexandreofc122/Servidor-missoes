@@ -51,3 +51,21 @@ entre 2 e 12 s; meio a meio contra meio a meio entre 6 e 10 s".
 | 6 | Bot escondido | Fora do pronto; depois da noite de duelo, como "ninja sem conexão", só treino. |
 | 7 | Escopo e pronto | Pronto técnico separado da meta de comunidade; MMR de prévia no passo 2b. |
 | 8-14 | Detalhes | Aviso no chão adiado; dano cortado no registro; pior caso de passiva e clima no simulador; interruptor ligado por padrão e troca temporária; chakra a 1/3 da meditação e sem vida voltando no duelo; orçamento conta o tempo real; cronômetro para na desconexão. |
+
+## Fase 5 (prontidão para construir): resolução
+
+Decisões do Victor (02/11/2026): dano base menor no jogo todo (jutsus a 40%, Ataque Básico e arma a 50%), monstros
+como estão; os 2 kits valem no duelo, com troca livre; empate repete a rodada uma vez. Com esses números, a simulação
+mostrou a build de Armas vencendo todas as outras pelo Ataque Básico; o Claude propôs o bônus de Armas pela metade no
+Ataque Básico, e o simulador confirmou que nenhuma build vence todas. A rede de segurança subiu para 50% em 2 s (o pico
+simulado é 44%).
+
+| Achado da fase 5 | Correção aplicada |
+|---|---|
+| 1. `pvpHitDamage` não encaixa | Pacote do golpe (`HitInfo`) montado no `cast()` e levado ao `hitTarget`, ao projétil e à queimadura; ordem dos cálculos escrita. |
+| 2. Custo e recarga sem regra | Valem nos mapas de PvP; o servidor manda custo e recarga ao cliente. |
+| 3. Simulador falhava | Dano base menor, rede a 50%, critério novo (6 a 30 s; meio a meio 12 a 20 s), algoritmo em passos, o que mexer se falhar. |
+| 4. Regras da rodada e ganchos | Tabela de ganchos no `gameWorld`, o que volta ao início, queda por 15 s, "fora de combate" = 10 s, botão "Desistir", empate. |
+| 5. Mensagens | Tabela de 8 mensagens com campos e quando são mandadas. |
+| 6. Migração | `db/schema_v15_duelo.sql` com tabelas, colunas e a função; MMR vazio até o 2c; duelo desligado sem a migração; listas de migração dos testes. |
+| Importantes | Passo 1 em 7 partes publicáveis; vida por nível no código; orçamento de controle e rede com janela, estado e ordem; tabela do `DuelRules`; 2 kits; mapa `valley` com muro de 4 casas e câmera fixa; volta atrás por interruptores; teste do PvE; cura e escudo nos mapas de PvP; glossário (kit, mapa de PvP, tabela de equilíbrio); exemplo do fator do novato; "Alternativas consideradas"; datas num formato só. |

@@ -142,3 +142,19 @@ recarga e no custo, 2 kits (8 jutsus), chakra voltando 5 por segundo, tudo acert
 
 Os tempos são o melhor caso para quem ataca; numa luta de verdade (erros, movimento, esquiva) ficam maiores. A rodada
 tem 50 s.
+
+## Escolha final (02/11/2026): jutsus 40%, Ataque Básico 50%, bônus de Armas pela metade no Ataque Básico
+
+2 kits, chakra 5/s, vida por nível, Taijutsu x4 e Armas x2,5 nos mapas de PvP. Tempo para matar (maior parte da vida
+tirada em 2 s):
+
+| Atacante \ defensor | Tanque | Meio a meio | Dano Nin | Dano Tai | Dano Armas |
+| --- | --- | --- | --- | --- | --- |
+| Tanque | 24,1 s (12%) | 20,7 s (14%) | 14,2 s (20%) | 14,2 s (20%) | 14,2 s (20%) |
+| Meio a meio | 20,0 s (19%) | 16,8 s (22%) | 12,0 s (30%) | 12,0 s (30%) | 12,0 s (30%) |
+| Dano Nin | 18,2 s (22%) | 15,7 s (26%) | 10,9 s (36%) | 10,9 s (36%) | 10,9 s (36%) |
+| Dano Tai | 13,2 s (27%) | 11,6 s (31%) | 8,0 s (44%) | 8,0 s (44%) | 8,0 s (44%) |
+| Dano Armas | 14,2 s (26%) | 12,1 s (30%) | 8,0 s (42%) | 8,0 s (42%) | 8,0 s (42%) |
+
+Vitórias (quem mata primeiro): Meio a meio 3 de 4; Taijutsu 3 de 4; Tanque 1; Armas 1; Ninjutsu 0. Sem o bônus de
+Armas pela metade no Ataque Básico, a build de Armas vencia as 4.
