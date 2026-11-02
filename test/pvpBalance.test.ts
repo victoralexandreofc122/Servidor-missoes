@@ -200,12 +200,13 @@ describe('simulador de duelos (passo 1g)', () => {
     for (const r of rs) assert.ok(r.peakA < 0.5 && r.peakB < 0.5, `${r.a} x ${r.b}\n${tabela}`);
   });
 
-  // Critérios do plano que ainda falham com os números de hoje (decisão do Victor pendente, ver concepts_brief.md):
-  //  - nenhuma build vence todas as outras: o Meio a meio vence as 4;
-  //  - o orçamento corta no máximo 1 controle por luta: o Relâmpago faz o orçamento cortar até 4.
-  it('pendente: quem vence quem e cortes do orçamento (registrado, ainda sem critério)', () => {
+  it('nenhuma build vence todas as outras (empate não conta como vitória)', () => {
     const wins = new Map<string, number>();
     for (const r of rs) if (r.a !== r.b && r.winner !== 'empate') { const w = r.winner === 'a' ? r.a : r.b; wins.set(w, (wins.get(w) ?? 0) + 1); }
-    assert.equal(wins.get('Meio a meio'), 4, 'se isto mudar, atualizar o plano e ligar o critério');
+    for (const [name, n] of wins) assert.ok(n < 4, `${name} vence as 4\n${tabela}`);
+  });
+
+  it('o orçamento corta no máximo 1 controle por luta (o atordoamento pega)', () => {
+    for (const r of rs) assert.ok(r.ccCutsA <= 1 && r.ccCutsB <= 1, `${r.a} x ${r.b}: ${r.ccCutsA}/${r.ccCutsB}\n${tabela}`);
   });
 });

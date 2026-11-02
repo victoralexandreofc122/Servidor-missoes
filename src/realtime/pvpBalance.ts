@@ -14,8 +14,12 @@ export const PVP_TIER_POWER = [1, 1.15, 1.3, 1.45] as const;
 export const PVP_USE_BONUS = [0, 0.05, 0.1, 0.15] as const;
 /** Escudo do jutsu Pedra no PvP (fração do golpe que some), tiers 1 a 4. Fora do PvP: 0,5 a 0,8. */
 export const PVP_SHIELD = [0.5, 0.55, 0.6, 0.65] as const;
-/** Custo e recarga x isto nas áreas de PvP: Taijutsu e Armas são baratos e rápidos demais para o 1x1. */
-export const PVP_COST_COOLDOWN: Readonly<Partial<Record<string, number>>> = { taijutsu: 4, weapons: 2.5 };
+/**
+ * Custo e recarga x isto nas áreas de PvP: Taijutsu e Armas são baratos e rápidos demais para o 1x1; o Relâmpago
+ * (atordoa e paralisa) sai a cada 2x o tempo, para o controle caber no orçamento e o atordoamento sempre pegar
+ * (decisão do Victor, 02/11/2026).
+ */
+export const PVP_COST_COOLDOWN: Readonly<Partial<Record<string, number>>> = { taijutsu: 4, weapons: 2.5, lightning: 2 };
 
 /** O golpe, como saiu do `cast()`: o necessário para recalcular o dano em quem ele acertar. */
 export interface HitInfo {
