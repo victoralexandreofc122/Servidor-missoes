@@ -88,59 +88,31 @@ const ROCK = ['#2c2a28', '#4a4744', '#5b5753', '#3d3a37', '#6f6a64', '#25231f'];
 const CAVE_ROCK = ['#1a1520', '#2f2838', '#3b3346', '#262030', '#4d4460', '#14101a'];
 
 function drawRock(g, x, y, w, h, seed, pal = ROCK) {
+  // v29: pedras no estilo do boneco: 1 a 3 pedregulhos redondos que enchem a caixa (a caixa é a colisão), contorno
+  // escuro, 3 tons (sombra embaixo à direita, luz em cima à esquerda) e musgo no topo.
   const r = rng(seed);
-  // silhueta: cristas irregulares em cima, base reta
-  g.fillStyle = pal[0];
-  g.beginPath();
-  g.moveTo(x, y + h);
-  const peaks = Math.max(4, Math.round(w / 40));
-  for (let i = 0; i <= peaks; i++) {
-    const px = x + (w * i) / peaks;
-    const py = y + (i % 2 ? 6 + r() * h * 0.25 : r() * 6);
-    g.lineTo(px, py);
+  const OUT = '#1e1a17', DARK = '#3a3c40', MID = '#5f6266', LIGHT = '#8a8d90', MOSS = '#5a6a2c';
+  const n = w > h * 1.6 ? 3 : w > h * 1.1 ? 2 : 1;
+  const parts = [];
+  for (let i = 0; i < n; i++) {
+    const pw = w / n * (1.15 - (i % 2) * 0.15), ph = h * (0.8 + r() * 0.2);
+    parts.push([x + (w / n) * i + (w / n - pw) / 2 + pw / 2, y + h - ph / 2, pw / 2, ph / 2]);
   }
-  g.lineTo(x + w, y + h);
-  g.closePath();
-  g.fill();
-  // corpo
-  g.save();
-  g.clip();
-  rect(g, pal[1], x, y, w, h);
-  for (let i = 0; i < w * h / 180; i++) {            // manchas e facetas
-    const cx = x + r() * w, cy = y + r() * h, rad = 3 + r() * 10;
-    g.fillStyle = r() < 0.5 ? pal[2] : pal[3];
-    g.beginPath(); g.arc(cx, cy, rad, 0, Math.PI * 2); g.fill();
+  parts.sort((a, b) => a[3] - b[3]);
+  g.fillStyle = 'rgba(0, 0, 0, 0.28)';
+  g.beginPath(); g.ellipse(x + w / 2 + 2, y + h - 1, w / 2, Math.max(3, h * 0.12), 0, 0, Math.PI * 2); g.fill();
+  for (const [cx, cy, rx, ry] of parts) {
+    g.fillStyle = OUT; g.beginPath(); g.ellipse(cx, cy, rx + 1.5, ry + 1.5, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = DARK; g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = MID; g.beginPath(); g.ellipse(cx - rx * 0.12, cy - ry * 0.12, rx * 0.84, ry * 0.8, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = LIGHT; g.beginPath(); g.ellipse(cx - rx * 0.32, cy - ry * 0.36, rx * 0.42, ry * 0.32, 0, 0, Math.PI * 2); g.fill();
+    if (r() < 0.7) { g.fillStyle = MOSS; g.beginPath(); g.ellipse(cx + rx * 0.1, cy - ry * 0.72, rx * 0.5, ry * 0.18, 0, 0, Math.PI * 2); g.fill(); }
+    g.strokeStyle = OUT; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(cx + rx * 0.15, cy - ry * 0.1); g.lineTo(cx + rx * 0.35, cy + ry * 0.35); g.stroke();
   }
-  g.fillStyle = pal[4];
-  for (let i = 0; i < w / 14; i++) {                 // facetas iluminadas (luz de cima à esquerda)
-    const cx = x + r() * w, cy = y + r() * h * 0.7;
-    g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + 10 + r() * 14, cy + 4); g.lineTo(cx + 4, cy + 12 + r() * 10); g.closePath(); g.fill();
-  }
-  g.fillStyle = pal[5];
-  for (let i = 0; i < w / 18; i++) {                 // rachaduras
-    let cx = x + r() * w, cy = y + r() * h * 0.6;
-    for (let k = 0; k < 6; k++) { g.fillRect(cx, cy, 1, 3); cx += r() < 0.5 ? -1 : 1; cy += 3; }
-  }
-  rect(g, 'rgba(0,0,0,0.28)', x, y + h - 6, w, 6);   // pé da montanha (sombra)
-  g.restore();
+  void pal;
 }
 
-// ------------------------------------------------------------------ prédios
-
-const ROOF = {
-  leader: ['#5e1712', '#a3302a', '#c2463b'],         // [sombra, telhado, brilho]
-  default: ['#4a1411', '#7d2420', '#94342c'],
-};
-/** Telhados de cada vila (v16): a mesma planta, cores diferentes. [sombra, telhado, brilho]; leader = a sede. */
-const THEME_ROOF = {
-  nevoa: { default: ['#1b3a48', '#2f6378', '#4a8aa2'], leader: ['#173544', '#3a7a92', '#5aa2bd'] },
-  nuvem: { default: ['#3b1520', '#6b2836', '#86404c'], leader: ['#2e1018', '#7e2f3e', '#9c4a58'] },
-  areia: { default: ['#7a4a1e', '#b9773a', '#d39a55'], leader: ['#6e3f18', '#c8863e', '#e0aa62'] },
-  refugio: { default: ['#2a2018', '#4a3a2a', '#5e4a36'], leader: ['#2a2018', '#4a3a2a', '#5e4a36'] },
-};
-const WALLS = { wood: ['#5c3a1c', '#9b6a3c'], beige: ['#7a5c36', '#d9c49a'] };
-
-/** Placa sobre a porta: ícone simples do que o prédio é. */
 function drawSign(g, cx, y, style) {
   const s = 12;
   if (style === 'hospital') {

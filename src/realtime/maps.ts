@@ -902,8 +902,10 @@ function forest(): MapLayout {
     // Pedra-Selo 3, acesa, no fundo da abertura do paredão.
     wall('seal', FOREST_PLACES.pedra3.x, FOREST_PLACES.pedra3.y, FOREST_PLACES.pedra3.w, FOREST_PLACES.pedra3.h, 'lit'),
     // Acampamento Queimado: barracas, caixotes, a fogueira e a pedra.
-    wall('tent', 8, 48.6, 7.7, 7.6, 'burnt'), wall('tent', 20.5, 47.7, 7.2, 7.3, 'burnt'), wall('tent', 9.5, 61, 6.4, 6.9, 'burnt'), wall('tent', 23.6, 60.6, 7.8, 6.9, 'burnt'),
-    wall('furniture', 6.4, 55.4, 3.6, 3.9, 'barrel'), wall('furniture', 15, 48.5, 3, 3, 'barrel'), wall('furniture', 29, 59.8, 2.8, 2.7, 'barrel'), wall('furniture', 16, 66.3, 2, 2.7, 'barrel'),
+    // v29: barracas no tamanho do boneco (até ~2,5 vezes a altura dele), no meio de onde ficavam
+    wall('tent', 10, 50.6, 3.6, 3.2, 'burnt'), wall('tent', 22.3, 49.6, 3.6, 3.2, 'burnt'), wall('tent', 11, 62.8, 3.4, 3, 'burnt'), wall('tent', 25.7, 62.4, 3.6, 3.2, 'burnt'),
+    // v29: barris do tamanho de um barril (antes 3 casas), no meio de onde ficavam
+    wall('furniture', 7.6, 56.6, 1.1, 1.4, 'barrel'), wall('furniture', 16, 49.4, 1.1, 1.4, 'barrel'), wall('furniture', 29.8, 60.5, 1.1, 1.4, 'barrel'), wall('furniture', 16.5, 67, 1.1, 1.4, 'barrel'),
     wall('rock', 16.8, 57.2, 4.6, 3.2), wall('rock', 18.3, 42.8, 2.7, 2.3),
     crown(54, 51.5, 7.5, 14.5),                    // o pinheiro na beira
     // Passagem sul: troncos queimados fecham o caminho até a história abrir (M14).
