@@ -1,7 +1,10 @@
 # Contexto para os revisores Goldfish (Floresta desenhada por código)
 
-Jogo: MMORPG 2D ninja em pixel art chibi, para celular deitado e computador. Personagem com contorno escuro e
-sombreado em 2 a 3 tons. A Floresta deixou de ser uma pintura com colisão traçada à mão e passou a ser desenhada por
+Jogo: MMORPG 2D ninja em pixel art, para celular deitado e computador.
+
+IMPORTANTE (decisão do Victor): o boneco chibi atual NÃO é a versão final e não serve de referência de estilo. Avalie
+o mapa pela referência da Floresta (ref_floresta.jpg) e pela coerência das peças entre si. Do boneco, use só o
+TAMANHO, para conferir a escala (árvores bem maiores que ele; barraca, barril e caixote em escala de gente). A Floresta deixou de ser uma pintura com colisão traçada à mão e passou a ser desenhada por
 código a partir de um catálogo de peças (cada peça tem um "pé" que colide e o resto é desenho).
 
 Pedidos do dono (Victor), em ordem:
@@ -11,7 +14,7 @@ Pedidos do dono (Victor), em ordem:
 3. Árvores bem maiores que o boneco.
 4. Paleta escura verde-oliva no jogo todo (inspirada na referência ref_floresta.jpg), mas NÃO seguir a referência à
    risca: lugares podem mudar.
-5. Contorno escuro e 3 tons em todas as peças.
+5. Contorno escuro e 3 tons em todas as peças, coerentes entre si e com a referência (não com o boneco).
 6. Divisões suaves de um chão para outro e de objeto para o chão.
 7. O Velho Carvalho (árvore gigante) bloqueia só no tronco; o resto o boneco e os monstros passam por trás.
 8. Pedras não podem parecer "ovo de dinossauro" (as redondas foram reprovadas; agora são angulosas).
