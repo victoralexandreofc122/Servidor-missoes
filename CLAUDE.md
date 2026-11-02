@@ -31,10 +31,12 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 
 ## Próximas entregas
 
-1. Cabeça (rosto e cabelo) desenhada à mão em pixel art: o Victor reprovou o rosto e o cabelo gerados por formas 3D.
-2. Site no Floot (páginas, login com a conta do jogo, admin, notificações).
-3. Salas com imagem: aguardando as imagens do Victor (Areia, Alfaiataria, Academia, Caverna, Clareira, Refúgio).
-4. Arco 1 jogável (sistema de história), depois o social (grupo, amigos, sensei).
+1. PvP na frente de tudo (decisão do Victor, 2026-11-01): duelo 1x1 equilibrado, plano em `concepts_brief.md`
+   (branch `brainstorm-pvp-invocacoes`). A ordem é revista no critério de pronto do duelo ou em 15/12/2026.
+2. Cabeça (rosto e cabelo) desenhada à mão em pixel art: o Victor reprovou o rosto e o cabelo gerados por formas 3D.
+3. Site no Floot (páginas, login com a conta do jogo, admin, notificações).
+4. Salas com imagem: aguardando as imagens do Victor (Areia, Alfaiataria, Academia, Caverna, Clareira, Refúgio).
+5. Arco 1 jogável (sistema de história), depois o social (grupo, amigos, sensei).
 
 ## Como trabalhar
 

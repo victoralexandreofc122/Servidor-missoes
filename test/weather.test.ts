@@ -18,6 +18,7 @@ function pvpConfig(): RealtimeConfig {
     ...REALTIME,
     combat: {
       ...REALTIME.combat,
+      damageScale: { jutsu: 1, basic: 1 },  // testes de mecânica: dano base de antes da v28 (os números novos estão em pveDamage)
       pvp: true,
       monsters: { ...REALTIME.combat.monsters, count: 0, stepMs: 1e12, attackDamage: 0 },
       player: { ...REALTIME.combat.player, hpRegenPerSec: 0 },
@@ -146,6 +147,13 @@ describe('clima no jogo: o servidor aplica nos jutsus e avisa todos', () => {
     learn(world, a.id, 'shadow');
     session(world, a.id).chakra = 100;
     a.send({ type: 'cast', skill: 'shadow', targetId: b.id });
-    assert.deepEqual(b.conn.last('player_status'), { type: 'player_status', playerId: b.id, status: 'rooted', ms: Math.round(SK.shadow.rootMs! * 1.05) });
+    // v28: num ninja, o orçamento de controle corta em 1,5 s; num monstro, vale a noite inteira (+5%).
+    assert.deepEqual(b.conn.last('player_status'), { type: 'player_status', playerId: b.id, status: 'rooted', ms: 1500 });
+    const at = { x: session(world, b.id).x, y: session(world, b.id).y };
+    session(world, b.id).x += 30;
+    const m = world.spawnMonster(at, undefined, session(world, a.id).map);
+    Object.assign(session(world, a.id), { chakra: 100, cooldowns: {} });
+    a.send({ type: 'cast', skill: 'shadow', targetId: m.id });
+    assert.equal(a.conn.last('monster_status').ms, Math.round(SK.shadow.rootMs! * 1.05));
   });
 });

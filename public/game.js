@@ -2840,8 +2840,21 @@ function startCooldown(skill, serverMs) {
   const ms = serverMs ?? (skill === 'attack'
     ? (state.progress?.derived?.attackCooldownMs ?? state.world.basicAttack?.cooldownMs ?? 600)
     : skill === 'substitution' ? (35 - 5 * level) * 1000
-      : (state.world.skills?.[skill]?.cooldownMs ?? 600));
+      : (skillPrice(skill)?.cooldownMs ?? 600));
   cooldowns[skill] = { until: performance.now() + ms, ms };
+}
+
+/** v28: na arena e na Zona de Conflito, o Taijutsu e as Armas custam e recarregam mais (o servidor manda os números). */
+function inPvpArea() {
+  const me = state.players.get(state.meId);
+  const map = state.maps[state.mapId];
+  return !!map && (!!map.conflict || (!!me && !!arenaAt(map, me.x, me.y)));
+}
+function skillPrice(skill) {
+  const base = state.world.skills?.[skill];
+  if (!base) return undefined;
+  const pvp = inPvpArea() ? state.world.pvpSkills?.[skill] : undefined;
+  return pvp ? { ...base, cost: pvp.cost, cooldownMs: pvp.cooldownMs } : base;
 }
 
 /** As 4 habilidades do kit ATIVO nos botões em volta do ataque (o kit vem do servidor). */
@@ -2853,7 +2866,7 @@ function renderKit() {
     const info = skillInfo(skill);
     button.querySelector('.ico').textContent = info ? info.icon : '';
     button.dataset.tier = info && info.tier > 1 ? String(info.tier) : '';
-    const cost = state.world.skills?.[skill]?.cost;
+    const cost = skillPrice(skill)?.cost;
     button.querySelector('.cost').textContent = cost !== undefined ? String(cost) : '';
     button.style.setProperty('--c', info ? info.color : 'transparent');
     button.classList.toggle('empty', !info);
@@ -2869,8 +2882,10 @@ function renderKit() {
 function renderSlots() {
   const fx = skyHere();
   for (const button of ui.slots) {
-    const info = state.world.skills?.[button.dataset.skill];
+    const info = skillPrice(button.dataset.skill);
     const cost = info?.cost ?? 0;
+    const label = button.querySelector('.cost');
+    if (label && info && label.textContent !== String(cost)) label.textContent = String(cost);
     button.classList.toggle('no-chakra', !!button.dataset.skill && (state.me.chakra < cost || state.me.dead));
     // Clima e hora: ▲ o jutsu está mais forte agora, ▼ mais fraco (só ao ar livre).
     const k = fx && info ? (fx.damage[info.mechanic] ?? 1) * (fx.status[info.mechanic] ?? 1) : 1;

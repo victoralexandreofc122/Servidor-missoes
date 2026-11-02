@@ -12,7 +12,7 @@ import { setupWorld } from './support/world.js';
 const S = REALTIME.spawn;
 const M = REALTIME.combat.monsters;
 const SK = REALTIME.combat.skills;
-const config: RealtimeConfig = { ...REALTIME, combat: { ...REALTIME.combat, monsters: { ...M, count: 0, stepMs: 1e12 } } };
+const config: RealtimeConfig = { ...REALTIME, combat: { ...REALTIME.combat, damageScale: { jutsu: 1, basic: 1 }, monsters: { ...M, count: 0, stepMs: 1e12 } } };
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 const monsterHp = (world: any, id: string) => world.monsterList().find((m: any) => m.id === id)?.hp;
 // v9: o visual são nomes de paleta (appearance.ts); o formato antigo de 5 cores é testado em v9.test.ts.

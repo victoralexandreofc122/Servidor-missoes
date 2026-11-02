@@ -314,11 +314,17 @@ mexer em ruas. Cada vila ganha a sua arena com o tema dela (terra batida na Arei
 
 ---
 
-## 9. Decisões para o Victor
+## 9. Decisões do Victor (nov/2026)
 
-1. **Jutsus no rankeado:** cada um com os tiers que já aprendeu, ou todos liberados dentro da partida?
+- **Jutsus no rankeado:** cada um luta com os tiers que **já aprendeu** (sem liberar tudo na partida).
+- **Formato:** **melhor de 3 rodadas**.
+- **Ordem:** seguir as fases da seção 7.
+- Próximo passo: passar este brainstorm pelo método EGM (esclarecimento, revisão por "Goldfish" em contexto limpo e
+  `concepts_brief.md`).
+
+## 9b. Decisões ainda abertas
+
 2. **1x1 com ou sem invocação?** (proposta: sem)
-3. **Melhor de 3 rodadas** ou uma rodada só (mais rápido, menos estratégico)?
 4. **Agilidade sem velocidade no rankeado** (vira recarga de movimento e esquiva)?
 5. **Quais famílias de invocação** entram primeiro (proposta: Sapo, Cobra e Lesma, um de cada papel)?
 6. **Campo de Guerra** só no fim de semana ou todo dia num horário fixo?

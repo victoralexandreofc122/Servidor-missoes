@@ -18,6 +18,7 @@ function config(pvp = false): RealtimeConfig {
     ...REALTIME,
     combat: {
       ...REALTIME.combat,
+      damageScale: { jutsu: 1, basic: 1 },  // testes de mecânica: dano base de antes da v28 (os números novos estão em pveDamage)
       pvp,
       monsters: { ...REALTIME.combat.monsters, count: 0, attackDamage: 0 },
       player: { ...REALTIME.combat.player, hpRegenPerSec: 0 },
@@ -205,8 +206,10 @@ describe('Ilusão tier 3 e 4: silêncio depois do atordoamento', () => {
     session(w.world, a.id).chakra = 100;
     a.send({ type: 'cast', skill: 'illusion_3' });
     const sil = b.conn.of('effect').find((e: any) => e.effect === 'silencio');
-    assert.equal(sil.ms, SK.illusion_3.stunMs! + 3000);
-    w.run(SK.illusion_3.stunMs! + 200);                             // acordou...
+    // v28: entre jogadores, o orçamento de controle corta: atordoa 1,5 s e o silêncio (peso 0,5) fica em 3 s.
+    assert.equal(b.conn.last('player_status').ms, 1500);
+    assert.equal(sil.ms, 3000);
+    w.run(1500 + 200);                                               // acordou...
     b.send({ type: 'cast', skill: 'water' });
     assert.equal(b.conn.last('cast_failed').reason, 'SILENCED', '...mas ainda sem jutsu');
     b.send({ type: 'attack' });

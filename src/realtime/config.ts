@@ -126,6 +126,11 @@ export interface CombatConfig {
    */
   basicAttack: { damage: number; range: number; arcDeg: number; cooldownMs: number };
   /**
+   * Fator do dano base (v28, plano do duelo): jutsus e poderes x `jutsu`; Ataque Básico e arma x `basic` (inclusive a
+   * arma somada nos jutsus de Armas). Entra no golpe, antes dos atributos. A cura não usa.
+   */
+  damageScale: { jutsu: number; basic: number };
+  /**
    * PvP ABERTO (os mapas de fronteira do Arco 2): as hitboxes também acertam outros jogadores fora da zona
    * segura e fora da Academia. Nunca vale em mapa de vila. Desligado, fora das arenas todo jogador é aliado
    * (a Cura pega os outros).
@@ -305,6 +310,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     // Chakra só volta meditando: 5 x 3 = 15/s. Vida volta 1/s só com o chakra cheio.
     player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 1, chakraRegenPerSec: 5, respawnMs: 5000, meditationRegenMultiplier: 3 },
     basicAttack: { damage: 12, range: 1.6, arcDeg: 90, cooldownMs: 600 },
+    damageScale: { jutsu: 0.4, basic: 0.5 },
     pvp: false,
     arena: { respawnMs: 3000, protectMs: 5000 },
     controlDr: { windowMs: 8000, factors: [1, 0.5, 0.25, 0] },
@@ -313,6 +319,8 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       // Sem teto de pontos (v8): o ponto investido com n pontos já no atributo vale base / (1 + n x 0,05).
       // Vitalidade: 1º ponto +10 de vida, 10º +6,9, 50º +2,9 (59 pontos = +279, e não +590).
       softCap: 0.05,
+      // Vida por nível (v28, plano do duelo): +6 por nível acima do 1, no jogo todo (nível 60: +354).
+      hpPerLevel: 6,
       // vitalidade +10 vida · chakra +10 de chakra máximo (e +1/s meditando, abaixo) · agilidade +0,5 velocidade
       // taijutsu +5% no corpo a corpo (Ataque Básico e o soco 👊) · ninjutsu +5% nos jutsus elementais
       // armas +5% no dano da arma equipada (Kunai: +10 de base) e nos jutsus da classe Armas
@@ -336,7 +344,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     },
     monsterTypes: {
       // Sala 1: destruir 3 com o Ataque Básico (2 golpes cada). Não batem.
-      dummy: { maxHp: 24, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 2500 },
+      dummy: { maxHp: 12, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 2500 },
       // Sala de Jutsus: ARMADILHA de lâminas que bate (fraco) em quem chega perto: treina a Substituição.
       sparring: { maxHp: 400, xp: 0, attackRange: 1.6, attackDamage: 6, attackEveryMs: 1800, stationary: true, respawnMs: 2500 },
       // Zona de Conflito: lodo sombrio, mais forte que o slime (para quem já é Chunin).

@@ -23,8 +23,9 @@ import type { Profile } from './profile.js';
 import type { Classes, Inventory, NinjaStore } from './ninjaStore.js';
 import {
   ACADEMY_JUTSUS, CLASSES, CLASS_INFO, EXTRACTION, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
-  jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
+  BASE_SKILLS, jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
+import { CC_BUDGET, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
@@ -227,6 +228,10 @@ interface Session {
   rootedUntil: number;
   /** Teto de controle (config.controlDr): quantas vezes já foi atordoado/preso na janela, e até quando ela vale. */
   controlDr: Record<MonsterStatus, { n: number; until: number }>;
+  /** v28: orçamento único de controle (controle vindo de jogador; pvpBalance.ts). */
+  ccLog: CcEntry[];
+  /** v28: rede de segurança: o dano de cada atacante nos últimos 2 s. */
+  netLog: Map<string, NetHit[]>;
   /** Acabou de renascer: nenhum jogador o machuca até este instante. */
   protectedUntil: number;
   dead: boolean;
@@ -436,6 +441,8 @@ interface Projectile {
   readonly source: 'attack' | 'skill';
   /** Fogo: queimadura em quem a explosão pega. */
   readonly burn?: { amount: number; ms: number };
+  /** v28: o golpe, para recalcular o dano em jogador numa área de PvP (pvpBalance.ts). */
+  readonly hit?: HitInfo;
 }
 
 /** Como um projétil sai: o que é, a força e a forma da hitbox. */
@@ -456,6 +463,7 @@ interface LaunchSpec {
   burn?: { amount: number; ms: number };
   /** De onde sai (Kunais: as trilhas dos lados); sem isto, do dono. */
   from?: Point;
+  hit?: HitInfo;
 }
 
 /** Devolvido pelo `join`: o gateway entrega as mensagens e o fechamento desta conexão. */
@@ -670,14 +678,14 @@ export class GameWorld {
   }
 
   /** Stats da sessão: os dos atributos com a passiva da vila (Névoa: velocidade). */
-  private statsFor(village: Village | null, attributes: Attributes): DerivedStats {
-    const base = this.computeStats(attributes);
+  private statsFor(village: Village | null, attributes: Attributes, level = 1): DerivedStats {
+    const base = this.computeStats(attributes, level);
     const speed = this.passiveOf(village, 'speed');
     if (speed === 1) return base;
     return { ...base, walkSpeed: round2(base.walkSpeed * speed), runSpeed: round2(base.runSpeed * speed) };
   }
 
-  private computeStats(attributes: Attributes): DerivedStats {
+  private computeStats(attributes: Attributes, level = 1): DerivedStats {
     const p = this.config.combat.player;
     return derivedStats(
       {
@@ -685,7 +693,7 @@ export class GameWorld {
         walkSpeed: this.config.speedTilesPerSecond, runSpeed: this.config.runSpeedTilesPerSecond,
         attackCooldownMs: this.config.combat.basicAttack.cooldownMs,
       },
-      this.config.combat.attributes, attributes,
+      this.config.combat.attributes, attributes, level,
     );
   }
 
@@ -736,6 +744,8 @@ export class GameWorld {
     return {
       width: here.width, height: here.height, speed: speedTilesPerSecond, runSpeed: this.config.runSpeedTilesPerSecond,
       tickMs, spawn: { ...spawn }, respawnMs: combat.player.respawnMs, skills,
+      // v28: custo e recarga nas áreas de PvP (arena e Zona de Conflito); o cliente usa quando está numa delas.
+      pvpSkills: Object.fromEntries(JUTSUS.map((j) => [j.code, pvpCostCooldown(combat.skills[j.code].mechanic, combat.skills[j.code].cost, combat.skills[j.code].cooldownMs)])) as WorldInfo['pvpSkills'],
       effects: Object.fromEntries(Object.entries(EFFECTS).map(([k, e]) => [k, { name: e.name, icon: e.icon, kind: e.kind }])) as WorldInfo['effects'],
       bosses: Object.fromEntries(Object.entries(combat.monsterTypes).filter(([, mt]) => mt.boss)
         .map(([k, mt]) => [k, { name: mt.boss!.name, phases: mt.boss!.phases.map((ph) => ph.at) }])),
@@ -782,7 +792,7 @@ export class GameWorld {
     const bandana = eg ? (eg.village ?? eg.renegadeFrom) : null;
     if (appearance && bandana && appearance.village !== bandana) appearance = { ...appearance, village: bandana };
     const village: Village | null = eg ? eg.village : previous ? previous.village : (appearance?.village ?? 'vila_1');
-    const stats = this.statsFor(village, attributes);
+    const stats = this.statsFor(village, attributes, player.level ?? previous?.level ?? 1);
     const kits: Kits = player.kits ?? previous?.kits ?? DEFAULT_KITS;
     const tutorial = player.tutorialStep ?? previous?.tutorial ?? 4;
     // Quem não terminou o tutorial nasce na Academia, na sala do passo em que está; os outros, na praça da vila deles.
@@ -819,6 +829,8 @@ export class GameWorld {
       respawnMs: previous?.respawnMs ?? this.config.combat.player.respawnMs,
       diedIn: previous?.diedIn,
       controlDr: { stunned: { n: 0, until: 0 }, rooted: { n: 0, until: 0 } },
+      ccLog: [],
+      netLog: new Map(),
       protectedUntil: previous?.protectedUntil ?? 0,
       cooldowns: { ...(previous?.cooldowns ?? {}) },
       xp: player.xp ?? previous?.xp ?? 0,
@@ -1427,7 +1439,8 @@ export class GameWorld {
     if (c.effect === 'limpar') {
       for (const code of [...who.effects.keys()]) this.dropEffect(x, code, t);
     } else {
-      this.applyEffect(x, c.effect, t, c.seconds > 0 ? c.seconds * 1000 : undefined, undefined, s);
+      // Comando do admin: sem dono (não passa pelo orçamento de controle do PvP).
+      this.applyEffect(x, c.effect, t, c.seconds > 0 ? c.seconds * 1000 : undefined, undefined, c.effect === 'sono' || c.effect === 'silencio' ? undefined : s);
     }
     this.audit(s.id, 'efeito', who.id, { effect: c.effect, seconds: c.seconds }, true, null);
     const name = c.effect === 'limpar' ? 'sem efeitos' : `${EFFECTS[c.effect].icon} ${EFFECTS[c.effect].name}`;
@@ -1586,7 +1599,10 @@ export class GameWorld {
     if (!session.jutsus.has(skill)) return fail('NOT_LEARNED');
     if (!session.kits[session.activeKit].includes(skill)) return fail('NOT_EQUIPPED');
     if ((session.cooldowns[skill] ?? 0) > t) return fail('COOLDOWN');
-    if (session.chakra < cfg.cost) return fail('NO_CHAKRA');
+    // v28: nas áreas de PvP, Taijutsu e Armas custam e recarregam mais (pvpBalance.ts).
+    const pvp = this.inPvpArea(session);
+    const price = pvp ? pvpCostCooldown(cfg.mechanic, cfg.cost, cfg.cooldownMs) : { cost: cfg.cost, cooldownMs: cfg.cooldownMs };
+    if (session.chakra < price.cost) return fail('NO_CHAKRA');
 
     const mechanic = cfg.mechanic;
     const level = jutsuLevel(session.jutsus.get(skill) ?? 0);
@@ -1596,9 +1612,17 @@ export class GameWorld {
     // Passiva da Nuvem: +10% no dano dos jutsus.
     // Clima e hora (ao ar livre): Fogo no dia quente, Água e Raio na chuva... (weather.ts).
     const sky = this.skyEffectsAt(session.map);
-    const dmg = scaledDamage((cfg.damage ?? 0) + weaponBonus,
+    const scale = this.config.combat.damageScale;
+    const dmg = scaledDamage((cfg.damage ?? 0) * scale.jutsu + weaponBonus * scale.basic,
       damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * jutsuPower(level) * this.passive(session, 'jutsu') * (sky?.damage[mechanic] ?? 1));
     const lasting = (ms: number) => Math.round(ms * (sky?.status[mechanic] ?? 1));
+    const tier = Math.max(1, JUTSU_BY_CODE.get(skill)?.tier ?? 1);
+    const base1 = BASE_SKILLS[mechanic];
+    const hit: HitInfo = {
+      base: base1.damage ?? 0, tier, useLevel: level, weapon: weaponBonus, scaling: cfg.scaling ?? 'ninjutsu',
+      passive: this.passive(session, 'jutsu'), sky: sky?.damage[mechanic] ?? 1,
+      ...(base1.burn ? { burn: { base: base1.burn, ms: cfg.burnMs ?? 3000 } } : {}),
+    };
     const reach = cfg.range ?? cfg.radius ?? 0;
     const targets = this.targetsFor(session, true);
 
@@ -1696,8 +1720,8 @@ export class GameWorld {
     }
 
     // 3. Cobra, avisa todos e aplica.
-    session.chakra -= cfg.cost;
-    session.cooldowns[skill] = t + (mechanic === 'substitution' ? substitutionCooldownMs(level) : cfg.cooldownMs);
+    session.chakra -= price.cost;
+    session.cooldowns[skill] = t + (mechanic === 'substitution' ? substitutionCooldownMs(level) : price.cooldownMs);
     this.broadcastMap(session.map, {
       type: 'cast', playerId: session.id, skill, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy),
       ...(to ? { tx: round2(to.x), ty: round2(to.y) } : {}),
@@ -1709,14 +1733,14 @@ export class GameWorld {
         for (const x of hits) {
           const who = x.kind === 'monster' ? x.monster : x.session;
           const at = { x: who.x, y: who.y };
-          this.hitTarget(x, dmg, session, t, 'skill', skill);
+          this.hitTarget(x, dmg, session, t, 'skill', skill, hit);
           if (who.x === at.x && who.y === at.y) this.pushAway(x, session, o, cfg.push ?? 0, t);
           if (this.stillThere(x)) this.applyEffect(x, 'molhado', t, undefined, undefined, session);   // prepara o combo com o Relâmpago
         }
         break;
       case 'taijutsu':
         if (dashTo && distance(o, dashTo) > 0.01) this.dash(session, dashTo, t);
-        for (const x of hits) this.hitTarget(x, dmg, session, t, 'skill', skill);
+        for (const x of hits) this.hitTarget(x, dmg, session, t, 'skill', skill, hit);
         break;
       case 'lightning':
         for (const x of hits) {
@@ -1726,27 +1750,27 @@ export class GameWorld {
             this.dropEffect(x, 'molhado', t);
             this.broadcastMap(session.map, { type: 'combo', target: x.kind, id: x.id, combo: 'eletrocutado' });
           }
-          this.applyStatus(x, 'stunned', cfg.stunMs ?? 0, t);
-          this.hitTarget(x, wet ? Math.round(dmg * WET_LIGHTNING_BONUS) : dmg, session, t, 'skill', skill);
+          this.applyStatus(x, 'stunned', cfg.stunMs ?? 0, t, session);
+          this.hitTarget(x, wet ? Math.round(dmg * WET_LIGHTNING_BONUS) : dmg, session, t, 'skill', skill, { ...hit, wet });
           // Paralisia: o corpo fica dormente (anda a 70% e leva um choque por segundo).
           if (cfg.paralysisMs && this.stillThere(x)) this.applyEffect(x, 'paralisia', t, cfg.paralysisMs, undefined, session);
         }
         break;
       case 'illusion':
         for (const x of hits) {
-          this.applyStatus(x, 'stunned', lasting(cfg.stunMs ?? 0), t);
+          this.applyStatus(x, 'stunned', lasting(cfg.stunMs ?? 0), t, session);
           // Tier 3 e 4: o silêncio continua depois do atordoamento (acordou, mas ainda sem jutsu).
           if (cfg.silenceMs && this.stillThere(x)) this.applyEffect(x, 'silencio', t, lasting(cfg.stunMs ?? 0) + cfg.silenceMs, undefined, session);
         }
         break;
       case 'shadow':
-        for (const x of hits) this.applyStatus(x, 'rooted', lasting(cfg.rootMs ?? 0), t);
+        for (const x of hits) this.applyStatus(x, 'rooted', lasting(cfg.rootMs ?? 0), t, session);
         break;
       case 'fire': {
         // A queimadura escala igual ao golpe (Ninjutsu, nível do jutsu, passiva, clima): mesma proporção do dano.
         const burn = cfg.burn ? { amount: Math.max(1, Math.round(cfg.burn * (dmg / (cfg.damage ?? 1)))), ms: cfg.burnMs ?? 3000 } : undefined;
         this.launch(session, fx, fy, {
-          skill, speed: cfg.speed ?? 12, range: reach, damage: dmg, radius: cfg.radius ?? 0, volley: new Set(), ...(burn ? { burn } : {}),
+          skill, speed: cfg.speed ?? 12, range: reach, damage: dmg, radius: cfg.radius ?? 0, volley: new Set(), ...(burn ? { burn } : {}), hit,
         });
         break;
       }
@@ -1758,16 +1782,17 @@ export class GameWorld {
         for (const off of laneOffsets(Math.max(1, cfg.shots ?? 3), cfg.laneGap ?? 0.7)) {
           const from = { x: q3(session.x - fy * off), y: q3(session.y + fx * off) };
           if (off !== 0 && blocked(from.x, from.y, solid)) continue;
-          this.launch(session, fx, fy, { skill, speed: cfg.speed ?? 16, range: reach, damage: dmg, radius: 0, volley, from });
+          this.launch(session, fx, fy, { skill, speed: cfg.speed ?? 16, range: reach, damage: dmg, radius: 0, volley, from, hit });
         }
         break;
       }
       case 'stone':
-        session.shield = cfg.reduction ?? 0.5;
+        session.shield = pvp ? PVP_SHIELD[tier - 1]! : (cfg.reduction ?? 0.5);
         break;
       case 'heal':
         // Passiva da Folha: +10% de cura (de quem cura). Ferida (anti-cura): metade.
-        this.healPlayer(healed!, (cfg.heal ?? 0) * jutsuPower(level) * this.passive(session, 'heal'), t);
+        this.healPlayer(healed!, pvp ? pvpHeal(base1.heal ?? 0, tier, level, this.passive(session, 'heal'))
+          : (cfg.heal ?? 0) * jutsuPower(level) * this.passive(session, 'heal'), t);
         break;
       case 'teleport': {
         const from = { x: session.x, y: session.y };
@@ -1827,6 +1852,12 @@ export class GameWorld {
     return this.config.combat.pvp && !layout.village;
   }
 
+  /** v28: área de PvP (arena das vilas ou Zona de Conflito): lá vale a tabela de equilíbrio do PvP. */
+  private inPvpArea(s: Session): boolean {
+    const layout = this.layout(s.map);
+    return !!layout.conflict || !!arenaAt(layout, s.x, s.y);
+  }
+
   /** A arena (dentro da cerca) em que o jogador está agora. */
   private arenaOf(s: Session): Arena | undefined {
     return arenaAt(this.layout(s.map), s.x, s.y);
@@ -1870,8 +1901,13 @@ export class GameWorld {
   }
 
   /** Dano de uma hitbox: no monstro (XP para quem matou) ou no jogador (PvP). Quem já morreu no meio do golpe não apanha de novo. */
-  private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill', label: string = source): void {
+  private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill', label: string = source, hit?: HitInfo & { wet?: boolean }): void {
     let hurt = false;
+    // v28: jogador acertando jogador numa área de PvP: o dano sai da tabela de equilíbrio (pvpBalance.ts).
+    if (hit && target.kind === 'player' && this.inPvpArea(attacker)) {
+      amount = pvpHitDamage(hit, attacker.stats, this.config.combat.damageScale);
+      if (hit.wet) amount = Math.round(amount * WET_LIGHTNING_BONUS);
+    }
     if (target.kind === 'monster') {
       if (target.monster.hp > 0 && this.monsters.has(target.id)) {
         this.damageMonster(target.monster, amount, attacker, t, source);
@@ -1902,6 +1938,10 @@ export class GameWorld {
 
   /** Aplica (ou renova) um efeito e avisa todos no mapa. Sono acaba a meditação; lentidão muda a velocidade do dono. */
   private applyEffect(x: Target, code: EffectCode, t: number, ms?: number, amount?: number, source?: Session): void {
+    if (x.kind === 'player' && (code === 'sono' || code === 'silencio')) {
+      ms = this.ccGate(x.session, source, code, ms ?? EFFECTS[code].defaultMs, t);
+      if (ms <= 0) return;
+    }
     const e = addEffect(this.effectsOf(x), code, t, ms, amount, source?.id ?? null);
     const map = x.kind === 'monster' ? x.monster.map : x.session.map;
     this.broadcastMap(map, { type: 'effect', target: x.kind, id: x.id, effect: code, ms: e.until - t });
@@ -1925,7 +1965,11 @@ export class GameWorld {
 
   /** Apanhou: o sono acorda. */
   private wakeOnDamage(x: Target, t: number): void {
-    for (const code of breakOnDamage(this.effectsOf(x), t)) this.effectGone(x, code, t);
+    for (const code of breakOnDamage(this.effectsOf(x), t)) {
+      this.effectGone(x, code, t);
+      // v28: o sono que acaba ao apanhar conta no orçamento só até acordar.
+      if (code === 'sono' && x.kind === 'player') for (const e of x.session.ccLog) if (e.kind === 'sono' && e.until > t) e.until = t;
+    }
   }
 
   /**
@@ -1940,7 +1984,7 @@ export class GameWorld {
       for (const p of pulses) {
         if (s.dead) break;
         if (p.kind === 'heal') this.healPlayer(s, p.amount, t);
-        else if (p.kind === 'stun') this.shock(x, p.amount, t);
+        else if (p.kind === 'stun') this.shock(x, p.amount, t, p.sourceId);
         else {
           const by = p.sourceId ? this.sessions.get(p.sourceId) : undefined;
           this.damagePlayer(s, p.amount, t, undefined, by && by !== s && this.canHurt(by, s, t) ? by : undefined, `efeito:${p.code}`);
@@ -1972,9 +2016,11 @@ export class GameWorld {
    * Choque da paralisia: parado por `ms` (todos veem). Fora do teto de controle (é curto e já veio de um Relâmpago que
    * contou no teto); a Máscara Intangível ignora.
    */
-  private shock(x: Target, ms: number, t: number): void {
+  private shock(x: Target, ms: number, t: number, sourceId: string | null = null): void {
     if (x.kind === 'player') {
       if (t < x.session.intangibleUntil) return;
+      ms = this.ccGate(x.session, sourceId ? this.sessions.get(sourceId) : undefined, 'shock', ms, t);
+      if (ms <= 0) return;
       x.session.stunnedUntil = Math.max(x.session.stunnedUntil, t + ms);
       this.broadcastMap(x.session.map, { type: 'player_status', playerId: x.id, status: 'stunned', ms });
     } else {
@@ -1995,12 +2041,28 @@ export class GameWorld {
   }
 
   /**
+   * v28: controle de JOGADOR em jogador passa pelo orçamento único (pvpBalance.ts). Devolve quanto pega (ms reais);
+   * 0 = não pega. Sem `source` jogador, devolve `ms` (quem chama aplica o teto de sempre).
+   */
+  private ccGate(victim: Session, source: Session | undefined, kind: CcKind, ms: number, t: number): number {
+    if (!source || source === victim) return ms;
+    victim.ccLog = victim.ccLog.filter((e) => e.until > t - CC_BUDGET.windowMs);
+    const got = ccAllow(victim.ccLog, t, kind, ms);
+    if (got > 0) victim.ccLog.push({ kind, startedAt: t, until: t + got, weight: kind === 'silencio' ? 0.5 : 1, sourceId: source.id });
+    return got;
+  }
+
+  /**
    * Atordoar ou prender um alvo (todos veem). Em JOGADOR vale o teto de controle: de novo dentro da janela,
    * dura a metade, depois um quarto, e depois nada (imune até a janela passar).
    */
-  private applyStatus(target: Target, status: MonsterStatus, ms: number, t: number): void {
+  private applyStatus(target: Target, status: MonsterStatus, ms: number, t: number, source?: Session): void {
     const who = target.kind === 'monster' ? target.monster : target.session;
-    if (target.kind === 'player') {
+    if (target.kind === 'player' && source) {
+      if (t < target.session.intangibleUntil) return;          // Máscara Intangível: nada de atordoar
+      ms = this.ccGate(target.session, source, status, ms, t);
+      if (ms <= 0) return;
+    } else if (target.kind === 'player') {
       if (t < target.session.intangibleUntil) return;          // Máscara Intangível: nada de atordoar
       const { windowMs, factors } = this.config.combat.controlDr;
       const dr = target.session.controlDr[status];
@@ -2045,6 +2107,7 @@ export class GameWorld {
       speed: spec.speed, left: spec.range, damage: spec.damage, radius: spec.radius, volley: spec.volley,
       hitRadius: spec.hitRadius ?? HIT_RADIUS, pierce: spec.pierce ?? false, source: spec.source ?? 'skill',
       ...(spec.burn ? { burn: spec.burn } : {}),
+      ...(spec.hit ? { hit: spec.hit } : {}),
     };
     this.projectiles.push(p);
     this.broadcastMap(owner.map, {
@@ -2072,7 +2135,7 @@ export class GameWorld {
       for (const x of fresh) {
         if (!lineIntersects(from, end, x, p.hitRadius)) continue;
         p.volley.add(x.id);
-        this.hitTarget(x, p.damage, p.owner, t, p.source, projectileLabel(p));
+        this.hitTarget(x, p.damage, p.owner, t, p.source, projectileLabel(p), p.hit);
       }
       if (!wall && p.left > 1e-9) return false;
       this.impact(p, end, undefined, t);
@@ -2093,13 +2156,16 @@ export class GameWorld {
     if (p.radius > 0) {
       for (const x of this.targetsFor(p.owner)) {
         if (!isInCircle(at, p.radius, x)) continue;
-        this.hitTarget(x, p.damage, p.owner, t, p.source, projectileLabel(p));
+        this.hitTarget(x, p.damage, p.owner, t, p.source, projectileLabel(p), p.hit);
         // Fogo: quem sobreviveu à explosão fica queimando (o dono ganha o abate se a queimadura matar).
-        if (p.burn && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, p.burn.ms, p.burn.amount, p.owner);
+        // v28: num jogador, numa área de PvP, a queimadura sai da tabela do PvP.
+        const burn = p.burn && p.hit && x.kind === 'player' && this.inPvpArea(p.owner)
+          ? { ms: p.burn.ms, amount: pvpBurnPerTick(p.hit, p.owner.stats, this.config.combat.damageScale) } : p.burn;
+        if (burn && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, burn.ms, burn.amount, p.owner);
       }
     } else if (hit) {
       p.volley.add(hit.id);
-      this.hitTarget(hit, p.damage, p.owner, t, p.source, projectileLabel(p));
+      this.hitTarget(hit, p.damage, p.owner, t, p.source, projectileLabel(p), p.hit);
     }
   }
 
@@ -2209,8 +2275,10 @@ export class GameWorld {
     // FÍSICO: base x Taijutsu + a arma equipada x Armas (Kunai de Treino: +10).
     // Passiva da Areia: +10% no que a arma soma.
     if (safe) return;
-    const damage = scaledDamage(cfg.damage, session.stats.physicalMultiplier)
-      + scaledDamage(this.weaponDamage(session) * this.passive(session, 'weapons'), session.stats.weaponMultiplier);
+    // v28: dano base x damageScale.basic; o bônus de Armas vale pela metade no Ataque Básico; um arredondamento só.
+    const scale = this.config.combat.damageScale.basic;
+    const damage = Math.round(cfg.damage * scale * session.stats.physicalMultiplier
+      + this.weaponDamage(session) * this.passive(session, 'weapons') * scale * (1 + (session.stats.weaponMultiplier - 1) / 2));
     if (thrown) {
       this.launch(session, session.fx, session.fy, {
         weapon: weapon!.code, speed: thrown.speed, range: thrown.range, damage: Math.round(damage * thrown.damageFactor), radius: 0,
@@ -2330,7 +2398,7 @@ export class GameWorld {
     const before = s.stats;
     s.statPoints = statPoints;
     s.attributes = { ...attributes };
-    s.stats = this.statsFor(s.village, s.attributes);
+    s.stats = this.statsFor(s.village, s.attributes, s.level);
     if (!s.dead) {
       s.hp = Math.min(s.stats.maxHp, s.hp + Math.max(0, s.stats.maxHp - before.maxHp));
       s.chakra = Math.min(s.stats.maxChakra, s.chakra + Math.max(0, s.stats.maxChakra - before.maxChakra));
@@ -3110,6 +3178,8 @@ export class GameWorld {
       session.rank = result.rank;
       if (result.level !== undefined) session.level = result.level;
       if (result.statPoints !== undefined) session.statPoints = result.statPoints;
+      // Vida por nível (v28): subiu de nível, a vida máxima sobe e a atual sobe junto.
+      if (levelsGained > 0) this.applyAttributes(session, session.statPoints, session.attributes);
       this.sendTo(session, { type: 'xp', gained, totalXp: result.totalXp, rank: result.rank, promoted: result.promoted });
       this.sendTo(session, { type: 'progress', ...this.progressView(session) });
       if (levelsGained > 0) {
@@ -3145,6 +3215,15 @@ export class GameWorld {
       dmg = Math.round(amount * (1 - session.heartsCut));
       session.hearts -= 1;
       shielded = true;
+    }
+    // v28: rede de segurança (área de PvP, golpe de outro ninja): no máximo 50% da vida em 2 s por atacante.
+    if (by && by !== session && this.inPvpArea(by)) {
+      const log = (session.netLog.get(by.id) ?? []).filter((h) => h.t > t - SAFETY_NET.windowMs);
+      const net = safetyNet(log, t, session.stats.maxHp, dmg);
+      if (net.cut > 0) this.pvpStats.safetyCut(net.cut, PVP_BALANCE_VERSION);
+      dmg = net.allowed;
+      log.push({ t, dmg });
+      session.netLog.set(by.id, log);
     }
     const before = session.hp;
     session.hp = Math.max(0, session.hp - dmg);
@@ -4337,7 +4416,7 @@ export class GameWorld {
     if (s.chakra < def.cost) return fail('NO_CHAKRA');
     const targets = this.targetsFor(s, true);
     const focused = targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined;
-    const dmg = (base: number) => scaledDamage(base, damageMultiplier(s.stats, 'ninjutsu'));
+    const dmg = (base: number) => scaledDamage(base * this.config.combat.damageScale.jutsu, damageMultiplier(s.stats, 'ninjutsu'));
     const layout = this.layout(s.map);
     let tx: number | undefined;
     let ty: number | undefined;
@@ -4353,7 +4432,7 @@ export class GameWorld {
         this.spendPower(s, def, t);
         for (const x of caught) {
           this.pullTo(x, s, 1.2, t);
-          this.applyStatus(x, 'stunned', def.ms!, t);
+          this.applyStatus(x, 'stunned', def.ms!, t, s);
         }
         break;
       }
@@ -4378,7 +4457,7 @@ export class GameWorld {
         this.spendPower(s, def, t);
         tx = round2(first.at.x);
         ty = round2(first.at.y);
-        this.applyStatus(first.target, 'rooted', def.ms!, t);
+        this.applyStatus(first.target, 'rooted', def.ms!, t, s);
         this.pullTo(first.target, s, Math.max(1.2, distance(s, first.target) - def.count!), t);
         break;
       }
@@ -4386,7 +4465,7 @@ export class GameWorld {
         const caught = targets.filter((x) => isInCircle(s, def.radius!, x));
         if (caught.length === 0) return fail('NO_TARGET');
         this.spendPower(s, def, t);
-        for (const x of caught) this.applyStatus(x, 'stunned', def.ms!, t);
+        for (const x of caught) this.applyStatus(x, 'stunned', def.ms!, t, s);
         break;
       }
       case 'hearts':
