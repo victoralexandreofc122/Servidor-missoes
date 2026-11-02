@@ -792,7 +792,8 @@ export const FOREST_POI = {
 const P = FOREST_POI;
 export const FOREST_PLACES = {
   pedra1: { x: P.pedra1.x - 2.2, y: P.pedra1.y - 7.2, w: 4.5, h: 5.7 },
-  carvalho: { x: P.carvalho.x - 6.5, y: P.carvalho.y - 8.5, w: 13, h: 4.5 },
+  /** v29: só o TRONCO (a colisão); raízes e copa são desenho e não bloqueiam. */
+  carvalho: { x: P.carvalho.x - 2.3, y: P.carvalho.y - 6.5, w: 4.6, h: 2.5 },
   pedra2: { x: P.pedra2.x - 1.2, y: P.pedra2.y - 4.5, w: 2.4, h: 3 },
   pedra3: { x: P.pedra3.x - 1, y: P.pedra3.y - 3.8, w: 2.2, h: 2.4 },
   /** Posto de Viagem: o NPC e onde o ninja chega viajando. */
@@ -931,6 +932,9 @@ function forest(): MapLayout {
   };
   for (const wd of woods) for (const z of solidZones) { const c = cut(wd, z); if (c) walls.push({ ...c, k: 'thicket' }); }
   const landmarks = walls.filter((w) => w.k !== 'cliff' && w.k !== 'pit' && w.k !== 'thicket');
+  // a copa do Velho Carvalho (só desenho): nenhuma árvore nasce embaixo dela
+  const oakCrown = { x: FOREST_PLACES.carvalho.x - 7, y: FOREST_PLACES.carvalho.y - 14, w: FOREST_PLACES.carvalho.w + 14, h: 17 };
+  landmarks.push({ ...oakCrown, k: 'foot' });
   const loose = scatterTrees(woods, [...open.filter((o) => o.w * o.h < 300), ...trails], [...landmarks, ...solidZones], 5.5, 13, 1.2);   // menos árvores, mais espaço
   const pieces: Piece[] = loose;
   walls.push(...loose.map((p) => ({ ...footBox(p), k: 'foot' as const })));

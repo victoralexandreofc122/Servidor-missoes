@@ -1155,7 +1155,7 @@ export function propExtent(wall) {
     case 'tree': { const s = Math.max(wall.w, wall.h); return s > 2.5 ? { left: s * 0.3, right: s * 0.3, top: s * 0.9, bottom: 0.4 } : { left: 0.6, right: 0.6, top: 1.7, bottom: 0.4 }; }
     case 'pine': return { left: 0.1, right: 0.1, top: wall.h * 1.2, bottom: 0.4 };
     case 'deadtree': return { left: 0.4, right: 0.4, top: 1.4, bottom: 0.3 };
-    case 'oak': return { left: 4, right: 4, top: 12, bottom: 0.6 };   // v29: a copa enorme do Velho Carvalho
+    case 'oak': return { left: wall.w * 1.5, right: wall.w * 1.5, top: wall.w * 2.6, bottom: 1.2 };   // a caixa é só o tronco   // v29: a copa enorme do Velho Carvalho
     case 'seal': return { left: 0.3, right: 0.3, top: 1.0, bottom: 0.3 };
     case 'tent': return { left: 0.4, right: 0.5, top: 0.3, bottom: 0.45 };
     default: return { left: 0.2, right: 0.2, top: 0.5, bottom: 0.3 };
@@ -1361,46 +1361,53 @@ function drawPine(g, baseX, baseY, size, seed, tile) {
 }
 
 function drawGiantOak(g, x, y, w, h, tile) {
-  const cx = x + w / 2, base = y + h;
-  // raízes: dedos grossos que se abrem no chão
-  g.fillStyle = '#2b1a0e';
-  for (const [dx, reach] of [[-0.48, 0.5], [-0.32, 0.85], [-0.12, 0.6], [0.12, 0.6], [0.32, 0.85], [0.48, 0.5]]) {
+  // v29: a caixa (x, y, w, h) é só o TRONCO, a colisão. As raízes abrem no chão e a copa fica no alto, sem bloquear.
+  const r = rng(4242);
+  const cx = x + w / 2, base = y + h, tw = w;
+  const trunkTop = y - tile * 3.5;
+  g.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  g.beginPath(); g.ellipse(cx + tw * 0.4, base, tw * 1.6, tw * 0.35, 0, 0, Math.PI * 2); g.fill();
+  // raízes
+  for (const [dx, reach] of [[-1, 1.1], [-0.6, 0.9], [-0.2, 0.5], [0.2, 0.5], [0.6, 0.9], [1, 1.1]]) {
+    g.fillStyle = '#1e1a17';
     g.beginPath();
-    g.moveTo(cx + dx * w * 0.35, base - h * 0.7);
-    g.quadraticCurveTo(cx + dx * w * 0.8, base - h * 0.2, cx + dx * w * (0.75 + reach * 0.2), base);
-    g.lineTo(cx + dx * w * (0.62 + reach * 0.2), base);
-    g.quadraticCurveTo(cx + dx * w * 0.5, base - h * 0.3, cx + dx * w * 0.2, base - h * 0.7);
+    g.moveTo(cx + dx * tw * 0.3, base - h * 0.8);
+    g.quadraticCurveTo(cx + dx * tw * 0.6, base - h * 0.2, cx + dx * tw * (0.5 + reach * 0.6), base + 1);
+    g.lineTo(cx + dx * tw * (0.3 + reach * 0.45), base + 1);
+    g.quadraticCurveTo(cx + dx * tw * 0.35, base - h * 0.3, cx + dx * tw * 0.12, base - h * 0.8);
+    g.closePath(); g.fill();
+    g.fillStyle = '#4a2e16';
+    g.beginPath();
+    g.moveTo(cx + dx * tw * 0.3, base - h * 0.75);
+    g.quadraticCurveTo(cx + dx * tw * 0.58, base - h * 0.2, cx + dx * tw * (0.48 + reach * 0.58), base);
+    g.lineTo(cx + dx * tw * (0.33 + reach * 0.45), base);
+    g.quadraticCurveTo(cx + dx * tw * 0.36, base - h * 0.3, cx + dx * tw * 0.15, base - h * 0.75);
     g.closePath(); g.fill();
   }
-  // o tronco: largo embaixo, com sombra à direita e luz à esquerda
-  const tw = w * 0.36;
-  g.fillStyle = '#14182b';
-  g.beginPath(); g.moveTo(cx - tw * 0.62, base - h * 0.1); g.lineTo(cx - tw * 0.4, y - tile * 3.2); g.lineTo(cx + tw * 0.4, y - tile * 3.2); g.lineTo(cx + tw * 0.62, base - h * 0.1); g.closePath(); g.fill();
-  g.fillStyle = '#4a2e16';
-  g.beginPath(); g.moveTo(cx - tw * 0.56, base - h * 0.12); g.lineTo(cx - tw * 0.36, y - tile * 3.2); g.lineTo(cx + tw * 0.36, y - tile * 3.2); g.lineTo(cx + tw * 0.56, base - h * 0.12); g.closePath(); g.fill();
-  g.fillStyle = '#6b4424';
-  g.beginPath(); g.moveTo(cx - tw * 0.5, base - h * 0.14); g.lineTo(cx - tw * 0.32, y - tile * 3.2); g.lineTo(cx - tw * 0.08, y - tile * 3.2); g.lineTo(cx - tw * 0.14, base - h * 0.14); g.closePath(); g.fill();
-  // a copa: tufos grandes em camadas (escuro embaixo, luz em cima à esquerda)
-  const r = rng(4242);
-  const R = tile * 2.1, top = y - tile * 6.2;
-  const blobs = [];
-  for (let i = 0; i < 16; i++) blobs.push([cx + (r() - 0.5) * w * 1.15, top + (r() - 0.5) * tile * 5.2, R * (0.7 + r() * 0.45)]);
-  blobs.sort((a, b) => a[1] - b[1]);
-  for (const [bx, by, br] of blobs) { g.fillStyle = OAK_LEAVES[0]; g.beginPath(); g.arc(bx, by + br * 0.1, br * 1.05, 0, Math.PI * 2); g.fill(); }
-  for (const [bx, by, br] of blobs) {
-    g.fillStyle = OAK_LEAVES[1]; g.beginPath(); g.arc(bx, by, br, 0, Math.PI * 2); g.fill();
-    g.fillStyle = OAK_LEAVES[2]; g.beginPath(); g.arc(bx - br * 0.18, by - br * 0.2, br * 0.7, 0, Math.PI * 2); g.fill();
-    g.fillStyle = OAK_LEAVES[3]; g.beginPath(); g.arc(bx - br * 0.34, by - br * 0.38, br * 0.34, 0, Math.PI * 2); g.fill();
+  // tronco: contorno, 3 tons e riscas de casca
+  const poly = (k, col) => { g.fillStyle = col; g.beginPath(); g.moveTo(cx - tw * 0.5 * k, base - h * 0.15); g.lineTo(cx - tw * 0.36 * k, trunkTop); g.lineTo(cx + tw * 0.36 * k, trunkTop); g.lineTo(cx + tw * 0.5 * k, base - h * 0.15); g.closePath(); g.fill(); };
+  poly(1.06, '#1e1a17'); poly(1, '#4a2e16');
+  g.fillStyle = '#6b4424'; g.beginPath(); g.moveTo(cx - tw * 0.46, base - h * 0.15); g.lineTo(cx - tw * 0.33, trunkTop); g.lineTo(cx - tw * 0.05, trunkTop); g.lineTo(cx - tw * 0.1, base - h * 0.15); g.closePath(); g.fill();
+  g.fillStyle = '#33200f';
+  for (let i = 0; i < 6; i++) { const bx = cx + (r() - 0.3) * tw * 0.6; g.fillRect(bx, trunkTop + r() * (base - trunkTop) * 0.6, 1, tile * (0.6 + r())); }
+  // copa: uma massa arredondada (largura ~2,6 troncos), com cachos de folha por cima; luz em cima à esquerda
+  const CW = tw * 1.35, CH = tw * 0.95, ccx = cx, ccy = trunkTop - CH * 0.55;
+  const lobes = [[0, 0, 1], [-0.62, 0.22, 0.62], [0.62, 0.22, 0.62], [-0.35, -0.42, 0.6], [0.38, -0.4, 0.58], [0, 0.45, 0.62], [-0.85, -0.05, 0.42], [0.86, -0.02, 0.42]];
+  const lobe = (dx, dy, k, grow, col) => { g.fillStyle = col; g.beginPath(); g.ellipse(ccx + dx * CW, ccy + dy * CH, k * CW * 0.6 + grow, k * CH * 0.62 + grow, 0, 0, Math.PI * 2); g.fill(); };
+  for (const [dx, dy, k] of lobes) lobe(dx, dy, k, 2, OAK_LEAVES[0]);
+  for (const [dx, dy, k] of lobes) lobe(dx, dy, k, 0, OAK_LEAVES[1]);
+  for (const [dx, dy, k] of lobes) lobe(dx - 0.05, dy - 0.08, k * 0.82, 0, OAK_LEAVES[2]);
+  for (const [dx, dy, k] of lobes) if (dy < 0.3) lobe(dx - 0.12, dy - 0.18, k * 0.45, 0, OAK_LEAVES[3]);
+  for (let i = 0; i < 220; i++) {
+    const a = r() * Math.PI * 2, d = Math.sqrt(r()), lx = ccx + Math.cos(a) * d * CW * 0.95, ly = ccy + Math.sin(a) * d * CH * 0.85;
+    const tr = tile * (0.28 + r() * 0.22), side = (lx - ccx) / CW + (ly - ccy) / CH;
+    g.globalAlpha = 0.3; g.fillStyle = OAK_LEAVES[0]; g.beginPath(); g.arc(lx + tr * 0.2, ly + tr * 0.25, tr, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
+    g.fillStyle = side < -0.5 ? OAK_LEAVES[3] : side > 0.45 ? OAK_LEAVES[1] : OAK_LEAVES[2];
+    g.beginPath(); g.arc(lx, ly, tr, Math.PI, Math.PI * 2); g.fill();
+    if (side < -0.6 && r() < 0.4) { g.fillStyle = OAK_LEAVES[4]; g.fillRect(lx - 1, ly - tr * 0.6, 2, 1); }
   }
-  // cachos de folha por cima (como nas árvores grandes): luz em cima à esquerda, sombra embaixo à direita
-  for (let i = 0; i < 260; i++) {
-    const [bx, by, br] = blobs[Math.floor(r() * blobs.length)];
-    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * br * 0.9, lx = bx + Math.cos(a) * d, ly = by + Math.sin(a) * d;
-    const tr = br * (0.1 + r() * 0.08), side = (lx - cx) / (w * 0.6) + (ly - top) / (tile * 3);
-    g.globalAlpha = 0.35; g.fillStyle = OAK_LEAVES[0]; g.beginPath(); g.arc(lx + tr * 0.15, ly + tr * 0.2, tr * 0.95, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
-    g.fillStyle = side < -0.25 ? OAK_LEAVES[3] : side > 0.35 ? OAK_LEAVES[1] : OAK_LEAVES[2];
-    g.beginPath(); g.arc(lx, ly, tr, 0, Math.PI * 2); g.fill();
-  }
+  // sombra da copa sobre o alto do tronco
+  g.fillStyle = 'rgba(10, 14, 6, 0.35)'; g.fillRect(cx - tw * 0.36, trunkTop, tw * 0.72, tile * 0.8);
 }
 
 function drawOakTrunk(g, x, y, w, h) {

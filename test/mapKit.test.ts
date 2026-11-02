@@ -74,3 +74,14 @@ describe('lugares da Floresta numa lista só (v29)', () => {
     assert.ok(REALTIME.npcs.some((n) => n.id === 'travel_map_2' && n.x === FOREST_PLACES.posto.npc.x && n.y === FOREST_PLACES.posto.npc.y));
   });
 });
+
+describe('Velho Carvalho (v29)', () => {
+  it('só o tronco colide: a copa e as raízes não são parede', () => {
+    const oak = F.walls.find((w) => w.k === 'oak')!;
+    assert.ok(oak.w <= 5 && oak.h <= 3, `tronco ${oak.w} x ${oak.h}`);
+    // embaixo da copa, dos lados e acima do tronco, dá para andar
+    assert.equal(blocked(oak.x - 2, oak.y + oak.h / 2, F.walls), false);
+    assert.equal(blocked(oak.x + oak.w + 2, oak.y + oak.h / 2, F.walls), false);
+    assert.equal(blocked(oak.x + oak.w / 2, oak.y - 3, F.walls), false);
+  });
+});

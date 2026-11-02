@@ -5122,7 +5122,7 @@ function propSprite(pr) {
   const g = c.getContext('2d');
   g.scale(ART, ART);
   drawProp(g, pr.wall, left * U, top * U, pr.w * U, pr.h * U, U);
-  sp = { canvas: c, left, top, w, h };
+  sp = { canvas: c, left, right, top, w, h };   // v29: 'right' faltava (a copa nunca ficava transparente)
   propCache.set(key, sp);
   if (propCache.size > 600) propCache.delete(propCache.keys().next().value);
   return sp;
@@ -5134,7 +5134,7 @@ function drawPropOnScreen(pr, toScreenX, toScreenY, T, me) {
   if (!sp) return;
   const x = toScreenX(pr.x - sp.left), y = toScreenY(pr.top - sp.top);
   const covers = me && me.y < pr.y && me.y > pr.top - sp.top && me.x > pr.x - sp.left && me.x < pr.x + pr.w + sp.right;
-  if (covers) ctx.globalAlpha = 0.55;
+  if (covers) ctx.globalAlpha = pr.wall.k === 'oak' ? 0.3 : 0.55;   // a copa enorme do Carvalho fica bem transparente
   ctx.drawImage(sp.canvas, x, y, sp.w * T, sp.h * T);
   if (covers) ctx.globalAlpha = 1;
 }
