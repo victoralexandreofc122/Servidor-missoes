@@ -88,27 +88,36 @@ const ROCK = ['#2c2a28', '#4a4744', '#5b5753', '#3d3a37', '#6f6a64', '#25231f'];
 const CAVE_ROCK = ['#1a1520', '#2f2838', '#3b3346', '#262030', '#4d4460', '#14101a'];
 
 function drawRock(g, x, y, w, h, seed, pal = ROCK) {
-  // v29: pedras no estilo do boneco: 1 a 3 pedregulhos redondos que enchem a caixa (a caixa é a colisão), contorno
-  // escuro, 3 tons (sombra embaixo à direita, luz em cima à esquerda) e musgo no topo.
+  // v29 (pedido do Victor: nada de "ovo"): pedra angulosa em 3/4, base achatada e mais larga que alta. Topo claro
+  // (luz de cima à esquerda), face da frente média, lado direito escuro, contorno escuro, rachaduras e musgo no alto.
   const r = rng(seed);
-  const OUT = '#1e1a17', DARK = '#3a3c40', MID = '#5f6266', LIGHT = '#8a8d90', MOSS = '#5a6a2c';
-  const n = w > h * 1.6 ? 3 : w > h * 1.1 ? 2 : 1;
-  const parts = [];
-  for (let i = 0; i < n; i++) {
-    const pw = w / n * (1.15 - (i % 2) * 0.15), ph = h * (0.8 + r() * 0.2);
-    parts.push([x + (w / n) * i + (w / n - pw) / 2 + pw / 2, y + h - ph / 2, pw / 2, ph / 2]);
-  }
-  parts.sort((a, b) => a[3] - b[3]);
+  const OUT = '#1e1a17', DARK = '#3a3c40', MID = '#5f6266', LIGHT = '#8a8d90', HI = '#a9acae', MOSS = '#55602e';
+  const n = w > h * 2.2 ? 2 : 1;
   g.fillStyle = 'rgba(0, 0, 0, 0.28)';
-  g.beginPath(); g.ellipse(x + w / 2 + 2, y + h - 1, w / 2, Math.max(3, h * 0.12), 0, 0, Math.PI * 2); g.fill();
-  for (const [cx, cy, rx, ry] of parts) {
-    g.fillStyle = OUT; g.beginPath(); g.ellipse(cx, cy, rx + 1.5, ry + 1.5, 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = DARK; g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = MID; g.beginPath(); g.ellipse(cx - rx * 0.12, cy - ry * 0.12, rx * 0.84, ry * 0.8, 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = LIGHT; g.beginPath(); g.ellipse(cx - rx * 0.32, cy - ry * 0.36, rx * 0.42, ry * 0.32, 0, 0, Math.PI * 2); g.fill();
-    if (r() < 0.7) { g.fillStyle = MOSS; g.beginPath(); g.ellipse(cx + rx * 0.1, cy - ry * 0.72, rx * 0.5, ry * 0.18, 0, 0, Math.PI * 2); g.fill(); }
+  g.beginPath(); g.ellipse(x + w / 2 + 2, y + h - 1, w / 2 + 1, Math.max(2.5, h * 0.12), 0, 0, Math.PI * 2); g.fill();
+  for (let k = 0; k < n; k++) {
+    const bw = w / n * (k ? 0.8 : 1), bx = x + (w / n) * k + (w / n - bw) / 2;
+    const by = y + h * (k ? 0.25 : 0.05), bh = y + h - by, base = y + h;
+    const j = () => (r() - 0.5) * bw * 0.12;
+    // silhueta: 7 pontos, base reta
+    const pts = [
+      [bx, base], [bx + bw * 0.05 + j(), by + bh * 0.45], [bx + bw * 0.28 + j(), by + bh * 0.08],
+      [bx + bw * 0.62 + j(), by], [bx + bw * 0.9 + j(), by + bh * 0.22], [bx + bw, by + bh * 0.62], [bx + bw * 0.96, base],
+    ];
+    const path = (ps) => { g.beginPath(); g.moveTo(ps[0][0], ps[0][1]); for (const q of ps.slice(1)) g.lineTo(q[0], q[1]); g.closePath(); };
+    g.fillStyle = OUT; path(pts.map(([px, py]) => [px + (px < bx + bw / 2 ? -1 : 1), py - (py < base - 0.5 ? 1 : 0)])); g.fill();
+    g.fillStyle = MID; path(pts); g.fill();
+    // lado direito na sombra
+    g.fillStyle = DARK; path([[bx + bw * 0.62, by + bh * 0.38], pts[4], pts[5], pts[6], [bx + bw * 0.58, base]]); g.fill();
+    // topo iluminado (plano de cima)
+    g.fillStyle = LIGHT; path([pts[1], pts[2], pts[3], pts[4], [bx + bw * 0.62, by + bh * 0.38], [bx + bw * 0.2, by + bh * 0.5]]); g.fill();
+    g.fillStyle = HI; path([[bx + bw * 0.22, by + bh * 0.2], pts[2], [bx + bw * 0.5, by + bh * 0.06], [bx + bw * 0.34, by + bh * 0.28]]); g.fill();
+    // aresta entre o topo e a frente, e rachaduras
     g.strokeStyle = OUT; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(cx + rx * 0.15, cy - ry * 0.1); g.lineTo(cx + rx * 0.35, cy + ry * 0.35); g.stroke();
+    g.beginPath(); g.moveTo(pts[1][0], pts[1][1]); g.lineTo(bx + bw * 0.2, by + bh * 0.5); g.lineTo(bx + bw * 0.62, by + bh * 0.38); g.lineTo(pts[4][0], pts[4][1]); g.stroke();
+    g.beginPath(); g.moveTo(bx + bw * 0.4, by + bh * 0.48); g.lineTo(bx + bw * 0.46, by + bh * 0.7); g.lineTo(bx + bw * 0.42, base - 1); g.stroke();
+    // musgo só no alto
+    if (r() < 0.7) { g.fillStyle = MOSS; path([pts[2], pts[3], [bx + bw * 0.55, by + bh * 0.14], [bx + bw * 0.32, by + bh * 0.2]]); g.fill(); }
   }
   void pal;
 }
