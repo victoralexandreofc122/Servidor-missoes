@@ -870,8 +870,7 @@ function forest(): MapLayout {
     { x: 0, y: 0, w: W, h: b.y }, { x: 0, y: b.y + b.h, w: W, h: H - b.y - b.h },
     { x: 0, y: b.y, w: b.x, h: b.h }, { x: b.x + b.w, y: b.y, w: W - b.x - b.w, h: b.h },
   ];
-  const oakBox: Box = { x: 23.5, y: 37, w: 13, h: 4.5 };     // o Velho Carvalho: a mata não cobre o tronco dele
-  const thicket = carve(W, H, [...open, cliff, abyss, oakBox], 'thicket');
+  const thicket = carve(W, H, [...open, cliff, abyss], 'thicket');
   const walls: Wall[] = [
     ...thicket,
     ...carve(W, H, [...open, ...outside(cliff)], 'cliff'),
@@ -923,9 +922,11 @@ function forest(): MapLayout {
     areas: [
       area('path', 46.5, 0, 4, 16), area('path', 47, 16, 3.5, 47), area('path', 47.5, 63, 3, 12),
       area('pebbles', 50, 36.8, 50, 6), oval('burnt', 4, 47, 31, 21), area('dirt', 72.8, 52.6, 22.7, 14.4),
+      // v29: o chão de pedra em volta da Pedra-Selo 1 (na referência, um pátio de pedra azulada)
+      oval('stone', 8.5, 7.5, 12.5, 10),
     ],
     // v29: a copa do Velho Carvalho (antes vinha na pintura): por cima de quem passa, translúcida com ele embaixo.
-    deco: [deco('oak_canopy', 20, 26.5, 20, 13.5)],
+    deco: [],
     safeZones: [],
     hunt: { x: 4, y: 6, w: 92, h: 61 },
     zones: [

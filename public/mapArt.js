@@ -1160,7 +1160,7 @@ export function propExtent(wall) {
   switch (wall.k) {
     case 'tree': return { left: 0.6, right: 0.6, top: 1.7, bottom: 0.4 };
     case 'deadtree': return { left: 0.4, right: 0.4, top: 1.4, bottom: 0.3 };
-    case 'oak': return { left: 0.6, right: 0.6, top: 0.6, bottom: 0.4 };
+    case 'oak': return { left: 4, right: 4, top: 12, bottom: 0.6 };   // v29: a copa enorme do Velho Carvalho
     case 'seal': return { left: 0.3, right: 0.3, top: 1.0, bottom: 0.3 };
     case 'tent': return { left: 0.4, right: 0.5, top: 0.3, bottom: 0.45 };
     default: return { left: 0.2, right: 0.2, top: 0.5, bottom: 0.3 };
@@ -1173,7 +1173,7 @@ export function drawProp(g, wall, x, y, w, h, tile) {
   switch (wall.k) {
     case 'tree': return drawTreeGroup(g, x, y, w, h, Math.abs(seed), tile, wall.s, wall.t);
     case 'deadtree': return drawDeadTrees(g, x, y, w, h, Math.abs(seed), tile);
-    case 'oak': return drawOakTrunk(g, x, y, w, h);
+    case 'oak': return drawGiantOak(g, x, y, w, h, tile);
     case 'seal': return drawSeal(g, x, y, w, h, wall.s !== 'out');
     case 'tent': return drawTent(g, x, y, w, h, Math.abs(seed));
     default: return undefined;
@@ -1316,6 +1316,45 @@ export function drawSealGlow(ctx, x, y, w, h, now) {
 }
 
 /** Tronco do Velho Carvalho: largo, casca com veios e raízes que abrem na base (a copa vem por cima, à parte). */
+/**
+ * v29: o Velho Carvalho como peça do catálogo (referência da Floresta): uma árvore enorme, no mesmo estilo das outras,
+ * com o tronco largo e as raízes abertas sobre a caixa de colisão (o tronco é o que bloqueia) e a copa bem acima.
+ */
+const OAK_LEAVES = ['#1c2410', '#33421c', '#4b5e26', '#6a7d34', '#9aa851'];
+function drawGiantOak(g, x, y, w, h, tile) {
+  const cx = x + w / 2, base = y + h;
+  // raízes: dedos grossos que se abrem no chão
+  g.fillStyle = '#2b1a0e';
+  for (const [dx, reach] of [[-0.48, 0.5], [-0.32, 0.85], [-0.12, 0.6], [0.12, 0.6], [0.32, 0.85], [0.48, 0.5]]) {
+    g.beginPath();
+    g.moveTo(cx + dx * w * 0.35, base - h * 0.7);
+    g.quadraticCurveTo(cx + dx * w * 0.8, base - h * 0.2, cx + dx * w * (0.75 + reach * 0.2), base);
+    g.lineTo(cx + dx * w * (0.62 + reach * 0.2), base);
+    g.quadraticCurveTo(cx + dx * w * 0.5, base - h * 0.3, cx + dx * w * 0.2, base - h * 0.7);
+    g.closePath(); g.fill();
+  }
+  // o tronco: largo embaixo, com sombra à direita e luz à esquerda
+  const tw = w * 0.36;
+  g.fillStyle = '#14182b';
+  g.beginPath(); g.moveTo(cx - tw * 0.62, base - h * 0.1); g.lineTo(cx - tw * 0.4, y - tile * 3.2); g.lineTo(cx + tw * 0.4, y - tile * 3.2); g.lineTo(cx + tw * 0.62, base - h * 0.1); g.closePath(); g.fill();
+  g.fillStyle = '#4a2e16';
+  g.beginPath(); g.moveTo(cx - tw * 0.56, base - h * 0.12); g.lineTo(cx - tw * 0.36, y - tile * 3.2); g.lineTo(cx + tw * 0.36, y - tile * 3.2); g.lineTo(cx + tw * 0.56, base - h * 0.12); g.closePath(); g.fill();
+  g.fillStyle = '#6b4424';
+  g.beginPath(); g.moveTo(cx - tw * 0.5, base - h * 0.14); g.lineTo(cx - tw * 0.32, y - tile * 3.2); g.lineTo(cx - tw * 0.08, y - tile * 3.2); g.lineTo(cx - tw * 0.14, base - h * 0.14); g.closePath(); g.fill();
+  // a copa: tufos grandes em camadas (escuro embaixo, luz em cima à esquerda)
+  const r = rng(4242);
+  const R = tile * 2.1, top = y - tile * 6.2;
+  const blobs = [];
+  for (let i = 0; i < 16; i++) blobs.push([cx + (r() - 0.5) * w * 1.15, top + (r() - 0.5) * tile * 5.2, R * (0.7 + r() * 0.45)]);
+  blobs.sort((a, b) => a[1] - b[1]);
+  for (const [bx, by, br] of blobs) { g.fillStyle = OAK_LEAVES[0]; g.beginPath(); g.arc(bx, by + br * 0.1, br * 1.05, 0, Math.PI * 2); g.fill(); }
+  for (const [bx, by, br] of blobs) {
+    g.fillStyle = OAK_LEAVES[1]; g.beginPath(); g.arc(bx, by, br, 0, Math.PI * 2); g.fill();
+    g.fillStyle = OAK_LEAVES[2]; g.beginPath(); g.arc(bx - br * 0.18, by - br * 0.2, br * 0.7, 0, Math.PI * 2); g.fill();
+    g.fillStyle = OAK_LEAVES[3]; g.beginPath(); g.arc(bx - br * 0.34, by - br * 0.38, br * 0.34, 0, Math.PI * 2); g.fill();
+  }
+}
+
 function drawOakTrunk(g, x, y, w, h) {
   rect(g, 'rgba(0,0,0,0.3)', x + 4, y + h - 4, w, 6);
   g.fillStyle = '#3a2412';
