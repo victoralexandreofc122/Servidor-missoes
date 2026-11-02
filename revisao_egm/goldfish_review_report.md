@@ -69,3 +69,30 @@ simulado é 44%).
 | 5. Mensagens | Tabela de 8 mensagens com campos e quando são mandadas. |
 | 6. Migração | `db/schema_v15_duelo.sql` com tabelas, colunas e a função; MMR vazio até o 2c; duelo desligado sem a migração; listas de migração dos testes. |
 | Importantes | Passo 1 em 7 partes publicáveis; vida por nível no código; orçamento de controle e rede com janela, estado e ordem; tabela do `DuelRules`; 2 kits; mapa `valley` com muro de 4 casas e câmera fixa; volta atrás por interruptores; teste do PvE; cura e escudo nos mapas de PvP; glossário (kit, mapa de PvP, tabela de equilíbrio); exemplo do fator do novato; "Alternativas consideradas"; datas num formato só. |
+
+## Fase 5, 2ª rodada: resolução e encerramento (02/11/2026)
+
+O Victor pediu "corrigir e encerrar". Correções aplicadas sem nova rodada (o método permite uma só):
+
+- **Bloqueadores:** o fator de dano entra no momento do golpe (`cast()` e `basicAttack()`), com a fórmula escrita; a
+  queimadura cai junto; a arma dentro do jutsu de Armas usa o fator de 0,5. O Vale usa só pedra e pilar.
+- **Áreas de PvP:** uma função só, `inPvpArea`, cobre a arena (área dentro do mapa da vila), o Vale e a Zona; o
+  `welcome` leva `pvpSkills` ao cliente.
+- **`pvpHitDamage`:** fórmula em pseudocódigo; molhado por alvo; queimadura do PvP calculada no impacto.
+- **Simulador:** mede antes da rede e do orçamento; empate = menos de 0,4 s; regra de ajuste com aprovação do Victor;
+  a tabela atual fica como referência até o 1g gerar a dos dois lados.
+- **Orçamento de controle:** maior peso ativo (não a soma); `shock()` com quem causou; exemplo da Ilusão tier 4.
+- **Duelo:** `DuelHost`, `duelStore.ts`, estado guardado na queda, preparação e intervalo sem golpes (`DUEL_WAIT`),
+  Cura só em si no Vale, `/admin ir` não entra no Vale, cliente com cartão "Desafiar" e `isFoe`.
+- **Banco:** `CREATE TABLE` completo com chaves, `NOT NULL`, referências, nível dos jogadores, `counts_mmr`, `seq`
+  para a rodada repetida e o formato do `jsonb`; teste de integração.
+- **Testes:** a 1b lista os 11 arquivos que mudam de propósito e o boneco do tutorial vai a 12 de vida; casos de teste
+  da 1c à 1f e do 2b1 ao 2b4.
+- **Texto:** "área de PvP", "fator de dano" e "fator do novato" no glossário; "Passo 1" e "Passo 2" na ordem; plano B e
+  plano C em ordem; regra da rodada de 50 s; "reinício do servidor" separado de "desconexão".
+
+**Padrões do Claude que o Victor pode trocar:** poderes da Akatsuki com o fator 0,4; cura sem o fator; escudo da
+Pedra no PvP 0,5 / 0,55 / 0,6 / 0,65; Cura só em si no Vale; boneco do tutorial com 12 de vida.
+
+**Revisão EGM encerrada.** Achados de detalhe que sobraram ficam nos relatórios de `revisao_egm/fase5_rodada2/` para
+conferir durante a programação.

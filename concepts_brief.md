@@ -28,7 +28,11 @@
   coisas novas, sem apagar nada.
 * **Casa:** um quadrado do mapa (o ninja ocupa 1 casa).
 * **Kit:** o conjunto de até 4 jutsus que o ninja leva para lutar. Cada ninja monta 2 kits (A e B) e troca entre eles.
-* **Mapa de PvP:** mapa onde jogador acerta jogador: Vale das Estátuas, arena das vilas e Zona de Conflito.
+* **Área de PvP:** lugar onde jogador acerta jogador: as 2 áreas do Vale das Estátuas, a arena de cada vila (uma área
+  cercada dentro do mapa da vila) e a Zona de Conflito.
+* **Fator de dano:** o número que multiplica o dano base (jutsus 0,4; Ataque Básico e arma 0,5). Não confundir com o
+  fator do novato (MMR, Decisão 2).
+* **Fator do novato:** o multiplicador que faz quem jogou menos de 30 duelos ganhar mais e perder menos MMR.
 * **Tabela de equilíbrio:** os números do PvP em `pvpBalance.ts` (não confundir com as tabelas do banco).
 * **Build de dano:** quem põe os 59 pontos do nível 60 num atributo de dano (Ninjutsu, Taijutsu ou Armas).
 
@@ -145,7 +149,7 @@ isso no jogo todo mudaria o PvE e o nível de quem já joga. Por isso a mudança
    (projéteis e queimadura), que só faz sentido quando existir a forma nova.
 
 Hoje o uso conta em qualquer lançamento, mesmo sem acertar, então dá para subir de nível lançando no vazio. Isso
-também fica para o passo 2: só contar o uso que acerta um alvo válido. No duelo o contador **não sobe**.
+também fica para a 2ª etapa: só contar o uso que acerta um alvo válido. No duelo o contador **não sobe**.
 
 ### 4. O ranking não funciona com 3 pessoas
 
@@ -238,13 +242,23 @@ vez, e depois vence quem causou mais dano na partida.
 - **Vida por nível:** +6 de vida por nível acima do 1, somada à Vitalidade (`hpPerLevel: 6` em `combat.attributes`
   no `config.ts`). É código, sem migração: a vida máxima não fica no banco.
 - **Dano base menor:** o dano base dos jutsus vai a **40%** e o do Ataque Básico e da arma equipada vai a **50%**
-  (`damageScale: { jutsu: 0.4, basic: 0.5 }` no `config.ts`). A vida dos monstros e do Rei Lodo não muda, então o
+  (`combat.damageScale: { jutsu: 0.4, basic: 0.5 }` no `config.ts`). O fator entra **no momento do golpe**, antes dos
+  atributos, com um arredondamento só no fim:
+  - jutsu (no `cast()`): `(dano do jutsu x 0,4 + arma x 0,5) x atributo x nível de uso x passiva x clima`; a arma só
+    soma nos jutsus da classe Armas; a queimadura segue a proporção de hoje e cai junto;
+  - Ataque Básico (no `basicAttack()`): `12 x 0,5 x Taijutsu + arma x 0,5 x (1 + (Armas - 1) / 2) x passiva`; vale
+    também para a arma lançada (Shuriken Gigante);
+  - poderes da Akatsuki (`power()`): usam o fator dos jutsus (0,4);
+  - a cura **não** usa o fator (os monstros não mudam, e o PvE precisa da cura de hoje);
+  - o `skillConfig` e a tabela de jutsus não mudam. A vida dos monstros e do Rei Lodo não muda, então o
   PvE fica mais longo (Slime com 6 golpes no nível 1; Rei Lodo com 12 Fogos tier 4 no nível 60).
-- **Arma no Ataque Básico:** o bônus do atributo Armas vale pela metade no Ataque Básico (nos jutsus da classe Armas
-  vale inteiro). Sem isso, a build de Armas vence todas as outras (`revisao_egm/numeros_atributos_pvp.md`).
+- **Arma no Ataque Básico:** o bônus do atributo Armas vale pela metade no Ataque Básico: `1 + (Armas - 1) / 2` (nos
+  jutsus da classe Armas vale inteiro). Sem isso, a build de Armas vence todas as outras
+  (`revisao_egm/numeros_atributos_pvp.md`).
 
 Dano de cada habilidade com essas mudanças (nível 1 = tier 1, nível de uso 1, sem pontos; nível 60 = tier 4, nível de
-uso 4, 59 pontos no atributo; "contra jogador" já com a curva achatada do PvP):
+uso 4, 59 pontos no atributo; "contra jogador" já com a curva achatada do PvP). Esta tabela vira casos dos testes
+`test/pveDamage.test.ts` (colunas 1 e 2) e `test/pvpBalance.test.ts` (coluna 3):
 
 | Habilidade | Nível 1 | Nível 60 contra monstro | Nível 60 contra jogador |
 | --- | --- | --- | --- |
@@ -257,10 +271,13 @@ uso 4, 59 pontos no atributo; "contra jogador" já com a curva achatada do PvP):
 
 **Objetivos desta entrega:**
 
-1. **Tabela de equilíbrio do PvP**, com versão, num arquivo próprio (`src/realtime/pvpBalance.ts`). Vale nos **mapas
-   de PvP**: Vale das Estátuas, arena das vilas e Zona de Conflito. Contra monstros nada muda. Contém:
-   - a curva de tier achatada (1 / 1,15 / 1,3 / 1,45), que nesses mapas vale também para a cura e o escudo da Pedra,
-     inclusive em si mesmo;
+1. **Tabela de equilíbrio do PvP**, com versão, num arquivo próprio (`src/realtime/pvpBalance.ts`). Vale nas **áreas
+   de PvP**, conferidas por uma função só, `inPvpArea(sessão)`: dentro de uma área do Vale, dentro da arena da vila
+   (`arenaAt`) ou num mapa de Zona de Conflito. O PvP aberto de hoje (`combat.pvp`, desligado) fica fora. Contra
+   monstros nada muda. Contém:
+   - a curva de tier achatada (multiplicadores 1 / 1,15 / 1,3 / 1,45 sobre o dano do tier 1), que também vale para a
+     cura (com o bônus de uso do PvP no lugar do de hoje, sem o fator de dano), inclusive em si mesmo;
+   - o escudo do jutsu Pedra (fração do golpe que some): 0,5 / 0,55 / 0,6 / 0,65 nos tiers 1 a 4 (hoje 0,5 a 0,8);
    - o bônus do nível de uso: +0 / +5 / +10 / +15% nos níveis 1 a 4;
    - o custo e a recarga dos jutsus de Taijutsu (x4) e de Armas (x2,5);
    - o orçamento de controle (objetivo 2) e a rede de segurança (objetivo 3);
@@ -275,25 +292,41 @@ uso 4, 59 pontos no atributo; "contra jogador" já com a curva achatada do PvP):
      | Poderes da Akatsuki | Desligados no duelo; na Zona de Conflito, só a rede de segurança |
 
 2. **Orçamento único de controle por jogador:** soma o tempo sem poder agir de atordoar, prender, sono e os choques da
-   paralisia (0,25 s cada); o silêncio conta pela metade. No máximo **1,5 s por aplicação** e **2,5 s em qualquer
+   paralisia (0,25 s cada); o silêncio conta pela metade. Quando dois controles estão ativos ao mesmo tempo, conta o
+   de maior peso naquele instante (não a soma). No máximo **1,5 s por aplicação** e **2,5 s em qualquer
    trecho de 15 s** (a janela anda com o tempo). Se sobra só parte do orçamento, o controle novo dura só o que sobra;
    se sobra menos de 0,2 s, não pega (o dano do golpe continua). Conta o tempo que o efeito durou de fato (o sono que
    acaba ao apanhar conta até acordar). A lentidão não conta. Vale **só quando quem causa é jogador** (inclusive
    poder da Akatsuki); controle de monstro segue o `controlDr` de hoje. O `applyStatus` ganha o argumento de quem
-   causou (o `applyEffect` já tem). O estado fica na `Session` (`ccLog: { from, until, weight }[]`).
+   causou (o `applyEffect` já tem); o choque da paralisia (`shock()`) recebe o `sourceId` que o pulso já guarda. O
+   estado fica na `Session` (`ccLog: { startedAt, until, weight, sourceId }[]`); o `wakeOnDamage` fecha o `until` do
+   sono. Na Ilusão tier 3 e 4 (atordoa e depois silencia), o silêncio começa quando o atordoamento cortado acaba e
+   passa pelo orçamento como uma aplicação própria. Exemplo, Ilusão tier 4 com orçamento cheio: atordoa 1,5 s (peso 1);
+   o silêncio fica com 1 s de peso (2 s reais, peso 0,5); sobra 0 até a janela andar.
 3. **Rede de segurança de dano:** o dano que um jogador recebe de **um** outro jogador, em qualquer trecho de 2 s
    (a janela anda com o tempo), fica limitado a **50% da vida máxima**. Conta o dano depois do escudo e dos Cinco
-   Corações. O que passar é cortado. O histórico fica no alvo (`Map<atacante, { t, dano }[]>`, limpo a cada 2 s). No
+   Corações. O que passar é cortado. O histórico fica no alvo (`Map<atacante, { t, dano }[]>`); a cada golpe saem as
+   entradas com mais de 2 s. No
    passo 1 o total cortado vai para o `PvpStats` (memória) e aparece no Painel do Admin com a versão da tabela; no
    passo 2 vai também para o registro da rodada.
 4. **Dano por acerto no PvP:** o `cast()` monta um pacote do golpe (`HitInfo`: jutsu, tier, nível de uso, dano base,
    bônus da arma, atributo, molhado, passiva, clima) e o entrega ao `hitTarget`, ao projétil e à queimadura, que hoje
-   recebem só o número pronto. Quando o alvo é jogador num mapa de PvP, o `hitTarget` calcula o dano com a função
+   recebem só o número pronto. Quando o alvo é jogador numa área de PvP, o `hitTarget` calcula o dano com a função
    pura `pvpHitDamage(golpe, atacante, alvo, regras)`; quando o alvo é monstro, usa o número de hoje. Ordem: dano do
-   PvP, depois escudo e Cinco Corações, depois rede de segurança, depois a vida.
-5. **Custo e recarga nos mapas de PvP:** o `cast()` lê o mapa de quem lança: num mapa de PvP, cobra o custo e põe a
-   recarga da tabela. O servidor manda ao cliente o custo e a recarga de verdade (hoje o cliente usa os do
-   `config`).
+   PvP, depois escudo e Cinco Corações, depois rede de segurança, depois a vida. A conta do `pvpHitDamage`:
+
+   ```
+   base  = BASE_SKILLS[mecânica].damage        // dano do tier 1, sem o tier de hoje
+   bruto = (base x curva[tier] x 0,4 + arma x 0,5) x atributo x (1 + bônusUso[nível]) x passiva x clima
+   dano  = arredonda(bruto); se o alvo está molhado e o jutsu é Relâmpago: arredonda(dano x 1,3)
+   ```
+
+   O molhado é conferido por alvo (o `cast()` passa `{ ...golpe, molhado }`). A queimadura do PvP é calculada no
+   impacto, por alvo, com a mesma proporção, e o número pronto vai para o efeito (o `tickEffects` não muda).
+5. **Custo e recarga nas áreas de PvP:** o `cast()` usa `inPvpArea(quem lança)`: dentro de uma área de PvP, cobra o
+   custo e põe a recarga da tabela. A mensagem `welcome` ganha, junto de `skills`, o campo `pvpSkills` (custo e
+   recarga de cada jutsu nas áreas de PvP); o cliente usa esses valores quando o próprio ninja está numa área de PvP
+   (ele já conhece as arenas e as áreas do Vale pelos layouts).
 6. **Simulador automático no `npm run verify`** (`test/pvpBalance.test.ts`). O orçamento de controle e a rede de
    segurança também são funções puras em `pvpBalance.ts`, para o simulador usar o código de verdade. Como funciona:
    1. 5 builds no nível 60 (59 pontos), cada uma com os 2 kits (8 jutsus):
@@ -306,17 +339,24 @@ uso 4, 59 pontos no atributo; "contra jogador" já com a curva achatada do PvP):
       | Dano de Taijutsu | 59 Taijutsu | Taijutsu | Relâmpago |
       | Dano de Armas | 59 Armas, Espada Longa | Armas | Taijutsu |
 
+      Cada kit tem os 4 jutsus da classe (tiers 1 a 4) no nível de uso 4.
+
    2. Os dois começam com vida e chakra cheios e batem ao mesmo tempo, um toque a cada 0,4 s, sem errar.
    3. Em cada toque: usa o jutsu que mais dá dano, que esteja pronto e caiba no chakra; se nenhum, o Ataque Básico
       (quando a recarga dele deixa). O chakra volta 5 por segundo.
    4. O controle entra pelo orçamento de controle.
-   5. Vence quem zera a vida do outro primeiro. Empate no mesmo instante = empate.
+   5. Vence quem zera a vida do outro primeiro. Diferença menor que 0,4 s (um toque) = empate.
    6. Roda também o pior caso de passiva da vila e clima (para a Zona de Conflito).
+   - O simulador mede o dano em 2 s e o controle **antes** da rede de segurança e do orçamento de controle (com eles
+     ligados, esses critérios passariam sempre). O orçamento e a rede têm testes de unidade próprios.
    - **Passa se:** todo confronto dura de 6 a 30 s; meio a meio contra meio a meio, de 12 a 20 s; nenhuma build vence
-     todas as outras; ninguém passa de 50% da vida do alvo em 2 s; ninguém fica mais de 2,5 s sem agir em 15 s.
-   - **Se falhar:** mexer primeiro no custo e na recarga da classe que passou do limite; depois no fator de dano;
-     por último, o plano B (atributos iguais no duelo).
-   - Resultado com os números deste plano (melhor caso para quem ataca):
+     as outras 4 (empate não conta como vitória); o maior dano em 2 s, antes da rede, fica abaixo de 50% da vida do
+     alvo; o orçamento de controle corta no máximo 1 controle por luta simulada.
+   - **Se falhar:** a recarga e o custo da classe que passou do limite sobem 0,5 (por exemplo, x4 vira x4,5), e cada
+     mudança vai para o Victor aprovar antes de entrar. Se não fechar, o fator de dano. Por último, o plano B
+     (atributos iguais no duelo).
+   - Tabela de referência (conta de um lado só, sem controle: só quem ataca bate). O 1g gera a tabela dos dois lados,
+     que substitui esta no plano:
 
      | Atacante \ defensor | Tanque | Meio a meio | Build de dano |
      | --- | --- | --- | --- |
@@ -334,21 +374,28 @@ uso 4, 59 pontos no atributo; "contra jogador" já com a curva achatada do PvP):
 
    | Regra | No duelo | Onde é lida |
    | --- | --- | --- |
-   | Passiva da vila | Não | `passive()` |
+   | Passiva da vila | Não | `passive()` e `statsFor` (a velocidade da Névoa lê `passiveOf` direto) |
    | Clima | Não | `skyEffectsAt()` |
    | Poderes da Akatsuki | Não | `power()` |
    | Chakra volta sozinho | Sim, 1/3 da meditação (5/s sem pontos em Chakra) | tique do jogador |
    | Vida volta sozinha | Não | tique do jogador (`hpRegenPerSec`) |
    | Meditação | Não | início da meditação |
-   | Itens de cura | Não | uso de item |
    | Contador de usos | Não sobe | `cast()` |
    | Compensação de lag | 200 ms | `maxRewindMs` |
 
-   O perfil padrão (fora do duelo) tem os valores de hoje.
+   O perfil padrão (fora do duelo) tem os valores de hoje. (O jogo não tem itens de cura hoje; se ganhar, o perfil ganha
+   a regra.) O Vale é um mapa coberto: o clima não vale nele de qualquer jeito.
 9. **Os 2 kits valem no duelo:** cada um usa os kits A e B que montou (até 8 jutsus, inclusive da classe secundária e
    da Academia) e pode trocar no meio da luta, como hoje. O chakra segura o abuso.
-10. **Tela do duelo:** placar de rodadas, cronômetro e o kit ativo do adversário com nível de uso e recargas (troca
-    quando ele troca de kit). O aviso no chão fica para quando existir a conjuração com selos.
+10. **Tela do duelo** (`public/game.js`, celular deitado):
+    - **Desafiar:** ao focar outro ninja fora de combate, aparece um cartão com nome, nível, vila e o botão "Desafiar"
+      (tela nova; hoje focar um ninja fora da arena só serve para a Cura).
+    - **Convite:** janela no centro com o nome de quem desafia, "Aceitar", "Recusar" e a barra de 20 s.
+    - **Durante a partida:** placar e cronômetro no alto, no centro; o kit ativo do adversário no canto de cima à
+      direita (4 ícones com nível de uso e a recarga correndo); "Desistir" no menu.
+    - O adversário do duelo conta como inimigo no cliente (`isFoe` ganha esse caso; o id dele chega no `duel_state`):
+      o foco escolhe ele e o nome fica vermelho.
+    - O aviso no chão fica para quando existir a conjuração com selos.
 11. **Registro de cada partida e rodada no banco** (migração v15): kits, níveis de uso, duração, maior dano em 2 s,
     dano cortado pela rede, controle sofrido, motivo do fim e versão da tabela.
 12. **Interruptor `duelo`** em `config.ts`, ligado por padrão, e no Painel do Admin (a troca pelo painel dura até a
@@ -358,7 +405,8 @@ uso 4, 59 pontos no atributo; "contra jogador" já com a curva achatada do PvP):
     recompensa.
 
 **Critério de pronto (técnico):** passos 1 e 2 publicados; o simulador e o teste do PvE passam no `npm run verify`;
-pelo menos 20 duelos reais registrados, com a rede de segurança cortando dano em no máximo 1 a cada 10 rodadas.
+pelo menos 20 partidas de duelo reais registradas, com a rede de segurança cortando dano em no máximo 1 a cada 10
+rodadas.
 
 **Meta de comunidade (medida à parte, não trava a entrega):** uma noite de duelo feita; 10 testadores, com 5 voltando
 na semana seguinte.
@@ -409,11 +457,23 @@ tabela só.
 
 | Ponto | Hoje | No duelo |
 | --- | --- | --- |
-| `canHurt` (~1827) | Fora de arena e Zona, jogador não acerta jogador | Acerta só o par do mesmo duelo (o Fogo e a Ilusão em área não pegam o outro duelo) |
+| `canHurt` (~1827) | Fora de arena e Zona, jogador não acerta jogador | Acerta só o par do mesmo duelo, e só durante a rodada (o Fogo e a Ilusão em área não pegam o outro duelo) |
+| Cura (~1660) | Cura quem o `canHurt` recusa | No Vale, a Cura só pega quem lança (o raio de 4,5 casas do tier 4 passaria o muro) |
 | Vida zerada no `damagePlayer` (~3155) | Morte, aviso, `pvpStats` e renascer na vila | Não morre: avisa o `duel.ts` (`onZeroHp`), que fecha a rodada |
-| `leave` (~937) | Apaga a sessão na hora | O `duel.ts` guarda o estado do jogador por 15 s |
-| `join` (~774) | Entra na vila com vida cheia | Pergunta ao `duel.ts` se há duelo em andamento e volta à área |
+| `leave` (~937) | Apaga a sessão na hora | O `duel.ts` guarda `{ vida, chakra, recargas restantes, kit ativo, x, y }` por 15 s; os efeitos são descartados |
+| `join` (~774) | Entra na vila com vida cheia | Pergunta ao `duel.ts` se há duelo em andamento, volta à área e aplica o estado guardado por cima da sessão nova (o nível vem de `player.level`) |
+| `/admin ir` | Leva o admin a qualquer mapa | Não leva ao Vale (só se entra pelo duelo) |
 | `transfer` (~1130) | Troca de mapa | Motivo novo `duel`; guarda mapa e posição de antes |
+
+**Ligação entre o `duel.ts` e o `gameWorld`:** o `gameWorld` implementa uma interface `DuelHost` (`now()`,
+`startRound(duelo)`, `endDuel(duelo, resultado)`, `send(id, mensagem)`, `teleport(id, mapa, x, y)`). O `duel.ts`
+avança no `tick()` do mundo, com o relógio injetado `now` (os testes usam relógio falso, então nada de `setTimeout`).
+A gravação no banco fica em `src/realtime/duelStore.ts` (`available()` com `to_regclass('game.duel_matches')` e
+`saveResult(p)`), passado ao mundo em `WorldOptions.duel`, como as outras lojas no `src/server.ts`.
+
+**Preparação (10 s), intervalo (5 s) e pausa por queda:** dá para andar e trocar de kit; jutsu e Ataque Básico falham
+com o motivo novo `DUEL_WAIT`; o `canHurt` devolve falso. Na pausa por queda, os efeitos do adversário são limpos e as
+recargas dele ficam paradas.
 
 **O que volta ao início em cada rodada:** vida e chakra cheios; recargas zeradas; efeitos, atordoamento, prisão,
 escudo, Substituição, Cinco Corações e outros bônus limpos; orçamento de controle e rede de segurança zerados; cada um
@@ -432,25 +492,67 @@ no seu ponto de partida da área.
 | `duel_leave` | cliente | nada | Botão "Desistir" |
 | `duel_end` | servidor | `winner`, `reason`, `rounds` | No fim |
 
-O mapa do Vale chega ao cliente pela mensagem de troca de mapa que já existe.
+Valores: `phase` = `prep`, `round`, `interval`, `paused`, `end`; `score` = `[a, b]`; `from` = id e nome;
+`duel_end.reason` = `rounds`, `forfeit`, `disconnect`, `void`. O `duel_state` leva também o id do adversário e qual
+área do Vale é a do jogador (para a câmera fixa); o `duel_opponent_kit` também vai no começo de cada rodada. O mapa do
+Vale chega ao cliente pela mensagem de troca de mapa que já existe. A mensagem de erro `INVALID_MESSAGE` (lista das
+mensagens válidas) muda junto.
 
 **Banco (`db/schema_v15_duelo.sql`, num branch até o Victor rodar no Neon):** tudo em `BEGIN; ... COMMIT;`, sem
 `DO $$`, pode rodar de novo.
 
-- `game.duel_matches`: `id bigserial`, `player_a uuid`, `player_b uuid`, `winner uuid` (vazio se anulada),
-  `reason text`, `rounds_a smallint`, `rounds_b smallint`, `balance_version text`, `started_at`, `ended_at`.
-- `game.duel_rounds`: `match_id`, `round smallint`, `winner uuid`, `reason text`, `duration_ms int`, `stats jsonb`
-  (kits, níveis de uso, maior dano em 2 s, dano cortado e controle sofrido de cada um).
-- `game.duel_mmr`: `player_id uuid`, `mmr int default 1000`, `matches int default 0`, `updated_at`. Nasce vazia; a
-  conta entra no passo 2c.
-- `game.duel_result(p jsonb) returns bigint`, com `CREATE OR REPLACE`: grava a partida e as rodadas numa transação e
-  devolve o `id`.
+```sql
+CREATE TABLE IF NOT EXISTS game.duel_matches (
+  id              bigserial PRIMARY KEY,
+  player_a        uuid NOT NULL REFERENCES game.players (id) ON DELETE RESTRICT,
+  player_b        uuid NOT NULL REFERENCES game.players (id) ON DELETE RESTRICT,
+  level_a         smallint NOT NULL,
+  level_b         smallint NOT NULL,
+  winner          uuid REFERENCES game.players (id) ON DELETE RESTRICT,  -- vazio se anulada
+  reason          text NOT NULL CHECK (reason IN ('rounds', 'forfeit', 'disconnect', 'void')),
+  rounds_a        smallint NOT NULL DEFAULT 0,
+  rounds_b        smallint NOT NULL DEFAULT 0,
+  counts_mmr      boolean NOT NULL DEFAULT false,
+  balance_version text NOT NULL,
+  started_at      timestamptz NOT NULL,
+  ended_at        timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS duel_matches_pair ON game.duel_matches (player_a, player_b, started_at);
+
+CREATE TABLE IF NOT EXISTS game.duel_rounds (
+  match_id    bigint NOT NULL REFERENCES game.duel_matches (id) ON DELETE CASCADE,
+  seq         smallint NOT NULL,              -- ordem de jogo; a rodada repetida ganha um seq novo
+  round       smallint NOT NULL,              -- 1 a 3
+  replay      boolean NOT NULL DEFAULT false,
+  winner      uuid REFERENCES game.players (id) ON DELETE RESTRICT,  -- vazio no empate
+  reason      text NOT NULL CHECK (reason IN ('zero_hp', 'time', 'tie', 'forfeit', 'disconnect')),
+  duration_ms int NOT NULL,
+  stats       jsonb NOT NULL,
+  PRIMARY KEY (match_id, seq)
+);
+
+CREATE TABLE IF NOT EXISTS game.duel_mmr (
+  player_id  uuid PRIMARY KEY REFERENCES game.players (id) ON DELETE CASCADE,
+  mmr        int NOT NULL DEFAULT 1000,
+  matches    int NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+```
+
+- `stats` de cada rodada: `{ "a": { "kit": [...], "useLevels": {...}, "peak2s": 0, "cut": 0, "ccMs": 0 }, "b": {...} }`.
+- `game.duel_result(p jsonb) RETURNS bigint`, com `CREATE OR REPLACE` e `SET search_path = game` (como a v14):
+  recebe `{ playerA, playerB, levelA, levelB, winner, reason, roundsA, roundsB, countsMmr, balanceVersion, startedAt,
+  endedAt, rounds: [{ seq, round, replay, winner, reason, durationMs, stats }] }`, grava tudo numa transação e devolve
+  o `id`. A `game.duel_mmr` nasce vazia; a conta entra no passo 2c.
+- Teste de integração novo: `test/duelo.integration.test.ts` (a função grava e devolve o `id`; rodar a migração 2
+  vezes não dá erro).
 - As listas de migrações dos testes (`test/support/testDb.ts`) passam a incluir a v14 e a v15.
 - Se a gravação falhar, a partida termina normalmente para os jogadores e o erro vai para o log.
 - O nome "v15" aqui é o do arquivo de migração; a versão do jogo desta entrega é a v28.
 
 **Mapa do Vale das Estátuas:** `valley` em `maps.ts`, 40 x 14 casas: 2 áreas de 18 x 12 com 4 casas de muro entre
-elas (pedras e estátuas, tipos que já existem). Cada área tem 2 pontos de partida, a 10 casas um do outro. Só se
+elas (pedras e pilares, `rock` e `pillar`, tipos que já existem; uma parede "estátua" é arte nova, para depois).
+Cada área tem 2 pontos de partida, a 10 casas um do outro. Só se
 entra levado pelo duelo. No cliente, a câmera fica fixa no centro da área (código novo; hoje ela segue o jogador).
 
 **Regras da partida:**
@@ -462,10 +564,15 @@ entra levado pelo duelo. No cliente, a câmera fica fixa no centro da área (có
 - Ocupação: com as 2 áreas ocupadas, o jogo avisa "Vale cheio" e o desafio não é enviado.
 - Entrada e saída: os dois são levados para a área e voltam para onde estavam no fim. Ninguém de fora entra. A única
   saída antes do fim é o botão "Desistir", que conta como derrota da partida.
-- Desconexão: o `duel.ts` guarda o estado por 15 s, com o cronômetro parado; depois disso, quem caiu perde a partida.
-- **Morte dupla ou empate em tudo** (mesma vida em porcentagem e mesmo dano na rodada): a rodada é repetida uma vez; se
-  empatar de novo, vence quem causou mais dano na partida.
-- Queda ou publicação do servidor no meio: a partida é anulada e não conta no MMR.
+- Desconexão de um jogador: o `duel.ts` guarda o estado por 15 s, com o cronômetro parado; depois disso, quem caiu
+  perde a partida.
+- Rodada: até 50 s. Termina quando a vida de um chega a zero ou quando o tempo acaba (desempate por vida em
+  porcentagem, depois por dano na rodada).
+- **Vida dos dois zerada no mesmo instante, ou empate em tudo:** a rodada é repetida uma vez; se empatar de novo,
+  vence quem causou mais dano na partida; se até isso empatar, a partida termina empatada e não conta no MMR.
+- Reinício do servidor (publicação nova ou falha) no meio: a partida é anulada, gravada com `reason = void` se der
+  tempo, e não conta no MMR.
+- "Fora de combate" olha também dano de e em monstro.
 - No duelo ninguém morre de verdade: não perde item, não ganha karma nem recompensa, não conta como abate.
 
 ## Riscos e mitigações (Risks & Mitigations)
@@ -475,7 +582,8 @@ entra levado pelo duelo. No cliente, a câmera fica fixa no centro da área (có
 | PvE fica lento com o dano menor | Monstros e Rei Lodo cansativos | O passo 1 mede o PvE e anota o ajuste da vida dos monstros (tarefa própria). |
 | Vida por nível deixa o PvE fácil | Monstros perdem a graça | O mesmo ajuste acima. |
 | `pvpHitDamage` mexer no dano contra monstros | PvE quebrado sem ninguém ver | Só quando o alvo é jogador; teste do PvE. |
-| Erro no passo 1 depois de publicado | Combate quebrado para todos | Sem migração no passo 1: volta com `git revert`. Interruptores no `config.ts`: `pvpBalance: false`, `hpPerLevel: 0` e `damageScale` 1. |
+| Erro no passo 1 depois de publicado | Combate quebrado para todos | Sem migração no passo 1: volta com `git revert`. Interruptores no `config.ts`: `combat.pvpBalance: false`, `combat.attributes.hpPerLevel: 0` e `combat.damageScale: { jutsu: 1, basic: 1 }`. |
+| Cura forte demais no PvP | Lutas que não acabam | A cura não perde o fator de dano; o registro de cada rodada mostra; se pesar, a cura do PvP ganha fator próprio. |
 | Escopo grande para um desenvolvedor sozinho | Passa de 15/12/2026 | Passo 1 em partes publicáveis; bot e MMR depois; a data revê a ordem, não cobra tudo pronto. |
 | Falta gente para duelar | Sem teste real | Noite de duelo marcada; bot depois; a meta de comunidade não trava o pronto técnico. |
 | Servidor do Render dormindo | O primeiro espera cerca de 1 min | Aviso na tela de entrada; acordar o servidor antes da noite de duelo. |
@@ -484,28 +592,28 @@ entra levado pelo duelo. No cliente, a câmera fica fixa no centro da área (có
 | Desafio em excesso | Jogador incomodado | 1 desafio pendente por vez; 20 s de espera depois de uma recusa. |
 | MMR inflando com o fator do novato | Pontuação sem sentido | Fator só nas 30 primeiras partidas; o MMR de prévia pode ser recalculado do histórico. |
 | Tabela errada em jogo de verdade | Morte em poucos golpes volta | Rede de segurança de 50% em 2 s; os cortes aparecem no Painel do Admin com a versão da tabela. |
-| Mudança afetar a Zona de Conflito | Luta em grupo diferente | De propósito; o simulador roda o pior caso de passiva e clima; o efeito na Zona é observado com os testadores. |
+| Mudança afetar a Zona de Conflito (o PvP aberto `combat.pvp` continua desligado) | Luta em grupo diferente | De propósito; o simulador roda o pior caso de passiva e clima; o efeito na Zona é observado com os testadores. |
 | `gameWorld.ts` grande quebrar | Bugs fora do duelo | Etapas em `duel.ts` com testes; ganchos listados acima. |
 
 ## Alternativas consideradas (Alternatives Weighed)
 
 - **Todos os jutsus liberados dentro da partida:** daria igualdade total, mas o Victor escolheu lutar com o que cada um
   aprendeu.
-- **Todo jutsu aprendido no nível de uso máximo dentro do duelo:** tira a vantagem do tempo de jogo; plano B se o
-  bônus de +15% não bastar.
 - **Atributos iguais para todos no duelo:** plano B, usado só se o simulador falhar depois dos ajustes de custo,
   recarga e dano.
+- **Todo jutsu aprendido no nível de uso máximo dentro do duelo:** plano C, se o bônus de +15% do nível de uso
+  desequilibrar.
 - **Só um kit travado no duelo:** rejeitado; o Victor quer os 2 kits, e o dano base menor e o chakra seguram o abuso.
 - **Redução do dano só no PvP:** rejeitado; o Victor quer o dano base menor no jogo todo.
-- **Reduções de 60%, 50%, 30% e 25%:** 60% e 50% ainda tiram mais de 50% da vida em 2 s; 30% e 25% deixam o duelo e o
-  PvE lentos demais (números em `revisao_egm/numeros_atributos_pvp.md`).
+- **Outros fatores de dano (jutsus a 60%, 50%, 30% ou 25%):** 60% e 50% ainda tiram mais de 50% da vida em 2 s; 30% e
+  25% deixam o duelo e o PvE lentos demais (números em `revisao_egm/numeros_atributos_pvp.md`).
 - **Piso de 250 de vida e teto de 1,6x nos atributos, só no PvP:** rejeitado; o Victor preferiu a vida por nível.
 - **Teto de 1,6x nos atributos para segurar Taijutsu e Armas:** rejeitado; tiraria força de todas as builds de dano.
-- **Comprimir a curva de tier também no PvE:** rejeitado por agora.
+- **Comprimir a curva de tier também no PvE:** rejeitado nesta entrega.
 - **Duelo dentro da arena da vila:** rejeitado; a arena só aceita a vila dona e é pequena para a tela.
 - **Fila com instância desde o início:** rejeitado; o servidor não tem instâncias e não há população.
 - **Usar `game.pvp_kill` para o duelo:** rejeitado; mexe em karma, recompensa e Akatsuki e conta por abate.
-- **Equilibrar pela taxa de vitória por classe:** rejeitado para agora (amostra pequena demais).
+- **Equilibrar pela taxa de vitória por classe:** rejeitado nesta entrega (amostra pequena demais).
 - **K alto nas 10 primeiras partidas:** rejeitado; o Victor escolheu o fator do novato nas 30 primeiras.
 - **Interruptor `duelo` na tabela `game.endgame_modules`:** rejeitado; ela só aceita `vilas`, `pvp`, `renegados` e
   `akatsuki` (`db/schema_v11_endgame.sql` linha 28).
@@ -517,8 +625,8 @@ entra levado pelo duelo. No cliente, a câmera fica fixa no centro da área (có
 
 **Decidido pelo Victor na revisão (01/11/2026 e 02/11/2026):**
 
-1. **Tier e nível de uso:** o tier dá poder (curva 1 / 1,15 / 1,3 / 1,45 nos mapas de PvP); nesta entrega os 4
-   níveis de uso dão +0 / +5 / +10 / +15% nesses mapas. A forma nova, os 3 níveis (0 / 150 / 600 usos) e o limite por
+1. **Tier e nível de uso:** o tier dá poder (curva 1 / 1,15 / 1,3 / 1,45 nas áreas de PvP); nesta entrega os 4
+   níveis de uso dão +0 / +5 / +10 / +15% nessas áreas. A forma nova, os 3 níveis (0 / 150 / 600 usos) e o limite por
    lançamento vêm numa entrega própria.
 2. **MMR de prévia (passo 2c):**
    - começa em 1.000; conta por partida; Elo com escala 400 e K = 24;
@@ -532,34 +640,55 @@ entra levado pelo duelo. No cliente, a câmera fica fixa no centro da área (có
    antes.
 4. **Interruptor `duelo`:** no `config.ts` e no Painel do Admin, separado do `pvp` (que liga com 60 jogadores), sem
    banco.
-5. **Escopo da tabela:** todo dano, cura e controle nos mapas de PvP (Vale, arena das vilas, Zona de Conflito).
+5. **Escopo da tabela:** todo dano, cura e controle nas áreas de PvP (Vale, arena das vilas, Zona de Conflito).
 6. **Rede de segurança:** 50% da vida em 2 s, por atacante.
-7. **Atributos no duelo:** livres.
+7. **Atributos no duelo:** cada um luta com a distribuição de pontos que escolheu.
 8. **Vida por nível:** +6 por nível acima do 1, no jogo todo.
-9. **Taijutsu e Armas nos mapas de PvP:** custo e recarga x4 e x2,5.
+9. **Taijutsu e Armas nas áreas de PvP:** custo e recarga x4 e x2,5.
 10. **Dano base no jogo todo:** jutsus a 40%, Ataque Básico e arma a 50%; os monstros ficam como estão.
 11. **Os 2 kits valem no duelo**, com troca livre.
-12. **Empate:** a rodada é repetida uma vez; depois, vence quem causou mais dano na partida.
+12. **Empate:** a rodada é repetida uma vez; depois, vence quem causou mais dano na partida; se até isso empatar, a
+    partida termina empatada e não conta no MMR.
+
+Padrões escolhidos pelo Claude ao fechar a revisão (o Victor pode trocar):
+
+- Os poderes da Akatsuki também usam o fator de dano dos jutsus (0,4).
+- A cura não usa o fator de dano; nas áreas de PvP usa a curva achatada e o bônus de uso do PvP.
+- O escudo da Pedra nas áreas de PvP: 0,5 / 0,55 / 0,6 / 0,65.
+- No Vale, a Cura só pega quem lança.
+- O boneco do tutorial da Academia passa a ter 12 de vida, para continuar caindo com 2 golpes.
 
 Proposta do Claude, confirmada pelo simulador: o bônus do atributo Armas vale pela metade no Ataque Básico.
 
 **Ordem (substitui a ordem das fases do brainstorm):**
 
-1. **Equilíbrio, sem migração.** Cada parte é publicada sozinha, com o `npm run verify` passando:
+1. **Passo 1: equilíbrio, sem migração.** Cada parte é publicada sozinha, com o `npm run verify` passando:
    - 1a. Teste do PvE (`test/pveDamage.test.ts`) com os números de hoje: cada jutsu de dano, tier 1 e 4, nível de uso 1
      e 4, com 0 e 59 pontos, e o Ataque Básico com e sem arma, contra um monstro fixo.
-   - 1b. Dano base menor e bônus de Armas pela metade no Ataque Básico; o teste da 1a passa a esperar os números
-     novos; anotar o PvE (Slime, Rei Lodo).
+   - 1b. Dano base menor e bônus de Armas pela metade no Ataque Básico. Mudam de propósito cerca de 45 verificações em
+     11 arquivos de teste (`combat`, `hitbox`, `v5`, `v6`, `v7`, `v15`, `weather`, `combateLivre`, `lagComp`,
+     `efeitosIa` e o da 1a): passam a usar um ajudante `pveDamage(skill)` em `test/support/` em vez do número cru.
+     O boneco do tutorial vai a 12 de vida (`config.ts`, `dummy`), para `test/v7.test.ts:148` continuar com 2
+     golpes. Anotar o PvE (Slime, Rei Lodo).
    - 1c. Vida por nível: `derivedStats(base, regras, atributos, nível)`; `computeStats` recebe o nível e roda também
-     ao subir de nível; a vida atual ganha os +6 na subida; atualizar `test/v8.test.ts` (linhas 200 e 232).
+     ao subir de nível; a vida atual ganha os +6 na subida; no `join`, o nível vem de `player.level` antes de calcular
+     a vida. Mudam `test/v8.test.ts` (linhas 194, 200 e 232). Casos: nível 60 com 59 de Vitalidade = 733; subir de
+     nível soma 6 na vida atual.
    - 1d. `pvpBalance.ts`, `HitInfo` e `pvpHitDamage` ligados ao `hitTarget`, ao projétil e à queimadura; custo e
-     recarga nos mapas de PvP, com o cliente lendo os valores do servidor.
-   - 1e. Orçamento de controle.
-   - 1f. Rede de segurança.
+     recarga nas áreas de PvP, com o cliente lendo os valores do servidor.
+   - 1e. Orçamento de controle. Casos: sobra parcial; menos de 0,2 s não pega; a janela de 15 s anda; controle de
+     monstro segue o `controlDr`; Ilusão tier 4 (exemplo do objetivo 2). Mudam testes de PvP que contam com o teto de
+     hoje (`v15`, `combateLivre`).
+   - 1f. Rede de segurança. Casos: corte em 50%; um atacante não soma com outro; conta depois do escudo; a janela
+     anda.
    - 1g. Simulador.
-2. **Duelo.**
+2. **Passo 2: duelo.**
    - 2a. Migração `db/schema_v15_duelo.sql` (o Victor roda no Neon primeiro).
-   - 2b. `duel.ts`, `DuelRules`, ganchos no `gameWorld`, mensagens, mapa `valley`, tela do duelo e registro.
+   - 2b1. `duel.ts` puro, com testes: convite que expira; recusa e espera de 20 s; Vale cheio; rodada por vida zerada;
+     desempate por vida e por dano; empate repete 1 vez; desistência; queda de 15 s.
+   - 2b2. Servidor: `DuelRules`, ganchos no `gameWorld`, `DuelHost`, mensagens e mapa `valley`.
+   - 2b3. Tela do duelo no cliente.
+   - 2b4. Registro: `src/realtime/duelStore.ts` e `test/duelo.integration.test.ts`.
    - 2c. MMR de prévia no perfil.
 3. Noite de duelo com os testadores; depois, o bot de duelo ("ninja sem conexão", só treino).
 4. As 4 habilidades novas para 2 classes, como piloto, descritas como dados.
