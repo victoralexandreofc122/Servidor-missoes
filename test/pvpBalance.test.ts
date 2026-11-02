@@ -6,6 +6,7 @@ import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { BASE_SKILLS } from '../src/realtime/jutsus.js';
 import { PVP_BALANCE_VERSION, PVP_SHIELD, ccAllow, safetyNet, ccUsed, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from '../src/realtime/pvpBalance.js';
 import { NO_ATTRIBUTES, derivedStats, type Attributes } from '../src/realtime/stats.js';
+import { simulateAll } from '../src/realtime/pvpSim.js';
 import { FakeConn, placeIn, setupWorld } from './support/world.js';
 
 /*
@@ -182,5 +183,29 @@ describe('rede de segurança (passo 1f)', () => {
     assert.equal(r.safety.cuts, 1);
     assert.equal(r.safety.damage, 30);
     assert.equal(r.safety.version, PVP_BALANCE_VERSION);
+  });
+});
+
+describe('simulador de duelos (passo 1g)', () => {
+  const rs = simulateAll();
+  const tabela = rs.map((r) => `${r.a} x ${r.b}: ${r.winner} em ${r.seconds.toFixed(1)} s (pico ${Math.round(r.peakA * 100)}%/${Math.round(r.peakB * 100)}%)`).join('\n');
+
+  it('todo duelo dura de 6 a 30 s; meio a meio contra meio a meio, de 12 a 20 s', () => {
+    for (const r of rs) assert.ok(r.seconds >= 6 && r.seconds <= 30, `${r.a} x ${r.b}: ${r.seconds} s\n${tabela}`);
+    const mm = rs.find((r) => r.a === 'Meio a meio' && r.b === 'Meio a meio')!;
+    assert.ok(mm.seconds >= 12 && mm.seconds <= 20, String(mm.seconds));
+  });
+
+  it('ninguém tira 50% da vida em 2 s (antes da rede de segurança)', () => {
+    for (const r of rs) assert.ok(r.peakA < 0.5 && r.peakB < 0.5, `${r.a} x ${r.b}\n${tabela}`);
+  });
+
+  // Critérios do plano que ainda falham com os números de hoje (decisão do Victor pendente, ver concepts_brief.md):
+  //  - nenhuma build vence todas as outras: o Meio a meio vence as 4;
+  //  - o orçamento corta no máximo 1 controle por luta: o Relâmpago faz o orçamento cortar até 4.
+  it('pendente: quem vence quem e cortes do orçamento (registrado, ainda sem critério)', () => {
+    const wins = new Map<string, number>();
+    for (const r of rs) if (r.a !== r.b && r.winner !== 'empate') { const w = r.winner === 'a' ? r.a : r.b; wins.set(w, (wins.get(w) ?? 0) + 1); }
+    assert.equal(wins.get('Meio a meio'), 4, 'se isto mudar, atualizar o plano e ligar o critério');
   });
 });
