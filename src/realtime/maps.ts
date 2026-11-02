@@ -59,7 +59,7 @@ export interface Wall extends Box {
    * pergaminhos, mesa de pergaminhos, barril).
    */
   s?: 'leader' | 'hospital' | 'academy' | 'shop_weapon' | 'shop_cloth' | 'shop_scroll' | 'home' | 'hut'
-    | 'sword_rack' | 'spear_rack' | 'shield_rack' | 'mannequin' | 'cloth_shelf' | 'scroll_shelf' | 'scroll_table' | 'barrel'
+    | 'sword_rack' | 'spear_rack' | 'shield_rack' | 'mannequin' | 'cloth_shelf' | 'scroll_shelf' | 'scroll_table' | 'barrel' | 'crate'
     | 'lit' | 'out' | 'fall' | 'burnt' | 'chasm' | 'mouth'
     // pilar da arena da vila: bloco de ardósia com moldura dourada (os da Zona de Conflito são ruína)
     | 'arena'
@@ -906,6 +906,9 @@ function forest(): MapLayout {
     // v29: barracas no tamanho do boneco (até ~2,5 vezes a altura dele), no meio de onde ficavam
     wall('tent', 10, 50.6, 3.6, 3.2, 'burnt'), wall('tent', 22.3, 49.6, 3.6, 3.2, 'burnt'), wall('tent', 11, 62.8, 3.4, 3, 'burnt'), wall('tent', 25.7, 62.4, 3.6, 3.2, 'burnt'),
     // v29: barris do tamanho de um barril (antes 3 casas), no meio de onde ficavam
+    // v29: o acampamento conta a história: caixotes, fogueira apagada e um tronco caído
+    wall('furniture', 13.6, 53.4, 1.2, 1.1, 'crate'), wall('furniture', 14.9, 53.7, 1, 0.9, 'crate'), wall('furniture', 27.6, 57.2, 1.2, 1.1, 'crate'),
+    wall('logs', 21.6, 59.6, 3.2, 0.9),
     wall('furniture', 7.6, 56.6, 1.1, 1.4, 'barrel'), wall('furniture', 16, 49.4, 1.1, 1.4, 'barrel'), wall('furniture', 29.8, 60.5, 1.1, 1.4, 'barrel'), wall('furniture', 16.5, 67, 1.1, 1.4, 'barrel'),
     wall('rock', 18.3, 58.2, 1.6, 1.3), wall('rock', 18.8, 43.4, 1.5, 1.2),
     crown(54, 51.5, 7.5, 14.5),                    // o pinheiro na beira
@@ -954,7 +957,7 @@ function forest(): MapLayout {
       oval('stone', 8.5, 7.5, 12.5, 10),
     ],
     // v29: a copa do Velho Carvalho (antes vinha na pintura): por cima de quem passa, translúcida com ele embaixo.
-    deco: [],
+    deco: [deco('embers', 18.6, 55.4, 1.8, 1.6)],   // v29: a fogueira apagada no meio do acampamento
     safeZones: [],
     hunt: { x: 4, y: 6, w: 92, h: 61 },
     zones: [

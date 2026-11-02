@@ -855,11 +855,30 @@ function drawFurniture(g, x, y, w, h, kind, seed) {
         rect(g, '#c9d2da', x + w / 2 - 1, sy - 1, 2, 2);
       }
       return;
-    case 'barrel':
-      g.fillStyle = '#4a2e17'; g.beginPath(); g.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#8b5a2b'; g.beginPath(); g.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2 - 2, 0, Math.PI * 2); g.fill();
-      rect(g, '#5d5a55', x + 1, y + h / 2 - 1, w - 2, 2);
+    case 'barrel': {                                  // v29: barril em 3/4 (tampa elíptica, corpo com 2 aros), contorno escuro
+      const cx = x + w / 2, rx = w / 2, top = y + h * 0.18, bot = y + h - 1, ry = Math.max(2, h * 0.16);
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(cx + 2, bot, rx, ry * 0.7, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#1e1a17'; g.beginPath(); g.ellipse(cx, bot, rx + 1, ry + 1, 0, 0, Math.PI); g.lineTo(cx - rx - 1, top); g.ellipse(cx, top, rx + 1, ry + 1, 0, Math.PI, 0); g.closePath(); g.fill();
+      g.fillStyle = '#5a3a22'; g.beginPath(); g.ellipse(cx, bot, rx, ry, 0, 0, Math.PI); g.lineTo(cx - rx, top); g.ellipse(cx, top, rx, ry, 0, Math.PI, 0); g.closePath(); g.fill();
+      g.fillStyle = '#7a4a28'; g.fillRect(cx - rx * 0.75, top, rx * 0.7, bot - top);                       // luz à esquerda
+      g.fillStyle = '#3a2416'; g.fillRect(cx + rx * 0.45, top, rx * 0.5, bot - top);                        // sombra à direita
+      for (const t of [0.32, 0.72]) { g.fillStyle = '#2b2b2e'; g.fillRect(cx - rx, top + (bot - top) * t, rx * 2, Math.max(1, h * 0.06)); }   // aros
+      g.fillStyle = '#1e1a17'; g.beginPath(); g.ellipse(cx, top, rx + 0.5, ry + 0.5, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#8a5a30'; g.beginPath(); g.ellipse(cx, top, rx - 0.5, ry - 0.5, 0, 0, Math.PI * 2); g.fill();   // tampa
+      g.fillStyle = '#6a4224'; g.fillRect(cx - rx * 0.6, top - 0.5, rx * 1.2, 1);
       return;
+    }
+    case 'crate': {                                   // v29: caixote em 3/4: tampa clara, frente média, lado escuro, ripas
+      const d = h * 0.3;
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 2, y + h - 2, w, 3);
+      g.fillStyle = '#1e1a17'; g.fillRect(x - 1, y - 1, w + 2, h + 2);
+      g.fillStyle = '#9a6a3a'; g.fillRect(x, y, w, d);
+      g.fillStyle = '#7a4a28'; g.fillRect(x, y + d, w * 0.75, h - d);
+      g.fillStyle = '#5a3a22'; g.fillRect(x + w * 0.75, y + d, w * 0.25, h - d);
+      g.fillStyle = '#3a2416'; g.fillRect(x, y + d, w, 1); g.fillRect(x + 1, y + d + 1, 1, h - d - 1); g.fillRect(x + w * 0.75 - 2, y + d + 1, 1, h - d - 1);
+      g.beginPath(); g.moveTo(x + 2, y + d + 2); g.lineTo(x + w * 0.75 - 3, y + h - 2); g.strokeStyle = '#3a2416'; g.lineWidth = 1; g.stroke();
+      return;
+    }
     case 'mannequin': {                               // manequim de roupa: suporte, corpo vestido, cabeça
       const cx = x + w / 2, color = CLOTH[Math.floor(r() * CLOTH.length)];
       rect(g, 'rgba(0,0,0,0.3)', cx - 6, y + h - 3, 13, 4);
@@ -1134,6 +1153,7 @@ export function propExtent(wall) {
   switch (wall.k) {
     // a copa cresce com o tamanho da árvore (as peças do catálogo vão até ~4 casas)
     case 'tree': { const s = Math.max(wall.w, wall.h); return s > 2.5 ? { left: s * 0.3, right: s * 0.3, top: s * 0.9, bottom: 0.4 } : { left: 0.6, right: 0.6, top: 1.7, bottom: 0.4 }; }
+    case 'pine': return { left: 0.1, right: 0.1, top: wall.h * 1.2, bottom: 0.4 };
     case 'deadtree': return { left: 0.4, right: 0.4, top: 1.4, bottom: 0.3 };
     case 'oak': return { left: 4, right: 4, top: 12, bottom: 0.6 };   // v29: a copa enorme do Velho Carvalho
     case 'seal': return { left: 0.3, right: 0.3, top: 1.0, bottom: 0.3 };
@@ -1147,6 +1167,7 @@ export function drawProp(g, wall, x, y, w, h, tile) {
   const seed = (wall.x * 73856093) ^ (wall.y * 19349663);
   switch (wall.k) {
     case 'tree': return drawTreeGroup(g, x, y, w, h, Math.abs(seed), tile, wall.s, wall.t);
+    case 'pine': return drawPine(g, x + w / 2, y + h - tile * 0.15, w / tile, Math.abs(seed), tile);
     case 'deadtree': return drawDeadTrees(g, x, y, w, h, Math.abs(seed), tile);
     case 'oak': return drawGiantOak(g, x, y, w, h, tile);
     case 'seal': return drawSeal(g, x, y, w, h, wall.s !== 'out');
@@ -1310,6 +1331,35 @@ export function drawSealGlow(ctx, x, y, w, h, now) {
  * com o tronco largo e as raízes abertas sobre a caixa de colisão (o tronco é o que bloqueia) e a copa bem acima.
  */
 const OAK_LEAVES = ['#1c2410', '#33421c', '#4b5e26', '#6a7d34', '#9aa851'];
+/**
+ * v29: pinheiro (peça do catálogo): andares de galhos em triângulo, do escuro embaixo à direita para a luz em cima à
+ * esquerda, contorno escuro e tronco curto. O pé (colisão) é só o tronco.
+ */
+const PINE = ['#0f160c', '#1f2c16', '#33441f', '#4d5e2c', '#7a8a44'];
+function drawPine(g, baseX, baseY, size, seed, tile) {
+  const r = rng(seed);
+  const H = tile * size * 1.25, W = tile * size * 0.62, tw = tile * size * 0.1, th = tile * size * 0.22;
+  g.fillStyle = 'rgba(0, 0, 0, 0.26)';
+  g.beginPath(); g.ellipse(baseX + W * 0.25, baseY - 1, W * 0.6, W * 0.2, 0, 0, Math.PI * 2); g.fill();
+  fr(g, '#1e1a17', baseX - tw / 2 - 1, baseY - th, tw + 2, th);
+  fr(g, '#5a3a22', baseX - tw / 2, baseY - th, tw, th - 1);
+  fr(g, '#7a4a28', baseX - tw / 2, baseY - th, tw * 0.4, th - 1);
+  const tiers = 4;
+  for (let i = 0; i < tiers; i++) {
+    const t = i / tiers;
+    const by = baseY - th * 0.7 - H * t * 0.82, half = W * (1 - t * 0.72) * (0.95 + r() * 0.1), tip = by - H * 0.36;
+    const tri = (dx, dy, k, col) => {
+      g.fillStyle = col; g.beginPath();
+      g.moveTo(baseX + dx, tip + dy); g.lineTo(baseX - half * k + dx, by + dy); g.lineTo(baseX + half * k + dx, by + dy); g.closePath(); g.fill();
+    };
+    tri(0, 1.2, 1.08, PINE[0]);                         // contorno
+    tri(0, 0, 1, PINE[1]);                              // sombra (lado direito)
+    g.fillStyle = PINE[2]; g.beginPath(); g.moveTo(baseX, tip); g.lineTo(baseX - half, by); g.lineTo(baseX + half * 0.35, by); g.closePath(); g.fill();
+    g.fillStyle = PINE[3]; g.beginPath(); g.moveTo(baseX - 0.5, tip + 2); g.lineTo(baseX - half * 0.75, by - 1); g.lineTo(baseX - half * 0.15, by - 1); g.closePath(); g.fill();
+    for (let j = 0; j < 4; j++) fr(g, PINE[4], baseX - half * (0.2 + r() * 0.5), by - (by - tip) * (0.2 + r() * 0.5), FINE * 2, FINE * 2);
+  }
+}
+
 function drawGiantOak(g, x, y, w, h, tile) {
   const cx = x + w / 2, base = y + h;
   // raízes: dedos grossos que se abrem no chão
@@ -1341,6 +1391,15 @@ function drawGiantOak(g, x, y, w, h, tile) {
     g.fillStyle = OAK_LEAVES[1]; g.beginPath(); g.arc(bx, by, br, 0, Math.PI * 2); g.fill();
     g.fillStyle = OAK_LEAVES[2]; g.beginPath(); g.arc(bx - br * 0.18, by - br * 0.2, br * 0.7, 0, Math.PI * 2); g.fill();
     g.fillStyle = OAK_LEAVES[3]; g.beginPath(); g.arc(bx - br * 0.34, by - br * 0.38, br * 0.34, 0, Math.PI * 2); g.fill();
+  }
+  // cachos de folha por cima (como nas árvores grandes): luz em cima à esquerda, sombra embaixo à direita
+  for (let i = 0; i < 260; i++) {
+    const [bx, by, br] = blobs[Math.floor(r() * blobs.length)];
+    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * br * 0.9, lx = bx + Math.cos(a) * d, ly = by + Math.sin(a) * d;
+    const tr = br * (0.1 + r() * 0.08), side = (lx - cx) / (w * 0.6) + (ly - top) / (tile * 3);
+    g.globalAlpha = 0.35; g.fillStyle = OAK_LEAVES[0]; g.beginPath(); g.arc(lx + tr * 0.15, ly + tr * 0.2, tr * 0.95, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
+    g.fillStyle = side < -0.25 ? OAK_LEAVES[3] : side > 0.35 ? OAK_LEAVES[1] : OAK_LEAVES[2];
+    g.beginPath(); g.arc(lx, ly, tr, 0, Math.PI * 2); g.fill();
   }
 }
 
@@ -1441,7 +1500,7 @@ function boulder(g, cx, cy, rx, ry, pal = ROCK_WARM) {
 
 /** Pedra da Floresta: cinza quente (o roxo fica para a caverna). */
 const ROCK_WARM = { edge: '#211d19', dark: '#4f4740', mid: '#6d645a', light: '#948a7c', crack: '#2c2723' };
-const GRASS_TOP = { back: '#24502a', base: '#2f6a33', light: '#3f8040', tip: '#6aa85a', dark: '#1f4a24' };
+const GRASS_TOP = { back: '#222b15', base: '#2f3a1e', light: '#4a5428', tip: '#7a8040', dark: '#1a2110' };   // v29: oliva escuro
 
 /**
  * Paredão de pedra (vista de cima em 3/4): em cima, o platô de grama com a beirada caindo por cima da rocha; na

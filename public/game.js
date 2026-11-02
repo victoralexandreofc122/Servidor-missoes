@@ -5039,7 +5039,7 @@ function pieceProps(places) {
   for (const pl of places) {
     for (const p of pl.map.pieces || []) {
       const s = p.size;
-      const w = { k: 'tree', x: p.x + pl.ox - s / 2, y: p.y + pl.oy - s + 0.15, w: s, h: s, t: pl.map.theme };
+      const w = { k: p.k === 'pine' ? 'pine' : 'tree', x: p.x + pl.ox - s / 2, y: p.y + pl.oy - s + 0.15, w: s, h: s, t: pl.map.theme };
       out.push({ prop: true, wall: w, x: w.x, top: w.y, w: s, h: s, y: w.y + s, ext: propExtent(w) });
     }
   }
