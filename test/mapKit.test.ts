@@ -14,7 +14,7 @@ const inBox = (b: { x: number; y: number; w: number; h: number }, x: number, y: 
 describe('mapas por código: Floresta (v29)', () => {
   it('a Floresta é desenhada por código (sem a pintura) e tem peças', () => {
     assert.equal(F.art, undefined);
-    assert.ok((F.pieces ?? []).length > 60, `${F.pieces?.length} peças`);
+    assert.ok((F.pieces ?? []).length > 30, `${F.pieces?.length} peças`);
   });
 
   it('árvores espalhadas: sempre com espaço para passar entre duas (troncos a 3 casas ou mais)', () => {
@@ -32,7 +32,7 @@ describe('mapas por código: Floresta (v29)', () => {
     for (const p of loose) {
       const f = footBox(p);
       assert.ok(feet.some((w) => w.x === f.x && w.y === f.y && w.w === f.w && w.h === f.h), `pé da árvore em ${p.x},${p.y}`);
-      assert.ok(f.w <= 0.7 && f.h <= 0.4, 'o pé é do tamanho do tronco');
+      assert.ok(f.w <= p.size * 0.2 && f.h <= 0.4, 'o pé é do tamanho do tronco');
       // logo acima do tronco (embaixo da copa) dá para passar
       assert.equal(blocked(p.x, p.y - 1.2, F.walls), false, `copa da árvore em ${p.x},${p.y} não pode bloquear`);
     }

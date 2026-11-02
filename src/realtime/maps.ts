@@ -910,7 +910,7 @@ function forest(): MapLayout {
   };
   for (const wd of woods) for (const z of solidZones) { const c = cut(wd, z); if (c) walls.push({ ...c, k: 'thicket' }); }
   const landmarks = walls.filter((w) => w.k !== 'cliff' && w.k !== 'pit' && w.k !== 'thicket');
-  const loose = scatterTrees(woods, [...open.filter((o) => o.w * o.h < 300), ...trails], [...landmarks, ...solidZones], 3.6, 13, 1.2);
+  const loose = scatterTrees(woods, [...open.filter((o) => o.w * o.h < 300), ...trails], [...landmarks, ...solidZones], 5.5, 13, 1.2);   // menos árvores, mais espaço
   const pieces: Piece[] = loose;
   walls.push(...loose.map((p) => ({ ...footBox(p), k: 'foot' as const })));
   return {

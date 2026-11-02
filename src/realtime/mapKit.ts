@@ -28,7 +28,7 @@ export interface Piece {
 
 /** Pé de cada peça (casas): largura em fração do tamanho e altura fixa. */
 export const PIECE_FOOT: Readonly<Record<PieceKind, { w: number; h: number }>> = {
-  tree: { w: 0.3, h: 0.35 },
+  tree: { w: 0.18, h: 0.35 },   // o tronco desenhado tem 0,16 x tamanho de largura
 };
 
 /** A caixa do pé (a colisão da peça). */
@@ -104,7 +104,7 @@ export function scatterTrees(regions: readonly Box[], keepOpen: readonly Box[], 
     if (keepOpen.some((o) => x > o.x - 0.6 && x < o.x + o.w + 0.6 && y > o.y - 0.3 && y < o.y + o.h + 1.2)) continue;
     if (avoid.some((o) => x > o.x - margin && x < o.x + o.w + margin && y > o.y - margin && y < o.y + o.h + margin + 1)) continue;
     if (out.some((p) => Math.hypot(p.x - x, p.y - y) < minDist)) continue;
-    out.push({ k: 'tree', x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, size: Math.round((1.6 + r() * 0.7) * 10) / 10, seed: Math.floor(r() * 1000) });
+    out.push({ k: 'tree', x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, size: Math.round((3.2 + r() * 0.9) * 10) / 10, seed: Math.floor(r() * 1000) });   // v29: bem maiores que o ninja
   }
   return out;
 }

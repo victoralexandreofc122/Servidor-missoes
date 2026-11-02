@@ -1158,7 +1158,8 @@ export const PROP_KINDS = new Set(['tree', 'deadtree', 'oak', 'seal', 'tent']);
 
 export function propExtent(wall) {
   switch (wall.k) {
-    case 'tree': return { left: 0.6, right: 0.6, top: 1.7, bottom: 0.4 };
+    // a copa cresce com o tamanho da árvore (as peças do catálogo vão até ~4 casas)
+    case 'tree': { const s = Math.max(wall.w, wall.h); return s > 2.5 ? { left: s * 0.3, right: s * 0.3, top: s * 0.9, bottom: 0.4 } : { left: 0.6, right: 0.6, top: 1.7, bottom: 0.4 }; }
     case 'deadtree': return { left: 0.4, right: 0.4, top: 1.4, bottom: 0.3 };
     case 'oak': return { left: 4, right: 4, top: 12, bottom: 0.6 };   // v29: a copa enorme do Velho Carvalho
     case 'seal': return { left: 0.3, right: 0.3, top: 1.0, bottom: 0.3 };
@@ -1247,7 +1248,7 @@ function drawTree(g, baseX, baseY, size, seed, tile, palette) {
  */
 function drawTreeGroup(g, x, y, w, h, seed, tile, style, theme) {
   const wt = w / tile, ht = h / tile;
-  if (wt <= 3.2 && ht <= 3.2) {
+  if ((wt <= 3.2 && ht <= 3.2) || (wt <= 4.6 && Math.abs(wt - ht) < 0.01)) {   // v29: árvore sozinha (as do catálogo vão até ~4 casas)
     const bx = x + w / 2, by = y + h - tile * 0.15, size = Math.min(wt, ht);
     // Areia: palmeira no lugar da cerejeira e das árvores grandes (um cacto grande em algumas), cacto nas pequenas.
     if (theme === 'areia') return size < 1.5 ? drawCactus(g, bx, by, size, seed, tile) : style === 'sakura' || seed % 3 ? drawPalm(g, bx, by, size, seed, tile) : drawCactus(g, bx, by, size, seed, tile);
