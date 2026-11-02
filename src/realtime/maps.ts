@@ -786,6 +786,20 @@ export const FOREST_POI = {
 } as const;
 
 /**
+ * v29: o desenho dos lugares da história sai dos pontos acima (mova o ponto e o lugar vai junto): a Pedra-Selo, o
+ * tronco do Carvalho e a porta da caverna ficam a uma distância fixa do ponto onde o ninja para na frente deles.
+ */
+const P = FOREST_POI;
+export const FOREST_PLACES = {
+  pedra1: { x: P.pedra1.x - 2.2, y: P.pedra1.y - 7.2, w: 4.5, h: 5.7 },
+  carvalho: { x: P.carvalho.x - 6.5, y: P.carvalho.y - 8.5, w: 13, h: 4.5 },
+  pedra2: { x: P.pedra2.x - 1.2, y: P.pedra2.y - 4.5, w: 2.4, h: 3 },
+  pedra3: { x: P.pedra3.x - 1, y: P.pedra3.y - 3.8, w: 2.2, h: 2.4 },
+  /** Posto de Viagem: o NPC e onde o ninja chega viajando. */
+  posto: { npc: { x: P.entrada.x + 6, y: P.entrada.y + 2.5 }, chegada: { x: P.entrada.x + 8.5, y: P.entrada.y + 4 } },
+} as const;
+
+/**
  * A beira do abismo de onde se salta: usando o Teleporte aqui, virado para o leste, chega-se na saliência da caverna,
  * do outro lado (o abismo do desenho tem umas 10 casas: nenhum nível do Teleporte alcança andando por cima dele).
  */
@@ -877,15 +891,16 @@ function forest(): MapLayout {
     ...carve(W, H, [...open, ...outside(cliff)], 'cliff'),
     ...carve(W, H, [...open, ...outside(abyss)], 'pit').map((w) => ({ ...w, s: 'chasm' as const })),
     // Pedra-Selo 1 (apagada: a Tsubaki acha na M3) no meio do lago; pedras e moitas da clareira.
-    wall('seal', 12.3, 9.6, 4.5, 5.7, 'out'),
+    wall('seal', FOREST_PLACES.pedra1.x, FOREST_PLACES.pedra1.y, FOREST_PLACES.pedra1.w, FOREST_PLACES.pedra1.h, 'out'),
     wall('rock', 20, 9, 4.5, 3.6), wall('rock', 25, 10, 2.5, 3.5), wall('rock', 6.4, 20.7, 2.7, 3.4), wall('rock', 9, 6, 4, 3),
     wall('rock', 13.5, 6, 3.5, 1.6), wall('rock', 61.5, 4.8, 2, 1.7), wall('furniture', 42.8, 5, 0.8, 1.6), wall('furniture', 49, 37.8, 0.8, 1.3),
     // O sumidouro (o riacho some aqui: é a água do canal da Vila, M2).
     wall('sink', 65, 16, 9, 6.6),
     // Velho Carvalho: o tronco e as raízes, com a Pedra-Selo 2 acesa na frente.
-    wall('oak', 23.5, 37, 13, 4.5), wall('seal', 28.8, 38.5, 2.4, 3, 'lit'),
+    wall('oak', FOREST_PLACES.carvalho.x, FOREST_PLACES.carvalho.y, FOREST_PLACES.carvalho.w, FOREST_PLACES.carvalho.h),
+    wall('seal', FOREST_PLACES.pedra2.x, FOREST_PLACES.pedra2.y, FOREST_PLACES.pedra2.w, FOREST_PLACES.pedra2.h, 'lit'),
     // Pedra-Selo 3, acesa, no fundo da abertura do paredão.
-    wall('seal', 88.3, 30.2, 2.2, 2.4, 'lit'),
+    wall('seal', FOREST_PLACES.pedra3.x, FOREST_PLACES.pedra3.y, FOREST_PLACES.pedra3.w, FOREST_PLACES.pedra3.h, 'lit'),
     // Acampamento Queimado: barracas, caixotes, a fogueira e a pedra.
     wall('tent', 8, 48.6, 7.7, 7.6, 'burnt'), wall('tent', 20.5, 47.7, 7.2, 7.3, 'burnt'), wall('tent', 9.5, 61, 6.4, 6.9, 'burnt'), wall('tent', 23.6, 60.6, 7.8, 6.9, 'burnt'),
     wall('furniture', 6.4, 55.4, 3.6, 3.9, 'barrel'), wall('furniture', 15, 48.5, 3, 3, 'barrel'), wall('furniture', 29, 59.8, 2.8, 2.7, 'barrel'), wall('furniture', 16, 66.3, 2, 2.7, 'barrel'),

@@ -5,7 +5,7 @@
 import { buildSkills, type JutsuCode, type Mechanic } from './jutsus.js';
 import type { AttributeRules } from './stats.js';
 import {
-  ACADEMY, CONFLICT, REFUGE, SHOPS, VILLAGE_MAPS, WORLD_MAPS, conflictCamp, shopRoom, villagePlan, type MapId, type MapLayout, type ShopKind,
+  ACADEMY, CONFLICT, FOREST_PLACES, REFUGE, SHOPS, VILLAGE_MAPS, WORLD_MAPS, conflictCamp, shopRoom, villagePlan, type MapId, type MapLayout, type ShopKind,
 } from './maps.js';
 import type { EndgameModule } from './endgame.js';
 
@@ -399,7 +399,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     // Postos de Viagem (fim de jogo): na praça de cada vila, na clareira da Floresta, nos acampamentos da Zona de
     // Conflito e no Refúgio. Levam para a própria vila, a Floresta, a Zona e as vilas aliadas.
     ...VILLAGE_MAPS.map((v): NpcConfig => ({ id: `travel_${v.id}`, name: 'Posto de Viagem', map: v.id, ...villagePlan(v.id).travel, range: 2.5, role: 'travel' })),
-    { id: 'travel_map_2', name: 'Posto de Viagem', map: 'map_2', x: 54.5, y: 8.5, range: 2.5, role: 'travel' },
+    { id: 'travel_map_2', name: 'Posto de Viagem', map: 'map_2', ...FOREST_PLACES.posto.npc, range: 2.5, role: 'travel' },
     ...CONFLICT.camps.map((c): NpcConfig => ({ id: `travel_zona_${c.who}`, name: 'Posto de Viagem', map: 'zona_conflito', ...conflictCamp(c.who).post, range: 2.5, role: 'travel' })),
     { id: 'travel_refugio', name: 'Posto de Viagem', map: 'refugio', x: REFUGE.post.x, y: REFUGE.post.y, range: 2.5, role: 'travel' },
     // Lojistas: cada um atrás do balcão da sua loja (só existem dentro do interior). Alcance 3,3

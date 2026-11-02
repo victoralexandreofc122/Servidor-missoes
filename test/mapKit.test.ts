@@ -63,3 +63,14 @@ describe('mapas por código: Floresta (v29)', () => {
     assert.ok(reachedSouthY > 40, 'a trilha atravessa a Floresta');
   });
 });
+
+describe('lugares da Floresta numa lista só (v29)', () => {
+  it('as Pedras-Selo e o Carvalho são desenhados onde a lista diz; o Posto de Viagem fica em chão livre', async () => {
+    const { FOREST_PLACES } = await import('../src/realtime/maps.js');
+    for (const [k, box] of Object.entries({ pedra1: FOREST_PLACES.pedra1, carvalho: FOREST_PLACES.carvalho, pedra2: FOREST_PLACES.pedra2, pedra3: FOREST_PLACES.pedra3 })) {
+      assert.ok(F.walls.some((w) => w.x === box.x && w.y === box.y && w.w === box.w && w.h === box.h), `${k} fora do lugar da lista`);
+    }
+    assert.equal(blocked(FOREST_PLACES.posto.chegada.x, FOREST_PLACES.posto.chegada.y, F.walls), false, 'chega-se viajando em chão livre');
+    assert.ok(REALTIME.npcs.some((n) => n.id === 'travel_map_2' && n.x === FOREST_PLACES.posto.npc.x && n.y === FOREST_PLACES.posto.npc.y));
+  });
+});

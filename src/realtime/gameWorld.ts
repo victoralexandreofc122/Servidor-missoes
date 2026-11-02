@@ -43,7 +43,7 @@ import {
   type EffectBag, type EffectCode,
 } from './effects.js';
 import { NO_CLASS, PvpStats, reportText, toClassRows } from './pvpStats.js';
-import {
+import { FOREST_PLACES,
   ACADEMY, REFUGE, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
   type MapLayout,
 } from './maps.js';
@@ -4269,7 +4269,7 @@ export class GameWorld {
       const home = this.homeOf(s.village);
       return home.map === 'refugio' ? home : this.travelArrival(home.map);
     }
-    if (to === 'map_2') return { map: 'map_2', x: 57, y: 10 };
+    if (to === 'map_2') return { map: 'map_2', ...FOREST_PLACES.posto.chegada };
     if (to === 'zona_conflito') return { map: 'zona_conflito', ...conflictCamp((s.village ?? 'renegados') as CampOwner).arrive };
     return this.travelArrival(VILLAGE_INFO[to as Village].map as MapId);
   }
