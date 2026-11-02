@@ -300,7 +300,7 @@ describe('v15: monstros por jogador no mapa', () => {
 });
 
 describe('v15: teto de atordoar e prender em jogadores', () => {
-  it('de novo dentro de 8 s: metade, depois um quarto, depois imune; passou a janela, volta inteiro', () => {
+  it('v28: controle de jogador em jogador gasta o orçamento (2,5 s em 15 s); sobra menor que 0,2 s não pega; passou a janela, volta', () => {
     const { world: w, join, at, clock } = world(config({ pvp: true }));
     const a = join('kaito');
     const b = join('mei');
@@ -317,10 +317,13 @@ describe('v15: teto de atordoar e prender em jogadores', () => {
       clock.advance(1000);
       return b.conn.last('player_status')?.ms;
     };
-    const full = SK.lightning.stunMs!;
-    assert.deepEqual([zap(), zap(), zap(), zap()], [full, Math.round(full / 2), Math.round(full / 4), undefined]);
-    clock.advance(REALTIME.combat.controlDr.windowMs);
-    assert.equal(zap(), full);
+    const full = SK.lightning.stunMs!;                         // 400 ms; os choques da paralisia também gastam
+    const got: (number | undefined)[] = [];
+    for (let i = 0; i < 8; i++) got.push(zap());
+    assert.equal(got[0], full);
+    assert.ok(got.includes(undefined), `o orçamento acaba: ${got.join(', ')}`);
+    clock.advance(15_000);
+    assert.equal(zap(), full, 'passou a janela de 15 s: pega inteiro de novo');
   });
 
   it('monstro não tem teto (controle no PvE continua valendo inteiro)', () => {

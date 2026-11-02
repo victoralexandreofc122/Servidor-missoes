@@ -25,7 +25,7 @@ import {
   ACADEMY_JUTSUS, CLASSES, CLASS_INFO, EXTRACTION, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
   BASE_SKILLS, jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
-import { PVP_SHIELD, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type HitInfo } from './pvpBalance.js';
+import { CC_BUDGET, PVP_SHIELD, ccAllow, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
@@ -228,6 +228,8 @@ interface Session {
   rootedUntil: number;
   /** Teto de controle (config.controlDr): quantas vezes já foi atordoado/preso na janela, e até quando ela vale. */
   controlDr: Record<MonsterStatus, { n: number; until: number }>;
+  /** v28: orçamento único de controle (controle vindo de jogador; pvpBalance.ts). */
+  ccLog: CcEntry[];
   /** Acabou de renascer: nenhum jogador o machuca até este instante. */
   protectedUntil: number;
   dead: boolean;
@@ -825,6 +827,7 @@ export class GameWorld {
       respawnMs: previous?.respawnMs ?? this.config.combat.player.respawnMs,
       diedIn: previous?.diedIn,
       controlDr: { stunned: { n: 0, until: 0 }, rooted: { n: 0, until: 0 } },
+      ccLog: [],
       protectedUntil: previous?.protectedUntil ?? 0,
       cooldowns: { ...(previous?.cooldowns ?? {}) },
       xp: player.xp ?? previous?.xp ?? 0,
@@ -1433,7 +1436,8 @@ export class GameWorld {
     if (c.effect === 'limpar') {
       for (const code of [...who.effects.keys()]) this.dropEffect(x, code, t);
     } else {
-      this.applyEffect(x, c.effect, t, c.seconds > 0 ? c.seconds * 1000 : undefined, undefined, s);
+      // Comando do admin: sem dono (não passa pelo orçamento de controle do PvP).
+      this.applyEffect(x, c.effect, t, c.seconds > 0 ? c.seconds * 1000 : undefined, undefined, c.effect === 'sono' || c.effect === 'silencio' ? undefined : s);
     }
     this.audit(s.id, 'efeito', who.id, { effect: c.effect, seconds: c.seconds }, true, null);
     const name = c.effect === 'limpar' ? 'sem efeitos' : `${EFFECTS[c.effect].icon} ${EFFECTS[c.effect].name}`;
@@ -1743,7 +1747,7 @@ export class GameWorld {
             this.dropEffect(x, 'molhado', t);
             this.broadcastMap(session.map, { type: 'combo', target: x.kind, id: x.id, combo: 'eletrocutado' });
           }
-          this.applyStatus(x, 'stunned', cfg.stunMs ?? 0, t);
+          this.applyStatus(x, 'stunned', cfg.stunMs ?? 0, t, session);
           this.hitTarget(x, wet ? Math.round(dmg * WET_LIGHTNING_BONUS) : dmg, session, t, 'skill', skill, { ...hit, wet });
           // Paralisia: o corpo fica dormente (anda a 70% e leva um choque por segundo).
           if (cfg.paralysisMs && this.stillThere(x)) this.applyEffect(x, 'paralisia', t, cfg.paralysisMs, undefined, session);
@@ -1751,13 +1755,13 @@ export class GameWorld {
         break;
       case 'illusion':
         for (const x of hits) {
-          this.applyStatus(x, 'stunned', lasting(cfg.stunMs ?? 0), t);
+          this.applyStatus(x, 'stunned', lasting(cfg.stunMs ?? 0), t, session);
           // Tier 3 e 4: o silêncio continua depois do atordoamento (acordou, mas ainda sem jutsu).
           if (cfg.silenceMs && this.stillThere(x)) this.applyEffect(x, 'silencio', t, lasting(cfg.stunMs ?? 0) + cfg.silenceMs, undefined, session);
         }
         break;
       case 'shadow':
-        for (const x of hits) this.applyStatus(x, 'rooted', lasting(cfg.rootMs ?? 0), t);
+        for (const x of hits) this.applyStatus(x, 'rooted', lasting(cfg.rootMs ?? 0), t, session);
         break;
       case 'fire': {
         // A queimadura escala igual ao golpe (Ninjutsu, nível do jutsu, passiva, clima): mesma proporção do dano.
@@ -1931,6 +1935,10 @@ export class GameWorld {
 
   /** Aplica (ou renova) um efeito e avisa todos no mapa. Sono acaba a meditação; lentidão muda a velocidade do dono. */
   private applyEffect(x: Target, code: EffectCode, t: number, ms?: number, amount?: number, source?: Session): void {
+    if (x.kind === 'player' && (code === 'sono' || code === 'silencio')) {
+      ms = this.ccGate(x.session, source, code, ms ?? EFFECTS[code].defaultMs, t);
+      if (ms <= 0) return;
+    }
     const e = addEffect(this.effectsOf(x), code, t, ms, amount, source?.id ?? null);
     const map = x.kind === 'monster' ? x.monster.map : x.session.map;
     this.broadcastMap(map, { type: 'effect', target: x.kind, id: x.id, effect: code, ms: e.until - t });
@@ -1954,7 +1962,11 @@ export class GameWorld {
 
   /** Apanhou: o sono acorda. */
   private wakeOnDamage(x: Target, t: number): void {
-    for (const code of breakOnDamage(this.effectsOf(x), t)) this.effectGone(x, code, t);
+    for (const code of breakOnDamage(this.effectsOf(x), t)) {
+      this.effectGone(x, code, t);
+      // v28: o sono que acaba ao apanhar conta no orçamento só até acordar.
+      if (code === 'sono' && x.kind === 'player') for (const e of x.session.ccLog) if (e.kind === 'sono' && e.until > t) e.until = t;
+    }
   }
 
   /**
@@ -1969,7 +1981,7 @@ export class GameWorld {
       for (const p of pulses) {
         if (s.dead) break;
         if (p.kind === 'heal') this.healPlayer(s, p.amount, t);
-        else if (p.kind === 'stun') this.shock(x, p.amount, t);
+        else if (p.kind === 'stun') this.shock(x, p.amount, t, p.sourceId);
         else {
           const by = p.sourceId ? this.sessions.get(p.sourceId) : undefined;
           this.damagePlayer(s, p.amount, t, undefined, by && by !== s && this.canHurt(by, s, t) ? by : undefined, `efeito:${p.code}`);
@@ -2001,9 +2013,11 @@ export class GameWorld {
    * Choque da paralisia: parado por `ms` (todos veem). Fora do teto de controle (é curto e já veio de um Relâmpago que
    * contou no teto); a Máscara Intangível ignora.
    */
-  private shock(x: Target, ms: number, t: number): void {
+  private shock(x: Target, ms: number, t: number, sourceId: string | null = null): void {
     if (x.kind === 'player') {
       if (t < x.session.intangibleUntil) return;
+      ms = this.ccGate(x.session, sourceId ? this.sessions.get(sourceId) : undefined, 'shock', ms, t);
+      if (ms <= 0) return;
       x.session.stunnedUntil = Math.max(x.session.stunnedUntil, t + ms);
       this.broadcastMap(x.session.map, { type: 'player_status', playerId: x.id, status: 'stunned', ms });
     } else {
@@ -2024,12 +2038,28 @@ export class GameWorld {
   }
 
   /**
+   * v28: controle de JOGADOR em jogador passa pelo orçamento único (pvpBalance.ts). Devolve quanto pega (ms reais);
+   * 0 = não pega. Sem `source` jogador, devolve `ms` (quem chama aplica o teto de sempre).
+   */
+  private ccGate(victim: Session, source: Session | undefined, kind: CcKind, ms: number, t: number): number {
+    if (!source || source === victim) return ms;
+    victim.ccLog = victim.ccLog.filter((e) => e.until > t - CC_BUDGET.windowMs);
+    const got = ccAllow(victim.ccLog, t, kind, ms);
+    if (got > 0) victim.ccLog.push({ kind, startedAt: t, until: t + got, weight: kind === 'silencio' ? 0.5 : 1, sourceId: source.id });
+    return got;
+  }
+
+  /**
    * Atordoar ou prender um alvo (todos veem). Em JOGADOR vale o teto de controle: de novo dentro da janela,
    * dura a metade, depois um quarto, e depois nada (imune até a janela passar).
    */
-  private applyStatus(target: Target, status: MonsterStatus, ms: number, t: number): void {
+  private applyStatus(target: Target, status: MonsterStatus, ms: number, t: number, source?: Session): void {
     const who = target.kind === 'monster' ? target.monster : target.session;
-    if (target.kind === 'player') {
+    if (target.kind === 'player' && source) {
+      if (t < target.session.intangibleUntil) return;          // Máscara Intangível: nada de atordoar
+      ms = this.ccGate(target.session, source, status, ms, t);
+      if (ms <= 0) return;
+    } else if (target.kind === 'player') {
       if (t < target.session.intangibleUntil) return;          // Máscara Intangível: nada de atordoar
       const { windowMs, factors } = this.config.combat.controlDr;
       const dr = target.session.controlDr[status];
@@ -4390,7 +4420,7 @@ export class GameWorld {
         this.spendPower(s, def, t);
         for (const x of caught) {
           this.pullTo(x, s, 1.2, t);
-          this.applyStatus(x, 'stunned', def.ms!, t);
+          this.applyStatus(x, 'stunned', def.ms!, t, s);
         }
         break;
       }
@@ -4415,7 +4445,7 @@ export class GameWorld {
         this.spendPower(s, def, t);
         tx = round2(first.at.x);
         ty = round2(first.at.y);
-        this.applyStatus(first.target, 'rooted', def.ms!, t);
+        this.applyStatus(first.target, 'rooted', def.ms!, t, s);
         this.pullTo(first.target, s, Math.max(1.2, distance(s, first.target) - def.count!), t);
         break;
       }
@@ -4423,7 +4453,7 @@ export class GameWorld {
         const caught = targets.filter((x) => isInCircle(s, def.radius!, x));
         if (caught.length === 0) return fail('NO_TARGET');
         this.spendPower(s, def, t);
-        for (const x of caught) this.applyStatus(x, 'stunned', def.ms!, t);
+        for (const x of caught) this.applyStatus(x, 'stunned', def.ms!, t, s);
         break;
       }
       case 'hearts':

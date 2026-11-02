@@ -79,3 +79,57 @@ export function pvpCostCooldown(mechanic: string, cost: number, cooldownMs: numb
   const f = PVP_COST_COOLDOWN[mechanic] ?? 1;
   return { cost: Math.round(cost * f), cooldownMs: Math.round(cooldownMs * f) };
 }
+
+// ---------------------------------------------------------------- orçamento de controle (passo 1e)
+/**
+ * Orçamento único de controle por jogador, quando quem causa é OUTRO JOGADOR: soma o "tempo sem poder agir" de
+ * atordoar, prender, sono e os choques da paralisia; o silêncio pesa a metade. Dois controles ao mesmo tempo contam o
+ * de maior peso naquele instante (não a soma). No máximo 1,5 s (com peso) por aplicação e 2,5 s em qualquer trecho de
+ * 15 s; se sobra menos de 0,2 s, o controle novo não pega. Controle de monstro segue o `controlDr` de hoje.
+ */
+export const CC_BUDGET = { perApplyMs: 1500, windowMs: 15_000, maxMs: 2500, minMs: 200 } as const;
+export type CcKind = 'stunned' | 'rooted' | 'sono' | 'shock' | 'silencio';
+export const CC_WEIGHT: Readonly<Record<CcKind, number>> = { stunned: 1, rooted: 1, sono: 1, shock: 1, silencio: 0.5 };
+
+export interface CcEntry {
+  kind: CcKind;
+  startedAt: number;
+  until: number;
+  weight: number;
+  sourceId: string | null;
+}
+
+/** Tempo com peso já gasto a partir de `from` (entradas que ainda vão acabar contam inteiras). */
+export function ccUsed(log: readonly CcEntry[], from: number): number {
+  const spans = log.filter((e) => e.until > from).map((e) => ({ a: Math.max(e.startedAt, from), b: e.until, w: e.weight }));
+  if (spans.length === 0) return 0;
+  const cuts = [...new Set(spans.flatMap((s) => [s.a, s.b]))].sort((x, y) => x - y);
+  let total = 0;
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const a = cuts[i]!, b = cuts[i + 1]!;
+    let w = 0;
+    for (const s of spans) if (s.a <= a && s.b >= b) w = Math.max(w, s.w);
+    total += w * (b - a);
+  }
+  return total;
+}
+
+/**
+ * Quanto do controle pedido (`wantMs`, tempo real) pega agora. Devolve 0 quando o orçamento não deixa.
+ * Não muda o registro: quem chama grava a entrada se o resultado for maior que 0.
+ */
+export function ccAllow(log: readonly CcEntry[], t: number, kind: CcKind, wantMs: number): number {
+  const w = CC_WEIGHT[kind];
+  const from = t - CC_BUDGET.windowMs;
+  const before = ccUsed(log, from);
+  let d = Math.min(wantMs, CC_BUDGET.perApplyMs / w);
+  const fits = (ms: number) => ccUsed([...log, { kind, startedAt: t, until: t + ms, weight: w, sourceId: null }], from) <= CC_BUDGET.maxMs;
+  if (!fits(d)) {
+    let lo = 0, hi = Math.ceil(d);                            // busca em ms inteiros
+    while (hi - lo > 1) { const mid = Math.floor((lo + hi) / 2); if (fits(mid)) lo = mid; else hi = mid; }
+    d = fits(hi) ? hi : lo;
+  }
+  const added = ccUsed([...log, { kind, startedAt: t, until: t + d, weight: w, sourceId: null }], from) - before;
+  if (d < wantMs && added < CC_BUDGET.minMs) return 0;
+  return d <= 0 ? 0 : d;
+}

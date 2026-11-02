@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { DEFAULT_APPEARANCE } from '../src/realtime/appearance.js';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { BASE_SKILLS } from '../src/realtime/jutsus.js';
-import { PVP_SHIELD, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type HitInfo } from '../src/realtime/pvpBalance.js';
+import { PVP_SHIELD, ccAllow, ccUsed, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from '../src/realtime/pvpBalance.js';
 import { NO_ATTRIBUTES, derivedStats, type Attributes } from '../src/realtime/stats.js';
 import { FakeConn, placeIn, setupWorld } from './support/world.js';
 
@@ -123,5 +123,29 @@ describe('pvpBalance no jogo (arena das vilas)', () => {
     const esperado = pvpHitDamage(hit('lightning', { passive: world.passive(s, 'jutsu') }), s.stats, SCALE);
     assert.equal(hpBefore - ses(b.id).hp, esperado, `PvP: ${esperado}`);
     assert.ok(esperado < 60, 'bem abaixo dos 105 contra monstro');
+  });
+});
+
+describe('orçamento de controle (passo 1e)', () => {
+  const e = (kind: CcKind, startedAt: number, until: number): CcEntry => ({ kind, startedAt, until, weight: kind === 'silencio' ? 0.5 : 1, sourceId: null });
+
+  it('no máximo 1,5 s por aplicação; o resto do orçamento (2,5 s) pega em parte; sobra menor que 0,2 s não pega', () => {
+    assert.equal(ccAllow([], 0, 'stunned', 5100), 1500);
+    const log = [e('stunned', 0, 1500)];
+    assert.equal(ccAllow(log, 2000, 'rooted', 5000), 1000, 'sobra 1 s');
+    log.push(e('rooted', 2000, 2900));
+    assert.equal(ccAllow(log, 3000, 'stunned', 400), 0, 'sobra 0,1 s: não pega');
+  });
+
+  it('a janela de 15 s anda: depois dela, pega inteiro', () => {
+    const log = [e('stunned', 0, 1500), e('rooted', 2000, 3000)];
+    assert.equal(ccAllow(log, 10_000, 'stunned', 1000), 0);
+    assert.equal(ccAllow(log, 18_100, 'stunned', 1000), 1000);
+  });
+
+  it('dois controles juntos contam o de maior peso; o silêncio pesa a metade (exemplo da Ilusão tier 4)', () => {
+    assert.equal(ccUsed([e('stunned', 0, 1000), e('silencio', 0, 3000)], -15_000), 2000, '1 s cheio + 2 s pela metade');
+    const log = [e('stunned', 0, 1500)];
+    assert.equal(ccAllow(log, 0, 'silencio', 9600), 3000, 'silêncio: 1,5 s de peso no máximo = 3 s reais');
   });
 });
