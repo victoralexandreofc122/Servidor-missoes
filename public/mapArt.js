@@ -1196,13 +1196,21 @@ function drawTree(g, baseX, baseY, size, seed, tile, palette) {
   g.fillStyle = pal[3];
   for (const [bx, by, br] of blobs) if (by < 0.3) disk(bx - 0.14, by - 0.2, br * R * 0.5);
   // tufos de folha (textura) e brilhos
-  for (let i = 0; i < 10 + size * 4; i++) {
-    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * R * 0.85;
+  // v29: tufos proporcionais ao tamanho (nas árvores grandes, folhas em cachos e não manchas chapadas): sombra nos
+  // tufos de baixo à direita, luz nos de cima à esquerda, tom do meio no resto.
+  for (let i = 0; i < 10 + size * size * 5; i++) {
+    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * R * 0.88;
     const lx = cx + Math.cos(a) * d, ly = cy + Math.sin(a) * d * 0.9;
-    const up = ly < cy;
-    g.fillStyle = up ? pal[3] : pal[1];
-    g.beginPath(); g.arc(lx, ly, 1.1 + r() * 0.9, Math.PI, Math.PI * 2); g.fill();
-    if (up && r() < 0.5) fr(g, pal[4], lx - 0.5, ly - 1, FINE * 2, FINE * 2);
+    const light = (lx - cx) + (ly - cy) * 1.2;                 // < 0: lado da luz
+    const tr = size > 2.5 ? R * (0.06 + r() * 0.06) : 1.1 + r() * 0.9;
+    if (size > 2.5) {                                          // sombra suave atrás do cacho (volume, sem risco)
+      g.globalAlpha = 0.35; g.fillStyle = pal[0];
+      g.beginPath(); g.arc(lx + tr * 0.15, ly + tr * 0.2, tr * 0.95, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = 1;
+    }
+    g.fillStyle = light < -R * 0.25 ? pal[3] : light > R * 0.3 ? pal[1] : pal[2];
+    g.beginPath(); g.arc(lx, ly, tr, size > 2.5 ? 0 : Math.PI, Math.PI * 2); g.fill();
+    if (light < -R * 0.25 && r() < 0.5) fr(g, pal[4], lx - 0.5, ly - tr, FINE * 2, FINE * 2);
   }
   fr(g, pal[4], cx - R * 0.45, cy - R * 0.5, 1.4, 1);
   fr(g, pal[4], cx - R * 0.3, cy - R * 0.62, 1, FINE * 2);
