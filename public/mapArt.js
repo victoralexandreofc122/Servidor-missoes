@@ -1116,8 +1116,36 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     case 'logs': return drawLogs(g, x, y, w, h);
     case 'sink': return drawSink(g, x, y, w, h);
     case 'pool': return drawPool(g, x, y, w, h, Math.abs(seed));
-    default: return undefined;
+    case 'thicket': return drawThicket(g, wall, x, y, w, h, tile);
+    default: return undefined;   // 'foot': só colisão (o desenho é da peça)
   }
+}
+
+/**
+ * v29: a mata fechada vista de cima: um tapete de copas (tufos sobrepostos, escuros embaixo e com luz em cima à
+ * esquerda). Não tem tronco: os troncos são das árvores da borda (peças), com o pé na linha da colisão.
+ */
+function drawThicket(g, wall, x, y, w, h, tile) {
+  // Grade do MAPA (casas), não do bloco: dois blocos vizinhos desenham os mesmos tufos na emenda (sem linha reta).
+  g.fillStyle = '#10261a';
+  g.fillRect(x, y, w, h);
+  g.save();
+  g.beginPath(); g.rect(x, y, w, h); g.clip();
+  const SX = 0.85, SY = 0.6;
+  const px = (wx) => x + (wx - wall.x) * tile, py = (wy) => y + (wy - wall.y) * tile;
+  for (let j = Math.floor((wall.y - 1.2) / SY); j * SY < wall.y + wall.h + 1.2; j++) {
+    for (let i = Math.floor((wall.x - 1.2) / SX); i * SX < wall.x + wall.w + 1.2; i++) {
+      const r = rng(((i * 73856093) ^ (j * 19349663)) >>> 0);
+      const pal = LEAVES[Math.floor(r() * LEAVES.length)];
+      const cx = px(i * SX + (j % 2 ? SX / 2 : 0) + (r() - 0.5) * 0.3), cy = py(j * SY + (r() - 0.5) * 0.2);
+      const R = tile * (0.52 + r() * 0.18);
+      g.fillStyle = pal[0]; g.beginPath(); g.arc(cx, cy + R * 0.12, R * 1.04, 0, Math.PI * 2); g.fill();
+      g.fillStyle = pal[1]; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+      g.fillStyle = pal[2]; g.beginPath(); g.arc(cx - R * 0.18, cy - R * 0.2, R * 0.72, 0, Math.PI * 2); g.fill();
+      g.fillStyle = pal[3]; g.beginPath(); g.arc(cx - R * 0.32, cy - R * 0.38, R * 0.36, 0, Math.PI * 2); g.fill();
+    }
+  }
+  g.restore();
 }
 
 // ------------------------------------------------------------------ objetos com altura (camada de cima)

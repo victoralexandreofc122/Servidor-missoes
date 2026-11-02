@@ -1573,7 +1573,7 @@ function enterMap(id, announce) {
   state.windows = drawn.filter((w) => w.k === 'house').flatMap(buildingLights);
   // Arenas à vista (as do mapa atual): os holofotes.
   state.arenaBoxes = state.places.flatMap((pl) => (pl.map.arenas || []).map((a) => ({ x: a.x + pl.ox, y: a.y + pl.oy, w: a.w, h: a.h })));
-  state.props = makeProps(drawn);
+  state.props = makeProps(drawn).concat(pieceProps(state.places));
   state.doors = deco.filter((d) => d.k === 'door');      // Academia: abrem conforme o tutorial (desenho a cada quadro)
   state.fields = layout.fields || [];                     // Sala de Controle: o campo que drena o chakra
   state.npcs = state.allNpcs.filter((n) => n.map === id && npcVisible(n));
@@ -1770,6 +1770,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'j' || e.key === 'J') (ui.missionsPanel.hidden ? openMissions() : closeMissions());
   if (e.key === 'i' || e.key === 'I') (ui.invPanel.hidden ? openInventory() : closeInventory());
   if (e.key === 'h' || e.key === 'H') (ui.historyPanel.hidden ? openHistory() : closeHistory());
+  if (e.key === 'F2') { state.showHitboxes = !state.showHitboxes; e.preventDefault(); }   // v29: mostra as colisões do mapa
   if (e.key === 'Escape') { closeShop(); closeInventory(); closeClassChoice(); closeKage(); closeBoard(); closeHistory(); }
 });
 window.addEventListener('keyup', (e) => {
@@ -4981,6 +4982,7 @@ function draw(now) {
     else drawPlayer(e, toScreenX(e.x) + knockOffset(e, now, 'dx') * T, toScreenY(e.y) + knockOffset(e, now, 'dy') * T, T, e.id === state.meId, now);
   }
 
+  if (state.showHitboxes) drawHitboxes(toScreenX, toScreenY, T, me);
   for (const fx of state.effects) if (!GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   vfx.draw(ctx, 'top', toScreenX, toScreenY, T, dpr, now);
 
@@ -5027,6 +5029,45 @@ function draw(now) {
  * Fileiras compridas de árvores (bordas da mata) são cortadas em pedaços de até 6 casas: cada pedaço se ordena pela
  * própria base. `y` = a base (é por ela que a lista de desenho ordena).
  */
+/**
+ * v29: peças do catálogo (mapKit.ts no servidor). A árvore é desenhada com o pé do tronco no ponto (x, y) da peça,
+ * o mesmo ponto de onde sai a colisão: o que se vê e o que bloqueia não se separam.
+ */
+function pieceProps(places) {
+  const out = [];
+  for (const pl of places) {
+    for (const p of pl.map.pieces || []) {
+      const s = p.size;
+      const w = { k: 'tree', x: p.x + pl.ox - s / 2, y: p.y + pl.oy - s + 0.15, w: s, h: s, t: pl.map.theme };
+      out.push({ prop: true, wall: w, x: w.x, top: w.y, w: s, h: s, y: w.y + s, ext: propExtent(w) });
+    }
+  }
+  return out;
+}
+
+/**
+ * v29 (F2): as caixas de colisão do mapa por cima do desenho (vermelho; o pé das peças em amarelo) e o círculo do pé
+ * do jogador (azul, raio 0,3 casa, o mesmo do servidor). Serve para conferir que o desenho e a colisão batem.
+ */
+function drawHitboxes(toScreenX, toScreenY, T, me) {
+  ctx.save();
+  ctx.lineWidth = 1;
+  for (const w of state.walls) {
+    const x = toScreenX(w.x), y = toScreenY(w.y), ww = w.w * T, hh = w.h * T;
+    if (x > viewW || y > viewH || x + ww < 0 || y + hh < 0) continue;
+    const foot = w.k === 'foot';
+    ctx.fillStyle = foot ? 'rgba(255, 210, 40, 0.45)' : 'rgba(255, 40, 40, 0.22)';
+    ctx.strokeStyle = foot ? '#ffd228' : '#ff4040';
+    ctx.fillRect(x, y, ww, hh);
+    ctx.strokeRect(x + 0.5, y + 0.5, ww - 1, hh - 1);
+  }
+  if (me) {
+    ctx.strokeStyle = '#3aa0ff'; ctx.fillStyle = 'rgba(58, 160, 255, 0.35)';
+    ctx.beginPath(); ctx.arc(toScreenX(me.x), toScreenY(me.y), 0.3 * T, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function makeProps(walls) {
   const out = [];
   for (const w of walls) {

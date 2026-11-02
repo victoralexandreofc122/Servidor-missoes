@@ -21,6 +21,7 @@
  * lanternas...) são só desenho. A regra de atravessar a borda fica em movement.ts e
  * public/movement.js: a mesma conta nos dois.
  */
+import { footBox, looseTrees, thicketEdge, type Piece } from './mapKit.js';
 import type { Village } from './appearance.js';
 import type { Box } from './movement.js';
 
@@ -48,7 +49,10 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
  */
 export interface Wall extends Box {
   k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit' | 'fence' | 'pillar' | 'gate'
-    | 'seal' | 'oak' | 'cliff' | 'tent' | 'cave' | 'deadtree' | 'logs' | 'sink' | 'pool';
+    | 'seal' | 'oak' | 'cliff' | 'tent' | 'cave' | 'deadtree' | 'logs' | 'sink' | 'pool'
+    // v29 (mapas por código): thicket = mata fechada (colide inteira; as árvores da borda têm o pé na linha dela);
+    // foot = o pé de uma peça do catálogo (mapKit.ts): só colisão, o desenho é da peça
+    | 'thicket' | 'foot';
   /**
    * Estilo do prédio (sede, hospital, academia, lojas, casa, cabana) ou do móvel do interior
    * (suporte de espadas, de lanças, de escudos, manequim, prateleira de roupas, estante de
@@ -193,6 +197,8 @@ export interface MapLayout {
   /** Chão por cima do padrão (o último da lista vale). */
   areas: Area[];
   deco: Deco[];
+  /** v29: peças do catálogo (mapKit.ts), desenhadas pelo cliente a partir do pé. */
+  pieces?: Piece[];
   /** Zonas seguras: ninguém usa habilidade nem ataca dentro delas (o servidor confere). */
   safeZones: Box[];
   /** Onde os monstros nascem e andam (mapas de caça). */
@@ -856,8 +862,20 @@ function forest(): MapLayout {
     { x: 76, y: 63.5, w: 2, h: 1.5 },              // a passagem entre as pedras
     { x: 78, y: 52.5, w: 17.5, h: 14.5 },          // saliência: a boca da caverna
   ];
+  // v29: a mata fechada é desenhada por código (sem a pintura): o paredão e o abismo são peças próprias, e as árvores
+  // da borda da mata têm o pé na linha da colisão.
+  const cliff: Box = { x: 54.5, y: 25, w: 45.5, h: 11.5 };      // o paredão acima do leito de pedras
+  const abyss: Box = { x: 61.5, y: 43, w: 11, h: 24 };           // o abismo entre a terra e a saliência
+  const outside = (b: Box): Box[] => [
+    { x: 0, y: 0, w: W, h: b.y }, { x: 0, y: b.y + b.h, w: W, h: H - b.y - b.h },
+    { x: 0, y: b.y, w: b.x, h: b.h }, { x: b.x + b.w, y: b.y, w: W - b.x - b.w, h: b.h },
+  ];
+  const oakBox: Box = { x: 23.5, y: 37, w: 13, h: 4.5 };     // o Velho Carvalho: a mata não cobre o tronco dele
+  const thicket = carve(W, H, [...open, cliff, abyss, oakBox], 'thicket');
   const walls: Wall[] = [
-    ...carve(W, H, open),
+    ...thicket,
+    ...carve(W, H, [...open, ...outside(cliff)], 'cliff'),
+    ...carve(W, H, [...open, ...outside(abyss)], 'pit').map((w) => ({ ...w, s: 'chasm' as const })),
     // Pedra-Selo 1 (apagada: a Tsubaki acha na M3) no meio do lago; pedras e moitas da clareira.
     wall('seal', 12.3, 9.6, 4.5, 5.7, 'out'),
     wall('rock', 20, 9, 4.5, 3.6), wall('rock', 25, 10, 2.5, 3.5), wall('rock', 6.4, 20.7, 2.7, 3.4), wall('rock', 9, 6, 4, 3),
@@ -878,8 +896,16 @@ function forest(): MapLayout {
     // Saliência: o monte de pedras da boca da caverna e as pedras soltas.
     wall('rock', 86, 51.5, 4.5, 9.5), wall('rock', 94.8, 51.5, 1.5, 10), wall('rock', 90, 51.5, 5, 3), wall('rock', 81, 55, 3.2, 3),
   ];
+  // Peças: as árvores da borda da mata (pé dentro da colisão da mata) e algumas soltas nos gramados (colidem no pé).
+  const trails = [{ x: 45, y: 0, w: 7, h: 16 }, { x: 46, y: 16, w: 5.5, h: 47 }, { x: 47, y: 63, w: 4, h: 12 }];
+  const loose = looseTrees([{ x: 20, y: 6, w: 20, h: 8 }, { x: 18, y: 41.5, w: 28, h: 9.5 }], [...walls, ...trails], 5);
+  // Nada de árvore da borda na frente dos lugares da história (Carvalho, Pedras-Selo, barracas, troncos, caverna).
+  const landmarks = walls.filter((w) => w.k !== 'thicket' && w.k !== 'cliff' && w.k !== 'pit');
+  const nearLandmark = (p: Piece) => landmarks.some((w) => p.x > w.x - 1.2 && p.x < w.x + w.w + 1.2 && p.y > w.y - 0.5 && p.y < w.y + w.h + 2.5);
+  const pieces: Piece[] = [...thicketEdge(thicket, walls, W, H).filter((p) => !nearLandmark(p)), ...loose];
+  walls.push(...loose.map((p) => ({ ...footBox(p), k: 'foot' as const })));
   return {
-    id: 'map_2', name: 'Floresta', kind: 'forest', width: W, height: H, safe: false, walls, art: 'floresta',
+    id: 'map_2', name: 'Floresta', kind: 'forest', width: W, height: H, safe: false, walls, pieces,
     lights: [{ x: 30, y: 38.8 }, { x: 89.4, y: 30.8 }, { x: 58.5, y: 68.5 }],
     leaps: [
       { from: { ...FOREST_ABYSS }, dir: { x: 1, y: 0 }, to: { x: 74.4, y: 57 } },
@@ -895,10 +921,11 @@ function forest(): MapLayout {
       { x: 90.7, y: 55, w: 4, h: 0.8, dir: 'north', map: 'caverna_lodo', at: { ...CAVE_ARRIVE } },
     ],
     areas: [
-      area('trail', 45, 0, 7, 16), area('trail', 46, 16, 5.5, 47), area('trail', 47, 63, 4, 12),
+      area('path', 46.5, 0, 4, 16), area('path', 47, 16, 3.5, 47), area('path', 47.5, 63, 3, 12),
       area('pebbles', 50, 36.8, 50, 6), oval('burnt', 4, 47, 31, 21), area('dirt', 72.8, 52.6, 22.7, 14.4),
     ],
-    deco: [],
+    // v29: a copa do Velho Carvalho (antes vinha na pintura): por cima de quem passa, translúcida com ele embaixo.
+    deco: [deco('oak_canopy', 20, 26.5, 20, 13.5)],
     safeZones: [],
     hunt: { x: 4, y: 6, w: 92, h: 61 },
     zones: [

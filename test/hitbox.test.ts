@@ -166,11 +166,12 @@ describe('hitboxes no jogo (monstros)', () => {
     const { world, connect, run } = setupWorld(config());
     const a = connect('kaito');
     learn(world, a.id, 'lightning');
-    // Uma árvore da Floresta (2 x 2) com chão livre dos dois lados: jogador à esquerda, monstro do outro lado.
+    // Uma árvore solta da Floresta (v29: colide só no tronco) com chão livre dos dois lados: jogador à esquerda,
+    // monstro do outro lado, na altura do tronco.
     const forest = REALTIME.maps.map_2;
-    const tree = forest.walls.find((w) => w.k === 'tree' && w.w === 2 && w.x > 4 && w.x < 90
-      && !blocked(w.x - 1.5, w.y + 1, forest.walls) && !blocked(w.x - 0.5, w.y + 1, forest.walls) && !blocked(w.x + 3, w.y + 1, forest.walls))!;
-    const cy = tree.y + 1;
+    const tree = forest.walls.find((w) => w.k === 'foot'
+      && !blocked(w.x - 1.5, w.y + w.h / 2, forest.walls) && !blocked(w.x - 0.5, w.y + w.h / 2, forest.walls) && !blocked(w.x + 3, w.y + w.h / 2, forest.walls))!;
+    const cy = tree.y + tree.h / 2;
     placeIn(world, a.id, 'map_2', tree.x - 1.5, cy);
     const m = world.spawnMonster({ x: tree.x + 3, y: cy }, undefined, 'map_2');
     a.send({ type: 'cast', skill: 'lightning' });

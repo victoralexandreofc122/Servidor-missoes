@@ -54,9 +54,9 @@ function reach(from: [number, number], r: number): Set<string> {
 describe('mapas: layout', () => {
   it('Vila da Folha (78x60, sem monstros) e Floresta (100x75, caça), as duas em imagem; sempre o mesmo layout', () => {
     assert.deepEqual([VILA.id, VILA.kind, VILA.width, VILA.height, VILA.safe, VILA.art], ['map_1', 'village', 78, 60, true, 'folha']);
-    assert.deepEqual([FLORESTA.id, FLORESTA.kind, FLORESTA.width, FLORESTA.height, FLORESTA.safe, FLORESTA.art], ['map_2', 'forest', 100, 75, false, 'floresta']);
+    assert.deepEqual([FLORESTA.id, FLORESTA.kind, FLORESTA.width, FLORESTA.height, FLORESTA.safe, FLORESTA.art], ['map_2', 'forest', 100, 75, false, undefined]);   // v29: Floresta desenhada por código
     assert.deepEqual(buildMaps(), WORLD_MAPS, 'a floresta tem semente fixa: igual em todo boot');
-    assert.ok(FLORESTA.walls.filter((w) => w.k === 'tree').length > 20, 'a mata em volta das clareiras e trilhas');
+    assert.ok(FLORESTA.walls.filter((w) => w.k === 'thicket').length > 20, 'a mata em volta das clareiras e trilhas (v29: mata fechada)');
     const styles = VILA.walls.filter((w) => w.k === 'house').map((w) => w.s);
     for (const s of ['leader', 'hospital', 'academy', 'shop_weapon', 'shop_cloth', 'shop_scroll'] as const) assert.ok(styles.includes(s), s);
     assert.deepEqual(VILA.deco, [], 'os enfeites estão no desenho');
@@ -312,7 +312,7 @@ describe('mapas: servidor (salas)', () => {
     assert.deepEqual(w.world.maps.map_1.safeZones, VILA.safeZones);
     assert.deepEqual(w.players, [], 'kaito está na Floresta: não aparece na Vila');
     // a Floresta do Arco 1 é maior (trilhas e riacho em curvas) e o céu vem junto (clima)
-    assert.ok(JSON.stringify(w).length < 36_000, `welcome leve (v23: + a colisão da Folha em imagem) (${JSON.stringify(w).length} bytes)`);
+    assert.ok(JSON.stringify(w).length < 55_000, `welcome leve (v23: + a colisão da Folha em imagem; v29: + as árvores da Floresta) (${JSON.stringify(w).length} bytes)`);
   });
 });
 
@@ -328,9 +328,9 @@ describe('mapas: desenho no cliente (world.js)', async () => {
     // a mesma casa do mundo vista dos dois lados: a praça da Vila (e a Vila é em imagem dos dois lados)
     assert.equal(W.groundAt(fromVila, 38, 45), 'stone');
     assert.equal(W.groundAt(fromFloresta, 38 + FOREST_GATE_SHIFT, 45 - 60), 'stone');
-    assert.deepEqual(W.artPlaces(fromFloresta), [{ art: 'floresta', x: 0, y: 0, w: 100, h: 75 }, { art: 'folha', x: FOREST_GATE_SHIFT, y: -60, w: 78, h: 60 }]);
+    assert.deepEqual(W.artPlaces(fromFloresta), [{ art: 'folha', x: FOREST_GATE_SHIFT, y: -60, w: 78, h: 60 }]);   // v29: a Floresta é por código
     // e a trilha da Floresta logo depois do portão, vista da Vila (a faixa curva por cima da grama)
-    assert.equal(W.groundAt(fromVila, 40, 63), 'trail');
+    assert.equal(W.groundAt(fromVila, 40, 63), 'path');   // v29: trilha de terra
   });
 
   it('chão da Vila (minimapa): pedra na praça, terra nas ruas, gramados, rio com pontes e a arena', () => {
@@ -350,7 +350,7 @@ describe('mapas: desenho no cliente (world.js)', async () => {
     const walls = W.visibleWalls(W.placements(maps, 'map_1'));
     assert.equal(walls.length, VILA.walls.length + FLORESTA.walls.length);
     assert.ok(walls.some((w: any) => w.k === 'house' && w.s === 'leader' && w.art === 'folha'), 'as paredes da Folha vêm marcadas (só colisão)');
-    assert.ok(walls.filter((w: any) => w.y >= 60).every((w: any) => w.art === 'floresta'), 'as da Floresta também (outra imagem)');
+    assert.ok(walls.filter((w: any) => w.y >= 60).every((w: any) => w.art === undefined), 'as da Floresta não (v29: desenhada por código)');
     const deco = W.visibleDeco(W.placements(maps, 'map_1'));
     assert.ok(deco.length === FLORESTA.deco.length && deco.every((d: any) => !d.art), 'os enfeites à vista são só os da Floresta');
     assert.ok(W.inSafeZone(maps.map_1, P.plaza.x, P.plaza.y) && !W.inSafeZone(maps.map_1, S.x, S.y));
