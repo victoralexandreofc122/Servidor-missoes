@@ -100,8 +100,18 @@
       <button id="chat-toggle" class="menu-btn" type="button" aria-label="Escrever no chat" aria-expanded="false" aria-controls="chat"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M8 9.5h8M8 12.5h5"/></svg><span>Chat</span></button>
       <!-- Painel do Admin (v19): só aparece para quem é administrador. No menu, para não cobrir o chat (v20). -->
       <button id="admin-toggle" class="menu-btn admin-toggle" type="button" hidden aria-expanded="false" aria-controls="admin-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.6-3.4 8.4-8 9-4.6-.6-8-4.4-8-9V6z"/><path d="M8.8 12.2l2.3 2.3 4.2-4.6"/></svg><span>Admin</span></button>
+      <!-- v29: modo rankeado: vai ao Vale das Estátuas (lá o mesmo botão volta). -->
+      <button id="ranked-toggle" class="menu-btn" type="button"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4l9 9"/><path d="M20 4l-9 9"/><path d="M6.5 15.5l-2.5 2.5 2 2 2.5-2.5"/><path d="M17.5 15.5l2.5 2.5-2 2-2.5-2.5"/><path d="M4 4h3v3"/><path d="M20 4h-3v3"/></svg><span id="ranked-label">Rankeado</span></button>
       <button id="logout" class="menu-btn" type="button"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h5v16h-5"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/></svg><span>Sair</span></button>
     </nav>
+
+    <!-- v29: modo rankeado. O placar da arena (no alto) e o botão do Desafio (embaixo, no meio, translúcido). -->
+    <div id="duel-hud" class="duel-hud" hidden aria-live="polite">
+      <div class="duel-side duel-a"><b id="duel-a-name">?</b><span id="duel-a-info"></span><i id="duel-a-wins" class="duel-wins"></i></div>
+      <div class="duel-mid"><span id="duel-phase">Arena livre</span><b id="duel-clock"></b></div>
+      <div class="duel-side duel-b"><b id="duel-b-name">?</b><span id="duel-b-info"></span><i id="duel-b-wins" class="duel-wins"></i></div>
+    </div>
+    <button id="duel-btn" class="duel-btn" type="button" hidden>⚔️ Desafio</button>
 
     <!-- Tutorial da Academia: o que fazer na sala atual (o SERVIDOR confere e abre a porta). -->
     <div id="tutorial-card" class="tutorial-card" hidden role="status" aria-live="polite">

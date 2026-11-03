@@ -95,6 +95,7 @@ export function arenaAt(map, x, y) {
 export function arenaFoes(map, a, b) {
   if (!a || !b || a === b || a.dead || b.dead) return false;
   const arena = arenaAt(map, a.x, a.y);
+  if (arena && arena.ranked) return false;                             // v29: no rankeado quem decide é a partida
   const v = (p) => (p.faction ? p.faction.village : p.look?.village);   // fim de jogo: a vila do servidor
   return !!arena && arena === arenaAt(map, b.x, b.y) && v(a) === arena.village && v(b) === arena.village;
 }
