@@ -3342,7 +3342,11 @@ export class GameWorld {
       this.sendQueues();
       return;
     }
-    // leave: sai da fila, desiste da partida e volta para onde estava (ou para casa)
+    // leave: sai da fila e volta para onde estava (ou para casa). Decisão do Victor: depois que a partida começou, tem
+    // que ir até o fim (só cair da conexão encerra, e aí é W.O.).
+    if (this.duel && sideOf(this.duel, s.id) && this.duel.phase !== 'done') {
+      return this.notice(s.id, 'A luta já começou: vá até o fim!', 'bad');
+    }
     this.rankedGone(s);
     const back = this.rankedReturn.get(s.id) ?? this.homeOf(s.village);
     this.rankedReturn.delete(s.id);

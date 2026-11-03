@@ -21,7 +21,7 @@ function world() {
     const conn = new FakeConn();
     const id = randomUUID();
     const h = w.world.join({ id, username, appearance: { ...DEFAULT_APPEARANCE, village } }, conn);
-    return { id, conn, send: (msg: unknown) => h.receive(JSON.stringify(msg)) };
+    return { id, conn, send: (msg: unknown) => h.receive(JSON.stringify(msg)), leave: () => h.leave() };
   };
   return { ...w, join };
 }
@@ -84,6 +84,8 @@ describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
     assert.deepEqual(c!.conn.last('duel_queue'), { type: 'duel_queue', queued: true, position: 1, size: 2 });
     run(DUEL.prepMs);
     b!.send({ type: 'ranked', action: 'leave' });
+    assert.match(b!.conn.last('notice').text, /vá até o fim/, 'Voltar não sai da luta (decisão do Victor)');
+    b!.leave();                                                   // só cair da conexão encerra: W.O.
     const st = c!.conn.last('duel_state');
     assert.equal(st.phase, 'done');
     assert.equal(st.winner, 'a');
@@ -150,15 +152,12 @@ describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
     const b = join('mei');
     for (const p of [a, b]) { p.send({ type: 'ranked', action: 'enter' }); p.send({ type: 'ranked', action: 'queue' }); }
     run(REALTIME.tickMs);
-    b.send({ type: 'ranked', action: 'leave' });
+    b.leave();                                                    // caiu na preparação
     assert.equal(a.conn.last('duel_state').phase, 'idle', 'cancelada');
     assert.deepEqual(a.conn.last('duel_queue'), { type: 'duel_queue', queued: true, position: 1, size: 1 }, 'o outro volta para a frente da fila');
-    b.send({ type: 'ranked', action: 'enter' });
-    b.send({ type: 'ranked', action: 'queue' });
-    assert.match(b.conn.last('notice').text, /espere/);
-    run(DUEL.leavePenaltyMs);
-    b.send({ type: 'ranked', action: 'queue' });
-    assert.equal(b.conn.last('duel_queue').queued, true);
+    const b2 = join('mei');                                       // voltou (mesma conta? não: o castigo é por id)
+    void b2;
+    assert.ok((w as any).rankedLeaves.get(b.id).until > 0, 'quem caiu ficou com castigo na fila');
     void w;
   });
 

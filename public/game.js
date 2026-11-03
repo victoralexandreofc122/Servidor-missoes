@@ -716,6 +716,13 @@ function handleMessage(msg) {
         if (!ui.duelBanner.hidden) {
           ui.duelBannerPoints.textContent = `${sign}${msg.delta} pontos · ${msg.mmr}${msg.ryo ? ` · +${msg.ryo} ryō` : ''} `;
           ui.duelBannerPoints.appendChild(tierBadge(msg.mmr));
+          // subiu ou caiu de faixa: aviso grande com o selo
+          const before = rankTier(msg.mmr - msg.delta).name, now = rankTier(msg.mmr).name;
+          if (before !== now) {
+            const up = msg.delta > 0;
+            ui.duelBannerScore.textContent = up ? `Subiu para ${now.toUpperCase()}!` : `Caiu para ${now}`;
+            ui.duelBanner.classList.toggle('tier-up', up);
+          }
         } else showToast(`${msg.won ? 'Vitória' : 'Derrota'} · ${sign}${msg.delta} pontos (${msg.mmr})`, 4500);
         addSystemLine(`🏆 Rankeado: ${sign}${msg.delta} pontos. Agora você tem ${msg.mmr}.`);
       } else {
@@ -2023,7 +2030,9 @@ function renderDuel() {
 function tickDuelClock() {
   const d = state.duel;
   if (ui.duelHud.hidden) return;
-  const idle = !d || d.phase === 'idle';
+  // revisão EGM: enquanto a faixa de vitória/derrota está na tela, o placar segura o "Fim"
+  const idle = (!d || d.phase === 'idle') && ui.duelBanner.hidden;
+  if (!idle && (!d || d.phase === 'idle')) return;
   ui.duelHud.classList.toggle('duel-idle', idle);
   if (idle) {
     const q = d?.queue || state.duelQueue?.size || 0;
@@ -6923,10 +6932,13 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
   const foe = !isMe && (state.inArena || inConflict()) && isFoe(p);   // arena e Zona de Conflito: adversário em vermelho
   // Fim de jogo: 👑 Kage, ☁ Akatsuki, renegado em violeta, aliado em verde na Zona e a recompensa pela cabeça.
   const style = factionStyle(state.endgame, state.players.get(state.meId), p, inConflict());
-  const nameY = headTop - 5 - (isMe ? 2 : 7);
+  // revisão EGM: dois ninjas colados (rankeado) não escondem o nome um do outro: o segundo sobe uma linha
+  const crowd = [...state.players.values()].some((q) => q !== p && q.map === p.map && !q.dead && q.id < p.id
+    && Math.abs(q.x - p.x) < 1 && Math.abs(q.y - p.y) < 0.9) ? fontSize + 6 : 0;
+  const nameY = headTop - 5 - (isMe ? 2 : 7) - crowd;
   const label = `${style.prefix}${p.username}`;
   const tw = ctx.measureText(label).width;
-  const plateBottom = !isMe && !p.dead ? headTop - 3 : nameY + 1;
+  const plateBottom = (!isMe && !p.dead ? headTop - 3 : nameY + crowd + 1) - crowd;
   ctx.fillStyle = 'rgba(10, 13, 26, 0.62)';
   roundRect(sx - tw / 2 - 6, nameY - fontSize - 1, tw + 12, plateBottom - (nameY - fontSize - 1), 4);
   ctx.fill();
