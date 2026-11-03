@@ -60,7 +60,7 @@ export interface Wall extends Box {
    */
   s?: 'leader' | 'hospital' | 'academy' | 'shop_weapon' | 'shop_cloth' | 'shop_scroll' | 'home' | 'hut'
     | 'sword_rack' | 'spear_rack' | 'shield_rack' | 'mannequin' | 'cloth_shelf' | 'scroll_shelf' | 'scroll_table' | 'barrel' | 'crate' | 'sign'
-    | 'lit' | 'out' | 'fall' | 'burnt' | 'chasm' | 'mouth'
+    | 'lit' | 'out' | 'fall' | 'burnt' | 'chasm' | 'mouth' | 'plateau'
     // pilar da arena da vila: bloco de ardósia com moldura dourada (os da Zona de Conflito são ruína)
     | 'arena'
     // árvore cerejeira (copa rosa, nos gramados da vila) e a montanha atrás da sede (paredão com mata em cima)
@@ -90,7 +90,7 @@ export interface Deco extends Box {
   k: 'bench' | 'rosette' | 'lamp' | 'plant' | 'gate_roof' | 'rug' | 'mat' | 'door' | 'cushion' | 'board' | 'banner' | 'ring' | 'fire' | 'bones'
     // Arco 1 (docs/mapas.md): placa da trilha, raízes, kunais cravadas, brasas, grade do canal, tampa do poço, a copa
     // do Velho Carvalho (POR CIMA dos jogadores, como o telhado do portão), estalagmite, pegadas e a escada do poço.
-    | 'signpost' | 'roots' | 'kunai' | 'embers' | 'grate' | 'well_lid' | 'oak_canopy' | 'stalagmite' | 'footprints' | 'ladder' | 'scorch'
+    | 'sink' | 'signpost' | 'roots' | 'kunai' | 'embers' | 'grate' | 'well_lid' | 'oak_canopy' | 'stalagmite' | 'footprints' | 'ladder' | 'scorch'
     // o riacho e o leito seco, desenhados como uma faixa que segue a linha `p` (largura 2 × `r`)
     | 'stream' | 'drybed' | 'trail'
     // o que sobrou no Acampamento Queimado: caixote quebrado, panela no tripé, esteira e um pergaminho caído
@@ -224,6 +224,17 @@ const tree = (x: number, y: number, size = 2): Wall => wall('tree', x, y, size, 
 const sakura = (x: number, y: number, size = 2): Wall => wall('tree', x, y, size, size, 'sakura');
 const area = (g: Area['g'], x: number, y: number, w: number, h: number): Area => ({ x, y, w, h, g });
 const oval = (g: Area['g'], x: number, y: number, w: number, h: number): Area => ({ x, y, w, h, g, shape: 'oval' });
+/** Faixas de colisão que seguem uma elipse dentro da caixa (x, y, w, h), deixando `rim` casas de margem andável. */
+function ovalWalls(x: number, y: number, w: number, h: number, rim: number): Wall[] {
+  const cx = x + w / 2, cy = y + h / 2, rx = w / 2 - rim, ry = h / 2 - rim, rows = 6, out: Wall[] = [];
+  for (let i = 0; i < rows; i++) {
+    const y0 = cy - ry + (2 * ry * i) / rows, y1 = y0 + (2 * ry) / rows, mid = (y0 + y1) / 2;
+    const half = rx * Math.sqrt(Math.max(0, 1 - ((mid - cy) / ry) ** 2));
+    if (half > 0.2) out.push({ x: Math.round((cx - half) * 100) / 100, y: Math.round(y0 * 100) / 100, w: Math.round(half * 200) / 100, h: Math.round((y1 - y0) * 100) / 100, k: 'foot' });
+  }
+  return out;
+}
+
 const deco = (k: Deco['k'], x: number, y: number, w = 1, h = 1): Deco => ({ x, y, w, h, k });
 
 /**
@@ -891,7 +902,17 @@ function forest(): MapLayout {
   // mata). As regiões de mata são só onde as árvores nascem; não colidem.
   const woods = carve(W, H, [...open, cliff, abyss], 'thicket');
   const walls: Wall[] = [
-    ...carve(W, H, [...open, ...outside(cliff)], 'cliff'),
+    // v29 (revisão EGM): UM paredão só. O pedaço de cima vira o platô (grama, sem face); a face de pedra fica só
+    // embaixo, na beira do leito, e no fundo da abertura da Pedra 3.
+    ...carve(W, H, [...open, ...outside(cliff)], 'cliff').flatMap((c): Wall[] => {
+      if (c.y + c.h >= cliff.y + cliff.h - 0.01) return [c];
+      const gap = open.find((o) => Math.abs(o.y - (c.y + c.h)) < 0.01 && o.x > c.x && o.x + o.w < c.x + c.w);
+      if (!gap) return [{ ...c, s: 'plateau' }];
+      return [
+        { ...c, w: gap.x - c.x, s: 'plateau' }, { ...c, x: gap.x, w: gap.w },
+        { ...c, x: gap.x + gap.w, w: c.x + c.w - gap.x - gap.w, s: 'plateau' },
+      ];
+    }),
     ...carve(W, H, [...open, ...outside(abyss)], 'pit').map((w) => ({ ...w, s: 'chasm' as const })),
     // Pedra-Selo 1 (apagada: a Tsubaki acha na M3) no meio do lago; pedras e moitas da clareira.
     wall('seal', FOREST_PLACES.pedra1.x, FOREST_PLACES.pedra1.y, FOREST_PLACES.pedra1.w, FOREST_PLACES.pedra1.h, 'out'),
@@ -902,7 +923,9 @@ function forest(): MapLayout {
     // a que ficava em cima da trilha foi para a beira dela
     wall('furniture', 43.05, 6.3, 0.3, 0.3, 'sign'), wall('furniture', 51.6, 38.8, 0.3, 0.3, 'sign'),
     // O sumidouro (o riacho some aqui: é a água do canal da Vila, M2).
-    wall('sink', 65, 16, 9, 6.6),
+    // v29 (revisão EGM): o desenho é enfeite do chão; a colisão são faixas que seguem a água oval (a margem de
+    // pedra e lodo em volta é chão, sem canto de grama que vira parede).
+    ...ovalWalls(65, 16, 9, 6.6, 0.9),
     // Velho Carvalho: o tronco e as raízes, com a Pedra-Selo 2 acesa na frente.
     wall('oak', FOREST_PLACES.carvalho.x, FOREST_PLACES.carvalho.y, FOREST_PLACES.carvalho.w, FOREST_PLACES.carvalho.h),
     wall('seal', FOREST_PLACES.pedra2.x, FOREST_PLACES.pedra2.y, FOREST_PLACES.pedra2.w, FOREST_PLACES.pedra2.h, 'lit'),
@@ -968,7 +991,7 @@ function forest(): MapLayout {
       oval('stone', 8.5, 7.5, 12.5, 10),
     ],
     // v29: a copa do Velho Carvalho (antes vinha na pintura): por cima de quem passa, translúcida com ele embaixo.
-    deco: [deco('embers', 18.6, 55.4, 1.8, 1.6)],   // v29: a fogueira apagada no meio do acampamento
+    deco: [deco('embers', 18.6, 55.4, 1.8, 1.6), deco('sink', 65, 16, 9, 6.6)],   // v29: a fogueira apagada no meio do acampamento
     safeZones: [],
     hunt: { x: 4, y: 6, w: 92, h: 61 },
     zones: [

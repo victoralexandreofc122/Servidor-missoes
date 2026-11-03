@@ -24,8 +24,14 @@ describe('mapas por código: Floresta (v29)', () => {
     for (const w of F.walls.filter((q) => q.k === 'thicket')) assert.ok(w.y < 2.6 || w.x < 2.6 || w.x + w.w > F.width - 2.6 || w.y >= 63 - 1e-6 || w.x >= 72.5 - 1e-6, `mata fechada no meio: ${JSON.stringify(w)}`);
   });
 
+  it('sumidouro: colide só na água oval; a margem e os cantos da caixa são chão', () => {
+    assert.equal(blocked(69.5, 19.3, F.walls), true, 'o meio da água bloqueia');
+    for (const [x, y] of <[number, number][]>[[65.4, 16.4], [73.6, 16.4], [65.4, 22.2], [73.6, 22.2]]) assert.equal(blocked(x, y, F.walls), false, `canto ${x},${y} é chão`);
+  });
+
   it('árvore solta: colide SÓ no pé (o tronco), nunca na copa', () => {
-    const feet = F.walls.filter((w) => w.k === 'foot');
+    const inSink = (w: { x: number; y: number }) => w.x >= 65 && w.x < 74 && w.y >= 16 && w.y < 22.6;   // a água do sumidouro
+    const feet = F.walls.filter((w) => w.k === 'foot' && !inSink(w));
     const loose = (F.pieces ?? []).filter((q) => !q.edge);
     assert.ok(loose.length > 0);
     assert.equal(feet.length, loose.length, 'uma colisão por árvore solta');

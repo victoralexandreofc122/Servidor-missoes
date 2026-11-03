@@ -4166,7 +4166,8 @@ function grassHD(seed, pal, extra) {
 
 /** Grama da Floresta (mais escura) e a dos gramados da Vila. */
 // v29: verde-oliva escuro e terroso (referência da Floresta), no jogo todo
-const DARK_GRASS = ['#2f3a1e', '#222b15', '#36421f', '#4a5428', '#7a8040'];
+// v29 (revisão EGM, celular): o chão andável da Floresta ~14% mais claro que a mata
+const DARK_GRASS = ['#364222', '#273118', '#3e4b23', '#54602e', '#8b9249'];
 const LAWN = ['#4a5a2a', '#38461f', '#4e5e2c', '#64733a', '#9aa35a'];
 /** Grama úmida da Névoa: verde frio, puxado para o azul. */
 const MOSS = ['#5b8a62', '#41684a', '#527f5a', '#6c9a70', '#a2c6a0'];
@@ -4997,9 +4998,11 @@ function draw(now) {
       // A copa do Velho Carvalho: translúcida com o jogador embaixo dela (ele não some).
       const under = !!me && me.x >= o.x && me.x <= o.x + o.w && me.y >= o.y && me.y <= o.y + o.h;
       const c = canopySprite(o);
-      if (under) ctx.globalAlpha = 0.45;
-      ctx.drawImage(c, x, y, w, h);
-      ctx.globalAlpha = 1;
+      // v29 (revisão EGM): em vez da copa inteira translúcida (vira mancha), abre só um círculo em volta do ninja.
+      const near = !!me && me.x >= o.x - 1.5 && me.x <= o.x + o.w + 1.5 && me.y >= o.y - 1.5 && me.y <= o.y + o.h + 2.5;
+      if (under || near) {
+        drawWithHole(c, x, y, w, h, toScreenX(me.x), toScreenY(me.y) - 0.6 * T, 2.2 * T);
+      } else ctx.drawImage(c, x, y, w, h);
     } else drawGateRoof(ctx, x, y, w, h, o.t);
   }
 
@@ -5090,6 +5093,32 @@ function makeProps(walls) {
   return out;
 }
 
+/** Tela de rascunho da copa do Carvalho com o furo em volta do ninja. */
+let canopyHole = null;
+
+/**
+ * v29 (revisão EGM): desenha `c` na tela com um círculo aberto (bordas suaves) em volta do ponto (px, py) da tela:
+ * o ninja aparece através da copa do Carvalho sem a copa inteira virar mancha.
+ */
+function drawWithHole(c, x, y, w, h, px, py, r) {
+  const hole = canopyHole || (canopyHole = document.createElement('canvas'));
+  const cw = Math.ceil(w), ch = Math.ceil(h);
+  if (hole.width !== cw || hole.height !== ch) { hole.width = cw; hole.height = ch; }
+  const hg = hole.getContext('2d');
+  hg.globalCompositeOperation = 'source-over';
+  hg.clearRect(0, 0, cw, ch);
+  hg.drawImage(c, 0, 0, cw, ch);
+  const lx = px - x, ly = py - y;
+  const grad = hg.createRadialGradient(lx, ly, r * 0.55, lx, ly, r);
+  grad.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  hg.globalCompositeOperation = 'destination-out';
+  hg.fillStyle = grad;
+  hg.fillRect(lx - r, ly - r, r * 2, r * 2);
+  hg.globalCompositeOperation = 'source-over';
+  ctx.drawImage(hole, x, y, w, h);
+}
+
 /** A copa do Velho Carvalho, desenhada uma vez na resolução da arte. */
 const canopyCache = new Map();
 function canopySprite(o) {
@@ -5137,7 +5166,11 @@ function drawPropOnScreen(pr, toScreenX, toScreenY, T, me) {
   if (!sp) return;
   const x = toScreenX(pr.x - sp.left), y = toScreenY(pr.top - sp.top);
   const covers = me && me.y < pr.y && me.y > pr.top - sp.top && me.x > pr.x - sp.left && me.x < pr.x + pr.w + sp.right;
-  if (covers) ctx.globalAlpha = pr.wall.k === 'oak' ? 0.3 : 0.55;   // a copa enorme do Carvalho fica bem transparente
+  if (covers && pr.wall.k === 'oak') {               // v29: a copa enorme do Carvalho abre só um círculo em volta do ninja
+    drawWithHole(sp.canvas, x, y, sp.w * T, sp.h * T, toScreenX(me.x), toScreenY(me.y) - 0.6 * T, 2.2 * T);
+    return;
+  }
+  if (covers) ctx.globalAlpha = 0.55;
   ctx.drawImage(sp.canvas, x, y, sp.w * T, sp.h * T);
   if (covers) ctx.globalAlpha = 1;
 }
@@ -5260,7 +5293,8 @@ function drawPatches(g, cx, cy) {
  */
 function drawUndergrowth(g, x, y, ux, uy) {
   const roll = cellHash(x * 5 + 17, y * 11 + 3) % 100;
-  if (roll >= 11) return;
+  if (roll >= 9) return;                                      // v29: sem a pedra com musgo (parecia obstáculo)
+  if (cellHash((x >> 2) + 13, (y >> 2) + 57) % 2) return;     // v29 (revisão EGM): metade, em grupos de 4x4 casas
   for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (groundAt(state.places, x + dx, y + dy) !== 'darkgrass') return;
   const r = rng(cellHash(x * 3 + 7, y * 7 + 1));
   const cx = ux + 5 + r() * 6, cy = uy + 7 + r() * 5;
@@ -5328,6 +5362,7 @@ function drawUndergrowth(g, x, y, ux, uy) {
 function drawScatter(g, x, y, ux, uy) {
   const ground = groundKind(x, y);
   if (ground === 'darkgrass') drawUndergrowth(g, x, y, ux, uy);
+  if (ground === 'darkgrass' && cellHash((x >> 2) + 91, (y >> 2) + 37) % 2) return;   // v29: metade dos enfeites, em grupos
   const h = cellHash(x * 7 + 1, y * 5 + 3);
   const roll = h % 1000;
   const r = rng(h);
@@ -5351,12 +5386,10 @@ function drawScatter(g, x, y, ux, uy) {
         g.beginPath(); g.arc(fx, fy - 0.3, 0.75, 0, Math.PI * 2); g.fill();
         fine(g, '#e0882a', fx, fy - 0.3);
       }
-    } else if (roll < 93) {                                   // pedrinha
-      g.fillStyle = 'rgba(0,0,0,0.25)';
-      g.beginPath(); g.ellipse(px + 0.6, py + 0.6, 2.1, 1.1, 0, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#7d7a73';
-      g.beginPath(); g.ellipse(px, py, 2, 1.3, 0, 0, Math.PI * 2); g.fill();
-      fine(g, '#a9a59b', px - 1, py - 0.8, 1.2, PX * 2);
+    } else if (roll < 93) {                                   // pedrinha: pequena, chata e sem sombra (não parece obstáculo)
+      g.fillStyle = ground === 'darkgrass' ? '#5d5a4c' : '#7d7a73';
+      g.beginPath(); g.ellipse(px, py, 1.3, 0.7, 0, 0, Math.PI * 2); g.fill();
+      fine(g, ground === 'darkgrass' ? '#77735f' : '#a9a59b', px - 0.6, py - 0.4, 0.8, PX * 2);
     } else if (roll < 101 && ground === 'darkgrass') {        // cogumelos
       for (const [dx, cap] of [[0, '#c8392a'], [1.8, '#b5824a']]) {
         fine(g, '#efe6d0', px + dx - PX, py - 1.2, PX * 3, 1.2);

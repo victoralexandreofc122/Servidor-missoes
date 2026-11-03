@@ -91,7 +91,7 @@ function drawRock(g, x, y, w, h, seed, pal = ROCK) {
   // v29 (pedido do Victor: nada de "ovo"): pedra angulosa em 3/4, base achatada e mais larga que alta. Topo claro
   // (luz de cima à esquerda), face da frente média, lado direito escuro, contorno escuro, rachaduras e musgo no alto.
   const r = rng(seed);
-  const OUT = '#1e1a17', DARK = '#3a3c40', MID = '#5f6266', LIGHT = '#8a8d90', HI = '#a9acae', MOSS = '#55602e';
+  const OUT = '#1e1a17', DARK = '#403a33', MID = '#676056', LIGHT = '#908778', HI = '#b0a693', MOSS = '#55602e';   // v29: cinza quente (revisão EGM)
   const n = w > h * 2.2 ? 2 : 1;
   g.fillStyle = 'rgba(0, 0, 0, 0.28)';
   g.beginPath(); g.ellipse(x + w / 2 + 2, y + h - 1, w / 2 + 1, Math.max(2.5, h * 0.12), 0, 0, Math.PI * 2); g.fill();
@@ -1120,7 +1120,7 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     // Arco 1 (docs/mapas.md)
     case 'seal': return drawSeal(g, x, y, w, h, wall.s !== 'out');
     case 'oak': return drawOakTrunk(g, x, y, w, h);
-    case 'cliff': return wall.s === 'fall' ? drawDryFall(g, x, y, w, h, seed) : drawCliff(g, x, y, w, h, Math.abs(seed));
+    case 'cliff': return wall.s === 'fall' ? drawDryFall(g, x, y, w, h, seed) : wall.s === 'plateau' ? drawPlateau(g, x, y, w, h, Math.abs(seed)) : drawCliff(g, x, y, w, h, Math.abs(seed));
     case 'tent': return drawTent(g, x, y, w, h, Math.abs(seed));
     case 'cave': return wall.s === 'mouth' ? drawCaveMouth(g, x, y, w, h, Math.abs(seed)) : drawCaveWall(g, x, y, w, h, Math.abs(seed));
     case 'deadtree': return drawDeadTrees(g, x, y, w, h, Math.abs(seed), tile);
@@ -1553,6 +1553,25 @@ const GRASS_TOP = { back: '#222b15', base: '#2f3a1e', light: '#4a5428', tip: '#7
  * pedregulhos no pé. Os cantos são redondos: de longe, um morro de pedra, não uma caixa. Caixas pequenas (as
  * cortinas da fresta) viram um monte de pedregulhos.
  */
+/** v29: o alto do paredão (platô de grama sem face): continua o platô da face de baixo, mais escuro ao fundo. */
+function drawPlateau(g, x, y, w, h, seed) {
+  const r = rng(seed);
+  const grad = g.createLinearGradient(0, y, 0, y + h);
+  grad.addColorStop(0, GRASS_TOP.back);
+  grad.addColorStop(1, GRASS_TOP.base);
+  g.fillStyle = grad;
+  g.fillRect(x, y, w, h);
+  for (let i = 0; i < (w * h) / 22; i++) fr(g, r() < 0.5 ? GRASS_TOP.light : GRASS_TOP.dark, x + r() * w, y + r() * h, FINE, FINE * (2 + Math.floor(r() * 3)));
+  for (let i = 0; i < (w * h) / 2400; i++) {                                           // manchas suaves de capim alto
+    const bx = x + r() * w, by = y + r() * h, br = 10 + r() * 14;
+    const m = g.createRadialGradient(bx, by, 0, bx, by, br);
+    m.addColorStop(0, r() < 0.5 ? 'rgba(10, 16, 6, 0.22)' : 'rgba(120, 130, 60, 0.12)');
+    m.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    g.fillStyle = m;
+    g.fillRect(bx - br, by - br, br * 2, br * 2);
+  }
+}
+
 function drawCliff(g, x, y, w, h, seed, opts = {}) {
   const r = rng(seed);
   if (w * h <= 16 * 16 * 3) {                                                       // cortina: pedregulhos
@@ -1841,37 +1860,47 @@ function drawLogs(g, x, y, w, h) {
  * Sumidouro: a água do riacho escorre por um funil de pedra e some no escuro (é a água que sobe no canal da Vila).
  * Pedras arredondadas em volta, a água girando em espiral e escurecendo até o fundo.
  */
-function drawSink(g, x, y, w, h) {
+function drawSink(g, x, y, w, h, tile = 16) {
+  // v29 (revisão EGM): água menos saturada (verde-azulada escura, combina com o oliva), uma faixa de lodo e pedras
+  // angulosas na margem. O que colide é só a água (as faixas `ovalWalls` do servidor); a margem é chão.
   const cx = x + w / 2, cy = y + h / 2, rx = w / 2 - 2, ry = h / 2 - 3;
-  g.fillStyle = 'rgba(0,0,0,0.3)';
-  g.beginPath(); g.ellipse(cx + 1, cy + 2, rx + 2, ry + 2, 0, 0, Math.PI * 2); g.fill();
-  const grad = g.createRadialGradient(cx, cy, 1, cx, cy, rx);
-  grad.addColorStop(0, '#05070a');
-  grad.addColorStop(0.55, '#16324e');
-  grad.addColorStop(1, '#3a78c4');
-  g.fillStyle = grad;
+  const r = rng(Math.round(x * 13 + y * 7));
+  g.fillStyle = 'rgba(0,0,0,0.22)';
+  g.beginPath(); g.ellipse(cx, cy + 1, rx + 1, ry + 1.5, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#3b3524';                                                              // lodo da margem
   g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); g.fill();
-  g.strokeStyle = 'rgba(200, 230, 255, 0.55)';                                        // a espiral da água
+  g.fillStyle = '#4c4630';
+  g.beginPath(); g.ellipse(cx - 1, cy - 1, rx - 2, ry - 2, 0, 0, Math.PI * 2); g.fill();
+  const wx = w / 2 - tile * 0.9, wy = h / 2 - tile * 0.9;                                         // a água (o que colide)
+  const grad = g.createRadialGradient(cx, cy, 1, cx, cy, wx);
+  grad.addColorStop(0, '#04070a');
+  grad.addColorStop(0.55, '#16302f');
+  grad.addColorStop(1, '#3a5e58');
+  g.fillStyle = '#141a12';
+  g.beginPath(); g.ellipse(cx, cy + 0.6, wx + 0.8, wy + 0.8, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = grad;
+  g.beginPath(); g.ellipse(cx, cy, wx, wy, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(190, 215, 200, 0.4)';                                           // a espiral da água
   g.lineWidth = FINE * 2;
   for (let k = 0; k < 3; k++) {
     g.beginPath();
     for (let t = 0; t < Math.PI * 1.6; t += 0.2) {
       const rr = (1 - t / (Math.PI * 2)) * 0.85;
-      const px = cx + Math.cos(t + k * 2.1) * rx * rr, py = cy + Math.sin(t + k * 2.1) * ry * rr;
+      const px = cx + Math.cos(t + k * 2.1) * wx * rr, py = cy + Math.sin(t + k * 2.1) * wy * rr;
       if (t === 0) g.moveTo(px, py); else g.lineTo(px, py);
     }
     g.stroke();
   }
-  const r = rng(Math.round(x * 13 + y * 7));                                         // pedras arredondadas na borda
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2 + r() * 0.3;
-    const px = cx + Math.cos(a) * (rx + 1), py = cy + Math.sin(a) * (ry + 1);
-    const pr = 1.6 + r() * 1.4;
-    g.fillStyle = '#4a4744';
-    g.beginPath(); g.ellipse(px, py + 0.5, pr, pr * 0.8, 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#8d8a84';
-    g.beginPath(); g.ellipse(px - 0.3, py - 0.2, pr * 0.8, pr * 0.6, 0, 0, Math.PI * 2); g.fill();
-    fr(g, '#b8b4aa', px - pr * 0.5, py - pr * 0.4, pr * 0.6, FINE * 2);
+  for (let i = 0; i < 14; i++) {                                                        // pedras angulosas na beira da água
+    const a = (i / 14) * Math.PI * 2 + r() * 0.3;
+    const px = cx + Math.cos(a) * (wx + 1.5), py = cy + Math.sin(a) * (wy + 1.2);
+    const pr = 1.2 + r() * 1.3;
+    const pts = [[-1, 0.4], [-0.6, -0.7], [0.4, -0.9], [1, -0.1], [0.7, 0.6], [-0.3, 0.8]].map(([u, v]) => [px + u * pr * (0.85 + r() * 0.3), py + v * pr * 0.75]);
+    g.fillStyle = '#1e1a17';
+    g.beginPath(); pts.forEach(([u, v], k) => (k ? g.lineTo(u, v + 0.4) : g.moveTo(u, v + 0.4))); g.closePath(); g.fill();
+    g.fillStyle = '#676056';
+    g.beginPath(); pts.forEach(([u, v], k) => (k ? g.lineTo(u, v) : g.moveTo(u, v))); g.closePath(); g.fill();
+    fr(g, '#908778', pts[1][0], pts[1][1], pr * 0.8, FINE * 2);
   }
 }
 
@@ -2104,6 +2133,23 @@ function drawChasm(g, x, y, w, h, seed) {
   g.fillStyle = grad;
   g.fillRect(x, y, w, h);
   fr(g, 'rgba(150, 160, 170, 0.10)', x, y + h * 0.45, w, h * 0.18);                 // névoa lá embaixo
+  // v29 (revisão EGM): o escuro aumenta para o meio (perigo) e a beira dos lados tem pedra quebrada
+  for (const [sx, dir] of [[x, 1], [x + w, -1]]) {
+    const side = g.createLinearGradient(sx, 0, sx + dir * Math.min(24, w / 3), 0);
+    side.addColorStop(0, 'rgba(60, 46, 32, 0.9)');
+    side.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    g.fillStyle = side;
+    g.fillRect(Math.min(sx, sx + dir * Math.min(24, w / 3)), y, Math.min(24, w / 3), h);
+    for (let by = y + 3; by < y + h - 3; by += 5 + r() * 5) {
+      const pr = 3 + r() * 2.5, px = sx + dir * (pr * 0.5);
+      const pts = [[-1, 0.4], [-0.6, -0.7], [0.4, -0.9], [1, -0.1], [0.7, 0.6], [-0.3, 0.8]].map(([u, v]) => [px + u * pr, by + v * pr * 0.8]);
+      g.fillStyle = '#1e1a17';
+      g.beginPath(); pts.forEach(([u, v], k) => (k ? g.lineTo(u + 0.4, v + 0.4) : g.moveTo(u + 0.4, v + 0.4))); g.closePath(); g.fill();
+      g.fillStyle = r() < 0.5 ? '#676056' : '#5a5248';
+      g.beginPath(); pts.forEach(([u, v], k) => (k ? g.lineTo(u, v) : g.moveTo(u, v))); g.closePath(); g.fill();
+      fr(g, '#908778', pts[1][0], pts[1][1], pr * 0.7, FINE * 2);
+    }
+  }
   // borda de cima (a beira de onde se pula): terra e pedra quebradas, com raízes penduradas
   for (let bx = x; bx < x + w; bx += 2 + r() * 3) {
     const bw = 2 + r() * 3, bh = 1.6 + r() * 2.4;
@@ -2304,6 +2350,7 @@ export function drawDeco(g, d, x, y, w, h) {
       g.beginPath(); g.arc(px + 7, py - 9, 2, 0, Math.PI * 2); g.stroke();              // argola com a fita das Cinzas
       return;
     }
+    case 'sink': return drawSink(g, x, y, w, h, w / d.w);
     case 'embers': {                                  // cinzas com brasas (fogueira apagada, chão queimado)
       const cx = x + w / 2, cy = y + h / 2;
       if (w >= 40) {                                    // a fogueira do acampamento: roda de pedras, lenha queimada
