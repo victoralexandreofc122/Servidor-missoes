@@ -1253,6 +1253,42 @@ function drawStands(g, x, y, w, h) {
   }
 }
 
+/**
+ * v29 (pedido do Victor): arquibancada de LADO da arena. As fileiras correm de cima a baixo; a de trás (longe da
+ * arena) é mais alta e mais escura. `left`: fica à esquerda da arena (a frente dá para a direita).
+ */
+function drawStandsSide(g, x, y, w, h, left) {
+  const rows = 3, rw = w / rows;
+  g.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  g.fillRect(x - 1, y - 1, w + 2, h + 3);
+  for (let i = 0; i < rows; i++) {
+    const back = left ? i : rows - 1 - i;                 // 0 = fileira de trás
+    const rx = x + i * rw, seat = rw * 0.55, riser = rw - seat;
+    const wood = [['#4a301c', '#5e3c22', '#7a5030'], ['#5a3a20', '#70462a', '#8e5e38'], ['#6a4426', '#84532f', '#a26c40']][back];
+    const stone = [['#3a3a30', '#46463b'], ['#45453a', '#535345'], ['#505044', '#5e5e50']][back];
+    fr(g, STATUE.out, rx, y, rw, h);
+    const sx = left ? rx + 0.5 : rx + riser, fx = left ? rx + seat : rx + 0.5;
+    fr(g, wood[1], sx, y + 0.5, seat - 0.5, h - 1);                       // assento
+    fr(g, wood[2], sx, y + 0.5, seat - 0.5, FINE * 3);
+    fr(g, wood[2], sx, y + 0.5, FINE * 3, h - 1);
+    for (let by = y + 9; by < y + h - 3; by += 12) fr(g, wood[0], sx, by, seat - 0.5, FINE * 2);   // tábuas
+    fr(g, stone[1], fx, y + 0.5, riser - 0.5, h - 1);                     // espelho de pedra (a frente)
+    for (let by = y + 4; by < y + h - 4; by += 8) fr(g, stone[0], fx, by, riser - 0.5, FINE * 2);
+    fr(g, 'rgba(0, 0, 0, 0.25)', left ? fx + riser - 1.5 : fx, y + 0.5, 1, h - 1);
+  }
+  const colors = [['#5a8a34', '#9ac25a'], ['#3f6f8f', '#8cc0d8'], ['#b8962e', '#f0d46a'], ['#b0642e', '#e8a66a']];
+  const px = left ? x + 1.5 : x + w - 1.5;
+  for (let i = 0, py = y + 10; py < y + h - 6; py += 40, i++) {          // flâmulas na fileira de trás
+    const [c, l] = colors[i % 4];
+    fr(g, STATUE.out, px - 0.8, py - 10, 1.6, 11);
+    g.fillStyle = STATUE.out;
+    g.beginPath(); g.moveTo(px, py - 10.5); g.lineTo(px + (left ? 8 : -8), py - 7.5); g.lineTo(px, py - 4.2); g.closePath(); g.fill();
+    g.fillStyle = c;
+    g.beginPath(); g.moveTo(px + (left ? 0.5 : -0.5), py - 9.6); g.lineTo(px + (left ? 6.5 : -6.5), py - 7.5); g.lineTo(px + (left ? 0.5 : -0.5), py - 5.2); g.closePath(); g.fill();
+    fr(g, l, px + (left ? 0.5 : -3.5), py - 9.6, 3, FINE * 2);
+  }
+}
+
 export const PROP_KINDS = new Set(['tree', 'deadtree', 'oak', 'seal', 'tent', 'statue']);
 
 export function propExtent(wall) {
@@ -2131,7 +2167,7 @@ export function drawChakraField(g, x, y, w, h, now) {
 /** Bancos, rosa dos ventos no chão, lanternas de pedra, vasos, tapete e capacho. O telhado do portão é à parte. */
 export function drawDeco(g, d, x, y, w, h) {
   switch (d.k) {
-    case 'stands': return drawStands(g, x, y, w, h);
+    case 'stands': return h > w ? drawStandsSide(g, x, y, w, h, d.x < 22) : drawStands(g, x, y, w, h);
     case 'rug': {                                     // tapete vermelho com barra dourada
       rect(g, '#5e1712', x, y, w, h);
       rect(g, '#9e2a22', x + 3, y + 3, w - 6, h - 6);

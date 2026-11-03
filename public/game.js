@@ -310,11 +310,20 @@ ui.duelAgain.addEventListener('click', () => {
   ui.duelBanner.hidden = true;
   send({ type: 'ranked', action: 'queue' });
 });
-// Assistir: a câmera vai para o meio da arena (e volta no seu ninja ao tocar de novo).
+// v29 (pedido do Victor): na arquibancada, Sentar; sentado, Assistir (a câmera vai para a arena) e Parar de assistir.
+// Andar levanta (o servidor avisa) e para de assistir.
 ui.duelWatchBtn.addEventListener('click', () => {
+  if (!state.sitting) { send({ type: 'ranked', action: 'sit' }); return; }
   state.watchArena = !state.watchArena;
-  ui.duelWatchBtn.textContent = state.watchArena ? '👤 Meu ninja' : '👁 Assistir';
+  renderDuel();
 });
+/** O ninja está em cima de uma arquibancada do Vale? */
+function onStands() {
+  const me = state.players.get(state.meId);
+  const map = state.maps[state.mapId];
+  if (!me || !map || state.mapId !== 'vale_estatuas') return false;
+  return (map.deco || []).some((d) => d.k === 'stands' && me.x >= d.x && me.x <= d.x + d.w && me.y >= d.y && me.y <= d.y + d.h);
+}
 
 ui.logout.addEventListener('click', () => {
   if (!window.confirm('Sair do jogo?')) return;          // revisão EGM: o botão fica perto do dedo
@@ -447,7 +456,7 @@ function upsertPlayer(p, snap) {
     existing.map = state.serverMap;
     if (snap) { existing.x = p.x; existing.y = p.y; existing.snaps = [{ t: performance.now(), x: p.x, y: p.y }]; }
     else pushSnapshot(existing.snaps, performance.now(), p.x, p.y, state.world.tickMs || 50);
-    if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; }
+    if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; existing.sitting = !!p.sitting; }
     if (p.rank) { existing.rank = p.rank; existing.level = p.level; }
     if (p.appearance) existing.look = normalizeLook(p.appearance);
     if (p.dir !== undefined) existing.dir = p.dir;
@@ -461,7 +470,7 @@ function upsertPlayer(p, snap) {
     id: p.id, username: p.username, map: state.serverMap, x: p.x, y: p.y, tx: p.x, ty: p.y, color, bubble: null,
     // Posições que chegaram do servidor (interpolação: desenha ~100 ms no passado, sem pulos).
     snaps: [{ t: performance.now(), x: p.x, y: p.y }],
-    hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating,
+    hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating, sitting: !!p.sitting,
     rank: p.rank || null, level: p.level || 1,
     // Visual (sprites: nomes de paleta, do servidor), direção (0 baixo, 1 esq, 2 dir, 3 cima), fase da caminhada,
     // ação em curso (soco/chute/selo) e atraso do "parado" (para os bonecos não respirarem juntos).
@@ -1100,6 +1109,17 @@ function handleMessage(msg) {
       const m = state.monsters.get(msg.id);
       if (m) { m.diedAt = now; m.hp = 0; }
       if (state.focusId === msg.id) setFocus(null);
+      break;
+    }
+    case 'sit': {
+      // v29: sentou ou levantou da arquibancada do Vale; levantou: para de assistir
+      const p = state.players.get(msg.playerId);
+      if (p) p.sitting = msg.active;
+      if (msg.playerId === state.meId) {
+        state.sitting = msg.active;
+        if (!msg.active) state.watchArena = false;
+        renderDuel();
+      }
       break;
     }
     case 'meditation': {
@@ -1970,7 +1990,11 @@ function renderDuel() {
   ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden;
   ui.duelBtn.hidden = fighting;
   ui.duelBoardBtn.hidden = fighting;                     // revisão EGM: na luta, nada em cima dos jutsus
-  ui.duelWatchBtn.hidden = fighting;
+  // Sentar só em cima da arquibancada; sentado: Assistir / Parar de assistir
+  const stands = !fighting && (state.sitting || onStands());
+  ui.duelWatchBtn.hidden = !stands;
+  ui.duelWatchBtn.textContent = !state.sitting ? '🪑 Sentar' : state.watchArena ? '✋ Parar de assistir' : '👁 Assistir a luta';
+  state.onStands = onStands();
   document.body.classList.toggle('in-vale', inVale);
   if (fighting) state.watchArena = false;
   if (!inVale) ui.rankedPanel.hidden = true;
@@ -2016,7 +2040,7 @@ function tickDuelClock() {
 }
 setInterval(() => {
   // o mapa do cliente troca depois da mensagem (a predição atravessa): confere aqui se entrou ou saiu do Vale
-  if ((state.mapId === 'vale_estatuas') === ui.duelHud.hidden) renderDuel();
+  if ((state.mapId === 'vale_estatuas') === ui.duelHud.hidden || (state.mapId === 'vale_estatuas' && onStands() !== state.onStands)) renderDuel();
   else tickDuelClock();
 }, 250);
 
@@ -5126,7 +5150,7 @@ function draw(now) {
   // Tremor curto (o golpe marcado caiu perto): alguns centésimos de casa para os lados.
   const shake = now < (state.shakeUntil || 0) ? ((state.shakeUntil - now) / 220) * 0.12 : 0;
   // v29: no Vale, "Assistir" leva a câmera para o meio da arena (quem está lutando sempre vê o próprio ninja)
-  const watch = state.watchArena && state.mapId === 'vale_estatuas' && !duelFighting();
+  const watch = state.watchArena && state.sitting && state.mapId === 'vale_estatuas' && !duelFighting();
   const fx = watch ? 22 : me ? me.x + cam.ox : width / 2, fy = watch ? 15 : me ? me.y + cam.oy : height / 2;
   const camX = fx + (shake ? Math.sin(now / 9) * shake : 0);
   const camY = fy + (shake ? Math.cos(now / 11) * shake : 0);

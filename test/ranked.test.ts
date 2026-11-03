@@ -172,4 +172,21 @@ describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
     assert.equal(m.b, 'c');
     assert.equal(takeMatch([{ id: 'a', level: 10, joinedAt: 0, skips: 0, last: 'b' }, { id: 'b', level: 10, joinedAt: 1, skips: 0 }])!.b, 'b', 'sem mais ninguém, a dupla repete');
   });
+
+  it('sentar: só em cima da arquibancada; andar levanta; todos no mapa veem', () => {
+    const { world: w, join } = world();
+    const a = join('kaito');
+    const b = join('mei');
+    for (const p of [a, b]) p.send({ type: 'ranked', action: 'enter' });
+    a.send({ type: 'ranked', action: 'sit' });
+    assert.equal(session(w, a.id).sitting, false, 'na praça não senta');
+    const st = VALE.stands[0]!;
+    Object.assign(session(w, a.id), { x: st.x + st.w / 2, y: st.y + st.h / 2 });
+    a.send({ type: 'ranked', action: 'sit' });
+    assert.equal(session(w, a.id).sitting, true);
+    assert.deepEqual(b.conn.last('sit'), { type: 'sit', playerId: a.id, active: true });
+    a.send({ type: 'move', dx: 1, dy: 0 });
+    assert.equal(session(w, a.id).sitting, false, 'andou: levantou');
+    assert.deepEqual(b.conn.last('sit'), { type: 'sit', playerId: a.id, active: false });
+  });
 });

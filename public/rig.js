@@ -266,7 +266,8 @@ export function pickAnim(state, now) {
     const k = (now - state.act.start) / ANIMS[act].ms;
     if (k >= 0 && k < 1) return { anim: act, t: k };
   }
-  if (state.meditating) return { anim: 'meditar', t: (((now + (state.seed || 0)) / ANIMS.meditar.ms) % 1 + 1) % 1 };
+  if (state.meditating || state.sitting) return { anim: 'meditar',   // v29: sentado na arquibancada usa a mesma pose
+    t: (((now + (state.seed || 0)) / ANIMS.meditar.ms) % 1 + 1) % 1 };
   if (state.moving) {
     // A fase vem da distância andada (o passo acompanha a velocidade de verdade): 1 ciclo = 2 passos.
     const t = (((state.walk || 0) / (Math.PI * 4)) % 1 + 1) % 1;

@@ -1294,6 +1294,8 @@ export const VALE = {
   thickness: 0.5,
   /** Onde se chega (e para onde voltam os dois quando a partida acaba). */
   spawn: { x: 22, y: 27 },
+  /** As duas arquibancadas, à esquerda e à direita da cerca (só desenho; quem está em cima pode sentar). */
+  stands: [{ x: 7.6, y: 8.5, w: 4, h: 13 }, { x: 32.4, y: 8.5, w: 4, h: 13 }],
   /** Onde cada lado começa cada rodada (dentro da cerca). */
   start: { a: { x: 14, y: 15 }, b: { x: 30, y: 15 } },   // espelhados, um em cada ponta (revisão EGM)
 } as const;
@@ -1313,8 +1315,8 @@ function vale(): MapLayout {
     wall('fence', f.x, f.y, f.w, t), wall('fence', f.x, f.y + f.h - t, f.w, t),
     wall('fence', f.x, f.y + t, t, f.h - 2 * t), wall('fence', f.x + f.w - t, f.y + t, t, f.h - 2 * t),
     // as estátuas das 4 vilas nos cantos da praça (colidem só no pedestal)
-    wall('statue', 4.5, 8.5, 3.2, 1.6, 'vila_1'), wall('statue', 36.3, 8.5, 3.2, 1.6, 'vila_3'),
-    wall('statue', 4.5, 27.5, 3.2, 1.6, 'vila_4'), wall('statue', 36.3, 27.5, 3.2, 1.6, 'vila_5'),
+    wall('statue', 2.6, 8.5, 3.2, 1.6, 'vila_1'), wall('statue', 37.6, 8.5, 3.2, 1.6, 'vila_3'),
+    wall('statue', 2.6, 27.5, 3.2, 1.6, 'vila_4'), wall('statue', 37.6, 27.5, 3.2, 1.6, 'vila_5'),
   ];
   const fight = valeFightBox();
   return {
@@ -1322,11 +1324,11 @@ function vale(): MapLayout {
     exits: [], doors: [],
     areas: [area('slab', 0, 0, W, H), area('arena', f.x, f.y, f.w, f.h)],
     deco: [
-      // a arquibancada: em cima e embaixo da cerca (dá para andar e assistir dali)
-      deco('stands', f.x, f.y - 4, f.w, 3.6), deco('stands', f.x, f.y + f.h + 0.4, f.w, 3.2),
-      // lanternas de pedra nos cantos da arena (acendem de noite)
-      deco('toro', f.x - 2.4, f.y + 1, 1, 1.4), deco('toro', f.x + f.w + 1.4, f.y + 1, 1, 1.4),
-      deco('toro', f.x - 2.4, f.y + f.h - 2.4, 1, 1.4), deco('toro', f.x + f.w + 1.4, f.y + f.h - 2.4, 1, 1.4),
+      // a arquibancada: dos dois lados da cerca (pedido do Victor). Dá para andar nela e SENTAR para assistir.
+      ...VALE.stands.map((b) => deco('stands', b.x, b.y, b.w, b.h)),
+      // lanternas de pedra em cima e embaixo da arena (acendem de noite)
+      deco('toro', f.x + 2, f.y - 2.2, 1, 1.4), deco('toro', f.x + f.w - 3, f.y - 2.2, 1, 1.4),
+      deco('toro', f.x + 2, f.y + f.h + 0.6, 1, 1.4), deco('toro', f.x + f.w - 3, f.y + f.h + 0.6, 1, 1.4),
       deco('banner', f.x - 1.2, f.y - 1.2), deco('banner', f.x + f.w + 0.2, f.y - 1.2),
       deco('banner', f.x - 1.2, f.y + f.h + 0.2), deco('banner', f.x + f.w + 0.2, f.y + f.h + 0.2),
     ],

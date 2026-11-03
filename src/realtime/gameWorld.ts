@@ -238,6 +238,8 @@ interface Session {
   netLog: Map<string, NetHit[]>;
   /** Acabou de renascer: nenhum jogador o machuca até este instante. */
   protectedUntil: number;
+  /** v29: sentado na arquibancada do Vale (anda: levanta). */
+  sitting: boolean;
   /** v29: última vez que tomou dano ou gastou chakra (a vida só volta 7 s depois, com o chakra cheio). */
   calmSince: number;
   dead: boolean;
@@ -657,7 +659,7 @@ export class GameWorld {
   private view(s: Session): PlayerView {
     return {
       id: s.id, username: s.username, x: round3(s.x), y: round3(s.y), hp: shownHp(s.hp), maxHp: s.stats.maxHp,
-      dead: s.dead, meditating: s.meditating, rank: s.rank, level: s.level,
+      dead: s.dead, meditating: s.meditating, ...(s.sitting ? { sitting: true } : {}), rank: s.rank, level: s.level,
       appearance: { ...(s.appearance ?? DEFAULT_APPEARANCE) }, dir: dirOf(s.fx, s.fy), gear: this.gear(s),
       ...(this.on('vilas') ? { faction: this.factionView(s) } : {}),
       ...fxView(s.effects, this.now()),
@@ -851,6 +853,7 @@ export class GameWorld {
       ccLog: [],
       netLog: new Map(),
       protectedUntil: previous?.protectedUntil ?? 0,
+      sitting: false,
       calmSince: previous?.calmSince ?? 0,
       cooldowns: { ...(previous?.cooldowns ?? {}) },
       xp: player.xp ?? previous?.xp ?? 0,
@@ -1054,7 +1057,7 @@ export class GameWorld {
     if (session.dead) return;             // morto não anda
     const length = Math.hypot(dx, dy);
     // Tentar andar cancela a meditação (soltar o joystick, que manda 0,0, não cancela).
-    if (length > 0) this.stopMeditation(session, 'moved');
+    if (length > 0) { this.stopMeditation(session, 'moved'); this.standUp(session); }
     const scale = length > 1 ? 1 / length : 1;
     session.dx = dx * scale;
     session.dy = dy * scale;
@@ -1080,7 +1083,7 @@ export class GameWorld {
         session.droppedUpTo = n;
         return;
       }
-      if (dx !== 0 || dy !== 0) this.stopMeditation(session, 'moved');
+      if (dx !== 0 || dy !== 0) { this.stopMeditation(session, 'moved'); this.standUp(session); }
       if (session.inputQueue.length >= this.config.maxQueuedInputs) {
         session.droppedUpTo = n;
         return;
@@ -1163,6 +1166,7 @@ export class GameWorld {
    */
   private transfer(s: Session, to: MapId, x: number, y: number, reason: MapChangeReason): void {
     const from = s.map;
+    this.standUp(s);
     s.x = x;
     s.y = y;
     if (from !== to) {
@@ -3297,8 +3301,20 @@ export class GameWorld {
   // ---------------------------------------------------------------- modo rankeado (v29, duel.ts)
 
   /** Botões do modo rankeado: entrar no Vale, sair dele, entrar e sair da fila do Desafio. */
-  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board', t: number): void {
+  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand', t: number): void {
     if (action === 'board') return this.rankedBoard(s, t);
+    if (action === 'stand') return this.standUp(s);
+    if (action === 'sit') {
+      // só em cima da arquibancada do Vale, fora da partida
+      if (s.dead || s.sitting || s.map !== 'vale_estatuas' || (this.duel && sideOf(this.duel, s.id))) return;
+      if (!VALE.stands.some((b) => s.x >= b.x && s.x <= b.x + b.w && s.y >= b.y && s.y <= b.y + b.h)) return;
+      this.stopMeditation(s, 'manual');
+      s.dx = 0;
+      s.dy = 0;
+      s.sitting = true;
+      this.broadcastMap(s.map, { type: 'sit', playerId: s.id, active: true });
+      return;
+    }
     if (s.dead || s.closed) return;
     const inVale = s.map === 'vale_estatuas';
     if (action === 'enter') {
@@ -3333,6 +3349,13 @@ export class GameWorld {
     s.hp = Math.max(s.hp, 1);
     this.transfer(s, back.map, back.x, back.y, 'travel');
     this.sendStats(s, t);
+  }
+
+  /** Levanta da arquibancada (andou, trocou de mapa, entrou na luta). */
+  private standUp(s: Session): void {
+    if (!s.sitting) return;
+    s.sitting = false;
+    this.broadcastMap(s.map, { type: 'sit', playerId: s.id, active: false });
   }
 
   /** Saiu do Vale (botão, desconexão): sai da fila; se estava lutando, perde a partida. */
