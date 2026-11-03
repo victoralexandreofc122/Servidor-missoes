@@ -705,6 +705,12 @@ function handleMessage(msg) {
       state.extractFailures = msg.failures || {};
       if (state.shop?.kind === 'scrolls') renderExtraction();
       break;
+    case 'ground':
+      (state.ground ||= new Map()).set(msg.id, { ...msg, start: performance.now(), end: performance.now() + msg.ms });
+      break;
+    case 'ground_end':
+      state.ground?.delete(msg.id);
+      break;
     case 'duel_state':
       state.duel = { ...msg, until: performance.now() + msg.ms, ...(msg.away ? { awayUntil: performance.now() + msg.away.ms } : {}) };
       duelAnnounce(msg);
@@ -2139,6 +2145,40 @@ function duelAnnounce(msg) {
       if (msg.voided) showDuelBanner(won, 'Ninguém causou dano: não conta pontos', '', true);
       else showDuelBanner(won, msg.reason === 'forfeit' ? (won ? 'Vitória por W.O.: o adversário saiu' : 'Você saiu da partida') : `${Math.max(msg.wins.a, msg.wins.b)} x ${Math.min(msg.wins.a, msg.wins.b)}`, 'Calculando os pontos…');
     }
+  }
+}
+
+// ------------------------------------------------------------------ zonas no chão e avisos (v29, Jutsus v2)
+
+const GROUND_COLORS = {
+  fogo: ['rgba(255, 120, 40, 0.30)', 'rgba(255, 170, 60, 0.85)'],
+  lama: ['rgba(110, 80, 40, 0.40)', 'rgba(160, 120, 70, 0.85)'],
+  cura: ['rgba(90, 220, 120, 0.25)', 'rgba(150, 255, 170, 0.85)'],
+  aviso: ['rgba(230, 40, 40, 0.18)', 'rgba(255, 70, 60, 0.95)'],
+};
+
+/** Zona: círculo pulsando com borda tracejada. Aviso: círculo vermelho que vai enchendo até o golpe cair. */
+function drawGround(toScreenX, toScreenY, T, now) {
+  if (!state.ground || state.ground.size === 0) return;
+  for (const [id, z] of state.ground) {
+    if (now > z.end + 300) { state.ground.delete(id); continue; }
+    const x = toScreenX(z.x), y = toScreenY(z.y), r = z.r * T;
+    const [fill, edge] = GROUND_COLORS[z.kind] || GROUND_COLORS.fogo;
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.9, 0, 0, Math.PI * 2);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = edge;
+    if (z.kind === 'aviso') {
+      const k = Math.max(0, Math.min(1, (now - z.start) / Math.max(1, z.end - z.start)));
+      ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y, r * k, r * 0.9 * k, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 60, 50, 0.30)'; ctx.fill();
+    } else {
+      ctx.setLineDash([6, 5]); ctx.lineDashOffset = -now / 60;
+      ctx.globalAlpha = 0.75 + 0.25 * Math.sin(now / 180);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 
@@ -5280,6 +5320,7 @@ function draw(now) {
   let alive = 0;
   for (const fx of state.effects) if (SKILLS[fx.skill] && now - fx.start < SKILLS[fx.skill].ms) state.effects[alive++] = fx;
   state.effects.length = alive;
+  drawGround(toScreenX, toScreenY, T, now);           // v29: zonas no chão e avisos de golpe
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   vfx.draw(ctx, 'ground', toScreenX, toScreenY, T, dpr, now);
   drawTelegraphs(toScreenX, toScreenY, T, now);

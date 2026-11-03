@@ -191,6 +191,9 @@ const reason = z.string().max(300);
 /** v29: um lado da partida do rankeado, como aparece na tela (o nome só aparece na preparação). */
 /** v29: uma linha do ranking do rankeado. */
 export interface RankedRowView { position: number; playerId: string; username: string; village: string | null; level: number; mmr: number; wins: number; losses: number }
+/** v29: tipos de zona no chão; 'aviso' = o círculo vermelho do golpe que vai cair. */
+export type GroundKind = 'fogo' | 'lama' | 'cura' | 'aviso';
+
 export interface DuelSideView { id: string; name: string; level: number; village: string | null }
 
 export type KitName = 'A' | 'B';
@@ -567,6 +570,9 @@ export type ServerMessage =
   | { type: 'player_died'; playerId: string; respawnInMs: number; arena?: boolean }
   // v29: modo rankeado. A fila (só para quem está nela) e o estado da partida da arena (para todos no Vale).
   | { type: 'duel_queue'; queued: boolean; position: number; size: number }
+  // v29 (Jutsus v2, entrega 1): zona no chão (fogo, lama, cura...) e aviso de golpe que cai depois de `ms`.
+  | { type: 'ground'; id: number; kind: GroundKind; x: number; y: number; r: number; ms: number }
+  | { type: 'ground_end'; id: number }
   // v29: sentou ou levantou da arquibancada do Vale (todos no mapa veem)
   | { type: 'sit'; playerId: string; active: boolean }
   // v29 (migração v15): os pontos de quem lutou depois da partida, e o painel do ranking.

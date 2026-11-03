@@ -420,6 +420,18 @@ type Target =
   | { readonly kind: 'monster'; readonly id: string; readonly x: number; readonly y: number; readonly monster: Monster }
   | { readonly kind: 'player'; readonly id: string; readonly x: number; readonly y: number; readonly session: Session };
 
+/**
+ * v29 (Jutsus v2, entrega 1): zona no chão. A cada `tickMs`, quem está dentro leva `damage` (inimigos de quem lançou),
+ * fica lento (`slowMs`) ou, se for aliado (inclusive quem lançou), recupera `heal`. Dura até `until`.
+ */
+interface GroundZone {
+  id: number; map: MapId; x: number; y: number; r: number; kind: 'fogo' | 'lama' | 'cura';
+  ownerId: string; until: number; next: number; tickMs: number;
+  damage: number; slowMs: number; heal: number; label: string;
+}
+/** Golpe avisado: o círculo aparece no chão e o dano cai em `at` (dá tempo de sair). */
+interface GroundStrike { id: number; map: MapId; x: number; y: number; r: number; ownerId: string; at: number; damage: number; label: string; stunMs: number }
+
 /** Fogo, Kunai e Shuriken Gigante voando: o tick anda com eles e decide a colisão (stepProjectile). */
 interface Projectile {
   readonly id: number;
@@ -527,6 +539,10 @@ export class GameWorld {
   private syncSeq = 0;
   /** Projéteis no ar (Fogo, Kunais), na ordem em que saíram. */
   private readonly projectiles: Projectile[] = [];
+  /** v29 (Jutsus v2, entrega 1): zonas no chão e golpes avisados. */
+  private readonly zones: GroundZone[] = [];
+  private readonly strikes: GroundStrike[] = [];
+  private groundSeq = 0;
   private projectileSeq = 0;
   /** Placar da arena (vitórias e derrotas desde que o servidor subiu; não vai para o banco). */
   private readonly arenaRecord = new Map<string, { wins: number; losses: number }>();
@@ -1932,6 +1948,70 @@ export class GameWorld {
     const rtt = Math.max(0, t - s.sync.at);
     s.sync = null;
     s.rttMs = s.rttMs > 0 ? s.rttMs * 0.75 + rtt * 0.25 : rtt;
+  }
+
+  // ---------------------------------------------------------------- zonas no chão e golpes avisados (Jutsus v2)
+
+  /** Cria uma zona no chão; todos no mapa a veem. Devolve o id. */
+  spawnZone(owner: Session, z: { x: number; y: number; r: number; kind: GroundZone['kind']; ms: number; tickMs?: number; damage?: number; slowMs?: number; heal?: number; label?: string }, t: number = this.now()): number {
+    const id = ++this.groundSeq;
+    const tickMs = z.tickMs ?? 1000;
+    this.zones.push({
+      id, map: owner.map, x: z.x, y: z.y, r: z.r, kind: z.kind, ownerId: owner.id, until: t + z.ms, next: t + tickMs, tickMs,
+      damage: z.damage ?? 0, slowMs: z.slowMs ?? 0, heal: z.heal ?? 0, label: z.label ?? 'zona',
+    });
+    this.broadcastMap(owner.map, { type: 'ground', id, kind: z.kind, x: round2(z.x), y: round2(z.y), r: z.r, ms: z.ms });
+    return id;
+  }
+
+  /** Avisa um golpe no chão: o círculo aparece agora e o dano cai daqui a `delayMs` em quem ainda estiver dentro. */
+  warnStrike(owner: Session, w: { x: number; y: number; r: number; delayMs: number; damage: number; stunMs?: number; label?: string }, t: number = this.now()): number {
+    const id = ++this.groundSeq;
+    this.strikes.push({ id, map: owner.map, x: w.x, y: w.y, r: w.r, ownerId: owner.id, at: t + w.delayMs, damage: w.damage, label: w.label ?? 'aviso', stunMs: w.stunMs ?? 0 });
+    this.broadcastMap(owner.map, { type: 'ground', id, kind: 'aviso', x: round2(w.x), y: round2(w.y), r: w.r, ms: w.delayMs });
+    return id;
+  }
+
+  private stepGround(t: number): void {
+    const inside = (x: Target, c: { x: number; y: number; r: number }) => Math.hypot(x.x - c.x, x.y - c.y) <= c.r;
+    for (let i = this.zones.length - 1; i >= 0; i--) {
+      const z = this.zones[i]!;
+      const owner = this.sessions.get(z.ownerId);
+      if (!owner || owner.closed || t >= z.until) {
+        this.zones.splice(i, 1);
+        this.broadcastMap(z.map, { type: 'ground_end', id: z.id });
+        continue;
+      }
+      if (t < z.next || owner.map !== z.map) continue;
+      z.next += z.tickMs;
+      if (z.damage > 0 || z.slowMs > 0) {
+        for (const x of this.targetsFor(owner)) {
+          if (!inside(x, z)) continue;
+          if (z.damage > 0) this.hitTarget(x, z.damage, owner, t, 'skill', z.label);
+          if (z.slowMs > 0 && this.stillThere(x)) this.applyEffect(x, 'lentidao', t, z.slowMs, undefined, owner);
+        }
+      }
+      if (z.heal > 0) {
+        for (const p of this.mapPlayers.get(z.map) ?? []) {
+          if (p.dead || (p !== owner && this.canHurt(owner, p, t)) || Math.hypot(p.x - z.x, p.y - z.y) > z.r) continue;
+          p.hp = Math.min(p.stats.maxHp, p.hp + z.heal);
+          this.sendStats(p, t);
+        }
+      }
+    }
+    for (let i = this.strikes.length - 1; i >= 0; i--) {
+      const s = this.strikes[i]!;
+      if (t < s.at) continue;
+      this.strikes.splice(i, 1);
+      this.broadcastMap(s.map, { type: 'ground_end', id: s.id });
+      const owner = this.sessions.get(s.ownerId);
+      if (!owner || owner.closed || owner.map !== s.map) continue;
+      for (const x of this.targetsFor(owner)) {
+        if (!inside(x, s)) continue;
+        this.hitTarget(x, s.damage, owner, t, 'skill', s.label);
+        if (s.stunMs > 0 && x.kind === 'player' && this.stillThere(x)) this.applyStatus({ kind: 'player', id: x.id, x: x.x, y: x.y, session: x.session }, 'stunned', s.stunMs, t, owner);
+      }
+    }
   }
 
   /** O alvo ainda está no jogo (monstro vivo; ninja vivo e conectado)? */
@@ -4106,6 +4186,9 @@ export class GameWorld {
 
     // 1c. Modo rankeado: forma a partida da fila e anda as fases dela.
     this.rankedTick(t);
+
+    // 1c2. Zonas no chão e golpes avisados (Jutsus v2).
+    this.stepGround(t);
 
     // 1d. Efeitos com tempo: pulsos (queimadura, regeneração) e o fim de cada um.
     this.tickEffects(t);

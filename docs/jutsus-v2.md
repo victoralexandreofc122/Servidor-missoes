@@ -49,6 +49,27 @@ Fica para uma revisão própria: muro no mapa, invocações (Golem, Clone), voo,
 inverter controles, teletransporte entre sombras, a classe nova **Vento** (Fūton), Tsukuyomi e Susanoo Perfeito
 (como poderes de evento, fora do PvP).
 
+## 3b. Tempo de conjuração e interrupção (pedido do Victor; revisão EGM)
+
+Detalhes e a tabela dos 94 jutsus em `revisao_egm/jutsus/conjuracao_tempos.md` e `conjuracao_interromper.md`.
+
+- **Faixas:** instantâneo (0), rápido (0,2-0,3 s), médio (0,5-0,6 s), longo (0,8-1,0 s), ritual (1,2 s, só tier 4).
+  Resultado: 44 instantâneos, 21 rápidos, 18 médios, 7 longos e 4 rituais. Defesa e fuga ficam sempre em 0.
+- **Andar:** rápido e médio andam a 50%; longo, ritual e golpes corpo a corpo ficam parados.
+- **Recompensa:** médio +5% de dano (ou +0,1 s de controle); longo +10% (ou +15% de área); ritual +15%. Recarga 10%
+  menor em toda conjuração de 0,5 s ou mais.
+- **O que interrompe:** controle duro (atordoar, prender, levantar, silêncio, puxão) e empurrão de 1,5 casa ou mais, e os
+  jutsus marcados "Interrompe" (cada classe tem 1 ou 2). **Dano comum não interrompe** (exceção: o Tsukuyomi falha com
+  qualquer dano).
+- **Interrompido:** devolve metade do chakra, recarga de 1,5 a 2 s e 3 s de "Concentração" (a próxima conjuração não
+  pode ser cancelada). A interrupção em si não gasta o orçamento de controle (o atordoamento que vem junto gasta).
+- **Leitura:** barra sobre a cabeça na cor do elemento, mãos fazendo os selos, aviso no chão desde o início; o lançador
+  vê a barra maior perto dos botões; texto "Interrompido!".
+- **Rede:** o cliente começa a animação na hora (`cast_start`); o servidor confirma ou nega e decide a interrupção com a
+  compensação de lag que já existe; se o controle e o fim da conjuração caem no mesmo tick, o controle vence.
+- **Entrega:** entra junto com a entrega 2 (o Fogo é o primeiro com conjuração), e o simulador ganha os casos do
+  arquivo.
+
 ## 4. Piloto: Fogo (Katon)
 
 Hoje: Bola de Fogo, com os tiers 2 a 4 sendo a mesma bola mais forte. Depois: **2 jutsus por tier**; a Extração sorteia
