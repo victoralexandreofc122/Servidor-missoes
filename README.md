@@ -215,6 +215,19 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+### v29: modo rankeado (migração v15, `db/schema_v15_rankeado.sql`)
+
+- **Vale das Estátuas:** botão **Rankeado** no menu (lá vira **Voltar**). Mapa comum a todas as vilas: arena fechada no
+  meio, arquibancadas dos dois lados (dá para **sentar** e, sentado, **assistir** a luta), estátuas das 4 vilas.
+- **Fila do Desafio** (`src/realtime/duel.ts`): quem entrou primeiro luta primeiro; o adversário sai das 4 pessoas
+  seguintes (nível parecido); ninguém é passado mais de 2 vezes; evita repetir a dupla. O adversário só aparece na
+  preparação.
+- **Partida:** melhor de 3, preparação de 10 s, rodadas de até 50 s, ninguém morre; sem passiva da vila nem clima.
+- **Pontos (v15):** Elo K = 24 com fator do novato, temporadas de 60 dias, 30/10 ryō por partida, recompensas no fim
+  da temporada, painel **Ranking** com faixas (Bronze a Lenda). Contra abuso: quem sai fica fora da fila (1 min,
+  dobra), sair na preparação cancela, partida sem dano não conta, admin não conta, 3 partidas por dia por dupla.
+- **Jogo todo:** a vida só volta com o chakra cheio e 7 s sem apanhar nem gastar chakra.
+
 ### v28: equilíbrio do PvP, passo 1 do duelo (sem migração)
 
 Plano completo em `concepts_brief.md` (revisado pelo método EGM; relatórios em `revisao_egm/`).
