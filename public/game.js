@@ -43,6 +43,9 @@ const ui = {
   rankedToggle: $('ranked-toggle'), rankedLabel: $('ranked-label'), duelBtn: $('duel-btn'), duelHud: $('duel-hud'),
   duelBar: $('duel-bar'), duelBoardBtn: $('duel-board-btn'), rankedPanel: $('ranked-panel'), rankedClose: $('ranked-close'),
   rankedSeason: $('ranked-season'), rankedMe: $('ranked-me'), rankedList: $('ranked-list'),
+  duelAgain: $('duel-again'), duelWatchBtn: $('duel-watch-btn'), duelAHp: $('duel-a-hp'), duelBHp: $('duel-b-hp'),
+  rankedProgress: $('ranked-progress'), rankedProgressBar: $('ranked-progress-bar'), rankedProgressText: $('ranked-progress-text'),
+  duelBanner: $('duel-banner'), duelBannerTitle: $('duel-banner-title'), duelBannerScore: $('duel-banner-score'), duelBannerPoints: $('duel-banner-points'),
   duelPhase: $('duel-phase'), duelClock: $('duel-clock'),
   duelA: { name: $('duel-a-name'), info: $('duel-a-info'), wins: $('duel-a-wins') },
   duelB: { name: $('duel-b-name'), info: $('duel-b-info'), wins: $('duel-b-wins') },
@@ -296,14 +299,34 @@ ui.duelBtn.addEventListener('click', () => {
 });
 ui.duelBoardBtn.addEventListener('click', () => {
   ui.rankedPanel.hidden = false;
+  ui.duelBar.hidden = true;                              // os botões não ficam por cima do painel
   ui.rankedSeason.textContent = 'Carregando…';
   ui.rankedMe.textContent = '';
   ui.rankedList.textContent = '';
   send({ type: 'ranked', action: 'board' });
 });
-ui.rankedClose.addEventListener('click', () => { ui.rankedPanel.hidden = true; });
+ui.rankedClose.addEventListener('click', () => { ui.rankedPanel.hidden = true; renderDuel(); });
+ui.duelAgain.addEventListener('click', () => {
+  ui.duelBanner.hidden = true;
+  send({ type: 'ranked', action: 'queue' });
+});
+// v29 (pedido do Victor): na arquibancada, Sentar; sentado, Assistir (a câmera vai para a arena) e Parar de assistir.
+// Andar levanta (o servidor avisa) e para de assistir.
+ui.duelWatchBtn.addEventListener('click', () => {
+  if (!state.sitting) { send({ type: 'ranked', action: 'sit' }); return; }
+  state.watchArena = !state.watchArena;
+  renderDuel();
+});
+/** O ninja está em cima de uma arquibancada do Vale? */
+function onStands() {
+  const me = state.players.get(state.meId);
+  const map = state.maps[state.mapId];
+  if (!me || !map || state.mapId !== 'vale_estatuas') return false;
+  return (map.deco || []).some((d) => d.k === 'stands' && me.x >= d.x && me.x <= d.x + d.w && me.y >= d.y && me.y <= d.y + d.h);
+}
 
 ui.logout.addEventListener('click', () => {
+  if (!window.confirm('Sair do jogo?')) return;          // revisão EGM: o botão fica perto do dedo
   clearToken();
   showLogin();
 });
@@ -433,7 +456,7 @@ function upsertPlayer(p, snap) {
     existing.map = state.serverMap;
     if (snap) { existing.x = p.x; existing.y = p.y; existing.snaps = [{ t: performance.now(), x: p.x, y: p.y }]; }
     else pushSnapshot(existing.snaps, performance.now(), p.x, p.y, state.world.tickMs || 50);
-    if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; }
+    if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; existing.sitting = !!p.sitting; }
     if (p.rank) { existing.rank = p.rank; existing.level = p.level; }
     if (p.appearance) existing.look = normalizeLook(p.appearance);
     if (p.dir !== undefined) existing.dir = p.dir;
@@ -447,7 +470,7 @@ function upsertPlayer(p, snap) {
     id: p.id, username: p.username, map: state.serverMap, x: p.x, y: p.y, tx: p.x, ty: p.y, color, bubble: null,
     // Posições que chegaram do servidor (interpolação: desenha ~100 ms no passado, sem pulos).
     snaps: [{ t: performance.now(), x: p.x, y: p.y }],
-    hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating,
+    hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating, sitting: !!p.sitting,
     rank: p.rank || null, level: p.level || 1,
     // Visual (sprites: nomes de paleta, do servidor), direção (0 baixo, 1 esq, 2 dir, 3 cima), fase da caminhada,
     // ação em curso (soco/chute/selo) e atraso do "parado" (para os bonecos não respirarem juntos).
@@ -690,7 +713,10 @@ function handleMessage(msg) {
     case 'duel_rating':
       if (msg.counted) {
         const sign = msg.delta >= 0 ? '+' : '';
-        showToast(`${msg.won ? 'Vitória' : 'Derrota'} · ${sign}${msg.delta} pontos (${msg.mmr})`, 4500);
+        if (!ui.duelBanner.hidden) {
+          ui.duelBannerPoints.textContent = `${sign}${msg.delta} pontos · ${msg.mmr}${msg.ryo ? ` · +${msg.ryo} ryō` : ''} `;
+          ui.duelBannerPoints.appendChild(tierBadge(msg.mmr));
+        } else showToast(`${msg.won ? 'Vitória' : 'Derrota'} · ${sign}${msg.delta} pontos (${msg.mmr})`, 4500);
         addSystemLine(`🏆 Rankeado: ${sign}${msg.delta} pontos. Agora você tem ${msg.mmr}.`);
       } else addSystemLine('🏆 Rankeado: esta partida não contou pontos (mesma dupla 3 vezes hoje, nível muito diferente ou conta de admin).');
       break;
@@ -1085,6 +1111,17 @@ function handleMessage(msg) {
       if (state.focusId === msg.id) setFocus(null);
       break;
     }
+    case 'sit': {
+      // v29: sentou ou levantou da arquibancada do Vale; levantou: para de assistir
+      const p = state.players.get(msg.playerId);
+      if (p) p.sitting = msg.active;
+      if (msg.playerId === state.meId) {
+        state.sitting = msg.active;
+        if (!msg.active) state.watchArena = false;
+        renderDuel();
+      }
+      break;
+    }
     case 'meditation': {
       const p = state.players.get(msg.playerId);
       if (p) p.meditating = msg.active;
@@ -1361,6 +1398,7 @@ function updateTargetWindow(f) {
  * ninjas (verde), portas e saídas (roxo) e a seta do jogador no meio.
  */
 const MM_GROUND = {
+  slab: '#6a6a5a',
   stone: '#8d8a84', grass: '#4f9a3a', darkgrass: '#2a5a2c', moss: '#5b8a62', desert: '#e4c38a', stonebridge: '#b6aa94', sand: '#d9c08a', water: '#3a8ad0', bridge: '#8b5a2b',
   path: '#b8935c', trail: '#9a7a50', wood: '#7a5230', arena: '#3e4761', dirt: '#6f6150', ash: '#4a4744', cave: '#2a2236',
   burnt: '#3a2e26', pebbles: '#8a8478', lodo: '#5e2a86', void: '#0b1020',
@@ -1899,7 +1937,39 @@ const skillName = (skill) => state.world.skills?.[skill]?.name || skill;
 
 // ------------------------------------------------------------------ modo rankeado (v29)
 
+/** v29: a faixa do rankeado pelos pontos (só aparência: o que conta é o número). */
+const RANK_TIERS = [[1500, 'Lenda', 'lenda'], [1300, 'Diamante', 'diamante'], [1150, 'Ouro', 'ouro'], [1050, 'Prata', 'prata'], [0, 'Bronze', 'bronze']];
+function rankTier(mmr) {
+  const t = RANK_TIERS.find(([min]) => mmr >= min);
+  return { name: t[1], cls: `tier-${t[2]}` };
+}
+function tierBadge(mmr) {
+  const b = document.createElement('span');
+  const t = rankTier(mmr);
+  b.className = `rank-tier ${t.cls}`;
+  b.textContent = t.name;
+  return b;
+}
+
+/** A faixa grande no meio da tela no fim da partida (só para quem lutou). Os pontos chegam depois (duel_rating). */
+let bannerTimer = 0;
+function showDuelBanner(won, score, points) {
+  ui.duelBanner.hidden = false;
+  ui.duelBanner.classList.toggle('lose', !won);
+  ui.duelBannerTitle.textContent = won ? 'VITÓRIA' : 'DERROTA';
+  ui.duelBannerScore.textContent = score;
+  ui.duelBannerPoints.textContent = points || '';
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => { ui.duelBanner.hidden = true; }, 6000);
+}
+
 const VILLAGE_SHORT = { vila_1: 'Folha', vila_3: 'Névoa', vila_4: 'Nuvem', vila_5: 'Areia' };
+
+/** Este jogador está numa partida do rankeado agora? */
+function duelFighting() {
+  const d = state.duel;
+  return !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
+}
 
 /** No Vale das Estátuas: o outro lado da partida, só durante a rodada (o servidor confere de novo). */
 function duelFoe(id) {
@@ -1917,8 +1987,16 @@ function renderDuel() {
   const d = state.duel;
   const fighting = !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
   const q = state.duelQueue;
-  ui.duelBar.hidden = !inVale;
+  ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden;
   ui.duelBtn.hidden = fighting;
+  ui.duelBoardBtn.hidden = fighting;                     // revisão EGM: na luta, nada em cima dos jutsus
+  // Sentar só em cima da arquibancada; sentado: Assistir / Parar de assistir
+  const stands = !fighting && (state.sitting || onStands());
+  ui.duelWatchBtn.hidden = !stands;
+  ui.duelWatchBtn.textContent = !state.sitting ? '🪑 Sentar' : state.watchArena ? '✋ Parar de assistir' : '👁 Assistir a luta';
+  state.onStands = onStands();
+  document.body.classList.toggle('in-vale', inVale);
+  if (fighting) state.watchArena = false;
   if (!inVale) ui.rankedPanel.hidden = true;
   ui.duelBtn.classList.toggle('queued', !!q?.queued);
   ui.duelBtn.textContent = q?.queued ? `Na fila: ${q.position}º de ${q.size} · Cancelar` : `⚔️ Desafio${q?.size ? ` (${q.size} na fila)` : ''}`;
@@ -1938,10 +2016,19 @@ function renderDuel() {
 function tickDuelClock() {
   const d = state.duel;
   if (ui.duelHud.hidden) return;
-  if (!d || d.phase === 'idle') {
+  const idle = !d || d.phase === 'idle';
+  ui.duelHud.classList.toggle('duel-idle', idle);
+  if (idle) {
     ui.duelPhase.textContent = 'Arena livre';
-    ui.duelClock.textContent = d?.queue ? `${d.queue} na fila` : '—';
+    ui.duelClock.textContent = d?.queue ? `${d.queue} na fila` : 'Aperte Desafio';
     return;
+  }
+  // a vida dos dois no placar (para quem assiste de longe)
+  for (const [el, v] of [[ui.duelAHp, d.a], [ui.duelBHp, d.b]]) {
+    const p = v && state.players.get(v.id);
+    const me = v && v.id === state.meId ? { hp: state.me?.hp, maxHp: state.me?.maxHp } : null;
+    const hp = me?.maxHp ? me.hp / me.maxHp : p && p.maxHp ? p.hp / p.maxHp : 1;
+    el.style.width = `${Math.max(0, Math.min(1, hp)) * 100}%`;
   }
   const secs = Math.max(0, Math.ceil((d.until - performance.now()) / 1000));
   const names = { prep: 'Preparação', round: `Rodada ${d.round}`, interval: 'Próxima rodada', done: 'Fim' };
@@ -1953,7 +2040,7 @@ function tickDuelClock() {
 }
 setInterval(() => {
   // o mapa do cliente troca depois da mensagem (a predição atravessa): confere aqui se entrou ou saiu do Vale
-  if ((state.mapId === 'vale_estatuas') === ui.duelHud.hidden) renderDuel();
+  if ((state.mapId === 'vale_estatuas') === ui.duelHud.hidden || (state.mapId === 'vale_estatuas' && onStands() !== state.onStands)) renderDuel();
   else tickDuelClock();
 }, 250);
 
@@ -1968,18 +2055,34 @@ function renderRankedBoard(msg) {
   ui.rankedSeason.textContent = msg.season ? `Temporada ${msg.season.id} · acaba em ${days} dia${days === 1 ? '' : 's'}` : 'Sem temporada aberta.';
   const me = msg.me;
   const all = msg.overall;
-  ui.rankedMe.textContent = me ? `Você: ${me.position}º · ${me.mmr} pontos · ${me.wins}V ${me.losses}D` + (all ? ` · recorde ${all.best}` : '')
+  ui.rankedMe.textContent = me ? `Você: ${me.position}º · ${me.mmr} pontos · ${me.wins}V ${me.losses}D` + (all ? ` · recorde ${all.best} ` : ' ')
     : 'Você ainda não lutou nesta temporada. Aperte Desafio!';
+  if (me) ui.rankedMe.appendChild(tierBadge(me.mmr));
+  // barra até a próxima faixa
+  const mmr = me ? me.mmr : all ? all.mmr : null;
+  ui.rankedProgress.hidden = mmr === null;
+  if (mmr !== null) {
+    const asc = [...RANK_TIERS].reverse();
+    const i = asc.findIndex(([min], k) => mmr >= min && (k === asc.length - 1 || mmr < asc[k + 1][0]));
+    const next = asc[i + 1];
+    if (!next) { ui.rankedProgressBar.style.width = '100%'; ui.rankedProgressText.textContent = 'Faixa máxima: Lenda'; }
+    else {
+      const from = asc[i][0] || 900, share = (mmr - from) / (next[0] - from);
+      ui.rankedProgressBar.style.width = `${Math.max(0, Math.min(1, share)) * 100}%`;
+      ui.rankedProgressText.textContent = `Faltam ${next[0] - mmr} pontos para ${next[1]}`;
+    }
+  }
   ui.rankedList.textContent = '';
   for (const r of msg.top || []) {
     const tr = document.createElement('tr');
     if (r.playerId === state.meId) tr.className = 'me';
     else if (r.position === 1) tr.className = 'top1';
-    for (const v of [`${r.position}º`, r.username, VILLAGE_SHORT[r.village] || '—', String(r.level), String(r.mmr), `${r.wins}/${r.losses}`]) {
+    [`${r.position}º`, r.username, VILLAGE_SHORT[r.village] || '—', String(r.level), String(r.mmr), `${r.wins}/${r.losses}`].forEach((v, i) => {
       const td = document.createElement('td');
       td.textContent = v;
+      if (i === 4) { td.append(' '); td.appendChild(tierBadge(r.mmr)); }
       tr.appendChild(td);
-    }
+    });
     ui.rankedList.appendChild(tr);
   }
   if (!(msg.top || []).length) {
@@ -2005,7 +2108,7 @@ function duelAnnounce(msg) {
   else if (msg.phase === 'done' && prev?.phase !== 'done') {
     const w = msg.winner ? msg[msg.winner] : null;
     if (w) addSystemLine(msg.reason === 'forfeit' ? `🏆 Rankeado: ${w.name} venceu (o outro saiu).` : `🏆 Rankeado: ${w.name} venceu por ${Math.max(msg.wins.a, msg.wins.b)} a ${Math.min(msg.wins.a, msg.wins.b)}.`);
-    if (mine && w) showToast(msg.winner === mine ? 'Vitória!' : 'Derrota', 3500);
+    if (mine && w) showDuelBanner(msg.winner === mine, msg.reason === 'forfeit' ? (msg.winner === mine ? 'O adversário saiu' : 'Você saiu da partida') : `${Math.max(msg.wins.a, msg.wins.b)} x ${Math.min(msg.wins.a, msg.wins.b)}`);
   }
 }
 
@@ -4525,6 +4628,37 @@ function stoneTile(seed) {
 }
 
 /** Calçamento de cada vila (v16): a mesma planta da Folha com a pedra da terra dela. [base, bloco, bloco 2, brilho, pontos]. */
+/**
+ * v29 (revisão EGM): o chão do Vale das Estátuas. Lajes grandes de pedra cinza-oliva (2 por casa, de tamanhos
+ * diferentes), juntas escuras com musgo e uma laje rachada de vez em quando. Escuro o bastante para não estourar no sol.
+ */
+function valeSlabTile(seed, cracked = false) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#2f3128';                                      // junta
+    g.fillRect(0, 0, U, U);
+    const cut = 6 + Math.floor(r() * 5);
+    const slabs = seed % 2 ? [[0, 0, U, cut], [0, cut, U, U - cut]] : [[0, 0, cut, U], [cut, 0, U - cut, U]];
+    for (const [x, y, w, h] of slabs) {
+      const tone = ['#6a6a5a', '#727160', '#646454'][Math.floor(r() * 3)];
+      g.fillStyle = tone;
+      g.fillRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      g.fillStyle = '#86846f';                                    // luz em cima e à esquerda
+      g.fillRect(x + 0.5, y + 0.5, w - 1, 1);
+      g.fillRect(x + 0.5, y + 0.5, 1, h - 1);
+      g.fillStyle = '#4c4c3f';                                    // sombra embaixo e à direita
+      g.fillRect(x + 0.5, y + h - 1.5, w - 1, 1);
+      g.fillRect(x + w - 1.5, y + 0.5, 1, h - 1);
+      for (let i = 0; i < (w * h) / 22; i++) fine(g, r() < 0.5 ? '#5c5c4d' : '#7c7a66', x + 1 + r() * (w - 2), y + 1 + r() * (h - 2), PX * 2, PX);
+    }
+    for (let i = 0; i < 3; i++) fine(g, r() < 0.5 ? '#4f6a2e' : '#5f7a36', r() * U, seed % 2 ? cut - 0.6 : r() * U, PX * (2 + Math.floor(r() * 3)), PX * 2);   // musgo nas juntas
+    if (cracked) {
+      g.strokeStyle = '#3a3b31'; g.lineWidth = PX * 2;
+      g.beginPath(); g.moveTo(3, 2); g.lineTo(6, 6); g.lineTo(5, 9); g.lineTo(8, 13); g.stroke();
+    }
+  });
+}
+
 const STONE_THEMES = {
   nevoa: ['#8a9ea6', '#b3c6cc', '#a7bcc3', '#c8d8dc', ['#9cb1b8', '#bfd0d5']],
   nuvem: ['#b3aaa6', '#d6cfca', '#cbc3be', '#e3ddd8', ['#c0b8b3', '#ddd6d1']],
@@ -4644,6 +4778,7 @@ const TILES = {
   burnt: [burntTile(131), burntTile(132), burntTile(133)],
   pebbles: [pebblesTile(141), pebblesTile(142)],
   lodo: [lodoTile(151)],
+  slab: [valeSlabTile(201), valeSlabTile(202), valeSlabTile(203), valeSlabTile(204, true)],
   sand: [sandTile(41), sandTile(42)],
   desert: [desertTile(161), desertTile(162), desertTile(163)],
   packedSand: [packedSandTile(191), packedSandTile(192), packedSandTile(193)],                 // Areia: chão da arena                                // Areia: os gramados
@@ -4695,6 +4830,7 @@ function tileAt(x, y) {
     case 'burnt': return TILES.burnt[h % 3];                       // Acampamento e Clareira Queimada
     case 'pebbles': return TILES.pebbles[h & 1];                   // leito seco da cachoeira
     case 'lodo': return TILES.lodo[0];
+    case 'slab': return TILES.slab[h % 5 === 0 ? 3 : h % 3];      // Vale das Estátuas: lajes com musgo
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
     case 'arena':                                                  // arena da vila: lajes, losango a cada 4 (na Areia, terra batida)
@@ -5013,8 +5149,11 @@ function draw(now) {
   const { width, height } = state.world;
   // Tremor curto (o golpe marcado caiu perto): alguns centésimos de casa para os lados.
   const shake = now < (state.shakeUntil || 0) ? ((state.shakeUntil - now) / 220) * 0.12 : 0;
-  const camX = (me ? me.x + cam.ox : width / 2) + (shake ? Math.sin(now / 9) * shake : 0);
-  const camY = (me ? me.y + cam.oy : height / 2) + (shake ? Math.cos(now / 11) * shake : 0);
+  // v29: no Vale, "Assistir" leva a câmera para o meio da arena (quem está lutando sempre vê o próprio ninja)
+  const watch = state.watchArena && state.sitting && state.mapId === 'vale_estatuas' && !duelFighting();
+  const fx = watch ? 22 : me ? me.x + cam.ox : width / 2, fy = watch ? 15 : me ? me.y + cam.oy : height / 2;
+  const camX = fx + (shake ? Math.sin(now / 9) * shake : 0);
+  const camY = fy + (shake ? Math.cos(now / 11) * shake : 0);
   const T = Math.max(8, Math.round(tile * cam.scale));   // inteiro: o chão em blocos não abre frestas
   const halfW = viewW / 2, halfH = viewH / 2;
   const toScreenX = (wx) => Math.round((wx - camX) * T + halfW);

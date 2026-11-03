@@ -44,7 +44,7 @@ import {
   type EffectBag, type EffectCode,
 } from './effects.js';
 import { NO_CLASS, PvpStats, reportText, toClassRows } from './pvpStats.js';
-import { DUEL, addDamage, advance, endRound, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, timeoutWinner, type DuelMatch, type QueueEntry, type Side } from './duel.js';
+import { DUEL, leavePenalty, addDamage, advance, endRound, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, timeoutWinner, type DuelMatch, type QueueEntry, type Side } from './duel.js';
 import {
   VALE, ACADEMY, REFUGE, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
   type MapLayout,
@@ -238,6 +238,8 @@ interface Session {
   netLog: Map<string, NetHit[]>;
   /** Acabou de renascer: nenhum jogador o machuca até este instante. */
   protectedUntil: number;
+  /** v29: sentado na arquibancada do Vale (anda: levanta). */
+  sitting: boolean;
   /** v29: última vez que tomou dano ou gastou chakra (a vida só volta 7 s depois, com o chakra cheio). */
   calmSince: number;
   dead: boolean;
@@ -533,6 +535,9 @@ export class GameWorld {
   private duel: DuelMatch | null = null;
   private duelSeq = 0;
   private readonly rankedReturn = new Map<string, { map: MapId; x: number; y: number }>();
+  /** v29 (revisão EGM): saídas de partida (castigo na fila) e o último adversário de cada um (fila evita repetir). */
+  private readonly rankedLeaves = new Map<string, { count: number; firstAt: number; until: number }>();
+  private readonly rankedLast = new Map<string, string>();
   private readonly rankedStore: RankedStore | undefined;
   private rankedReady = false;
   private rankedTimer: NodeJS.Timeout | undefined;
@@ -654,7 +659,7 @@ export class GameWorld {
   private view(s: Session): PlayerView {
     return {
       id: s.id, username: s.username, x: round3(s.x), y: round3(s.y), hp: shownHp(s.hp), maxHp: s.stats.maxHp,
-      dead: s.dead, meditating: s.meditating, rank: s.rank, level: s.level,
+      dead: s.dead, meditating: s.meditating, ...(s.sitting ? { sitting: true } : {}), rank: s.rank, level: s.level,
       appearance: { ...(s.appearance ?? DEFAULT_APPEARANCE) }, dir: dirOf(s.fx, s.fy), gear: this.gear(s),
       ...(this.on('vilas') ? { faction: this.factionView(s) } : {}),
       ...fxView(s.effects, this.now()),
@@ -848,6 +853,7 @@ export class GameWorld {
       ccLog: [],
       netLog: new Map(),
       protectedUntil: previous?.protectedUntil ?? 0,
+      sitting: false,
       calmSince: previous?.calmSince ?? 0,
       cooldowns: { ...(previous?.cooldowns ?? {}) },
       xp: player.xp ?? previous?.xp ?? 0,
@@ -1051,7 +1057,7 @@ export class GameWorld {
     if (session.dead) return;             // morto não anda
     const length = Math.hypot(dx, dy);
     // Tentar andar cancela a meditação (soltar o joystick, que manda 0,0, não cancela).
-    if (length > 0) this.stopMeditation(session, 'moved');
+    if (length > 0) { this.stopMeditation(session, 'moved'); this.standUp(session); }
     const scale = length > 1 ? 1 / length : 1;
     session.dx = dx * scale;
     session.dy = dy * scale;
@@ -1077,7 +1083,7 @@ export class GameWorld {
         session.droppedUpTo = n;
         return;
       }
-      if (dx !== 0 || dy !== 0) this.stopMeditation(session, 'moved');
+      if (dx !== 0 || dy !== 0) { this.stopMeditation(session, 'moved'); this.standUp(session); }
       if (session.inputQueue.length >= this.config.maxQueuedInputs) {
         session.droppedUpTo = n;
         return;
@@ -1160,6 +1166,7 @@ export class GameWorld {
    */
   private transfer(s: Session, to: MapId, x: number, y: number, reason: MapChangeReason): void {
     const from = s.map;
+    this.standUp(s);
     s.x = x;
     s.y = y;
     if (from !== to) {
@@ -3294,8 +3301,20 @@ export class GameWorld {
   // ---------------------------------------------------------------- modo rankeado (v29, duel.ts)
 
   /** Botões do modo rankeado: entrar no Vale, sair dele, entrar e sair da fila do Desafio. */
-  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board', t: number): void {
+  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand', t: number): void {
     if (action === 'board') return this.rankedBoard(s, t);
+    if (action === 'stand') return this.standUp(s);
+    if (action === 'sit') {
+      // só em cima da arquibancada do Vale, fora da partida
+      if (s.dead || s.sitting || s.map !== 'vale_estatuas' || (this.duel && sideOf(this.duel, s.id))) return;
+      if (!VALE.stands.some((b) => s.x >= b.x && s.x <= b.x + b.w && s.y >= b.y && s.y <= b.y + b.h)) return;
+      this.stopMeditation(s, 'manual');
+      s.dx = 0;
+      s.dy = 0;
+      s.sitting = true;
+      this.broadcastMap(s.map, { type: 'sit', playerId: s.id, active: true });
+      return;
+    }
     if (s.dead || s.closed) return;
     const inVale = s.map === 'vale_estatuas';
     if (action === 'enter') {
@@ -3311,7 +3330,10 @@ export class GameWorld {
     if (action === 'queue') {
       if (this.duel && sideOf(this.duel, s.id)) return;
       if (s.level < DUEL.minLevel) return this.notice(s.id, `O rankeado abre no nível ${DUEL.minLevel}.`, 'bad');
-      if (!this.rankedQueue.some((e) => e.id === s.id)) this.rankedQueue.push({ id: s.id, level: s.level, joinedAt: t, skips: 0 });
+      const pen = this.rankedLeaves.get(s.id);
+      if (pen && t < pen.until) return this.notice(s.id, `Você saiu de uma partida: espere ${Math.ceil((pen.until - t) / 1000)} s para entrar na fila de novo.`, 'bad');
+      const last = this.rankedLast.get(s.id);
+      if (!this.rankedQueue.some((e) => e.id === s.id)) this.rankedQueue.push({ id: s.id, level: s.level, joinedAt: t, skips: 0, ...(last ? { last } : {}) });
       this.sendQueues();
       return;
     }
@@ -3329,6 +3351,13 @@ export class GameWorld {
     this.sendStats(s, t);
   }
 
+  /** Levanta da arquibancada (andou, trocou de mapa, entrou na luta). */
+  private standUp(s: Session): void {
+    if (!s.sitting) return;
+    s.sitting = false;
+    this.broadcastMap(s.map, { type: 'sit', playerId: s.id, active: false });
+  }
+
   /** Saiu do Vale (botão, desconexão): sai da fila; se estava lutando, perde a partida. */
   private rankedGone(s: Session): void {
     const before = this.rankedQueue.length;
@@ -3336,8 +3365,22 @@ export class GameWorld {
     const d = this.duel;
     const side = d ? sideOf(d, s.id) : null;
     if (d && side && d.phase !== 'done') {
-      forfeit(d, side, this.now());
-      this.duelFinished(d);
+      const t = this.now();
+      // castigo: fica fora da fila por um tempo que dobra a cada saída no dia
+      const prev = this.rankedLeaves.get(s.id);
+      const count = prev && t - prev.firstAt < 86_400_000 ? prev.count + 1 : 1;
+      this.rankedLeaves.set(s.id, { count, firstAt: prev && count > 1 ? prev.firstAt : t, until: t + leavePenalty(count) });
+      if (d.phase === 'prep') {
+        // saiu na preparação: a partida é cancelada, sem pontos para ninguém; o outro volta para a frente da fila
+        const otherId = d[other(side)];
+        this.duelClose(d);
+        this.notice(otherId, 'O adversário saiu antes da luta: partida cancelada, sem pontos. Você volta para a fila.', 'info');
+        const o = this.duelSession(otherId);
+        if (o) this.rankedQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0 });
+      } else {
+        forfeit(d, side, t);
+        this.duelFinished(d);
+      }
     }
     if (before !== this.rankedQueue.length) this.sendQueues();
   }
@@ -3360,6 +3403,8 @@ export class GameWorld {
       if (!pick) return;
       this.rankedQueue = pick.rest;
       const m = newMatch(++this.duelSeq, pick.a, pick.b, t);
+      this.rankedLast.set(pick.a, pick.b);
+      this.rankedLast.set(pick.b, pick.a);
       this.duel = m;
       this.duelPlace(m, t);
       this.sendQueues();
@@ -3425,6 +3470,11 @@ export class GameWorld {
     this.log.info({ match: d.id, winner: winnerId, loser: loserId, reason: d.reason, wins: d.wins }, 'rankeado: partida acabou');
     const store = this.rankedReady ? this.rankedStore : undefined;
     if (!store) return;
+    if (d.matchDamage.a + d.matchDamage.b === 0) {
+      // ninguém causou dano: não conta (evita combinar resultado)
+      for (const id of [winnerId, loserId]) this.notice(id, 'Partida sem nenhum dano: não conta pontos.', 'info');
+      return;
+    }
     // v15: grava a partida e mexe nos pontos (fora do loop); depois avisa os dois.
     const input = {
       winnerId, loserId, winnerRounds: d.wins[d.winner], loserRounds: d.wins[other(d.winner)], reason: d.reason ?? 'rounds',
@@ -3433,7 +3483,10 @@ export class GameWorld {
     store.result(input).then((r) => {
       const tell = (id: string, won: boolean) => {
         const s = this.sessions.get(id);
-        if (s) this.sendTo(s, { type: 'duel_rating', counted: r.counted, delta: won ? r.winnerDelta : r.loserDelta, mmr: won ? r.winnerMmr : r.loserMmr, won });
+        if (!s) return;
+        const ryo = won ? r.winnerRyo : r.loserRyo;
+        this.sendTo(s, { type: 'duel_rating', counted: r.counted, delta: won ? r.winnerDelta : r.loserDelta, mmr: won ? r.winnerMmr : r.loserMmr, won, ryo });
+        if (ryo > 0) { s.ryo += ryo; this.sendInventory(s); }
       };
       tell(winnerId, true);
       tell(loserId, false);

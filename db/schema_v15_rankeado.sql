@@ -5,7 +5,8 @@
 --  1. Temporadas do rankeado (60 dias), separadas das da Zona de Conflito.
 --  2. Pontos (MMR) do rankeado: geral (para sempre) e por temporada. Começa em 1000.
 --  3. Cada partida e cada rodada gravadas (quem venceu, placar, dano, duração, versão da tabela de equilíbrio).
---  4. game.ranked_result: grava a partida e mexe nos pontos numa transação só. Elo com K = 24 e o fator do novato
+--  4. game.ranked_result: grava a partida, mexe nos pontos e paga a recompensa da partida (30 ryō para quem vence e
+--     10 para quem perde, só quando conta pontos) numa transação só. Elo com K = 24 e o fator do novato
 --     (quem jogou menos de 30 partidas ganha mais e perde menos). Só conta com diferença de nível até 15, no máximo 3
 --     vezes por dia a mesma dupla, e nunca com conta de admin.
 --  5. game.close_ranked_season: fecha a temporada vencida, paga as recompensas e abre a próxima.
@@ -99,10 +100,12 @@ BEGIN
   RETURN NEXT;
 END $$;
 
+DROP FUNCTION IF EXISTS game.ranked_result(uuid, uuid, integer, integer, text, integer, text, jsonb);
 CREATE OR REPLACE FUNCTION game.ranked_result(
   p_winner uuid, p_loser uuid, p_winner_rounds integer, p_loser_rounds integer, p_reason text,
   p_duration_ms integer, p_version text, p_rounds jsonb)
-RETURNS TABLE (counted boolean, winner_delta integer, loser_delta integer, winner_mmr integer, loser_mmr integer, season_id integer)
+RETURNS TABLE (counted boolean, winner_delta integer, loser_delta integer, winner_mmr integer, loser_mmr integer, season_id integer,
+               winner_ryo integer, loser_ryo integer)
 LANGUAGE plpgsql SET search_path = game AS $$
 DECLARE
   w      players%ROWTYPE;
@@ -120,7 +123,7 @@ BEGIN
   IF w.id IS NULL OR l.id IS NULL OR p_winner = p_loser THEN
     RAISE EXCEPTION 'Jogador inexistente' USING ERRCODE = 'foreign_key_violation';
   END IF;
-  counted := false; winner_delta := 0; loser_delta := 0;
+  counted := false; winner_delta := 0; loser_delta := 0; winner_ryo := 0; loser_ryo := 0;
   SELECT s.id INTO season_id FROM ranked_seasons s WHERE s.closed_at IS NULL;
   IF NOT w.is_admin AND NOT l.is_admin AND abs(w.level - l.level) <= 15 THEN
     SELECT count(*) INTO v_pair FROM ranked_matches m
@@ -137,6 +140,10 @@ BEGIN
       UPDATE ranked_ratings SET mmr = mmr + winner_delta, best_mmr = greatest(best_mmr, mmr + winner_delta), wins = wins + 1, updated_at = now()
        WHERE player_id = p_winner;
       UPDATE ranked_ratings SET mmr = mmr + loser_delta, losses = losses + 1, updated_at = now() WHERE player_id = p_loser;
+      -- recompensa da partida
+      winner_ryo := 30; loser_ryo := 10;
+      UPDATE players SET ryo = ryo + winner_ryo WHERE id = p_winner;
+      UPDATE players SET ryo = ryo + loser_ryo WHERE id = p_loser;
       IF season_id IS NOT NULL THEN
         INSERT INTO ranked_season_ratings (season_id, player_id) VALUES (season_id, p_winner), (season_id, p_loser) ON CONFLICT DO NOTHING;
         SELECT r.mmr INTO v_wm FROM ranked_season_ratings r WHERE r.season_id = ranked_result.season_id AND r.player_id = p_winner;

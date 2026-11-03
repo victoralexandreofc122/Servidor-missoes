@@ -48,7 +48,9 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
  */
 export interface Wall extends Box {
   k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit' | 'fence' | 'pillar' | 'gate'
-    | 'seal' | 'oak' | 'cliff' | 'tent' | 'cave' | 'deadtree' | 'logs' | 'sink' | 'pool';
+    | 'seal' | 'oak' | 'cliff' | 'tent' | 'cave' | 'deadtree' | 'logs' | 'sink' | 'pool'
+    // v29: estátua de uma vila no Vale das Estátuas (colide só no pedestal; o desenho sobe acima)
+    | 'statue';
   /**
    * Estilo do prédio (sede, hospital, academia, lojas, casa, cabana) ou do móvel do interior
    * (suporte de espadas, de lanças, de escudos, manequim, prateleira de roupas, estante de
@@ -60,7 +62,9 @@ export interface Wall extends Box {
     // pilar da arena da vila: bloco de ardósia com moldura dourada (os da Zona de Conflito são ruína)
     | 'arena'
     // árvore cerejeira (copa rosa, nos gramados da vila) e a montanha atrás da sede (paredão com mata em cima)
-    | 'sakura' | 'mountain';
+    | 'sakura' | 'mountain'
+    // v29: a vila da estátua
+    | 'vila_1' | 'vila_3' | 'vila_4' | 'vila_5';
 }
 
 /**
@@ -70,6 +74,8 @@ export interface Wall extends Box {
  */
 export interface Area extends Box {
   g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood' | 'arena' | 'dirt' | 'ash' | 'cave' | 'burnt' | 'pebbles' | 'lodo'
+    // v29: lajes de pedra cinza-oliva com musgo (Vale das Estátuas)
+    | 'slab'
     // trilha da Floresta: o chão é a grama; a trilha curva vem do enfeite 'trail' (aqui só não nasce mato em cima)
     | 'trail';
   /** 'oval': só a mancha oval (com a borda ondulada) dentro da caixa pinta o chão. Sem: a caixa toda. */
@@ -90,7 +96,9 @@ export interface Deco extends Box {
     // o que sobrou no Acampamento Queimado: caixote quebrado, panela no tripé, esteira e um pergaminho caído
     | 'crate' | 'pot' | 'bedroll' | 'scroll_drop'
     // vila: lanterna de pedra (tōrō, acende de noite) e vaso de flores; bandeira da Vila da Nuvem
-    | 'toro' | 'planter' | 'flag';
+    | 'toro' | 'planter' | 'flag'
+    // v29: a arquibancada do Vale (só desenho: a plateia anda e fica em cima)
+    | 'stands';
   /** Linha do riacho/leito: x0, y0, x1, y1... em casas, a partir do canto (x, y) do enfeite. */
   p?: number[];
   /** Meia largura da faixa, em casas. */
@@ -1286,8 +1294,10 @@ export const VALE = {
   thickness: 0.5,
   /** Onde se chega (e para onde voltam os dois quando a partida acaba). */
   spawn: { x: 22, y: 27 },
+  /** As duas arquibancadas, à esquerda e à direita da cerca (só desenho; quem está em cima pode sentar). */
+  stands: [{ x: 7.6, y: 8.5, w: 4, h: 13 }, { x: 32.4, y: 8.5, w: 4, h: 13 }],
   /** Onde cada lado começa cada rodada (dentro da cerca). */
-  start: { a: { x: 15.5, y: 15 }, b: { x: 28.5, y: 15 } },
+  start: { a: { x: 14, y: 15 }, b: { x: 30, y: 15 } },   // espelhados, um em cada ponta (revisão EGM)
 } as const;
 
 export function valeFightBox(): Box {
@@ -1299,21 +1309,26 @@ function vale(): MapLayout {
   const { width: W, height: H } = VALE;
   const f = VALE.fence, t = VALE.thickness;
   const walls: Wall[] = [
-    wall('rock', 0, 0, W, 2), wall('rock', 0, H - 2, W, 2), wall('rock', 0, 2, 2, H - 4), wall('rock', W - 2, 2, 2, H - 4),
+    // o vale: paredão de rocha no fundo, rochas nos lados e embaixo (revisão EGM)
+    wall('cliff', 0, 0, W, 3.2), wall('rock', 0, H - 2, W, 2), wall('rock', 0, 3.2, 2, H - 5.2), wall('rock', W - 2, 3.2, 2, H - 5.2),
     // a cerca fechada: ninguém entra nem sai andando (o servidor leva os dois da partida)
     wall('fence', f.x, f.y, f.w, t), wall('fence', f.x, f.y + f.h - t, f.w, t),
     wall('fence', f.x, f.y + t, t, f.h - 2 * t), wall('fence', f.x + f.w - t, f.y + t, t, f.h - 2 * t),
-    // as estátuas das vilas nos cantos da praça
-    wall('pillar', 6, 5, 1.6, 2, 'arena'), wall('pillar', 36.4, 5, 1.6, 2, 'arena'),
-    wall('pillar', 6, 25, 1.6, 2, 'arena'), wall('pillar', 36.4, 25, 1.6, 2, 'arena'),
-    tree(4, 31), tree(40, 31), tree(4, 12), tree(40, 12),
+    // as estátuas das 4 vilas nos cantos da praça (colidem só no pedestal)
+    wall('statue', 2.6, 8.5, 3.2, 1.6, 'vila_1'), wall('statue', 37.6, 8.5, 3.2, 1.6, 'vila_3'),
+    wall('statue', 2.6, 27.5, 3.2, 1.6, 'vila_4'), wall('statue', 37.6, 27.5, 3.2, 1.6, 'vila_5'),
   ];
   const fight = valeFightBox();
   return {
     id: 'vale_estatuas', name: 'Vale das Estátuas', kind: 'wild', theme: 'folha', ranked: true, width: W, height: H, safe: true, walls,
     exits: [], doors: [],
-    areas: [area('stone', 2, 2, W - 4, H - 4), area('arena', f.x, f.y, f.w, f.h)],
+    areas: [area('slab', 0, 0, W, H), area('arena', f.x, f.y, f.w, f.h)],
     deco: [
+      // a arquibancada: dos dois lados da cerca (pedido do Victor). Dá para andar nela e SENTAR para assistir.
+      ...VALE.stands.map((b) => deco('stands', b.x, b.y, b.w, b.h)),
+      // lanternas de pedra em cima e embaixo da arena (acendem de noite)
+      deco('toro', f.x + 2, f.y - 2.2, 1, 1.4), deco('toro', f.x + f.w - 3, f.y - 2.2, 1, 1.4),
+      deco('toro', f.x + 2, f.y + f.h + 0.6, 1, 1.4), deco('toro', f.x + f.w - 3, f.y + f.h + 0.6, 1, 1.4),
       deco('banner', f.x - 1.2, f.y - 1.2), deco('banner', f.x + f.w + 0.2, f.y - 1.2),
       deco('banner', f.x - 1.2, f.y + f.h + 0.2), deco('banner', f.x + f.w + 0.2, f.y + f.h + 0.2),
     ],

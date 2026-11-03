@@ -8,7 +8,11 @@
  *  - o adversário sai das próximas `window` pessoas da fila: a primeira com nível parecido (diferença até
  *    `levelGap`); se nenhuma tiver, a de nível mais perto;
  *  - quem é passado para trás ganha um "pulo"; com `maxSkips` pulos, ninguém mais passa na frente dele: ele é o
- *    próximo adversário escolhido. Assim ninguém fica muito para trás nem é passado várias vezes.
+ *    próximo adversário escolhido. Assim ninguém fica muito para trás nem é passado várias vezes;
+ *  - v29 (revisão EGM): a cabeça não pega de novo o último adversário se houver outra pessoa na janela.
+ *
+ * Contra abuso (revisão EGM): quem sai no meio perde e fica um tempo fora da fila (`leavePenaltyMs`, dobra a cada
+ * saída no dia); sair na preparação cancela a partida sem pontos; partida sem dano nenhum não conta pontos.
  *
  * A partida (melhor de 3, regras do `concepts_brief.md`): preparação de 10 s, rodadas de até 50 s, 5 s entre as
  * rodadas. Cada rodada começa com vida e chakra cheios; o chakra só volta meditando (decisão do Victor, 03/11) e a
@@ -34,6 +38,9 @@ export const DUEL = {
   levelGap: 5,
   /** Nível mínimo para entrar na fila (com classe). */
   minLevel: 1,
+  /** Castigo de quem sai da partida: 1ª saída 1 min, depois dobra (até 16 min); zera depois de 24 h. */
+  leavePenaltyMs: 60_000,
+  leavePenaltyMaxMs: 16 * 60_000,
 } as const;
 
 export interface QueueEntry {
@@ -42,6 +49,13 @@ export interface QueueEntry {
   joinedAt: number;
   /** Quantas vezes já foi passado para trás. */
   skips: number;
+  /** O último adversário (a fila evita repetir a dupla em seguida). */
+  last?: string;
+}
+
+/** Quanto tempo fora da fila depois da `n`-ésima saída (n >= 1). */
+export function leavePenalty(n: number): number {
+  return Math.min(DUEL.leavePenaltyMaxMs, DUEL.leavePenaltyMs * 2 ** Math.max(0, n - 1));
 }
 
 export interface MatchPick {
@@ -56,7 +70,9 @@ export interface MatchPick {
 export function takeMatch(queue: readonly QueueEntry[], rules: Pick<typeof DUEL, 'window' | 'maxSkips' | 'levelGap'> = DUEL): MatchPick | null {
   if (queue.length < 2) return null;
   const head = queue[0]!;
-  const window = queue.slice(1, 1 + rules.window);
+  const full = queue.slice(1, 1 + rules.window);
+  const fresh = full.filter((e) => e.id !== head.last && e.last !== head.id);
+  const window = fresh.length > 0 ? fresh : full;
   let pick = window.findIndex((e) => e.skips >= rules.maxSkips);
   if (pick < 0) pick = window.findIndex((e) => Math.abs(e.level - head.level) <= rules.levelGap);
   if (pick < 0) {

@@ -1126,7 +1126,170 @@ export function drawWall(g, wall, x, y, w, h, tile) {
  * Árvores, pedras altas e barracas têm ALTURA: são desenhadas por cima do chão, na mesma ordem dos bonecos (quem está
  * atrás fica atrás da copa). `propExtent` diz quanto o desenho passa da caixa de colisão (em casas).
  */
-export const PROP_KINDS = new Set(['tree', 'deadtree', 'oak', 'seal', 'tent']);
+// ------------------------------------------------------------------ Vale das Estátuas (v29, modo rankeado)
+
+/** Cor de cada vila nas estátuas: [faixa escura, faixa, brilho] e o símbolo da placa. */
+const VILLAGE_COLORS = {
+  vila_1: { band: ['#2f4a1c', '#5a8a34', '#9ac25a'], mark: 'leaf' },
+  vila_3: { band: ['#1e3346', '#3f6f8f', '#8cc0d8'], mark: 'wave' },
+  vila_4: { band: ['#5a4614', '#b8962e', '#f0d46a'], mark: 'bolt' },
+  vila_5: { band: ['#5a2e14', '#b0642e', '#e8a66a'], mark: 'sun' },
+};
+const STATUE = { out: '#1b1916', dark: '#4e4a43', mid: '#77716a', light: '#a49d92', hi: '#cfc8ba' };
+
+/**
+ * Estátua de uma vila: pedestal de pedra (a caixa de colisão) e um ninja de pedra em pé em cima, com uma faixa na cor
+ * da vila e a placa com o símbolo dela. Contorno escuro e 3 tons, luz vindo de cima à esquerda.
+ */
+function drawStatue(g, x, y, w, h, village) {
+  // desenhada no tamanho de referência (pedestal de 35 unidades) e ampliada para o pedestal de verdade
+  const k = w / 35, cx = x + w / 2, foot = y + h;
+  const C = VILLAGE_COLORS[village] || VILLAGE_COLORS.vila_1;
+  // o estandarte da vila atrás, à direita: mastro e pano grande na cor da vila (a cor se vê de longe)
+  const mx = x + w + 2, top = foot - 30 * k - 46 * k;
+  fr(g, STATUE.out, mx - 1.5, top - 1, 3, foot - top);
+  fr(g, '#6a4a2a', mx - 0.8, top, 1.6, foot - top - 1);
+  fr(g, GOLD.mid, mx - 2.2, top - 2.5, 4.4, 2.5);
+  const bw = 11 * k, bh = 30 * k;
+  g.fillStyle = STATUE.out;
+  g.beginPath(); g.moveTo(mx + 1, top + 2); g.lineTo(mx + 2 + bw, top + 2); g.lineTo(mx + 2 + bw, top + bh); g.lineTo(mx + 1.5 + bw / 2, top + bh - 5 * k); g.lineTo(mx + 1, top + bh); g.closePath(); g.fill();
+  g.fillStyle = C.band[1];
+  g.beginPath(); g.moveTo(mx + 1.8, top + 2.8); g.lineTo(mx + 1.2 + bw, top + 2.8); g.lineTo(mx + 1.2 + bw, top + bh - 1.5); g.lineTo(mx + 1.5 + bw / 2, top + bh - 6 * k); g.lineTo(mx + 1.8, top + bh - 1.5); g.closePath(); g.fill();
+  fr(g, C.band[0], mx + 1.2 + bw - 2.5, top + 2.8, 2.5, bh - 6);
+  fr(g, C.band[2], mx + 1.8, top + 2.8, 1.2, bh - 6);
+  g.save();
+  g.translate(cx, foot); g.scale(k, k); g.translate(-cx, -foot);
+  statueBody(g, cx - 17.5, foot - h / k, 35, h / k, C);
+  g.restore();
+}
+
+function statueBody(g, x, y, w, h, C) {
+  const cx = x + w / 2, foot = y + h;
+  g.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  g.beginPath(); g.ellipse(cx + 2, foot + 1, w * 0.62, 4, 0, 0, Math.PI * 2); g.fill();
+  // pedestal: tampo, face da frente, cantos e a placa da vila
+  const top = 7, ph = h + 10;
+  fr(g, STATUE.out, x - 1, foot - ph - 1, w + 2, ph + 2);
+  fr(g, STATUE.mid, x, foot - ph + top, w, ph - top);
+  fr(g, STATUE.dark, x + w - 4, foot - ph + top, 4, ph - top);
+  fr(g, STATUE.light, x, foot - ph, w, top);
+  fr(g, STATUE.hi, x, foot - ph, w, FINE * 2);
+  fr(g, STATUE.dark, x, foot - ph + top, w, FINE * 2);
+  fr(g, STATUE.out, x + 2, foot - 3, w - 4, FINE * 2);                               // rodapé
+  const px = cx - 6, py = foot - ph + top + 3;
+  fr(g, STATUE.out, px - 0.6, py - 0.6, 13.2, 9.2);
+  fr(g, C.band[1], px, py, 12, 8);
+  fr(g, C.band[2], px, py, 12, FINE * 2);
+  g.fillStyle = C.band[0]; g.strokeStyle = C.band[0]; g.lineWidth = 1.1;
+  const mx = cx, my = py + 4;
+  g.beginPath();
+  if (C.mark === 'leaf') { g.ellipse(mx, my, 3.2, 1.8, -0.6, 0, Math.PI * 2); g.fill(); }
+  else if (C.mark === 'wave') { g.moveTo(mx - 4, my + 1); g.quadraticCurveTo(mx - 2, my - 2, mx, my + 1); g.quadraticCurveTo(mx + 2, my + 3, mx + 4, my); g.stroke(); }
+  else if (C.mark === 'bolt') { g.moveTo(mx + 1, my - 3); g.lineTo(mx - 2, my + 0.5); g.lineTo(mx + 0.5, my + 0.5); g.lineTo(mx - 1, my + 3.2); g.lineTo(mx + 2.5, my - 0.6); g.lineTo(mx, my - 0.6); g.closePath(); g.fill(); }
+  else { g.arc(mx, my, 2, 0, Math.PI * 2); g.fill(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; fr(g, C.band[0], mx + Math.cos(a) * 3.4 - 0.5, my + Math.sin(a) * 3.4 - 0.5, 1, 1); } }
+  // o ninja de pedra (de pé, braços cruzados, faixa da vila no pescoço esvoaçando)
+  const base = foot - ph, sh = 46;                 // altura da figura
+  const part = (pts, fill) => {
+    g.beginPath(); pts.forEach(([u, v], i) => (i ? g.lineTo(cx + u, base - v) : g.moveTo(cx + u, base - v))); g.closePath();
+    g.fillStyle = fill; g.fill();
+  };
+  const outline = (fn) => { g.save(); g.translate(0.8, 0.8); fn(STATUE.out); g.translate(-1.6, -1.6); fn(STATUE.out); g.restore(); fn(null); };
+  const body = (o) => {
+    part([[-6, 0], [-5, 17], [-9, 30], [-7, 33], [7, 33], [9, 30], [5, 17], [6, 0]], o || STATUE.mid);                       // pernas e manto
+    part([[-9, 30], [-8, 22], [8, 22], [9, 30]], o || STATUE.light);                                                         // braços cruzados
+    g.beginPath(); g.arc(cx, base - 39, 6.5, 0, Math.PI * 2); g.fillStyle = o || STATUE.mid; g.fill();                       // cabeça
+  };
+  outline(body);
+  part([[1, 0], [2, 17], [5, 17], [6, 0]], STATUE.dark);                     // sombra do lado direito
+  part([[2, 22], [8, 22], [9, 30], [3, 30]], STATUE.mid);
+  g.beginPath(); g.arc(cx + 1.5, base - 38.5, 5, -0.9, 1.6); g.fillStyle = STATUE.dark; g.fill();
+  g.beginPath(); g.arc(cx - 2.2, base - 41, 2.2, 0, Math.PI * 2); g.fillStyle = STATUE.hi; g.fill();
+  fr(g, STATUE.hi, cx - 8, base - 30, 6, FINE * 2);
+  fr(g, STATUE.dark, cx - 5, base - 17, 10, FINE * 2);                         // cinto
+  fr(g, STATUE.out, cx - 6.5, base - 42.5, 13, 3);                             // bandana
+  fr(g, C.band[2], cx - 2, base - 42.2, 4, 2.2);                               // placa da bandana na cor da vila
+  // faixa da vila no pescoço, esvoaçando para a direita
+  g.fillStyle = STATUE.out;
+  g.beginPath(); g.moveTo(cx - 6, base - 33.5); g.lineTo(cx + 6, base - 33.5); g.lineTo(cx + 15, base - 29); g.lineTo(cx + 13, base - 26); g.lineTo(cx + 5, base - 30); g.lineTo(cx - 6, base - 30); g.closePath(); g.fill();
+  g.fillStyle = C.band[1];
+  g.beginPath(); g.moveTo(cx - 5.5, base - 33); g.lineTo(cx + 5.5, base - 33); g.lineTo(cx + 14, base - 28.8); g.lineTo(cx + 12.8, base - 26.8); g.lineTo(cx + 5, base - 30.6); g.lineTo(cx - 5.5, base - 30.6); g.closePath(); g.fill();
+  fr(g, C.band[2], cx - 5, base - 33, 9, FINE * 2);
+  fr(g, C.band[0], cx - 5.5, base - 31.4, 11, FINE * 2);
+}
+
+/**
+ * Arquibancada do Vale: degraus de pedra com assento de madeira, do fundo (mais alto e escuro) para a frente. Só
+ * desenho no chão: a plateia anda por cima.
+ */
+function drawStands(g, x, y, w, h) {
+  // revisão EGM: degraus de verdade. Cada degrau tem o assento (face de cima, madeira clara) e o espelho (face da
+  // frente, pedra escura); o de trás é mais alto e mais escuro. No degrau de trás, as flâmulas das 4 vilas.
+  const rows = 3, rh = h / rows;
+  g.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  g.fillRect(x - 1, y - 1, w + 2, h + 3);
+  for (let i = 0; i < rows; i++) {
+    const ry = y + i * rh;
+    const seat = rh * 0.38, riser = rh - seat;
+    const wood = [['#4a301c', '#5e3c22', '#7a5030'], ['#5a3a20', '#70462a', '#8e5e38'], ['#6a4426', '#84532f', '#a26c40']][i];
+    const stone = [['#3a3a30', '#46463b'], ['#45453a', '#535345'], ['#505044', '#5e5e50']][i];
+    fr(g, STATUE.out, x, ry, w, rh);
+    fr(g, wood[1], x + 0.5, ry + 0.5, w - 1, seat);                              // assento
+    fr(g, wood[2], x + 0.5, ry + 0.5, w - 1, FINE * 3);
+    fr(g, wood[0], x + 0.5, ry + seat - FINE * 2, w - 1, FINE * 2);
+    for (let bx = x + 9; bx < x + w - 3; bx += 12) fr(g, wood[0], bx, ry + 0.5, FINE * 2, seat);   // tábuas
+    fr(g, stone[1], x + 0.5, ry + seat + 0.5, w - 1, riser - 1);                   // espelho de pedra
+    fr(g, stone[0], x + 0.5, ry + rh - 2, w - 1, 1.5);
+    for (let bx = x + 4; bx < x + w - 4; bx += 8) fr(g, stone[0], bx, ry + seat + 1.5, FINE * 2, riser - 3);   // juntas
+  }
+  const colors = [['#5a8a34', '#9ac25a'], ['#3f6f8f', '#8cc0d8'], ['#b8962e', '#f0d46a'], ['#b0642e', '#e8a66a']];
+  for (let i = 0, px = x + 8; px < x + w - 6; px += 22, i++) {                     // flâmulas no degrau de trás
+    const [c, l] = colors[i % 4];
+    fr(g, STATUE.out, px - 0.6, y - 9, 1.6, 10);
+    g.fillStyle = STATUE.out;
+    g.beginPath(); g.moveTo(px + 0.5, y - 9.5); g.lineTo(px + 8.5, y - 6.5); g.lineTo(px + 0.5, y - 3.2); g.closePath(); g.fill();
+    g.fillStyle = c;
+    g.beginPath(); g.moveTo(px + 1, y - 8.6); g.lineTo(px + 7, y - 6.5); g.lineTo(px + 1, y - 4.2); g.closePath(); g.fill();
+    fr(g, l, px + 1, y - 8.6, 3, FINE * 2);
+  }
+}
+
+/**
+ * v29 (pedido do Victor): arquibancada de LADO da arena. As fileiras correm de cima a baixo; a de trás (longe da
+ * arena) é mais alta e mais escura. `left`: fica à esquerda da arena (a frente dá para a direita).
+ */
+function drawStandsSide(g, x, y, w, h, left) {
+  const rows = 3, rw = w / rows;
+  g.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  g.fillRect(x - 1, y - 1, w + 2, h + 3);
+  for (let i = 0; i < rows; i++) {
+    const back = left ? i : rows - 1 - i;                 // 0 = fileira de trás
+    const rx = x + i * rw, seat = rw * 0.55, riser = rw - seat;
+    const wood = [['#4a301c', '#5e3c22', '#7a5030'], ['#5a3a20', '#70462a', '#8e5e38'], ['#6a4426', '#84532f', '#a26c40']][back];
+    const stone = [['#3a3a30', '#46463b'], ['#45453a', '#535345'], ['#505044', '#5e5e50']][back];
+    fr(g, STATUE.out, rx, y, rw, h);
+    const sx = left ? rx + 0.5 : rx + riser, fx = left ? rx + seat : rx + 0.5;
+    fr(g, wood[1], sx, y + 0.5, seat - 0.5, h - 1);                       // assento
+    fr(g, wood[2], sx, y + 0.5, seat - 0.5, FINE * 3);
+    fr(g, wood[2], sx, y + 0.5, FINE * 3, h - 1);
+    for (let by = y + 9; by < y + h - 3; by += 12) fr(g, wood[0], sx, by, seat - 0.5, FINE * 2);   // tábuas
+    fr(g, stone[1], fx, y + 0.5, riser - 0.5, h - 1);                     // espelho de pedra (a frente)
+    for (let by = y + 4; by < y + h - 4; by += 8) fr(g, stone[0], fx, by, riser - 0.5, FINE * 2);
+    fr(g, 'rgba(0, 0, 0, 0.25)', left ? fx + riser - 1.5 : fx, y + 0.5, 1, h - 1);
+  }
+  const colors = [['#5a8a34', '#9ac25a'], ['#3f6f8f', '#8cc0d8'], ['#b8962e', '#f0d46a'], ['#b0642e', '#e8a66a']];
+  const px = left ? x + 1.5 : x + w - 1.5;
+  for (let i = 0, py = y + 10; py < y + h - 6; py += 40, i++) {          // flâmulas na fileira de trás
+    const [c, l] = colors[i % 4];
+    fr(g, STATUE.out, px - 0.8, py - 10, 1.6, 11);
+    g.fillStyle = STATUE.out;
+    g.beginPath(); g.moveTo(px, py - 10.5); g.lineTo(px + (left ? 8 : -8), py - 7.5); g.lineTo(px, py - 4.2); g.closePath(); g.fill();
+    g.fillStyle = c;
+    g.beginPath(); g.moveTo(px + (left ? 0.5 : -0.5), py - 9.6); g.lineTo(px + (left ? 6.5 : -6.5), py - 7.5); g.lineTo(px + (left ? 0.5 : -0.5), py - 5.2); g.closePath(); g.fill();
+    fr(g, l, px + (left ? 0.5 : -3.5), py - 9.6, 3, FINE * 2);
+  }
+}
+
+export const PROP_KINDS = new Set(['tree', 'deadtree', 'oak', 'seal', 'tent', 'statue']);
 
 export function propExtent(wall) {
   switch (wall.k) {
@@ -1135,6 +1298,7 @@ export function propExtent(wall) {
     case 'oak': return { left: 0.6, right: 0.6, top: 0.6, bottom: 0.4 };
     case 'seal': return { left: 0.3, right: 0.3, top: 1.0, bottom: 0.3 };
     case 'tent': return { left: 0.4, right: 0.5, top: 0.3, bottom: 0.45 };
+    case 'statue': return { left: 0.6, right: 1.2, top: 4.6, bottom: 0.4 };
     default: return { left: 0.2, right: 0.2, top: 0.5, bottom: 0.3 };
   }
 }
@@ -1148,6 +1312,7 @@ export function drawProp(g, wall, x, y, w, h, tile) {
     case 'oak': return drawOakTrunk(g, x, y, w, h);
     case 'seal': return drawSeal(g, x, y, w, h, wall.s !== 'out');
     case 'tent': return drawTent(g, x, y, w, h, Math.abs(seed));
+    case 'statue': return drawStatue(g, x, y, w, h, wall.s);
     default: return undefined;
   }
 }
@@ -2002,6 +2167,7 @@ export function drawChakraField(g, x, y, w, h, now) {
 /** Bancos, rosa dos ventos no chão, lanternas de pedra, vasos, tapete e capacho. O telhado do portão é à parte. */
 export function drawDeco(g, d, x, y, w, h) {
   switch (d.k) {
+    case 'stands': return h > w ? drawStandsSide(g, x, y, w, h, d.x < 22) : drawStands(g, x, y, w, h);
     case 'rug': {                                     // tapete vermelho com barra dourada
       rect(g, '#5e1712', x, y, w, h);
       rect(g, '#9e2a22', x + 3, y + 3, w - 6, h - 6);
