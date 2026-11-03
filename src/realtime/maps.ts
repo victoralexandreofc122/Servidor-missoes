@@ -27,7 +27,7 @@ import type { Box } from './movement.js';
 export type Edge = 'east' | 'west' | 'north' | 'south';
 export type MapId = 'map_1' | 'map_2' | 'interior_weapons' | 'interior_clothes' | 'interior_scrolls' | 'academy_interior'
   | 'vila_nevoa' | 'vila_nuvem' | 'vila_areia' | 'zona_conflito' | 'refugio'
-  | 'caverna_lodo' | 'clareira_queimada' | 'poco';
+  | 'caverna_lodo' | 'clareira_queimada' | 'poco' | 'vale_estatuas';
 /** Tema de cores do mapa (chão, telhados e enfeites; ver public/mapArt.js). */
 export type MapTheme = 'folha' | 'nevoa' | 'nuvem' | 'areia' | 'conflito' | 'refugio';
 /** As 3 lojas com interior (o NPC lojista manda `shop_open` com isto). */
@@ -145,6 +145,8 @@ export interface Exit {
 export interface Arena extends Box {
   village: Village;
   respawn: { x: number; y: number };
+  /** v29: a arena do modo rankeado (Vale das Estátuas): só lutam os dois da partida da fila. */
+  ranked?: boolean;
 }
 
 /** Zona de caça com nome (docs/mapas.md, 3.3), o monstro dela e o peso no sorteio. */
@@ -162,6 +164,8 @@ export interface MapLayout {
   /** Refúgio dos Renegados: só renegado entra. */
   refuge?: boolean;
   /** Zona de Conflito: PvP livre (menos aliados), com ranking. */
+  /** v29: o Vale das Estátuas (modo rankeado): sem clima, PvP só na arena e só entre os dois da partida. */
+  ranked?: boolean;
   conflict?: boolean;
   /** Tema de cores (desenho). */
   theme?: MapTheme;
@@ -1262,6 +1266,66 @@ function refuge(): MapLayout {
   };
 }
 
+/**
+ * Vale das Estátuas (44 x 36, v29): o mapa do modo rankeado, onde se encontram os ninjas de todas as vilas. No meio,
+ * a arena cercada (fechada: só os dois da partida entram, levados pelo servidor); em volta, a praça de pedra onde a
+ * fila espera e assiste, com as estátuas das vilas nos cantos. Tudo é zona segura, menos dentro da cerca.
+ *
+ *   ████████████████████████████████████████████
+ *   █   ◆ estátua                    estátua ◆  █
+ *   █        ┌──────── cerca ────────┐          █
+ *   █        │  A      arena      B  │          █   luta 19 x 13 casas
+ *   █        └───────────────────────┘          █
+ *   █   ◆                                   ◆   █
+ *   █              chegada  (fila)              █
+ *   ████████████████████████████████████████████
+ */
+export const VALE = {
+  width: 44, height: 36,
+  fence: { x: 12, y: 8, w: 20, h: 14 },
+  thickness: 0.5,
+  /** Onde se chega (e para onde voltam os dois quando a partida acaba). */
+  spawn: { x: 22, y: 27 },
+  /** Onde cada lado começa cada rodada (dentro da cerca). */
+  start: { a: { x: 15.5, y: 15 }, b: { x: 28.5, y: 15 } },
+} as const;
+
+export function valeFightBox(): Box {
+  const f = VALE.fence, t = VALE.thickness;
+  return { x: f.x + t, y: f.y + t, w: f.w - 2 * t, h: f.h - 2 * t };
+}
+
+function vale(): MapLayout {
+  const { width: W, height: H } = VALE;
+  const f = VALE.fence, t = VALE.thickness;
+  const walls: Wall[] = [
+    wall('rock', 0, 0, W, 2), wall('rock', 0, H - 2, W, 2), wall('rock', 0, 2, 2, H - 4), wall('rock', W - 2, 2, 2, H - 4),
+    // a cerca fechada: ninguém entra nem sai andando (o servidor leva os dois da partida)
+    wall('fence', f.x, f.y, f.w, t), wall('fence', f.x, f.y + f.h - t, f.w, t),
+    wall('fence', f.x, f.y + t, t, f.h - 2 * t), wall('fence', f.x + f.w - t, f.y + t, t, f.h - 2 * t),
+    // as estátuas das vilas nos cantos da praça
+    wall('pillar', 6, 5, 1.6, 2, 'arena'), wall('pillar', 36.4, 5, 1.6, 2, 'arena'),
+    wall('pillar', 6, 25, 1.6, 2, 'arena'), wall('pillar', 36.4, 25, 1.6, 2, 'arena'),
+    tree(4, 31), tree(40, 31), tree(4, 12), tree(40, 12),
+  ];
+  const fight = valeFightBox();
+  return {
+    id: 'vale_estatuas', name: 'Vale das Estátuas', kind: 'wild', theme: 'folha', ranked: true, width: W, height: H, safe: true, walls,
+    exits: [], doors: [],
+    areas: [area('stone', 2, 2, W - 4, H - 4), area('arena', f.x, f.y, f.w, f.h)],
+    deco: [
+      deco('banner', f.x - 1.2, f.y - 1.2), deco('banner', f.x + f.w + 0.2, f.y - 1.2),
+      deco('banner', f.x - 1.2, f.y + f.h + 0.2), deco('banner', f.x + f.w + 0.2, f.y + f.h + 0.2),
+    ],
+    arenas: [{ ...fight, village: 'vila_1', respawn: { ...VALE.spawn }, ranked: true }],
+    // zona segura: tudo, menos dentro da cerca
+    safeZones: [
+      { x: 0, y: 0, w: W, h: f.y }, { x: 0, y: f.y + f.h, w: W, h: H - f.y - f.h },
+      { x: 0, y: f.y, w: f.x, h: f.h }, { x: f.x + f.w, y: f.y, w: W - f.x - f.w, h: f.h },
+    ],
+  };
+}
+
 /** Todos os mapas, por id. */
 export function buildMaps(): Record<MapId, MapLayout> {
   const [weapons, clothes, scrolls] = SHOPS;
@@ -1271,7 +1335,7 @@ export function buildMaps(): Record<MapId, MapLayout> {
     zona_conflito: conflictZone(), refugio: refuge(),
     caverna_lodo: cave(), clareira_queimada: burnedClearing(), poco: well(),
     interior_weapons: interior(weapons), interior_clothes: interior(clothes), interior_scrolls: interior(scrolls),
-    academy_interior: academy(),
+    academy_interior: academy(), vale_estatuas: vale(),
   };
 }
 
