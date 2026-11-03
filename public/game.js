@@ -68,7 +68,7 @@ const ui = {
   evalPanel: $('eval-panel'), evalText: $('eval-text'), evalStars: $('eval-stars'), evalApprove: $('eval-approve'), evalReject: $('eval-reject'),
   login: $('login'), loginForm: $('login-form'), loginError: $('login-error'), loginSubmit: $('login-submit'),
   toggleMode: $('toggle-mode'), usernameField: $('username-field'), passwordHint: $('password-hint'),
-  rotate: $('rotate'), rotateDismiss: $('rotate-dismiss'), safeProbe: $('safe-probe'),
+  rotate: $('rotate'), safeProbe: $('safe-probe'),
   hpFill: $('hp-fill'), hpText: $('hp-text'), chakraFill: $('chakra-fill'), chakraText: $('chakra-text'),
   targetBtn: $('target-btn'), meditateBtn: $('meditate-btn'), talkBtn: $('talk-btn'),
   shopPanel: $('shop-panel'), shopClose: $('shop-close'), shopIcon: $('shop-icon'), shopName: $('shop-name'),
@@ -4226,13 +4226,30 @@ function requestLandscape() {
     .catch(() => { /* sem suporte: segue normal */ });
 }
 
-let rotateDismissed = false;
+// v29 (pedido do Victor): no celular o jogo é só deitado (em pé, o aviso cobre a tela até girar).
 function checkOrientation() {
   const portrait = innerHeight > innerWidth;
   const touch = matchMedia('(pointer: coarse)').matches;
-  ui.rotate.hidden = !(portrait && touch && !rotateDismissed && !ui.hud.hidden);
+  ui.rotate.hidden = !(portrait && touch && !ui.hud.hidden);
 }
-ui.rotateDismiss.addEventListener('click', () => { rotateDismissed = true; checkOrientation(); });
+
+// Botão ⛶: entra e sai da tela cheia (para ir a outro site e voltar). Some onde não há tela cheia (iPhone).
+const fsButton = document.getElementById('fullscreen-toggle');
+const fsLabel = document.getElementById('fullscreen-label');
+function renderFullscreen() {
+  fsButton.hidden = !document.documentElement.requestFullscreen;
+  fsLabel.textContent = document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia';
+}
+fsButton.addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else {
+    document.documentElement.requestFullscreen({ navigationUI: 'hide' })
+      .then(() => screen.orientation?.lock?.('landscape'))
+      .catch(() => {});
+  }
+});
+document.addEventListener('fullscreenchange', renderFullscreen);
+renderFullscreen();
 
 // iOS ignora user-scalable=no: bloqueia o gesto de pinça na mão.
 document.addEventListener('gesturestart', (e) => e.preventDefault());
