@@ -44,7 +44,7 @@ import {
   type EffectBag, type EffectCode,
 } from './effects.js';
 import { NO_CLASS, PvpStats, reportText, toClassRows } from './pvpStats.js';
-import { DUEL, addDamage, advance, endRound, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, timeoutWinner, type DuelMatch, type QueueEntry, type Side } from './duel.js';
+import { DUEL, leavePenalty, addDamage, advance, endRound, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, timeoutWinner, type DuelMatch, type QueueEntry, type Side } from './duel.js';
 import {
   VALE, ACADEMY, REFUGE, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
   type MapLayout,
@@ -533,6 +533,9 @@ export class GameWorld {
   private duel: DuelMatch | null = null;
   private duelSeq = 0;
   private readonly rankedReturn = new Map<string, { map: MapId; x: number; y: number }>();
+  /** v29 (revisão EGM): saídas de partida (castigo na fila) e o último adversário de cada um (fila evita repetir). */
+  private readonly rankedLeaves = new Map<string, { count: number; firstAt: number; until: number }>();
+  private readonly rankedLast = new Map<string, string>();
   private readonly rankedStore: RankedStore | undefined;
   private rankedReady = false;
   private rankedTimer: NodeJS.Timeout | undefined;
@@ -3311,7 +3314,10 @@ export class GameWorld {
     if (action === 'queue') {
       if (this.duel && sideOf(this.duel, s.id)) return;
       if (s.level < DUEL.minLevel) return this.notice(s.id, `O rankeado abre no nível ${DUEL.minLevel}.`, 'bad');
-      if (!this.rankedQueue.some((e) => e.id === s.id)) this.rankedQueue.push({ id: s.id, level: s.level, joinedAt: t, skips: 0 });
+      const pen = this.rankedLeaves.get(s.id);
+      if (pen && t < pen.until) return this.notice(s.id, `Você saiu de uma partida: espere ${Math.ceil((pen.until - t) / 1000)} s para entrar na fila de novo.`, 'bad');
+      const last = this.rankedLast.get(s.id);
+      if (!this.rankedQueue.some((e) => e.id === s.id)) this.rankedQueue.push({ id: s.id, level: s.level, joinedAt: t, skips: 0, ...(last ? { last } : {}) });
       this.sendQueues();
       return;
     }
@@ -3336,8 +3342,22 @@ export class GameWorld {
     const d = this.duel;
     const side = d ? sideOf(d, s.id) : null;
     if (d && side && d.phase !== 'done') {
-      forfeit(d, side, this.now());
-      this.duelFinished(d);
+      const t = this.now();
+      // castigo: fica fora da fila por um tempo que dobra a cada saída no dia
+      const prev = this.rankedLeaves.get(s.id);
+      const count = prev && t - prev.firstAt < 86_400_000 ? prev.count + 1 : 1;
+      this.rankedLeaves.set(s.id, { count, firstAt: prev && count > 1 ? prev.firstAt : t, until: t + leavePenalty(count) });
+      if (d.phase === 'prep') {
+        // saiu na preparação: a partida é cancelada, sem pontos para ninguém; o outro volta para a frente da fila
+        const otherId = d[other(side)];
+        this.duelClose(d);
+        this.notice(otherId, 'O adversário saiu antes da luta: partida cancelada, sem pontos. Você volta para a fila.', 'info');
+        const o = this.duelSession(otherId);
+        if (o) this.rankedQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0 });
+      } else {
+        forfeit(d, side, t);
+        this.duelFinished(d);
+      }
     }
     if (before !== this.rankedQueue.length) this.sendQueues();
   }
@@ -3360,6 +3380,8 @@ export class GameWorld {
       if (!pick) return;
       this.rankedQueue = pick.rest;
       const m = newMatch(++this.duelSeq, pick.a, pick.b, t);
+      this.rankedLast.set(pick.a, pick.b);
+      this.rankedLast.set(pick.b, pick.a);
       this.duel = m;
       this.duelPlace(m, t);
       this.sendQueues();
@@ -3425,6 +3447,11 @@ export class GameWorld {
     this.log.info({ match: d.id, winner: winnerId, loser: loserId, reason: d.reason, wins: d.wins }, 'rankeado: partida acabou');
     const store = this.rankedReady ? this.rankedStore : undefined;
     if (!store) return;
+    if (d.matchDamage.a + d.matchDamage.b === 0) {
+      // ninguém causou dano: não conta (evita combinar resultado)
+      for (const id of [winnerId, loserId]) this.notice(id, 'Partida sem nenhum dano: não conta pontos.', 'info');
+      return;
+    }
     // v15: grava a partida e mexe nos pontos (fora do loop); depois avisa os dois.
     const input = {
       winnerId, loserId, winnerRounds: d.wins[d.winner], loserRounds: d.wins[other(d.winner)], reason: d.reason ?? 'rounds',
@@ -3433,7 +3460,10 @@ export class GameWorld {
     store.result(input).then((r) => {
       const tell = (id: string, won: boolean) => {
         const s = this.sessions.get(id);
-        if (s) this.sendTo(s, { type: 'duel_rating', counted: r.counted, delta: won ? r.winnerDelta : r.loserDelta, mmr: won ? r.winnerMmr : r.loserMmr, won });
+        if (!s) return;
+        const ryo = won ? r.winnerRyo : r.loserRyo;
+        this.sendTo(s, { type: 'duel_rating', counted: r.counted, delta: won ? r.winnerDelta : r.loserDelta, mmr: won ? r.winnerMmr : r.loserMmr, won, ryo });
+        if (ryo > 0) { s.ryo += ryo; this.sendInventory(s); }
       };
       tell(winnerId, true);
       tell(loserId, false);

@@ -26,6 +26,9 @@ export interface RankedResult {
   loserDelta: number;
   winnerMmr: number;
   loserMmr: number;
+  /** Ryō da partida (30 para quem vence, 10 para quem perde, só quando contou). */
+  winnerRyo: number;
+  loserRyo: number;
 }
 
 export interface RankedRow { position: number; playerId: string; username: string; village: Village | null; level: number; mmr: number; wins: number; losses: number }
@@ -49,7 +52,7 @@ export interface RankedStore {
 
 export const RANKED_SQL = {
   available: `SELECT to_regclass('game.ranked_matches') IS NOT NULL AS ok`,
-  result: `SELECT counted, winner_delta, loser_delta, winner_mmr, loser_mmr FROM game.ranked_result($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+  result: `SELECT counted, winner_delta, loser_delta, winner_mmr, loser_mmr, winner_ryo, loser_ryo FROM game.ranked_result($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
   season: `SELECT id, ends_at FROM game.ranked_seasons WHERE closed_at IS NULL`,
   top: `
     SELECT row_number() OVER (ORDER BY r.mmr DESC, r.wins DESC, r.player_id)::int AS position, r.player_id, p.username, p.village,
@@ -80,10 +83,13 @@ export function makeRankedStore(db: Db): RankedStore {
       return (await db.query<{ ok: boolean }>(RANKED_SQL.available)).rows[0]?.ok === true;
     },
     async result(m) {
-      const r = (await db.query<{ counted: boolean; winner_delta: number; loser_delta: number; winner_mmr: number; loser_mmr: number }>(RANKED_SQL.result, [
+      const r = (await db.query<{ counted: boolean; winner_delta: number; loser_delta: number; winner_mmr: number; loser_mmr: number; winner_ryo: number; loser_ryo: number }>(RANKED_SQL.result, [
         m.winnerId, m.loserId, m.winnerRounds, m.loserRounds, m.reason, Math.round(m.durationMs), m.balanceVersion, JSON.stringify(m.rounds),
       ])).rows[0]!;
-      return { counted: r.counted, winnerDelta: r.winner_delta, loserDelta: r.loser_delta, winnerMmr: r.winner_mmr, loserMmr: r.loser_mmr };
+      return {
+        counted: r.counted, winnerDelta: r.winner_delta, loserDelta: r.loser_delta, winnerMmr: r.winner_mmr, loserMmr: r.loser_mmr,
+        winnerRyo: r.winner_ryo, loserRyo: r.loser_ryo,
+      };
     },
     async board(playerId, limit) {
       const s = (await db.query<{ id: number; ends_at: string }>(RANKED_SQL.season)).rows[0];

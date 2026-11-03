@@ -566,7 +566,7 @@ export type ServerMessage =
   // v29: modo rankeado. A fila (só para quem está nela) e o estado da partida da arena (para todos no Vale).
   | { type: 'duel_queue'; queued: boolean; position: number; size: number }
   // v29 (migração v15): os pontos de quem lutou depois da partida, e o painel do ranking.
-  | { type: 'duel_rating'; counted: boolean; delta: number; mmr: number; won: boolean }
+  | { type: 'duel_rating'; counted: boolean; delta: number; mmr: number; won: boolean; ryo: number }
   | { type: 'ranked_board'; available: boolean; season?: { id: number; endsAt: number } | null; top?: RankedRowView[]; me?: RankedRowView | null;
       overall?: { mmr: number; best: number; wins: number; losses: number } | null }
   | { type: 'duel_state'; phase: 'idle' | 'prep' | 'round' | 'interval' | 'done'; ms: number; round: number; wins: { a: number; b: number };

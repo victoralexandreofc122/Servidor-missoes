@@ -82,6 +82,7 @@ describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
     for (const p of [a!, b!, c!, d!]) { p.send({ type: 'ranked', action: 'enter' }); p.send({ type: 'ranked', action: 'queue' }); }
     run(REALTIME.tickMs);
     assert.deepEqual(c!.conn.last('duel_queue'), { type: 'duel_queue', queued: true, position: 1, size: 2 });
+    run(DUEL.prepMs);
     b!.send({ type: 'ranked', action: 'leave' });
     const st = c!.conn.last('duel_state');
     assert.equal(st.phase, 'done');
@@ -109,7 +110,7 @@ describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
     const calls: RankedMatchInput[] = [];
     const fake: RankedStore = {
       async available() { return true; },
-      async result(m) { calls.push(m); return { counted: true, winnerDelta: 18, loserDelta: -8, winnerMmr: 1018, loserMmr: 992 }; },
+      async result(m) { calls.push(m); return { counted: true, winnerDelta: 18, loserDelta: -8, winnerMmr: 1018, loserMmr: 992, winnerRyo: 30, loserRyo: 10 }; },
       async board() { return { season: { id: 1, endsAt: 0 }, top: [], me: null, overall: null }; },
       async closeSeason() { return null; },
     };
@@ -136,10 +137,39 @@ describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0]!.winnerId, a.id);
     assert.deepEqual([calls[0]!.winnerRounds, calls[0]!.loserRounds, calls[0]!.reason, calls[0]!.rounds.length], [2, 0, 'rounds', 2]);
-    assert.deepEqual(a.conn.last('duel_rating'), { type: 'duel_rating', counted: true, delta: 18, mmr: 1018, won: true });
-    assert.deepEqual(b.conn.last('duel_rating'), { type: 'duel_rating', counted: true, delta: -8, mmr: 992, won: false });
+    assert.deepEqual(a.conn.last('duel_rating'), { type: 'duel_rating', counted: true, delta: 18, mmr: 1018, won: true, ryo: 30 });
+    assert.deepEqual(b.conn.last('duel_rating'), { type: 'duel_rating', counted: true, delta: -8, mmr: 992, won: false, ryo: 10 });
     a.send({ type: 'ranked', action: 'board' });
     await new Promise((r) => setImmediate(r));
     assert.equal(a.conn.last('ranked_board').available, true);
+  });
+
+  it('anti-abuso: sair na preparação cancela sem pontos; quem sai fica fora da fila por um tempo', () => {
+    const { world: w, join, run } = world();
+    const a = join('kaito');
+    const b = join('mei');
+    for (const p of [a, b]) { p.send({ type: 'ranked', action: 'enter' }); p.send({ type: 'ranked', action: 'queue' }); }
+    run(REALTIME.tickMs);
+    b.send({ type: 'ranked', action: 'leave' });
+    assert.equal(a.conn.last('duel_state').phase, 'idle', 'cancelada');
+    assert.deepEqual(a.conn.last('duel_queue'), { type: 'duel_queue', queued: true, position: 1, size: 1 }, 'o outro volta para a frente da fila');
+    b.send({ type: 'ranked', action: 'enter' });
+    b.send({ type: 'ranked', action: 'queue' });
+    assert.match(b.conn.last('notice').text, /espere/);
+    run(DUEL.leavePenaltyMs);
+    b.send({ type: 'ranked', action: 'queue' });
+    assert.equal(b.conn.last('duel_queue').queued, true);
+    void w;
+  });
+
+  it('a fila evita repetir a mesma dupla em seguida quando há outra pessoa', async () => {
+    const { takeMatch } = await import('../src/realtime/duel.js');
+    const m = takeMatch([
+      { id: 'a', level: 10, joinedAt: 0, skips: 0, last: 'b' },
+      { id: 'b', level: 10, joinedAt: 1, skips: 0, last: 'a' },
+      { id: 'c', level: 30, joinedAt: 2, skips: 0 },
+    ])!;
+    assert.equal(m.b, 'c');
+    assert.equal(takeMatch([{ id: 'a', level: 10, joinedAt: 0, skips: 0, last: 'b' }, { id: 'b', level: 10, joinedAt: 1, skips: 0 }])!.b, 'b', 'sem mais ninguém, a dupla repete');
   });
 });
