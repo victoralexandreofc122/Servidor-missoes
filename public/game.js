@@ -718,7 +718,10 @@ function handleMessage(msg) {
           ui.duelBannerPoints.appendChild(tierBadge(msg.mmr));
         } else showToast(`${msg.won ? 'Vitória' : 'Derrota'} · ${sign}${msg.delta} pontos (${msg.mmr})`, 4500);
         addSystemLine(`🏆 Rankeado: ${sign}${msg.delta} pontos. Agora você tem ${msg.mmr}.`);
-      } else addSystemLine('🏆 Rankeado: esta partida não contou pontos (mesma dupla 3 vezes hoje, nível muito diferente ou conta de admin).');
+      } else {
+        addSystemLine('🏆 Rankeado: esta partida não contou pontos (mesma dupla 3 vezes hoje, nível muito diferente ou conta de admin).');
+        if (!ui.duelBanner.hidden) ui.duelBannerPoints.textContent = 'Não contou pontos (dupla repetida hoje, nível ou admin)';
+      }
       break;
     case 'ranked_board':
       renderRankedBoard(msg);
@@ -1953,10 +1956,11 @@ function tierBadge(mmr) {
 
 /** A faixa grande no meio da tela no fim da partida (só para quem lutou). Os pontos chegam depois (duel_rating). */
 let bannerTimer = 0;
-function showDuelBanner(won, score, points) {
+function showDuelBanner(won, score, points, voided = false) {
   ui.duelBanner.hidden = false;
-  ui.duelBanner.classList.toggle('lose', !won);
-  ui.duelBannerTitle.textContent = won ? 'VITÓRIA' : 'DERROTA';
+  ui.duelBanner.classList.toggle('lose', !won && !voided);
+  ui.duelBanner.classList.toggle('void', voided);
+  ui.duelBannerTitle.textContent = voided ? 'PARTIDA ANULADA' : won ? 'VITÓRIA' : 'DERROTA';
   ui.duelBannerScore.textContent = score;
   ui.duelBannerPoints.textContent = points || '';
   clearTimeout(bannerTimer);
@@ -1993,13 +1997,13 @@ function renderDuel() {
   // Sentar só em cima da arquibancada; sentado: Assistir / Parar de assistir
   const stands = !fighting && (state.sitting || onStands());
   ui.duelWatchBtn.hidden = !stands;
-  ui.duelWatchBtn.textContent = !state.sitting ? '🪑 Sentar' : state.watchArena ? '✋ Parar de assistir' : '👁 Assistir a luta';
+  ui.duelWatchBtn.textContent = !state.sitting ? '🪑 Sentar' : state.watchArena ? '✋ Parar' : '👁 Assistir';
   state.onStands = onStands();
   document.body.classList.toggle('in-vale', inVale);
   if (fighting) state.watchArena = false;
   if (!inVale) ui.rankedPanel.hidden = true;
   ui.duelBtn.classList.toggle('queued', !!q?.queued);
-  ui.duelBtn.textContent = q?.queued ? `Na fila: ${q.position}º de ${q.size} · Cancelar` : `⚔️ Desafio${q?.size ? ` (${q.size} na fila)` : ''}`;
+  ui.duelBtn.textContent = q?.queued ? `Fila: ${q.position}º · Cancelar` : '⚔️ Desafio';
   if (!inVale) return;
   const side = (el, v, wins, isMe) => {
     el.name.textContent = v ? v.name : '?';
@@ -2019,8 +2023,9 @@ function tickDuelClock() {
   const idle = !d || d.phase === 'idle';
   ui.duelHud.classList.toggle('duel-idle', idle);
   if (idle) {
-    ui.duelPhase.textContent = 'Arena livre';
-    ui.duelClock.textContent = d?.queue ? `${d.queue} na fila` : 'Aperte Desafio';
+    const q = d?.queue || state.duelQueue?.size || 0;
+    ui.duelPhase.textContent = q === 1 ? '1 esperando adversário' : q > 1 ? `${q} na fila` : 'Arena livre';
+    ui.duelClock.textContent = q === 1 && !state.duelQueue?.queued ? 'Aperte Desafio!' : q ? 'Aguardando' : 'Aperte Desafio';
     return;
   }
   // a vida dos dois no placar (para quem assiste de longe)
@@ -2035,7 +2040,7 @@ function tickDuelClock() {
   ui.duelPhase.textContent = names[d.phase] || '';
   if (d.phase === 'done') {
     const w = d.winner ? d[d.winner] : null;
-    ui.duelClock.textContent = w ? `${w.name} venceu` : 'Empate';
+    ui.duelClock.textContent = d.voided ? 'Anulada' : w ? `${w.name} venceu` : 'Empate';
   } else ui.duelClock.textContent = String(secs);
 }
 setInterval(() => {
@@ -2058,6 +2063,7 @@ function renderRankedBoard(msg) {
   ui.rankedMe.textContent = me ? `Você: ${me.position}º · ${me.mmr} pontos · ${me.wins}V ${me.losses}D` + (all ? ` · recorde ${all.best} ` : ' ')
     : 'Você ainda não lutou nesta temporada. Aperte Desafio!';
   if (me) ui.rankedMe.appendChild(tierBadge(me.mmr));
+  if (me && me.wins + me.losses < 10) ui.rankedMe.append(` · ${me.wins + me.losses}/10 partidas para entrar na premiação`);
   // barra até a próxima faixa
   const mmr = me ? me.mmr : all ? all.mmr : null;
   ui.rankedProgress.hidden = mmr === null;
@@ -2108,7 +2114,11 @@ function duelAnnounce(msg) {
   else if (msg.phase === 'done' && prev?.phase !== 'done') {
     const w = msg.winner ? msg[msg.winner] : null;
     if (w) addSystemLine(msg.reason === 'forfeit' ? `🏆 Rankeado: ${w.name} venceu (o outro saiu).` : `🏆 Rankeado: ${w.name} venceu por ${Math.max(msg.wins.a, msg.wins.b)} a ${Math.min(msg.wins.a, msg.wins.b)}.`);
-    if (mine && w) showDuelBanner(msg.winner === mine, msg.reason === 'forfeit' ? (msg.winner === mine ? 'O adversário saiu' : 'Você saiu da partida') : `${Math.max(msg.wins.a, msg.wins.b)} x ${Math.min(msg.wins.a, msg.wins.b)}`);
+    if (mine && w) {
+      const won = msg.winner === mine;
+      if (msg.voided) showDuelBanner(won, 'Ninguém causou dano: não conta pontos', '', true);
+      else showDuelBanner(won, msg.reason === 'forfeit' ? (won ? 'Vitória por W.O.: o adversário saiu' : 'Você saiu da partida') : `${Math.max(msg.wins.a, msg.wins.b)} x ${Math.min(msg.wins.a, msg.wins.b)}`, 'Calculando os pontos…');
+    }
   }
 }
 

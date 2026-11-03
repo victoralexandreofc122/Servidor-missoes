@@ -389,14 +389,20 @@ body.in-vale #tracker { display: none; }
 .duel-mid span { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; }
 .duel-mid b { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .duel-banner {
-  position: absolute; left: 50%; top: 32%; transform: translate(-50%, -50%); z-index: 8; pointer-events: none;
-  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 44px 16px;
-  background: linear-gradient(180deg, rgba(20, 14, 8, 0.0), rgba(20, 14, 8, 0.85) 25%, rgba(20, 14, 8, 0.85) 75%, rgba(20, 14, 8, 0));
+  /* revisão EGM: faixa com moldura dourada, acima do lutador (não em cima dele) */
+  position: absolute; left: 50%; top: 24%; transform: translate(-50%, -50%); z-index: 8; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 40px 16px; min-width: 300px;
+  background: linear-gradient(180deg, #3a2a16, #1f160c); border: 3px solid #c49a45; border-radius: 6px;
+  box-shadow: 0 0 0 2px #1a120a, inset 0 0 0 2px #7a5a22, 0 8px 24px rgba(0, 0, 0, 0.6);
   color: #fff3d6; text-shadow: 0 2px 0 #000; animation: duel-pop 0.35s ease-out;
 }
 .duel-banner[hidden] { display: none; }
 .duel-banner b { font-size: 46px; letter-spacing: 6px; line-height: 1; color: #ffd76a; }
-.duel-banner.lose b { color: #d9d2c4; }
+.duel-banner.lose { background: linear-gradient(180deg, #1e2a36, #10161e); border-color: #6f8aa6; box-shadow: 0 0 0 2px #0a0e14, inset 0 0 0 2px #3a4c60, 0 8px 24px rgba(0, 0, 0, 0.6); }
+.duel-banner.lose b { color: #c8d6e4; }
+.duel-banner.void { background: linear-gradient(180deg, #33332e, #1c1c19); border-color: #8a8a80; }
+.duel-banner.void b { color: #c9c9bd; font-size: 34px; }
+body.in-vale .toast { top: calc(var(--safe-top) + 146px); }
 .duel-banner span { font-size: 15px; }
 @keyframes duel-pop { from { transform: translate(-50%, -50%) scale(1.4); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
 .rank-tier { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 700; line-height: 16px; color: #1a140c; }

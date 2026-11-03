@@ -1135,7 +1135,7 @@ const VILLAGE_COLORS = {
   vila_4: { band: ['#5a4614', '#b8962e', '#f0d46a'], mark: 'bolt' },
   vila_5: { band: ['#5a2e14', '#b0642e', '#e8a66a'], mark: 'sun' },
 };
-const STATUE = { out: '#1b1916', dark: '#4e4a43', mid: '#77716a', light: '#a49d92', hi: '#cfc8ba' };
+const STATUE = { out: '#1b1a15', dark: '#4a4a3e', mid: '#6e6d5e', light: '#9a9884', hi: '#c4c1a8' };   // pedra cinza-oliva (revisão EGM)
 
 /**
  * Estátua de uma vila: pedestal de pedra (a caixa de colisão) e um ninja de pedra em pé em cima, com uma faixa na cor
@@ -1176,11 +1176,18 @@ function statueBody(g, x, y, w, h, C) {
   fr(g, STATUE.hi, x, foot - ph, w, FINE * 2);
   fr(g, STATUE.dark, x, foot - ph + top, w, FINE * 2);
   fr(g, STATUE.out, x + 2, foot - 3, w - 4, FINE * 2);                               // rodapé
+  // degrau de baixo (chanfro) e musgo na base
+  fr(g, STATUE.out, x - 2.5, foot - 3.5, w + 5, 3.5);
+  fr(g, STATUE.dark, x - 2, foot - 3, w + 4, 2.5);
+  fr(g, STATUE.light, x - 2, foot - 3, w + 4, FINE * 2);
+  for (let i = 0; i < 6; i++) fr(g, i % 2 ? '#4f6a2e' : '#5f7a36', x - 1 + (i * w) / 5.5, foot - 3.6 - (i % 3), 2.5 + (i % 2), 1.2);
+  // placa gravada (baixo-relevo): pedra escura com o símbolo na cor da vila
   const px = cx - 6, py = foot - ph + top + 3;
   fr(g, STATUE.out, px - 0.6, py - 0.6, 13.2, 9.2);
-  fr(g, C.band[1], px, py, 12, 8);
-  fr(g, C.band[2], px, py, 12, FINE * 2);
-  g.fillStyle = C.band[0]; g.strokeStyle = C.band[0]; g.lineWidth = 1.1;
+  fr(g, STATUE.dark, px, py, 12, 8);
+  fr(g, STATUE.hi, px, py + 8, 12, FINE * 2);
+  fr(g, '#2a2a22', px, py, 12, FINE * 2);
+  g.fillStyle = C.band[1]; g.strokeStyle = C.band[1]; g.lineWidth = 1.1;
   const mx = cx, my = py + 4;
   g.beginPath();
   if (C.mark === 'leaf') { g.ellipse(mx, my, 3.2, 1.8, -0.6, 0, Math.PI * 2); g.fill(); }
@@ -1213,8 +1220,9 @@ function statueBody(g, x, y, w, h, C) {
   // braços cruzados no peito
   shape([[-10.5, 27], [-11, 20.5], [11, 20.5], [10.5, 27]], STATUE.light, -2, 5);
   fr(g, STATUE.out, cx - 10, base - 24, 20, 0.9);
-  g.fillStyle = STATUE.hi; g.beginPath(); g.arc(cx - 8.5, base - 23.5, 1.6, 0, Math.PI * 2); g.fill();   // mão
-  g.fillStyle = STATUE.mid; g.beginPath(); g.arc(cx + 8.5, base - 23.5, 1.6, 0, Math.PI * 2); g.fill();
+  // ombreiras (no lugar das mãos redondas, que pareciam parafusos)
+  shape([[-11.5, 31.5], [-12, 27.5], [-7, 27.5], [-6.5, 31.5]], STATUE.light);
+  shape([[6.5, 31.5], [7, 27.5], [12, 27.5], [11.5, 31.5]], STATUE.dark);
   // pescoço e cachecol na frente
   fr(g, STATUE.out, cx - 6, base - 33.5, 12, 3.6);
   fr(g, C.band[1], cx - 5.4, base - 33, 10.8, 2.6);
@@ -1289,14 +1297,18 @@ function drawStandsSide(g, x, y, w, h, left) {
   for (let i = 0; i < rows; i++) {
     const back = left ? i : rows - 1 - i;                 // 0 = fileira de trás
     const rx = x + i * rw, seat = rw * 0.55, riser = rw - seat;
-    const wood = [['#4a301c', '#5e3c22', '#7a5030'], ['#5a3a20', '#70462a', '#8e5e38'], ['#6a4426', '#84532f', '#a26c40']][back];
-    const stone = [['#3a3a30', '#46463b'], ['#45453a', '#535345'], ['#505044', '#5e5e50']][back];
+    // revisão EGM: degrau de pedra oliva (topo claro, frente 2 tons mais escura) e só o assento em madeira apagada
+    const wood = [['#3e3226', '#4e4032', '#625240'], ['#463a2c', '#584838', '#6e5c48'], ['#4e4032', '#625040', '#7a6650']][back];
+    const stone = [['#3e3e33', '#56564a'], ['#4a4a3e', '#626254'], ['#55554a', '#6e6d5e']][back];
     fr(g, STATUE.out, rx, y, rw, h);
     const sx = left ? rx + 0.5 : rx + riser, fx = left ? rx + seat : rx + 0.5;
-    fr(g, wood[1], sx, y + 0.5, seat - 0.5, h - 1);                       // assento
-    fr(g, wood[2], sx, y + 0.5, seat - 0.5, FINE * 3);
-    fr(g, wood[2], sx, y + 0.5, FINE * 3, h - 1);
-    for (let by = y + 9; by < y + h - 3; by += 12) fr(g, wood[0], sx, by, seat - 0.5, FINE * 2);   // tábuas
+    fr(g, stone[1], sx, y + 0.5, seat - 0.5, h - 1);                      // topo do degrau (pedra)
+    fr(g, '#8a8874', sx, y + 0.5, FINE * 3, h - 1);
+    const pad = seat * 0.22;
+    fr(g, STATUE.out, sx + pad - 0.5, y + 2, seat - 2 * pad + 0.5, h - 4);   // assento de madeira em cima
+    fr(g, wood[1], sx + pad, y + 2.5, seat - 2 * pad - 0.5, h - 5);
+    fr(g, wood[2], sx + pad, y + 2.5, FINE * 3, h - 5);
+    for (let by = y + 9; by < y + h - 3; by += 12) fr(g, wood[0], sx + pad, by, seat - 2 * pad - 0.5, FINE * 2);   // tábuas
     fr(g, stone[1], fx, y + 0.5, riser - 0.5, h - 1);                     // espelho de pedra (a frente)
     for (let by = y + 4; by < y + h - 4; by += 8) fr(g, stone[0], fx, by, riser - 0.5, FINE * 2);
     fr(g, 'rgba(0, 0, 0, 0.25)', left ? fx + riser - 1.5 : fx, y + 0.5, 1, h - 1);

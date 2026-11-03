@@ -3556,6 +3556,7 @@ export class GameWorld {
       type: 'duel_state', phase: d.phase, ms: Math.max(0, d.until - this.now()), round: d.round, wins: { ...d.wins },
       ...(a ? { a } : {}), ...(b ? { b } : {}), history: [...d.history], queue: this.rankedQueue.length,
       ...(d.winner ? { winner: d.winner } : {}), ...(d.reason ? { reason: d.reason } : {}),
+      ...(d.phase === 'done' && d.matchDamage.a + d.matchDamage.b === 0 ? { voided: true } : {}),
     };
   }
 

@@ -574,7 +574,8 @@ export type ServerMessage =
   | { type: 'ranked_board'; available: boolean; season?: { id: number; endsAt: number } | null; top?: RankedRowView[]; me?: RankedRowView | null;
       overall?: { mmr: number; best: number; wins: number; losses: number } | null }
   | { type: 'duel_state'; phase: 'idle' | 'prep' | 'round' | 'interval' | 'done'; ms: number; round: number; wins: { a: number; b: number };
-      a?: DuelSideView; b?: DuelSideView; history: ('a' | 'b')[]; winner?: 'a' | 'b'; reason?: 'rounds' | 'forfeit'; queue: number }
+      a?: DuelSideView; b?: DuelSideView; history: ('a' | 'b')[]; winner?: 'a' | 'b'; reason?: 'rounds' | 'forfeit'; queue: number;
+      /** v29: a partida acabou sem nenhum dano (não conta pontos). */ voided?: boolean }
   | { type: 'arena_result'; winnerId: string; winner: string; loserId: string; loser: string; winnerRecord: ArenaRecord; loserRecord: ArenaRecord }
   | { type: 'player_respawned'; playerId: string; x: number; y: number; hp: number; maxHp: number }
   | { type: 'xp'; gained: number; totalXp: number; rank: RankView; promoted: boolean }
