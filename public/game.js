@@ -68,7 +68,7 @@ const ui = {
   evalPanel: $('eval-panel'), evalText: $('eval-text'), evalStars: $('eval-stars'), evalApprove: $('eval-approve'), evalReject: $('eval-reject'),
   login: $('login'), loginForm: $('login-form'), loginError: $('login-error'), loginSubmit: $('login-submit'),
   toggleMode: $('toggle-mode'), usernameField: $('username-field'), passwordHint: $('password-hint'),
-  rotate: $('rotate'), rotateDismiss: $('rotate-dismiss'), safeProbe: $('safe-probe'),
+  rotate: $('rotate'), safeProbe: $('safe-probe'),
   hpFill: $('hp-fill'), hpText: $('hp-text'), chakraFill: $('chakra-fill'), chakraText: $('chakra-text'),
   targetBtn: $('target-btn'), meditateBtn: $('meditate-btn'), talkBtn: $('talk-btn'),
   shopPanel: $('shop-panel'), shopClose: $('shop-close'), shopIcon: $('shop-icon'), shopName: $('shop-name'),
@@ -716,9 +716,19 @@ function handleMessage(msg) {
         if (!ui.duelBanner.hidden) {
           ui.duelBannerPoints.textContent = `${sign}${msg.delta} pontos · ${msg.mmr}${msg.ryo ? ` · +${msg.ryo} ryō` : ''} `;
           ui.duelBannerPoints.appendChild(tierBadge(msg.mmr));
+          // subiu ou caiu de faixa: aviso grande com o selo
+          const before = rankTier(msg.mmr - msg.delta).name, now = rankTier(msg.mmr).name;
+          if (before !== now) {
+            const up = msg.delta > 0;
+            ui.duelBannerScore.textContent = up ? `Subiu para ${now.toUpperCase()}!` : `Caiu para ${now}`;
+            ui.duelBanner.classList.toggle('tier-up', up);
+          }
         } else showToast(`${msg.won ? 'Vitória' : 'Derrota'} · ${sign}${msg.delta} pontos (${msg.mmr})`, 4500);
         addSystemLine(`🏆 Rankeado: ${sign}${msg.delta} pontos. Agora você tem ${msg.mmr}.`);
-      } else addSystemLine('🏆 Rankeado: esta partida não contou pontos (mesma dupla 3 vezes hoje, nível muito diferente ou conta de admin).');
+      } else {
+        addSystemLine('🏆 Rankeado: esta partida não contou pontos (mesma dupla 3 vezes hoje, nível muito diferente ou conta de admin).');
+        if (!ui.duelBanner.hidden) ui.duelBannerPoints.textContent = 'Não contou pontos (dupla repetida hoje, nível ou admin)';
+      }
       break;
     case 'ranked_board':
       renderRankedBoard(msg);
@@ -1953,10 +1963,11 @@ function tierBadge(mmr) {
 
 /** A faixa grande no meio da tela no fim da partida (só para quem lutou). Os pontos chegam depois (duel_rating). */
 let bannerTimer = 0;
-function showDuelBanner(won, score, points) {
+function showDuelBanner(won, score, points, voided = false) {
   ui.duelBanner.hidden = false;
-  ui.duelBanner.classList.toggle('lose', !won);
-  ui.duelBannerTitle.textContent = won ? 'VITÓRIA' : 'DERROTA';
+  ui.duelBanner.classList.toggle('lose', !won && !voided);
+  ui.duelBanner.classList.toggle('void', voided);
+  ui.duelBannerTitle.textContent = voided ? 'PARTIDA ANULADA' : won ? 'VITÓRIA' : 'DERROTA';
   ui.duelBannerScore.textContent = score;
   ui.duelBannerPoints.textContent = points || '';
   clearTimeout(bannerTimer);
@@ -1993,13 +2004,16 @@ function renderDuel() {
   // Sentar só em cima da arquibancada; sentado: Assistir / Parar de assistir
   const stands = !fighting && (state.sitting || onStands());
   ui.duelWatchBtn.hidden = !stands;
-  ui.duelWatchBtn.textContent = !state.sitting ? '🪑 Sentar' : state.watchArena ? '✋ Parar de assistir' : '👁 Assistir a luta';
+  ui.duelWatchBtn.textContent = !state.sitting ? '🪑 Sentar' : state.watchArena ? '✋ Parar' : '👁 Assistir';
   state.onStands = onStands();
   document.body.classList.toggle('in-vale', inVale);
   if (fighting) state.watchArena = false;
   if (!inVale) ui.rankedPanel.hidden = true;
   ui.duelBtn.classList.toggle('queued', !!q?.queued);
-  ui.duelBtn.textContent = q?.queued ? `Na fila: ${q.position}º de ${q.size} · Cancelar` : `⚔️ Desafio${q?.size ? ` (${q.size} na fila)` : ''}`;
+  const busy = !!d && d.phase !== 'idle' && !fighting;
+  ui.duelBtn.classList.toggle('busy', busy && !q?.queued);
+  ui.duelBtn.textContent = q?.queued ? `Fila: ${q.position}º · Cancelar` : busy ? '⚔️ Entrar na fila' : '⚔️ Desafio';
+  document.body.classList.toggle('duel-fighting', fighting && d.phase !== 'done');
   if (!inVale) return;
   const side = (el, v, wins, isMe) => {
     el.name.textContent = v ? v.name : '?';
@@ -2016,11 +2030,14 @@ function renderDuel() {
 function tickDuelClock() {
   const d = state.duel;
   if (ui.duelHud.hidden) return;
-  const idle = !d || d.phase === 'idle';
+  // revisão EGM: enquanto a faixa de vitória/derrota está na tela, o placar segura o "Fim"
+  const idle = (!d || d.phase === 'idle') && ui.duelBanner.hidden;
+  if (!idle && (!d || d.phase === 'idle')) return;
   ui.duelHud.classList.toggle('duel-idle', idle);
   if (idle) {
-    ui.duelPhase.textContent = 'Arena livre';
-    ui.duelClock.textContent = d?.queue ? `${d.queue} na fila` : 'Aperte Desafio';
+    const q = d?.queue || state.duelQueue?.size || 0;
+    ui.duelPhase.textContent = q === 1 ? '1 esperando adversário' : q > 1 ? `${q} na fila` : 'Arena livre';
+    ui.duelClock.textContent = q === 1 && !state.duelQueue?.queued ? 'Aperte Desafio!' : q ? 'Aguardando' : 'Aperte Desafio';
     return;
   }
   // a vida dos dois no placar (para quem assiste de longe)
@@ -2035,7 +2052,7 @@ function tickDuelClock() {
   ui.duelPhase.textContent = names[d.phase] || '';
   if (d.phase === 'done') {
     const w = d.winner ? d[d.winner] : null;
-    ui.duelClock.textContent = w ? `${w.name} venceu` : 'Empate';
+    ui.duelClock.textContent = d.voided ? 'Anulada' : w ? `${w.name} venceu` : 'Empate';
   } else ui.duelClock.textContent = String(secs);
 }
 setInterval(() => {
@@ -2056,8 +2073,9 @@ function renderRankedBoard(msg) {
   const me = msg.me;
   const all = msg.overall;
   ui.rankedMe.textContent = me ? `Você: ${me.position}º · ${me.mmr} pontos · ${me.wins}V ${me.losses}D` + (all ? ` · recorde ${all.best} ` : ' ')
-    : 'Você ainda não lutou nesta temporada. Aperte Desafio!';
+    : 'Você ainda não lutou nesta temporada (0/10 partidas para entrar na premiação). Aperte Desafio!';
   if (me) ui.rankedMe.appendChild(tierBadge(me.mmr));
+  if (me && me.wins + me.losses < 10) ui.rankedMe.append(` · ${me.wins + me.losses}/10 partidas para entrar na premiação`);
   // barra até a próxima faixa
   const mmr = me ? me.mmr : all ? all.mmr : null;
   ui.rankedProgress.hidden = mmr === null;
@@ -2107,8 +2125,13 @@ function duelAnnounce(msg) {
   } else if (msg.phase === 'round' && prev?.phase !== 'round' && mine) showToast(`Rodada ${msg.round}: lute!`, 1800);
   else if (msg.phase === 'done' && prev?.phase !== 'done') {
     const w = msg.winner ? msg[msg.winner] : null;
-    if (w) addSystemLine(msg.reason === 'forfeit' ? `🏆 Rankeado: ${w.name} venceu (o outro saiu).` : `🏆 Rankeado: ${w.name} venceu por ${Math.max(msg.wins.a, msg.wins.b)} a ${Math.min(msg.wins.a, msg.wins.b)}.`);
-    if (mine && w) showDuelBanner(msg.winner === mine, msg.reason === 'forfeit' ? (msg.winner === mine ? 'O adversário saiu' : 'Você saiu da partida') : `${Math.max(msg.wins.a, msg.wins.b)} x ${Math.min(msg.wins.a, msg.wins.b)}`);
+    if (msg.voided) addSystemLine(`⚖️ Rankeado: partida anulada (ninguém causou dano).`);
+    else if (w) addSystemLine(msg.reason === 'forfeit' ? `🏆 Rankeado: ${w.name} venceu (o outro saiu).` : `🏆 Rankeado: ${w.name} venceu por ${Math.max(msg.wins.a, msg.wins.b)} a ${Math.min(msg.wins.a, msg.wins.b)}.`);
+    if (mine && w) {
+      const won = msg.winner === mine;
+      if (msg.voided) showDuelBanner(won, 'Ninguém causou dano: não conta pontos', '', true);
+      else showDuelBanner(won, msg.reason === 'forfeit' ? (won ? 'Vitória por W.O.: o adversário saiu' : 'Você saiu da partida') : `${Math.max(msg.wins.a, msg.wins.b)} x ${Math.min(msg.wins.a, msg.wins.b)}`, 'Calculando os pontos…');
+    }
   }
 }
 
@@ -4226,13 +4249,30 @@ function requestLandscape() {
     .catch(() => { /* sem suporte: segue normal */ });
 }
 
-let rotateDismissed = false;
+// v29 (pedido do Victor): no celular o jogo é só deitado (em pé, o aviso cobre a tela até girar).
 function checkOrientation() {
   const portrait = innerHeight > innerWidth;
   const touch = matchMedia('(pointer: coarse)').matches;
-  ui.rotate.hidden = !(portrait && touch && !rotateDismissed && !ui.hud.hidden);
+  ui.rotate.hidden = !(portrait && touch && !ui.hud.hidden);
 }
-ui.rotateDismiss.addEventListener('click', () => { rotateDismissed = true; checkOrientation(); });
+
+// Botão ⛶: entra e sai da tela cheia (para ir a outro site e voltar). Some onde não há tela cheia (iPhone).
+const fsButton = document.getElementById('fullscreen-toggle');
+const fsLabel = document.getElementById('fullscreen-label');
+function renderFullscreen() {
+  fsButton.hidden = !document.documentElement.requestFullscreen;
+  fsLabel.textContent = document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia';
+}
+fsButton.addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else {
+    document.documentElement.requestFullscreen({ navigationUI: 'hide' })
+      .then(() => screen.orientation?.lock?.('landscape'))
+      .catch(() => {});
+  }
+});
+document.addEventListener('fullscreenchange', renderFullscreen);
+renderFullscreen();
 
 // iOS ignora user-scalable=no: bloqueia o gesto de pinça na mão.
 document.addEventListener('gesturestart', (e) => e.preventDefault());
@@ -4637,8 +4677,12 @@ function valeSlabTile(seed, cracked = false) {
     const r = rng(seed);
     g.fillStyle = '#2f3128';                                      // junta
     g.fillRect(0, 0, U, U);
-    const cut = 6 + Math.floor(r() * 5);
-    const slabs = seed % 2 ? [[0, 0, U, cut], [0, cut, U, U - cut]] : [[0, 0, cut, U], [cut, 0, U - cut, U]];
+    const cut = 5 + Math.floor(r() * 7);
+    const kind = seed % 4;
+    const slabs = kind === 0 ? [[0, 0, U, cut], [0, cut, U, U - cut]]
+      : kind === 1 ? [[0, 0, cut, U], [cut, 0, U - cut, U]]
+        : kind === 2 ? [[0, 0, cut, 9], [cut, 0, U - cut, 9], [0, 9, U, U - 9]]
+          : [[0, 0, U, U]];
     for (const [x, y, w, h] of slabs) {
       const tone = ['#6a6a5a', '#727160', '#646454'][Math.floor(r() * 3)];
       g.fillStyle = tone;
@@ -4651,9 +4695,10 @@ function valeSlabTile(seed, cracked = false) {
       g.fillRect(x + w - 1.5, y + 0.5, 1, h - 1);
       for (let i = 0; i < (w * h) / 22; i++) fine(g, r() < 0.5 ? '#5c5c4d' : '#7c7a66', x + 1 + r() * (w - 2), y + 1 + r() * (h - 2), PX * 2, PX);
     }
-    for (let i = 0; i < 3; i++) fine(g, r() < 0.5 ? '#4f6a2e' : '#5f7a36', r() * U, seed % 2 ? cut - 0.6 : r() * U, PX * (2 + Math.floor(r() * 3)), PX * 2);   // musgo nas juntas
+    const moss = seed % 3 === 0 ? 7 : 2;
+    for (let i = 0; i < moss; i++) fine(g, r() < 0.5 ? '#4f6a2e' : '#5f7a36', r() * U, kind === 0 ? cut - 0.6 : r() * U, PX * (2 + Math.floor(r() * 3)), PX * 2);   // musgo nas juntas
     if (cracked) {
-      g.strokeStyle = '#3a3b31'; g.lineWidth = PX * 2;
+      g.strokeStyle = '#4a4b40'; g.lineWidth = PX;
       g.beginPath(); g.moveTo(3, 2); g.lineTo(6, 6); g.lineTo(5, 9); g.lineTo(8, 13); g.stroke();
     }
   });
@@ -4778,7 +4823,8 @@ const TILES = {
   burnt: [burntTile(131), burntTile(132), burntTile(133)],
   pebbles: [pebblesTile(141), pebblesTile(142)],
   lodo: [lodoTile(151)],
-  slab: [valeSlabTile(201), valeSlabTile(202), valeSlabTile(203), valeSlabTile(204, true)],
+  // 9 lajes diferentes (cortes, tons, musgo, uma rachada, uma inteira): o chão do Vale não fica carimbado
+  slab: [201, 202, 203, 205, 206, 207, 208, 209].map((n) => valeSlabTile(n)).concat([valeSlabTile(204, true)]),
   sand: [sandTile(41), sandTile(42)],
   desert: [desertTile(161), desertTile(162), desertTile(163)],
   packedSand: [packedSandTile(191), packedSandTile(192), packedSandTile(193)],                 // Areia: chão da arena                                // Areia: os gramados
@@ -4830,7 +4876,7 @@ function tileAt(x, y) {
     case 'burnt': return TILES.burnt[h % 3];                       // Acampamento e Clareira Queimada
     case 'pebbles': return TILES.pebbles[h & 1];                   // leito seco da cachoeira
     case 'lodo': return TILES.lodo[0];
-    case 'slab': return TILES.slab[h % 5 === 0 ? 3 : h % 3];      // Vale das Estátuas: lajes com musgo
+    case 'slab': return TILES.slab[h % 31 === 0 ? 8 : (h >>> 3) % 8];   // Vale das Estátuas: lajes com musgo
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
     case 'arena':                                                  // arena da vila: lajes, losango a cada 4 (na Areia, terra batida)
@@ -6666,6 +6712,7 @@ function drawLights(toScreenX, toScreenY, T, viewW, viewH, now) {
   if (!lights.length && !boxes.length) return;
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
+  if (skyClock()?.phase === 'dia') ctx.globalAlpha = 0.4;   // revisão EGM: de dia as luzes quase não aparecem
   for (const l of lights) {
     const x = toScreenX(l.x), y = toScreenY(l.y);
     if (x < -T * 3 || x > viewW + T * 3 || y < -T * 3 || y > viewH + T * 3) continue;
@@ -6886,10 +6933,13 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
   const foe = !isMe && (state.inArena || inConflict()) && isFoe(p);   // arena e Zona de Conflito: adversário em vermelho
   // Fim de jogo: 👑 Kage, ☁ Akatsuki, renegado em violeta, aliado em verde na Zona e a recompensa pela cabeça.
   const style = factionStyle(state.endgame, state.players.get(state.meId), p, inConflict());
-  const nameY = headTop - 5 - (isMe ? 2 : 7);
+  // revisão EGM: dois ninjas colados (rankeado) não escondem o nome um do outro: o segundo sobe uma linha
+  const crowd = [...state.players.values()].some((q) => q !== p && q.map === p.map && !q.dead && q.id < p.id
+    && Math.abs(q.x - p.x) < 1 && Math.abs(q.y - p.y) < 0.9) ? fontSize + 6 : 0;
+  const nameY = headTop - 5 - (isMe ? 2 : 7) - crowd;
   const label = `${style.prefix}${p.username}`;
   const tw = ctx.measureText(label).width;
-  const plateBottom = !isMe && !p.dead ? headTop - 3 : nameY + 1;
+  const plateBottom = (!isMe && !p.dead ? headTop - 3 : nameY + crowd + 1) - crowd;
   ctx.fillStyle = 'rgba(10, 13, 26, 0.62)';
   roundRect(sx - tw / 2 - 6, nameY - fontSize - 1, tw + 12, plateBottom - (nameY - fontSize - 1), 4);
   ctx.fill();

@@ -1104,7 +1104,8 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     case 'furniture': return drawFurniture(g, x, y, w, h, wall.s, Math.abs(seed));
     case 'pit': return wall.s === 'chasm' ? drawChasm(g, x, y, w, h, Math.abs(seed)) : drawPit(g, x, y, w, h);
     case 'fence': return drawFence(g, x, y, w, h, tile, wall);
-    case 'pillar': return wall.s === 'arena' ? drawArenaBlock(g, x, y, w, h, wall.t === 'areia' ? SAND_SLATE : STONE_SLATE) : drawPillar(g, x, y, w, h);
+    case 'pillar': if (wall.s === 'vale') return drawValeWall(g, x, y, w, h);
+      return wall.s === 'arena' ? drawArenaBlock(g, x, y, w, h, wall.t === 'areia' ? SAND_SLATE : STONE_SLATE) : drawPillar(g, x, y, w, h);
     case 'gate': return drawClosedGate(g, x, y, w, h);
     // Arco 1 (docs/mapas.md)
     case 'seal': return drawSeal(g, x, y, w, h, wall.s !== 'out');
@@ -1135,7 +1136,7 @@ const VILLAGE_COLORS = {
   vila_4: { band: ['#5a4614', '#b8962e', '#f0d46a'], mark: 'bolt' },
   vila_5: { band: ['#5a2e14', '#b0642e', '#e8a66a'], mark: 'sun' },
 };
-const STATUE = { out: '#1b1916', dark: '#4e4a43', mid: '#77716a', light: '#a49d92', hi: '#cfc8ba' };
+const STATUE = { out: '#1b1a15', dark: '#4a4a3e', mid: '#6e6d5e', light: '#9a9884', hi: '#c4c1a8' };   // pedra cinza-oliva (revisão EGM)
 
 /**
  * Estátua de uma vila: pedestal de pedra (a caixa de colisão) e um ninja de pedra em pé em cima, com uma faixa na cor
@@ -1172,49 +1173,88 @@ function statueBody(g, x, y, w, h, C) {
   fr(g, STATUE.out, x - 1, foot - ph - 1, w + 2, ph + 2);
   fr(g, STATUE.mid, x, foot - ph + top, w, ph - top);
   fr(g, STATUE.dark, x + w - 4, foot - ph + top, 4, ph - top);
-  fr(g, STATUE.light, x, foot - ph, w, top);
+  fr(g, STATUE.light, x, foot - ph, w, top);                                        // topo mais claro que a frente
   fr(g, STATUE.hi, x, foot - ph, w, FINE * 2);
+  fr(g, STATUE.hi, x, foot - ph + top - FINE * 2, w, FINE * 2);                    // chanfro claro na aresta
+  fr(g, STATUE.light, x, foot - ph + top, w * 0.35, ph - top - 3);                 // luz na esquerda da frente
   fr(g, STATUE.dark, x, foot - ph + top, w, FINE * 2);
   fr(g, STATUE.out, x + 2, foot - 3, w - 4, FINE * 2);                               // rodapé
+  // degrau de baixo (chanfro) e musgo na base
+  fr(g, STATUE.out, x - 2.5, foot - 3.5, w + 5, 3.5);
+  fr(g, STATUE.dark, x - 2, foot - 3, w + 4, 2.5);
+  fr(g, STATUE.light, x - 2, foot - 3, w + 4, FINE * 2);
+  for (let i = 0; i < 6; i++) fr(g, i % 2 ? '#4f6a2e' : '#5f7a36', x - 1 + (i * w) / 5.5, foot - 3.6 - (i % 3), 2.5 + (i % 2), 1.2);
+  // placa gravada (baixo-relevo): pedra escura com o símbolo na cor da vila
   const px = cx - 6, py = foot - ph + top + 3;
   fr(g, STATUE.out, px - 0.6, py - 0.6, 13.2, 9.2);
-  fr(g, C.band[1], px, py, 12, 8);
-  fr(g, C.band[2], px, py, 12, FINE * 2);
-  g.fillStyle = C.band[0]; g.strokeStyle = C.band[0]; g.lineWidth = 1.1;
+  fr(g, STATUE.dark, px, py, 12, 8);
+  fr(g, STATUE.hi, px, py + 8, 12, FINE * 2);
+  fr(g, '#2a2a22', px, py, 12, FINE * 2);
+  g.fillStyle = C.band[1]; g.strokeStyle = C.band[1]; g.lineWidth = 1.1;
   const mx = cx, my = py + 4;
   g.beginPath();
   if (C.mark === 'leaf') { g.ellipse(mx, my, 3.2, 1.8, -0.6, 0, Math.PI * 2); g.fill(); }
   else if (C.mark === 'wave') { g.moveTo(mx - 4, my + 1); g.quadraticCurveTo(mx - 2, my - 2, mx, my + 1); g.quadraticCurveTo(mx + 2, my + 3, mx + 4, my); g.stroke(); }
   else if (C.mark === 'bolt') { g.moveTo(mx + 1, my - 3); g.lineTo(mx - 2, my + 0.5); g.lineTo(mx + 0.5, my + 0.5); g.lineTo(mx - 1, my + 3.2); g.lineTo(mx + 2.5, my - 0.6); g.lineTo(mx, my - 0.6); g.closePath(); g.fill(); }
   else { g.arc(mx, my, 2, 0, Math.PI * 2); g.fill(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; fr(g, C.band[0], mx + Math.cos(a) * 3.4 - 0.5, my + Math.sin(a) * 3.4 - 0.5, 1, 1); } }
-  // o ninja de pedra (de pé, braços cruzados, faixa da vila no pescoço esvoaçando)
-  const base = foot - ph, sh = 46;                 // altura da figura
-  const part = (pts, fill) => {
-    g.beginPath(); pts.forEach(([u, v], i) => (i ? g.lineTo(cx + u, base - v) : g.moveTo(cx + u, base - v))); g.closePath();
-    g.fillStyle = fill; g.fill();
+  // o ninja de pedra (v29, revisão EGM): de pé, pernas abertas, colete, braços cruzados, cabelo espetado, bandana
+  // com a placa e o cachecol na cor da vila esvoaçando. Cada parte com contorno escuro e 3 tons (luz à esquerda).
+  const base = foot - ph;
+  const P = (pts) => { g.beginPath(); pts.forEach(([u, v], i) => (i ? g.lineTo(cx + u, base - v) : g.moveTo(cx + u, base - v))); g.closePath(); };
+  const shape = (pts, fill, light, shade) => {
+    P(pts); g.lineWidth = 1.6; g.strokeStyle = STATUE.out; g.stroke(); g.fillStyle = fill; g.fill();
+    if (shade) { g.save(); P(pts); g.clip(); g.fillStyle = STATUE.dark; g.fillRect(cx + shade, base - 80, 40, 80); g.restore(); }
+    if (light) { g.save(); P(pts); g.clip(); g.fillStyle = STATUE.light; g.fillRect(cx - 40, base - 80, 40 + light, 80); g.restore(); }
   };
-  const outline = (fn) => { g.save(); g.translate(0.8, 0.8); fn(STATUE.out); g.translate(-1.6, -1.6); fn(STATUE.out); g.restore(); fn(null); };
-  const body = (o) => {
-    part([[-6, 0], [-5, 17], [-9, 30], [-7, 33], [7, 33], [9, 30], [5, 17], [6, 0]], o || STATUE.mid);                       // pernas e manto
-    part([[-9, 30], [-8, 22], [8, 22], [9, 30]], o || STATUE.light);                                                         // braços cruzados
-    g.beginPath(); g.arc(cx, base - 39, 6.5, 0, Math.PI * 2); g.fillStyle = o || STATUE.mid; g.fill();                       // cabeça
-  };
-  outline(body);
-  part([[1, 0], [2, 17], [5, 17], [6, 0]], STATUE.dark);                     // sombra do lado direito
-  part([[2, 22], [8, 22], [9, 30], [3, 30]], STATUE.mid);
-  g.beginPath(); g.arc(cx + 1.5, base - 38.5, 5, -0.9, 1.6); g.fillStyle = STATUE.dark; g.fill();
-  g.beginPath(); g.arc(cx - 2.2, base - 41, 2.2, 0, Math.PI * 2); g.fillStyle = STATUE.hi; g.fill();
-  fr(g, STATUE.hi, cx - 8, base - 30, 6, FINE * 2);
-  fr(g, STATUE.dark, cx - 5, base - 17, 10, FINE * 2);                         // cinto
-  fr(g, STATUE.out, cx - 6.5, base - 42.5, 13, 3);                             // bandana
-  fr(g, C.band[2], cx - 2, base - 42.2, 4, 2.2);                               // placa da bandana na cor da vila
-  // faixa da vila no pescoço, esvoaçando para a direita
+  // cachecol atrás (a ponta voa para a direita)
   g.fillStyle = STATUE.out;
-  g.beginPath(); g.moveTo(cx - 6, base - 33.5); g.lineTo(cx + 6, base - 33.5); g.lineTo(cx + 15, base - 29); g.lineTo(cx + 13, base - 26); g.lineTo(cx + 5, base - 30); g.lineTo(cx - 6, base - 30); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(cx + 3, base - 33); g.quadraticCurveTo(cx + 12, base - 34, cx + 19, base - 27); g.lineTo(cx + 16, base - 24); g.quadraticCurveTo(cx + 10, base - 29, cx + 3, base - 29); g.closePath(); g.fill();
   g.fillStyle = C.band[1];
-  g.beginPath(); g.moveTo(cx - 5.5, base - 33); g.lineTo(cx + 5.5, base - 33); g.lineTo(cx + 14, base - 28.8); g.lineTo(cx + 12.8, base - 26.8); g.lineTo(cx + 5, base - 30.6); g.lineTo(cx - 5.5, base - 30.6); g.closePath(); g.fill();
-  fr(g, C.band[2], cx - 5, base - 33, 9, FINE * 2);
-  fr(g, C.band[0], cx - 5.5, base - 31.4, 11, FINE * 2);
+  g.beginPath(); g.moveTo(cx + 3.5, base - 32.3); g.quadraticCurveTo(cx + 11.5, base - 33.2, cx + 18, base - 27); g.lineTo(cx + 16.2, base - 25); g.quadraticCurveTo(cx + 10, base - 29.6, cx + 3.5, base - 29.6); g.closePath(); g.fill();
+  // pernas (abertas) e sandálias
+  shape([[-7, 0], [-6.5, 13], [-1.2, 13], [-2, 0]], STATUE.mid, -5);
+  shape([[2, 0], [1.2, 13], [6.5, 13], [7, 0]], STATUE.mid, null, 4.5);
+  fr(g, STATUE.out, cx - 8, base - 1.6, 6.5, 1.6); fr(g, STATUE.out, cx + 1.5, base - 1.6, 6.5, 1.6);
+  // quadril e colete (mais largo nos ombros)
+  shape([[-7, 12], [-5, 17], [-9.5, 29], [-8, 31], [8, 31], [9.5, 29], [5, 17], [7, 12]], STATUE.mid, -4, 3.5);   // cintura fina
+  fr(g, STATUE.dark, cx - 7, base - 15, 14, 2);                                     // cinto
+  fr(g, STATUE.hi, cx - 2, base - 15, 3, 2);                                        // fivela
+  fr(g, STATUE.dark, cx - 0.6, base - 29, 1.2, 12);                                 // abertura do colete
+  // braços cruzados no peito
+  // braços: dos ombros até as mãos juntas num selo no peito (antes era uma barra reta)
+  shape([[-10.5, 29], [-11.5, 22], [-3, 23.5], [-2.2, 27]], STATUE.light, -4);
+  shape([[10.5, 29], [11.5, 22], [3, 23.5], [2.2, 27]], STATUE.mid, null, 4);
+  shape([[-2.6, 22], [-2.2, 29], [2.2, 29], [2.6, 22]], STATUE.hi);              // as mãos no selo
+  fr(g, STATUE.out, cx - 0.4, base - 29, 0.8, 7);                                  // dedos juntos
+  // ombreiras (no lugar das mãos redondas, que pareciam parafusos)
+  shape([[-11.5, 31.5], [-12, 27.5], [-7, 27.5], [-6.5, 31.5]], STATUE.light);
+  shape([[6.5, 31.5], [7, 27.5], [12, 27.5], [11.5, 31.5]], STATUE.dark);
+  // pescoço e cachecol na frente
+  fr(g, STATUE.out, cx - 6, base - 33.5, 12, 3.6);
+  fr(g, C.band[1], cx - 5.4, base - 33, 10.8, 2.6);
+  fr(g, C.band[2], cx - 5.4, base - 33, 6, FINE * 3);
+  // cabeça
+  g.beginPath(); g.arc(cx, base - 39.5, 6.8, 0, Math.PI * 2); g.lineWidth = 1.6; g.strokeStyle = STATUE.out; g.stroke();
+  g.fillStyle = STATUE.mid; g.fill();
+  g.save(); g.beginPath(); g.arc(cx, base - 39.5, 6.8, 0, Math.PI * 2); g.clip();
+  g.fillStyle = STATUE.dark; g.fillRect(cx + 2.5, base - 47, 6, 14);
+  g.fillStyle = STATUE.light; g.fillRect(cx - 7, base - 47, 4, 14);
+  g.restore();
+  // cabelo espetado
+  g.fillStyle = STATUE.out;
+  g.beginPath(); g.moveTo(cx - 8, base - 41); g.lineTo(cx - 10, base - 47); g.lineTo(cx - 5, base - 45.5); g.lineTo(cx - 4, base - 51); g.lineTo(cx, base - 47);
+  g.lineTo(cx + 3.5, base - 51.5); g.lineTo(cx + 4.5, base - 46); g.lineTo(cx + 9.5, base - 47.5); g.lineTo(cx + 8, base - 41); g.closePath(); g.fill();
+  g.fillStyle = STATUE.mid;
+  g.beginPath(); g.moveTo(cx - 7, base - 41.5); g.lineTo(cx - 8.6, base - 46); g.lineTo(cx - 4.5, base - 44.6); g.lineTo(cx - 3.6, base - 49.4); g.lineTo(cx, base - 46);
+  g.lineTo(cx + 3.2, base - 50); g.lineTo(cx + 4, base - 45); g.lineTo(cx + 8.2, base - 46.4); g.lineTo(cx + 7, base - 41.5); g.closePath(); g.fill();
+  fr(g, STATUE.hi, cx - 4.5, base - 46, 2, FINE * 3);
+  fr(g, STATUE.hi, cx - 8.4, base - 45.6, 1, 1); fr(g, STATUE.hi, cx - 3.9, base - 49, 1, 1); fr(g, STATUE.light, cx + 3.1, base - 49.5, 1, 1);   // pontas do cabelo
+  // bandana com a placa na cor da vila; olhos em fenda
+  fr(g, STATUE.out, cx - 7.2, base - 43.2, 14.4, 3.2);
+  fr(g, STATUE.dark, cx - 6.8, base - 42.8, 13.6, 2.4);
+  fr(g, STATUE.out, cx - 2.8, base - 43.4, 5.6, 3.6);
+  fr(g, C.band[2], cx - 2.3, base - 43, 4.6, 2.8);
+  fr(g, STATUE.out, cx - 4, base - 38.5, 2.4, 0.9); fr(g, STATUE.out, cx + 1.6, base - 38.5, 2.4, 0.9);
 }
 
 /**
@@ -1264,28 +1304,56 @@ function drawStandsSide(g, x, y, w, h, left) {
   for (let i = 0; i < rows; i++) {
     const back = left ? i : rows - 1 - i;                 // 0 = fileira de trás
     const rx = x + i * rw, seat = rw * 0.55, riser = rw - seat;
-    const wood = [['#4a301c', '#5e3c22', '#7a5030'], ['#5a3a20', '#70462a', '#8e5e38'], ['#6a4426', '#84532f', '#a26c40']][back];
-    const stone = [['#3a3a30', '#46463b'], ['#45453a', '#535345'], ['#505044', '#5e5e50']][back];
+    // revisão EGM: degrau de pedra oliva (topo claro, frente 2 tons mais escura) e só o assento em madeira apagada
+    const wood = [['#3e3226', '#4e4032', '#625240'], ['#463a2c', '#584838', '#6e5c48'], ['#4e4032', '#625040', '#7a6650']][back];
+    const stone = [['#3e3e33', '#56564a'], ['#4a4a3e', '#626254'], ['#55554a', '#6e6d5e']][back];
     fr(g, STATUE.out, rx, y, rw, h);
     const sx = left ? rx + 0.5 : rx + riser, fx = left ? rx + seat : rx + 0.5;
-    fr(g, wood[1], sx, y + 0.5, seat - 0.5, h - 1);                       // assento
-    fr(g, wood[2], sx, y + 0.5, seat - 0.5, FINE * 3);
-    fr(g, wood[2], sx, y + 0.5, FINE * 3, h - 1);
-    for (let by = y + 9; by < y + h - 3; by += 12) fr(g, wood[0], sx, by, seat - 0.5, FINE * 2);   // tábuas
+    fr(g, stone[1], sx, y + 0.5, seat - 0.5, h - 1);                      // topo do degrau (pedra)
+    fr(g, '#8a8874', sx, y + 0.5, FINE * 3, h - 1);
+    const pad = seat * 0.22;
+    fr(g, STATUE.out, sx + pad - 0.5, y + 2, seat - 2 * pad + 0.5, h - 4);   // assento de madeira em cima
+    fr(g, wood[1], sx + pad, y + 2.5, seat - 2 * pad - 0.5, h - 5);
+    fr(g, wood[2], sx + pad, y + 2.5, FINE * 3, h - 5);
+    for (let by = y + 9; by < y + h - 3; by += 12) fr(g, wood[0], sx + pad, by, seat - 2 * pad - 0.5, FINE * 2);   // tábuas
     fr(g, stone[1], fx, y + 0.5, riser - 0.5, h - 1);                     // espelho de pedra (a frente)
     for (let by = y + 4; by < y + h - 4; by += 8) fr(g, stone[0], fx, by, riser - 0.5, FINE * 2);
-    fr(g, 'rgba(0, 0, 0, 0.25)', left ? fx + riser - 1.5 : fx, y + 0.5, 1, h - 1);
+    // emendas suaves (sombra da pedra + 1 px claro embaixo), desencontradas meia casa entre as fileiras
+    for (let by = y + 16 + (i % 2) * 8; by < y + h - 2; by += 16) {
+      fr(g, stone[0], rx + 0.5, by, rw - 1, FINE * 2);
+      fr(g, '#8a8874', rx + 0.5, by + FINE * 2, rw - 1, FINE);
+    }
+    // sombra do degrau caindo para o lado da arena (o degrau de baixo fica na sombra do de cima)
+    fr(g, 'rgba(0, 0, 0, 0.35)', left ? rx + rw - 0.5 : rx - 3.5, y + 1, 4, h - 2);
   }
   const colors = [['#5a8a34', '#9ac25a'], ['#3f6f8f', '#8cc0d8'], ['#b8962e', '#f0d46a'], ['#b0642e', '#e8a66a']];
   const px = left ? x + 1.5 : x + w - 1.5;
-  for (let i = 0, py = y + 10; py < y + h - 6; py += 40, i++) {          // flâmulas na fileira de trás
+  for (let i = 0, py = y + 10; py < y + h - 6; py += 40, i++) {          // flâmulas na fileira de trás, num poste
     const [c, l] = colors[i % 4];
-    fr(g, STATUE.out, px - 0.8, py - 10, 1.6, 11);
+    fr(g, STATUE.out, px - 1.2, py - 16, 2.4, 19);                       // poste de 2 px, com base e ponta
+    fr(g, '#6a5236', px - 0.6, py - 15.5, 1.2, 18);
+    fr(g, GOLD.mid, px - 1.4, py - 17.5, 2.8, 2);
+    fr(g, STATUE.out, px - 2, py + 2, 4, 1.5);
+    py -= 6;
     g.fillStyle = STATUE.out;
     g.beginPath(); g.moveTo(px, py - 10.5); g.lineTo(px + (left ? 8 : -8), py - 7.5); g.lineTo(px, py - 4.2); g.closePath(); g.fill();
     g.fillStyle = c;
     g.beginPath(); g.moveTo(px + (left ? 0.5 : -0.5), py - 9.6); g.lineTo(px + (left ? 6.5 : -6.5), py - 7.5); g.lineTo(px + (left ? 0.5 : -0.5), py - 5.2); g.closePath(); g.fill();
     fr(g, l, px + (left ? 0.5 : -3.5), py - 9.6, 3, FINE * 2);
+  }
+}
+
+/** v29: a mureta de pedra oliva na borda de baixo do Vale (blocos com topo claro, frente mais escura e musgo). */
+function drawValeWall(g, x, y, w, h) {
+  const H = 10;
+  fr(g, STATUE.out, x - 0.5, y - H - 0.5, w + 1, h + H + 1);
+  fr(g, STATUE.light, x, y - H, w, h);                                         // topo
+  fr(g, STATUE.hi, x, y - H, w, FINE * 2);
+  fr(g, STATUE.mid, x, y + h - H, w, H);                                       // frente
+  for (let bx = x, i = 0; bx < x + w; bx += 18 + (i % 3) * 4, i++) {
+    fr(g, STATUE.out, bx, y + h - H, FINE * 2, H);                             // juntas dos blocos
+    fr(g, STATUE.dark, bx + 1, y + h - 3, 16, 3);
+    if (i % 3 === 0) fr(g, '#5f7a36', bx + 3, y - H, 6, 1.5);                  // musgo no topo
   }
 }
 
@@ -1298,7 +1366,7 @@ export function propExtent(wall) {
     case 'oak': return { left: 0.6, right: 0.6, top: 0.6, bottom: 0.4 };
     case 'seal': return { left: 0.3, right: 0.3, top: 1.0, bottom: 0.3 };
     case 'tent': return { left: 0.4, right: 0.5, top: 0.3, bottom: 0.45 };
-    case 'statue': return { left: 0.6, right: 1.2, top: 4.6, bottom: 0.4 };
+    case 'statue': return { left: 0.8, right: 1.4, top: 6.6, bottom: 0.4 };
     default: return { left: 0.2, right: 0.2, top: 0.5, bottom: 0.3 };
   }
 }

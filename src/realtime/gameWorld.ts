@@ -3342,7 +3342,11 @@ export class GameWorld {
       this.sendQueues();
       return;
     }
-    // leave: sai da fila, desiste da partida e volta para onde estava (ou para casa)
+    // leave: sai da fila e volta para onde estava (ou para casa). Decisão do Victor: depois que a partida começou, tem
+    // que ir até o fim (só cair da conexão encerra, e aí é W.O.).
+    if (this.duel && sideOf(this.duel, s.id) && this.duel.phase !== 'done') {
+      return this.notice(s.id, 'A luta já começou: vá até o fim!', 'bad');
+    }
     this.rankedGone(s);
     const back = this.rankedReturn.get(s.id) ?? this.homeOf(s.village);
     this.rankedReturn.delete(s.id);
@@ -3472,7 +3476,6 @@ export class GameWorld {
     if (!store) return;
     if (d.matchDamage.a + d.matchDamage.b === 0) {
       // ninguém causou dano: não conta (evita combinar resultado)
-      for (const id of [winnerId, loserId]) this.notice(id, 'Partida sem nenhum dano: não conta pontos.', 'info');
       return;
     }
     // v15: grava a partida e mexe nos pontos (fora do loop); depois avisa os dois.
@@ -3556,6 +3559,7 @@ export class GameWorld {
       type: 'duel_state', phase: d.phase, ms: Math.max(0, d.until - this.now()), round: d.round, wins: { ...d.wins },
       ...(a ? { a } : {}), ...(b ? { b } : {}), history: [...d.history], queue: this.rankedQueue.length,
       ...(d.winner ? { winner: d.winner } : {}), ...(d.reason ? { reason: d.reason } : {}),
+      ...(d.phase === 'done' && d.matchDamage.a + d.matchDamage.b === 0 ? { voided: true } : {}),
     };
   }
 
