@@ -13,6 +13,8 @@
 | Nomes | **Os da série** (Uchiha, Nara, Sharingan, Amaterasu, Susanoo, Chidori...). Risco de marca aceito pelo Victor; reavaliar antes de qualquer item pago. |
 | Classe Sombra | **Vira o Clã Nara.** Quem tem Sombra como classe recebe os pontos de volta (troca grátis de classe) e a linhagem Nara já despertada. |
 | Ordem | **Fogo primeiro, depois o Clã Uchiha.** O Nara vem depois. |
+| Quais jutsus | **Todos os jutsus do PDF**, adaptados ao jogo (adaptação feita pelos agentes Goldfish em `revisao_egm/jutsus/adapt_*.md`). Os que dependem de sistema novo grande (muro, invocação, voo) entram na lista com a adaptação pronta e são implementados na entrega da classe. |
+| Médico | **Mantém o Soco Tsunade (Chakra Enhanced Punch)**: o Médico tem poucas habilidades de dano e precisa delas. |
 
 ## 2. Regras de adaptação (o que muda em relação ao PDF)
 
@@ -107,8 +109,8 @@ No simulador, Andarilho x clã fica entre 45% e 55%.
 - **Terra (Doton, amplia a Pedra):** Pele de Pedra (existe), Ganchūrō, Yomi Numa (zona), Kengan (buff de Básico),
   Ganban Kyū. Doryūheki (muro) e o Golem ficam para depois.
 - **Médico:** Shōsen (a Cura de hoje), Desintoxicação, Bisturi de Chakra (buff de Básico), Palma Mística Avançada
-  (zona de cura 4/s), Byakugō (cura 5/s por 6 s em si; com o fator x0,5 do PvP). **Sem o Soco Tsunade** (era a parte
-  que fazia o Médico virar lutador).
+  (zona de cura 4/s), Byakugō (cura 5/s por 6 s em si; com o fator x0,5 do PvP) e **Soco Tsunade** (decisão do Victor:
+  o Médico precisa de dano).
 - **Armas (Bukijutsu):** Kunais (existe), Shuriken Kage Bunshin, Sōshūjin, Corte Iai (avanço; recarga mínima 6 s),
   Dança dos Mil Cortes (dano total no teto do tier 4; 50% menos dano recebido durante, sem invulnerabilidade).
 - **Ilusão (Genjutsu):** Kai (Dissipação), Narakumi (atordoa, orçamento), Kokuangyō (escuridão), Izanami (prende 1,5 s

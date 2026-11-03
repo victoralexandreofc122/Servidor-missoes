@@ -30,6 +30,27 @@ export const CLASS_INFO: Readonly<Record<ClassCode, { name: string; icon: string
 /** Regras de combate. Os jutsus de classe usam a do tier 1; os da Academia têm as próprias. */
 export type Mechanic = ClassCode | 'teleport' | 'substitution';
 
+/**
+ * v29 (Jutsus v2, entrega 0): a FORMA do jutsu (como ele sai e o que acerta). Hoje cada classe tem uma forma só; os
+ * jutsus novos do docs/jutsus-v2.md escolhem a sua (cone, anel, zona no chão, leque, buff, escudo, avanço, aviso...).
+ */
+export type JutsuForm =
+  | 'linha_explode'   // projétil em linha que explode no primeiro alvo (Bola de Fogo)
+  | 'cone'            // cone na frente (Jato d'Água)
+  | 'avanco'          // avança até o alvo e golpeia (Taijutsu)
+  | 'anel'            // círculo em volta de quem lança (Ilusão)
+  | 'linha_prende'    // linha que prende o primeiro alvo (Sombra)
+  | 'escudo'          // protege quem lança (Pedra)
+  | 'cura'            // cura si ou um aliado (Cura)
+  | 'trilhas'         // projéteis em trilhas paralelas (Kunais)
+  | 'linha_raio'      // linha instantânea (Relâmpago)
+  | 'teleporte' | 'substituicao';
+
+export const FORM_OF_MECHANIC: Readonly<Record<Mechanic, JutsuForm>> = {
+  fire: 'linha_explode', water: 'cone', taijutsu: 'avanco', illusion: 'anel', shadow: 'linha_prende', stone: 'escudo',
+  heal: 'cura', weapons: 'trilhas', lightning: 'linha_raio', teleport: 'teleporte', substitution: 'substituicao',
+};
+
 export interface JutsuDef {
   code: JutsuCode;
   name: string;
@@ -38,6 +59,13 @@ export interface JutsuDef {
   /** 0 = Academia; 1 a 4 = tier da classe (nível de Extração que ensina). */
   tier: 0 | 1 | 2 | 3 | 4;
   mechanic: Mechanic;
+  /** Como ele sai (v29). Os de hoje seguem a forma da mecânica. */
+  form: JutsuForm;
+  /**
+   * Números próprios deste jutsu (v29). Sem eles, o tier 2 a 4 é o tier 1 da classe mais forte (`skillConfig`).
+   * Com eles, valem estes (os jutsus novos do docs/jutsus-v2.md).
+   */
+  numbers?: Partial<SkillConfig>;
 }
 
 /** Nomes originais (tier 1 a 4) de cada classe. */
@@ -58,14 +86,15 @@ export const ACADEMY_JUTSUS = ['teleport', 'substitution'] as const;
 export type JutsuCode = (typeof ACADEMY_JUTSUS)[number] | ClassCode | `${ClassCode}_${2 | 3 | 4}`;
 
 export const JUTSUS: readonly JutsuDef[] = [
-  { code: 'teleport', name: 'Teleporte Curto', class: null, tier: 0, mechanic: 'teleport' },
-  { code: 'substitution', name: 'Substituição', class: null, tier: 0, mechanic: 'substitution' },
+  { code: 'teleport', name: 'Teleporte Curto', class: null, tier: 0, mechanic: 'teleport', form: 'teleporte' },
+  { code: 'substitution', name: 'Substituição', class: null, tier: 0, mechanic: 'substitution', form: 'substituicao' },
   ...CLASSES.flatMap((c) => NAMES[c].map((name, i): JutsuDef => ({
     code: i === 0 ? c : (`${c}_${i + 1}` as JutsuCode),
     name,
     class: c,
     tier: (i + 1) as 1 | 2 | 3 | 4,
     mechanic: c,
+    form: FORM_OF_MECHANIC[c],
   }))),
 ];
 
@@ -141,6 +170,7 @@ const TIER = {
 
 /** Números de um jutsu (tier 1 = BASE_SKILLS; tiers 2 a 4 = a mesma mecânica, mais forte). */
 export function skillConfig(j: JutsuDef): SkillConfig & { mechanic: Mechanic } {
+  if (j.numbers) return { ...BASE_SKILLS[j.mechanic], ...j.numbers, mechanic: j.mechanic };   // jutsu com números próprios
   const base = BASE_SKILLS[j.mechanic];
   if (j.tier <= 1) return { ...base, mechanic: j.mechanic };
   const t = j.tier - 1;

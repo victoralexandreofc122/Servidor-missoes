@@ -23,7 +23,7 @@ import type { Profile } from './profile.js';
 import type { Classes, Inventory, NinjaStore } from './ninjaStore.js';
 import {
   ACADEMY_JUTSUS, CLASSES, CLASS_INFO, EXTRACTION, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
-  BASE_SKILLS, jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
+  BASE_SKILLS, FORM_OF_MECHANIC, jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
 import { CC_BUDGET, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
@@ -1636,6 +1636,8 @@ export class GameWorld {
     if (session.chakra < price.cost) return fail('NO_CHAKRA');
 
     const mechanic = cfg.mechanic;
+    // v29 (Jutsus v2): o comportamento vem da FORMA do jutsu (os de hoje: a forma da mecânica)
+    const form = JUTSU_BY_CODE.get(skill)?.form ?? FORM_OF_MECHANIC[mechanic];
     const level = jutsuLevel(session.jutsus.get(skill) ?? 0);
     // Taijutsu escala com o atributo Taijutsu; Armas com Armas (+ a arma equipada); o resto com Ninjutsu.
     // Nível do jutsu (uso): +10% por nível acima do 1.
@@ -1685,15 +1687,15 @@ export class GameWorld {
     let dashTo: Point | undefined;
     let healed: Session | undefined;
     let blink: Point | undefined;
-    switch (mechanic) {
-      case 'water':
+    switch (form) {
+      case 'cone':
         hits = targets.filter((x) => isInCone(o, fx, fy, x, reach, cfg.coneDeg ?? 90));
         break;
-      case 'illusion':
+      case 'anel':
         hits = targets.filter((x) => isInCircle(o, cfg.radius ?? 0, x));
         break;
-      case 'lightning':
-      case 'shadow': {
+      case 'linha_raio':
+      case 'linha_prende': {
         // Linha instantânea para a frente: acerta o primeiro que ela encosta; parede ou ninguém, sai e erra.
         const end = rayEnd(this.layout(session.map), o.x, o.y, fx, fy, reach);
         const first = firstOnLine(o, end, targets);
@@ -1701,7 +1703,7 @@ export class GameWorld {
         to = first ? first.at : end;
         break;
       }
-      case 'taijutsu': {
+      case 'avanco': {
         // Avança até ficar colado no alvo (ou, sem alvo, o avanço inteiro para a frente), parando antes de parede e de
         // vão, e golpeia um círculo na frente.
         const r = cfg.radius ?? 1;
@@ -1711,7 +1713,7 @@ export class GameWorld {
         hits = targets.filter((x) => isInCircle(to!, r, x));
         break;
       }
-      case 'heal': {
+      case 'cura': {
         // O aliado FOCADO (no alcance: longe, avisa); senão em si mesmo; senão o aliado mais ferido por perto.
         const hurt = (p: Session) => !p.dead && !p.closed && p.hp < p.stats.maxHp;
         const ally = (p: Session) => p !== session && !p.dead && !p.closed && !this.canHurt(session, p);
@@ -1725,13 +1727,13 @@ export class GameWorld {
         if (healed !== session) to = { x: healed.x, y: healed.y };
         break;
       }
-      case 'stone':
+      case 'escudo':
         if (session.shield > 0) return fail('ALREADY_ACTIVE');
         break;
-      case 'substitution':
+      case 'substituicao':
         if (session.substituteUntil > t) return fail('ALREADY_ACTIVE');
         break;
-      case 'teleport': {
+      case 'teleporte': {
         // Teleporte Curto: na direção do joystick (ou para onde está virado), até o alcance do NÍVEL,
         // parando antes da primeira parede. Não atravessa parede, porta nem borda.
         const len = dir ? Math.sqrt(dir[0] * dir[0] + dir[1] * dir[1]) : 0;
@@ -1759,8 +1761,8 @@ export class GameWorld {
       ...(to ? { tx: round2(to.x), ty: round2(to.y) } : {}),
     });
 
-    switch (mechanic) {
-      case 'water':
+    switch (form) {
+      case 'cone':
         // Dano e o empurrão (para longe de quem lançou). Quem trocou de lugar com a Substituição não é empurrado.
         for (const x of hits) {
           const who = x.kind === 'monster' ? x.monster : x.session;
@@ -1770,11 +1772,11 @@ export class GameWorld {
           if (this.stillThere(x)) this.applyEffect(x, 'molhado', t, undefined, undefined, session);   // prepara o combo com o Relâmpago
         }
         break;
-      case 'taijutsu':
+      case 'avanco':
         if (dashTo && distance(o, dashTo) > 0.01) this.dash(session, dashTo, t);
         for (const x of hits) this.hitTarget(x, dmg, session, t, 'skill', skill, hit);
         break;
-      case 'lightning':
+      case 'linha_raio':
         for (const x of hits) {
           // Combo: num alvo molhado (Água) o choque bate 30% mais forte e seca o alvo.
           const wet = hasEffect(this.effectsOf(x), 'molhado', t);
@@ -1788,17 +1790,17 @@ export class GameWorld {
           if (cfg.paralysisMs && this.stillThere(x)) this.applyEffect(x, 'paralisia', t, cfg.paralysisMs, undefined, session);
         }
         break;
-      case 'illusion':
+      case 'anel':
         for (const x of hits) {
           this.applyStatus(x, 'stunned', lasting(cfg.stunMs ?? 0), t, session);
           // Tier 3 e 4: o silêncio continua depois do atordoamento (acordou, mas ainda sem jutsu).
           if (cfg.silenceMs && this.stillThere(x)) this.applyEffect(x, 'silencio', t, lasting(cfg.stunMs ?? 0) + cfg.silenceMs, undefined, session);
         }
         break;
-      case 'shadow':
+      case 'linha_prende':
         for (const x of hits) this.applyStatus(x, 'rooted', lasting(cfg.rootMs ?? 0), t, session);
         break;
-      case 'fire': {
+      case 'linha_explode': {
         // A queimadura escala igual ao golpe (Ninjutsu, nível do jutsu, passiva, clima): mesma proporção do dano.
         const burn = cfg.burn ? { amount: Math.max(1, Math.round(cfg.burn * (dmg / (cfg.damage ?? 1)))), ms: cfg.burnMs ?? 3000 } : undefined;
         this.launch(session, fx, fy, {
@@ -1806,7 +1808,7 @@ export class GameWorld {
         });
         break;
       }
-      case 'weapons': {
+      case 'trilhas': {
         // Trilhas paralelas, todas na mesma direção: a do meio primeiro, depois as dos lados (deslocadas de lado). Uma
         // trilha que começaria dentro de uma parede não sai.
         const volley = new Set<string>();
@@ -1818,15 +1820,15 @@ export class GameWorld {
         }
         break;
       }
-      case 'stone':
+      case 'escudo':
         session.shield = pvp ? PVP_SHIELD[tier - 1]! : (cfg.reduction ?? 0.5);
         break;
-      case 'heal':
+      case 'cura':
         // Passiva da Folha: +10% de cura (de quem cura). Ferida (anti-cura): metade.
         this.healPlayer(healed!, pvp ? pvpHeal(base1.heal ?? 0, tier, level, this.passive(session, 'heal'))
           : (cfg.heal ?? 0) * jutsuPower(level) * this.passive(session, 'heal'), t);
         break;
-      case 'teleport': {
+      case 'teleporte': {
         const from = { x: session.x, y: session.y };
         session.x = blink!.x;
         session.y = blink!.y;
@@ -1845,7 +1847,7 @@ export class GameWorld {
         }
         break;
       }
-      case 'substitution':
+      case 'substituicao':
         // Fica armada 5 s: o PRÓXIMO golpe acerta um tronco (dano anulado) e o ninja aparece atrás.
         session.substituteUntil = t + (cfg.durationMs ?? 5000);
         session.substituteLevel = level;
