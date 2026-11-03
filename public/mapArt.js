@@ -1104,7 +1104,8 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     case 'furniture': return drawFurniture(g, x, y, w, h, wall.s, Math.abs(seed));
     case 'pit': return wall.s === 'chasm' ? drawChasm(g, x, y, w, h, Math.abs(seed)) : drawPit(g, x, y, w, h);
     case 'fence': return drawFence(g, x, y, w, h, tile, wall);
-    case 'pillar': return wall.s === 'arena' ? drawArenaBlock(g, x, y, w, h, wall.t === 'areia' ? SAND_SLATE : STONE_SLATE) : drawPillar(g, x, y, w, h);
+    case 'pillar': if (wall.s === 'vale') return drawValeWall(g, x, y, w, h);
+      return wall.s === 'arena' ? drawArenaBlock(g, x, y, w, h, wall.t === 'areia' ? SAND_SLATE : STONE_SLATE) : drawPillar(g, x, y, w, h);
     case 'gate': return drawClosedGate(g, x, y, w, h);
     // Arco 1 (docs/mapas.md)
     case 'seal': return drawSeal(g, x, y, w, h, wall.s !== 'out');
@@ -1339,6 +1340,20 @@ function drawStandsSide(g, x, y, w, h, left) {
     g.fillStyle = c;
     g.beginPath(); g.moveTo(px + (left ? 0.5 : -0.5), py - 9.6); g.lineTo(px + (left ? 6.5 : -6.5), py - 7.5); g.lineTo(px + (left ? 0.5 : -0.5), py - 5.2); g.closePath(); g.fill();
     fr(g, l, px + (left ? 0.5 : -3.5), py - 9.6, 3, FINE * 2);
+  }
+}
+
+/** v29: a mureta de pedra oliva na borda de baixo do Vale (blocos com topo claro, frente mais escura e musgo). */
+function drawValeWall(g, x, y, w, h) {
+  const H = 10;
+  fr(g, STATUE.out, x - 0.5, y - H - 0.5, w + 1, h + H + 1);
+  fr(g, STATUE.light, x, y - H, w, h);                                         // topo
+  fr(g, STATUE.hi, x, y - H, w, FINE * 2);
+  fr(g, STATUE.mid, x, y + h - H, w, H);                                       // frente
+  for (let bx = x, i = 0; bx < x + w; bx += 18 + (i % 3) * 4, i++) {
+    fr(g, STATUE.out, bx, y + h - H, FINE * 2, H);                             // juntas dos blocos
+    fr(g, STATUE.dark, bx + 1, y + h - 3, 16, 3);
+    if (i % 3 === 0) fr(g, '#5f7a36', bx + 3, y - H, 6, 1.5);                  // musgo no topo
   }
 }
 

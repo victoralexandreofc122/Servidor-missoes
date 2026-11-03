@@ -64,7 +64,9 @@ export interface Wall extends Box {
     // árvore cerejeira (copa rosa, nos gramados da vila) e a montanha atrás da sede (paredão com mata em cima)
     | 'sakura' | 'mountain'
     // v29: a vila da estátua
-    | 'vila_1' | 'vila_3' | 'vila_4' | 'vila_5';
+    | 'vila_1' | 'vila_3' | 'vila_4' | 'vila_5'
+    // v29: a mureta de pedra oliva do Vale
+    | 'vale';
 }
 
 /**
@@ -1310,7 +1312,9 @@ function vale(): MapLayout {
   const f = VALE.fence, t = VALE.thickness;
   const walls: Wall[] = [
     // o vale: paredão de rocha no fundo, rochas nos lados e embaixo (revisão EGM)
-    wall('cliff', 0, 0, W, 3.2), wall('rock', 0, H - 2, W, 2), wall('rock', 0, 3.2, 2, H - 5.2), wall('rock', W - 2, 3.2, 2, H - 5.2),
+    wall('cliff', 0, 0, W, 3.2), wall('rock', 0, 3.2, 2, H - 3.2), wall('rock', W - 2, 3.2, 2, H - 3.2),
+    // embaixo: uma mureta de pedra oliva (revisão EGM: a rocha de triângulos não combinava com as lajes)
+    wall('pillar', 2, H - 1.6, W - 4, 1.6, 'vale'),
     // a cerca fechada: ninguém entra nem sai andando (o servidor leva os dois da partida)
     wall('fence', f.x, f.y, f.w, t), wall('fence', f.x, f.y + f.h - t, f.w, t),
     wall('fence', f.x, f.y + t, t, f.h - 2 * t), wall('fence', f.x + f.w - t, f.y + t, t, f.h - 2 * t),
@@ -1329,8 +1333,7 @@ function vale(): MapLayout {
       // lanternas de pedra em cima e embaixo da arena (acendem de noite)
       deco('toro', f.x + 2, f.y - 2.2, 1, 1.4), deco('toro', f.x + f.w - 3, f.y - 2.2, 1, 1.4),
       deco('toro', f.x + 2, f.y + f.h + 0.6, 1, 1.4), deco('toro', f.x + f.w - 3, f.y + f.h + 0.6, 1, 1.4),
-      deco('banner', f.x - 1.2, f.y - 1.2), deco('banner', f.x + f.w + 0.2, f.y - 1.2),
-      deco('banner', f.x - 1.2, f.y + f.h + 0.2), deco('banner', f.x + f.w + 0.2, f.y + f.h + 0.2),
+
     ],
     arenas: [{ ...fight, village: 'vila_1', respawn: { ...VALE.spawn }, ranked: true }],
     // zona segura: tudo, menos dentro da cerca

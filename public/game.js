@@ -6712,6 +6712,7 @@ function drawLights(toScreenX, toScreenY, T, viewW, viewH, now) {
   if (!lights.length && !boxes.length) return;
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
+  if (skyClock()?.phase === 'dia') ctx.globalAlpha = 0.4;   // revisão EGM: de dia as luzes quase não aparecem
   for (const l of lights) {
     const x = toScreenX(l.x), y = toScreenY(l.y);
     if (x < -T * 3 || x > viewW + T * 3 || y < -T * 3 || y > viewH + T * 3) continue;
