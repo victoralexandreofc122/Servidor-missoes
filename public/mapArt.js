@@ -1213,13 +1213,16 @@ function statueBody(g, x, y, w, h, C) {
   shape([[2, 0], [1.2, 13], [6.5, 13], [7, 0]], STATUE.mid, null, 4.5);
   fr(g, STATUE.out, cx - 8, base - 1.6, 6.5, 1.6); fr(g, STATUE.out, cx + 1.5, base - 1.6, 6.5, 1.6);
   // quadril e colete (mais largo nos ombros)
-  shape([[-7, 12], [-9.5, 29], [-8, 31], [8, 31], [9.5, 29], [7, 12]], STATUE.mid, -4, 3.5);
+  shape([[-7, 12], [-5, 17], [-9.5, 29], [-8, 31], [8, 31], [9.5, 29], [5, 17], [7, 12]], STATUE.mid, -4, 3.5);   // cintura fina
   fr(g, STATUE.dark, cx - 7, base - 15, 14, 2);                                     // cinto
   fr(g, STATUE.hi, cx - 2, base - 15, 3, 2);                                        // fivela
   fr(g, STATUE.dark, cx - 0.6, base - 29, 1.2, 12);                                 // abertura do colete
   // braços cruzados no peito
-  shape([[-10.5, 27], [-11, 20.5], [11, 20.5], [10.5, 27]], STATUE.light, -2, 5);
-  fr(g, STATUE.out, cx - 10, base - 24, 20, 0.9);
+  // braços: dos ombros até as mãos juntas num selo no peito (antes era uma barra reta)
+  shape([[-10.5, 29], [-11.5, 22], [-3, 23.5], [-2.2, 27]], STATUE.light, -4);
+  shape([[10.5, 29], [11.5, 22], [3, 23.5], [2.2, 27]], STATUE.mid, null, 4);
+  shape([[-2.6, 22], [-2.2, 29], [2.2, 29], [2.6, 22]], STATUE.hi);              // as mãos no selo
+  fr(g, STATUE.out, cx - 0.4, base - 29, 0.8, 7);                                  // dedos juntos
   // ombreiras (no lugar das mãos redondas, que pareciam parafusos)
   shape([[-11.5, 31.5], [-12, 27.5], [-7, 27.5], [-6.5, 31.5]], STATUE.light);
   shape([[6.5, 31.5], [7, 27.5], [12, 27.5], [11.5, 31.5]], STATUE.dark);
@@ -1311,13 +1314,19 @@ function drawStandsSide(g, x, y, w, h, left) {
     for (let by = y + 9; by < y + h - 3; by += 12) fr(g, wood[0], sx + pad, by, seat - 2 * pad - 0.5, FINE * 2);   // tábuas
     fr(g, stone[1], fx, y + 0.5, riser - 0.5, h - 1);                     // espelho de pedra (a frente)
     for (let by = y + 4; by < y + h - 4; by += 8) fr(g, stone[0], fx, by, riser - 0.5, FINE * 2);
-    fr(g, 'rgba(0, 0, 0, 0.25)', left ? fx + riser - 1.5 : fx, y + 0.5, 1, h - 1);
+    for (let by = y + 16; by < y + h - 2; by += 16) fr(g, STATUE.out, rx + 0.5, by, rw - 1, FINE * 2);   // emenda a cada casa
+    // sombra do degrau caindo para o lado da arena (o degrau de baixo fica na sombra do de cima)
+    fr(g, 'rgba(0, 0, 0, 0.32)', left ? rx + rw - 0.5 : rx - 3.5, y + 1, 4, h - 2);
   }
   const colors = [['#5a8a34', '#9ac25a'], ['#3f6f8f', '#8cc0d8'], ['#b8962e', '#f0d46a'], ['#b0642e', '#e8a66a']];
   const px = left ? x + 1.5 : x + w - 1.5;
-  for (let i = 0, py = y + 10; py < y + h - 6; py += 40, i++) {          // flâmulas na fileira de trás
+  for (let i = 0, py = y + 10; py < y + h - 6; py += 40, i++) {          // flâmulas na fileira de trás, num poste
     const [c, l] = colors[i % 4];
-    fr(g, STATUE.out, px - 0.8, py - 10, 1.6, 11);
+    fr(g, STATUE.out, px - 1.2, py - 16, 2.4, 19);                       // poste de 2 px, com base e ponta
+    fr(g, '#6a5236', px - 0.6, py - 15.5, 1.2, 18);
+    fr(g, GOLD.mid, px - 1.4, py - 17.5, 2.8, 2);
+    fr(g, STATUE.out, px - 2, py + 2, 4, 1.5);
+    py -= 6;
     g.fillStyle = STATUE.out;
     g.beginPath(); g.moveTo(px, py - 10.5); g.lineTo(px + (left ? 8 : -8), py - 7.5); g.lineTo(px, py - 4.2); g.closePath(); g.fill();
     g.fillStyle = c;

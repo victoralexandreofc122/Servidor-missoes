@@ -4689,7 +4689,7 @@ function valeSlabTile(seed, cracked = false) {
     const moss = seed % 3 === 0 ? 7 : 2;
     for (let i = 0; i < moss; i++) fine(g, r() < 0.5 ? '#4f6a2e' : '#5f7a36', r() * U, kind === 0 ? cut - 0.6 : r() * U, PX * (2 + Math.floor(r() * 3)), PX * 2);   // musgo nas juntas
     if (cracked) {
-      g.strokeStyle = '#3a3b31'; g.lineWidth = PX * 2;
+      g.strokeStyle = '#4a4b40'; g.lineWidth = PX;
       g.beginPath(); g.moveTo(3, 2); g.lineTo(6, 6); g.lineTo(5, 9); g.lineTo(8, 13); g.stroke();
     }
   });
@@ -4867,7 +4867,7 @@ function tileAt(x, y) {
     case 'burnt': return TILES.burnt[h % 3];                       // Acampamento e Clareira Queimada
     case 'pebbles': return TILES.pebbles[h & 1];                   // leito seco da cachoeira
     case 'lodo': return TILES.lodo[0];
-    case 'slab': return TILES.slab[h % 11 === 0 ? 8 : (h >>> 3) % 8];   // Vale das Estátuas: lajes com musgo
+    case 'slab': return TILES.slab[h % 31 === 0 ? 8 : (h >>> 3) % 8];   // Vale das Estátuas: lajes com musgo
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
     case 'arena':                                                  // arena da vila: lajes, losango a cada 4 (na Areia, terra batida)
