@@ -80,8 +80,22 @@ describe('v5: energia', () => {
     a.send({ type: 'meditate', active: true });
     run(1400);                                                    // 15/s: 80 -> 100 em ~1,33 s
     assert.equal(s.chakra, 100);
-    run(1000);
-    assert.ok(s.hp > hp + 0.5, 'chakra cheio de novo: a vida volta a subir');
+    run(2000);                                                    // 6,4 s desde o golpe: ainda não
+    assert.equal(s.hp, hp, 'v29: a vida espera 7 s sem gastar chakra');
+    run(1600);
+    assert.ok(s.hp > hp + 0.5, 'chakra cheio e 7 s de calma: a vida volta a subir');
+  });
+
+  it('v29: apanhar também segura a vida por 7 s (com o chakra cheio)', () => {
+    const { world, connect, run, clock } = setupWorld(config);
+    const a = connect('kaito');
+    const s = sess(world, a.id);
+    s.hp = 50;
+    s.calmSince = clock.now();                                    // acabou de apanhar
+    run(6500);
+    assert.equal(s.hp, 50);
+    run(1500);
+    assert.ok(s.hp > 50.5);
   });
 
   it('Chakra (atributo, v8): também acelera a meditação (+1/s no 1º ponto, com soft cap)', () => {

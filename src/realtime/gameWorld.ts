@@ -235,6 +235,8 @@ interface Session {
   netLog: Map<string, NetHit[]>;
   /** Acabou de renascer: nenhum jogador o machuca até este instante. */
   protectedUntil: number;
+  /** v29: última vez que tomou dano ou gastou chakra (a vida só volta 7 s depois, com o chakra cheio). */
+  calmSince: number;
   dead: boolean;
   deadAt: number;
   /** Quanto espera para renascer desta morte (na arena é mais curto) e onde ela aconteceu (arena: renasce na entrada). */
@@ -838,6 +840,7 @@ export class GameWorld {
       ccLog: [],
       netLog: new Map(),
       protectedUntil: previous?.protectedUntil ?? 0,
+      calmSince: previous?.calmSince ?? 0,
       cooldowns: { ...(previous?.cooldowns ?? {}) },
       xp: player.xp ?? previous?.xp ?? 0,
       rank: player.rank ?? previous?.rank ?? DEFAULT_RANK,
@@ -1731,6 +1734,7 @@ export class GameWorld {
 
     // 3. Cobra, avisa todos e aplica.
     session.chakra -= price.cost;
+    if (price.cost > 0) session.calmSince = t;
     session.cooldowns[skill] = t + (mechanic === 'substitution' ? substitutionCooldownMs(level) : price.cooldownMs);
     this.broadcastMap(session.map, {
       type: 'cast', playerId: session.id, skill, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy),
@@ -1940,6 +1944,7 @@ export class GameWorld {
       } else if (target.kind === 'player') {
         const got = Math.min(buff.amount, target.session.chakra);
         target.session.chakra -= got;
+        if (got > 0) target.session.calmSince = t;
         attacker.chakra = Math.min(attacker.stats.maxChakra, attacker.chakra + got);
       }
     }
@@ -2236,7 +2241,7 @@ export class GameWorld {
       this.stopMeditation(session, 'manual');
       return;
     }
-    if (session.dead || (this.duel && sideOf(this.duel, session.id))) {
+    if (session.dead) {
       this.sendError(session, 'CANNOT_MEDITATE');
       return;
     }
@@ -3216,6 +3221,7 @@ export class GameWorld {
    */
   private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session, label?: string): void {
     if (t < session.intangibleUntil) return;                    // Máscara Intangível (Akatsuki)
+    session.calmSince = t;                                       // v29: apanhou: a vida para de voltar por 7 s
     // Apanhou: a meditação acaba ANTES do dano (não dá para meditar no meio da luta). O sono acorda.
     this.stopMeditation(session, 'damaged');
     this.wakeOnDamage({ kind: 'player', id: session.id, x: session.x, y: session.y, session }, t);
@@ -3904,14 +3910,10 @@ export class GameWorld {
       // Campo da Sala de Controle: drena o chakra (antes da meditação, que vence o dreno).
       const drain = this.drainAt(s);
       if (drain > 0) s.chakra = Math.max(0, s.chakra - drain * dt);
-      // Chakra: SÓ meditando (15/s + atributo). Vida: SÓ com o chakra no máximo.
-      if (this.duel && sideOf(this.duel, s.id)) {
-        // v29: na partida do rankeado o chakra volta sozinho a 1/3 da meditação e a vida não volta.
-        if (this.duel.phase === 'round') s.chakra = Math.min(s.stats.maxChakra, s.chakra + (s.stats.meditationChakraPerSec / 3) * dt);
-      } else {
-        if (s.meditating) s.chakra = Math.min(s.stats.maxChakra, s.chakra + s.stats.meditationChakraPerSec * dt);
-        if (s.chakra >= s.stats.maxChakra) s.hp = Math.min(s.stats.maxHp, s.hp + p.hpRegenPerSec * dt);
-      }
+      // Chakra: SÓ meditando (também no rankeado). Vida: SÓ com o chakra no máximo e 7 s sem apanhar nem gastar
+      // chakra (v29, decisão do Victor; vale no jogo todo).
+      if (s.meditating) s.chakra = Math.min(s.stats.maxChakra, s.chakra + s.stats.meditationChakraPerSec * dt);
+      if (s.chakra >= s.stats.maxChakra && t - s.calmSince >= p.hpRegenCalmMs) s.hp = Math.min(s.stats.maxHp, s.hp + p.hpRegenPerSec * dt);
       // Etapa 2 do tutorial: meditando DENTRO da Sala de Controle até o chakra encher.
       if (s.tutorial === 1 && s.meditating && s.chakra >= s.stats.maxChakra && s.map === 'academy_interior'
         && s.x >= ACADEMY.room && s.x < ACADEMY.room * 2) this.advanceTutorial(s, 2);
@@ -4727,6 +4729,7 @@ export class GameWorld {
 
   private spendPower(s: Session, def: PowerDef, t: number): void {
     s.chakra -= def.cost;
+    if (def.cost > 0) s.calmSince = t;
     s.cooldowns.power = t + def.cooldownMs;
   }
 

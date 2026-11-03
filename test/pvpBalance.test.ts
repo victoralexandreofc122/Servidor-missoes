@@ -191,10 +191,10 @@ describe('simulador de duelos (passo 1g)', () => {
   const rs = simulateAll();
   const tabela = rs.map((r) => `${r.a} x ${r.b}: ${r.winner} em ${r.seconds.toFixed(1)} s (pico ${Math.round(r.peakA * 100)}%/${Math.round(r.peakB * 100)}%)`).join('\n');
 
-  it('todo duelo dura de 6 a 30 s; meio a meio contra meio a meio, de 12 a 20 s', () => {
+  it('todo duelo dura de 6 a 30 s; meio a meio contra meio a meio, de 12 a 25 s (v29: sem o chakra voltar sozinho, decisão do Victor)', () => {
     for (const r of rs) assert.ok(r.seconds >= 6 && r.seconds <= 30, `${r.a} x ${r.b}: ${r.seconds} s\n${tabela}`);
     const mm = rs.find((r) => r.a === 'Meio a meio' && r.b === 'Meio a meio')!;
-    assert.ok(mm.seconds >= 12 && mm.seconds <= 20, String(mm.seconds));
+    assert.ok(mm.seconds >= 12 && mm.seconds <= 25, String(mm.seconds));
   });
 
   it('ninguém tira 50% da vida em 2 s (antes da rede de segurança)', () => {

@@ -6,7 +6,7 @@
  *     Espada Longa;
  *  2. os dois começam com vida e chakra cheios e agem a cada 0,4 s (um toque), sem errar;
  *  3. em cada toque: o jutsu que mais dá dano, pronto e que caiba no chakra; senão o Ataque Básico (se a recarga
- *     deixar); o chakra volta 5 por segundo; atordoado não age;
+ *     deixar); o chakra não volta sozinho (v29, decisão do Victor); atordoado não age;
  *  4. o controle passa pelo orçamento de controle (pvpBalance.ts);
  *  5. vence quem zera a vida do outro primeiro; diferença menor que 0,4 s = empate.
  *
@@ -21,6 +21,8 @@ export const SIM_TAP_MS = 400;
 const STEP_MS = 50;
 const KATANA = 28;
 const LIMIT_MS = 120_000;
+/** v29 (decisão do Victor): no rankeado o chakra NÃO volta sozinho (só meditando, e meditar no meio da luta não dá). */
+const CHAKRA_REGEN = 0;
 
 export interface SimBuild { name: string; attributes: Partial<Attributes>; kits: [ClassCode, ClassCode] }
 
@@ -161,8 +163,8 @@ function fight(A: SimBuild, B: SimBuild, aFirst: boolean) {
     pulses(b, t);
     // Quem age primeiro alterna a cada passo (sem vantagem fixa para um lado).
     if (((t / STEP_MS) % 2 === 0) === aFirst) { act(a, b, t); act(b, a, t); } else { act(b, a, t); act(a, b, t); }
-    a.chakra = Math.min(a.stats.maxChakra, a.chakra + 5 * STEP_MS / 1000);
-    b.chakra = Math.min(b.stats.maxChakra, b.chakra + 5 * STEP_MS / 1000);
+    a.chakra = Math.min(a.stats.maxChakra, a.chakra + CHAKRA_REGEN * STEP_MS / 1000);
+    b.chakra = Math.min(b.stats.maxChakra, b.chakra + CHAKRA_REGEN * STEP_MS / 1000);
     if (aKillsAt === null && b.hp <= 0) aKillsAt = t;
     if (bKillsAt === null && a.hp <= 0) bKillsAt = t;
   }

@@ -11,7 +11,8 @@
  *    próximo adversário escolhido. Assim ninguém fica muito para trás nem é passado várias vezes.
  *
  * A partida (melhor de 3, regras do `concepts_brief.md`): preparação de 10 s, rodadas de até 50 s, 5 s entre as
- * rodadas. Rodada que chega aos 50 s: vence quem tem mais vida em porcentagem; empate: quem causou mais dano na
+ * rodadas. Cada rodada começa com vida e chakra cheios; o chakra só volta meditando (decisão do Victor, 03/11) e a
+ * vida só com o chakra cheio e 7 s sem apanhar nem gastar chakra (a regra do jogo todo). Rodada que chega aos 50 s: vence quem tem mais vida em porcentagem; empate: quem causou mais dano na
  * rodada; empate de novo: a rodada se repete uma vez; depois, quem causou mais dano na partida (e, se ainda empatar,
  * quem esperava há mais tempo na fila, o lado `a`).
  *
