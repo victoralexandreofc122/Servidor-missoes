@@ -40,6 +40,12 @@ const ui = {
   hud: $('hud'), status: $('status'), toast: $('toast'),
   chat: $('chat'), chatFeed: $('chat-feed'), chatInput: $('chat-input'),
   chatToggle: $('chat-toggle'), logout: $('logout'),
+  rankedToggle: $('ranked-toggle'), rankedLabel: $('ranked-label'), duelBtn: $('duel-btn'), duelHud: $('duel-hud'),
+  duelBar: $('duel-bar'), duelBoardBtn: $('duel-board-btn'), rankedPanel: $('ranked-panel'), rankedClose: $('ranked-close'),
+  rankedSeason: $('ranked-season'), rankedMe: $('ranked-me'), rankedList: $('ranked-list'),
+  duelPhase: $('duel-phase'), duelClock: $('duel-clock'),
+  duelA: { name: $('duel-a-name'), info: $('duel-a-info'), wins: $('duel-a-wins') },
+  duelB: { name: $('duel-b-name'), info: $('duel-b-info'), wins: $('duel-b-wins') },
   combat: $('combat'), attackBtn: $('attack-btn'), runBtn: $('run-btn'), kitBtn: $('kit-btn'), kitLabel: $('kit-label'),
   slots: [...document.querySelectorAll('#combat .skill')],
   statusToggle: $('status-toggle'), statusBadge: $('status-badge'), statusPanel: $('status-panel'), statusClose: $('status-close'),
@@ -280,6 +286,22 @@ function showLogin(message = '') {
   ui.login.hidden = false;
   ui.loginError.textContent = message;
 }
+
+// v29: modo rankeado. O botão do menu vai ao Vale (lá, volta); o Desafio entra e sai da fila.
+ui.rankedToggle.addEventListener('click', () => {
+  send({ type: 'ranked', action: state.mapId === 'vale_estatuas' ? 'leave' : 'enter' });
+});
+ui.duelBtn.addEventListener('click', () => {
+  send({ type: 'ranked', action: state.duelQueue?.queued ? 'unqueue' : 'queue' });
+});
+ui.duelBoardBtn.addEventListener('click', () => {
+  ui.rankedPanel.hidden = false;
+  ui.rankedSeason.textContent = 'Carregando…';
+  ui.rankedMe.textContent = '';
+  ui.rankedList.textContent = '';
+  send({ type: 'ranked', action: 'board' });
+});
+ui.rankedClose.addEventListener('click', () => { ui.rankedPanel.hidden = true; });
 
 ui.logout.addEventListener('click', () => {
   clearToken();
@@ -659,6 +681,25 @@ function handleMessage(msg) {
     case 'extract_odds':
       state.extractFailures = msg.failures || {};
       if (state.shop?.kind === 'scrolls') renderExtraction();
+      break;
+    case 'duel_state':
+      state.duel = { ...msg, until: performance.now() + msg.ms };
+      duelAnnounce(msg);
+      renderDuel();
+      break;
+    case 'duel_rating':
+      if (msg.counted) {
+        const sign = msg.delta >= 0 ? '+' : '';
+        showToast(`${msg.won ? 'Vitória' : 'Derrota'} · ${sign}${msg.delta} pontos (${msg.mmr})`, 4500);
+        addSystemLine(`🏆 Rankeado: ${sign}${msg.delta} pontos. Agora você tem ${msg.mmr}.`);
+      } else addSystemLine('🏆 Rankeado: esta partida não contou pontos (mesma dupla 3 vezes hoje, nível muito diferente ou conta de admin).');
+      break;
+    case 'ranked_board':
+      renderRankedBoard(msg);
+      break;
+    case 'duel_queue':
+      state.duelQueue = msg;
+      renderDuel();
       break;
     case 'arena_result': {
       // Luta de treino na arena: todo mundo no mapa vê no chat; quem lutou vê o placar.
@@ -1856,11 +1897,124 @@ const skillName = (skill) => state.world.skills?.[skill]?.name || skill;
 
 // ------------------------------------------------------------------ foco (🎯) e meditação (🧘)
 
+// ------------------------------------------------------------------ modo rankeado (v29)
+
+const VILLAGE_SHORT = { vila_1: 'Folha', vila_3: 'Névoa', vila_4: 'Nuvem', vila_5: 'Areia' };
+
+/** No Vale das Estátuas: o outro lado da partida, só durante a rodada (o servidor confere de novo). */
+function duelFoe(id) {
+  const d = state.duel;
+  if (!d || d.phase !== 'round' || !d.a || !d.b) return false;
+  const ids = [d.a.id, d.b.id];
+  return ids.includes(state.meId) && ids.includes(id) && id !== state.meId;
+}
+
+/** Placar no alto e o botão do Desafio, só no Vale. */
+function renderDuel() {
+  const inVale = state.mapId === 'vale_estatuas';
+  ui.rankedLabel.textContent = inVale ? 'Voltar' : 'Rankeado';
+  ui.duelHud.hidden = !inVale;
+  const d = state.duel;
+  const fighting = !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
+  const q = state.duelQueue;
+  ui.duelBar.hidden = !inVale;
+  ui.duelBtn.hidden = fighting;
+  if (!inVale) ui.rankedPanel.hidden = true;
+  ui.duelBtn.classList.toggle('queued', !!q?.queued);
+  ui.duelBtn.textContent = q?.queued ? `Na fila: ${q.position}º de ${q.size} · Cancelar` : `⚔️ Desafio${q?.size ? ` (${q.size} na fila)` : ''}`;
+  if (!inVale) return;
+  const side = (el, v, wins, isMe) => {
+    el.name.textContent = v ? v.name : '?';
+    el.info.textContent = v ? `Nv ${v.level}${v.village ? ` · ${VILLAGE_SHORT[v.village] || ''}` : ''}` : '';
+    el.wins.textContent = '●'.repeat(wins) + '○'.repeat(Math.max(0, 2 - wins));
+    el.name.parentElement.classList.toggle('duel-me', !!isMe);
+  };
+  const live = d && d.phase !== 'idle';
+  side(ui.duelA, live ? d.a : null, live ? d.wins.a : 0, live && d.a?.id === state.meId);
+  side(ui.duelB, live ? d.b : null, live ? d.wins.b : 0, live && d.b?.id === state.meId);
+  tickDuelClock();
+}
+
+function tickDuelClock() {
+  const d = state.duel;
+  if (ui.duelHud.hidden) return;
+  if (!d || d.phase === 'idle') {
+    ui.duelPhase.textContent = 'Arena livre';
+    ui.duelClock.textContent = d?.queue ? `${d.queue} na fila` : '—';
+    return;
+  }
+  const secs = Math.max(0, Math.ceil((d.until - performance.now()) / 1000));
+  const names = { prep: 'Preparação', round: `Rodada ${d.round}`, interval: 'Próxima rodada', done: 'Fim' };
+  ui.duelPhase.textContent = names[d.phase] || '';
+  if (d.phase === 'done') {
+    const w = d.winner ? d[d.winner] : null;
+    ui.duelClock.textContent = w ? `${w.name} venceu` : 'Empate';
+  } else ui.duelClock.textContent = String(secs);
+}
+setInterval(() => {
+  // o mapa do cliente troca depois da mensagem (a predição atravessa): confere aqui se entrou ou saiu do Vale
+  if ((state.mapId === 'vale_estatuas') === ui.duelHud.hidden) renderDuel();
+  else tickDuelClock();
+}, 250);
+
+/** O painel do ranking (temporada, top 50 e a sua linha). */
+function renderRankedBoard(msg) {
+  if (!msg.available) {
+    ui.rankedSeason.textContent = 'O ranking ainda não está ligado no servidor (falta a migração v15). As partidas acontecem, mas não contam pontos.';
+    ui.rankedList.textContent = '';
+    return;
+  }
+  const days = msg.season ? Math.max(0, Math.ceil((msg.season.endsAt - Date.now()) / 86_400_000)) : 0;
+  ui.rankedSeason.textContent = msg.season ? `Temporada ${msg.season.id} · acaba em ${days} dia${days === 1 ? '' : 's'}` : 'Sem temporada aberta.';
+  const me = msg.me;
+  const all = msg.overall;
+  ui.rankedMe.textContent = me ? `Você: ${me.position}º · ${me.mmr} pontos · ${me.wins}V ${me.losses}D` + (all ? ` · recorde ${all.best}` : '')
+    : 'Você ainda não lutou nesta temporada. Aperte Desafio!';
+  ui.rankedList.textContent = '';
+  for (const r of msg.top || []) {
+    const tr = document.createElement('tr');
+    if (r.playerId === state.meId) tr.className = 'me';
+    else if (r.position === 1) tr.className = 'top1';
+    for (const v of [`${r.position}º`, r.username, VILLAGE_SHORT[r.village] || '—', String(r.level), String(r.mmr), `${r.wins}/${r.losses}`]) {
+      const td = document.createElement('td');
+      td.textContent = v;
+      tr.appendChild(td);
+    }
+    ui.rankedList.appendChild(tr);
+  }
+  if (!(msg.top || []).length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.textContent = 'Ninguém lutou ainda nesta temporada.';
+    tr.appendChild(td);
+    ui.rankedList.appendChild(tr);
+  }
+}
+
+/** Avisos grandes da partida para quem está lutando (e no chat para quem assiste). */
+function duelAnnounce(msg) {
+  const prev = state.duelPrev;
+  state.duelPrev = msg;
+  if (msg.phase === 'idle' || !msg.a || !msg.b) return;
+  const mine = msg.a.id === state.meId ? 'a' : msg.b.id === state.meId ? 'b' : null;
+  if (msg.phase === 'prep' && prev?.phase !== 'prep') {
+    if (mine) showToast(`Seu adversário: ${mine === 'a' ? msg.b.name : msg.a.name} (Nv ${mine === 'a' ? msg.b.level : msg.a.level})`, 4000);
+    addSystemLine(`⚔️ Rankeado: ${msg.a.name} x ${msg.b.name}.`);
+  } else if (msg.phase === 'round' && prev?.phase !== 'round' && mine) showToast(`Rodada ${msg.round}: lute!`, 1800);
+  else if (msg.phase === 'done' && prev?.phase !== 'done') {
+    const w = msg.winner ? msg[msg.winner] : null;
+    if (w) addSystemLine(msg.reason === 'forfeit' ? `🏆 Rankeado: ${w.name} venceu (o outro saiu).` : `🏆 Rankeado: ${w.name} venceu por ${Math.max(msg.wins.a, msg.wins.b)} a ${Math.min(msg.wins.a, msg.wins.b)}.`);
+    if (mine && w) showToast(msg.winner === mine ? 'Vitória!' : 'Derrota', 3500);
+  }
+}
+
 /** Ninja que pode ser alvo agora: os dois dentro da arena da vila (o servidor confere de novo). */
 function isFoe(p) {
   const me = state.players.get(state.meId);
   if (!p || p === me || p.map !== state.mapId) return false;
   const map = state.maps[state.mapId];
+  if (map?.ranked) return duelFoe(p.id);
   return arenaFoes(map, me, p) || zoneFoe(state.endgame, map, me, p, (x, y) => inSafeZone(map, x, y));
 }
 
@@ -4743,7 +4897,7 @@ function update(dt) {
       if (arena !== state.inArena) {
         state.inArena = arena;
         document.body.classList.toggle('arena-zone', arena);
-        if (arena) showToast('Arena: aqui os ninjas da sua vila treinam luta. Perder não custa nada.', 3500);
+        if (arena && !state.maps[state.mapId]?.ranked) showToast('Arena: aqui os ninjas da sua vila treinam luta. Perder não custa nada.', 3500);
         if (!arena && state.focusId && state.players.has(state.focusId)) setFocus(null);
         updateOnline();
       }

@@ -113,8 +113,10 @@ export interface CombatConfig {
   player: {
     /** Vida e chakra BASE (sem atributos). */
     maxHp: number; maxChakra: number;
-    /** Vida por segundo, SÓ com o chakra no máximo. */
+    /** Vida por segundo, SÓ com o chakra no máximo e `hpRegenCalmMs` sem apanhar nem gastar chakra. */
     hpRegenPerSec: number;
+    /** v29 (decisão do Victor): quanto tempo sem tomar dano nem gastar chakra até a vida começar a voltar. */
+    hpRegenCalmMs: number;
     /** Base do chakra. O chakra NÃO regenera sozinho: só meditando, a base x o multiplicador. */
     chakraRegenPerSec: number;
     respawnMs: number;
@@ -308,7 +310,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
   /** Combate PvE. O servidor decide tudo: dano, acerto, morte e XP. */
   combat: {
     // Chakra só volta meditando: 5 x 3 = 15/s. Vida volta 1/s só com o chakra cheio.
-    player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 1, chakraRegenPerSec: 5, respawnMs: 5000, meditationRegenMultiplier: 3 },
+    player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 1, hpRegenCalmMs: 7000, chakraRegenPerSec: 5, respawnMs: 5000, meditationRegenMultiplier: 3 },
     basicAttack: { damage: 12, range: 1.6, arcDeg: 90, cooldownMs: 600 },
     damageScale: { jutsu: 0.4, basic: 0.5 },
     pvp: false,

@@ -188,6 +188,11 @@ const username = z.string().regex(/^[A-Za-z0-9_]{3,24}$/);
 /** Justificativa (banimento, denúncia): o banco confere o tamanho (10 a 300) e mostra ao Kage. */
 const reason = z.string().max(300);
 
+/** v29: um lado da partida do rankeado, como aparece na tela (o nome só aparece na preparação). */
+/** v29: uma linha do ranking do rankeado. */
+export interface RankedRowView { position: number; playerId: string; username: string; village: string | null; level: number; mmr: number; wins: number; losses: number }
+export interface DuelSideView { id: string; name: string; level: number; village: string | null }
+
 export type KitName = 'A' | 'B';
 export type Kits = Record<KitName, Skill[]>;
 
@@ -198,6 +203,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   // cima, baixo, esquerda ou direita); o ALCANCE é sempre do servidor.
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: targetId.optional(), dir: z.tuple([axis, axis]).optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
+  // v29: modo rankeado: entrar no Vale das Estátuas, sair dele, entrar na fila do Desafio e sair da fila.
+  z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board']) }),
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z][a-z_]{0,23}$/) }),
   z.object({ type: z.literal('missions') }),
@@ -556,6 +563,14 @@ export type ServerMessage =
   | { type: 'monster_gone'; id: string }
   /** arena: perdeu uma luta de treino (renasce na entrada da arena, mais rápido). */
   | { type: 'player_died'; playerId: string; respawnInMs: number; arena?: boolean }
+  // v29: modo rankeado. A fila (só para quem está nela) e o estado da partida da arena (para todos no Vale).
+  | { type: 'duel_queue'; queued: boolean; position: number; size: number }
+  // v29 (migração v15): os pontos de quem lutou depois da partida, e o painel do ranking.
+  | { type: 'duel_rating'; counted: boolean; delta: number; mmr: number; won: boolean }
+  | { type: 'ranked_board'; available: boolean; season?: { id: number; endsAt: number } | null; top?: RankedRowView[]; me?: RankedRowView | null;
+      overall?: { mmr: number; best: number; wins: number; losses: number } | null }
+  | { type: 'duel_state'; phase: 'idle' | 'prep' | 'round' | 'interval' | 'done'; ms: number; round: number; wins: { a: number; b: number };
+      a?: DuelSideView; b?: DuelSideView; history: ('a' | 'b')[]; winner?: 'a' | 'b'; reason?: 'rounds' | 'forfeit'; queue: number }
   | { type: 'arena_result'; winnerId: string; winner: string; loserId: string; loser: string; winnerRecord: ArenaRecord; loserRecord: ArenaRecord }
   | { type: 'player_respawned'; playerId: string; x: number; y: number; hp: number; maxHp: number }
   | { type: 'xp'; gained: number; totalXp: number; rank: RankView; promoted: boolean }

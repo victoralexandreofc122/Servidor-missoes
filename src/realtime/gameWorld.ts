@@ -10,7 +10,7 @@ import {
 import {
   CLOSE, ClientMessage, DIRECTED_SKILLS, LINE_MECHANICS, REALTIME_ERRORS, SKILLS, sanitizeChat,
   type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
-  type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
+  type DuelSideView, type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
   type Skill, type WorldInfo, type Appearance, type Dir, type MonsterStatus,
   type EndgameView, type FactionView, type PowerFailReason, type TravelOption, type SkyView,
 } from './protocol.js';
@@ -29,6 +29,7 @@ import { CC_BUDGET, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safety
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
+import type { RankedStore } from './rankedStore.js';
 import { SHOW_ALL, type Display, type EndgamePlayer, type EndgameStore, type KageAction, type Politics, type PvpKill, type TickEvent } from './endgameStore.js';
 import { VILLAGE_INFO, alliesOf, conflictHostile, mapAllowed, type Diplomacy, type Faction, type MapAccess, type PassiveKind } from './villages.js';
 import { POWERS, POWER_BY_SLOT, type PowerDef, type PowerKind } from './akatsuki.js';
@@ -43,8 +44,9 @@ import {
   type EffectBag, type EffectCode,
 } from './effects.js';
 import { NO_CLASS, PvpStats, reportText, toClassRows } from './pvpStats.js';
+import { DUEL, addDamage, advance, endRound, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, timeoutWinner, type DuelMatch, type QueueEntry, type Side } from './duel.js';
 import {
-  ACADEMY, REFUGE, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
+  VALE, ACADEMY, REFUGE, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
   type MapLayout,
 } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
@@ -156,6 +158,8 @@ export interface WorldOptions {
   admin?: AdminStore;
   /** Fim de jogo no banco (migração v11). Sem isto, ou sem a v11 aplicada: módulos desligados. */
   endgame?: EndgameStore;
+  /** v29: pontos e temporadas do rankeado (migração v15). Sem isto, ou sem a v15: as partidas não contam pontos. */
+  ranked?: RankedStore;
   /** Quem vigia o servidor (site do jogo: saúde, bugs e comportamento suspeito). */
   watch?: WorldWatch;
 }
@@ -234,6 +238,8 @@ interface Session {
   netLog: Map<string, NetHit[]>;
   /** Acabou de renascer: nenhum jogador o machuca até este instante. */
   protectedUntil: number;
+  /** v29: última vez que tomou dano ou gastou chakra (a vida só volta 7 s depois, com o chakra cheio). */
+  calmSince: number;
   dead: boolean;
   deadAt: number;
   /** Quanto espera para renascer desta morte (na arena é mais curto) e onde ela aconteceu (arena: renasce na entrada). */
@@ -522,6 +528,15 @@ export class GameWorld {
   private projectileSeq = 0;
   /** Placar da arena (vitórias e derrotas desde que o servidor subiu; não vai para o banco). */
   private readonly arenaRecord = new Map<string, { wins: number; losses: number }>();
+  /** v29: modo rankeado. A fila do Desafio, a partida da arena do Vale e para onde cada um volta ao sair do Vale. */
+  private rankedQueue: QueueEntry[] = [];
+  private duel: DuelMatch | null = null;
+  private duelSeq = 0;
+  private readonly rankedReturn = new Map<string, { map: MapId; x: number; y: number }>();
+  private readonly rankedStore: RankedStore | undefined;
+  private rankedReady = false;
+  private rankedTimer: NodeJS.Timeout | undefined;
+  private rankedBusy = false;
   /** Números do PvP desde que o servidor ligou (por classe e por golpe), para o painel do admin. */
   private readonly pvpStats: PvpStats;
   /** Densidade: quando cada mapa de caça pode ganhar ou perder o próximo monstro. */
@@ -551,6 +566,7 @@ export class GameWorld {
     this.chatLog = options.chatLog ?? memoryChatLog(now);
     this.admin = options.admin;
     this.endgame = options.endgame;
+    this.rankedStore = options.ranked;
     this.watch = options.watch ?? {};
     for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
     this.lastTick = now();
@@ -832,6 +848,7 @@ export class GameWorld {
       ccLog: [],
       netLog: new Map(),
       protectedUntil: previous?.protectedUntil ?? 0,
+      calmSince: previous?.calmSince ?? 0,
       cooldowns: { ...(previous?.cooldowns ?? {}) },
       xp: player.xp ?? previous?.xp ?? 0,
       rank: player.rank ?? previous?.rank ?? DEFAULT_RANK,
@@ -950,6 +967,7 @@ export class GameWorld {
   private leave(session: Session): void {
     session.closed = true;
     if (this.sessions.get(session.id) !== session) return;
+    this.rankedGone(session);
     this.flushUsage(session);
     this.sessions.delete(session.id);
     this.mapPlayers.get(session.map)?.delete(session);
@@ -1023,6 +1041,7 @@ export class GameWorld {
     else if (parsed.type === 'power') this.power(session, t, parsed.targetId, parsed.dir);
     else if (parsed.type === 'set_display') this.setDisplay(session, { cape: parsed.cape, weapon: parsed.weapon, scroll: parsed.scroll });
     else if (parsed.type === 'travel') this.travel(session, parsed.to, t);
+    else if (parsed.type === 'ranked') this.rankedAction(session, parsed.action, t);
     else this.endgameRequest(session, parsed, t);
     this.flushKicks();
   }
@@ -1374,7 +1393,9 @@ export class GameWorld {
 
   /** O que o céu muda nos jutsus no mapa `map` agora; null dentro de casa e na caverna. */
   private skyEffectsAt(map: MapId): SkyEffects | null {
-    return outdoors(this.layout(map).kind) ? skyEffects(this.sky.phase, this.sky.weather) : null;
+    const layout = this.layout(map);
+    if (layout.ranked) return null;                                // v29: rankeado sem clima
+    return outdoors(layout.kind) ? skyEffects(this.sky.phase, this.sky.weather) : null;
   }
 
   private skyView(t: number): SkyView {
@@ -1721,6 +1742,7 @@ export class GameWorld {
 
     // 3. Cobra, avisa todos e aplica.
     session.chakra -= price.cost;
+    if (price.cost > 0) session.calmSince = t;
     session.cooldowns[skill] = t + (mechanic === 'substitution' ? substitutionCooldownMs(level) : price.cooldownMs);
     this.broadcastMap(session.map, {
       type: 'cast', playerId: session.id, skill, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy),
@@ -1838,6 +1860,11 @@ export class GameWorld {
   private canHurt(attacker: Session, victim: Session, t: number = this.now()): boolean {
     if (attacker === victim || victim.dead || victim.closed || victim.map !== attacker.map) return false;
     if (attacker.tutorial < 4 || victim.tutorial < 4 || t < victim.protectedUntil) return false;
+    // v29: no Vale das Estátuas só lutam os dois da partida, e só durante a rodada.
+    if (this.layout(attacker.map).ranked) {
+      const d = this.duel;
+      return !!d && d.phase === 'round' && sideOf(d, attacker.id) !== null && sideOf(d, victim.id) !== null;
+    }
     if (this.inSafeZone(attacker) || this.inSafeZone(victim)) return false;
     const layout = this.layout(attacker.map);
     const arena = arenaAt(layout, attacker.x, attacker.y);
@@ -1925,6 +1952,7 @@ export class GameWorld {
       } else if (target.kind === 'player') {
         const got = Math.min(buff.amount, target.session.chakra);
         target.session.chakra -= got;
+        if (got > 0) target.session.calmSince = t;
         attacker.chakra = Math.min(attacker.stats.maxChakra, attacker.chakra + got);
       }
     }
@@ -3201,6 +3229,7 @@ export class GameWorld {
    */
   private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session, label?: string): void {
     if (t < session.intangibleUntil) return;                    // Máscara Intangível (Akatsuki)
+    session.calmSince = t;                                       // v29: apanhou: a vida para de voltar por 7 s
     // Apanhou: a meditação acaba ANTES do dano (não dá para meditar no meio da luta). O sono acorda.
     this.stopMeditation(session, 'damaged');
     this.wakeOnDamage({ kind: 'player', id: session.id, x: session.x, y: session.y, session }, t);
@@ -3228,6 +3257,18 @@ export class GameWorld {
     const before = session.hp;
     session.hp = Math.max(0, session.hp - dmg);
     if (by && label) this.pvpStats.hit(label, classOf(by), before - session.hp);
+    // v29: rankeado. O dano conta para o desempate; zerar a vida não mata: fecha a rodada.
+    const duel = this.duel;
+    const duelSide = duel ? sideOf(duel, session.id) : null;
+    if (duel && duelSide && duel.phase === 'round') {
+      addDamage(duel, other(duelSide), before - session.hp);
+      if (session.hp <= 0) {
+        this.broadcastMap(session.map, { type: 'hit', target: 'player', id: session.id, amount: dmg, kind: 'damage', hp: 0, maxHp: session.stats.maxHp });
+        session.sentHp = 0;
+        this.duelRoundOver(other(duelSide), t);
+        return;
+      }
+    }
     const maxHp = session.stats.maxHp;
     this.broadcastMap(session.map, { type: 'hit', target: 'player', id: session.id, amount: dmg, kind: 'damage', hp: shownHp(session.hp), maxHp, ...(shielded ? { shielded: true } : {}) });
     session.sentHp = shownHp(session.hp);
@@ -3248,6 +3289,239 @@ export class GameWorld {
       else if (by && this.layout(session.map).conflict) this.pvpKill(by, session);
     }
     this.sendStats(session, t);
+  }
+
+  // ---------------------------------------------------------------- modo rankeado (v29, duel.ts)
+
+  /** Botões do modo rankeado: entrar no Vale, sair dele, entrar e sair da fila do Desafio. */
+  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board', t: number): void {
+    if (action === 'board') return this.rankedBoard(s, t);
+    if (s.dead || s.closed) return;
+    const inVale = s.map === 'vale_estatuas';
+    if (action === 'enter') {
+      if (inVale) return;
+      if (s.tutorial < 4) return this.notice(s.id, 'Termine a Academia para jogar o rankeado.', 'bad');
+      this.rankedReturn.set(s.id, { map: s.map, x: s.x, y: s.y });
+      this.stopMeditation(s, 'manual');
+      this.transfer(s, 'vale_estatuas', VALE.spawn.x + (Math.random() - 0.5) * 4, VALE.spawn.y + (Math.random() - 0.5) * 2, 'travel');
+      this.sendDuelState(s);
+      return;
+    }
+    if (!inVale) return;
+    if (action === 'queue') {
+      if (this.duel && sideOf(this.duel, s.id)) return;
+      if (s.level < DUEL.minLevel) return this.notice(s.id, `O rankeado abre no nível ${DUEL.minLevel}.`, 'bad');
+      if (!this.rankedQueue.some((e) => e.id === s.id)) this.rankedQueue.push({ id: s.id, level: s.level, joinedAt: t, skips: 0 });
+      this.sendQueues();
+      return;
+    }
+    if (action === 'unqueue') {
+      this.rankedQueue = this.rankedQueue.filter((e) => e.id !== s.id);
+      this.sendQueues();
+      return;
+    }
+    // leave: sai da fila, desiste da partida e volta para onde estava (ou para casa)
+    this.rankedGone(s);
+    const back = this.rankedReturn.get(s.id) ?? this.homeOf(s.village);
+    this.rankedReturn.delete(s.id);
+    s.hp = Math.max(s.hp, 1);
+    this.transfer(s, back.map, back.x, back.y, 'travel');
+    this.sendStats(s, t);
+  }
+
+  /** Saiu do Vale (botão, desconexão): sai da fila; se estava lutando, perde a partida. */
+  private rankedGone(s: Session): void {
+    const before = this.rankedQueue.length;
+    this.rankedQueue = this.rankedQueue.filter((e) => e.id !== s.id);
+    const d = this.duel;
+    const side = d ? sideOf(d, s.id) : null;
+    if (d && side && d.phase !== 'done') {
+      forfeit(d, side, this.now());
+      this.duelFinished(d);
+    }
+    if (before !== this.rankedQueue.length) this.sendQueues();
+  }
+
+  /** O ninja da partida, se ainda está conectado e no Vale. */
+  private duelSession(id: string): Session | undefined {
+    const s = this.sessions.get(id);
+    return s && !s.closed && s.map === 'vale_estatuas' ? s : undefined;
+  }
+
+  /** Forma a próxima partida e passa as fases. Chamado a cada tick. */
+  private rankedTick(t: number): void {
+    if (this.rankedQueue.length > 0) {
+      const valid = this.rankedQueue.filter((e) => this.duelSession(e.id));
+      if (valid.length !== this.rankedQueue.length) { this.rankedQueue = valid; this.sendQueues(); }
+    }
+    const d = this.duel;
+    if (!d) {
+      const pick = takeMatch(this.rankedQueue);
+      if (!pick) return;
+      this.rankedQueue = pick.rest;
+      const m = newMatch(++this.duelSeq, pick.a, pick.b, t);
+      this.duel = m;
+      this.duelPlace(m, t);
+      this.sendQueues();
+      this.broadcastDuel();
+      this.log.info({ match: m.id, a: m.a, b: m.b }, 'rankeado: partida começou');
+      return;
+    }
+    if (d.phase === 'done') {
+      if (t >= d.until) this.duelClose(d);
+      return;
+    }
+    if (d.phase === 'round' && t >= d.until) {
+      const share = (id: string) => { const x = this.duelSession(id); return x ? x.hp / x.stats.maxHp : 0; };
+      this.duelRoundOver(timeoutWinner(d, { a: share(d.a), b: share(d.b) }), t);
+      return;
+    }
+    if (advance(d, t)) {
+      this.duelPlace(d, t);
+      this.broadcastDuel();
+    }
+  }
+
+  /** Começo da preparação e de cada rodada: os dois no seu lado, com vida e chakra cheios e sem efeitos. */
+  private duelPlace(d: DuelMatch, t: number): void {
+    for (const side of ['a', 'b'] as const) {
+      const s = this.duelSession(d[side]);
+      if (!s) continue;
+      this.duelRefresh(s, t);
+      const at = VALE.start[side];
+      this.transfer(s, 'vale_estatuas', at.x, at.y, 'respawn');
+      this.sendStats(s, t);
+    }
+  }
+
+  /** Vida e chakra cheios, sem efeitos, sem escudo, parado. */
+  private duelRefresh(s: Session, t: number): void {
+    s.dead = false;
+    s.hp = s.stats.maxHp;
+    s.chakra = s.stats.maxChakra;
+    s.shield = 0;
+    s.netLog.clear();
+    this.stopMeditation(s, 'manual');
+    for (const code of [...s.effects.keys()]) this.dropEffect({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }, code, t);
+    s.dx = 0;
+    s.dy = 0;
+    this.dropInputs(s);
+  }
+
+  /** A rodada acabou (alguém zerou, ou o tempo). */
+  private duelRoundOver(winner: Side | null, t: number): void {
+    const d = this.duel;
+    if (!d || d.phase !== 'round') return;
+    const over = endRound(d, winner, t);
+    this.broadcastDuel();
+    if (over) this.duelFinished(d);
+  }
+
+  /** A partida acabou: avisa o Vale (o placar fica na tela até `endMs`). */
+  private duelFinished(d: DuelMatch): void {
+    this.broadcastDuel();
+    if (!d.winner) return;
+    const winnerId = d[d.winner], loserId = d[other(d.winner)];
+    this.log.info({ match: d.id, winner: winnerId, loser: loserId, reason: d.reason, wins: d.wins }, 'rankeado: partida acabou');
+    const store = this.rankedReady ? this.rankedStore : undefined;
+    if (!store) return;
+    // v15: grava a partida e mexe nos pontos (fora do loop); depois avisa os dois.
+    const input = {
+      winnerId, loserId, winnerRounds: d.wins[d.winner], loserRounds: d.wins[other(d.winner)], reason: d.reason ?? 'rounds',
+      durationMs: this.now() - d.startedAt, balanceVersion: PVP_BALANCE_VERSION, rounds: d.rounds,
+    } as const;
+    store.result(input).then((r) => {
+      const tell = (id: string, won: boolean) => {
+        const s = this.sessions.get(id);
+        if (s) this.sendTo(s, { type: 'duel_rating', counted: r.counted, delta: won ? r.winnerDelta : r.loserDelta, mmr: won ? r.winnerMmr : r.loserMmr, won });
+      };
+      tell(winnerId, true);
+      tell(loserId, false);
+    }).catch((err: unknown) => this.log.warn({ err, match: d.id }, 'rankeado: falha ao gravar a partida'));
+  }
+
+  /** O painel do ranking (temporada atual, top 50 e a linha de quem pediu). Um pedido por vez, com ritmo. */
+  private rankedBoard(s: Session, t: number): void {
+    const store = this.rankedReady ? this.rankedStore : undefined;
+    if (!store) return this.sendTo(s, { type: 'ranked_board', available: false });
+    if (t - s.lastPanelAt < this.config.missionRequestEveryMs) return;
+    s.lastPanelAt = t;
+    const id = s.id;
+    store.board(id, 50).then((b) => {
+      const me = this.sessions.get(id);
+      if (me) this.sendTo(me, { type: 'ranked_board', available: true, season: b.season, top: b.top, me: b.me, overall: b.overall });
+    }).catch((err: unknown) => this.log.warn({ err }, 'rankeado: falha ao ler o ranking'));
+  }
+
+  /** A cada minuto: procura a v15 (aplicar no Neon não precisa reiniciar) e fecha a temporada vencida. */
+  async rankedMaintenance(): Promise<void> {
+    const store = this.rankedStore;
+    if (!store || this.rankedBusy) return;
+    this.rankedBusy = true;
+    try {
+      if (!this.rankedReady) {
+        if (!(await store.available())) return;
+        this.rankedReady = true;
+        this.log.info({}, 'rankeado: migração v15 encontrada');
+      }
+      const closed = await store.closeSeason(new Date());
+      if (closed !== null) {
+        this.broadcast({ type: 'announce', message: `🏆 A temporada ${closed} do rankeado acabou! As recompensas foram entregues. Começou a temporada ${closed + 1}.` });
+        this.log.info({ season: closed }, 'rankeado: temporada fechada');
+      }
+    } catch (err) {
+      this.log.warn({ err }, 'rankeado: falha na manutenção');
+    } finally {
+      this.rankedBusy = false;
+    }
+  }
+
+  /** Fim da tela de resultado: os dois saem da arena (com a vida cheia) e a arena fica livre para a próxima. */
+  private duelClose(d: DuelMatch): void {
+    this.duel = null;
+    const t = this.now();
+    for (const id of [d.a, d.b]) {
+      const s = this.duelSession(id);
+      if (!s) continue;
+      this.duelRefresh(s, t);
+      this.transfer(s, 'vale_estatuas', VALE.spawn.x + (Math.random() - 0.5) * 6, VALE.spawn.y + (Math.random() - 0.5) * 2, 'respawn');
+      this.sendStats(s, t);
+    }
+    this.broadcastDuel();
+  }
+
+  private duelSideView(id: string): DuelSideView | undefined {
+    const s = this.sessions.get(id);
+    return s ? { id: s.id, name: s.username, level: s.level, village: s.village } : undefined;
+  }
+
+  private duelStateMessage(): ServerMessage {
+    const d = this.duel;
+    if (!d) return { type: 'duel_state', phase: 'idle', ms: 0, round: 0, wins: { a: 0, b: 0 }, history: [], queue: this.rankedQueue.length };
+    const a = this.duelSideView(d.a), b = this.duelSideView(d.b);
+    return {
+      type: 'duel_state', phase: d.phase, ms: Math.max(0, d.until - this.now()), round: d.round, wins: { ...d.wins },
+      ...(a ? { a } : {}), ...(b ? { b } : {}), history: [...d.history], queue: this.rankedQueue.length,
+      ...(d.winner ? { winner: d.winner } : {}), ...(d.reason ? { reason: d.reason } : {}),
+    };
+  }
+
+  private broadcastDuel(): void {
+    this.broadcastMap('vale_estatuas', this.duelStateMessage());
+  }
+
+  private sendDuelState(s: Session): void {
+    this.sendTo(s, this.duelStateMessage());
+    const pos = queuePosition(this.rankedQueue, s.id);
+    this.sendTo(s, { type: 'duel_queue', queued: pos > 0, position: pos, size: this.rankedQueue.length });
+  }
+
+  /** A posição de cada um na fila (e o tamanho dela para quem assiste). */
+  private sendQueues(): void {
+    for (const s of this.mapPlayers.get('vale_estatuas') ?? []) {
+      const pos = queuePosition(this.rankedQueue, s.id);
+      this.sendTo(s, { type: 'duel_queue', queued: pos > 0, position: pos, size: this.rankedQueue.length });
+    }
   }
 
   /** Luta de arena acabou: placar (em memória) e aviso para todos no mapa. Sem XP nem ryō: é treino. */
@@ -3698,9 +3972,10 @@ export class GameWorld {
       // Campo da Sala de Controle: drena o chakra (antes da meditação, que vence o dreno).
       const drain = this.drainAt(s);
       if (drain > 0) s.chakra = Math.max(0, s.chakra - drain * dt);
-      // Chakra: SÓ meditando (15/s + atributo). Vida: SÓ com o chakra no máximo.
+      // Chakra: SÓ meditando (também no rankeado). Vida: SÓ com o chakra no máximo e 7 s sem apanhar nem gastar
+      // chakra (v29, decisão do Victor; vale no jogo todo).
       if (s.meditating) s.chakra = Math.min(s.stats.maxChakra, s.chakra + s.stats.meditationChakraPerSec * dt);
-      if (s.chakra >= s.stats.maxChakra) s.hp = Math.min(s.stats.maxHp, s.hp + p.hpRegenPerSec * dt);
+      if (s.chakra >= s.stats.maxChakra && t - s.calmSince >= p.hpRegenCalmMs) s.hp = Math.min(s.stats.maxHp, s.hp + p.hpRegenPerSec * dt);
       // Etapa 2 do tutorial: meditando DENTRO da Sala de Controle até o chakra encher.
       if (s.tutorial === 1 && s.meditating && s.chakra >= s.stats.maxChakra && s.map === 'academy_interior'
         && s.x >= ACADEMY.room && s.x < ACADEMY.room * 2) this.advanceTutorial(s, 2);
@@ -3711,6 +3986,9 @@ export class GameWorld {
         this.sendStats(s, t);
       }
     }
+
+    // 1c. Modo rankeado: forma a partida da fila e anda as fases dela.
+    this.rankedTick(t);
 
     // 1d. Efeitos com tempo: pulsos (queimadura, regeneração) e o fim de cada um.
     this.tickEffects(t);
@@ -3796,6 +4074,11 @@ export class GameWorld {
     }, CHAT_HISTORY.purgeEveryMs);
     this.purgeTimer.unref();
     // Fim de jogo: confere a v11, a população e roda a manutenção (eleições, temporadas) a cada minuto.
+    if (this.rankedStore) {
+      void this.rankedMaintenance();
+      this.rankedTimer = setInterval(() => void this.rankedMaintenance(), this.config.endgame.tickMs);
+      this.rankedTimer.unref();
+    }
     if (this.endgame) {
       void this.endgameMaintenance();
       this.endgameTimer = setInterval(() => void this.endgameMaintenance(), this.config.endgame.tickMs);
@@ -3808,6 +4091,7 @@ export class GameWorld {
     if (this.timer) clearInterval(this.timer);
     if (this.purgeTimer) clearInterval(this.purgeTimer);
     if (this.endgameTimer) clearInterval(this.endgameTimer);
+    if (this.rankedTimer) clearInterval(this.rankedTimer);
     this.timer = undefined;
     this.purgeTimer = undefined;
     this.endgameTimer = undefined;
@@ -3872,6 +4156,7 @@ export class GameWorld {
   }
 
   private passive(s: Session, kind: PassiveKind): number {
+    if (this.duel && sideOf(this.duel, s.id)) return 1;          // v29: rankeado sem passiva da vila
     return this.passiveOf(s.village, kind);
   }
 
@@ -4512,6 +4797,7 @@ export class GameWorld {
 
   private spendPower(s: Session, def: PowerDef, t: number): void {
     s.chakra -= def.cost;
+    if (def.cost > 0) s.calmSince = t;
     s.cooldowns.power = t + def.cooldownMs;
   }
 

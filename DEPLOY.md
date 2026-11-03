@@ -1029,3 +1029,30 @@ log do Render pede para rodar este arquivo e o Render mantém a versão anterior
 2. **Equipamentos:** o espaço **Acessório** não tem mais cadeado. Vista um casaco: ele aparece por cima da camisa e
    calça (ou do conjunto da vila), é uma peça só nas costas e todos veem. **Tirar** volta à roupa.
 3. **Criador:** a linha **Roupa** só tem "Camisa e calça" e "Conjunto da vila".
+
+## Passo 30 — Atualização v29: modo rankeado (SQL **antes** do deploy, mas opcional)
+
+**Banco primeiro.** No Neon, abra o **SQL Editor**, confira no seletor que o branch é o `production` e rode o arquivo
+`db/schema_v15_rankeado.sql` inteiro. Ele segue as regras de sempre (sem bloco `DO $$`, tudo dentro de
+`BEGIN; ... COMMIT;`), só cria coisas novas e pode rodar de novo. Ele cria:
+
+- as temporadas do rankeado (60 dias; a 1ª começa na hora em que você roda), separadas das da Zona de Conflito;
+- os pontos de cada ninja (começa em 1000), gerais e por temporada;
+- o registro de cada partida (placar, motivo, duração, rodadas, versão da tabela de equilíbrio);
+- `game.ranked_result` (grava a partida e mexe nos pontos: K = 24, fator do novato nas 30 primeiras partidas, até 15
+  níveis de diferença, até 3 partidas por dia da mesma dupla, conta de admin fora);
+- `game.close_ranked_season` (o servidor fecha a temporada sozinho e paga as recompensas).
+
+Para conferir depois: `SELECT id, ends_at FROM game.ranked_seasons;` mostra a temporada 1 aberta.
+
+**Depois o código:** publique a `main`. Sem a migração o servidor sobe igual (o log avisa): o rankeado funciona, só não
+conta pontos, e o painel de Ranking diz que falta a v15. Rodando a migração depois, o servidor acha sozinho em até 1
+minuto (não precisa reiniciar).
+
+### Testar no celular
+
+1. **Menu → Rankeado:** vai para o Vale das Estátuas (o botão vira **Voltar**, que devolve para onde você estava).
+2. **⚔️ Desafio** (embaixo, no meio): entra na fila; o botão mostra a posição. Com 2 na fila, a preparação começa e o
+   placar no alto mostra os nomes. Rodadas de até 50 s, melhor de 3; ninguém morre.
+3. No fim, aparece "+N pontos" para os dois; **🏆 Ranking** mostra a temporada, o top 50 e a sua posição.
+4. Conta de admin não ganha nem perde pontos (o chat avisa "não contou").

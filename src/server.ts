@@ -8,6 +8,7 @@ import { describeBootError } from './bootErrors.js';
 import { makeFindPlayer } from './realtime/findPlayer.js';
 import { makeAdminStore } from './realtime/admin.js';
 import { ENDGAME_SQL, makeEndgameStore } from './realtime/endgameStore.js';
+import { RANKED_SQL, makeRankedStore } from './realtime/rankedStore.js';
 import { CHAT_SQL, makeChatLog } from './realtime/chatLog.js';
 import { attachGameGateway } from './realtime/gateway.js';
 import { makeMissions, MISSIONS_SQL, NPC_MISSION, NPC_SENSEI_ID } from './realtime/missions.js';
@@ -136,6 +137,7 @@ const gateway = attachGameGateway(publicApp.server, {
   chatLog: makeChatLog(db),                                       // histórico do chat, 24 h (v8)
   admin: makeAdminStore(db),                                      // comandos /admin auditados (v8)
   endgame,                                                        // vilas, Kage, PvP, renegados, Akatsuki (v11, opcional)
+  ranked: makeRankedStore(db),                                    // pontos e temporadas do rankeado (v15, opcional)
   watch: sentinel,                                                // site do jogo: tempo do loop, bugs, suspeitas
   log: gameLog,
 });
@@ -200,6 +202,9 @@ try {
   // de novo a cada minuto: aplicar no Neon não precisa reiniciar.
   const v11 = await db.query<{ ok: boolean }>(ENDGAME_SQL.available);
   if (!v11.rows[0]?.ok) publicApp.log.warn('[boot] Fim de jogo desligado: rode db/schema_v11_endgame.sql no SQL Editor do Neon (não precisa reiniciar).');
+  // Migração v15 (rankeado): opcional; sem ela as partidas acontecem, só não contam pontos.
+  const v15 = await db.query<{ ok: boolean }>(RANKED_SQL.available);
+  if (!v15.rows[0]?.ok) publicApp.log.warn('[boot] Rankeado sem pontos: rode db/schema_v15_rankeado.sql no SQL Editor do Neon (não precisa reiniciar).');
   // Migração v4 (NPC Mestre): sem ela o jogo sobe igual, só o Mestre não passa missões.
   const v4 = await db.query(MISSIONS_SQL.bootCheck, [NPC_SENSEI_ID, NPC_MISSION.missionType, NPC_MISSION.difficulty]);
   if (v4.rows.length === 0) publicApp.log.warn('[boot] NPC Mestre sem missões: rode db/schema_v4_npc_missions.sql no SQL Editor do Neon (não precisa reiniciar).');
