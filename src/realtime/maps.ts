@@ -1297,7 +1297,7 @@ export const VALE = {
   /** As duas arquibancadas, à esquerda e à direita da cerca (só desenho; quem está em cima pode sentar). */
   stands: [{ x: 7.6, y: 8.5, w: 4, h: 13 }, { x: 32.4, y: 8.5, w: 4, h: 13 }],
   /** Onde cada lado começa cada rodada (dentro da cerca). */
-  start: { a: { x: 14, y: 15 }, b: { x: 30, y: 15 } },   // espelhados, um em cada ponta (revisão EGM)
+  start: { a: { x: 18, y: 15 }, b: { x: 26, y: 15 } },   // espelhados, um em cada ponta (revisão EGM)
 } as const;
 
 export function valeFightBox(): Box {

@@ -3472,7 +3472,6 @@ export class GameWorld {
     if (!store) return;
     if (d.matchDamage.a + d.matchDamage.b === 0) {
       // ninguém causou dano: não conta (evita combinar resultado)
-      for (const id of [winnerId, loserId]) this.notice(id, 'Partida sem nenhum dano: não conta pontos.', 'info');
       return;
     }
     // v15: grava a partida e mexe nos pontos (fora do loop); depois avisa os dois.

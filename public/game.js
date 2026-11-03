@@ -2003,7 +2003,10 @@ function renderDuel() {
   if (fighting) state.watchArena = false;
   if (!inVale) ui.rankedPanel.hidden = true;
   ui.duelBtn.classList.toggle('queued', !!q?.queued);
-  ui.duelBtn.textContent = q?.queued ? `Fila: ${q.position}º · Cancelar` : '⚔️ Desafio';
+  const busy = !!d && d.phase !== 'idle' && !fighting;
+  ui.duelBtn.classList.toggle('busy', busy && !q?.queued);
+  ui.duelBtn.textContent = q?.queued ? `Fila: ${q.position}º · Cancelar` : busy ? '⚔️ Entrar na fila' : '⚔️ Desafio';
+  document.body.classList.toggle('duel-fighting', fighting && d.phase !== 'done');
   if (!inVale) return;
   const side = (el, v, wins, isMe) => {
     el.name.textContent = v ? v.name : '?';
@@ -2061,7 +2064,7 @@ function renderRankedBoard(msg) {
   const me = msg.me;
   const all = msg.overall;
   ui.rankedMe.textContent = me ? `Você: ${me.position}º · ${me.mmr} pontos · ${me.wins}V ${me.losses}D` + (all ? ` · recorde ${all.best} ` : ' ')
-    : 'Você ainda não lutou nesta temporada. Aperte Desafio!';
+    : 'Você ainda não lutou nesta temporada (0/10 partidas para entrar na premiação). Aperte Desafio!';
   if (me) ui.rankedMe.appendChild(tierBadge(me.mmr));
   if (me && me.wins + me.losses < 10) ui.rankedMe.append(` · ${me.wins + me.losses}/10 partidas para entrar na premiação`);
   // barra até a próxima faixa
@@ -2113,7 +2116,8 @@ function duelAnnounce(msg) {
   } else if (msg.phase === 'round' && prev?.phase !== 'round' && mine) showToast(`Rodada ${msg.round}: lute!`, 1800);
   else if (msg.phase === 'done' && prev?.phase !== 'done') {
     const w = msg.winner ? msg[msg.winner] : null;
-    if (w) addSystemLine(msg.reason === 'forfeit' ? `🏆 Rankeado: ${w.name} venceu (o outro saiu).` : `🏆 Rankeado: ${w.name} venceu por ${Math.max(msg.wins.a, msg.wins.b)} a ${Math.min(msg.wins.a, msg.wins.b)}.`);
+    if (msg.voided) addSystemLine(`⚖️ Rankeado: partida anulada (ninguém causou dano).`);
+    else if (w) addSystemLine(msg.reason === 'forfeit' ? `🏆 Rankeado: ${w.name} venceu (o outro saiu).` : `🏆 Rankeado: ${w.name} venceu por ${Math.max(msg.wins.a, msg.wins.b)} a ${Math.min(msg.wins.a, msg.wins.b)}.`);
     if (mine && w) {
       const won = msg.winner === mine;
       if (msg.voided) showDuelBanner(won, 'Ninguém causou dano: não conta pontos', '', true);
