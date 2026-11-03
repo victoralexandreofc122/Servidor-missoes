@@ -74,6 +74,8 @@ export interface Wall extends Box {
  */
 export interface Area extends Box {
   g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood' | 'arena' | 'dirt' | 'ash' | 'cave' | 'burnt' | 'pebbles' | 'lodo'
+    // v29: lajes de pedra cinza-oliva com musgo (Vale das Estátuas)
+    | 'slab'
     // trilha da Floresta: o chão é a grama; a trilha curva vem do enfeite 'trail' (aqui só não nasce mato em cima)
     | 'trail';
   /** 'oval': só a mancha oval (com a borda ondulada) dentro da caixa pinta o chão. Sem: a caixa toda. */
@@ -1305,23 +1307,26 @@ function vale(): MapLayout {
   const { width: W, height: H } = VALE;
   const f = VALE.fence, t = VALE.thickness;
   const walls: Wall[] = [
-    wall('rock', 0, 0, W, 2), wall('rock', 0, H - 2, W, 2), wall('rock', 0, 2, 2, H - 4), wall('rock', W - 2, 2, 2, H - 4),
+    // o vale: paredão de rocha no fundo, rochas nos lados e embaixo (revisão EGM)
+    wall('cliff', 0, 0, W, 3.2), wall('rock', 0, H - 2, W, 2), wall('rock', 0, 3.2, 2, H - 5.2), wall('rock', W - 2, 3.2, 2, H - 5.2),
     // a cerca fechada: ninguém entra nem sai andando (o servidor leva os dois da partida)
     wall('fence', f.x, f.y, f.w, t), wall('fence', f.x, f.y + f.h - t, f.w, t),
     wall('fence', f.x, f.y + t, t, f.h - 2 * t), wall('fence', f.x + f.w - t, f.y + t, t, f.h - 2 * t),
     // as estátuas das 4 vilas nos cantos da praça (colidem só no pedestal)
-    wall('statue', 5.5, 5.8, 2.2, 1.2, 'vila_1'), wall('statue', 36.3, 5.8, 2.2, 1.2, 'vila_3'),
-    wall('statue', 5.5, 26.8, 2.2, 1.2, 'vila_4'), wall('statue', 36.3, 26.8, 2.2, 1.2, 'vila_5'),
-    tree(4, 31), tree(40, 31), tree(4, 12), tree(40, 12),
+    wall('statue', 4.5, 8.5, 3.2, 1.6, 'vila_1'), wall('statue', 36.3, 8.5, 3.2, 1.6, 'vila_3'),
+    wall('statue', 4.5, 27.5, 3.2, 1.6, 'vila_4'), wall('statue', 36.3, 27.5, 3.2, 1.6, 'vila_5'),
   ];
   const fight = valeFightBox();
   return {
     id: 'vale_estatuas', name: 'Vale das Estátuas', kind: 'wild', theme: 'folha', ranked: true, width: W, height: H, safe: true, walls,
     exits: [], doors: [],
-    areas: [area('stone', 2, 2, W - 4, H - 4), area('arena', f.x, f.y, f.w, f.h)],
+    areas: [area('slab', 0, 0, W, H), area('arena', f.x, f.y, f.w, f.h)],
     deco: [
       // a arquibancada: em cima e embaixo da cerca (dá para andar e assistir dali)
       deco('stands', f.x, f.y - 4, f.w, 3.6), deco('stands', f.x, f.y + f.h + 0.4, f.w, 3.2),
+      // lanternas de pedra nos cantos da arena (acendem de noite)
+      deco('toro', f.x - 2.4, f.y + 1, 1, 1.4), deco('toro', f.x + f.w + 1.4, f.y + 1, 1, 1.4),
+      deco('toro', f.x - 2.4, f.y + f.h - 2.4, 1, 1.4), deco('toro', f.x + f.w + 1.4, f.y + f.h - 2.4, 1, 1.4),
       deco('banner', f.x - 1.2, f.y - 1.2), deco('banner', f.x + f.w + 0.2, f.y - 1.2),
       deco('banner', f.x - 1.2, f.y + f.h + 0.2), deco('banner', f.x + f.w + 0.2, f.y + f.h + 0.2),
     ],

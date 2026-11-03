@@ -1378,6 +1378,7 @@ function updateTargetWindow(f) {
  * ninjas (verde), portas e saídas (roxo) e a seta do jogador no meio.
  */
 const MM_GROUND = {
+  slab: '#6a6a5a',
   stone: '#8d8a84', grass: '#4f9a3a', darkgrass: '#2a5a2c', moss: '#5b8a62', desert: '#e4c38a', stonebridge: '#b6aa94', sand: '#d9c08a', water: '#3a8ad0', bridge: '#8b5a2b',
   path: '#b8935c', trail: '#9a7a50', wood: '#7a5230', arena: '#3e4761', dirt: '#6f6150', ash: '#4a4744', cave: '#2a2236',
   burnt: '#3a2e26', pebbles: '#8a8478', lodo: '#5e2a86', void: '#0b1020',
@@ -4603,6 +4604,37 @@ function stoneTile(seed) {
 }
 
 /** Calçamento de cada vila (v16): a mesma planta da Folha com a pedra da terra dela. [base, bloco, bloco 2, brilho, pontos]. */
+/**
+ * v29 (revisão EGM): o chão do Vale das Estátuas. Lajes grandes de pedra cinza-oliva (2 por casa, de tamanhos
+ * diferentes), juntas escuras com musgo e uma laje rachada de vez em quando. Escuro o bastante para não estourar no sol.
+ */
+function valeSlabTile(seed, cracked = false) {
+  return makeTile((g) => {
+    const r = rng(seed);
+    g.fillStyle = '#2f3128';                                      // junta
+    g.fillRect(0, 0, U, U);
+    const cut = 6 + Math.floor(r() * 5);
+    const slabs = seed % 2 ? [[0, 0, U, cut], [0, cut, U, U - cut]] : [[0, 0, cut, U], [cut, 0, U - cut, U]];
+    for (const [x, y, w, h] of slabs) {
+      const tone = ['#6a6a5a', '#727160', '#646454'][Math.floor(r() * 3)];
+      g.fillStyle = tone;
+      g.fillRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      g.fillStyle = '#86846f';                                    // luz em cima e à esquerda
+      g.fillRect(x + 0.5, y + 0.5, w - 1, 1);
+      g.fillRect(x + 0.5, y + 0.5, 1, h - 1);
+      g.fillStyle = '#4c4c3f';                                    // sombra embaixo e à direita
+      g.fillRect(x + 0.5, y + h - 1.5, w - 1, 1);
+      g.fillRect(x + w - 1.5, y + 0.5, 1, h - 1);
+      for (let i = 0; i < (w * h) / 22; i++) fine(g, r() < 0.5 ? '#5c5c4d' : '#7c7a66', x + 1 + r() * (w - 2), y + 1 + r() * (h - 2), PX * 2, PX);
+    }
+    for (let i = 0; i < 3; i++) fine(g, r() < 0.5 ? '#4f6a2e' : '#5f7a36', r() * U, seed % 2 ? cut - 0.6 : r() * U, PX * (2 + Math.floor(r() * 3)), PX * 2);   // musgo nas juntas
+    if (cracked) {
+      g.strokeStyle = '#3a3b31'; g.lineWidth = PX * 2;
+      g.beginPath(); g.moveTo(3, 2); g.lineTo(6, 6); g.lineTo(5, 9); g.lineTo(8, 13); g.stroke();
+    }
+  });
+}
+
 const STONE_THEMES = {
   nevoa: ['#8a9ea6', '#b3c6cc', '#a7bcc3', '#c8d8dc', ['#9cb1b8', '#bfd0d5']],
   nuvem: ['#b3aaa6', '#d6cfca', '#cbc3be', '#e3ddd8', ['#c0b8b3', '#ddd6d1']],
@@ -4722,6 +4754,7 @@ const TILES = {
   burnt: [burntTile(131), burntTile(132), burntTile(133)],
   pebbles: [pebblesTile(141), pebblesTile(142)],
   lodo: [lodoTile(151)],
+  slab: [valeSlabTile(201), valeSlabTile(202), valeSlabTile(203), valeSlabTile(204, true)],
   sand: [sandTile(41), sandTile(42)],
   desert: [desertTile(161), desertTile(162), desertTile(163)],
   packedSand: [packedSandTile(191), packedSandTile(192), packedSandTile(193)],                 // Areia: chão da arena                                // Areia: os gramados
@@ -4773,6 +4806,7 @@ function tileAt(x, y) {
     case 'burnt': return TILES.burnt[h % 3];                       // Acampamento e Clareira Queimada
     case 'pebbles': return TILES.pebbles[h & 1];                   // leito seco da cachoeira
     case 'lodo': return TILES.lodo[0];
+    case 'slab': return TILES.slab[h % 5 === 0 ? 3 : h % 3];      // Vale das Estátuas: lajes com musgo
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
     case 'arena':                                                  // arena da vila: lajes, losango a cada 4 (na Areia, terra batida)

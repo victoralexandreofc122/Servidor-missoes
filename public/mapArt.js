@@ -1142,7 +1142,28 @@ const STATUE = { out: '#1b1916', dark: '#4e4a43', mid: '#77716a', light: '#a49d9
  * da vila e a placa com o símbolo dela. Contorno escuro e 3 tons, luz vindo de cima à esquerda.
  */
 function drawStatue(g, x, y, w, h, village) {
+  // desenhada no tamanho de referência (pedestal de 35 unidades) e ampliada para o pedestal de verdade
+  const k = w / 35, cx = x + w / 2, foot = y + h;
   const C = VILLAGE_COLORS[village] || VILLAGE_COLORS.vila_1;
+  // o estandarte da vila atrás, à direita: mastro e pano grande na cor da vila (a cor se vê de longe)
+  const mx = x + w + 2, top = foot - 30 * k - 46 * k;
+  fr(g, STATUE.out, mx - 1.5, top - 1, 3, foot - top);
+  fr(g, '#6a4a2a', mx - 0.8, top, 1.6, foot - top - 1);
+  fr(g, GOLD.mid, mx - 2.2, top - 2.5, 4.4, 2.5);
+  const bw = 11 * k, bh = 30 * k;
+  g.fillStyle = STATUE.out;
+  g.beginPath(); g.moveTo(mx + 1, top + 2); g.lineTo(mx + 2 + bw, top + 2); g.lineTo(mx + 2 + bw, top + bh); g.lineTo(mx + 1.5 + bw / 2, top + bh - 5 * k); g.lineTo(mx + 1, top + bh); g.closePath(); g.fill();
+  g.fillStyle = C.band[1];
+  g.beginPath(); g.moveTo(mx + 1.8, top + 2.8); g.lineTo(mx + 1.2 + bw, top + 2.8); g.lineTo(mx + 1.2 + bw, top + bh - 1.5); g.lineTo(mx + 1.5 + bw / 2, top + bh - 6 * k); g.lineTo(mx + 1.8, top + bh - 1.5); g.closePath(); g.fill();
+  fr(g, C.band[0], mx + 1.2 + bw - 2.5, top + 2.8, 2.5, bh - 6);
+  fr(g, C.band[2], mx + 1.8, top + 2.8, 1.2, bh - 6);
+  g.save();
+  g.translate(cx, foot); g.scale(k, k); g.translate(-cx, -foot);
+  statueBody(g, cx - 17.5, foot - h / k, 35, h / k, C);
+  g.restore();
+}
+
+function statueBody(g, x, y, w, h, C) {
   const cx = x + w / 2, foot = y + h;
   g.fillStyle = 'rgba(0, 0, 0, 0.3)';
   g.beginPath(); g.ellipse(cx + 2, foot + 1, w * 0.62, 4, 0, 0, Math.PI * 2); g.fill();
@@ -1201,23 +1222,34 @@ function drawStatue(g, x, y, w, h, village) {
  * desenho no chão: a plateia anda por cima.
  */
 function drawStands(g, x, y, w, h) {
+  // revisão EGM: degraus de verdade. Cada degrau tem o assento (face de cima, madeira clara) e o espelho (face da
+  // frente, pedra escura); o de trás é mais alto e mais escuro. No degrau de trás, as flâmulas das 4 vilas.
   const rows = 3, rh = h / rows;
-  g.fillStyle = 'rgba(0, 0, 0, 0.25)';
-  g.fillRect(x - 1, y - 1, w + 2, h + 2);
+  g.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  g.fillRect(x - 1, y - 1, w + 2, h + 3);
   for (let i = 0; i < rows; i++) {
-    const ry = y + i * rh, shade = i / (rows - 1);
-    const stone = ['#5b554c', '#6c655a', '#7d756a'][i], wood = ['#5e3c22', '#74492a', '#8a5a34'][i];
+    const ry = y + i * rh;
+    const seat = rh * 0.38, riser = rh - seat;
+    const wood = [['#4a301c', '#5e3c22', '#7a5030'], ['#5a3a20', '#70462a', '#8e5e38'], ['#6a4426', '#84532f', '#a26c40']][i];
+    const stone = [['#3a3a30', '#46463b'], ['#45453a', '#535345'], ['#505044', '#5e5e50']][i];
     fr(g, STATUE.out, x, ry, w, rh);
-    fr(g, stone, x, ry + rh * 0.45, w, rh * 0.55 - 1);                          // a face do degrau
-    fr(g, 'rgba(0, 0, 0, 0.18)', x, ry + rh * 0.45, w, 2);
-    fr(g, wood, x + 0.5, ry + 1, w - 1, rh * 0.42);                               // o assento
-    fr(g, '#b07a48', x + 0.5, ry + 1, w - 1, FINE * 2);
-    for (let bx = x + 10; bx < x + w - 4; bx += 14) fr(g, '#3a2614', bx, ry + 1, FINE * 2, rh * 0.42);   // juntas das tábuas
-    for (let bx = x + 6; bx < x + w - 6; bx += 34) {                                                         // pilastras
-      fr(g, STATUE.out, bx - 0.5, ry + rh * 0.45, 4, rh * 0.55 - 1);
-      fr(g, STATUE.light, bx, ry + rh * 0.45, 3, FINE * 2);
-    }
-    if (shade < 0) break;
+    fr(g, wood[1], x + 0.5, ry + 0.5, w - 1, seat);                              // assento
+    fr(g, wood[2], x + 0.5, ry + 0.5, w - 1, FINE * 3);
+    fr(g, wood[0], x + 0.5, ry + seat - FINE * 2, w - 1, FINE * 2);
+    for (let bx = x + 9; bx < x + w - 3; bx += 12) fr(g, wood[0], bx, ry + 0.5, FINE * 2, seat);   // tábuas
+    fr(g, stone[1], x + 0.5, ry + seat + 0.5, w - 1, riser - 1);                   // espelho de pedra
+    fr(g, stone[0], x + 0.5, ry + rh - 2, w - 1, 1.5);
+    for (let bx = x + 4; bx < x + w - 4; bx += 8) fr(g, stone[0], bx, ry + seat + 1.5, FINE * 2, riser - 3);   // juntas
+  }
+  const colors = [['#5a8a34', '#9ac25a'], ['#3f6f8f', '#8cc0d8'], ['#b8962e', '#f0d46a'], ['#b0642e', '#e8a66a']];
+  for (let i = 0, px = x + 8; px < x + w - 6; px += 22, i++) {                     // flâmulas no degrau de trás
+    const [c, l] = colors[i % 4];
+    fr(g, STATUE.out, px - 0.6, y - 9, 1.6, 10);
+    g.fillStyle = STATUE.out;
+    g.beginPath(); g.moveTo(px + 0.5, y - 9.5); g.lineTo(px + 8.5, y - 6.5); g.lineTo(px + 0.5, y - 3.2); g.closePath(); g.fill();
+    g.fillStyle = c;
+    g.beginPath(); g.moveTo(px + 1, y - 8.6); g.lineTo(px + 7, y - 6.5); g.lineTo(px + 1, y - 4.2); g.closePath(); g.fill();
+    fr(g, l, px + 1, y - 8.6, 3, FINE * 2);
   }
 }
 
@@ -1230,7 +1262,7 @@ export function propExtent(wall) {
     case 'oak': return { left: 0.6, right: 0.6, top: 0.6, bottom: 0.4 };
     case 'seal': return { left: 0.3, right: 0.3, top: 1.0, bottom: 0.3 };
     case 'tent': return { left: 0.4, right: 0.5, top: 0.3, bottom: 0.45 };
-    case 'statue': return { left: 0.4, right: 0.4, top: 3.2, bottom: 0.4 };
+    case 'statue': return { left: 0.6, right: 1.2, top: 4.6, bottom: 0.4 };
     default: return { left: 0.2, right: 0.2, top: 0.5, bottom: 0.3 };
   }
 }
