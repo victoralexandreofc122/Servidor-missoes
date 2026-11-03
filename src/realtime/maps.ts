@@ -48,7 +48,9 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
  */
 export interface Wall extends Box {
   k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit' | 'fence' | 'pillar' | 'gate'
-    | 'seal' | 'oak' | 'cliff' | 'tent' | 'cave' | 'deadtree' | 'logs' | 'sink' | 'pool';
+    | 'seal' | 'oak' | 'cliff' | 'tent' | 'cave' | 'deadtree' | 'logs' | 'sink' | 'pool'
+    // v29: estátua de uma vila no Vale das Estátuas (colide só no pedestal; o desenho sobe acima)
+    | 'statue';
   /**
    * Estilo do prédio (sede, hospital, academia, lojas, casa, cabana) ou do móvel do interior
    * (suporte de espadas, de lanças, de escudos, manequim, prateleira de roupas, estante de
@@ -60,7 +62,9 @@ export interface Wall extends Box {
     // pilar da arena da vila: bloco de ardósia com moldura dourada (os da Zona de Conflito são ruína)
     | 'arena'
     // árvore cerejeira (copa rosa, nos gramados da vila) e a montanha atrás da sede (paredão com mata em cima)
-    | 'sakura' | 'mountain';
+    | 'sakura' | 'mountain'
+    // v29: a vila da estátua
+    | 'vila_1' | 'vila_3' | 'vila_4' | 'vila_5';
 }
 
 /**
@@ -90,7 +94,9 @@ export interface Deco extends Box {
     // o que sobrou no Acampamento Queimado: caixote quebrado, panela no tripé, esteira e um pergaminho caído
     | 'crate' | 'pot' | 'bedroll' | 'scroll_drop'
     // vila: lanterna de pedra (tōrō, acende de noite) e vaso de flores; bandeira da Vila da Nuvem
-    | 'toro' | 'planter' | 'flag';
+    | 'toro' | 'planter' | 'flag'
+    // v29: a arquibancada do Vale (só desenho: a plateia anda e fica em cima)
+    | 'stands';
   /** Linha do riacho/leito: x0, y0, x1, y1... em casas, a partir do canto (x, y) do enfeite. */
   p?: number[];
   /** Meia largura da faixa, em casas. */
@@ -1303,9 +1309,9 @@ function vale(): MapLayout {
     // a cerca fechada: ninguém entra nem sai andando (o servidor leva os dois da partida)
     wall('fence', f.x, f.y, f.w, t), wall('fence', f.x, f.y + f.h - t, f.w, t),
     wall('fence', f.x, f.y + t, t, f.h - 2 * t), wall('fence', f.x + f.w - t, f.y + t, t, f.h - 2 * t),
-    // as estátuas das vilas nos cantos da praça
-    wall('pillar', 6, 5, 1.6, 2, 'arena'), wall('pillar', 36.4, 5, 1.6, 2, 'arena'),
-    wall('pillar', 6, 25, 1.6, 2, 'arena'), wall('pillar', 36.4, 25, 1.6, 2, 'arena'),
+    // as estátuas das 4 vilas nos cantos da praça (colidem só no pedestal)
+    wall('statue', 5.5, 5.8, 2.2, 1.2, 'vila_1'), wall('statue', 36.3, 5.8, 2.2, 1.2, 'vila_3'),
+    wall('statue', 5.5, 26.8, 2.2, 1.2, 'vila_4'), wall('statue', 36.3, 26.8, 2.2, 1.2, 'vila_5'),
     tree(4, 31), tree(40, 31), tree(4, 12), tree(40, 12),
   ];
   const fight = valeFightBox();
@@ -1314,6 +1320,8 @@ function vale(): MapLayout {
     exits: [], doors: [],
     areas: [area('stone', 2, 2, W - 4, H - 4), area('arena', f.x, f.y, f.w, f.h)],
     deco: [
+      // a arquibancada: em cima e embaixo da cerca (dá para andar e assistir dali)
+      deco('stands', f.x, f.y - 4, f.w, 3.6), deco('stands', f.x, f.y + f.h + 0.4, f.w, 3.2),
       deco('banner', f.x - 1.2, f.y - 1.2), deco('banner', f.x + f.w + 0.2, f.y - 1.2),
       deco('banner', f.x - 1.2, f.y + f.h + 0.2), deco('banner', f.x + f.w + 0.2, f.y + f.h + 0.2),
     ],

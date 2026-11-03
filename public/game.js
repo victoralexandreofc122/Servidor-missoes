@@ -43,6 +43,7 @@ const ui = {
   rankedToggle: $('ranked-toggle'), rankedLabel: $('ranked-label'), duelBtn: $('duel-btn'), duelHud: $('duel-hud'),
   duelBar: $('duel-bar'), duelBoardBtn: $('duel-board-btn'), rankedPanel: $('ranked-panel'), rankedClose: $('ranked-close'),
   rankedSeason: $('ranked-season'), rankedMe: $('ranked-me'), rankedList: $('ranked-list'),
+  duelBanner: $('duel-banner'), duelBannerTitle: $('duel-banner-title'), duelBannerScore: $('duel-banner-score'), duelBannerPoints: $('duel-banner-points'),
   duelPhase: $('duel-phase'), duelClock: $('duel-clock'),
   duelA: { name: $('duel-a-name'), info: $('duel-a-info'), wins: $('duel-a-wins') },
   duelB: { name: $('duel-b-name'), info: $('duel-b-info'), wins: $('duel-b-wins') },
@@ -690,7 +691,10 @@ function handleMessage(msg) {
     case 'duel_rating':
       if (msg.counted) {
         const sign = msg.delta >= 0 ? '+' : '';
-        showToast(`${msg.won ? 'Vitória' : 'Derrota'} · ${sign}${msg.delta} pontos (${msg.mmr})`, 4500);
+        if (!ui.duelBanner.hidden) {
+          ui.duelBannerPoints.textContent = `${sign}${msg.delta} pontos · ${msg.mmr} `;
+          ui.duelBannerPoints.appendChild(tierBadge(msg.mmr));
+        } else showToast(`${msg.won ? 'Vitória' : 'Derrota'} · ${sign}${msg.delta} pontos (${msg.mmr})`, 4500);
         addSystemLine(`🏆 Rankeado: ${sign}${msg.delta} pontos. Agora você tem ${msg.mmr}.`);
       } else addSystemLine('🏆 Rankeado: esta partida não contou pontos (mesma dupla 3 vezes hoje, nível muito diferente ou conta de admin).');
       break;
@@ -1899,6 +1903,32 @@ const skillName = (skill) => state.world.skills?.[skill]?.name || skill;
 
 // ------------------------------------------------------------------ modo rankeado (v29)
 
+/** v29: a faixa do rankeado pelos pontos (só aparência: o que conta é o número). */
+const RANK_TIERS = [[1500, 'Lenda', 'lenda'], [1300, 'Diamante', 'diamante'], [1150, 'Ouro', 'ouro'], [1050, 'Prata', 'prata'], [0, 'Bronze', 'bronze']];
+function rankTier(mmr) {
+  const t = RANK_TIERS.find(([min]) => mmr >= min);
+  return { name: t[1], cls: `tier-${t[2]}` };
+}
+function tierBadge(mmr) {
+  const b = document.createElement('span');
+  const t = rankTier(mmr);
+  b.className = `rank-tier ${t.cls}`;
+  b.textContent = t.name;
+  return b;
+}
+
+/** A faixa grande no meio da tela no fim da partida (só para quem lutou). Os pontos chegam depois (duel_rating). */
+let bannerTimer = 0;
+function showDuelBanner(won, score, points) {
+  ui.duelBanner.hidden = false;
+  ui.duelBanner.classList.toggle('lose', !won);
+  ui.duelBannerTitle.textContent = won ? 'VITÓRIA' : 'DERROTA';
+  ui.duelBannerScore.textContent = score;
+  ui.duelBannerPoints.textContent = points || '';
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => { ui.duelBanner.hidden = true; }, 6000);
+}
+
 const VILLAGE_SHORT = { vila_1: 'Folha', vila_3: 'Névoa', vila_4: 'Nuvem', vila_5: 'Areia' };
 
 /** No Vale das Estátuas: o outro lado da partida, só durante a rodada (o servidor confere de novo). */
@@ -1968,18 +1998,20 @@ function renderRankedBoard(msg) {
   ui.rankedSeason.textContent = msg.season ? `Temporada ${msg.season.id} · acaba em ${days} dia${days === 1 ? '' : 's'}` : 'Sem temporada aberta.';
   const me = msg.me;
   const all = msg.overall;
-  ui.rankedMe.textContent = me ? `Você: ${me.position}º · ${me.mmr} pontos · ${me.wins}V ${me.losses}D` + (all ? ` · recorde ${all.best}` : '')
+  ui.rankedMe.textContent = me ? `Você: ${me.position}º · ${me.mmr} pontos · ${me.wins}V ${me.losses}D` + (all ? ` · recorde ${all.best} ` : ' ')
     : 'Você ainda não lutou nesta temporada. Aperte Desafio!';
+  if (me) ui.rankedMe.appendChild(tierBadge(me.mmr));
   ui.rankedList.textContent = '';
   for (const r of msg.top || []) {
     const tr = document.createElement('tr');
     if (r.playerId === state.meId) tr.className = 'me';
     else if (r.position === 1) tr.className = 'top1';
-    for (const v of [`${r.position}º`, r.username, VILLAGE_SHORT[r.village] || '—', String(r.level), String(r.mmr), `${r.wins}/${r.losses}`]) {
+    [`${r.position}º`, r.username, VILLAGE_SHORT[r.village] || '—', String(r.level), String(r.mmr), `${r.wins}/${r.losses}`].forEach((v, i) => {
       const td = document.createElement('td');
       td.textContent = v;
+      if (i === 4) { td.append(' '); td.appendChild(tierBadge(r.mmr)); }
       tr.appendChild(td);
-    }
+    });
     ui.rankedList.appendChild(tr);
   }
   if (!(msg.top || []).length) {
@@ -2005,7 +2037,7 @@ function duelAnnounce(msg) {
   else if (msg.phase === 'done' && prev?.phase !== 'done') {
     const w = msg.winner ? msg[msg.winner] : null;
     if (w) addSystemLine(msg.reason === 'forfeit' ? `🏆 Rankeado: ${w.name} venceu (o outro saiu).` : `🏆 Rankeado: ${w.name} venceu por ${Math.max(msg.wins.a, msg.wins.b)} a ${Math.min(msg.wins.a, msg.wins.b)}.`);
-    if (mine && w) showToast(msg.winner === mine ? 'Vitória!' : 'Derrota', 3500);
+    if (mine && w) showDuelBanner(msg.winner === mine, msg.reason === 'forfeit' ? (msg.winner === mine ? 'O adversário saiu' : 'Você saiu da partida') : `${Math.max(msg.wins.a, msg.wins.b)} x ${Math.min(msg.wins.a, msg.wins.b)}`);
   }
 }
 
