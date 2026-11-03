@@ -5,7 +5,9 @@ import { DEFAULT_APPEARANCE } from '../src/realtime/appearance.js';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { DUEL } from '../src/realtime/duel.js';
 import { VALE } from '../src/realtime/maps.js';
-import { FakeConn, setupWorld } from './support/world.js';
+import { GameWorld } from '../src/realtime/gameWorld.js';
+import type { RankedMatchInput, RankedStore } from '../src/realtime/rankedStore.js';
+import { FakeConn, seededRandom, setupWorld } from './support/world.js';
 
 const cfg: RealtimeConfig = {
   ...REALTIME,
@@ -101,5 +103,43 @@ describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
     session(w, a.id).hp = 10;
     run(DUEL.roundMs + REALTIME.tickMs);
     assert.deepEqual(a.conn.last('duel_state').wins, { a: 0, b: 1 });
+  });
+
+  it('v15: a partida vai para o banco (placar, motivo, rodadas) e os dois recebem os pontos', async () => {
+    const calls: RankedMatchInput[] = [];
+    const fake: RankedStore = {
+      async available() { return true; },
+      async result(m) { calls.push(m); return { counted: true, winnerDelta: 18, loserDelta: -8, winnerMmr: 1018, loserMmr: 992 }; },
+      async board() { return { season: { id: 1, endsAt: 0 }, top: [], me: null, overall: null }; },
+      async closeSeason() { return null; },
+    };
+    let t = 1_000_000;
+    const w = new GameWorld(cfg, () => t, undefined, { random: seededRandom(), ranked: fake });
+    await w.rankedMaintenance();
+    const join = (username: string) => {
+      const conn = new FakeConn();
+      const id = randomUUID();
+      const h = w.join({ id, username, appearance: { ...DEFAULT_APPEARANCE, village: 'vila_1' } }, conn);
+      return { id, conn, send: (msg: unknown) => h.receive(JSON.stringify(msg)) };
+    };
+    const run = (ms: number) => { for (let x = 0; x < ms; x += cfg.tickMs) { t += cfg.tickMs; w.tick(); } };
+    const a = join('kaito');
+    const b = join('mei');
+    for (const p of [a, b]) { p.send({ type: 'ranked', action: 'enter' }); p.send({ type: 'ranked', action: 'queue' }); }
+    run(cfg.tickMs + DUEL.prepMs);
+    for (let r = 0; r < 2; r++) {
+      (w as any).sessions.get(b.id).hp = 0.5;
+      (w as any).damagePlayer((w as any).sessions.get(b.id), 5, t, undefined, (w as any).sessions.get(a.id), 'attack');
+      run(DUEL.intervalMs + cfg.tickMs);
+    }
+    await new Promise((r) => setImmediate(r));
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]!.winnerId, a.id);
+    assert.deepEqual([calls[0]!.winnerRounds, calls[0]!.loserRounds, calls[0]!.reason, calls[0]!.rounds.length], [2, 0, 'rounds', 2]);
+    assert.deepEqual(a.conn.last('duel_rating'), { type: 'duel_rating', counted: true, delta: 18, mmr: 1018, won: true });
+    assert.deepEqual(b.conn.last('duel_rating'), { type: 'duel_rating', counted: true, delta: -8, mmr: 992, won: false });
+    a.send({ type: 'ranked', action: 'board' });
+    await new Promise((r) => setImmediate(r));
+    assert.equal(a.conn.last('ranked_board').available, true);
   });
 });

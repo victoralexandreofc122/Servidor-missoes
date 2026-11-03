@@ -378,14 +378,29 @@ body.menu-open .menu-grid {                    /* celular: abre embaixo do ☰ *
 .duel-mid { min-width: 110px; }
 .duel-mid span { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; }
 .duel-mid b { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.duel-btn {
+.duel-bar {
   position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 6;
+  display: flex; gap: 8px; align-items: center;
+}
+.duel-bar[hidden] { display: none; }
+.duel-btn {
   padding: 10px 26px; border-radius: 999px; border: 2px solid rgba(255, 215, 106, 0.85);
   background: rgba(120, 30, 24, 0.55); color: #fff3d6; font: inherit; font-size: 17px; font-weight: 700;
   letter-spacing: 1px; text-shadow: 0 1px 0 #000; backdrop-filter: blur(2px); cursor: pointer;
 }
 .duel-btn.queued { background: rgba(30, 30, 30, 0.5); border-color: rgba(255, 255, 255, 0.5); font-size: 14px; font-weight: 600; }
-.duel-btn:active { transform: translateX(-50%) scale(0.96); }
+.duel-btn:active { transform: scale(0.96); }
+.duel-btn[hidden] { display: none; }
+.duel-board-btn { padding: 8px 14px; font-size: 14px; background: rgba(30, 24, 12, 0.55); }
+.ranked-panel { max-width: 560px; }
+.ranked-season, .ranked-me { margin: 4px 12px; font-size: 13px; }
+.ranked-me { color: #ffd76a; }
+.ranked-table { width: calc(100% - 24px); margin: 6px 12px; border-collapse: collapse; font-size: 13px; }
+.ranked-table th { text-align: left; opacity: 0.7; font-weight: 600; padding: 3px 4px; border-bottom: 1px solid rgba(214, 180, 110, 0.4); }
+.ranked-table td { padding: 3px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.ranked-table tr.me td { color: #ffd76a; font-weight: 700; }
+.ranked-table tr.top1 td:first-child { color: #ffd76a; }
+.ranked-note { margin: 8px 12px 12px; font-size: 11px; opacity: 0.7; }
 
 .menu-btn {
   position: relative;

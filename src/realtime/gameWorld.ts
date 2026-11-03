@@ -29,6 +29,7 @@ import { CC_BUDGET, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safety
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
+import type { RankedStore } from './rankedStore.js';
 import { SHOW_ALL, type Display, type EndgamePlayer, type EndgameStore, type KageAction, type Politics, type PvpKill, type TickEvent } from './endgameStore.js';
 import { VILLAGE_INFO, alliesOf, conflictHostile, mapAllowed, type Diplomacy, type Faction, type MapAccess, type PassiveKind } from './villages.js';
 import { POWERS, POWER_BY_SLOT, type PowerDef, type PowerKind } from './akatsuki.js';
@@ -157,6 +158,8 @@ export interface WorldOptions {
   admin?: AdminStore;
   /** Fim de jogo no banco (migração v11). Sem isto, ou sem a v11 aplicada: módulos desligados. */
   endgame?: EndgameStore;
+  /** v29: pontos e temporadas do rankeado (migração v15). Sem isto, ou sem a v15: as partidas não contam pontos. */
+  ranked?: RankedStore;
   /** Quem vigia o servidor (site do jogo: saúde, bugs e comportamento suspeito). */
   watch?: WorldWatch;
 }
@@ -530,6 +533,10 @@ export class GameWorld {
   private duel: DuelMatch | null = null;
   private duelSeq = 0;
   private readonly rankedReturn = new Map<string, { map: MapId; x: number; y: number }>();
+  private readonly rankedStore: RankedStore | undefined;
+  private rankedReady = false;
+  private rankedTimer: NodeJS.Timeout | undefined;
+  private rankedBusy = false;
   /** Números do PvP desde que o servidor ligou (por classe e por golpe), para o painel do admin. */
   private readonly pvpStats: PvpStats;
   /** Densidade: quando cada mapa de caça pode ganhar ou perder o próximo monstro. */
@@ -559,6 +566,7 @@ export class GameWorld {
     this.chatLog = options.chatLog ?? memoryChatLog(now);
     this.admin = options.admin;
     this.endgame = options.endgame;
+    this.rankedStore = options.ranked;
     this.watch = options.watch ?? {};
     for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
     this.lastTick = now();
@@ -3286,7 +3294,8 @@ export class GameWorld {
   // ---------------------------------------------------------------- modo rankeado (v29, duel.ts)
 
   /** Botões do modo rankeado: entrar no Vale, sair dele, entrar e sair da fila do Desafio. */
-  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue', t: number): void {
+  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board', t: number): void {
+    if (action === 'board') return this.rankedBoard(s, t);
     if (s.dead || s.closed) return;
     const inVale = s.map === 'vale_estatuas';
     if (action === 'enter') {
@@ -3411,7 +3420,60 @@ export class GameWorld {
   /** A partida acabou: avisa o Vale (o placar fica na tela até `endMs`). */
   private duelFinished(d: DuelMatch): void {
     this.broadcastDuel();
-    if (d.winner) this.log.info({ match: d.id, winner: d[d.winner], loser: d[other(d.winner)], reason: d.reason, wins: d.wins }, 'rankeado: partida acabou');
+    if (!d.winner) return;
+    const winnerId = d[d.winner], loserId = d[other(d.winner)];
+    this.log.info({ match: d.id, winner: winnerId, loser: loserId, reason: d.reason, wins: d.wins }, 'rankeado: partida acabou');
+    const store = this.rankedReady ? this.rankedStore : undefined;
+    if (!store) return;
+    // v15: grava a partida e mexe nos pontos (fora do loop); depois avisa os dois.
+    const input = {
+      winnerId, loserId, winnerRounds: d.wins[d.winner], loserRounds: d.wins[other(d.winner)], reason: d.reason ?? 'rounds',
+      durationMs: this.now() - d.startedAt, balanceVersion: PVP_BALANCE_VERSION, rounds: d.rounds,
+    } as const;
+    store.result(input).then((r) => {
+      const tell = (id: string, won: boolean) => {
+        const s = this.sessions.get(id);
+        if (s) this.sendTo(s, { type: 'duel_rating', counted: r.counted, delta: won ? r.winnerDelta : r.loserDelta, mmr: won ? r.winnerMmr : r.loserMmr, won });
+      };
+      tell(winnerId, true);
+      tell(loserId, false);
+    }).catch((err: unknown) => this.log.warn({ err, match: d.id }, 'rankeado: falha ao gravar a partida'));
+  }
+
+  /** O painel do ranking (temporada atual, top 50 e a linha de quem pediu). Um pedido por vez, com ritmo. */
+  private rankedBoard(s: Session, t: number): void {
+    const store = this.rankedReady ? this.rankedStore : undefined;
+    if (!store) return this.sendTo(s, { type: 'ranked_board', available: false });
+    if (t - s.lastPanelAt < this.config.missionRequestEveryMs) return;
+    s.lastPanelAt = t;
+    const id = s.id;
+    store.board(id, 50).then((b) => {
+      const me = this.sessions.get(id);
+      if (me) this.sendTo(me, { type: 'ranked_board', available: true, season: b.season, top: b.top, me: b.me, overall: b.overall });
+    }).catch((err: unknown) => this.log.warn({ err }, 'rankeado: falha ao ler o ranking'));
+  }
+
+  /** A cada minuto: procura a v15 (aplicar no Neon não precisa reiniciar) e fecha a temporada vencida. */
+  async rankedMaintenance(): Promise<void> {
+    const store = this.rankedStore;
+    if (!store || this.rankedBusy) return;
+    this.rankedBusy = true;
+    try {
+      if (!this.rankedReady) {
+        if (!(await store.available())) return;
+        this.rankedReady = true;
+        this.log.info({}, 'rankeado: migração v15 encontrada');
+      }
+      const closed = await store.closeSeason(new Date());
+      if (closed !== null) {
+        this.broadcast({ type: 'announce', message: `🏆 A temporada ${closed} do rankeado acabou! As recompensas foram entregues. Começou a temporada ${closed + 1}.` });
+        this.log.info({ season: closed }, 'rankeado: temporada fechada');
+      }
+    } catch (err) {
+      this.log.warn({ err }, 'rankeado: falha na manutenção');
+    } finally {
+      this.rankedBusy = false;
+    }
   }
 
   /** Fim da tela de resultado: os dois saem da arena (com a vida cheia) e a arena fica livre para a próxima. */
@@ -4012,6 +4074,11 @@ export class GameWorld {
     }, CHAT_HISTORY.purgeEveryMs);
     this.purgeTimer.unref();
     // Fim de jogo: confere a v11, a população e roda a manutenção (eleições, temporadas) a cada minuto.
+    if (this.rankedStore) {
+      void this.rankedMaintenance();
+      this.rankedTimer = setInterval(() => void this.rankedMaintenance(), this.config.endgame.tickMs);
+      this.rankedTimer.unref();
+    }
     if (this.endgame) {
       void this.endgameMaintenance();
       this.endgameTimer = setInterval(() => void this.endgameMaintenance(), this.config.endgame.tickMs);
@@ -4024,6 +4091,7 @@ export class GameWorld {
     if (this.timer) clearInterval(this.timer);
     if (this.purgeTimer) clearInterval(this.purgeTimer);
     if (this.endgameTimer) clearInterval(this.endgameTimer);
+    if (this.rankedTimer) clearInterval(this.rankedTimer);
     this.timer = undefined;
     this.purgeTimer = undefined;
     this.endgameTimer = undefined;

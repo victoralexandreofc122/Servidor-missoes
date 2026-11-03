@@ -102,6 +102,11 @@ export interface DuelMatch {
   replay: boolean;
   /** Quem venceu cada rodada (para o placar). */
   history: Side[];
+  /** Quando a partida e a rodada atual começaram (para a duração gravada no banco). */
+  startedAt: number;
+  roundStartedAt: number;
+  /** Cada rodada fechada: quem venceu, quanto durou e o dano de cada lado (vai para o banco, v15). */
+  rounds: { winner: Side; ms: number; damageA: number; damageB: number }[];
   winner?: Side;
   /** Por que acabou: 'rounds' (venceu 2), 'forfeit' (o outro saiu ou desistiu). */
   reason?: 'rounds' | 'forfeit';
@@ -111,6 +116,7 @@ export function newMatch(id: number, a: string, b: string, now: number): DuelMat
   return {
     id, a, b, phase: 'prep', until: now + DUEL.prepMs, round: 1, wins: { a: 0, b: 0 },
     roundDamage: { a: 0, b: 0 }, matchDamage: { a: 0, b: 0 }, replay: false, history: [],
+    startedAt: now, roundStartedAt: now, rounds: [],
   };
 }
 
@@ -152,6 +158,7 @@ export function endRound(m: DuelMatch, winner: Side | null, now: number): boolea
   }
   m.wins[winner] += 1;
   m.history.push(winner);
+  m.rounds.push({ winner, ms: now - m.roundStartedAt, damageA: m.roundDamage.a, damageB: m.roundDamage.b });
   m.replay = false;
   m.roundDamage = { a: 0, b: 0 };
   if (m.wins[winner] >= DUEL.roundsToWin) {
@@ -182,6 +189,7 @@ export function advance(m: DuelMatch, now: number): boolean {
   if (m.phase === 'prep' || m.phase === 'interval') {
     m.phase = 'round';
     m.until = now + DUEL.roundMs;
+    m.roundStartedAt = now;
     return true;
   }
   return false;

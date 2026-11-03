@@ -41,6 +41,8 @@ const ui = {
   chat: $('chat'), chatFeed: $('chat-feed'), chatInput: $('chat-input'),
   chatToggle: $('chat-toggle'), logout: $('logout'),
   rankedToggle: $('ranked-toggle'), rankedLabel: $('ranked-label'), duelBtn: $('duel-btn'), duelHud: $('duel-hud'),
+  duelBar: $('duel-bar'), duelBoardBtn: $('duel-board-btn'), rankedPanel: $('ranked-panel'), rankedClose: $('ranked-close'),
+  rankedSeason: $('ranked-season'), rankedMe: $('ranked-me'), rankedList: $('ranked-list'),
   duelPhase: $('duel-phase'), duelClock: $('duel-clock'),
   duelA: { name: $('duel-a-name'), info: $('duel-a-info'), wins: $('duel-a-wins') },
   duelB: { name: $('duel-b-name'), info: $('duel-b-info'), wins: $('duel-b-wins') },
@@ -292,6 +294,14 @@ ui.rankedToggle.addEventListener('click', () => {
 ui.duelBtn.addEventListener('click', () => {
   send({ type: 'ranked', action: state.duelQueue?.queued ? 'unqueue' : 'queue' });
 });
+ui.duelBoardBtn.addEventListener('click', () => {
+  ui.rankedPanel.hidden = false;
+  ui.rankedSeason.textContent = 'Carregando…';
+  ui.rankedMe.textContent = '';
+  ui.rankedList.textContent = '';
+  send({ type: 'ranked', action: 'board' });
+});
+ui.rankedClose.addEventListener('click', () => { ui.rankedPanel.hidden = true; });
 
 ui.logout.addEventListener('click', () => {
   clearToken();
@@ -676,6 +686,16 @@ function handleMessage(msg) {
       state.duel = { ...msg, until: performance.now() + msg.ms };
       duelAnnounce(msg);
       renderDuel();
+      break;
+    case 'duel_rating':
+      if (msg.counted) {
+        const sign = msg.delta >= 0 ? '+' : '';
+        showToast(`${msg.won ? 'Vitória' : 'Derrota'} · ${sign}${msg.delta} pontos (${msg.mmr})`, 4500);
+        addSystemLine(`🏆 Rankeado: ${sign}${msg.delta} pontos. Agora você tem ${msg.mmr}.`);
+      } else addSystemLine('🏆 Rankeado: esta partida não contou pontos (mesma dupla 3 vezes hoje, nível muito diferente ou conta de admin).');
+      break;
+    case 'ranked_board':
+      renderRankedBoard(msg);
       break;
     case 'duel_queue':
       state.duelQueue = msg;
@@ -1897,7 +1917,9 @@ function renderDuel() {
   const d = state.duel;
   const fighting = !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
   const q = state.duelQueue;
-  ui.duelBtn.hidden = !inVale || fighting;
+  ui.duelBar.hidden = !inVale;
+  ui.duelBtn.hidden = fighting;
+  if (!inVale) ui.rankedPanel.hidden = true;
   ui.duelBtn.classList.toggle('queued', !!q?.queued);
   ui.duelBtn.textContent = q?.queued ? `Na fila: ${q.position}º de ${q.size} · Cancelar` : `⚔️ Desafio${q?.size ? ` (${q.size} na fila)` : ''}`;
   if (!inVale) return;
@@ -1935,6 +1957,41 @@ setInterval(() => {
   else tickDuelClock();
 }, 250);
 
+/** O painel do ranking (temporada, top 50 e a sua linha). */
+function renderRankedBoard(msg) {
+  if (!msg.available) {
+    ui.rankedSeason.textContent = 'O ranking ainda não está ligado no servidor (falta a migração v15). As partidas acontecem, mas não contam pontos.';
+    ui.rankedList.textContent = '';
+    return;
+  }
+  const days = msg.season ? Math.max(0, Math.ceil((msg.season.endsAt - Date.now()) / 86_400_000)) : 0;
+  ui.rankedSeason.textContent = msg.season ? `Temporada ${msg.season.id} · acaba em ${days} dia${days === 1 ? '' : 's'}` : 'Sem temporada aberta.';
+  const me = msg.me;
+  const all = msg.overall;
+  ui.rankedMe.textContent = me ? `Você: ${me.position}º · ${me.mmr} pontos · ${me.wins}V ${me.losses}D` + (all ? ` · recorde ${all.best}` : '')
+    : 'Você ainda não lutou nesta temporada. Aperte Desafio!';
+  ui.rankedList.textContent = '';
+  for (const r of msg.top || []) {
+    const tr = document.createElement('tr');
+    if (r.playerId === state.meId) tr.className = 'me';
+    else if (r.position === 1) tr.className = 'top1';
+    for (const v of [`${r.position}º`, r.username, VILLAGE_SHORT[r.village] || '—', String(r.level), String(r.mmr), `${r.wins}/${r.losses}`]) {
+      const td = document.createElement('td');
+      td.textContent = v;
+      tr.appendChild(td);
+    }
+    ui.rankedList.appendChild(tr);
+  }
+  if (!(msg.top || []).length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.textContent = 'Ninguém lutou ainda nesta temporada.';
+    tr.appendChild(td);
+    ui.rankedList.appendChild(tr);
+  }
+}
+
 /** Avisos grandes da partida para quem está lutando (e no chat para quem assiste). */
 function duelAnnounce(msg) {
   const prev = state.duelPrev;
@@ -1947,7 +2004,7 @@ function duelAnnounce(msg) {
   } else if (msg.phase === 'round' && prev?.phase !== 'round' && mine) showToast(`Rodada ${msg.round}: lute!`, 1800);
   else if (msg.phase === 'done' && prev?.phase !== 'done') {
     const w = msg.winner ? msg[msg.winner] : null;
-    if (w) addSystemLine(`🏆 Rankeado: ${w.name} venceu ${msg.wins.a}x${msg.wins.b}${msg.reason === 'forfeit' ? ' (o outro saiu)' : ''}.`);
+    if (w) addSystemLine(msg.reason === 'forfeit' ? `🏆 Rankeado: ${w.name} venceu (o outro saiu).` : `🏆 Rankeado: ${w.name} venceu por ${Math.max(msg.wins.a, msg.wins.b)} a ${Math.min(msg.wins.a, msg.wins.b)}.`);
     if (mine && w) showToast(msg.winner === mine ? 'Vitória!' : 'Derrota', 3500);
   }
 }

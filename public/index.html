@@ -111,7 +111,25 @@
       <div class="duel-mid"><span id="duel-phase">Arena livre</span><b id="duel-clock"></b></div>
       <div class="duel-side duel-b"><b id="duel-b-name">?</b><span id="duel-b-info"></span><i id="duel-b-wins" class="duel-wins"></i></div>
     </div>
-    <button id="duel-btn" class="duel-btn" type="button" hidden>⚔️ Desafio</button>
+    <div id="duel-bar" class="duel-bar" hidden>
+      <button id="duel-btn" class="duel-btn" type="button">⚔️ Desafio</button>
+      <button id="duel-board-btn" class="duel-btn duel-board-btn" type="button" aria-controls="ranked-panel">🏆 Ranking</button>
+    </div>
+
+    <!-- v29 (migração v15): o ranking do rankeado. -->
+    <section id="ranked-panel" class="mission-panel ranked-panel" hidden role="dialog" aria-labelledby="ranked-title">
+      <header class="mission-head">
+        <h2 id="ranked-title"><span aria-hidden="true">🏆</span> Ranking do Rankeado</h2>
+        <button id="ranked-close" class="icon-btn small" type="button" aria-label="Fechar o ranking"><span aria-hidden="true">✕</span></button>
+      </header>
+      <p id="ranked-season" class="ranked-season"></p>
+      <p id="ranked-me" class="ranked-me"></p>
+      <table class="ranked-table">
+        <thead><tr><th>#</th><th>Ninja</th><th>Vila</th><th>Nv</th><th>Pontos</th><th>V/D</th></tr></thead>
+        <tbody id="ranked-list"></tbody>
+      </table>
+      <p class="ranked-note">Fim da temporada: 1º lugar ganha título de Campeão, 5.000 ryō e o Manto do Campeão; do 2º ao 10º, título de Elite, 2.000 ryō e o manto; do 11º ao 50º, título de Veterano e 500 ryō. Só entra quem fez 10 partidas.</p>
+    </section>
 
     <!-- Tutorial da Academia: o que fazer na sala atual (o SERVIDOR confere e abre a porta). -->
     <div id="tutorial-card" class="tutorial-card" hidden role="status" aria-live="polite">
