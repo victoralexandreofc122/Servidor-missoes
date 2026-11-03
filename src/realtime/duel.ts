@@ -41,6 +41,8 @@ export const DUEL = {
   /** Castigo de quem sai da partida: 1ª saída 1 min, depois dobra (até 16 min); zera depois de 24 h. */
   leavePenaltyMs: 60_000,
   leavePenaltyMaxMs: 16 * 60_000,
+  /** v29 (revisão EGM, aprovado pelo Victor): quem cai no meio da partida tem este tempo para reconectar. */
+  reconnectMs: 15_000,
 } as const;
 
 export interface QueueEntry {

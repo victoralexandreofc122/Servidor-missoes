@@ -706,7 +706,7 @@ function handleMessage(msg) {
       if (state.shop?.kind === 'scrolls') renderExtraction();
       break;
     case 'duel_state':
-      state.duel = { ...msg, until: performance.now() + msg.ms };
+      state.duel = { ...msg, until: performance.now() + msg.ms, ...(msg.away ? { awayUntil: performance.now() + msg.away.ms } : {}) };
       duelAnnounce(msg);
       renderDuel();
       break;
@@ -2048,6 +2048,13 @@ function tickDuelClock() {
     el.style.width = `${Math.max(0, Math.min(1, hp)) * 100}%`;
   }
   const secs = Math.max(0, Math.ceil((d.until - performance.now()) / 1000));
+  if (d.away && d.phase !== 'done') {
+    // v29: um lado caiu; tem 15 s para voltar antes do W.O.
+    const who = d[d.away.side];
+    ui.duelPhase.textContent = `${who ? who.name : '?'} caiu`;
+    ui.duelClock.textContent = `volta em ${Math.max(0, Math.ceil((d.awayUntil - performance.now()) / 1000))}`;
+    return;
+  }
   const names = { prep: 'Preparação', round: `Rodada ${d.round}`, interval: 'Próxima rodada', done: 'Fim' };
   ui.duelPhase.textContent = names[d.phase] || '';
   if (d.phase === 'done') {

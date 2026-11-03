@@ -85,7 +85,9 @@ describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
     run(DUEL.prepMs);
     b!.send({ type: 'ranked', action: 'leave' });
     assert.match(b!.conn.last('notice').text, /vá até o fim/, 'Voltar não sai da luta (decisão do Victor)');
-    b!.leave();                                                   // só cair da conexão encerra: W.O.
+    b!.leave();                                                   // só cair da conexão encerra: W.O. depois de 15 s
+    assert.equal(c!.conn.last('duel_state').away.side, 'b', 'todos veem a contagem para ele voltar');
+    run(DUEL.reconnectMs + REALTIME.tickMs);
     const st = c!.conn.last('duel_state');
     assert.equal(st.phase, 'done');
     assert.equal(st.winner, 'a');
@@ -187,5 +189,33 @@ describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
     a.send({ type: 'move', dx: 1, dy: 0 });
     assert.equal(session(w, a.id).sitting, false, 'andou: levantou');
     assert.deepEqual(b.conn.last('sit'), { type: 'sit', playerId: a.id, active: false });
+  });
+
+  it('caiu no meio da luta e voltou em menos de 15 s: volta para o seu lado e a luta segue', () => {
+    const w = world();
+    const a = w.join('kaito');
+    const b = w.join('mei');
+    for (const p of [a, b]) { p.send({ type: 'ranked', action: 'enter' }); p.send({ type: 'ranked', action: 'queue' }); }
+    w.run(REALTIME.tickMs + DUEL.prepMs);
+    b.leave();
+    w.run(5000);
+    const conn = new FakeConn();
+    w.world.join({ id: b.id, username: 'mei', appearance: { ...DEFAULT_APPEARANCE, village: 'vila_1' } }, conn);
+    const st = a.conn.last('duel_state');
+    assert.equal(st.phase, 'round', 'a luta continua');
+    assert.equal(st.away, undefined);
+    assert.equal(session(w.world, b.id).x, VALE.start.b.x);
+    w.run(DUEL.reconnectMs);
+    assert.equal(a.conn.last('duel_state').phase, 'round', 'não virou W.O.');
+  });
+
+  it('a chegada no Vale espalha os ninjas pela praça', () => {
+    const { world: w, join } = world();
+    const ps = ['a1', 'a2', 'a3', 'a4'].map((n) => join(n));
+    for (const p of ps) p.send({ type: 'ranked', action: 'enter' });
+    const pos = ps.map((p) => session(w, p.id));
+    for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++) {
+      assert.ok(Math.hypot(pos[i].x - pos[j].x, pos[i].y - pos[j].y) > 1, 'dois ninjas no mesmo lugar');
+    }
   });
 });
