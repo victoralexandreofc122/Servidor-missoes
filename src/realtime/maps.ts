@@ -1293,7 +1293,7 @@ export const VALE = {
   /** Onde se chega (e para onde voltam os dois quando a partida acaba). */
   spawn: { x: 22, y: 27 },
   /** Onde cada lado começa cada rodada (dentro da cerca). */
-  start: { a: { x: 15.5, y: 15 }, b: { x: 28.5, y: 15 } },
+  start: { a: { x: 14, y: 15 }, b: { x: 30, y: 15 } },   // espelhados, um em cada ponta (revisão EGM)
 } as const;
 
 export function valeFightBox(): Box {

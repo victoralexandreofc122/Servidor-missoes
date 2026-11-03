@@ -43,6 +43,8 @@ const ui = {
   rankedToggle: $('ranked-toggle'), rankedLabel: $('ranked-label'), duelBtn: $('duel-btn'), duelHud: $('duel-hud'),
   duelBar: $('duel-bar'), duelBoardBtn: $('duel-board-btn'), rankedPanel: $('ranked-panel'), rankedClose: $('ranked-close'),
   rankedSeason: $('ranked-season'), rankedMe: $('ranked-me'), rankedList: $('ranked-list'),
+  duelAgain: $('duel-again'), duelWatchBtn: $('duel-watch-btn'), duelAHp: $('duel-a-hp'), duelBHp: $('duel-b-hp'),
+  rankedProgress: $('ranked-progress'), rankedProgressBar: $('ranked-progress-bar'), rankedProgressText: $('ranked-progress-text'),
   duelBanner: $('duel-banner'), duelBannerTitle: $('duel-banner-title'), duelBannerScore: $('duel-banner-score'), duelBannerPoints: $('duel-banner-points'),
   duelPhase: $('duel-phase'), duelClock: $('duel-clock'),
   duelA: { name: $('duel-a-name'), info: $('duel-a-info'), wins: $('duel-a-wins') },
@@ -297,14 +299,25 @@ ui.duelBtn.addEventListener('click', () => {
 });
 ui.duelBoardBtn.addEventListener('click', () => {
   ui.rankedPanel.hidden = false;
+  ui.duelBar.hidden = true;                              // os botões não ficam por cima do painel
   ui.rankedSeason.textContent = 'Carregando…';
   ui.rankedMe.textContent = '';
   ui.rankedList.textContent = '';
   send({ type: 'ranked', action: 'board' });
 });
-ui.rankedClose.addEventListener('click', () => { ui.rankedPanel.hidden = true; });
+ui.rankedClose.addEventListener('click', () => { ui.rankedPanel.hidden = true; renderDuel(); });
+ui.duelAgain.addEventListener('click', () => {
+  ui.duelBanner.hidden = true;
+  send({ type: 'ranked', action: 'queue' });
+});
+// Assistir: a câmera vai para o meio da arena (e volta no seu ninja ao tocar de novo).
+ui.duelWatchBtn.addEventListener('click', () => {
+  state.watchArena = !state.watchArena;
+  ui.duelWatchBtn.textContent = state.watchArena ? '👤 Meu ninja' : '👁 Assistir';
+});
 
 ui.logout.addEventListener('click', () => {
+  if (!window.confirm('Sair do jogo?')) return;          // revisão EGM: o botão fica perto do dedo
   clearToken();
   showLogin();
 });
@@ -692,7 +705,7 @@ function handleMessage(msg) {
       if (msg.counted) {
         const sign = msg.delta >= 0 ? '+' : '';
         if (!ui.duelBanner.hidden) {
-          ui.duelBannerPoints.textContent = `${sign}${msg.delta} pontos · ${msg.mmr} `;
+          ui.duelBannerPoints.textContent = `${sign}${msg.delta} pontos · ${msg.mmr}${msg.ryo ? ` · +${msg.ryo} ryō` : ''} `;
           ui.duelBannerPoints.appendChild(tierBadge(msg.mmr));
         } else showToast(`${msg.won ? 'Vitória' : 'Derrota'} · ${sign}${msg.delta} pontos (${msg.mmr})`, 4500);
         addSystemLine(`🏆 Rankeado: ${sign}${msg.delta} pontos. Agora você tem ${msg.mmr}.`);
@@ -1931,6 +1944,12 @@ function showDuelBanner(won, score, points) {
 
 const VILLAGE_SHORT = { vila_1: 'Folha', vila_3: 'Névoa', vila_4: 'Nuvem', vila_5: 'Areia' };
 
+/** Este jogador está numa partida do rankeado agora? */
+function duelFighting() {
+  const d = state.duel;
+  return !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
+}
+
 /** No Vale das Estátuas: o outro lado da partida, só durante a rodada (o servidor confere de novo). */
 function duelFoe(id) {
   const d = state.duel;
@@ -1947,8 +1966,12 @@ function renderDuel() {
   const d = state.duel;
   const fighting = !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
   const q = state.duelQueue;
-  ui.duelBar.hidden = !inVale;
+  ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden;
   ui.duelBtn.hidden = fighting;
+  ui.duelBoardBtn.hidden = fighting;                     // revisão EGM: na luta, nada em cima dos jutsus
+  ui.duelWatchBtn.hidden = fighting;
+  document.body.classList.toggle('in-vale', inVale);
+  if (fighting) state.watchArena = false;
   if (!inVale) ui.rankedPanel.hidden = true;
   ui.duelBtn.classList.toggle('queued', !!q?.queued);
   ui.duelBtn.textContent = q?.queued ? `Na fila: ${q.position}º de ${q.size} · Cancelar` : `⚔️ Desafio${q?.size ? ` (${q.size} na fila)` : ''}`;
@@ -1968,10 +1991,19 @@ function renderDuel() {
 function tickDuelClock() {
   const d = state.duel;
   if (ui.duelHud.hidden) return;
-  if (!d || d.phase === 'idle') {
+  const idle = !d || d.phase === 'idle';
+  ui.duelHud.classList.toggle('duel-idle', idle);
+  if (idle) {
     ui.duelPhase.textContent = 'Arena livre';
-    ui.duelClock.textContent = d?.queue ? `${d.queue} na fila` : '—';
+    ui.duelClock.textContent = d?.queue ? `${d.queue} na fila` : 'Aperte Desafio';
     return;
+  }
+  // a vida dos dois no placar (para quem assiste de longe)
+  for (const [el, v] of [[ui.duelAHp, d.a], [ui.duelBHp, d.b]]) {
+    const p = v && state.players.get(v.id);
+    const me = v && v.id === state.meId ? { hp: state.me?.hp, maxHp: state.me?.maxHp } : null;
+    const hp = me?.maxHp ? me.hp / me.maxHp : p && p.maxHp ? p.hp / p.maxHp : 1;
+    el.style.width = `${Math.max(0, Math.min(1, hp)) * 100}%`;
   }
   const secs = Math.max(0, Math.ceil((d.until - performance.now()) / 1000));
   const names = { prep: 'Preparação', round: `Rodada ${d.round}`, interval: 'Próxima rodada', done: 'Fim' };
@@ -2001,6 +2033,20 @@ function renderRankedBoard(msg) {
   ui.rankedMe.textContent = me ? `Você: ${me.position}º · ${me.mmr} pontos · ${me.wins}V ${me.losses}D` + (all ? ` · recorde ${all.best} ` : ' ')
     : 'Você ainda não lutou nesta temporada. Aperte Desafio!';
   if (me) ui.rankedMe.appendChild(tierBadge(me.mmr));
+  // barra até a próxima faixa
+  const mmr = me ? me.mmr : all ? all.mmr : null;
+  ui.rankedProgress.hidden = mmr === null;
+  if (mmr !== null) {
+    const asc = [...RANK_TIERS].reverse();
+    const i = asc.findIndex(([min], k) => mmr >= min && (k === asc.length - 1 || mmr < asc[k + 1][0]));
+    const next = asc[i + 1];
+    if (!next) { ui.rankedProgressBar.style.width = '100%'; ui.rankedProgressText.textContent = 'Faixa máxima: Lenda'; }
+    else {
+      const from = asc[i][0] || 900, share = (mmr - from) / (next[0] - from);
+      ui.rankedProgressBar.style.width = `${Math.max(0, Math.min(1, share)) * 100}%`;
+      ui.rankedProgressText.textContent = `Faltam ${next[0] - mmr} pontos para ${next[1]}`;
+    }
+  }
   ui.rankedList.textContent = '';
   for (const r of msg.top || []) {
     const tr = document.createElement('tr');
@@ -5045,8 +5091,11 @@ function draw(now) {
   const { width, height } = state.world;
   // Tremor curto (o golpe marcado caiu perto): alguns centésimos de casa para os lados.
   const shake = now < (state.shakeUntil || 0) ? ((state.shakeUntil - now) / 220) * 0.12 : 0;
-  const camX = (me ? me.x + cam.ox : width / 2) + (shake ? Math.sin(now / 9) * shake : 0);
-  const camY = (me ? me.y + cam.oy : height / 2) + (shake ? Math.cos(now / 11) * shake : 0);
+  // v29: no Vale, "Assistir" leva a câmera para o meio da arena (quem está lutando sempre vê o próprio ninja)
+  const watch = state.watchArena && state.mapId === 'vale_estatuas' && !duelFighting();
+  const fx = watch ? 22 : me ? me.x + cam.ox : width / 2, fy = watch ? 15 : me ? me.y + cam.oy : height / 2;
+  const camX = fx + (shake ? Math.sin(now / 9) * shake : 0);
+  const camY = fy + (shake ? Math.cos(now / 11) * shake : 0);
   const T = Math.max(8, Math.round(tile * cam.scale));   // inteiro: o chão em blocos não abre frestas
   const halfW = viewW / 2, halfH = viewH / 2;
   const toScreenX = (wx) => Math.round((wx - camX) * T + halfW);

@@ -107,17 +107,19 @@
 
     <!-- v29: modo rankeado. O placar da arena (no alto) e o botão do Desafio (embaixo, no meio, translúcido). -->
     <div id="duel-hud" class="duel-hud" hidden aria-live="polite">
-      <div class="duel-side duel-a"><b id="duel-a-name">?</b><span id="duel-a-info"></span><i id="duel-a-wins" class="duel-wins"></i></div>
+      <div class="duel-side duel-a"><b id="duel-a-name">?</b><span id="duel-a-info"></span><i class="duel-hp"><i id="duel-a-hp"></i></i><i id="duel-a-wins" class="duel-wins"></i></div>
       <div class="duel-mid"><span id="duel-phase">Arena livre</span><b id="duel-clock"></b></div>
-      <div class="duel-side duel-b"><b id="duel-b-name">?</b><span id="duel-b-info"></span><i id="duel-b-wins" class="duel-wins"></i></div>
+      <div class="duel-side duel-b"><b id="duel-b-name">?</b><span id="duel-b-info"></span><i class="duel-hp"><i id="duel-b-hp"></i></i><i id="duel-b-wins" class="duel-wins"></i></div>
     </div>
     <div id="duel-banner" class="duel-banner" hidden aria-live="assertive">
       <b id="duel-banner-title">VITÓRIA</b>
       <span id="duel-banner-score"></span>
       <span id="duel-banner-points"></span>
+      <button id="duel-again" class="duel-btn duel-again" type="button">⚔️ Jogar de novo</button>
     </div>
     <div id="duel-bar" class="duel-bar" hidden>
       <button id="duel-btn" class="duel-btn" type="button">⚔️ Desafio</button>
+      <button id="duel-watch-btn" class="duel-btn duel-board-btn" type="button">👁 Assistir</button>
       <button id="duel-board-btn" class="duel-btn duel-board-btn" type="button" aria-controls="ranked-panel">🏆 Ranking</button>
     </div>
 
@@ -129,6 +131,7 @@
       </header>
       <p id="ranked-season" class="ranked-season"></p>
       <p id="ranked-me" class="ranked-me"></p>
+      <div id="ranked-progress" class="ranked-progress" hidden><i id="ranked-progress-bar"></i><span id="ranked-progress-text"></span></div>
       <table class="ranked-table">
         <thead><tr><th>#</th><th>Ninja</th><th>Vila</th><th>Nv</th><th>Pontos</th><th>V/D</th></tr></thead>
         <tbody id="ranked-list"></tbody>
