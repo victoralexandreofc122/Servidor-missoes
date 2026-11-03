@@ -1187,34 +1187,59 @@ function statueBody(g, x, y, w, h, C) {
   else if (C.mark === 'wave') { g.moveTo(mx - 4, my + 1); g.quadraticCurveTo(mx - 2, my - 2, mx, my + 1); g.quadraticCurveTo(mx + 2, my + 3, mx + 4, my); g.stroke(); }
   else if (C.mark === 'bolt') { g.moveTo(mx + 1, my - 3); g.lineTo(mx - 2, my + 0.5); g.lineTo(mx + 0.5, my + 0.5); g.lineTo(mx - 1, my + 3.2); g.lineTo(mx + 2.5, my - 0.6); g.lineTo(mx, my - 0.6); g.closePath(); g.fill(); }
   else { g.arc(mx, my, 2, 0, Math.PI * 2); g.fill(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; fr(g, C.band[0], mx + Math.cos(a) * 3.4 - 0.5, my + Math.sin(a) * 3.4 - 0.5, 1, 1); } }
-  // o ninja de pedra (de pé, braços cruzados, faixa da vila no pescoço esvoaçando)
-  const base = foot - ph, sh = 46;                 // altura da figura
-  const part = (pts, fill) => {
-    g.beginPath(); pts.forEach(([u, v], i) => (i ? g.lineTo(cx + u, base - v) : g.moveTo(cx + u, base - v))); g.closePath();
-    g.fillStyle = fill; g.fill();
+  // o ninja de pedra (v29, revisão EGM): de pé, pernas abertas, colete, braços cruzados, cabelo espetado, bandana
+  // com a placa e o cachecol na cor da vila esvoaçando. Cada parte com contorno escuro e 3 tons (luz à esquerda).
+  const base = foot - ph;
+  const P = (pts) => { g.beginPath(); pts.forEach(([u, v], i) => (i ? g.lineTo(cx + u, base - v) : g.moveTo(cx + u, base - v))); g.closePath(); };
+  const shape = (pts, fill, light, shade) => {
+    P(pts); g.lineWidth = 1.6; g.strokeStyle = STATUE.out; g.stroke(); g.fillStyle = fill; g.fill();
+    if (shade) { g.save(); P(pts); g.clip(); g.fillStyle = STATUE.dark; g.fillRect(cx + shade, base - 80, 40, 80); g.restore(); }
+    if (light) { g.save(); P(pts); g.clip(); g.fillStyle = STATUE.light; g.fillRect(cx - 40, base - 80, 40 + light, 80); g.restore(); }
   };
-  const outline = (fn) => { g.save(); g.translate(0.8, 0.8); fn(STATUE.out); g.translate(-1.6, -1.6); fn(STATUE.out); g.restore(); fn(null); };
-  const body = (o) => {
-    part([[-6, 0], [-5, 17], [-9, 30], [-7, 33], [7, 33], [9, 30], [5, 17], [6, 0]], o || STATUE.mid);                       // pernas e manto
-    part([[-9, 30], [-8, 22], [8, 22], [9, 30]], o || STATUE.light);                                                         // braços cruzados
-    g.beginPath(); g.arc(cx, base - 39, 6.5, 0, Math.PI * 2); g.fillStyle = o || STATUE.mid; g.fill();                       // cabeça
-  };
-  outline(body);
-  part([[1, 0], [2, 17], [5, 17], [6, 0]], STATUE.dark);                     // sombra do lado direito
-  part([[2, 22], [8, 22], [9, 30], [3, 30]], STATUE.mid);
-  g.beginPath(); g.arc(cx + 1.5, base - 38.5, 5, -0.9, 1.6); g.fillStyle = STATUE.dark; g.fill();
-  g.beginPath(); g.arc(cx - 2.2, base - 41, 2.2, 0, Math.PI * 2); g.fillStyle = STATUE.hi; g.fill();
-  fr(g, STATUE.hi, cx - 8, base - 30, 6, FINE * 2);
-  fr(g, STATUE.dark, cx - 5, base - 17, 10, FINE * 2);                         // cinto
-  fr(g, STATUE.out, cx - 6.5, base - 42.5, 13, 3);                             // bandana
-  fr(g, C.band[2], cx - 2, base - 42.2, 4, 2.2);                               // placa da bandana na cor da vila
-  // faixa da vila no pescoço, esvoaçando para a direita
+  // cachecol atrás (a ponta voa para a direita)
   g.fillStyle = STATUE.out;
-  g.beginPath(); g.moveTo(cx - 6, base - 33.5); g.lineTo(cx + 6, base - 33.5); g.lineTo(cx + 15, base - 29); g.lineTo(cx + 13, base - 26); g.lineTo(cx + 5, base - 30); g.lineTo(cx - 6, base - 30); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(cx + 3, base - 33); g.quadraticCurveTo(cx + 12, base - 34, cx + 19, base - 27); g.lineTo(cx + 16, base - 24); g.quadraticCurveTo(cx + 10, base - 29, cx + 3, base - 29); g.closePath(); g.fill();
   g.fillStyle = C.band[1];
-  g.beginPath(); g.moveTo(cx - 5.5, base - 33); g.lineTo(cx + 5.5, base - 33); g.lineTo(cx + 14, base - 28.8); g.lineTo(cx + 12.8, base - 26.8); g.lineTo(cx + 5, base - 30.6); g.lineTo(cx - 5.5, base - 30.6); g.closePath(); g.fill();
-  fr(g, C.band[2], cx - 5, base - 33, 9, FINE * 2);
-  fr(g, C.band[0], cx - 5.5, base - 31.4, 11, FINE * 2);
+  g.beginPath(); g.moveTo(cx + 3.5, base - 32.3); g.quadraticCurveTo(cx + 11.5, base - 33.2, cx + 18, base - 27); g.lineTo(cx + 16.2, base - 25); g.quadraticCurveTo(cx + 10, base - 29.6, cx + 3.5, base - 29.6); g.closePath(); g.fill();
+  // pernas (abertas) e sandálias
+  shape([[-7, 0], [-6.5, 13], [-1.2, 13], [-2, 0]], STATUE.mid, -5);
+  shape([[2, 0], [1.2, 13], [6.5, 13], [7, 0]], STATUE.mid, null, 4.5);
+  fr(g, STATUE.out, cx - 8, base - 1.6, 6.5, 1.6); fr(g, STATUE.out, cx + 1.5, base - 1.6, 6.5, 1.6);
+  // quadril e colete (mais largo nos ombros)
+  shape([[-7, 12], [-9.5, 29], [-8, 31], [8, 31], [9.5, 29], [7, 12]], STATUE.mid, -4, 3.5);
+  fr(g, STATUE.dark, cx - 7, base - 15, 14, 2);                                     // cinto
+  fr(g, STATUE.hi, cx - 2, base - 15, 3, 2);                                        // fivela
+  fr(g, STATUE.dark, cx - 0.6, base - 29, 1.2, 12);                                 // abertura do colete
+  // braços cruzados no peito
+  shape([[-10.5, 27], [-11, 20.5], [11, 20.5], [10.5, 27]], STATUE.light, -2, 5);
+  fr(g, STATUE.out, cx - 10, base - 24, 20, 0.9);
+  g.fillStyle = STATUE.hi; g.beginPath(); g.arc(cx - 8.5, base - 23.5, 1.6, 0, Math.PI * 2); g.fill();   // mão
+  g.fillStyle = STATUE.mid; g.beginPath(); g.arc(cx + 8.5, base - 23.5, 1.6, 0, Math.PI * 2); g.fill();
+  // pescoço e cachecol na frente
+  fr(g, STATUE.out, cx - 6, base - 33.5, 12, 3.6);
+  fr(g, C.band[1], cx - 5.4, base - 33, 10.8, 2.6);
+  fr(g, C.band[2], cx - 5.4, base - 33, 6, FINE * 3);
+  // cabeça
+  g.beginPath(); g.arc(cx, base - 39.5, 6.8, 0, Math.PI * 2); g.lineWidth = 1.6; g.strokeStyle = STATUE.out; g.stroke();
+  g.fillStyle = STATUE.mid; g.fill();
+  g.save(); g.beginPath(); g.arc(cx, base - 39.5, 6.8, 0, Math.PI * 2); g.clip();
+  g.fillStyle = STATUE.dark; g.fillRect(cx + 2.5, base - 47, 6, 14);
+  g.fillStyle = STATUE.light; g.fillRect(cx - 7, base - 47, 4, 14);
+  g.restore();
+  // cabelo espetado
+  g.fillStyle = STATUE.out;
+  g.beginPath(); g.moveTo(cx - 8, base - 41); g.lineTo(cx - 10, base - 47); g.lineTo(cx - 5, base - 45.5); g.lineTo(cx - 4, base - 51); g.lineTo(cx, base - 47);
+  g.lineTo(cx + 3.5, base - 51.5); g.lineTo(cx + 4.5, base - 46); g.lineTo(cx + 9.5, base - 47.5); g.lineTo(cx + 8, base - 41); g.closePath(); g.fill();
+  g.fillStyle = STATUE.mid;
+  g.beginPath(); g.moveTo(cx - 7, base - 41.5); g.lineTo(cx - 8.6, base - 46); g.lineTo(cx - 4.5, base - 44.6); g.lineTo(cx - 3.6, base - 49.4); g.lineTo(cx, base - 46);
+  g.lineTo(cx + 3.2, base - 50); g.lineTo(cx + 4, base - 45); g.lineTo(cx + 8.2, base - 46.4); g.lineTo(cx + 7, base - 41.5); g.closePath(); g.fill();
+  fr(g, STATUE.hi, cx - 4.5, base - 46, 2, FINE * 3);
+  // bandana com a placa na cor da vila; olhos em fenda
+  fr(g, STATUE.out, cx - 7.2, base - 43.2, 14.4, 3.2);
+  fr(g, STATUE.dark, cx - 6.8, base - 42.8, 13.6, 2.4);
+  fr(g, STATUE.out, cx - 2.8, base - 43.4, 5.6, 3.6);
+  fr(g, C.band[2], cx - 2.3, base - 43, 4.6, 2.8);
+  fr(g, STATUE.out, cx - 4, base - 38.5, 2.4, 0.9); fr(g, STATUE.out, cx + 1.6, base - 38.5, 2.4, 0.9);
 }
 
 /**
@@ -1298,7 +1323,7 @@ export function propExtent(wall) {
     case 'oak': return { left: 0.6, right: 0.6, top: 0.6, bottom: 0.4 };
     case 'seal': return { left: 0.3, right: 0.3, top: 1.0, bottom: 0.3 };
     case 'tent': return { left: 0.4, right: 0.5, top: 0.3, bottom: 0.45 };
-    case 'statue': return { left: 0.6, right: 1.2, top: 4.6, bottom: 0.4 };
+    case 'statue': return { left: 0.8, right: 1.4, top: 6.6, bottom: 0.4 };
     default: return { left: 0.2, right: 0.2, top: 0.5, bottom: 0.3 };
   }
 }

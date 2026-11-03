@@ -4637,8 +4637,12 @@ function valeSlabTile(seed, cracked = false) {
     const r = rng(seed);
     g.fillStyle = '#2f3128';                                      // junta
     g.fillRect(0, 0, U, U);
-    const cut = 6 + Math.floor(r() * 5);
-    const slabs = seed % 2 ? [[0, 0, U, cut], [0, cut, U, U - cut]] : [[0, 0, cut, U], [cut, 0, U - cut, U]];
+    const cut = 5 + Math.floor(r() * 7);
+    const kind = seed % 4;
+    const slabs = kind === 0 ? [[0, 0, U, cut], [0, cut, U, U - cut]]
+      : kind === 1 ? [[0, 0, cut, U], [cut, 0, U - cut, U]]
+        : kind === 2 ? [[0, 0, cut, 9], [cut, 0, U - cut, 9], [0, 9, U, U - 9]]
+          : [[0, 0, U, U]];
     for (const [x, y, w, h] of slabs) {
       const tone = ['#6a6a5a', '#727160', '#646454'][Math.floor(r() * 3)];
       g.fillStyle = tone;
@@ -4651,7 +4655,8 @@ function valeSlabTile(seed, cracked = false) {
       g.fillRect(x + w - 1.5, y + 0.5, 1, h - 1);
       for (let i = 0; i < (w * h) / 22; i++) fine(g, r() < 0.5 ? '#5c5c4d' : '#7c7a66', x + 1 + r() * (w - 2), y + 1 + r() * (h - 2), PX * 2, PX);
     }
-    for (let i = 0; i < 3; i++) fine(g, r() < 0.5 ? '#4f6a2e' : '#5f7a36', r() * U, seed % 2 ? cut - 0.6 : r() * U, PX * (2 + Math.floor(r() * 3)), PX * 2);   // musgo nas juntas
+    const moss = seed % 3 === 0 ? 7 : 2;
+    for (let i = 0; i < moss; i++) fine(g, r() < 0.5 ? '#4f6a2e' : '#5f7a36', r() * U, kind === 0 ? cut - 0.6 : r() * U, PX * (2 + Math.floor(r() * 3)), PX * 2);   // musgo nas juntas
     if (cracked) {
       g.strokeStyle = '#3a3b31'; g.lineWidth = PX * 2;
       g.beginPath(); g.moveTo(3, 2); g.lineTo(6, 6); g.lineTo(5, 9); g.lineTo(8, 13); g.stroke();
@@ -4778,7 +4783,8 @@ const TILES = {
   burnt: [burntTile(131), burntTile(132), burntTile(133)],
   pebbles: [pebblesTile(141), pebblesTile(142)],
   lodo: [lodoTile(151)],
-  slab: [valeSlabTile(201), valeSlabTile(202), valeSlabTile(203), valeSlabTile(204, true)],
+  // 9 lajes diferentes (cortes, tons, musgo, uma rachada, uma inteira): o chão do Vale não fica carimbado
+  slab: [201, 202, 203, 205, 206, 207, 208, 209].map((n) => valeSlabTile(n)).concat([valeSlabTile(204, true)]),
   sand: [sandTile(41), sandTile(42)],
   desert: [desertTile(161), desertTile(162), desertTile(163)],
   packedSand: [packedSandTile(191), packedSandTile(192), packedSandTile(193)],                 // Areia: chão da arena                                // Areia: os gramados
@@ -4830,7 +4836,7 @@ function tileAt(x, y) {
     case 'burnt': return TILES.burnt[h % 3];                       // Acampamento e Clareira Queimada
     case 'pebbles': return TILES.pebbles[h & 1];                   // leito seco da cachoeira
     case 'lodo': return TILES.lodo[0];
-    case 'slab': return TILES.slab[h % 5 === 0 ? 3 : h % 3];      // Vale das Estátuas: lajes com musgo
+    case 'slab': return TILES.slab[h % 11 === 0 ? 8 : (h >>> 3) % 8];   // Vale das Estátuas: lajes com musgo
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
     case 'arena':                                                  // arena da vila: lajes, losango a cada 4 (na Areia, terra batida)
