@@ -1558,7 +1558,9 @@ function enterMap(id, announce) {
   state.arts = artPlaces(state.places);
   // Paredes de cima para baixo: o que está mais embaixo é desenhado por cima (3/4).
   state.walls = visibleWalls(state.places).sort((a, b) => a.y + a.h - (b.y + b.h));
-  const drawn = state.walls.filter((w) => !w.art);
+  // v29: `up` = o desenho sobe tantas casas acima da caixa de colisão (o objeto colide só na base)
+  const drawn = state.walls.filter((w) => !w.art).map((w) => (w.up ? { ...w, y: w.y - w.up, h: w.h + w.up } : w));
+  state.drawWalls = drawn;
   const deco = visibleDeco(state.places).filter((d) => !d.art);
   state.deco = deco.filter((d) => d.k !== 'gate_roof' && d.k !== 'door' && d.k !== 'oak_canopy');
   state.overhead = deco.filter((d) => d.k === 'gate_roof' || d.k === 'oak_canopy');
@@ -4670,7 +4672,7 @@ function chunkCanvas(cx, cy) {
     if (x + w < -M || y + h < -M || x > size + M || y > size + M) continue;
     drawDeco(g, d, x, y, w, h);
   }
-  for (const w of state.walls) {
+  for (const w of state.drawWalls || state.walls) {
     if (PROP_KINDS.has(w.k) || w.art) continue;
     const x = (w.x - cx * CHUNK) * U, y = (w.y - cy * CHUNK) * U, pw = w.w * U, ph = w.h * U;
     if (x + pw < -M || y + ph < -M || x > size + M || y > size + M) continue;

@@ -105,7 +105,7 @@ export function arenaFoes(map, a, b) {
  */
 export function visibleWalls(places) {
   const out = [];
-  for (const p of places) for (const w of p.map.walls) out.push({ x: w.x + p.ox, y: w.y + p.oy, w: w.w, h: w.h, k: w.k, s: w.s, t: p.map.theme, art: p.map.art });
+  for (const p of places) for (const w of p.map.walls) out.push({ x: w.x + p.ox, y: w.y + p.oy, w: w.w, h: w.h, k: w.k, s: w.s, t: p.map.theme, art: p.map.art, ...(w.up ? { up: w.up } : {}) });
   return out;
 }
 

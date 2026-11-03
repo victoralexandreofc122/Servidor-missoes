@@ -65,6 +65,8 @@ export interface Wall extends Box {
     | 'arena'
     // árvore cerejeira (copa rosa, nos gramados da vila) e a montanha atrás da sede (paredão com mata em cima)
     | 'sakura' | 'mountain';
+  /** v29: o desenho sobe `up` casas acima da caixa (a caixa é só a base, onde o objeto toca o chão). */
+  up?: number;
 }
 
 /**
@@ -217,7 +219,7 @@ export interface MapLayout {
   fields?: (Box & { chakraPerSec: number })[];
 }
 
-const wall = (k: Wall['k'], x: number, y: number, w: number, h: number, s?: Wall['s']): Wall => (s ? { x, y, w, h, k, s } : { x, y, w, h, k });
+const wall = (k: Wall['k'], x: number, y: number, w: number, h: number, s?: Wall['s'], up?: number): Wall => ({ x, y, w, h, k, ...(s ? { s } : {}), ...(up ? { up } : {}) });
 const tree = (x: number, y: number, size = 2): Wall => wall('tree', x, y, size, size);
 const sakura = (x: number, y: number, size = 2): Wall => wall('tree', x, y, size, size, 'sakura');
 const area = (g: Area['g'], x: number, y: number, w: number, h: number): Area => ({ x, y, w, h, g });
@@ -908,12 +910,12 @@ function forest(): MapLayout {
     wall('seal', FOREST_PLACES.pedra3.x, FOREST_PLACES.pedra3.y, FOREST_PLACES.pedra3.w, FOREST_PLACES.pedra3.h, 'lit'),
     // Acampamento Queimado: barracas, caixotes, a fogueira e a pedra.
     // v29: barracas no tamanho do boneco (até ~2,5 vezes a altura dele), no meio de onde ficavam
-    wall('tent', 10, 50.6, 3.6, 3.2, 'burnt'), wall('tent', 22.3, 49.6, 3.6, 3.2, 'burnt'), wall('tent', 11, 62.8, 3.4, 3, 'burnt'), wall('tent', 25.7, 62.4, 3.6, 3.2, 'burnt'),
+    wall('tent', 10, 52.36, 3.6, 1.44, 'burnt', 1.76), wall('tent', 22.3, 51.36, 3.6, 1.44, 'burnt', 1.76), wall('tent', 11, 64.45, 3.4, 1.35, 'burnt', 1.65), wall('tent', 25.7, 64.16, 3.6, 1.44, 'burnt', 1.76),
     // v29: barris do tamanho de um barril (antes 3 casas), no meio de onde ficavam
     // v29: o acampamento conta a história: caixotes, fogueira apagada e um tronco caído
-    wall('furniture', 13.6, 53.4, 1.2, 1.1, 'crate'), wall('furniture', 14.9, 53.7, 1, 0.9, 'crate'), wall('furniture', 27.6, 57.2, 1.2, 1.1, 'crate'),
+    wall('furniture', 13.6, 53.84, 1.2, 0.66, 'crate', 0.44), wall('furniture', 14.9, 54.06, 1, 0.54, 'crate', 0.36), wall('furniture', 27.6, 57.64, 1.2, 0.66, 'crate', 0.44),
     wall('logs', 21.6, 59.6, 3.2, 0.9),
-    wall('furniture', 7.6, 56.6, 1.1, 1.4, 'barrel'), wall('furniture', 16, 49.4, 1.1, 1.4, 'barrel'), wall('furniture', 29.8, 60.5, 1.1, 1.4, 'barrel'), wall('furniture', 16.5, 67, 1.1, 1.4, 'barrel'),
+    wall('furniture', 7.6, 57.3, 1.1, 0.7, 'barrel', 0.7), wall('furniture', 16, 50.1, 1.1, 0.7, 'barrel', 0.7), wall('furniture', 29.8, 61.2, 1.1, 0.7, 'barrel', 0.7), wall('furniture', 16.5, 67.7, 1.1, 0.7, 'barrel', 0.7),
     wall('rock', 18.3, 58.2, 1.6, 1.3), wall('rock', 18.8, 43.4, 1.5, 1.2),
     crown(54, 51.5, 7.5, 14.5),                    // o pinheiro na beira
     // Passagem sul: troncos queimados fecham o caminho até a história abrir (M14).
