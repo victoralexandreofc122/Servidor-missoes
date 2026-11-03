@@ -110,3 +110,35 @@ export function scatterTrees(regions: readonly Box[], keepOpen: readonly Box[], 
   }
   return out;
 }
+
+/**
+ * v29 (revisão EGM, rodada 3): a borda da mata fechada vira ÁRVORES INTEIRAS (tronco e copa), em 2 fileiras tortas,
+ * no lugar do bloco reto de copas. O pé fica dentro da colisão da mata (a fileira da frente com o tronco na linha da
+ * borda); o miolo da mata segue escuro. `edge` marca que a árvore não tem colisão própria.
+ */
+export function thicketRows(blocks: readonly Box[], solid: readonly Box[], W: number, H: number, seed = 29): Piece[] {
+  const r = seeded(seed);
+  const out: Piece[] = [];
+  const free = (x: number, y: number) => x > 0 && y > 0 && x < W && y < H && !solid.some((b) => inside(b, x, y));
+  const put = (x: number, y: number, b: Box) => {
+    if (!inside(b, x, y - 0.01) && !(y === b.y + b.h)) return;
+    if (out.some((p) => Math.hypot(p.x - x, p.y - y) < 1.5)) return;
+    const pine = r() < 0.35;
+    out.push({ k: pine ? 'pine' : 'tree', x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, size: Math.round(((pine ? 3.4 : 3) + r() * 0.8) * 10) / 10, seed: Math.floor(r() * 1000), edge: true });
+  };
+  for (const b of blocks) {
+    const step = () => 1.7 + r() * 0.7;
+    for (const [depth, off] of [[0.15, 0], [1.9, 0.9]] as const) {
+      // embaixo (aberto ao sul): a fileira da frente com o pé na borda
+      for (let x = b.x + 0.5 + off; x < b.x + b.w - 0.3; x += step()) if (free(x, b.y + b.h + 0.4)) put(x + (r() - 0.5) * 0.5, b.y + b.h - depth + (r() - 0.5) * 0.3, b);
+      // em cima (aberto ao norte)
+      for (let x = b.x + 0.5 + off; x < b.x + b.w - 0.3; x += step()) if (free(x, b.y - 0.4)) put(x + (r() - 0.5) * 0.5, b.y + 0.3 + depth, b);
+      // dos lados
+      for (let y = b.y + 1 + off; y < b.y + b.h; y += step()) {
+        if (free(b.x - 0.4, y)) put(b.x + 0.3 + depth, y, b);
+        if (free(b.x + b.w + 0.4, y)) put(b.x + b.w - 0.3 - depth, y, b);
+      }
+    }
+  }
+  return out;
+}

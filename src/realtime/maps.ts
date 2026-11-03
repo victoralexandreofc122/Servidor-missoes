@@ -21,7 +21,7 @@
  * lanternas...) são só desenho. A regra de atravessar a borda fica em movement.ts e
  * public/movement.js: a mesma conta nos dois.
  */
-import { footBox, scatterTrees, type Piece } from './mapKit.js';
+import { footBox, scatterTrees, thicketRows, type Piece } from './mapKit.js';
 import type { Village } from './appearance.js';
 import type { Box } from './movement.js';
 
@@ -939,7 +939,9 @@ function forest(): MapLayout {
   const oakCrown = { x: FOREST_PLACES.carvalho.x - 7, y: FOREST_PLACES.carvalho.y - 14, w: FOREST_PLACES.carvalho.w + 14, h: 17 };
   landmarks.push({ ...oakCrown, k: 'foot' });
   const loose = scatterTrees(woods, [...open.filter((o) => o.w * o.h < 300), ...trails], [...landmarks, ...solidZones], 5.5, 13, 1.2);   // menos árvores, mais espaço
-  const pieces: Piece[] = loose;
+  const thicketWalls = walls.filter((w) => w.k === 'thicket');
+  const rows = thicketRows(thicketWalls, walls, W, H).filter((p) => !landmarks.some((w) => p.x > w.x - 1 && p.x < w.x + w.w + 1 && p.y > w.y - 0.5 && p.y < w.y + w.h + 2));
+  const pieces: Piece[] = [...rows, ...loose];
   walls.push(...loose.map((p) => ({ ...footBox(p), k: 'foot' as const })));
   return {
     id: 'map_2', name: 'Floresta', kind: 'forest', width: W, height: H, safe: false, walls, pieces,

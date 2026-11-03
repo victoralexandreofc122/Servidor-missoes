@@ -18,7 +18,7 @@ describe('mapas por código: Floresta (v29)', () => {
   });
 
   it('árvores espalhadas: sempre com espaço para passar entre duas (troncos a 3 casas ou mais)', () => {
-    const ps = F.pieces ?? [];
+    const ps = (F.pieces ?? []).filter((q) => !q.edge);
     for (const a of ps) for (const b of ps) if (a !== b) assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= 3, `árvores coladas em ${a.x},${a.y}`);
     // mata fechada só nas bordas do mapa, no sul e em volta da saliência (nada no meio da Floresta)
     for (const w of F.walls.filter((q) => q.k === 'thicket')) assert.ok(w.y < 2.6 || w.x < 2.6 || w.x + w.w > F.width - 2.6 || w.y >= 63 - 1e-6 || w.x >= 72.5 - 1e-6, `mata fechada no meio: ${JSON.stringify(w)}`);
@@ -26,7 +26,7 @@ describe('mapas por código: Floresta (v29)', () => {
 
   it('árvore solta: colide SÓ no pé (o tronco), nunca na copa', () => {
     const feet = F.walls.filter((w) => w.k === 'foot');
-    const loose = F.pieces ?? [];
+    const loose = (F.pieces ?? []).filter((q) => !q.edge);
     assert.ok(loose.length > 0);
     assert.equal(feet.length, loose.length, 'uma colisão por árvore solta');
     for (const p of loose) {

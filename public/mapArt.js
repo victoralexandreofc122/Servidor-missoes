@@ -1187,7 +1187,7 @@ export function drawProp(g, wall, x, y, w, h, tile) {
   const seed = (wall.x * 73856093) ^ (wall.y * 19349663);
   switch (wall.k) {
     case 'tree': return drawTreeGroup(g, x, y, w, h, Math.abs(seed), tile, wall.s, wall.t);
-    case 'pine': return drawPine(g, x + w / 2, y + h - tile * 0.15, w / tile, Math.abs(seed), tile);
+    case 'pine': return drawPine(g, x + w / 2, y + h - tile * 0.15, w / tile, Math.abs(seed), tile, wall.s === 'deep');
     case 'deadtree': return drawDeadTrees(g, x, y, w, h, Math.abs(seed), tile);
     case 'oak': return drawGiantOak(g, x, y, w, h, tile);
     case 'seal': return drawSeal(g, x, y, w, h, wall.s !== 'out');
@@ -1202,6 +1202,12 @@ const LEAVES = [
   ['#141a0d', '#2f3d1f', '#4e5a2a', '#6f7a38', '#a3a85a'],
   ['#12190f', '#283a22', '#3f5530', '#5c7240', '#93a463'],
   ['#1a1a0c', '#3a3c1c', '#5a5a28', '#7f7c3a', '#b3ab5c'],
+];
+/** v29: as árvores da borda da mata (floresta funda): os mesmos tons, mais escuros. */
+const LEAVES_DEEP = [
+  ['#0c1008', '#1d2614', '#2f3a1c', '#45502a', '#6c7340'],
+  ['#0b0f09', '#192417', '#283621', '#3c4c2e', '#5f6e45'],
+  ['#100f07', '#232411', '#373819', '#4f4d26', '#77723f'],
 ];
 
 /**
@@ -1281,7 +1287,7 @@ function drawTreeGroup(g, x, y, w, h, seed, tile, style, theme) {
     // Areia: palmeira no lugar da cerejeira e das árvores grandes (um cacto grande em algumas), cacto nas pequenas.
     if (theme === 'areia') return size < 1.5 ? drawCactus(g, bx, by, size, seed, tile) : style === 'sakura' || seed % 3 ? drawPalm(g, bx, by, size, seed, tile) : drawCactus(g, bx, by, size, seed, tile);
     if (theme === 'nevoa' && style === 'sakura') return drawBamboo(g, bx, by, size, seed, tile);   // Névoa: bambu
-    return drawTree(g, bx, by, size, seed, tile, style === 'sakura' ? SAKURA : undefined);
+    return drawTree(g, bx, by, size, seed, tile, style === 'sakura' ? SAKURA : style === 'deep' ? LEAVES_DEEP[seed % 3] : undefined);
   }
   const r = rng(seed);
   const trees = [];
@@ -1356,8 +1362,12 @@ const OAK_LEAVES = ['#1c2410', '#33421c', '#4b5e26', '#6a7d34', '#9aa851'];
  * esquerda, contorno escuro e tronco curto. O pé (colisão) é só o tronco.
  */
 const PINE = ['#0f160c', '#1f2c16', '#33441f', '#4d5e2c', '#7a8a44'];
-function drawPine(g, baseX, baseY, size, seed, tile) {
+const PINE_DEEP = ['#090d07', '#141d0f', '#223018', '#334224', '#566238'];
+function drawPine(g, baseX, baseY, size, seed, tile, deep) {
+  // v29 (revisão EGM): galhos em andares com a borda de baixo RECORTADA (pontas de agulha), contorno escuro e 3 tons
+  // (sombra à direita, meio, luz em cima à esquerda) e um brilho nas pontas. O pé (colisão) é só o tronco.
   const r = rng(seed);
+  const P = deep ? PINE_DEEP : PINE;
   const H = tile * size * 1.25, W = tile * size * 0.62, tw = tile * size * 0.1, th = tile * size * 0.22;
   g.fillStyle = 'rgba(0, 0, 0, 0.26)';
   g.beginPath(); g.ellipse(baseX + W * 0.25, baseY - 1, W * 0.6, W * 0.2, 0, 0, Math.PI * 2); g.fill();
@@ -1367,16 +1377,24 @@ function drawPine(g, baseX, baseY, size, seed, tile) {
   const tiers = 4;
   for (let i = 0; i < tiers; i++) {
     const t = i / tiers;
-    const by = baseY - th * 0.7 - H * t * 0.82, half = W * (1 - t * 0.72) * (0.95 + r() * 0.1), tip = by - H * 0.36;
-    const tri = (dx, dy, k, col) => {
-      g.fillStyle = col; g.beginPath();
-      g.moveTo(baseX + dx, tip + dy); g.lineTo(baseX - half * k + dx, by + dy); g.lineTo(baseX + half * k + dx, by + dy); g.closePath(); g.fill();
+    const by = baseY - th * 0.7 - H * t * 0.8, half = W * (1 - t * 0.7) * (0.95 + r() * 0.1), tip = by - H * 0.38;
+    const teeth = 5 + Math.round(half / tile * 2);
+    const tier = (grow, col) => {                       // triângulo com a base em zigue-zague (pontas para baixo)
+      g.fillStyle = col; g.beginPath(); g.moveTo(baseX, tip - grow);
+      g.lineTo(baseX - half - grow, by + grow);
+      for (let n = 1; n <= teeth; n++) {
+        const px = baseX - half + (2 * half * n) / teeth;
+        g.lineTo(px - half / teeth, by - tile * 0.18 + grow);
+        g.lineTo(px + (n === teeth ? grow : 0), by + grow + (n % 2 ? tile * 0.06 : 0));
+      }
+      g.closePath(); g.fill();
     };
-    tri(0, 1.2, 1.08, PINE[0]);                         // contorno
-    tri(0, 0, 1, PINE[1]);                              // sombra (lado direito)
-    g.fillStyle = PINE[2]; g.beginPath(); g.moveTo(baseX, tip); g.lineTo(baseX - half, by); g.lineTo(baseX + half * 0.35, by); g.closePath(); g.fill();
-    g.fillStyle = PINE[3]; g.beginPath(); g.moveTo(baseX - 0.5, tip + 2); g.lineTo(baseX - half * 0.75, by - 1); g.lineTo(baseX - half * 0.15, by - 1); g.closePath(); g.fill();
-    for (let j = 0; j < 4; j++) fr(g, PINE[4], baseX - half * (0.2 + r() * 0.5), by - (by - tip) * (0.2 + r() * 0.5), FINE * 2, FINE * 2);
+    tier(1.3, P[0]);                                    // contorno
+    tier(0, P[1]);                                      // sombra (lado direito)
+    g.save(); g.beginPath(); g.moveTo(baseX, tip - 1); g.lineTo(baseX - half - 2, by + 3); g.lineTo(baseX + half * 0.15, by + 3); g.closePath(); g.clip();
+    tier(0, P[2]); g.restore();                         // meio (lado esquerdo)
+    g.fillStyle = P[3]; g.beginPath(); g.moveTo(baseX - 0.5, tip + 2); g.lineTo(baseX - half * 0.7, by - tile * 0.2); g.lineTo(baseX - half * 0.2, by - tile * 0.3); g.closePath(); g.fill();
+    for (let j = 0; j < 3 + Math.round(size); j++) fr(g, P[4], baseX - half * (0.15 + r() * 0.55), by - (by - tip) * (0.15 + r() * 0.55), FINE * 2, FINE);
   }
 }
 
