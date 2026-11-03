@@ -538,6 +538,8 @@ export class GameWorld {
   /** v29 (revisão EGM): saídas de partida (castigo na fila) e o último adversário de cada um (fila evita repetir). */
   private readonly rankedLeaves = new Map<string, { count: number; firstAt: number; until: number }>();
   private readonly rankedLast = new Map<string, string>();
+  /** v29: quem caiu no meio da partida e até quando pode reconectar. */
+  private readonly duelAway = new Map<string, number>();
   private readonly rankedStore: RankedStore | undefined;
   private rankedReady = false;
   private rankedTimer: NodeJS.Timeout | undefined;
@@ -958,6 +960,7 @@ export class GameWorld {
       progress: this.progressView(session), kit: this.kitView(session), ninja: this.ninjaView(session),
     });
     this.joinEndgame(session, !eg);
+    this.duelRejoin(session);                  // v29: caiu no meio da partida do rankeado e voltou a tempo
     this.syncMission(session.id);
     if (session.canBeSensei) this.syncSensei(session.id);
     this.sendChatHistory(session, t);          // ao abrir o jogo: as mensagens anteriores
@@ -973,7 +976,7 @@ export class GameWorld {
   private leave(session: Session): void {
     session.closed = true;
     if (this.sessions.get(session.id) !== session) return;
-    this.rankedGone(session);
+    this.rankedGone(session, true);
     this.flushUsage(session);
     this.sessions.delete(session.id);
     this.mapPlayers.get(session.map)?.delete(session);
@@ -3322,7 +3325,8 @@ export class GameWorld {
       if (s.tutorial < 4) return this.notice(s.id, 'Termine a Academia para jogar o rankeado.', 'bad');
       this.rankedReturn.set(s.id, { map: s.map, x: s.x, y: s.y });
       this.stopMeditation(s, 'manual');
-      this.transfer(s, 'vale_estatuas', VALE.spawn.x + (Math.random() - 0.5) * 4, VALE.spawn.y + (Math.random() - 0.5) * 2, 'travel');
+      const at = this.valeArrival();
+      this.transfer(s, 'vale_estatuas', at.x, at.y, 'travel');
       this.sendDuelState(s);
       return;
     }
@@ -3363,30 +3367,68 @@ export class GameWorld {
   }
 
   /** Saiu do Vale (botão, desconexão): sai da fila; se estava lutando, perde a partida. */
-  private rankedGone(s: Session): void {
+  private rankedGone(s: Session, disconnected = false): void {
     const before = this.rankedQueue.length;
     this.rankedQueue = this.rankedQueue.filter((e) => e.id !== s.id);
     const d = this.duel;
     const side = d ? sideOf(d, s.id) : null;
     if (d && side && d.phase !== 'done') {
-      const t = this.now();
-      // castigo: fica fora da fila por um tempo que dobra a cada saída no dia
-      const prev = this.rankedLeaves.get(s.id);
-      const count = prev && t - prev.firstAt < 86_400_000 ? prev.count + 1 : 1;
-      this.rankedLeaves.set(s.id, { count, firstAt: prev && count > 1 ? prev.firstAt : t, until: t + leavePenalty(count) });
-      if (d.phase === 'prep') {
-        // saiu na preparação: a partida é cancelada, sem pontos para ninguém; o outro volta para a frente da fila
-        const otherId = d[other(side)];
-        this.duelClose(d);
-        this.notice(otherId, 'O adversário saiu antes da luta: partida cancelada, sem pontos. Você volta para a fila.', 'info');
-        const o = this.duelSession(otherId);
-        if (o) this.rankedQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0 });
-      } else {
-        forfeit(d, side, t);
-        this.duelFinished(d);
-      }
+      if (disconnected && d.phase !== 'prep') {
+        // caiu da conexão no meio da luta (na preparação cancela na hora, sem pontos): espera DUEL.reconnectMs antes do W.O. (troca de Wi-Fi para 4G no celular, por exemplo)
+        this.duelAway.set(s.id, this.now() + DUEL.reconnectMs);
+        this.broadcastDuel();
+      } else this.duelAbandon(s.id, side);
     }
     if (before !== this.rankedQueue.length) this.sendQueues();
+  }
+
+  /** Abandonou a partida de vez (o tempo para reconectar acabou): castigo, e cancela (preparação) ou dá W.O. */
+  private duelAbandon(id: string, side: Side): void {
+    this.duelAway.delete(id);
+    const d = this.duel;
+    if (!d || d.phase === 'done') return;
+    const t = this.now();
+    // castigo: fica fora da fila por um tempo que dobra a cada saída no dia
+    const prev = this.rankedLeaves.get(id);
+    const count = prev && t - prev.firstAt < 86_400_000 ? prev.count + 1 : 1;
+    this.rankedLeaves.set(id, { count, firstAt: prev && count > 1 ? prev.firstAt : t, until: t + leavePenalty(count) });
+    if (d.phase === 'prep') {
+      // saiu na preparação: a partida é cancelada, sem pontos para ninguém; o outro volta para a frente da fila
+      const otherId = d[other(side)];
+      this.duelClose(d);
+      this.notice(otherId, 'O adversário saiu antes da luta: partida cancelada, sem pontos. Você volta para a fila.', 'info');
+      const o = this.duelSession(otherId);
+      if (o) this.rankedQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0 });
+      this.sendQueues();
+    } else {
+      forfeit(d, side, t);
+      this.duelFinished(d);
+    }
+  }
+
+  /** Voltou dentro do tempo: volta para o seu lado da arena e a partida segue. */
+  private duelRejoin(s: Session): void {
+    const d = this.duel;
+    const side = d ? sideOf(d, s.id) : null;
+    if (!d || !side || !this.duelAway.has(s.id) || d.phase === 'done') return;
+    this.duelAway.delete(s.id);
+    const at = VALE.start[side];
+    this.transfer(s, 'vale_estatuas', at.x, at.y, 'respawn');
+    this.notice(d[other(side)], `${s.username} voltou: a luta continua!`, 'info');
+    this.broadcastDuel();
+  }
+
+  /** v29 (revisão EGM): onde se chega no Vale, espalhado pela praça de baixo (longe de quem já está lá). */
+  private valeArrival(): { x: number; y: number } {
+    const others = [...(this.mapPlayers.get('vale_estatuas') ?? [])];
+    let best: { x: number; y: number } = { x: VALE.spawn.x, y: VALE.spawn.y }, bestD = -1;
+    for (let i = 0; i < 8; i++) {
+      const p = { x: 13 + Math.random() * 18, y: 25 + Math.random() * 6 };
+      const dmin = Math.min(99, ...others.map((o) => Math.hypot(o.x - p.x, o.y - p.y)));
+      if (dmin > bestD) { bestD = dmin; best = p; }
+      if (dmin >= 2) break;
+    }
+    return best;
   }
 
   /** O ninja da partida, se ainda está conectado e no Vale. */
@@ -3400,6 +3442,11 @@ export class GameWorld {
     if (this.rankedQueue.length > 0) {
       const valid = this.rankedQueue.filter((e) => this.duelSession(e.id));
       if (valid.length !== this.rankedQueue.length) { this.rankedQueue = valid; this.sendQueues(); }
+    }
+    for (const [id, until] of this.duelAway) {
+      const side = this.duel ? sideOf(this.duel, id) : null;
+      if (!side) this.duelAway.delete(id);
+      else if (t >= until) this.duelAbandon(id, side);
     }
     const d = this.duel;
     if (!d) {
@@ -3540,7 +3587,8 @@ export class GameWorld {
       const s = this.duelSession(id);
       if (!s) continue;
       this.duelRefresh(s, t);
-      this.transfer(s, 'vale_estatuas', VALE.spawn.x + (Math.random() - 0.5) * 6, VALE.spawn.y + (Math.random() - 0.5) * 2, 'respawn');
+      const at = this.valeArrival();
+      this.transfer(s, 'vale_estatuas', at.x, at.y, 'respawn');
       this.sendStats(s, t);
     }
     this.broadcastDuel();
@@ -3560,7 +3608,17 @@ export class GameWorld {
       ...(a ? { a } : {}), ...(b ? { b } : {}), history: [...d.history], queue: this.rankedQueue.length,
       ...(d.winner ? { winner: d.winner } : {}), ...(d.reason ? { reason: d.reason } : {}),
       ...(d.phase === 'done' && d.matchDamage.a + d.matchDamage.b === 0 ? { voided: true } : {}),
+      ...this.awayView(d),
     };
+  }
+
+  /** Um lado caiu: quanto tempo falta para ele voltar (aparece para todos no placar). */
+  private awayView(d: DuelMatch): { away?: { side: Side; ms: number } } {
+    for (const side of ['a', 'b'] as const) {
+      const until = this.duelAway.get(d[side]);
+      if (until !== undefined) return { away: { side, ms: Math.max(0, until - this.now()) } };
+    }
+    return {};
   }
 
   private broadcastDuel(): void {
