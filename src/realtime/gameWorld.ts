@@ -3321,6 +3321,12 @@ export class GameWorld {
    */
   private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session, label?: string): void {
     if (t < session.intangibleUntil) return;                    // Máscara Intangível (Akatsuki)
+    // v29 (bug da rodada 2): no Vale das Estátuas só se apanha durante a rodada, e só quem está na partida. Uma
+    // queimadura que sobrava da rodada 1 batia no intervalo, com a vida já em 0, e matava de verdade o perdedor.
+    if (this.layout(session.map).ranked) {
+      const d = this.duel;
+      if (!d || d.phase !== 'round' || !sideOf(d, session.id)) return;
+    }
     session.calmSince = t;                                       // v29: apanhou: a vida para de voltar por 7 s
     // Apanhou: a meditação acaba ANTES do dano (não dá para meditar no meio da luta). O sono acorda.
     this.stopMeditation(session, 'damaged');
@@ -3565,16 +3571,20 @@ export class GameWorld {
     for (const side of ['a', 'b'] as const) {
       const s = this.duelSession(d[side]);
       if (!s) continue;
-      this.duelRefresh(s, t);
+      const wasDead = this.duelRefresh(s, t);
       const at = VALE.start[side];
       this.transfer(s, 'vale_estatuas', at.x, at.y, 'respawn');
+      if (wasDead) this.broadcastMap(s.map, { type: 'player_respawned', playerId: s.id, x: s.x, y: s.y, hp: s.hp, maxHp: s.stats.maxHp });
       this.sendStats(s, t);
     }
   }
 
-  /** Vida e chakra cheios, sem efeitos, sem escudo, parado. */
-  private duelRefresh(s: Session, t: number): void {
+  /** Vida e chakra cheios, sem efeitos, sem escudo, sem controle, parado. Devolve se estava morto (o cliente precisa saber). */
+  private duelRefresh(s: Session, t: number): boolean {
+    const wasDead = s.dead;
     s.dead = false;
+    s.stunnedUntil = 0;
+    s.rootedUntil = 0;
     s.hp = s.stats.maxHp;
     s.chakra = s.stats.maxChakra;
     s.shield = 0;
@@ -3584,12 +3594,17 @@ export class GameWorld {
     s.dx = 0;
     s.dy = 0;
     this.dropInputs(s);
+    return wasDead;
   }
 
-  /** A rodada acabou (alguém zerou, ou o tempo). */
+  /** A rodada acabou (alguém zerou, ou o tempo). Os efeitos que sobraram (queimadura...) acabam junto. */
   private duelRoundOver(winner: Side | null, t: number): void {
     const d = this.duel;
     if (!d || d.phase !== 'round') return;
+    for (const id of [d.a, d.b]) {
+      const s = this.duelSession(id);
+      if (s) for (const code of [...s.effects.keys()]) this.dropEffect({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }, code, t);
+    }
     const over = endRound(d, winner, t);
     this.broadcastDuel();
     if (over) this.duelFinished(d);
@@ -3668,9 +3683,10 @@ export class GameWorld {
     for (const id of [d.a, d.b]) {
       const s = this.duelSession(id);
       if (!s) continue;
-      this.duelRefresh(s, t);
+      const wasDead = this.duelRefresh(s, t);
       const at = this.valeArrival();
       this.transfer(s, 'vale_estatuas', at.x, at.y, 'respawn');
+      if (wasDead) this.broadcastMap(s.map, { type: 'player_respawned', playerId: s.id, x: s.x, y: s.y, hp: s.hp, maxHp: s.stats.maxHp });
       this.sendStats(s, t);
     }
     this.broadcastDuel();
