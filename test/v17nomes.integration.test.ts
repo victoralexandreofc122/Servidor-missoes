@@ -23,4 +23,17 @@ describe('v17 no banco: os nomes das aldeias', { skip: noDatabase }, () => {
     assert.deepEqual(rows, (['vila_1', 'vila_3', 'vila_4', 'vila_5'] as const).map((code) => ({ code, name: VILLAGE_INFO[code].name })));
     assert.equal((await t.pool.query('SELECT village FROM game.players WHERE id = $1', [id])).rows[0].village, 'vila_3');
   });
+
+  it('banco sem a v11 (sem game.villages, o caso do Neon do Victor): roda sem erro e não faz nada', async () => {
+    const semV11 = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v11_endgame.sql' && f !== 'schema_v13_sem_pedra.sql' && f !== 'schema_v17_nomes.sql'));
+    try {
+      assert.equal((await semV11.pool.query(`SELECT to_regclass('game.villages') AS t`)).rows[0].t, null);
+      await semV11.pool.query(V17);
+      await semV11.pool.query(V17);
+      assert.equal((await semV11.pool.query(`SELECT to_regproc('game._migrar_v17') AS f`)).rows[0].f, null, 'a função temporária foi apagada');
+    } finally {
+      await semV11.drop();
+    }
+  });
 });
+

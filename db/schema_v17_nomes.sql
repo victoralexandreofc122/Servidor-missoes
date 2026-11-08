@@ -7,17 +7,28 @@
 --   vila_3  Névoa  -> Maré Oculta
 --   vila_4  Nuvem  -> Rocha Antiga
 --   vila_5  Areia  -> Vento Cortante
+--
+-- Banco sem a v11 (o fim de jogo, que é opcional): a tabela game.villages não existe e esta migração não faz nada (os
+-- nomes que o jogador vê vêm do código). Por isso ela usa uma função temporária, criada, chamada e apagada aqui.
 -- =====================================================================================================================
 BEGIN;
 
-UPDATE game.villages SET name = 'Chama Eterna'   WHERE code = 'vila_1';
-UPDATE game.villages SET name = 'Maré Oculta'    WHERE code = 'vila_3';
-UPDATE game.villages SET name = 'Rocha Antiga'   WHERE code = 'vila_4';
-UPDATE game.villages SET name = 'Vento Cortante' WHERE code = 'vila_5';
+CREATE OR REPLACE FUNCTION game._migrar_v17() RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF to_regclass('game.villages') IS NULL THEN
+    RETURN;
+  END IF;
+  EXECUTE 'UPDATE game.villages SET name = ''Chama Eterna'' WHERE code = ''vila_1''';
+  EXECUTE 'UPDATE game.villages SET name = ''Maré Oculta'' WHERE code = ''vila_3''';
+  EXECUTE 'UPDATE game.villages SET name = ''Rocha Antiga'' WHERE code = ''vila_4''';
+  EXECUTE 'UPDATE game.villages SET name = ''Vento Cortante'' WHERE code = ''vila_5''';
+END $$;
 
-COMMENT ON TABLE game.villages IS 'As quatro aldeias: Chama Eterna, Maré Oculta, Rocha Antiga e Vento Cortante (antes Folha, Névoa, Nuvem e Areia; os nomes mudam aqui, na v17 e em src/realtime/villages.ts). A Pedra (vila_2) saiu na v13.';
+SELECT game._migrar_v17();
+DROP FUNCTION game._migrar_v17();
 
 COMMIT;
 
--- Conferência (opcional):
+-- Conferência (opcional; só existe com a v11):
 -- SELECT code, name FROM game.villages ORDER BY sort_order;   -- Chama Eterna, Maré Oculta, Rocha Antiga, Vento Cortante
