@@ -5,7 +5,7 @@
 --  1. 68 jutsus em game.jutsus: os 45 novos (códigos novos) e os nomes novos dos tiers 2 a 4 de Água, Relâmpago,
 --     Terra, Médico, Armas, Ilusão, Taijutsu e Sombra (os códigos ficam: quem já tem continua com eles, com o uso e o
 --     nível). A Extração (game.extract_jutsu, v10) passa a sortear entre eles.
---  2. game.valid_kit aceita os 90 códigos do jogo. A lista só cresce: todo kit de hoje continua valendo.
+--  2. game.valid_kit aceita os 94 códigos do jogo. A lista só cresce: todo kit de hoje continua valendo.
 --
 -- Nenhum código é renomeado nem apagado.
 -- =====================================================================================================================
@@ -107,13 +107,13 @@ RETURN kit IS NOT NULL
     'taijutsu_ascendente', 'taijutsu_lotus', 'taijutsu_portoes', 'shadow_recuo', 'shadow_estrangular',
     'shadow_agarre', 'water_nevoa', 'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma',
     'weapons_gigante', 'water_muro', 'stone_muralha', 'water_clone', 'stone_golem', 'wind_shuriken', 'wind_veu',
-    'wind_salto', 'wind_arco'
+    'wind_salto', 'wind_arco', 'rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
 COMMIT;
 
 -- Conferência (opcional):
--- SELECT count(*) FROM game.jutsus;                                                               -- 90
+-- SELECT count(*) FROM game.jutsus;                                                               -- 94
 -- SELECT class_code, count(*) FROM game.jutsus GROUP BY class_code ORDER BY class_code;
 -- SELECT game.valid_kit(ARRAY['water_dragao', 'stone_pilares', 'heal_aura', 'shadow_4']);         -- true

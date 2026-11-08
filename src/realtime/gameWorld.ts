@@ -25,6 +25,15 @@ import {
   ACADEMY_JUTSUS, CAST_RULES, CLASSES, CLASS_INFO, EXTRACTION, castSlowOf, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
   BASE_SKILLS, FORM_OF_MECHANIC, type JutsuForm, jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
+import { CLAN_TIER_LEVEL, clanJutsusFor, type Clan } from './jutsusClasses.js';
+
+/** v30: nomes e o que cada linhagem dá. */
+const CLAN_NAMES: Readonly<Record<Clan, string>> = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' };
+const CLAN_HINT: Readonly<Record<Clan, string>> = {
+  rubro: 'O Olho da Percepção já é seu; os outros jutsus do clã chegam nos níveis 20, 40 e 60.',
+  umbra: 'A Possessão da Sombra já é sua; os outros chegam nos níveis 20, 40 e 60, e os jutsus de sombra alcançam 10% mais longe.',
+  andarilho: 'Sem clã, a Substituição volta 15% mais rápido.',
+};
 import { CC_BUDGET, CC_WEIGHT, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
@@ -182,6 +191,8 @@ export interface JoiningPlayer {
   items?: Inventory;
   equipped?: string | null;
   classes?: Classes;
+  /** v30 (migração v19): linhagem (null = ainda não despertou). */
+  clan?: Clan | null;
   /** Jutsu -> usos já gravados no banco. */
   jutsus?: Record<string, number>;
   kageCandidate?: boolean;
@@ -311,6 +322,8 @@ interface Session {
   usagePending: Map<string, number>;
   lastUsageFlush: number;
   kageCandidate: boolean;
+  /** v30: linhagem (Clã Rubro, Clã Umbra ou Andarilho); null = ainda não despertou. */
+  clan: Clan | null;
   /** Substituição armada até este instante (anula o próximo golpe). */
   substituteUntil: number;
   substituteLevel: number;
@@ -844,7 +857,7 @@ export class GameWorld {
   private ninjaView(s: Session): NinjaView {
     return {
       tutorialStep: s.tutorial, ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll,
-      equippedShoes: s.equippedShoes, equippedAccessory: s.equippedAccessory, classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin,
+      equippedShoes: s.equippedShoes, equippedAccessory: s.equippedAccessory, classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin, clan: s.clan,
       villageSwitches: s.villageSwitches, cape: s.cape, display: { ...s.display },
     };
   }
@@ -949,6 +962,7 @@ export class GameWorld {
       usagePending: new Map(previous?.usagePending ?? []),
       lastUsageFlush: t,
       kageCandidate: player.kageCandidate ?? previous?.kageCandidate ?? false,
+      clan: player.clan !== undefined ? player.clan : previous?.clan ?? null,
       substituteUntil: previous?.substituteUntil ?? 0,
       stunnedUntil: 0,
       rootedUntil: 0,
@@ -1018,6 +1032,10 @@ export class GameWorld {
     });
     this.joinEndgame(session, !eg);
     this.duelRejoin(session);                  // v29: caiu no meio da partida do rankeado e voltou a tempo
+    if (session.clan) this.grantClanJutsus(session);   // v30: um tier do clã que o nível alcançou longe do jogo
+    else if (session.rank.code !== 'ACADEMY' && session.level >= CLAN_TIER_LEVEL[0]) {
+      this.sendTo(session, { type: 'notice', text: 'Sua linhagem pode despertar (uma vez só): digite /linhagem rubro, /linhagem umbra ou /linhagem andarilho no chat.', tone: 'info' });
+    }
     this.syncMission(session.id);
     if (session.canBeSensei) this.syncSensei(session.id);
     this.sendChatHistory(session, t);          // ao abrir o jogo: as mensagens anteriores
@@ -1092,6 +1110,7 @@ export class GameWorld {
     else if (parsed.type === 'deliver_mission') this.deliverPlayerMission(session, parsed.senseiId, t);
     else if (parsed.type === 'evaluate_mission') this.evaluatePlayerMission(session, parsed.missionId, parsed.approved, parsed.score, t);
     else if (parsed.type === 'choose_class') this.chooseClass(session, parsed.class);
+    else if (parsed.type === 'clan') this.chooseClan(session, parsed.clan);
     else if (parsed.type === 'extract') this.extract(session, parsed.class, parsed.level);
     else if (parsed.type === 'buy') this.buy(session, parsed.item, parsed.qty);
     else if (parsed.type === 'equip') parsed.slot === 'cape' ? this.equipCape(session, parsed.item) : this.equip(session, parsed.item, parsed.slot ?? 'weapon');
@@ -1648,6 +1667,7 @@ export class GameWorld {
     s.level = state.level;
     this.applyAttributes(s, state.statPoints, state.attributes);
     if (s.level !== levelBefore) this.broadcastMap(s.map, { type: 'player_rank', playerId, rank: s.rank, level: s.level });
+    if (s.level !== levelBefore && s.clan) this.grantClanJutsus(s);   // v30: o tier do clã chega pelo nível
   }
 
   // ---------------------------------------------------------------- combate
@@ -1742,7 +1762,8 @@ export class GameWorld {
       passive: this.passive(session, 'jutsu'), sky: sky?.damage[mechanic] ?? 1,
       ...(burnBase ? { burn: { base: burnBase, ms: cfg.burnMs ?? 3000 } } : {}),
     };
-    const reach = cfg.range ?? cfg.radius ?? 0;
+    // v30: Clã Umbra: os jutsus de sombra alcançam 10% mais longe
+    const reach = (cfg.range ?? cfg.radius ?? 0) * (session.clan === 'umbra' && mechanic === 'shadow' ? 1.1 : 1);
     const targets = this.targetsFor(session, true);
 
     // 1. Mira. Jutsu que mira + inimigo focado: vai na direção dele, MESMO LONGE (pode não chegar). Sem foco, as formas
@@ -1863,7 +1884,8 @@ export class GameWorld {
     session.chakra -= price.cost;
     if (price.cost > 0) session.calmSince = t;
     if (cfg.hpCost) session.hp = Math.max(1, session.hp - Math.round(session.hp * cfg.hpCost));   // v30: custo em vida (nunca mata)
-    session.cooldowns[skill] = t + (mechanic === 'substitution' ? substitutionCooldownMs(level) : price.cooldownMs);
+    // v30: Andarilho (sem clã): a Substituição volta 15% mais rápido
+    session.cooldowns[skill] = t + (mechanic === 'substitution' ? Math.round(substitutionCooldownMs(level) * (session.clan === 'andarilho' ? 0.85 : 1)) : price.cooldownMs);
     this.broadcastMap(session.map, {
       type: 'cast', playerId: session.id, skill, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy),
       ...(to ? { tx: round2(to.x), ty: round2(to.y) } : {}),
@@ -2395,6 +2417,9 @@ export class GameWorld {
         if (distance(o, dashTo) < 0.3) return { hits: [], fail: 'BLOCKED' };
         return { hits: [], dashTo };
       }
+      case 'escudo_vida':
+        // Guardião Espectral: o escudo e um corte em cone na frente (o Véu de Vento não corta)
+        return { hits: (cfg.damage ?? 0) > 0 ? targets.filter((x) => isInCone(o, fx, fy, x, reach || 1.5, cfg.coneDeg ?? 120)) : [] };
       case 'faixa': {
         // linha larga: todos numa faixa de largura 2 x radius até o alcance (para na parede)
         const end = rayEnd(layout, o.x, o.y, fx, fy, reach);
@@ -2535,6 +2560,7 @@ export class GameWorld {
         // escudo único: até 25% da vida máxima; o novo troca o anterior
         s.absorb = { hp: Math.round(s.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.12)), until: t + (cfg.durationMs ?? 3000) };
         this.sendTo(s, { type: 'notice', text: `Escudo: ${s.absorb.hp} de vida por ${Math.round((cfg.durationMs ?? 3000) / 1000)} s.`, tone: 'good' });
+        for (const x of hits) strike(x);
         break;
       }
       case 'muro': {
@@ -2587,6 +2613,7 @@ export class GameWorld {
     if (cfg.darkMs && x.kind === 'player' && this.stillThere(x)) this.applyEffect(x, 'escuridao', t, cfg.darkMs, undefined, by);
     if (cfg.invertMs && x.kind === 'player' && this.stillThere(x)) this.applyEffect(x, 'invertido', t, cfg.invertMs, undefined, by);
     if (cfg.woundMs && this.stillThere(x)) this.applyEffect(x, 'ferida', t, cfg.woundMs, undefined, by);
+    if (cfg.dotAmount && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, cfg.dotMs ?? 4000, cfg.dotAmount, by);   // Chamas Negras
     if (cfg.drain && x.kind === 'player') {
       const got = Math.min(cfg.drain, x.session.chakra);
       x.session.chakra -= got;
@@ -3388,6 +3415,38 @@ export class GameWorld {
   }
 
   /** Diretor da Academia: Missão de Genin (classe Primária) ou, Chunin 40, a classe Secundária. */
+  /**
+   * v30: o despertar da linhagem (uma vez, a partir de Genin no nível 11): Clã Rubro, Clã Umbra ou Andarilho. Os jutsus
+   * do clã chegam pelo nível (11, 20, 40, 60) sem Extração. Grava no banco quando há (migração v19).
+   */
+  private chooseClan(s: Session, clan: Clan): void {
+    const say = (text: string, tone: 'info' | 'good' = 'info') => this.sendTo(s, { type: 'notice', text, tone });
+    if (s.clan) return say(`Sua linhagem já despertou: ${CLAN_NAMES[s.clan]}.`);
+    if (s.rank.code === 'ACADEMY' || s.level < CLAN_TIER_LEVEL[0]) return say(`A linhagem desperta quando você vira Genin (nível ${CLAN_TIER_LEVEL[0]}).`);
+    s.clan = clan;
+    const id = s.id;
+    const done = () => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      say(`Linhagem desperta: ${CLAN_NAMES[clan]}! ${CLAN_HINT[clan]}`, 'good');
+      this.sendTo(current, { type: 'clan', clan });
+      this.grantClanJutsus(current);
+    };
+    if (this.store?.chooseClan) {
+      this.storeTask(s, (store) => store.chooseClan!(id, clan).then(done));
+    } else done();
+  }
+
+  /** v30: ensina os jutsus do clã que o nível já alcançou (no despertar, ao entrar e ao subir de nível). */
+  private grantClanJutsus(s: Session): void {
+    const missing = clanJutsusFor(s.clan, s.level).filter((c) => !s.jutsus.has(c));
+    if (missing.length === 0) return;
+    for (const c of missing) s.jutsus.set(c, 0);
+    if (this.store?.learnJutsus) this.storeTask(s, (store) => store.learnJutsus!(s.id, missing));
+    this.sendTo(s, { type: 'jutsus', jutsus: Object.fromEntries(s.jutsus) });
+    this.sendTo(s, { type: 'notice', text: `Novo jutsu da linhagem: ${missing.map((c) => JUTSU_BY_CODE.get(c as Skill)?.name ?? c).join(', ')}.`, tone: 'good' });
+  }
+
   private chooseClass(session: Session, cls: ClassCode): void {
     if (!this.near(session, 'director')) return this.sendError(session, 'DIRECTOR_TOO_FAR');
     const { id, username } = session;

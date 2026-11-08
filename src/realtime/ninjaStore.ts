@@ -59,6 +59,9 @@ export interface NinjaStore {
   applyKage(playerId: string): Promise<StoreResult<{ already: boolean }>>;
   /** Item ganho em combate (pergaminho que caiu do monstro). */
   addItem(playerId: string, item: string, qty: number): Promise<Inventory>;
+  /** v30 (migração v19): grava a linhagem (só se ainda não tinha) e ensina jutsus (os do clã, pelo nível). */
+  chooseClan?(playerId: string, clan: string): Promise<void>;
+  learnJutsus?(playerId: string, codes: string[]): Promise<void>;
   /** Rank atual (depois do Exame Chunin aprovado). */
   rankOf(playerId: string): Promise<{ rank: RankView; canBeSensei: boolean } | undefined>;
 }
@@ -72,6 +75,9 @@ export const NINJA_SQL = {
       FROM unnest($2::text[], $3::int[]) AS u(code, n)
      WHERE pj.player_id = $1 AND pj.jutsu_code = u.code AND u.n > 0`,
   advanceTutorial: `SELECT game.advance_tutorial($1, $2) AS advanced`,
+  // v30 (migração v19): a linhagem (uma vez só) e os jutsus do clã pelo nível
+  chooseClan: `UPDATE game.players SET clan = $2 WHERE id = $1 AND clan IS NULL`,
+  learnJutsus: `INSERT INTO game.player_jutsus (player_id, jutsu_code) SELECT $1, c FROM unnest($2::text[]) AS c ON CONFLICT DO NOTHING`,
   afterTutorial: `SELECT tutorial_step, total_xp, level, stat_points, ryo, ${INVENTORY} AS items FROM game.players WHERE id = $1`,
   becomeGenin: `SELECT game.become_genin($1, $2)`,
   chooseSecondary: `SELECT game.choose_secondary_class($1, $2)`,
@@ -225,6 +231,14 @@ export function makeNinjaStore(db: Db): NinjaStore {
       } catch (err) {
         return refuse(err);
       }
+    },
+
+    async chooseClan(playerId, clan) {
+      await db.query(NINJA_SQL.chooseClan, [playerId, clan]);
+    },
+
+    async learnJutsus(playerId, codes) {
+      if (codes.length) await db.query(NINJA_SQL.learnJutsus, [playerId, codes]);
     },
 
     async addItem(playerId, item, qty) {

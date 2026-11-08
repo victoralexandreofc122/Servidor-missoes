@@ -730,6 +730,11 @@ function handleMessage(msg) {
     case 'summon_punch':
       state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: msg.r, color: '#c9a678', start: now });
       break;
+    case 'clan':
+      // v30: a linhagem despertou (o aviso com o que ela dá vem em seguida)
+      state.ninja.clan = msg.clan;
+      addSystemLine(`🩸 Linhagem: ${{ rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' }[msg.clan] || msg.clan}.`);
+      break;
     case 'barrier': {
       // v30: muro de jutsu: vira parede (a previsão do movimento esbarra nele) e aparece no chão
       const walls = state.maps[state.mapId]?.walls;
@@ -4292,6 +4297,13 @@ ui.chat.addEventListener('submit', (e) => {
   const message = ui.chatInput.value.trim();
   if (!message) return closeChat();
   if (!state.connected) return addSystemLine('Sem conexão. Tentando reconectar…');
+  // v30: o despertar da linhagem (a partir de Genin): /linhagem rubro | umbra | andarilho
+  const lin = /^\/linhagem\s+(rubro|umbra|andarilho)$/i.exec(message);
+  if (lin) {
+    send({ type: 'clan', clan: lin[1].toLowerCase() });
+    ui.chatInput.value = '';
+    return;
+  }
   send({ type: 'chat', message });
   ui.chatInput.value = '';
 });

@@ -44,7 +44,7 @@ RETURN kit IS NOT NULL
     'taijutsu_ascendente', 'taijutsu_lotus', 'taijutsu_portoes', 'shadow_recuo', 'shadow_estrangular',
     'shadow_agarre', 'water_nevoa', 'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma',
     'weapons_gigante', 'water_muro', 'stone_muralha', 'water_clone', 'stone_golem', 'wind_shuriken', 'wind_veu',
-    'wind_salto', 'wind_arco'
+    'wind_salto', 'wind_arco', 'rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 

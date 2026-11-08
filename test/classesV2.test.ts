@@ -57,8 +57,8 @@ function scene(skill: string, monsters: [number, number][] = [[2, 0]], pvp = fal
 }
 
 describe('Jutsus v2, entrega 5: as outras classes', () => {
-  it('catálogo: 90 jutsus; 41 códigos novos; toda classe tem os 4 tiers e o tier 1 de sempre', () => {
-    assert.equal(JUTSUS.length, 90);
+  it('catálogo: 94 jutsus; 41 códigos novos (+4 do Clã Rubro); toda classe tem os 4 tiers e o tier 1 de sempre', () => {
+    assert.equal(JUTSUS.length, 94);
     assert.equal(CLASS_V2_CODES.length, 41);
     for (const c of CLASSES) {
       const tiers = new Set(JUTSUS.filter((j) => j.class === c).map((j) => j.tier));
@@ -442,5 +442,59 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
       assert.ok(dealt(m) > 0);
       assert.ok(world.effectsOf({ kind: 'monster', id: m.id, monster: m }).has('ferida'));
     }
+  });
+
+  // ---------------------------------------------------------------- os clãs (v30)
+
+  it('linhagem: só a partir de Genin no nível 11; uma vez só; o tier 1 do clã chega no despertar e os outros pelo nível', () => {
+    const { s, a, world } = scene('fire', []);
+    Object.assign(s, { rank: { code: 'ACADEMY', name: 'Academia' }, level: 9 });
+    a.send({ type: 'clan', clan: 'rubro' });
+    assert.equal(s.clan, null, 'na Academia não desperta');
+    Object.assign(s, { rank: { code: 'GENIN', name: 'Genin' }, level: 11 });
+    a.send({ type: 'clan', clan: 'rubro' });
+    assert.equal(s.clan, 'rubro');
+    assert.equal(a.conn.last('clan').clan, 'rubro');
+    assert.ok(s.jutsus.has('rubro_olho') && !s.jutsus.has('rubro_transe'));
+    a.send({ type: 'clan', clan: 'umbra' });
+    assert.equal(s.clan, 'rubro', 'uma vez só');
+    s.level = 40;
+    world.grantClanJutsus(s);
+    assert.ok(s.jutsus.has('rubro_transe') && s.jutsus.has('rubro_chamas') && !s.jutsus.has('rubro_guardiao'));
+  });
+
+  it('jutsu de clã não sai na Extração (não tem classe) e entra no kit como qualquer outro', () => {
+    const rubro = JUTSUS.filter((j) => j.clan === 'rubro');
+    assert.equal(rubro.length, 4);
+    for (const j of rubro) assert.equal(j.class, null, j.code);
+    assert.deepEqual(rubro.map((j) => j.tier), [1, 2, 3, 4]);
+  });
+
+  it('Chamas Negras: linha que queima 3/s por 4 s', () => {
+    const { m, cast, world } = scene('rubro_chamas', [[3, 0]]);
+    cast();
+    assert.ok(world.effectsOf({ kind: 'monster', id: m.id, monster: m }).has('queimadura'));
+  });
+
+  it('Guardião Espectral: escudo de 20% da vida e um corte na frente', () => {
+    const { s, m, a, dealt } = scene('rubro_guardiao', [[1, 0]]);
+    a.send({ type: 'cast', skill: 'rubro_guardiao' });                 // confere já (o monstro de teste bate de volta)
+    assert.equal(s.absorb.hp, Math.round(s.stats.maxHp * 0.2));
+    assert.ok(dealt(m) > 0);
+  });
+
+  it('Clã Umbra: a Possessão da Sombra alcança 10% mais longe; Andarilho: Substituição 15% mais rápida', () => {
+    const near = scene('shadow', [[4.6, 0]]);
+    near.cast();
+    assert.ok(!(near.m.rootedUntil > near.clock.now()), 'sem clã, a linha de 4 casas não chega a 4,6');
+    const um = scene('shadow', [[4.6, 0]]);
+    um.s.clan = 'umbra';
+    um.cast();
+    assert.ok(um.m.rootedUntil > um.clock.now(), 'Umbra: 4,4 casas');
+    const an = scene('substitution', []);
+    an.s.clan = 'andarilho';
+    an.cast();
+    const cd = an.s.cooldowns.substitution - an.clock.now();
+    assert.ok(cd < SK.substitution.cooldownMs * 0.9, `${cd}`);
   });
 });

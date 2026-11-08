@@ -346,7 +346,7 @@ describe('v7: jutsus aprendidos e nível pelo uso', () => {
   });
 
   it('catálogo: 72 jutsus (2 da Academia + 9 classes x 4 tiers + 7 do Fogo + 27 das outras classes), o tier 1 de cada classe tem o código dela', () => {
-    assert.equal(JUTSUS.length, 90);
+    assert.equal(JUTSUS.length, 94);
     assert.equal(JUTSUS.filter((j) => j.tier === 0).length, 2);
     for (const c of CLASSES) assert.equal(JUTSUS.find((j) => j.class === c && j.tier === 1)!.code, c);
     assert.equal(JUTSUS.filter((j) => j.class === 'fire').length, 11, 'o Fogo inteiro da adaptação');

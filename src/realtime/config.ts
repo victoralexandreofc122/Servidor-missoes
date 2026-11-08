@@ -96,6 +96,9 @@ export interface SkillConfig {
   /** v30: escuridão no alvo (Noite Eterna) / controles invertidos (Distúrbio Nervoso), em ms. */
   darkMs?: number;
   invertMs?: number;
+  /** v30: dano ao longo do tempo (queimadura) ao acertar: por pulso e duração (Chamas Negras). */
+  dotAmount?: number;
+  dotMs?: number;
   /** v30: escudo de vida (Véu de Vento): parte da vida máxima, por `durationMs` (regra única: até 25%). */
   shieldShare?: number;
   /** v30: ferida (cura recebida pela metade) por este tempo (Estrela Espiral). */

@@ -220,3 +220,39 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
  * da Sombra 0,3 s, mas eles são a base do rankeado de hoje: ficam instantâneos até o Victor decidir (só mudar aqui).
  */
 export const CAST_OF_EXISTING: Readonly<Record<string, number>> = {};
+
+// ------------------------------------------------------------------ v30: os clãs (linhagem; docs/jutsus-v2.md, seção 5)
+
+export const CLANS = ['rubro', 'umbra', 'andarilho'] as const;
+export type Clan = (typeof CLANS)[number];
+/** Nível em que cada tier do clã chega (o tier 1 no despertar, a partir de Genin no nível 11). */
+export const CLAN_TIER_LEVEL = [11, 20, 40, 60] as const;
+
+/** Jutsus próprios do Clã Rubro (o Clã Umbra usa a árvore das sombras que já existe). */
+export const CLAN_CODES = ['rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao'] as const;
+
+export const CLAN_JUTSUS: Readonly<Record<string, ClassJutsu & { clan: 'rubro' }>> = {
+  // Olho Rubro: o próximo golpe recebido dói metade (a pele de rocha da Terra, no olho)
+  rubro_olho: { name: 'Olho da Percepção', class: 'fire', clan: 'rubro', tier: 1, form: 'escudo',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 12_000, range: 0, radius: undefined, reduction: 0.5 } },
+  rubro_transe: { name: 'Transe Ocular', class: 'fire', clan: 'rubro', tier: 2, form: 'linha',
+    numbers: { ...CLEAN, base: 10, damage: dmg(10, 2), cost: 20, cooldownMs: 8000, range: 4, radius: undefined, stunMs: 1300, castMs: 400 } },
+  rubro_chamas: { name: 'Chamas Negras', class: 'fire', clan: 'rubro', tier: 3, form: 'linha',
+    numbers: { ...CLEAN, base: 6, damage: dmg(6, 3), cost: 34, cooldownMs: 10_000, range: 6, radius: undefined, dotAmount: 3, dotMs: 4000 } },
+  rubro_guardiao: { name: 'Guardião Espectral', class: 'fire', clan: 'rubro', tier: 4, form: 'escudo_vida',
+    numbers: { ...CLEAN, base: 15, damage: dmg(15, 4), cost: 44, cooldownMs: 20_000, range: 1.5, radius: undefined, coneDeg: 120, shieldShare: 0.2, durationMs: 4000 } },
+};
+
+/** Os jutsus de cada linhagem, do tier 1 ao 4 (Andarilho não tem árvore: tem a Substituição 15% mais rápida). */
+export const CLAN_TREE: Readonly<Record<Clan, readonly string[]>> = {
+  rubro: ['rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao'],
+  umbra: ['shadow', 'shadow_2', 'shadow_estrangular', 'shadow_4'],
+  andarilho: [],
+};
+
+/** Os jutsus do clã que o ninja já alcançou pelo nível. */
+export function clanJutsusFor(clan: Clan | null, level: number): string[] {
+  if (!clan) return [];
+  return CLAN_TREE[clan].filter((_, i) => level >= CLAN_TIER_LEVEL[i]!);
+}
+

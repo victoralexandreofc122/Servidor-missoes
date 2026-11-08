@@ -4,6 +4,7 @@ import type { PvpClassRow, PvpReport } from './pvpStats.js';
 import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
+import { CLANS, type Clan } from './jutsusClasses.js';
 import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type JutsuForm, type Mechanic } from './jutsus.js';
 import { ITEM_CODES, type Gear, type ItemDef } from './items.js';
 import { IncomingAppearanceSchema, VILLAGES, type Appearance, type Village } from './appearance.js';
@@ -221,6 +222,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('deliver_mission'), senseiId: uuid }),
   z.object({ type: z.literal('evaluate_mission'), missionId: uuid, approved: z.boolean(), score: z.number().int().min(1).max(5) }),
   z.object({ type: z.literal('choose_class'), class: z.enum(CLASSES) }),
+  // v30: o despertar da linhagem (Clã Rubro, Clã Umbra ou Andarilho)
+  z.object({ type: z.literal('clan'), clan: z.enum(CLANS) }),
   z.object({ type: z.literal('extract'), class: z.enum(CLASSES), level: z.number().int().min(1).max(4) }),
   z.object({ type: z.literal('buy'), item: z.enum(ITEM_CODES), qty: z.number().int().min(1).max(99) }),
   z.object({ type: z.literal('equip'), item: z.enum(ITEM_CODES).nullable(), slot: z.enum(['weapon', 'scroll', 'cape', 'feet', 'body']).optional() }),
@@ -367,6 +370,8 @@ export interface NpcView {
 
 /** Progressão do ninja (v7): só o dono vê. */
 export interface NinjaView {
+  /** v30: linhagem (null = ainda não despertou). */
+  clan?: Clan | null;
   /** Passo do tutorial da Academia: 0 a 3 = na sala 1 a 4; 4 = concluído (pode sair). */
   tutorialStep: number;
   ryo: number;
@@ -622,6 +627,8 @@ export type ServerMessage =
   | { type: 'tutorial'; step: number }
   | { type: 'inventory'; ryo: number; items: Record<string, number>; equipped: string | null; equippedScroll: string | null; equippedShoes: string | null; equippedAccessory: string | null; cape?: string | null }
   | { type: 'classes'; primary: ClassCode | null; secondary: ClassCode | null }
+  // v30: a linhagem despertou
+  | { type: 'clan'; clan: Clan }
   | { type: 'jutsus'; jutsus: Record<string, number> }
   | { type: 'jutsu_level'; skill: Skill; level: number }
   | { type: 'class_choice'; kind: 'primary' | 'secondary'; classes: ClassCode[] }

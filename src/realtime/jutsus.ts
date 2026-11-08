@@ -11,7 +11,7 @@
  *  - Nível do jutsu por USO (contado só pelo servidor): 100 usos = Nv 2, 500 = Nv 3, 2000 = Nv 4.
  */
 import type { SkillConfig } from './config.js';
-import { CAST_OF_EXISTING, CLASS_V2, CLASS_V2_CODES } from './jutsusClasses.js';
+import { CAST_OF_EXISTING, CLAN_CODES, CLAN_JUTSUS, CLASS_V2, CLASS_V2_CODES } from './jutsusClasses.js';
 
 export const CLASSES = ['heal', 'shadow', 'illusion', 'stone', 'fire', 'water', 'taijutsu', 'weapons', 'lightning', 'wind'] as const;
 export type ClassCode = (typeof CLASSES)[number];
@@ -94,6 +94,8 @@ export interface JutsuDef {
   mechanic: Mechanic;
   /** Como ele sai (v29). Os de hoje seguem a forma da mecânica. */
   form: JutsuForm;
+  /** v30: jutsu de clã (linhagem): não sai na Extração, chega pelo nível depois do despertar. */
+  clan?: 'rubro';
   /**
    * Números próprios deste jutsu (v29). Sem eles, o tier 2 a 4 é o tier 1 da classe mais forte (`skillConfig`).
    * Com eles, valem estes (os jutsus novos do docs/jutsus-v2.md).
@@ -117,7 +119,7 @@ const NAMES: Readonly<Record<ClassCode, readonly [string, string, string, string
 
 export const ACADEMY_JUTSUS = ['teleport', 'substitution'] as const;
 /** Código de jutsu: os 2 da Academia, o tier 1 de cada classe ('fire') e os tiers 2 a 4 ('fire_2'). */
-export type JutsuCode = (typeof ACADEMY_JUTSUS)[number] | ClassCode | `${ClassCode}_${2 | 3 | 4}` | (typeof V2_CODES)[number] | (typeof CLASS_V2_CODES)[number];
+export type JutsuCode = (typeof ACADEMY_JUTSUS)[number] | ClassCode | `${ClassCode}_${2 | 3 | 4}` | (typeof V2_CODES)[number] | (typeof CLASS_V2_CODES)[number] | (typeof CLAN_CODES)[number];
 
 /** v29 (Jutsus v2): jutsus novos (códigos novos). Os de hoje mantêm os códigos (o banco e os kits guardam). */
 export const V2_CODES = ['fire_endan', 'fire_kasumi', 'fire_hibashiri', 'fire_ryuka', 'fire_haiseki', 'fire_lamina', 'fire_hotan'] as const;
@@ -203,6 +205,11 @@ export const JUTSUS: readonly JutsuDef[] = [
   ...CLASS_V2_CODES.map((code): JutsuDef => {
     const v = CLASS_V2[code]!;
     return { code, name: v.name, class: v.class, tier: v.tier, mechanic: v.class, form: v.form, numbers: v.numbers };
+  }),
+  // v30: os jutsus do Clã Rubro (sem classe: vêm da linhagem; a mecânica do Fogo dá a cor e o custo)
+  ...CLAN_CODES.map((code): JutsuDef => {
+    const v = CLAN_JUTSUS[code]!;
+    return { code, name: v.name, class: null, tier: v.tier, mechanic: v.class, form: v.form, numbers: v.numbers, clan: v.clan };
   }),
 ];
 

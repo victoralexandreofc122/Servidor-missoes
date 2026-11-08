@@ -2,6 +2,7 @@ import type { Queryable } from '../db.js';
 import { isSkillList, type JoiningPlayer } from './gameWorld.js';
 import { CLASSES, type ClassCode } from './jutsus.js';
 import { normalizeAppearance } from './appearance.js';
+import { CLANS, type Clan } from './jutsusClasses.js';
 
 const isClass = (c: unknown): c is ClassCode => typeof c === 'string' && (CLASSES as readonly string[]).includes(c);
 
@@ -9,7 +10,7 @@ const isClass = (c: unknown): c is ClassCode => typeof c === 'string' && (CLASSE
 export const FIND_PLAYER_SQL = `
   SELECT p.id, p.username, p.total_xp, r.code AS rank_code, r.name AS rank_name, r.can_be_sensei,
          p.level, p.stat_points, p.attr_vitality, p.attr_chakra, p.is_admin,
-         p.attr_agility, p.attr_taijutsu, p.attr_ninjutsu, p.attr_weapons, p.kit_a, p.kit_b, p.appearance,
+         p.attr_agility, p.attr_taijutsu, p.attr_ninjutsu, p.attr_weapons, p.kit_a, p.kit_b, p.appearance, p.clan,
          p.tutorial_step, p.ryo, p.equipped_weapon, p.equipped_scroll, p.equipped_shoes, p.equipped_accessory, c.primary_class, c.secondary_class,
          COALESCE((SELECT json_object_agg(j.jutsu_code, j.usage_count) FROM game.player_jutsus j WHERE j.player_id = p.id), '{}'::json) AS jutsus,
          COALESCE((SELECT json_object_agg(i.item_code, i.quantity) FROM game.player_items i WHERE i.player_id = p.id), '{}'::json) AS items,
@@ -35,6 +36,7 @@ interface Row {
   attr_taijutsu: number;
   attr_ninjutsu: number;
   attr_weapons: number;
+  clan?: string | null;
   kit_a: string[];
   kit_b: string[];
   appearance: unknown;
@@ -91,6 +93,8 @@ export function makeFindPlayer(db: Queryable) {
       classes: { primary: isClass(row.primary_class) ? row.primary_class : null, secondary: isClass(row.secondary_class) ? row.secondary_class : null },
       jutsus: { ...row.jutsus },
       kageCandidate: row.kage_candidate,
+      // v30 (migração v19): a linhagem (null = ainda não despertou)
+      clan: (CLANS as readonly string[]).includes(row.clan ?? '') ? (row.clan as Clan) : null,
     };
   };
 }
