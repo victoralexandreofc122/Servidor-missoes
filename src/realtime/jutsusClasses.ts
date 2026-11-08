@@ -229,7 +229,7 @@ export type Clan = (typeof CLANS)[number];
 export const CLAN_TIER_LEVEL = [11, 20, 40, 60] as const;
 
 /** Jutsus próprios do Clã Rubro (o Clã Umbra usa a árvore das sombras que já existe). */
-export const CLAN_CODES = ['rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao'] as const;
+export const CLAN_CODES = ['rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao', 'rubro_lua', 'rubro_completo'] as const;
 
 export const CLAN_JUTSUS: Readonly<Record<string, ClassJutsu & { clan: 'rubro' }>> = {
   // Olho Rubro: o próximo golpe recebido dói metade (a pele de rocha da Terra, no olho)
@@ -241,6 +241,13 @@ export const CLAN_JUTSUS: Readonly<Record<string, ClassJutsu & { clan: 'rubro' }
     numbers: { ...CLEAN, base: 6, damage: dmg(6, 3), cost: 34, cooldownMs: 10_000, range: 6, radius: undefined, dotAmount: 3, dotMs: 4000 } },
   rubro_guardiao: { name: 'Guardião Espectral', class: 'fire', clan: 'rubro', tier: 4, form: 'escudo_vida',
     numbers: { ...CLEAN, base: 15, damage: dmg(15, 4), cost: 44, cooldownMs: 20_000, range: 1.5, radius: undefined, coneDeg: 120, shieldShare: 0.2, durationMs: 4000 } },
+  // nível 60 (pedido do Victor: no jogo comum, não só em evento)
+  // Lua Ilusória: olhar em linha 5 com 0,8 s de selos parado; QUALQUER dano nos selos faz falhar (volta metade da recarga)
+  rubro_lua: { name: 'Lua Ilusória', class: 'fire', clan: 'rubro', tier: 4, form: 'linha',
+    numbers: { ...CLEAN, base: 30, damage: dmg(30, 4), cost: 44, cooldownMs: 30_000, range: 5, radius: undefined, stunMs: 2400, castMs: 800, castSlow: 0, breakOnDamage: true } },
+  // Guardião Espectral Completo: 5 s transformado (escudo de 25%, Básico +15%) e, no fim, a onda à frente que levanta
+  rubro_completo: { name: 'Guardião Espectral Completo', class: 'fire', clan: 'rubro', tier: 4, form: 'transformacao',
+    numbers: { ...CLEAN, base: 30, damage: dmg(30, 4), cost: 44, cooldownMs: 30_000, range: 2.5, radius: 2.5, shieldShare: 0.25, basicBuff: 0.15, durationMs: 5000, liftMs: 800, castMs: 500, castSlow: 0 } },
 };
 
 /** Os jutsus de cada linhagem, do tier 1 ao 4 (Andarilho não tem árvore: tem a Substituição 15% mais rápida). */
@@ -253,6 +260,8 @@ export const CLAN_TREE: Readonly<Record<Clan, readonly string[]>> = {
 /** Os jutsus do clã que o ninja já alcançou pelo nível. */
 export function clanJutsusFor(clan: Clan | null, level: number): string[] {
   if (!clan) return [];
-  return CLAN_TREE[clan].filter((_, i) => level >= CLAN_TIER_LEVEL[i]!);
+  const out = CLAN_TREE[clan].filter((_, i) => level >= CLAN_TIER_LEVEL[i]!);
+  if (clan === 'rubro' && level >= CLAN_TIER_LEVEL[3]) out.push('rubro_lua', 'rubro_completo');   // os poderes do nível 60
+  return out;
 }
 

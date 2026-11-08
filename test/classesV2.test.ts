@@ -57,8 +57,8 @@ function scene(skill: string, monsters: [number, number][] = [[2, 0]], pvp = fal
 }
 
 describe('Jutsus v2, entrega 5: as outras classes', () => {
-  it('catálogo: 94 jutsus; 41 códigos novos (+4 do Clã Rubro); toda classe tem os 4 tiers e o tier 1 de sempre', () => {
-    assert.equal(JUTSUS.length, 94);
+  it('catálogo: 96 jutsus; 41 códigos novos (+6 do Clã Rubro); toda classe tem os 4 tiers e o tier 1 de sempre', () => {
+    assert.equal(JUTSUS.length, 96);
     assert.equal(CLASS_V2_CODES.length, 41);
     for (const c of CLASSES) {
       const tiers = new Set(JUTSUS.filter((j) => j.class === c).map((j) => j.tier));
@@ -465,9 +465,9 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
 
   it('jutsu de clã não sai na Extração (não tem classe) e entra no kit como qualquer outro', () => {
     const rubro = JUTSUS.filter((j) => j.clan === 'rubro');
-    assert.equal(rubro.length, 4);
+    assert.equal(rubro.length, 6);
     for (const j of rubro) assert.equal(j.class, null, j.code);
-    assert.deepEqual(rubro.map((j) => j.tier), [1, 2, 3, 4]);
+    assert.deepEqual(rubro.map((j) => j.tier), [1, 2, 3, 4, 4, 4]);
   });
 
   it('Chamas Negras: linha que queima 3/s por 4 s', () => {
@@ -506,4 +506,37 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.ok(me.fx < 0);
     void run;
   });
+
+  it('Clã Rubro no nível 60: Lua Ilusória e Guardião Espectral Completo chegam junto com o tier 4', () => {
+    const { s, world } = scene('fire', []);
+    Object.assign(s, { clan: 'rubro', level: 60 });
+    world.grantClanJutsus(s);
+    for (const c of ['rubro_guardiao', 'rubro_lua', 'rubro_completo']) assert.ok(s.jutsus.has(c), c);
+  });
+
+  it('Lua Ilusória: qualquer dano nos selos faz falhar (volta metade da recarga); sem dano, atordoa forte', () => {
+    const { s, a, run, world, m, clock } = scene('rubro_lua', [[4.5, 0]]);   // longe: o monstro de teste não bate nos selos
+    a.send({ type: 'cast', skill: 'rubro_lua' });
+    run(300);
+    world.damagePlayer(s, 1, world.now());
+    assert.equal(a.conn.last('cast_interrupted')?.reason, 'interrupted');
+    assert.equal(s.cooldowns.rubro_lua, world.now() + SK.rubro_lua.cooldownMs / 2);
+    s.cooldowns = {};
+    s.concentrationUntil = 0;
+    a.send({ type: 'cast', skill: 'rubro_lua' });
+    run(900);
+    assert.ok(m.stunnedUntil > clock.now() + 1500, 'atordoado');
+  });
+
+  it('Guardião Espectral Completo: escudo de 25%, Básico +15% por 5 s e a onda no fim', () => {
+    const { s, a, run, m, dealt } = scene('rubro_completo', [[2.5, 0]]);
+    a.send({ type: 'cast', skill: 'rubro_completo' });
+    run(560);
+    assert.equal(s.absorb.hp, Math.round(s.stats.maxHp * 0.25));
+    assert.equal(s.basicBuff.bonus, 0.15);
+    const before = dealt(m);
+    run(5100);
+    assert.ok(dealt(m) > before, 'a onda do fim acertou');
+  });
 });
+

@@ -96,6 +96,8 @@ export interface SkillConfig {
   /** v30: escuridão no alvo (Noite Eterna) / controles invertidos (Distúrbio Nervoso), em ms. */
   darkMs?: number;
   invertMs?: number;
+  /** v30: qualquer dano nos selos faz o jutsu falhar (Lua Ilusória); volta metade da recarga. */
+  breakOnDamage?: boolean;
   /** v30: dano ao longo do tempo (queimadura) ao acertar: por pulso e duração (Chamas Negras). */
   dotAmount?: number;
   dotMs?: number;

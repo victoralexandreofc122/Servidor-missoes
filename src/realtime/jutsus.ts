@@ -75,6 +75,7 @@ export type JutsuForm =
   | 'bumerangue'      // projétil que vai, atravessa e volta para a mão (Shuriken Gigante de Chakra)
   | 'faixa'           // linha larga: acerta todos numa faixa (Lâmina em Arco)
   | 'escudo_vida'     // escudo com vida (absorve dano), um por vez, até 25% da vida (Véu de Vento)
+  | 'transformacao'   // escudo + buff de Básico por um tempo e um golpe no fim (Guardião Espectral Completo)
   | 'invocacao'       // invocação aliada à frente (Clone de Água, Golem de Terra)
   | 'muro';           // muro à frente: bloqueia passagem e projéteis, tem vida (Muralha de Terra, Muro de Água)
 

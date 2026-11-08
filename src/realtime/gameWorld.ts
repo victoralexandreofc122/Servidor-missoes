@@ -2558,6 +2558,15 @@ export class GameWorld {
         this.broadcastMap(s.map, { type: 'summon', id: m.id, ownerId: s.id, kind: m.type, hp, maxHp: hp, ms: cfg.durationMs ?? 6000 });
         break;
       }
+      case 'transformacao': {
+        // Guardião Espectral Completo: escudo + Básico mais forte agora; a onda à frente cai no fim
+        s.absorb = { hp: Math.round(s.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.25)), until: t + (cfg.durationMs ?? 5000) };
+        s.basicBuff = { until: t + (cfg.durationMs ?? 5000), bonus: cfg.basicBuff ?? 0.15 };
+        const at = ahead(o, fx, fy, cfg.range ?? 2.5);
+        this.warnStrike(s, { x: at.x, y: at.y, r: cfg.radius ?? 2.5, delayMs: cfg.durationMs ?? 5000, damage: dmg, label: skill, hit, ...(cfg.liftMs ? { stunMs: cfg.liftMs } : {}) }, t);
+        this.sendTo(s, { type: 'notice', text: `Guardião Espectral Completo: escudo de ${s.absorb.hp} e Básico +15% por ${Math.round((cfg.durationMs ?? 5000) / 1000)} s.`, tone: 'good' });
+        break;
+      }
       case 'escudo_vida': {
         // escudo único: até 25% da vida máxima; o novo troca o anterior
         s.absorb = { hp: Math.round(s.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.12)), until: t + (cfg.durationMs ?? 3000) };
@@ -3958,6 +3967,12 @@ export class GameWorld {
     if (this.layout(session.map).ranked) {
       const d = this.duel;
       if (!d || d.phase !== 'round' || !sideOf(d, session.id)) return;
+    }
+    // v30: Lua Ilusória: qualquer dano nos selos faz falhar (sem Concentração que salve); volta metade da recarga
+    if (session.casting && amount > 0 && this.config.combat.skills[session.casting.skill]?.breakOnDamage) {
+      const c = session.casting;
+      this.cancelCast(session, t, 'interrupted');
+      session.cooldowns[c.skill] = t + Math.round(this.config.combat.skills[c.skill].cooldownMs / 2);
     }
     session.calmSince = t;                                       // v29: apanhou: a vida para de voltar por 7 s
     // Apanhou: a meditação acaba ANTES do dano (não dá para meditar no meio da luta). O sono acorda.
