@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { REALTIME } from '../src/realtime/config.js';
 import { GameWorld, blinkTarget, type JoiningPlayer } from '../src/realtime/gameWorld.js';
-import { JUTSUS, jutsuLevel, substitutionCooldownMs, teleportRange } from '../src/realtime/jutsus.js';
+import { CLASSES, JUTSUS, jutsuLevel, substitutionCooldownMs, teleportRange } from '../src/realtime/jutsus.js';
 import { ACADEMY, WORLD_MAPS, academySpawn, shopDoor, villagePlan } from '../src/realtime/maps.js';
 import { blocked, moveStep } from '../src/realtime/movement.js';
 import type { NinjaStore } from '../src/realtime/ninjaStore.js';
@@ -345,10 +345,11 @@ describe('v7: jutsus aprendidos e nível pelo uso', () => {
     assert.deepEqual(fake.calls.filter((c) => c[0] === 'flushUsage').at(-1)![2], [['teleport', 1]], 'ao sair, grava o que faltava');
   });
 
-  it('catálogo: 38 jutsus (2 da Academia + 9 classes x 4 tiers), tier 1 = código da classe', () => {
-    assert.equal(JUTSUS.length, 38);
+  it('catálogo: 45 jutsus (2 da Academia + 9 classes x 4 tiers + 7 do Fogo novo), o tier 1 de cada classe tem o código dela', () => {
+    assert.equal(JUTSUS.length, 45);
     assert.equal(JUTSUS.filter((j) => j.tier === 0).length, 2);
-    for (const j of JUTSUS.filter((x) => x.tier === 1)) assert.equal(j.code, j.class);
+    for (const c of CLASSES) assert.equal(JUTSUS.find((j) => j.class === c && j.tier === 1)!.code, c);
+    assert.equal(JUTSUS.filter((j) => j.class === 'fire').length, 11, 'o Fogo inteiro da adaptação');
   });
 });
 

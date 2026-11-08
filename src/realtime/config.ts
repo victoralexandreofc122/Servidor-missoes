@@ -38,6 +38,14 @@ export interface SkillConfig {
   scaling?: 'taijutsu' | 'ninjutsu' | 'weapons';
   /** Efeito que dura (Substituição: 5 s esperando o próximo golpe). */
   durationMs?: number;
+  /** v29 (Jutsus v2): dano equivalente de tier 1, por golpe (o PvP usa este com a curva achatada). */
+  base?: number;
+  /** v29: tempo de conjuração (selos) antes de sair; 0 ou sem = instantâneo. */
+  castMs?: number;
+  /** v29: buff de Ataque Básico: quanto a mais (0,15 = +15%) por `durationMs`. */
+  basicBuff?: number;
+  /** v29: velocidade durante os selos (fração; 0 = parado). Sem = a regra da faixa (castSlowOf). */
+  castSlow?: number;
 }
 
 /** Tipo de monstro. O slime é o de caça; os bonecos da Academia ficam parados e renascem rápido. */

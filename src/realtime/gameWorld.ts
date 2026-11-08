@@ -22,7 +22,7 @@ import { CHAT_HISTORY, memoryChatLog, type ChatLog, type ChatRecord } from './ch
 import type { Profile } from './profile.js';
 import type { Classes, Inventory, NinjaStore } from './ninjaStore.js';
 import {
-  ACADEMY_JUTSUS, CLASSES, CLASS_INFO, EXTRACTION, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
+  ACADEMY_JUTSUS, CAST_RULES, CLASSES, CLASS_INFO, EXTRACTION, castSlowOf, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
   BASE_SKILLS, FORM_OF_MECHANIC, jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
 import { CC_BUDGET, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
@@ -353,6 +353,12 @@ interface Session {
   doorBack: { map: string; x: number; y: number } | undefined;
   /** Akatsuki: golpes que drenam chakra ou curam até `until`; escudo de cargas; intangível; velocidade extra. */
   powerBuff: { kind: 'drain' | 'lifesteal'; until: number; amount: number } | undefined;
+  /** v29 (Jutsus v2): buff de Ataque Básico (um por vez; Lâmina de Fogo...). */
+  basicBuff: { until: number; bonus: number } | undefined;
+  /** v29 (Jutsus v2): conjurando (selos) um jutsu que sai em `until`; `slow` = fração da velocidade (0 = parado). */
+  casting: { skill: Skill; until: number; targetId?: string; dir?: [number, number]; slow: number; cost: number } | null;
+  /** v29: depois de ser interrompido, até aqui a próxima conjuração não pode ser cancelada. */
+  concentrationUntil: number;
   hearts: number;
   heartsCut: number;
   intangibleUntil: number;
@@ -430,7 +436,7 @@ interface GroundZone {
   damage: number; slowMs: number; heal: number; label: string;
 }
 /** Golpe avisado: o círculo aparece no chão e o dano cai em `at` (dá tempo de sair). */
-interface GroundStrike { id: number; map: MapId; x: number; y: number; r: number; ownerId: string; at: number; damage: number; label: string; stunMs: number }
+interface GroundStrike { id: number; map: MapId; x: number; y: number; r: number; ownerId: string; at: number; damage: number; label: string; stunMs: number; hit?: HitInfo }
 
 /** Fogo, Kunai e Shuriken Gigante voando: o tick anda com eles e decide a colisão (stepProjectile). */
 interface Projectile {
@@ -740,7 +746,7 @@ export class GameWorld {
   private speedOf(s: Session): number {
     const base = s.running ? s.stats.runSpeed : s.stats.walkSpeed;
     const slow = s.effects.size > 0 ? speedFactor(s.effects, this.now()) : 1;   // Lentidão
-    return round2(base * (s.hasteUntil > 0 ? 1 + s.haste : 1) * slow);
+    return round2(base * (s.hasteUntil > 0 ? 1 + s.haste : 1) * slow * (s.casting ? s.casting.slow : 1));
   }
 
   monsterList(): MonsterView[] {
@@ -777,6 +783,10 @@ export class GameWorld {
           ...(v.radius !== undefined ? { radius: v.radius } : {}),
           ...(LINE_MECHANICS.has(v.mechanic) ? { line: true } : {}),
           ...(v.shots && v.shots > 1 ? { shots: v.shots, laneGap: v.laneGap ?? 0.7 } : {}),
+          ...(j.form !== FORM_OF_MECHANIC[j.mechanic] ? { form: j.form } : {}),   // sem = a forma da mecânica
+          ...(v.castMs ? { castMs: v.castMs } : {}),
+          ...(v.coneDeg !== undefined ? { coneDeg: v.coneDeg } : {}),
+          ...(j.form === 'buff_basico' ? { durationMs: v.durationMs ?? 5000 } : {}),
         }];
       }),
     ) as WorldInfo['skills'];
@@ -940,6 +950,9 @@ export class GameWorld {
       villageSwitches: eg ? eg.villageSwitches : (previous?.villageSwitches ?? 0),
       doorBack: previous?.doorBack,
       powerBuff: previous?.powerBuff,
+      basicBuff: undefined,
+      casting: null,
+      concentrationUntil: 0,
       hearts: previous?.hearts ?? 0,
       heartsCut: previous?.heartsCut ?? 0,
       intangibleUntil: previous?.intangibleUntil ?? 0,
@@ -1628,7 +1641,7 @@ export class GameWorld {
    *   Cura       em si mesmo ou num aliado perto; Pedra, em si mesmo
    * Acertam monstros e, com o PvP ligado, outros jogadores (targetsFor).
    */
-  private cast(session: Session, skill: Skill, t: number, targetId?: string, dir?: [number, number]): void {
+  private cast(session: Session, skill: Skill, t: number, targetId?: string, dir?: [number, number], resolving = false): void {
     const cfg = this.config.combat.skills[skill];
     const fail = (reason: CastFailReason) => this.sendTo(session, { type: 'cast_failed', skill, reason });
     // Qualquer TENTATIVA de usar habilidade encerra a meditação (mesmo que a habilidade falhe).
@@ -1650,6 +1663,21 @@ export class GameWorld {
     const pvp = this.inPvpArea(session);
     const price = pvp ? pvpCostCooldown(cfg.mechanic, cfg.cost, cfg.cooldownMs) : { cost: cfg.cost, cooldownMs: cfg.cooldownMs };
     if (session.chakra < price.cost) return fail('NO_CHAKRA');
+    // v29 (Jutsus v2): conjuração. O jutsu sai quando os selos acabam (fim do tick); controle duro interrompe.
+    // Com as mãos ocupadas nos selos, nenhum outro jutsu sai; só a fuga (Substituição, Teleporte) cancela os selos.
+    const castMs = cfg.castMs ?? 0;
+    if (session.casting && !resolving) {
+      if (cfg.mechanic !== 'substitution' && cfg.mechanic !== 'teleport') return fail('CASTING');
+      this.cancelCast(session, t, 'cancel');
+    }
+    if (castMs > 0 && !resolving) {
+      session.casting = { skill, until: t + castMs, ...(targetId !== undefined ? { targetId } : {}), ...(dir ? { dir } : {}), slow: castSlowOf(cfg), cost: price.cost };
+      session.dx = 0;
+      session.dy = 0;
+      this.broadcastMap(session.map, { type: 'cast_start', playerId: session.id, skill, ms: castMs });
+      this.sendStats(session, t);
+      return;
+    }
 
     const mechanic = cfg.mechanic;
     // v29 (Jutsus v2): o comportamento vem da FORMA do jutsu (os de hoje: a forma da mecânica)
@@ -1667,10 +1695,14 @@ export class GameWorld {
     const lasting = (ms: number) => Math.round(ms * (sky?.status[mechanic] ?? 1));
     const tier = Math.max(1, JUTSU_BY_CODE.get(skill)?.tier ?? 1);
     const base1 = BASE_SKILLS[mechanic];
+    // v29 (Jutsus v2): jutsu com números próprios usa a base dele (dano equivalente de tier 1) no PvP
+    const own = !!JUTSU_BY_CODE.get(skill)?.numbers;
+    const pvpBase = own ? (cfg.base ?? 0) : (base1.damage ?? 0);
+    const burnBase = own ? (cfg.burn ?? 0) : (base1.burn ?? 0);
     const hit: HitInfo = {
-      base: base1.damage ?? 0, tier, useLevel: level, weapon: weaponBonus, scaling: cfg.scaling ?? 'ninjutsu',
+      base: pvpBase, tier, useLevel: level, weapon: weaponBonus, scaling: cfg.scaling ?? 'ninjutsu',
       passive: this.passive(session, 'jutsu'), sky: sky?.damage[mechanic] ?? 1,
-      ...(base1.burn ? { burn: { base: base1.burn, ms: cfg.burnMs ?? 3000 } } : {}),
+      ...(burnBase ? { burn: { base: burnBase, ms: cfg.burnMs ?? 3000 } } : {}),
     };
     const reach = cfg.range ?? cfg.radius ?? 0;
     const targets = this.targetsFor(session, true);
@@ -1705,8 +1737,22 @@ export class GameWorld {
     let blink: Point | undefined;
     switch (form) {
       case 'cone':
+      case 'cone_fogo':
         hits = targets.filter((x) => isInCone(o, fx, fy, x, reach, cfg.coneDeg ?? 90));
         break;
+      case 'linha_fogo': {
+        const end = rayEnd(this.layout(session.map), o.x, o.y, fx, fy, reach);
+        const first = firstOnLine(o, end, targets);
+        hits = first ? [first.target] : [];
+        to = first ? first.at : end;
+        break;
+      }
+      case 'meteoros': {
+        // a chuva cai em volta do alvo (no alcance de mira) ou à frente
+        const c = aim && distance(o, aim) <= reach ? { x: aim.x, y: aim.y } : ahead(o, fx, fy, Math.min(4, reach));
+        to = c;
+        break;
+      }
       case 'anel':
         hits = targets.filter((x) => isInCircle(o, cfg.radius ?? 0, x));
         break;
@@ -1787,6 +1833,54 @@ export class GameWorld {
           if (who.x === at.x && who.y === at.y) this.pushAway(x, session, o, cfg.push ?? 0, t);
           if (this.stillThere(x)) this.applyEffect(x, 'molhado', t, undefined, undefined, session);   // prepara o combo com o Relâmpago
         }
+        break;
+      case 'cone_fogo': {
+        const burn = cfg.burn ? { amount: Math.max(1, Math.round(cfg.burn * (dmg / (cfg.damage || 1)))), ms: cfg.burnMs ?? 3000 } : undefined;
+        for (const x of hits) {
+          this.hitTarget(x, dmg, session, t, 'skill', skill, hit);
+          if (burn && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, burn.ms, burn.amount, session);
+        }
+        break;
+      }
+      case 'linha_fogo':
+        for (const x of hits) this.hitTarget(x, dmg, session, t, 'skill', skill, hit);
+        break;
+      case 'leque': {
+        // 3 projéteis em leque (4 a partir do nível de maestria 2: a prova de "maestria muda a forma")
+        // Cada alvo leva no máximo 2 (teto do tier): as bolas se alternam entre 2 grupos, e cada grupo acerta um alvo uma vez.
+        const n = level >= 2 ? 4 : Math.max(1, cfg.shots ?? 3);
+        const spread = 0.22;
+        const volleys = [new Set<string>(), new Set<string>()];
+        for (let i = 0; i < n; i++) {
+          const a = (i - (n - 1) / 2) * spread;
+          const dx = fx * Math.cos(a) - fy * Math.sin(a), dy = fx * Math.sin(a) + fy * Math.cos(a);
+          this.launch(session, dx, dy, { skill, speed: cfg.speed ?? 14, range: reach, damage: dmg, radius: 0, volley: volleys[i % 2]!, hit });
+        }
+        break;
+      }
+      case 'aviso_em_volta':
+        this.warnStrike(session, { x: o.x, y: o.y, r: cfg.radius ?? 2, delayMs: cfg.durationMs ?? 1000, damage: dmg, label: skill, hit }, t);
+        break;
+      case 'nuvem_detona':
+        // a nuvem aparece à frente e detona sozinha no fim
+        this.warnStrike(session, { ...ahead(o, fx, fy, 1.5), r: cfg.radius ?? 2.5, delayMs: cfg.durationMs ?? 3000, damage: dmg, label: skill, hit }, t);
+        break;
+      case 'meteoros': {
+        const n = Math.max(1, cfg.shots ?? 5);
+        const area = cfg.radius ?? 4;
+        // Os pares (0, 2, 4) caem no ponto mirado (até 0,9 casa dele: quem fica parado leva os 3); os ímpares, espalhados
+        // pela área (fecham a fuga). Quem sai das marcas não leva nenhum (METEOR_ON_SPOT no simulador).
+        for (let i = 0; i < n; i++) {
+          const ang = (i / n) * Math.PI * 2 + this.random() * 0.6;
+          const d = i === 0 ? 0 : i % 2 === 0 ? 0.9 * this.random() : area * (0.45 + 0.5 * this.random());
+          const p = { x: to!.x + Math.cos(ang) * d, y: to!.y + Math.sin(ang) * d };
+          this.warnStrike(session, { ...p, r: 1.3, delayMs: (cfg.durationMs ?? 800) + i * 250, damage: dmg, label: skill, hit }, t);
+        }
+        break;
+      }
+      case 'buff_basico':
+        // um buff de Básico por vez (o novo troca o anterior)
+        session.basicBuff = { until: t + (cfg.durationMs ?? 5000), bonus: cfg.basicBuff ?? 0.15 };
         break;
       case 'avanco':
         if (dashTo && distance(o, dashTo) > 0.01) this.dash(session, dashTo, t);
@@ -1965,10 +2059,10 @@ export class GameWorld {
   }
 
   /** Avisa um golpe no chão: o círculo aparece agora e o dano cai daqui a `delayMs` em quem ainda estiver dentro. */
-  warnStrike(owner: Session, w: { x: number; y: number; r: number; delayMs: number; damage: number; stunMs?: number; label?: string }, t: number = this.now()): number {
+  warnStrike(owner: Session, w: { x: number; y: number; r: number; delayMs: number; damage: number; stunMs?: number; label?: string; hit?: HitInfo }, t: number = this.now()): number {
     const id = ++this.groundSeq;
-    this.strikes.push({ id, map: owner.map, x: w.x, y: w.y, r: w.r, ownerId: owner.id, at: t + w.delayMs, damage: w.damage, label: w.label ?? 'aviso', stunMs: w.stunMs ?? 0 });
-    this.broadcastMap(owner.map, { type: 'ground', id, kind: 'aviso', x: round2(w.x), y: round2(w.y), r: w.r, ms: w.delayMs });
+    this.strikes.push({ id, map: owner.map, x: w.x, y: w.y, r: w.r, ownerId: owner.id, at: t + w.delayMs, damage: w.damage, label: w.label ?? 'aviso', stunMs: w.stunMs ?? 0, ...(w.hit ? { hit: w.hit } : {}) });
+    this.broadcastMap(owner.map, { type: 'ground', id, kind: 'aviso', x: round2(w.x), y: round2(w.y), r: w.r, ms: w.delayMs, ...(w.label ? { skill: w.label } : {}) });
     return id;
   }
 
@@ -2008,7 +2102,7 @@ export class GameWorld {
       if (!owner || owner.closed || owner.map !== s.map) continue;
       for (const x of this.targetsFor(owner)) {
         if (!inside(x, s)) continue;
-        this.hitTarget(x, s.damage, owner, t, 'skill', s.label);
+        this.hitTarget(x, s.damage, owner, t, 'skill', s.label, s.hit);
         if (s.stunMs > 0 && x.kind === 'player' && this.stillThere(x)) this.applyStatus({ kind: 'player', id: x.id, x: x.x, y: x.y, session: x.session }, 'stunned', s.stunMs, t, owner);
       }
     }
@@ -2067,6 +2161,7 @@ export class GameWorld {
     const e = addEffect(this.effectsOf(x), code, t, ms, amount, source?.id ?? null);
     const map = x.kind === 'monster' ? x.monster.map : x.session.map;
     this.broadcastMap(map, { type: 'effect', target: x.kind, id: x.id, effect: code, ms: e.until - t });
+    if (x.kind === 'player' && (code === 'silencio' || EFFECTS[code].blocksAll)) this.interruptCast(x.session, t);   // v29: silêncio e sono interrompem os selos
     if (x.kind === 'player') {
       if (EFFECTS[code].blocksAll) this.stopMeditation(x.session, 'damaged');
       if (EFFECTS[code].speed !== undefined) this.sendStats(x.session, t);
@@ -2151,6 +2246,31 @@ export class GameWorld {
     }
   }
 
+  /**
+   * v29 (Jutsus v2): interrompe a conjuração (revisao_egm/jutsus/conjuracao_interromper.md): cobra metade do chakra,
+   * recarga curta de 1,5 s e 3 s de Concentração (a próxima não pode ser cancelada).
+   */
+  private interruptCast(s: Session, t: number): void {
+    if (!s.casting || t < s.concentrationUntil) return;
+    this.cancelCast(s, t, 'interrupted');
+    s.concentrationUntil = t + CAST_RULES.concentrationMs;
+  }
+
+  /**
+   * Os selos acabam sem o jutsu sair: interrompido (controle) ou cancelado (fuga). O chakra ainda não foi cobrado: cobra
+   * metade; o jutsu fica numa recarga curta de 1,5 s.
+   */
+  private cancelCast(s: Session, t: number, reason: 'interrupted' | 'cancel'): void {
+    const c = s.casting;
+    if (!c) return;
+    s.casting = null;
+    s.chakra = Math.max(0, s.chakra - Math.round(c.cost / 2));
+    if (c.cost > 0) s.calmSince = t;
+    s.cooldowns[c.skill] = Math.max(s.cooldowns[c.skill] ?? 0, t + CAST_RULES.interruptCooldownMs);
+    this.broadcastMap(s.map, { type: 'cast_interrupted', playerId: s.id, skill: c.skill, reason });
+    this.sendStats(s, t);
+  }
+
   /** Cura num ninja (a ferida corta pela metade) e todos veem o número. Devolve o que curou de verdade. */
   private healPlayer(h: Session, amount: number, t: number): number {
     const before = h.hp;
@@ -2197,6 +2317,7 @@ export class GameWorld {
     }
     if (status === 'stunned') who.stunnedUntil = Math.max(who.stunnedUntil, t + ms);
     else who.rootedUntil = Math.max(who.rootedUntil, t + ms);
+    if (target.kind === 'player') this.interruptCast(target.session, t);   // v29: controle duro interrompe a conjuração
     if (target.kind === 'monster') this.broadcastMap(target.monster.map, { type: 'monster_status', id: target.id, status, ms });
     else this.broadcastMap(target.session.map, { type: 'player_status', playerId: target.id, status, ms });
   }
@@ -2371,6 +2492,7 @@ export class GameWorld {
     const fail = (reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED' | 'ASLEEP') => this.sendTo(session, { type: 'attack_failed', reason });
     this.stopMeditation(session, 'cast');
     if (session.dead) return fail('DEAD');
+    if (session.casting) return;                                                 // v29: mãos ocupadas nos selos
     if (t < session.stunnedUntil) return fail('STUNNED');
     if (effectBlock(session.effects, t) === 'all') return fail('ASLEEP');      // silêncio não impede o Ataque Básico
     if ((session.cooldowns.attack ?? 0) > t) return fail('COOLDOWN');
@@ -2399,8 +2521,10 @@ export class GameWorld {
     if (safe) return;
     // v28: dano base x damageScale.basic; o bônus de Armas vale pela metade no Ataque Básico; um arredondamento só.
     const scale = this.config.combat.damageScale.basic;
-    const damage = Math.round(cfg.damage * scale * session.stats.physicalMultiplier
-      + this.weaponDamage(session) * this.passive(session, 'weapons') * scale * (1 + (session.stats.weaponMultiplier - 1) / 2));
+    // v29 (Jutsus v2): buff de Básico (um por vez, +15% no máximo)
+    const bb = session.basicBuff && t < session.basicBuff.until ? 1 + session.basicBuff.bonus : 1;
+    const damage = Math.round((cfg.damage * scale * session.stats.physicalMultiplier
+      + this.weaponDamage(session) * this.passive(session, 'weapons') * scale * (1 + (session.stats.weaponMultiplier - 1) / 2)) * bb);
     if (thrown) {
       this.launch(session, session.fx, session.fy, {
         weapon: weapon!.code, speed: thrown.speed, range: thrown.range, damage: Math.round(damage * thrown.damageFactor), radius: 0,
@@ -3587,6 +3711,9 @@ export class GameWorld {
     s.dead = false;
     s.stunnedUntil = 0;
     s.rootedUntil = 0;
+    s.casting = null;
+    s.basicBuff = undefined;
+    s.concentrationUntil = 0;
     s.hp = s.stats.maxHp;
     s.chakra = s.stats.maxChakra;
     s.shield = 0;
@@ -4182,7 +4309,7 @@ export class GameWorld {
 
     // 1. Jogadores: movimento (andando 5, correndo 8, + agilidade) e energia.
     for (const s of this.sessions.values()) {
-      if (s.closed || s.dead) continue;
+      if (s.closed || s.dead) { if (s.casting) s.casting = null; continue; }
       this.moveSession(s, dtMs, t);
       // Campo da Sala de Controle: drena o chakra (antes da meditação, que vence o dreno).
       const drain = this.drainAt(s);
@@ -4255,6 +4382,20 @@ export class GameWorld {
       this.monsterAttack(m, t);
     }
     for (const [map, list] of moved) this.broadcastMap(map, { type: 'monsters_moved', m: list });
+
+    // v29: os selos que acabaram saem agora, DEPOIS de tudo deste tick: se o controle e o fim da conjuração caem no
+    // mesmo tick, o controle vence (conjuracao_interromper.md).
+    for (const s of this.sessions.values()) {
+      if (!s.casting || t < s.casting.until) continue;
+      // Atordoado com os selos ainda de pé só acontece com Concentração (sem ela, o controle interrompe): o jutsu espera
+      // o atordoamento acabar e sai logo depois, em vez de falhar calado.
+      if (t < s.stunnedUntil && !s.dead && !s.closed) continue;
+      const c = s.casting;
+      s.casting = null;
+      if (s.closed || s.dead) continue;
+      this.cast(s, c.skill, t, c.targetId, c.dir, true);
+      this.sendStats(s, t);
+    }
 
     // 3. Envios.
     let movedPlayers = 0;
@@ -5044,6 +5185,7 @@ export class GameWorld {
     const v = x.session;
     this.dropInputs(v);
     v.lastUpdate = t;
+    if (Math.hypot(who.x - before.x, who.y - before.y) >= CAST_RULES.pushInterrupts - 0.05) this.interruptCast(v, t);   // v29: empurrão de 1,5 casa ou mais
     v.dirty = true;
     this.broadcastMap(v.map, { type: 'pushed', playerId: v.id, fromX: round3(before.x), fromY: round3(before.y), x: round3(v.x), y: round3(v.y), a: v.ackSeq });
   }

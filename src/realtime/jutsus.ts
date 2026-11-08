@@ -44,7 +44,15 @@ export type JutsuForm =
   | 'cura'            // cura si ou um aliado (Cura)
   | 'trilhas'         // projéteis em trilhas paralelas (Kunais)
   | 'linha_raio'      // linha instantânea (Relâmpago)
-  | 'teleporte' | 'substituicao';
+  | 'teleporte' | 'substituicao'
+  // v29 (Jutsus v2, Fogo)
+  | 'cone_fogo'       // cone que queima (Karyū Endan, Gōka Messhitsu)
+  | 'linha_fogo'      // linha instantânea que acerta o primeiro (Hibashiri, Ryūka)
+  | 'leque'           // 3 ou 4 projéteis em leque (Hōsenka)
+  | 'aviso_em_volta'  // aviso no chão em volta de quem lança, detona depois (Haisekishō)
+  | 'nuvem_detona'    // nuvem que detona ao acabar (Kasumi Enbu)
+  | 'buff_basico'     // Ataque Básico mais forte por um tempo (Lâmina de Fogo)
+  | 'meteoros';       // vários golpes avisados numa área (Tenrai Gōen)
 
 export const FORM_OF_MECHANIC: Readonly<Record<Mechanic, JutsuForm>> = {
   fire: 'linha_explode', water: 'cone', taijutsu: 'avanco', illusion: 'anel', shadow: 'linha_prende', stone: 'escudo',
@@ -83,7 +91,72 @@ const NAMES: Readonly<Record<ClassCode, readonly [string, string, string, string
 
 export const ACADEMY_JUTSUS = ['teleport', 'substitution'] as const;
 /** Código de jutsu: os 2 da Academia, o tier 1 de cada classe ('fire') e os tiers 2 a 4 ('fire_2'). */
-export type JutsuCode = (typeof ACADEMY_JUTSUS)[number] | ClassCode | `${ClassCode}_${2 | 3 | 4}`;
+export type JutsuCode = (typeof ACADEMY_JUTSUS)[number] | ClassCode | `${ClassCode}_${2 | 3 | 4}` | (typeof V2_CODES)[number];
+
+/** v29 (Jutsus v2): jutsus novos (códigos novos). Os de hoje mantêm os códigos (o banco e os kits guardam). */
+export const V2_CODES = ['fire_endan', 'fire_kasumi', 'fire_hibashiri', 'fire_ryuka', 'fire_haiseki', 'fire_lamina', 'fire_hotan'] as const;
+
+const P = (tier: number) => [1, 1.45, 2, 2.8][tier - 1]!;   // TIER.power (o dano contra monstros = base x isto)
+const dmgOf = (base: number, tier: number) => Math.round(base * P(tier));
+
+/**
+ * v29 (Jutsus v2, entrega 2): o Fogo inteiro do documento do Victor (revisao_egm/jutsus/adapt_katon_suiton.md e
+ * conjuracao_tempos.md). Os tiers 2 a 4 de hoje (fire_2..4) viram jutsus próprios (o código fica: o banco e os kits
+ * guardam); 7 códigos novos. Os nomes visíveis são os em português da adaptação (o nome da série fica no comentário):
+ * a Fase 1 do roadmap tira os nomes da série do jogo, então os jutsus novos já nascem sem eles.
+ * `castMs` = selos (conjuracao_tempos.md); a recompensa da conjuração entra em `skillConfig` (castReward).
+ */
+const FIRE_V2: Readonly<Record<string, Pick<JutsuDef, 'name' | 'tier' | 'form' | 'numbers'>>> = {
+  // Karyū Endan: cone curto que queima
+  fire_endan: { name: 'Sopro Incinerador', tier: 1, form: 'cone_fogo',
+    numbers: { base: 20, damage: dmgOf(20, 1), cost: 15, cooldownMs: 1500, range: 3, coneDeg: 70, burn: 2, burnMs: 2000, radius: undefined, speed: undefined } },
+  // Kasumi Enbu no Jutsu: névoa à frente que detona sozinha no fim
+  fire_kasumi: { name: 'Névoa Inflamável', tier: 1, form: 'nuvem_detona',
+    numbers: { base: 18, damage: dmgOf(18, 1), cost: 20, cooldownMs: 8000, radius: 2.5, durationMs: 3000, castMs: 200, burn: 0, range: 0 } },
+  // Hibashiri: chama rasteira em linha, acerta o primeiro
+  fire_hibashiri: { name: 'Linha de Fogo Rasante', tier: 1, form: 'linha_fogo',
+    numbers: { base: 22, damage: dmgOf(22, 1), cost: 15, cooldownMs: 2000, range: 5, burn: 0, radius: 0 } },
+  // Hōsenka no Jutsu: leque de 3 bolas (4 no nível 2); cada alvo leva no máximo 2
+  fire_2: { name: 'Chamas da Fênix', tier: 2, form: 'leque',
+    numbers: { base: 10, damage: dmgOf(10, 2), cost: 27, cooldownMs: 2300, range: 7, shots: 3, speed: 14, radius: 0, burn: 0, castMs: 200 } },
+  // Ryūka no Jutsu: raio de fogo instantâneo em linha 8
+  fire_ryuka: { name: 'Chamas do Dragão Guiado', tier: 2, form: 'linha_fogo',
+    numbers: { base: 26, damage: dmgOf(26, 2), cost: 27, cooldownMs: 3000, range: 8, burn: 0, radius: 0, castMs: 300 } },
+  // Haisekishō: cinzas em volta de quem lança; detonam depois de 1 s (o aviso já é o tempo de reação: sem selos)
+  fire_haiseki: { name: 'Nuvem de Cinzas Ardentes', tier: 2, form: 'aviso_em_volta',
+    numbers: { base: 24, damage: dmgOf(24, 2), cost: 30, cooldownMs: 7000, radius: 2, durationMs: 1000, burn: 0, range: 0 } },
+  // Katon: Lâmina de Fogo: o buff de Básico (um por vez, +15%, 5 s)
+  fire_lamina: { name: 'Lâmina de Fogo', tier: 2, form: 'buff_basico',
+    numbers: { cost: 20, cooldownMs: 15_000, durationMs: 5000, basicBuff: 0.15, damage: 0, burn: 0, range: 0, radius: 0 } },
+  // Gōka Messhitsu: onda frontal larga. Custo 30 (o tier dava 34), ajustado pelo simulador: no duelo sem chakra
+  // voltando, com 34 o Dano de Armas passava a vencer todas as builds (pvpSim, critério "ninguém vence todas").
+  fire_3: { name: 'Destruição Magnífica', tier: 3, form: 'cone_fogo',
+    numbers: { base: 28, damage: dmgOf(28, 3), cost: 30, cooldownMs: 6000, range: 5, coneDeg: 120, burn: 0, radius: undefined, speed: undefined, castMs: 600 } },
+  // Karyū Hōtan: projétil grande e lento que explode
+  fire_hotan: { name: 'Míssil Dragão de Fogo', tier: 3, form: 'linha_explode',
+    numbers: { base: 30, damage: dmgOf(30, 3), cost: 34, cooldownMs: 6000, range: 9, radius: 2, speed: 8, burn: 0, castMs: 600 } },
+  // Tenrai Gōen: 5 meteoros com aviso de 0,8 s; o dano do tier (30 de base) dividido entre os 5. Selos parado.
+  fire_4: { name: 'Chuva de Meteoros', tier: 4, form: 'meteoros',
+    numbers: { base: 6, damage: dmgOf(6, 4), shots: 5, cost: 44, cooldownMs: 12_000, radius: 4, range: 7, durationMs: 800, burn: 0, castMs: 500, castSlow: 0 } },
+};
+
+/**
+ * Recompensa da conjuração (conjuracao_tempos.md, seção 1): médio (0,5-0,6 s) +5% de dano, longo (0,8-1,0 s) +10%,
+ * ritual (1,2 s) +15%; e toda conjuração de 0,5 s ou mais tem recarga 10% menor (o tempo parado já é custo).
+ */
+export function castReward(castMs: number | undefined): { damage: number; cooldown: number } {
+  const ms = castMs ?? 0;
+  if (ms >= 1200) return { damage: 1.15, cooldown: 0.9 };
+  if (ms >= 800) return { damage: 1.1, cooldown: 0.9 };
+  if (ms >= 500) return { damage: 1.05, cooldown: 0.9 };
+  return { damage: 1, cooldown: 1 };
+}
+
+/** Interrupção dos selos (conjuracao_interromper.md): recarga curta, Concentração e o empurrão que interrompe. */
+export const CAST_RULES = { interruptCooldownMs: 1500, concentrationMs: 3000, pushInterrupts: 1.5 } as const;
+
+/** Selos: anda a 50% nos rápidos e médios; parado nos longos e rituais (ou o que o jutsu disser em `castSlow`). */
+export const castSlowOf = (cfg: { castMs?: number; castSlow?: number }) => cfg.castSlow ?? ((cfg.castMs ?? 0) >= 800 ? 0 : 0.5);
 
 export const JUTSUS: readonly JutsuDef[] = [
   { code: 'teleport', name: 'Teleporte Curto', class: null, tier: 0, mechanic: 'teleport', form: 'teleporte' },
@@ -95,7 +168,9 @@ export const JUTSUS: readonly JutsuDef[] = [
     tier: (i + 1) as 1 | 2 | 3 | 4,
     mechanic: c,
     form: FORM_OF_MECHANIC[c],
-  }))),
+  }))).map((j) => (FIRE_V2[j.code] ? { ...j, ...FIRE_V2[j.code]! } : j)),
+  // v29: os jutsus novos (códigos novos), depois dos de hoje
+  ...V2_CODES.map((code): JutsuDef => ({ code, class: 'fire', mechanic: 'fire', ...FIRE_V2[code]! } as JutsuDef)),
 ];
 
 export const JUTSU_CODES = JUTSUS.map((j) => j.code) as unknown as readonly [JutsuCode, ...JutsuCode[]];
@@ -170,7 +245,18 @@ const TIER = {
 
 /** Números de um jutsu (tier 1 = BASE_SKILLS; tiers 2 a 4 = a mesma mecânica, mais forte). */
 export function skillConfig(j: JutsuDef): SkillConfig & { mechanic: Mechanic } {
-  if (j.numbers) return { ...BASE_SKILLS[j.mechanic], ...j.numbers, mechanic: j.mechanic };   // jutsu com números próprios
+  if (j.numbers) {
+    // jutsu com números próprios: os da mecânica como fundo, os dele por cima (undefined apaga o do fundo)
+    const out: Record<string, unknown> = { ...BASE_SKILLS[j.mechanic], mechanic: j.mechanic };
+    for (const [k, v] of Object.entries(j.numbers)) if (v === undefined) delete out[k]; else out[k] = v;
+    const reward = castReward(j.numbers.castMs);
+    if (reward.damage !== 1) {
+      if (typeof out.damage === 'number') out.damage = Math.round(out.damage * reward.damage);
+      if (typeof out.base === 'number') out.base = Math.round(out.base * reward.damage * 10) / 10;
+    }
+    if (reward.cooldown !== 1) out.cooldownMs = Math.round((out.cooldownMs as number) * reward.cooldown);
+    return out as unknown as SkillConfig & { mechanic: Mechanic };
+  }
   const base = BASE_SKILLS[j.mechanic];
   if (j.tier <= 1) return { ...base, mechanic: j.mechanic };
   const t = j.tier - 1;

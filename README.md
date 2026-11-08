@@ -219,13 +219,37 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 
 - **Relatório completo** (versão final, progresso, pendências e como continuar): `docs/relatorio-final-e-progresso-2026-11.md`
   e o PDF `docs/relatorio-final-e-progresso-2026-11.pdf`.
-- **Versão publicada:** v29 (`main`). **Trabalho em andamento:** branch `jutsus-v2`.
-- **Jutsus v2, onde parou:** entregas 0 e 1 prontas e verificadas. A entrega 2 (Fogo com 7 jutsus novos) está em
-  `revisao_egm/jutsus/entrega2-em-andamento.patch`; falta atualizar os testes que mudaram de propósito, a migração v16
-  (`INSERT ... ON CONFLICT` dos jutsus novos em `game.jutsus`) e o desenho no cliente.
-- **Conjuração:** tempos e interrupção definidos (`revisao_egm/jutsus/conjuracao_*.md`); o servidor já tem o campo de
-  conjuração e a interrupção por controle, falta ligar aos jutsus da entrega 2 e desenhar a barra.
-- **Antes de qualquer commit:** `npm run verify` (556 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
+- **Versão publicada:** v29 (`main`). **Pronto para publicar (aguarda o Victor):** Jutsus v2 entrega 2 + conjuração,
+  com a migração v16 (seção abaixo).
+- **Antes de qualquer commit:** `npm run verify` (575 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
+- **Visão do endgame (referência):** `docs/endgame-visao.md`.
+
+### v29: Jutsus v2, entrega 2 (o Fogo novo) e a conjuração (migração v16, `db/schema_v16_jutsus_fogo.sql`)
+
+- **11 jutsus de Fogo** (antes 4): tier 1 Bola de Fogo, Sopro Incinerador (cone que queima), Névoa Inflamável (nuvem
+  que detona em 3 s), Linha de Fogo Rasante; tier 2 Chamas da Fênix (leque de 3 bolas, cada alvo leva no máximo 2),
+  Chamas do Dragão Guiado (linha instantânea), Nuvem de Cinzas Ardentes (aviso em volta, cai em 1 s), Lâmina de Fogo
+  (Ataque Básico +15% por 5 s); tier 3 Destruição Magnífica (onda em cone 120°), Míssil Dragão de Fogo (projétil lento
+  que explode); tier 4 Chuva de Meteoros (5 avisos de 0,8 s; 3 caem no ponto mirado).
+- Os códigos `fire_2`, `fire_3` e `fire_4` ficam (quem tinha continua com eles, com o uso e o nível); só o jutsu muda.
+  Os nomes visíveis são os em português da adaptação (a Fase 1 do roadmap tira os nomes da série).
+- **Conjuração (selos):** barra na cor do elemento sobre a cabeça e uma maior perto dos botões. Anda a 50% (longo e a
+  Chuva de Meteoros: parado). Nenhum outro jutsu nem o Básico sai durante os selos; Substituição e Teleporte cancelam
+  (metade do chakra). Atordoar, silêncio, sono e empurrão de 1,5 casa **interrompem** ("Interrompido!"): metade do
+  chakra, recarga de 1,5 s e 3 s de Concentração (a próxima não se interrompe). Dano comum não interrompe; controle e
+  fim dos selos no mesmo tick: o controle vence. Recompensa: 0,5 s ou mais = +5% de dano e -10% de recarga.
+- **Simulador (`pvpSim`)** agora conhece a base própria dos jutsus novos, os golpes por forma (leque 2, meteoros 3),
+  os selos e a interrupção. Para passar no critério "ninguém vence todas", a Destruição Magnífica custa 30 (o tier
+  dava 34).
+- **Migração v16:** os 7 jutsus novos e os nomes novos em `game.jutsus`, e a regra dos kits (`game.valid_kit`) aceitando
+  os códigos novos (sem ela, salvar um kit com jutsu novo dá erro).
+
+### Correção do rankeado (sem migração)
+
+- O perdedor da rodada 1 não voltava na rodada 2 e apanhava parado. Causa: a queimadura do último golpe continuava no
+  intervalo, com a vida já em 0, e matava de verdade; na rodada 2 o cliente nunca recebia o "reviveu". Agora, no Vale,
+  ninguém apanha nem ganha efeito fora da rodada, o fim da rodada apaga os efeitos, o começo da rodada zera atordoado e
+  preso, e quem estiver morto recebe `player_respawned`.
 
 ### v29: modo rankeado (migração v15, `db/schema_v15_rankeado.sql`)
 

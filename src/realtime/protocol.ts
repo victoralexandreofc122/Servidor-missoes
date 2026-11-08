@@ -4,7 +4,7 @@ import type { PvpClassRow, PvpReport } from './pvpStats.js';
 import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
-import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type Mechanic } from './jutsus.js';
+import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type JutsuForm, type Mechanic } from './jutsus.js';
 import { ITEM_CODES, type Gear, type ItemDef } from './items.js';
 import { IncomingAppearanceSchema, VILLAGES, type Appearance, type Village } from './appearance.js';
 import type { EndgameModule } from './endgame.js';
@@ -431,6 +431,14 @@ export interface SkillInfo {
   /** Kunais: quantas trilhas paralelas e a distância entre elas (casas). */
   shots?: number;
   laneGap?: number;
+  /** v29 (Jutsus v2): como o jutsu sai (cone, leque, meteoros...), para o desenho e a mira. */
+  form?: JutsuForm;
+  /** v29: selos antes de sair (ms). */
+  castMs?: number;
+  /** v29: abertura do cone (graus). */
+  coneDeg?: number;
+  /** v29: buff de Básico: quanto tempo dura (para o brilho na arma). */
+  durationMs?: number;
 }
 
 /** Missão de sensei como o jogador vê (Sala de Missões). */
@@ -520,7 +528,7 @@ export interface WorldInfo {
   maxLevel: number;
 }
 
-export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED' | 'SILENCED' | 'ASLEEP';
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED' | 'SILENCED' | 'ASLEEP' | 'CASTING';
 /** Por que a meditação acabou. */
 export type MeditationEnd = 'manual' | 'moved' | 'cast' | 'damaged' | 'died';
 export type MonsterStatus = 'stunned' | 'rooted';
@@ -571,8 +579,11 @@ export type ServerMessage =
   // v29: modo rankeado. A fila (só para quem está nela) e o estado da partida da arena (para todos no Vale).
   | { type: 'duel_queue'; queued: boolean; position: number; size: number }
   // v29 (Jutsus v2, entrega 1): zona no chão (fogo, lama, cura...) e aviso de golpe que cai depois de `ms`.
-  | { type: 'ground'; id: number; kind: GroundKind; x: number; y: number; r: number; ms: number }
+  | { type: 'ground'; id: number; kind: GroundKind; x: number; y: number; r: number; ms: number; skill?: string }
   | { type: 'ground_end'; id: number }
+  // v29: conjuração (selos) começou, e foi interrompida
+  | { type: 'cast_start'; playerId: string; skill: string; ms: number }
+  | { type: 'cast_interrupted'; playerId: string; skill: string; reason: 'interrupted' | 'cancel' }
   // v29: sentou ou levantou da arquibancada do Vale (todos no mapa veem)
   | { type: 'sit'; playerId: string; active: boolean }
   // v29 (migração v15): os pontos de quem lutou depois da partida, e o painel do ranking.

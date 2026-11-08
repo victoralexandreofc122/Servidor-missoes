@@ -42,8 +42,9 @@ function openRow(len: number): { x: number; y: number } {
 }
 
 describe('Fogo queima e Relâmpago paralisa', () => {
-  it('queimadura em todos os tiers, mais forte nos altos; a explosão deixa o alvo queimando 3 s', () => {
-    assert.deepEqual(['fire', 'fire_2', 'fire_3', 'fire_4'].map((k) => SK[k as 'fire']!.burn), [3, 4, 6, 8]);
+  it('queimadura na Bola de Fogo (3/s) e no Sopro Incinerador (2/s); a explosão deixa o alvo queimando 3 s', () => {
+    // v29 (Jutsus v2): os tiers 2 a 4 do Fogo viraram jutsus próprios, sem queimadura no nível 1 de maestria
+    assert.deepEqual(['fire', 'fire_endan', 'fire_2', 'fire_3', 'fire_4'].map((k) => SK[k as 'fire']!.burn), [3, 2, 0, 0, 0]);
     const w = setupWorld(config());
     const a = w.connect('kaito');
     const row = openRow(6);

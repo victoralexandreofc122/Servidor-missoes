@@ -40,7 +40,7 @@
 |---|---|---|---|
 | 0 | **Base nova sem mudar números:** `JutsuDef` passa a ter `form` (linha, cone, anel, zona, leque, buff, escudo, avanço, aviso) e números por jutsu; `cast` e o cliente escolhem pelo `form`. | não | O `pvpSim` e todos os testes dão o mesmo resultado de antes. |
 | 1 | **Zona no chão** (dano/lentidão/cura por segundo) e **aviso no chão** (o golpe cai depois de 0,8 s). | não | Teste de zona e de aviso; aparece no celular. |
-| 2 | **Fogo com 4 jutsus novos** (seção 4). | **v16**: `INSERT ... ON CONFLICT` dos jutsus novos em `game.jutsus` (o `extract_jutsu` da v10 já sorteia entre vários do mesmo tier). Nenhum código antigo é renomeado ou apagado. | Simulador com Fogo novo passando nos critérios; Extração dá os novos. |
+| 2 | **Fogo com 7 jutsus novos** (seção 4; feita em 08/11/2026 com a conjuração da seção 3b: ver README). | **v16**: `INSERT ... ON CONFLICT` dos jutsus novos em `game.jutsus` (o `extract_jutsu` da v10 já sorteia entre vários do mesmo tier). Nenhum código antigo é renomeado ou apagado. | Simulador com Fogo novo passando nos critérios; Extração dá os novos. |
 | 3 | **Buff de Básico e escudo** (as regras da seção 2). | não | Testes das regras de teto. |
 | 4 | **Clã Uchiha** + linhagem no Criador + missão de despertar + Andarilho; a classe Sombra vira Clã Nara (só a troca de dados; a árvore do Nara vem na 5). | **v17**: coluna `clan`, troca dos jogadores de Sombra. | Simulador: clã x Andarilho entre 45% e 55% de vitórias. |
 | 5+ | **Uma classe por vez** (Água, Relâmpago, Terra, Médico, Armas, Ilusão, Taijutsu, Nara), cada uma passando pelo simulador. | um `INSERT` por classe | |

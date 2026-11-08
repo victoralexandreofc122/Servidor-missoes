@@ -9,11 +9,14 @@
  *     deixar); o chakra não volta sozinho (v29, decisão do Victor); atordoado não age;
  *  4. o controle passa pelo orçamento de controle (pvpBalance.ts);
  *  5. vence quem zera a vida do outro primeiro; diferença menor que 0,4 s = empate.
+ *  6. v29 (Jutsus v2): jutsu com números próprios usa a base dele; o leque acerta no máximo 2, a Chuva de Meteoros os 3
+ *     que caem no ponto mirado (METEOR_ON_SPOT); os selos (castMs) atrasam o golpe, o aviso no chão também, e um
+ *     atordoamento no meio dos selos interrompe (metade do chakra, recarga de 1,5 s, 3 s de Concentração).
  *
  * Mede ANTES da rede de segurança e do orçamento: o maior dano em 2 s e o controle pedido.
  */
 import { REALTIME } from './config.js';
-import { BASE_SKILLS, JUTSU_BY_CODE, skillConfig, type ClassCode } from './jutsus.js';
+import { BASE_SKILLS, CAST_RULES, JUTSU_BY_CODE, skillConfig, type ClassCode } from './jutsus.js';
 import { ccAllow, pvpCostCooldown, pvpHitDamage, type CcEntry, type HitInfo } from './pvpBalance.js';
 import { NO_ATTRIBUTES, derivedStats, type Attributes, type DerivedStats } from './stats.js';
 
@@ -34,7 +37,14 @@ export const SIM_BUILDS: readonly SimBuild[] = [
   { name: 'Dano de Armas', attributes: { weapons: 59 }, kits: ['weapons', 'taijutsu'] },
 ];
 
-interface Move { code: string; hit: HitInfo; cost: number; cooldownMs: number; stunMs: number; paralysisMs: number; ready: number }
+/** Meteoros que caem no ponto mirado (gameWorld.ts, forma 'meteoros'): quem não sai das marcas leva estes. */
+export const METEOR_ON_SPOT = 3;
+
+interface Move {
+  code: string; hit: HitInfo; cost: number; cooldownMs: number; stunMs: number; paralysisMs: number; ready: number;
+  /** Golpes que acertam o mesmo alvo (leque, meteoros); selos; atraso do aviso no chão. */
+  hits: number; castMs: number; delayMs: number;
+}
 
 interface Fighter {
   stats: DerivedStats;
@@ -47,6 +57,10 @@ interface Fighter {
   nextShock: number;
   nextTap: number;
   burns: { until: number; next: number; per: number }[];
+  /** Selos em andamento e golpes avisados a caminho (v29). */
+  casting: { move: Move; until: number } | null;
+  concentrationUntil: number;
+  incoming: { at: number; dmg: number; move: Move }[];
   ccLog: CcEntry[];
   /** Golpes que levou (para o maior dano em 2 s, antes da rede). */
   taken: { t: number; dmg: number }[];
@@ -69,18 +83,25 @@ function fighter(b: SimBuild): Fighter {
     const cfg = skillConfig(j);
     const base1 = BASE_SKILLS[j.mechanic];
     const price = pvpCostCooldown(j.mechanic, cfg.cost, cfg.cooldownMs);
+    // a mesma conta do servidor (gameWorld.cast): jutsu com números próprios usa a base e a queimadura dele
+    const own = !!j.numbers;
+    const base = own ? (cfg.base ?? 0) : (base1.damage ?? 0);
+    const burn = own ? (cfg.burn ?? 0) : (base1.burn ?? 0);
+    const hits = j.form === 'leque' ? Math.min(2, cfg.shots ?? 3) : j.form === 'meteoros' ? Math.min(METEOR_ON_SPOT, cfg.shots ?? 5) : 1;
+    const delayMs = j.form === 'meteoros' || j.form === 'aviso_em_volta' || j.form === 'nuvem_detona' ? cfg.durationMs ?? 0 : 0;
     return {
       code, cost: price.cost, cooldownMs: price.cooldownMs, stunMs: cfg.stunMs ?? 0, paralysisMs: cfg.paralysisMs ?? 0, ready: 0,
+      hits, castMs: cfg.castMs ?? 0, delayMs,
       hit: {
-        base: base1.damage ?? 0, tier: j.tier, useLevel: 4, weapon: j.mechanic === 'weapons' ? KATANA : 0,
+        base, tier: j.tier, useLevel: 4, weapon: j.mechanic === 'weapons' ? KATANA : 0,
         scaling: cfg.scaling ?? 'ninjutsu', passive: 1, sky: 1,
-        ...(base1.burn ? { burn: { base: base1.burn, ms: cfg.burnMs ?? 3000 } } : {}),
+        ...(burn ? { burn: { base: burn, ms: cfg.burnMs ?? 3000 } } : {}),
       },
     };
   });
   return {
     stats, hp: stats.maxHp, chakra: stats.maxChakra, moves, basicReady: 0, stunnedUntil: 0, paralysisUntil: 0, nextShock: 0,
-    nextTap: 0, burns: [], ccLog: [], taken: [], ccWanted: 0, ccCuts: 0,
+    nextTap: 0, burns: [], ccLog: [], taken: [], ccWanted: 0, ccCuts: 0, casting: null, concentrationUntil: 0, incoming: [],
   };
 }
 
@@ -96,6 +117,13 @@ function control(target: Fighter, kind: 'stunned' | 'shock', ms: number, t: numb
   if (got <= 0) return;
   target.ccLog.push({ kind, startedAt: t, until: t + got, weight: 1, sourceId: null });
   target.stunnedUntil = Math.max(target.stunnedUntil, t + got);
+  // controle duro no meio dos selos: interrompe (o choque da paralisia também é atordoamento)
+  if (target.casting && t >= target.concentrationUntil) {
+    target.chakra = Math.max(0, target.chakra - Math.round(target.casting.move.cost / 2));
+    target.casting.move.ready = Math.max(target.casting.move.ready, t + CAST_RULES.interruptCooldownMs);
+    target.casting = null;
+    target.concentrationUntil = t + CAST_RULES.concentrationMs;
+  }
 }
 
 function hurt(target: Fighter, dmg: number, t: number): void {
@@ -103,21 +131,41 @@ function hurt(target: Fighter, dmg: number, t: number): void {
   target.taken.push({ t, dmg });
 }
 
+/** O golpe sai (na hora, no fim dos selos ou quando o aviso no chão cai). */
+function land(m: Move, dmg: number, foe: Fighter, t: number): void {
+  hurt(foe, dmg, t);
+  if (m.hit.burn) {
+    const per = Math.max(1, Math.round(dmg * m.hit.burn.base / m.hit.base));
+    foe.burns.push({ until: t + m.hit.burn.ms, next: t + 1000, per });
+  }
+  if (m.stunMs) control(foe, 'stunned', m.stunMs, t);
+  if (m.paralysisMs) { foe.paralysisUntil = Math.max(foe.paralysisUntil, t + m.paralysisMs); foe.nextShock = t + 1000; }
+}
+
+/** Os selos acabaram: cobra, põe na recarga e solta (os meteoros caem um depois do outro, a cada 0,25 s). */
+function release(me: Fighter, foe: Fighter, m: Move, t: number): void {
+  me.chakra -= m.cost;
+  m.ready = t + m.cooldownMs;
+  const dmg = pvpHitDamage(m.hit, me.stats, scale());
+  for (let i = 0; i < m.hits; i++) {
+    const at = t + m.delayMs + (m.hits > 1 && m.delayMs > 0 ? i * 250 : 0);
+    if (at <= t) land(m, dmg, foe, t);
+    else foe.incoming.push({ at, dmg, move: m });
+  }
+}
+
 function act(me: Fighter, foe: Fighter, t: number): void {
+  if (me.casting) {
+    if (t >= me.casting.until) { const m = me.casting.move; me.casting = null; release(me, foe, m, t); }
+    return;
+  }
   if (t < me.nextTap || t < me.stunnedUntil) return;
   const move = me.moves.filter((m) => m.ready <= t && m.cost <= me.chakra && m.hit.base > 0)
-    .map((m) => ({ m, dmg: pvpHitDamage(m.hit, me.stats, scale()) }))
+    .map((m) => ({ m, dmg: pvpHitDamage(m.hit, me.stats, scale()) * m.hits }))
     .sort((a, b) => b.dmg - a.dmg)[0];
   if (move) {
-    me.chakra -= move.m.cost;
-    move.m.ready = t + move.m.cooldownMs;
-    hurt(foe, move.dmg, t);
-    if (move.m.hit.burn) {
-      const per = Math.max(1, Math.round(move.dmg * move.m.hit.burn.base / move.m.hit.base));
-      foe.burns.push({ until: t + move.m.hit.burn.ms, next: t + 1000, per });
-    }
-    if (move.m.stunMs) control(foe, 'stunned', move.m.stunMs, t);
-    if (move.m.paralysisMs) { foe.paralysisUntil = Math.max(foe.paralysisUntil, t + move.m.paralysisMs); foe.nextShock = t + 1000; }
+    if (move.m.castMs > 0) me.casting = { move: move.m, until: t + move.m.castMs };
+    else release(me, foe, move.m, t);
     me.nextTap = t + SIM_TAP_MS;
   } else if (t >= me.basicReady) {
     hurt(foe, basicDamage(me.stats), t);
@@ -128,6 +176,8 @@ function act(me: Fighter, foe: Fighter, t: number): void {
 
 function pulses(f: Fighter, t: number): void {
   for (const b of f.burns) if (t >= b.next && b.next <= b.until) { hurt(f, b.per, t); b.next += 1000; }
+  const due = f.incoming.filter((x) => x.at <= t);
+  if (due.length) { f.incoming = f.incoming.filter((x) => x.at > t); for (const x of due) land(x.move, x.dmg, f, t); }
   if (t < f.paralysisUntil && t >= f.nextShock) { control(f, 'shock', 250, t); f.nextShock += 1000; }
 }
 

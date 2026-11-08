@@ -36,7 +36,7 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     }
   });
 
-  it('catálogo do banco == catálogo do servidor (classes, 38 jutsus, itens)', async () => {
+  it('catálogo do banco == catálogo do servidor (classes, 45 jutsus com a v16, itens)', async () => {
     const classes = (await t.pool.query('SELECT code, name, icon FROM game.classes ORDER BY sort_order')).rows;
     assert.deepEqual(classes, CLASSES.map((c) => ({ code: c, name: CLASS_INFO[c].name, icon: CLASS_INFO[c].icon })));
     const jutsus = (await t.pool.query('SELECT code, name, class_code, tier FROM game.jutsus ORDER BY code')).rows;

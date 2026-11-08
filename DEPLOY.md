@@ -1056,3 +1056,30 @@ minuto (não precisa reiniciar).
    placar no alto mostra os nomes. Rodadas de até 50 s, melhor de 3; ninguém morre.
 3. No fim, aparece "+N pontos" para os dois; **🏆 Ranking** mostra a temporada, o top 50 e a sua posição.
 4. Conta de admin não ganha nem perde pontos (o chat avisa "não contou").
+
+## Passo 31 — Atualização v29: Jutsus v2, o Fogo novo e a conjuração (SQL v16)
+
+**Banco e código em seguida, sem intervalo.** No Neon, abra o **SQL Editor**, confira no seletor que o branch é o
+`production` e rode o arquivo `db/schema_v16_jutsus_fogo.sql` inteiro. Ele segue as regras de sempre (sem bloco `DO $$`,
+tudo dentro de `BEGIN; ... COMMIT;`) e pode rodar de novo. Ele:
+
+- coloca os 7 jutsus de Fogo novos em `game.jutsus` e troca os nomes de `fire_2`, `fire_3` e `fire_4` (os códigos ficam:
+  ninguém perde jutsu, uso nem nível);
+- troca a regra dos kits (`game.valid_kit`) para aceitar os códigos novos.
+
+**Logo depois, o código:** mescle na `main` (o Render publica sozinho). Entre a migração e o deploy, quem fizer uma
+Extração de Fogo pode ganhar um jutsu que o servidor antigo ainda não conhece; por isso as duas coisas em seguida.
+(O código novo sem a migração funciona: só não sorteia os jutsus novos.)
+
+Para conferir: `SELECT tier, count(*) FROM game.jutsus WHERE class_code = 'fire' GROUP BY tier ORDER BY tier;` mostra
+1: 4, 2: 4, 3: 2, 4: 1.
+
+### Testar no celular
+
+1. **Fogo:** um ninja de Fogo com os jutsus novos (Extração de Fogo nos tiers 1 a 3) vê a barra de selos sobre a cabeça
+   e perto dos botões nos jutsus com conjuração (Chamas da Fênix, Dragão Guiado, Destruição Magnífica, Míssil Dragão,
+   Chuva de Meteoros).
+2. **Interromper:** na arena, um ninja de Relâmpago acerta o de Fogo no meio dos selos: aparece "Interrompido!".
+3. **Rankeado:** perca a rodada 1 com o adversário queimando você: no intervalo não aparece a tela de derrota e na
+   rodada 2 você volta com a vida cheia e consegue lutar.
+

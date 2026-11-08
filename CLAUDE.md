@@ -18,8 +18,10 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   `public/figure.js` cache e giro). Detalhes em `arte/personagem-rig/LEIAME.md`. O estilo segue a folha de referência
   do Victor (chibi, contorno escuro, sombreado em 2-3 tons). Toda mudança de arte é comparada lado a lado com a
   referência e conferida dentro do jogo antes de fechar.
-- **Versão atual:** v29 (modo rankeado no Vale das Estátuas, migração v15), publicada na `main`. Em andamento: Jutsus
-  v2 no branch `jutsus-v2` (entregas 0 e 1 prontas; entrega 2 em `revisao_egm/jutsus/entrega2-em-andamento.patch`).
+- **Versão atual:** v29 (modo rankeado no Vale das Estátuas, migração v15), publicada na `main`. Pronto e esperando o
+  Victor: Jutsus v2 entrega 2 (Fogo com 11 jutsus) + conjuração, com a migração v16, e a correção da rodada 2 do
+  rankeado (sem migração). Visão do endgame (nome Herança do Fogo, 4 aldeias, torneios, roadmap em 3 fases):
+  `docs/endgame-visao.md`; nada dela é implementado sem o OK do Victor.
   Histórico completo no `README.md`; relatório de progresso em `docs/relatorio-final-e-progresso-2026-11.md`.
 
 ## Documentos
