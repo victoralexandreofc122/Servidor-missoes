@@ -91,9 +91,11 @@ export function pvpCostCooldown(mechanic: string, cost: number, cooldownMs: numb
  * de maior peso naquele instante (não a soma). No máximo 1,5 s (com peso) por aplicação e 2,5 s em qualquer trecho de
  * 15 s; se sobra menos de 0,2 s, o controle novo não pega. Controle de monstro segue o `controlDr` de hoje.
  */
-export const CC_BUDGET = { perApplyMs: 1500, windowMs: 15_000, maxMs: 2500, minMs: 200 } as const;
+// v30 (pedido do Victor: o controle estava quase nulo): 2,5 s por golpe e 5 s a cada 15 s (eram 1,5 s e 2,5 s).
+export const CC_BUDGET = { perApplyMs: 2500, windowMs: 15_000, maxMs: 5000, minMs: 200 } as const;
 export type CcKind = 'stunned' | 'rooted' | 'sono' | 'shock' | 'silencio';
-export const CC_WEIGHT: Readonly<Record<CcKind, number>> = { stunned: 1, rooted: 1, sono: 1, shock: 1, silencio: 0.5 };
+// v30: o choque da paralisia pesa metade (cada choque de 0,25 s comia o orçamento inteiro de quem levou um Relâmpago).
+export const CC_WEIGHT: Readonly<Record<CcKind, number>> = { stunned: 1, rooted: 1, sono: 1, shock: 0.5, silencio: 0.5 };
 
 export interface CcEntry {
   kind: CcKind;

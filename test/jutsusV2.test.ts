@@ -10,10 +10,11 @@ describe('Jutsus v2, entrega 0: base nova sem mudar números', () => {
     const changed = new Set<string>(JUTSUS.filter((j) => j.numbers).map((j) => j.code));
     for (const code of Object.keys(before)) {
       if (changed.has(code)) assert.notDeepEqual(now[code], before[code], code);
-      else assert.deepEqual(now[code], before[code], code);
+      else if (code !== 'lightning') assert.deepEqual(now[code], before[code], code);
     }
     // os tier 1 de cada classe (os jutsus de sempre) ficam iguais
-    for (const c of ['fire', 'water', 'lightning', 'stone', 'heal', 'weapons', 'illusion', 'taijutsu', 'shadow']) assert.deepEqual(now[c], before[c], c);
+    for (const c of ['fire', 'water', 'stone', 'heal', 'weapons', 'illusion', 'taijutsu', 'shadow']) assert.deepEqual(now[c], before[c], c);
+    assert.deepEqual(now.lightning, { ...before.lightning, stunMs: 600 }, 'v30: a Faísca atordoa 0,6 s (era 0,4)');
   });
 
   it('todo jutsu tem uma forma; os sem números próprios seguem a da mecânica', () => {

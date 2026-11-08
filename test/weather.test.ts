@@ -147,8 +147,8 @@ describe('clima no jogo: o servidor aplica nos jutsus e avisa todos', () => {
     learn(world, a.id, 'shadow');
     session(world, a.id).chakra = 100;
     a.send({ type: 'cast', skill: 'shadow', targetId: b.id });
-    // v28: num ninja, o orçamento de controle corta em 1,5 s; num monstro, vale a noite inteira (+5%).
-    assert.deepEqual(b.conn.last('player_status'), { type: 'player_status', playerId: b.id, status: 'rooted', ms: 1500 });
+    // v28: num ninja, o orçamento de controle corta (v30: em 2,5 s); num monstro, vale a noite inteira (+5%).
+    assert.deepEqual(b.conn.last('player_status'), { type: 'player_status', playerId: b.id, status: 'rooted', ms: 2500 });
     const at = { x: session(world, b.id).x, y: session(world, b.id).y };
     session(world, b.id).x += 30;
     const m = world.spawnMonster(at, undefined, session(world, a.id).map);

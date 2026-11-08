@@ -251,7 +251,7 @@ export const BASE_SKILLS: Readonly<Record<Mechanic, SkillConfig>> = {
   weapons: { cost: 10, cooldownMs: 1200, damage: 18, range: 4, shots: 3, laneGap: 0.7, speed: 16, scaling: 'weapons' },
   // Relâmpago: linha instantânea de 4,5 casas; o primeiro alvo leva dano alto, um choque rápido e fica paralisado 2 s
   // (anda a 70% e leva um choque de 0,25 s por segundo; mais tempo nos tiers altos).
-  lightning: { cost: 20, cooldownMs: 2000, damage: 30, range: 4.5, stunMs: 400, paralysisMs: 2000 },
+  lightning: { cost: 20, cooldownMs: 2000, damage: 30, range: 4.5, stunMs: 600, paralysisMs: 2000 },   // v30: atordoa 0,6 s (era 0,4)
   // Academia: o alcance e a recarga reais vêm do NÍVEL do jutsu (teleportRange, substitutionCooldownMs).
   teleport: { cost: 10, cooldownMs: 1500, range: 3 },
   substitution: { cost: 20, cooldownMs: 30_000, durationMs: 5000 },
