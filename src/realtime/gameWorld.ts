@@ -383,6 +383,10 @@ type EndgameRequest = 'village_panel' | 'kage_vote' | 'kage_action' | 'kage_answ
   | 'akatsuki_invite' | 'akatsuki_answer' | 'akatsuki_expel' | 'akatsuki_leave';
 
 interface Monster {
+  /** v30: invocação de um ninja (Clone de Água, Golem de Terra): dono, fim e o soco do Golem. */
+  ownerId?: string;
+  summonUntil?: number;
+  punch?: { damage: number; hit: HitInfo; liftMs: number; everyMs: number; nextAt: number; radius: number };
   readonly id: string;
   readonly type: string;
   readonly map: MapId;
@@ -2065,7 +2069,12 @@ export class GameWorld {
     const out: Target[] = [];
     const t = this.now();
     const back = rewind ? this.rewindMs(s) : 0;
-    for (const m of this.monsters.values()) if (m.hp > 0 && m.map === s.map) out.push({ kind: 'monster', id: m.id, x: m.x, y: m.y, monster: m });
+    for (const m of this.monsters.values()) {
+      if (m.hp <= 0 || m.map !== s.map) continue;
+      // v30: a invocação de um ninja só é alvo de quem pode machucar o dono
+      if (m.ownerId) { const o = this.sessions.get(m.ownerId); if (!o || o === s || !this.canHurt(s, o, t)) continue; }
+      out.push({ kind: 'monster', id: m.id, x: m.x, y: m.y, monster: m });
+    }
     for (const o of this.mapPlayers.get(s.map) ?? []) {
       if (!this.canHurt(s, o, t)) continue;
       const at = back > 0 ? pointAt(o.trail, t - back, o) : o;
@@ -2496,6 +2505,23 @@ export class GameWorld {
         }
         break;
       }
+      case 'invocacao': {
+        // à frente de quem invoca; a vida é uma parte da vida máxima dele; some no fim
+        const at = ahead(o, fx, fy, 1.5);
+        const view = this.spawnMonster(at, t, s.map, cfg.summonType ?? 'clone_agua', true);
+        const m = this.monsters.get(view.id);
+        if (!m) break;
+        const hp = Math.max(1, Math.round(s.stats.maxHp * (cfg.summonHp ?? 0.15)));
+        (m as { maxHp: number }).maxHp = hp;
+        m.hp = hp;
+        m.ownerId = s.id;
+        m.summonUntil = t + (cfg.durationMs ?? 6000);
+        if (cfg.punchEveryMs && dmg > 0) {
+          m.punch = { damage: dmg, hit, liftMs: cfg.liftMs ?? 0, everyMs: cfg.punchEveryMs, nextAt: t + cfg.punchEveryMs, radius: cfg.radius ?? 1.5 };
+        }
+        this.broadcastMap(s.map, { type: 'summon', id: m.id, ownerId: s.id, kind: m.type, hp, maxHp: hp, ms: cfg.durationMs ?? 6000 });
+        break;
+      }
       case 'muro': {
         if (!to) break;
         const width = cfg.radius ?? 3, thick = cfg.thick ?? 1;
@@ -2551,6 +2577,25 @@ export class GameWorld {
       if (got > 0) { x.session.calmSince = t; this.sendStats(x.session, t); }
     }
     if (cfg.push && this.stillThere(x)) this.pushAway(x, by, from, cfg.push, t);
+  }
+
+  /** v30: a invocação: acaba no tempo; o Golem soca quem está em volta a cada `everyMs` (levanta). */
+  private summonTick(m: Monster, t: number): void {
+    const owner = m.ownerId ? this.sessions.get(m.ownerId) : undefined;
+    if (!owner || owner.closed || owner.map !== m.map || t >= (m.summonUntil ?? 0)) {
+      this.monsters.delete(m.id);
+      this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: m.ownerId ?? '' });
+      return;
+    }
+    const p = m.punch;
+    if (!p || t < p.nextAt || t < m.stunnedUntil) return;
+    p.nextAt = t + p.everyMs;
+    const hits = this.targetsFor(owner).filter((x) => x.id !== m.id && Math.hypot(x.x - m.x, x.y - m.y) <= p.radius);
+    this.broadcastMap(m.map, { type: 'summon_punch', id: m.id, x: round2(m.x), y: round2(m.y), r: p.radius });
+    for (const x of hits) {
+      this.hitTarget(x, p.damage, owner, t, 'skill', 'stone_golem', p.hit);
+      if (p.liftMs && this.stillThere(x)) this.applyStatus(x, 'stunned', p.liftMs, t, owner);
+    }
   }
 
   /** v30: ergue um muro (entra nas paredes do mapa: bloqueia passagem, linhas e projéteis) e avisa o mapa. */
@@ -3104,6 +3149,7 @@ export class GameWorld {
   private killMonster(m: Monster, killer: Session, t: number, source: 'attack' | 'skill'): void {
     this.monsters.delete(m.id);
     this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: killer.id });
+    if (m.ownerId) return;                                         // v30: invocação: sem XP, ryō, missão nem renascer
     const type = this.monsterType(m.type);
     if (m.home) {
       this.respawns.push({ type: m.type, map: m.map, home: m.home, at: t + type.respawnMs, ...(m.zone ? { zone: m.zone } : {}) });
@@ -4453,6 +4499,7 @@ export class GameWorld {
    * dele; parado, anda à toa como antes. Atordoado, preso ou dormindo, não anda. Devolve true se andou.
    */
   private updateMonster(m: Monster, t: number, dt: number): boolean {
+    if (m.ownerId) { this.summonTick(m, t); return false; }   // v30: invocação tem a regra própria
     const type = this.monsterType(m.type);
     if (type.stationary) return false;
     // Golpe marcado em preparo: parado; atordoado ou dormindo, perde o golpe; na hora, pula (ou esmaga) e acerta o círculo.

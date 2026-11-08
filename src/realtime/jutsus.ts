@@ -71,6 +71,7 @@ export type JutsuForm =
   | 'agarre'          // linha que prende vários alvos (Agarre Múltiplo)
   | 'palma'           // canalização: cura o aliado colado (ou a si, pela metade) no fim (Palma Mística)
   | 'bumerangue'      // projétil que vai, atravessa e volta para a mão (Shuriken Gigante de Chakra)
+  | 'invocacao'       // invocação aliada à frente (Clone de Água, Golem de Terra)
   | 'muro';           // muro à frente: bloqueia passagem e projéteis, tem vida (Muralha de Terra, Muro de Água)
 
 export const FORM_OF_MECHANIC: Readonly<Record<Mechanic, JutsuForm>> = {

@@ -57,9 +57,9 @@ function scene(skill: string, monsters: [number, number][] = [[2, 0]], pvp = fal
 }
 
 describe('Jutsus v2, entrega 5: as outras classes', () => {
-  it('catálogo: 80 jutsus; 35 códigos novos; toda classe tem os 4 tiers e o tier 1 de sempre', () => {
-    assert.equal(JUTSUS.length, 80);
-    assert.equal(CLASS_V2_CODES.length, 35);
+  it('catálogo: 82 jutsus; 37 códigos novos; toda classe tem os 4 tiers e o tier 1 de sempre', () => {
+    assert.equal(JUTSUS.length, 82);
+    assert.equal(CLASS_V2_CODES.length, 37);
     for (const c of CLASSES) {
       const tiers = new Set(JUTSUS.filter((j) => j.class === c).map((j) => j.tier));
       assert.deepEqual([...tiers].sort(), [1, 2, 3, 4], c);
@@ -370,5 +370,38 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     world.hitBarrier('map_2', { x: bar.x, y: bar.y + 1 }, 70);
     assert.ok(a.conn.last('barrier_end'), 'quebrou');
     void run; void s;
+  });
+
+  it('invocação (Golem de Terra): fica ao lado, soca e levanta quem está em volta a cada 4 s, some em 12 s; não é alvo do dono', () => {
+    const { s, a, run, world, ms, dealt, clock } = scene('stone_golem', [[2.5, 0]]);
+    a.send({ type: 'cast', skill: 'stone_golem' });
+    run(1300);                                                         // selos 1,2 s
+    const sum = a.conn.last('summon');
+    assert.equal(sum.kind, 'golem');
+    assert.equal(sum.maxHp, Math.round(s.stats.maxHp * 0.4));
+    const golem = world.monsters.get(sum.id);
+    assert.ok(golem && golem.ownerId === s.id);
+    assert.equal(world.targetsFor(s).some((x: any) => x.id === sum.id), false, 'o dono não acerta o próprio golem');
+    run(4100);
+    assert.ok(dealt(ms[0]) > 0, 'socou');
+    assert.ok(ms[0].stunnedUntil > clock.now() - 1000, 'levantou');
+    run(8200);
+    assert.equal(world.monsters.has(sum.id), false, 'acabou');
+  });
+
+  it('invocação (Clone de Água): isca que o inimigo pode acertar; morrer não dá XP', () => {
+    const w = scene('water_clone', [], true);
+    const b = w.connect('mei');
+    const sb = w.world.sessions.get(b.id);
+    Object.assign(sb, { tutorial: 4 });
+    placeIn(w.world, b.id, 'map_2', w.row.x + 4, w.row.y);
+    w.cast();
+    const sum = w.a.conn.last('summon');
+    assert.equal(sum.kind, 'clone_agua');
+    assert.ok(w.world.targetsFor(sb).some((x: any) => x.id === sum.id), 'o inimigo enxerga o clone como alvo');
+    const xp = sb.xp ?? 0;
+    w.world.damageMonster(w.world.monsters.get(sum.id), 10_000, sb, w.world.now(), 'attack');
+    assert.equal(w.world.monsters.has(sum.id), false);
+    assert.equal(sb.xp ?? 0, xp, 'sem XP');
   });
 });

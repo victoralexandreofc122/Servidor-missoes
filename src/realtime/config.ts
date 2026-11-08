@@ -96,6 +96,10 @@ export interface SkillConfig {
   /** v30: escuridão no alvo (Noite Eterna) / controles invertidos (Distúrbio Nervoso), em ms. */
   darkMs?: number;
   invertMs?: number;
+  /** v30: invocação: tipo de monstro, vida (parte da vida máxima de quem invoca) e o soco a cada tanto (Golem). */
+  summonType?: string;
+  summonHp?: number;
+  punchEveryMs?: number;
   /** v30: muro: espessura, vida (fixa ou parte da vida máxima de quem ergue) e tipo. */
   thick?: number;
   wallHp?: number;
@@ -421,6 +425,9 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     monsterTypes: {
       // Sala 1: destruir 3 com o Ataque Básico (2 golpes cada). Não batem.
       dummy: { maxHp: 12, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 2500 },
+      // v30: invocações dos jutsus (a vida de verdade vem de quem invoca; não andam, não dão XP, não renascem)
+      clone_agua: { maxHp: 50, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12 },
+      golem: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12 },
       // Sala de Jutsus: ARMADILHA de lâminas que bate (fraco) em quem chega perto: treina a Substituição.
       sparring: { maxHp: 400, xp: 0, attackRange: 1.6, attackDamage: 6, attackEveryMs: 1800, stationary: true, respawnMs: 2500 },
       // Zona de Conflito: lodo sombrio, mais forte que o slime (para quem já é Chunin).

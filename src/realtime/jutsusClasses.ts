@@ -38,6 +38,8 @@ export const CLASS_V2_CODES = [
   'water_nevoa', 'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma', 'weapons_gigante',
   // v30, os muros
   'water_muro', 'stone_muralha',
+  // v30, as invocações
+  'water_clone', 'stone_golem',
 ] as const;
 
 /** Apaga o que vem da mecânica e não vale para o jutsu novo (undefined apaga o número do fundo). */
@@ -49,6 +51,8 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
     numbers: { ...CLEAN, base: 18, damage: dmg(18, 1), cost: 15, cooldownMs: 1500, range: 8, speed: 12, radius: 0, wet: true } },
   water_muro: { name: 'Muro de Água', class: 'water', tier: 1, form: 'muro',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 10_000, range: 2, radius: 3, thick: 0.6, wallHp: 60, wallKind: 'agua', durationMs: 3000 } },
+  water_clone: { name: 'Clone de Água', class: 'water', tier: 2, form: 'invocacao',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 30, cooldownMs: 15_000, range: 0, summonType: 'clone_agua', summonHp: 0.15, durationMs: 6000 } },
   water_nevoa: { name: 'Ocultação na Névoa', class: 'water', tier: 1, form: 'zona',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 12_000, range: 0, radius: 3,
       zone: { ms: 4000, kind: 'agua', self: true, dark: true } } },
@@ -82,6 +86,9 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
     numbers: { ...CLEAN, base: 30, damage: dmg(30, 4), cost: 45, cooldownMs: 30_000, range: 7, radius: 3.5, durationMs: 1000, stunMs: 1000, castMs: 800, castSlow: 0 } },
 
   // ------------------------------------------------------------------ Terra (classe Pedra)
+  stone_golem: { name: 'Golem de Terra Titânico', class: 'stone', tier: 4, form: 'invocacao',
+    numbers: { ...CLEAN, base: 20, damage: dmg(20, 4), cost: 44, cooldownMs: 45_000, range: 0, radius: 1.5, summonType: 'golem', summonHp: 0.4,
+      durationMs: 12_000, punchEveryMs: 4000, liftMs: 800, castMs: 1200, castSlow: 0 } },
   stone_muralha: { name: 'Muralha de Terra', class: 'stone', tier: 1, form: 'muro',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 14_000, range: 2.5, radius: 3, thick: 1, wallHpShare: 0.15, wallKind: 'rocha', durationMs: 5000 } },
   stone_pilares: { name: 'Prisão de Pilares', class: 'stone', tier: 1, form: 'alvo',

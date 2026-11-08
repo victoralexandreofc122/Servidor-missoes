@@ -585,6 +585,9 @@ export type ServerMessage =
   // v30: muro de jutsu (entra nas paredes do mapa enquanto existe)
   | { type: 'barrier'; id: number; kind: 'rocha' | 'agua'; x: number; y: number; w: number; h: number; hp: number; ms: number }
   | { type: 'barrier_end'; id: number }
+  // v30: invocação de um ninja (é um monstro com dono; some no fim) e o soco do Golem
+  | { type: 'summon'; id: string; ownerId: string; kind: string; hp: number; maxHp: number; ms: number }
+  | { type: 'summon_punch'; id: string; x: number; y: number; r: number }
   // v29: conjuração (selos) começou, e foi interrompida
   | { type: 'cast_start'; playerId: string; skill: string; ms: number }
   | { type: 'cast_interrupted'; playerId: string; skill: string; reason: 'interrupted' | 'cancel' }

@@ -139,7 +139,7 @@ describe('garantias do cliente (public/)', () => {
     // v7: a lista do kit é montada com os jutsus APRENDIDOS (o servidor recusa kit com jutsu não aprendido).
     assert.match(html, /id="kit-list"/);
     assert.match(js, /function learnedJutsus\(\)/);
-    assert.ok(SKILLS.length === 80);   // v29: + 7 do Fogo novo; v30: + 27 das outras classes
+    assert.ok(SKILLS.length === 82);   // v29: + 7 do Fogo novo; v30: + 27 das outras classes
   });
 
   it('v7: Academia, inventário, loja com Extração, classe e Kage: o cliente só PEDE (sorteio, preço e passo são do servidor)', () => {

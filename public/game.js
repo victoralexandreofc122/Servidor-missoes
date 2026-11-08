@@ -721,6 +721,15 @@ function handleMessage(msg) {
       }
       break;
     }
+    case 'summon': {
+      // v30: a invocação já chegou como monstro; aqui só a vida certa (parte da vida de quem invocou)
+      const m = state.monsters.get(msg.id);
+      if (m) Object.assign(m, { hp: msg.hp, maxHp: msg.maxHp, ownerId: msg.ownerId });
+      break;
+    }
+    case 'summon_punch':
+      state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: msg.r, color: '#c9a678', start: now });
+      break;
     case 'barrier': {
       // v30: muro de jutsu: vira parede (a previsão do movimento esbarra nele) e aparece no chão
       const walls = state.maps[state.mapId]?.walls;
@@ -6708,8 +6717,40 @@ function drawCrown(g, sx, top, r) {
   g.restore();
 }
 
+/** v30: invocações dos jutsus: o Golem de Terra (pedra) e o Clone de Água (um ninja d'água translúcido). */
+function drawSummon(m, sx, sy, T, now) {
+  const golem = m.type === 'golem';
+  const s = golem ? 1.5 : 1;
+  const w = T * 0.62 * s, h = T * 0.95 * s;
+  const born = Math.max(0.1, Math.min(1, (now - (m.bornAt || now)) / 300));
+  ctx.save();
+  ctx.globalAlpha = golem ? 1 : 0.62;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.3, w * 0.7, T * 0.16 * s, 0, 0, Math.PI * 2); ctx.fill();
+  const top = sy + T * 0.3 - h * born;
+  if (golem) {
+    ctx.fillStyle = '#6b5236'; ctx.fillRect(sx - w / 2, top + h * 0.25, w, h * 0.75);           // corpo
+    ctx.fillStyle = '#8a6a48'; ctx.fillRect(sx - w * 0.35, top, w * 0.7, h * 0.32);              // cabeça
+    ctx.fillStyle = '#5b4632'; ctx.fillRect(sx - w * 0.85, top + h * 0.3, w * 0.32, h * 0.5);    // braços
+    ctx.fillRect(sx + w * 0.53, top + h * 0.3, w * 0.32, h * 0.5);
+    ctx.fillStyle = '#ffcf5a'; ctx.fillRect(sx - w * 0.2, top + h * 0.12, 4, 4); ctx.fillRect(sx + w * 0.12, top + h * 0.12, 4, 4);   // olhos
+    ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.strokeRect(sx - w / 2, top + h * 0.25, w, h * 0.75); ctx.strokeRect(sx - w * 0.35, top, w * 0.7, h * 0.32);
+  } else {
+    const g = ctx.createLinearGradient(0, top, 0, top + h);
+    g.addColorStop(0, '#bfe6ff'); g.addColorStop(1, '#3ca6ff');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(sx, top + h * 0.2, w * 0.38, h * 0.2, 0, 0, Math.PI * 2); ctx.fill();              // cabeça
+    ctx.fillRect(sx - w * 0.32, top + h * 0.36, w * 0.64, h * 0.64);                                               // corpo
+    ctx.strokeStyle = 'rgba(230, 248, 255, 0.9)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(sx - w * 0.3, top + h * (0.55 + 0.05 * Math.sin(now / 150))); ctx.lineTo(sx + w * 0.3, top + h * 0.55); ctx.stroke();
+  }
+  ctx.restore();
+  if (m.hp !== undefined && m.maxHp) drawHpBar(sx, top - 6, w + 6, m.hp / m.maxHp, golem ? '#c9a678' : '#8fd6ff');
+}
+
 function drawMonster(m, sx, sy, T, now) {
   if (m.type === 'dummy' || m.type === 'sparring') return drawDummyMonster(m, sx, sy, T, now);
+  if (m.type === 'golem' || m.type === 'clone_agua') return drawSummon(m, sx, sy, T, now);   // v30: invocações
   const born = Math.max(0.05, Math.min(1, (now - m.bornAt) / 250));
   const art = monsterArtReady(m.type);
   // Com sprite, a morte é a animação dela (monsterSprites.js); sem, o slime encolhe e some em 0,45 s.
