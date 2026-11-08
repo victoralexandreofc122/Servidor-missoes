@@ -34,6 +34,8 @@ export const CLASS_V2_CODES = [
   'illusion_kai', 'illusion_estaca', 'illusion_templo',
   'taijutsu_rasteira', 'taijutsu_ascendente', 'taijutsu_lotus', 'taijutsu_portoes',
   'shadow_recuo', 'shadow_estrangular', 'shadow_agarre',
+  // v30, os de sistema próprio (escuridão, controles invertidos, armadilha, canalização, bumerangue)
+  'water_nevoa', 'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma', 'weapons_gigante',
 ] as const;
 
 /** Apaga o que vem da mecânica e não vale para o jutsu novo (undefined apaga o número do fundo). */
@@ -43,6 +45,9 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
   // ------------------------------------------------------------------ Água
   water_dragao: { name: 'Dragão d’Água', class: 'water', tier: 1, form: 'projetil',
     numbers: { ...CLEAN, base: 18, damage: dmg(18, 1), cost: 15, cooldownMs: 1500, range: 8, speed: 12, radius: 0, wet: true } },
+  water_nevoa: { name: 'Ocultação na Névoa', class: 'water', tier: 1, form: 'zona',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 12_000, range: 0, radius: 3,
+      zone: { ms: 4000, kind: 'agua', self: true, dark: true } } },
   water_2: { name: 'Onda de Choque Aquática', class: 'water', tier: 2, form: 'anel_golpe',
     numbers: { ...CLEAN, base: 20, damage: dmg(20, 2), cost: 27, cooldownMs: 6000, radius: 3.5, range: undefined, push: 2, wet: true } },
   water_xarope: { name: 'Xarope Pegajoso', class: 'water', tier: 2, form: 'zona',
@@ -95,6 +100,10 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
   heal_aura: { name: 'Aura de Regeneração', class: 'heal', tier: 1, form: 'zona',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 12_000, range: 0, radius: 2,
       zone: { ms: 3000, kind: 'cura', heal: 4, follow: true, self: true } } },
+  heal_palma: { name: 'Palma Mística', class: 'heal', tier: 1, form: 'palma',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 25, cooldownMs: 8000, range: 1.5, heal: 30, castMs: 2000, castSlow: 0.4 } },
+  heal_disturbio: { name: 'Distúrbio Nervoso', class: 'heal', tier: 2, form: 'alvo',
+    numbers: { ...CLEAN, base: 18, damage: dmg(18, 2), cost: 27, cooldownMs: 14_000, range: 5, invertMs: 1600, castMs: 300 } },
   heal_2: { name: 'Punho Sísmico', class: 'heal', tier: 2, form: 'impacto',
     numbers: { ...CLEAN, base: 26, damage: dmg(26, 2), cost: 27, cooldownMs: 9000, range: 1.5, radius: 1.5, liftMs: 800, castMs: 300, castSlow: 0 } },
   heal_3: { name: 'Regeneração de Área', class: 'heal', tier: 3, form: 'zona',
@@ -111,6 +120,8 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
   weapons_2: { name: 'Lâminas Flutuantes', class: 'weapons', tier: 2, form: 'zona',
     numbers: { ...CLEAN, base: 17.3, damage: dmg(17.3, 2), cost: 14, cooldownMs: 4000, range: 0, radius: 1.5, pvpScale: true,
       zone: { ms: 3000, kind: 'armas', follow: true, self: true, split: 3 } } },
+  weapons_gigante: { name: 'Shuriken Gigante de Chakra', class: 'weapons', tier: 2, form: 'bumerangue',
+    numbers: { ...CLEAN, base: 10.1, damage: dmg(10.1, 2), returnBase: 7.2, returnDamage: dmg(7.2, 2), cost: 14, cooldownMs: 4000, range: 8, speed: 12, radius: 0, castMs: 200, pvpScale: true } },
   weapons_3: { name: 'Corte Relâmpago', class: 'weapons', tier: 3, form: 'investida',
     numbers: { ...CLEAN, base: 20.2, damage: dmg(20.2, 3), cost: 17, cooldownMs: 6000, range: 4, radius: 1, pierce: true, castMs: 200, castSlow: 0, pvpScale: true } },
   weapons_kunai: { name: 'Kunai Explosiva', class: 'weapons', tier: 3, form: 'aviso',
@@ -128,6 +139,8 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 41, cooldownMs: 4600, range: 5, radius: undefined, stunMs: 1600, drain: 10, castMs: 300 } },
   illusion_estaca: { name: 'Estaca da Ilusão', class: 'illusion', tier: 2, form: 'linha',
     numbers: { ...CLEAN, base: 18, damage: dmg(18, 2), cost: 41, cooldownMs: 6000, range: 6, radius: undefined, rootMs: 1600, castMs: 300 } },
+  illusion_noite: { name: 'Noite Eterna', class: 'illusion', tier: 3, form: 'alvo',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 51, cooldownMs: 9000, range: 6, radius: undefined, darkMs: 3000, castMs: 500 } },
   illusion_3: { name: 'Árvore Prendedora', class: 'illusion', tier: 3, form: 'alvo',
     numbers: { ...CLEAN, base: 22, damage: dmg(22, 3), cost: 51, cooldownMs: 9000, range: 5, radius: undefined, rootMs: 1900, strikeDelayMs: 1200, castMs: 600 } },
   illusion_4: { name: 'Laço do Destino', class: 'illusion', tier: 4, form: 'alvo',
@@ -157,6 +170,9 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 8000, range: 3, dash: -3 } },
   shadow_2: { name: 'Costura de Sombra', class: 'shadow', tier: 2, form: 'leque',
     numbers: { ...CLEAN, base: 8, damage: dmg(8, 2), cost: 34, cooldownMs: 6900, range: 5, speed: 14, radius: 0, shots: 3, cap: 1, rootMs: 1300, castMs: 300 } },
+  shadow_armadilha: { name: 'Sombra Oculta', class: 'shadow', tier: 2, form: 'zona',
+    numbers: { ...CLEAN, base: 18, damage: dmg(18, 2), cost: 34, cooldownMs: 10_000, range: 4, radius: 1,
+      zone: { ms: 10_000, tickMs: 200, kind: 'sombra', trap: true, firstRootMs: 1300 } } },
   shadow_estrangular: { name: 'Estrangulamento da Sombra', class: 'shadow', tier: 3, form: 'alvo',
     numbers: { ...CLEAN, base: 16, damage: dmg(16, 3), cost: 43, cooldownMs: 9000, range: 5, needsRooted: true } },
   shadow_3: { name: 'Shuriken de Sombra', class: 'shadow', tier: 3, form: 'projetil',

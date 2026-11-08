@@ -25,7 +25,7 @@ import {
   ACADEMY_JUTSUS, CAST_RULES, CLASSES, CLASS_INFO, EXTRACTION, castSlowOf, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
   BASE_SKILLS, FORM_OF_MECHANIC, type JutsuForm, jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
-import { CC_BUDGET, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
+import { CC_BUDGET, CC_WEIGHT, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
@@ -440,6 +440,8 @@ interface GroundZone {
   /** v30: anda junto com quem lançou; puxa para o centro; prende o 1º que entrar; o golpe do fim. */
   follow?: boolean; pull?: number; firstRootMs?: number; rootedOnce?: boolean;
   endDamage?: number; endStunMs?: number; hit?: HitInfo; endHit?: HitInfo;
+  /** v30: escurece quem está dentro; armadilha (dispara no 1º que pisar e some). */
+  dark?: boolean; trap?: boolean;
 }
 /** Golpe avisado: o círculo aparece no chão e o dano cai em `at` (dá tempo de sair). */
 interface GroundStrike { id: number; map: MapId; x: number; y: number; r: number; ownerId: string; at: number; damage: number; label: string; stunMs: number; hit?: HitInfo; slowMs?: number }
@@ -477,6 +479,7 @@ interface Projectile {
   readonly hit?: HitInfo;
   /** v30: aplica os efeitos do jutsu em quem acertar. */
   readonly extras?: boolean;
+  readonly ret?: { damage: number; hit: HitInfo };
 }
 
 /** Como um projétil sai: o que é, a força e a forma da hitbox. */
@@ -497,6 +500,8 @@ interface LaunchSpec {
   burn?: { amount: number; ms: number };
   /** v30: aplica o que o jutsu faz além do dano (molhado, lentidão, prender...) em quem acertar. */
   extras?: boolean;
+  /** v30: bumerangue: no fim do caminho, volta para quem lançou com este golpe. */
+  ret?: { damage: number; hit: HitInfo };
   /** De onde sai (Kunais: as trilhas dos lados); sem isto, do dono. */
   from?: Point;
   hit?: HitInfo;
@@ -1686,6 +1691,13 @@ export class GameWorld {
       this.cancelCast(session, t, 'cancel');
     }
     if (castMs > 0 && !resolving) {
+      // v30: o que não pode sair (ninguém no alcance, vida cheia) avisa antes dos selos, não depois
+      const early = JUTSU_BY_CODE.get(skill)?.form;
+      if (early === 'alvo' || early === 'palma') {
+        const tg = this.targetsFor(session, true);
+        const v = this.v2Hitbox(session, early, cfg, { x: session.x, y: session.y }, session.fx, session.fy, undefined, tg, targetId, cfg.range ?? cfg.radius ?? 0, t);
+        if (v.fail) return fail(v.fail);
+      }
       session.casting = { skill, until: t + castMs, ...(targetId !== undefined ? { targetId } : {}), ...(dir ? { dir } : {}), slow: castSlowOf(cfg), cost: price.cost };
       session.dx = 0;
       session.dy = 0;
@@ -2078,6 +2090,7 @@ export class GameWorld {
   spawnZone(owner: Session, z: {
     x: number; y: number; r: number; kind: GroundZone['kind']; ms: number; tickMs?: number; damage?: number; slowMs?: number; heal?: number; label?: string;
     follow?: boolean; pull?: number; firstRootMs?: number; endDamage?: number; endStunMs?: number; hit?: HitInfo; endHit?: HitInfo;
+    dark?: boolean; trap?: boolean;
   }, t: number = this.now()): number {
     const id = ++this.groundSeq;
     const tickMs = z.tickMs ?? 1000;
@@ -2087,6 +2100,7 @@ export class GameWorld {
       ...(z.follow ? { follow: true } : {}), ...(z.pull ? { pull: z.pull } : {}), ...(z.firstRootMs ? { firstRootMs: z.firstRootMs } : {}),
       ...(z.endDamage ? { endDamage: z.endDamage } : {}), ...(z.endStunMs ? { endStunMs: z.endStunMs } : {}),
       ...(z.hit ? { hit: z.hit } : {}), ...(z.endHit ? { endHit: z.endHit } : {}),
+      ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}),
     });
     this.broadcastMap(owner.map, { type: 'ground', id, kind: z.kind, x: round2(z.x), y: round2(z.y), r: z.r, ms: z.ms, ...(z.label ? { skill: z.label } : {}), ...(z.follow ? { follow: owner.id } : {}) });
     return id;
@@ -2123,13 +2137,23 @@ export class GameWorld {
       // v30: o 1º inimigo que entrar fica preso (olhado a cada tick do mundo, não só no pulso)
       if (z.firstRootMs && !z.rootedOnce) {
         const first = this.targetsFor(owner).find((x) => inside(x, z));
-        if (first) { z.rootedOnce = true; this.applyStatus(first, 'rooted', z.firstRootMs, t, owner); }
+        if (first) {
+          z.rootedOnce = true;
+          // armadilha: o golpe é de quem pisou, e ela some
+          if (z.trap) {
+            if (z.endDamage) this.hitTarget(first, z.endDamage, owner, t, 'skill', z.label, z.endHit);
+            delete z.endDamage;
+            z.until = t;
+          }
+          if (this.stillThere(first)) this.applyStatus(first, 'rooted', z.firstRootMs, t, owner);
+        }
       }
       if (t < z.next) continue;
       z.next += z.tickMs;
-      if (z.damage > 0 || z.slowMs > 0 || z.pull) {
+      if (z.damage > 0 || z.slowMs > 0 || z.pull || z.dark) {
         for (const x of this.targetsFor(owner)) {
           if (!inside(x, z)) continue;
+          if (z.dark && x.kind === 'player') this.applyEffect(x, 'escuridao', t, z.tickMs + 150, undefined, owner);
           if (z.damage > 0) this.hitTarget(x, z.damage, owner, t, 'skill', z.label, z.hit);
           if (z.slowMs > 0 && this.stillThere(x)) this.applyEffect(x, 'lentidao', t, z.slowMs, undefined, owner);
           if (z.pull && this.stillThere(x)) this.pullToCenter(x, owner, z, z.pull, t);
@@ -2204,7 +2228,7 @@ export class GameWorld {
   private applyEffect(x: Target, code: EffectCode, t: number, ms?: number, amount?: number, source?: Session): void {
     // Rankeado: fora da rodada ninguém ganha efeito (a Bola de Fogo que fecha a rodada queimava depois do golpe).
     if (x.kind === 'player' && this.layout(x.session.map).ranked && !(this.duel?.phase === 'round' && sideOf(this.duel, x.id))) return;
-    if (x.kind === 'player' && (code === 'sono' || code === 'silencio')) {
+    if (x.kind === 'player' && (code === 'sono' || code === 'silencio' || code === 'invertido')) {
       ms = this.ccGate(x.session, source, code, ms ?? EFFECTS[code].defaultMs, t);
       if (ms <= 0) return;
     }
@@ -2353,6 +2377,14 @@ export class GameWorld {
         if (distance(o, dashTo) < 0.3) return { hits: [], fail: 'BLOCKED' };
         return { hits: [], dashTo };
       }
+      case 'palma': {
+        // canalização: o aliado ferido colado (o focado primeiro); sem ninguém, em si (pela metade); vida cheia: não sai
+        const hurt = (p: Session) => !p.dead && !p.closed && p.hp < p.stats.maxHp;
+        const allies = [...(this.mapPlayers.get(s.map) ?? [])].filter((p) => p !== s && hurt(p) && !this.canHurt(s, p, t) && distance(o, p) <= reach);
+        const ally = allies.find((p) => p.id === targetId) ?? allies.sort((a, b) => a.hp / a.stats.maxHp - b.hp / b.stats.maxHp)[0];
+        if (!ally && !hurt(s)) return { hits: [], fail: 'FULL_HP' };
+        return ally ? { hits: [{ kind: 'player', id: ally.id, x: ally.x, y: ally.y, session: ally }], to: { x: ally.x, y: ally.y } } : { hits: [] };
+      }
       case 'zona': case 'aviso': {
         // sem foco, procura o inimigo mais perto no alcance (Água, Terra e Ilusão não miram em linha); ninguém: à frente
         const z = cfg.zone;
@@ -2429,16 +2461,17 @@ export class GameWorld {
         const z = cfg.zone;
         if (!z || !to) break;
         const pulses = Math.max(1, z.split ?? 1);
-        const [tickDmg, tickHit] = z.endHit ? [0, hit] : scaled(1 / pulses);
+        const [tickDmg, tickHit] = z.endHit || z.trap ? [0, hit] : scaled(1 / pulses);
         this.spawnZone(s, {
           // +1 ms: o último pulso cai no fim (zona de 2 s com pulso a cada 1 s = 2 pulsos, não 1)
           x: to.x, y: to.y, r: cfg.radius ?? 2, kind: z.kind, ms: z.ms + 1, ...(z.tickMs ? { tickMs: z.tickMs } : {}), label: skill,
-          ...(dmg > 0 && !z.endHit ? { damage: tickDmg, hit: tickHit } : {}),
+          ...(dmg > 0 && !z.endHit && !z.trap ? { damage: tickDmg, hit: tickHit } : {}),
           ...(z.slow ? { slowMs: 1100 } : {}),
           // cura no PvP com o fator x0,5 (docs/jutsus-v2.md, seção 2)
           ...(z.heal ? { heal: Math.max(1, Math.round(z.heal * (pvp ? 0.5 : 1))) } : {}),
           ...(z.follow ? { follow: true } : {}), ...(z.pull ? { pull: z.pull } : {}), ...(z.firstRootMs ? { firstRootMs: z.firstRootMs } : {}),
-          ...(z.endHit && dmg > 0 ? { endDamage: dmg, endHit: hit } : {}), ...(z.endStunMs ? { endStunMs: z.endStunMs } : {}),
+          ...((z.endHit || z.trap) && dmg > 0 ? { endDamage: dmg, endHit: hit } : {}), ...(z.endStunMs ? { endStunMs: z.endStunMs } : {}),
+          ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}),
         }, t);
         break;
       }
@@ -2451,6 +2484,19 @@ export class GameWorld {
             ...(cfg.stunMs ? { stunMs: cfg.stunMs } : {}), ...(cfg.slowMs && i === waves - 1 ? { slowMs: cfg.slowMs } : {}),
           }, t);
         }
+        break;
+      }
+      case 'palma': {
+        const k = pvp ? 0.5 : 1;
+        const ally = hits[0];
+        if (ally && ally.kind === 'player') this.healPlayer(ally.session, Math.round((cfg.heal ?? 30) * k), t);
+        else this.healPlayer(s, Math.round((cfg.heal ?? 30) * 0.5 * k), t);
+        break;
+      }
+      case 'bumerangue': {
+        // a ida atravessa todos; no fim do caminho volta para a mão (outro golpe em cada um)
+        const back = cfg.returnDamage ? { damage: Math.round(dmg * cfg.returnDamage / Math.max(1, cfg.damage ?? 1)), hit: { ...hit, base: cfg.returnBase ?? hit.base, weapon: hit.weapon * 0.4 } } : undefined;
+        this.launch(s, fx, fy, { skill, speed: cfg.speed ?? 12, range: cfg.range ?? 8, damage: dmg, radius: 0, volley: new Set(), pierce: true, hit: { ...hit, weapon: hit.weapon * 0.6 }, ...(back ? { ret: back } : {}) });
         break;
       }
       case 'limpeza': {
@@ -2478,6 +2524,8 @@ export class GameWorld {
     if (stun && this.stillThere(x)) this.applyStatus(x, 'stunned', stun, t, by);
     if (cfg.paralysisMs && this.stillThere(x)) this.applyEffect(x, 'paralisia', t, cfg.paralysisMs, undefined, by);
     if (cfg.silenceMs && this.stillThere(x)) this.applyEffect(x, 'silencio', t, cfg.silenceMs, undefined, by);
+    if (cfg.darkMs && x.kind === 'player' && this.stillThere(x)) this.applyEffect(x, 'escuridao', t, cfg.darkMs, undefined, by);
+    if (cfg.invertMs && x.kind === 'player' && this.stillThere(x)) this.applyEffect(x, 'invertido', t, cfg.invertMs, undefined, by);
     if (cfg.drain && x.kind === 'player') {
       const got = Math.min(cfg.drain, x.session.chakra);
       x.session.chakra -= got;
@@ -2550,7 +2598,7 @@ export class GameWorld {
     if (!source || source === victim) return ms;
     victim.ccLog = victim.ccLog.filter((e) => e.until > t - CC_BUDGET.windowMs);
     const got = ccAllow(victim.ccLog, t, kind, ms);
-    if (got > 0) victim.ccLog.push({ kind, startedAt: t, until: t + got, weight: kind === 'silencio' ? 0.5 : 1, sourceId: source.id });
+    if (got > 0) victim.ccLog.push({ kind, startedAt: t, until: t + got, weight: CC_WEIGHT[kind], sourceId: source.id });   // v30: o peso da tabela (o choque pesa metade)
     return got;
   }
 
@@ -2612,6 +2660,7 @@ export class GameWorld {
       ...(spec.burn ? { burn: spec.burn } : {}),
       ...(spec.hit ? { hit: spec.hit } : {}),
       ...(spec.extras ? { extras: true } : {}),
+      ...(spec.ret ? { ret: spec.ret } : {}),
     };
     this.projectiles.push(p);
     this.broadcastMap(owner.map, {
@@ -2643,6 +2692,16 @@ export class GameWorld {
       }
       if (!wall && p.left > 1e-9) return false;
       this.impact(p, end, undefined, t);
+      // v30: bumerangue: volta para a mão de quem lançou (atravessando de novo)
+      if (p.ret && !p.owner.closed && !p.owner.dead && p.owner.map === p.map) {
+        const back = Math.hypot(p.owner.x - end.x, p.owner.y - end.y);
+        if (back > 0.3) {
+          this.launch(p.owner, p.owner.x - end.x, p.owner.y - end.y, {
+            ...(p.skill ? { skill: p.skill } : {}), speed: p.speed, range: back, damage: p.ret.damage, radius: 0, volley: new Set(),
+            pierce: true, hit: p.ret.hit, from: { x: end.x, y: end.y },
+          });
+        }
+      }
       return true;
     }
     const first = firstOnLine(from, end, fresh, p.hitRadius);

@@ -16,7 +16,7 @@
  * de controle no PvP). Funções puras aqui; o mundo (gameWorld.ts) avisa todos e aplica dano, cura e bloqueios.
  */
 
-export const EFFECT_CODES = ['molhado', 'queimadura', 'regeneracao', 'silencio', 'sono', 'ferida', 'lentidao', 'paralisia'] as const;
+export const EFFECT_CODES = ['molhado', 'queimadura', 'regeneracao', 'silencio', 'sono', 'ferida', 'lentidao', 'paralisia', 'escuridao', 'invertido'] as const;
 export type EffectCode = (typeof EFFECT_CODES)[number];
 
 export interface EffectRule {
@@ -49,6 +49,9 @@ export const EFFECTS: Readonly<Record<EffectCode, EffectRule>> = {
   ferida: { name: 'Ferida', icon: '🩸', kind: 'debuff', defaultMs: 6000, healTaken: 0.5 },
   lentidao: { name: 'Lentidão', icon: '🐌', kind: 'debuff', defaultMs: 3000, speed: 0.6 },
   paralisia: { name: 'Paralisia', icon: '💫', kind: 'cc', defaultMs: 2000, amount: 250, speed: 0.7, tick: { everyMs: 1000, kind: 'stun' } },
+  // v30: escuridão (a tela escurece em volta, vê ~2 casas; sem tirar a interface) e controles invertidos (anda ao contrário)
+  escuridao: { name: 'Escuridão', icon: '🌑', kind: 'debuff', defaultMs: 3000 },
+  invertido: { name: 'Embaralhado', icon: '🔀', kind: 'cc', defaultMs: 1600 },
 };
 
 /** Combo Água + Relâmpago: o choque num alvo molhado bate 30% mais forte (e seca o alvo). */

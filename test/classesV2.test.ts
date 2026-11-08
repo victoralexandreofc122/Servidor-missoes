@@ -57,9 +57,9 @@ function scene(skill: string, monsters: [number, number][] = [[2, 0]], pvp = fal
 }
 
 describe('Jutsus v2, entrega 5: as outras classes', () => {
-  it('catálogo: 72 jutsus; 27 códigos novos; toda classe tem os 4 tiers e o tier 1 de sempre', () => {
-    assert.equal(JUTSUS.length, 72);
-    assert.equal(CLASS_V2_CODES.length, 27);
+  it('catálogo: 78 jutsus; 33 códigos novos; toda classe tem os 4 tiers e o tier 1 de sempre', () => {
+    assert.equal(JUTSUS.length, 78);
+    assert.equal(CLASS_V2_CODES.length, 33);
     for (const c of CLASSES) {
       const tiers = new Set(JUTSUS.filter((j) => j.class === c).map((j) => j.tier));
       assert.deepEqual([...tiers].sort(), [1, 2, 3, 4], c);
@@ -268,5 +268,79 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     const cuts = a.conn.of('hit').filter((h: any) => h.target === 'monster' && h.id === m.id && h.kind === 'damage');
     assert.equal(cuts.length, 8, '8 cortes');
     assert.equal(dealt(m), cuts.reduce((t: number, h: any) => t + h.amount, 0));
+  });
+
+  // ---------------------------------------------------------------- os de sistema próprio (v30)
+
+  it('escuridão no alvo (Noite Eterna): o ninja fica no escuro 3 s', () => {
+    const w = scene('illusion_noite', [], true);
+    const b = w.connect('mei');
+    const sb = w.world.sessions.get(b.id);
+    Object.assign(sb, { tutorial: 4 });
+    placeIn(w.world, b.id, 'map_2', w.row.x + 3, w.row.y);
+    w.cast();
+    assert.ok(sb.effects.has('escuridao'));
+    assert.equal(b.conn.last('effect').effect, 'escuridao');
+  });
+
+  it('zona que escurece (Ocultação na Névoa): quem entra fica no escuro; quem lançou, não', () => {
+    const w = scene('water_nevoa', [], true);
+    const b = w.connect('mei');
+    const sb = w.world.sessions.get(b.id);
+    Object.assign(sb, { tutorial: 4 });
+    placeIn(w.world, b.id, 'map_2', w.row.x + 2, w.row.y);
+    w.cast();
+    w.run(1100);
+    assert.ok(sb.effects.has('escuridao'), 'o inimigo dentro');
+    assert.equal(w.s.effects.has('escuridao'), false, 'quem lançou enxerga');
+  });
+
+  it('controles invertidos (Distúrbio Nervoso): efeito embaralhado no ninja, dentro do orçamento de controle', () => {
+    const w = scene('heal_disturbio', [], true);
+    const b = w.connect('mei');
+    const sb = w.world.sessions.get(b.id);
+    Object.assign(sb, { tutorial: 4 });
+    placeIn(w.world, b.id, 'map_2', w.row.x + 3, w.row.y);
+    w.cast();
+    assert.ok(sb.effects.has('invertido'));
+    assert.equal(sb.ccLog.at(-1).kind, 'invertido');
+  });
+
+  it('armadilha (Sombra Oculta): fica no chão; o 1º que pisar leva o golpe, fica preso e ela some', () => {
+    const { m, cast, run, dealt, clock, a, row } = scene('shadow_armadilha', [[8, 0]]);
+    a.send({ type: 'cast', skill: 'shadow_armadilha' });
+    run(400);
+    assert.equal(dealt(m), 0, 'longe: nada');
+    m.x = a.conn.last('ground').x;                                     // pisou
+    m.y = a.conn.last('ground').y;
+    run(250);
+    assert.equal(dealt(m), SK.shadow_armadilha.damage);
+    assert.ok(m.rootedUntil > clock.now(), 'preso');
+    run(300);
+    assert.ok(a.conn.last('ground_end'), 'sumiu');
+    void cast; void row;
+  });
+
+  it('canalização (Palma Mística): 2 s de selos andando devagar; cura o aliado colado ou a si pela metade; vida cheia não sai', () => {
+    const { s, a, run } = scene('heal_palma', []);
+    a.send({ type: 'cast', skill: 'heal_palma' });
+    assert.equal(a.conn.last('cast_failed').reason, 'FULL_HP');
+    s.hp = s.stats.maxHp - 40;
+    s.cooldowns = {};
+    a.send({ type: 'cast', skill: 'heal_palma' });
+    assert.equal(a.conn.last('cast_start').ms, 2000);
+    run(1900);
+    assert.equal(s.hp, s.stats.maxHp - 40, 'ainda canalizando');
+    run(200);
+    assert.equal(s.hp, s.stats.maxHp - 40 + 15, 'em si: metade de 30');
+  });
+
+  it('bumerangue (Shuriken Gigante de Chakra): atravessa na ida e acerta de novo na volta', () => {
+    const { m, cast, run, a } = scene('weapons_gigante', [[3, 0]]);
+    cast();
+    run(2500);
+    const hits = a.conn.of('hit').filter((h: any) => h.target === 'monster' && h.id === m.id && h.kind === 'damage');
+    assert.equal(hits.length, 2, 'ida e volta');
+    assert.ok(hits[1].amount < hits[0].amount, 'a volta bate menos');
   });
 });

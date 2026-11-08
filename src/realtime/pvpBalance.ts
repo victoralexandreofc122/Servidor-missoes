@@ -93,9 +93,9 @@ export function pvpCostCooldown(mechanic: string, cost: number, cooldownMs: numb
  */
 // v30 (pedido do Victor: o controle estava quase nulo): 2,5 s por golpe e 5 s a cada 15 s (eram 1,5 s e 2,5 s).
 export const CC_BUDGET = { perApplyMs: 2500, windowMs: 15_000, maxMs: 5000, minMs: 200 } as const;
-export type CcKind = 'stunned' | 'rooted' | 'sono' | 'shock' | 'silencio';
+export type CcKind = 'stunned' | 'rooted' | 'sono' | 'shock' | 'silencio' | 'invertido';
 // v30: o choque da paralisia pesa metade (cada choque de 0,25 s comia o orçamento inteiro de quem levou um Relâmpago).
-export const CC_WEIGHT: Readonly<Record<CcKind, number>> = { stunned: 1, rooted: 1, sono: 1, shock: 0.5, silencio: 0.5 };
+export const CC_WEIGHT: Readonly<Record<CcKind, number>> = { stunned: 1, rooted: 1, sono: 1, shock: 0.5, silencio: 0.5, invertido: 1 };
 
 export interface CcEntry {
   kind: CcKind;

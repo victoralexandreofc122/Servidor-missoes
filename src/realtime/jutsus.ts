@@ -68,7 +68,9 @@ export type JutsuForm =
   | 'cura_tempo'      // cura ao longo do tempo em si (Regeneração Mitótica)
   | 'impacto'         // soco colado: o alvo leva tudo, quem está em volta metade (Punho Sísmico)
   | 'ricochete'       // linha que salta para o próximo alvo (Lança Saltadora)
-  | 'agarre';         // linha que prende vários alvos (Agarre Múltiplo)
+  | 'agarre'          // linha que prende vários alvos (Agarre Múltiplo)
+  | 'palma'           // canalização: cura o aliado colado (ou a si, pela metade) no fim (Palma Mística)
+  | 'bumerangue';     // projétil que vai, atravessa e volta para a mão (Shuriken Gigante de Chakra)
 
 export const FORM_OF_MECHANIC: Readonly<Record<Mechanic, JutsuForm>> = {
   fire: 'linha_explode', water: 'cone', taijutsu: 'avanco', illusion: 'anel', shadow: 'linha_prende', stone: 'escudo',

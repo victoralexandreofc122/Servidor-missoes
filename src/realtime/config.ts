@@ -93,11 +93,19 @@ export interface SkillConfig {
   hpCost?: number;
   /** Sai mesmo em silêncio (Dissipação). */
   ignoresSilence?: boolean;
+  /** v30: escuridão no alvo (Noite Eterna) / controles invertidos (Distúrbio Nervoso), em ms. */
+  darkMs?: number;
+  invertMs?: number;
+  /** v30: bumerangue: o dano da volta (a ida é `damage`). */
+  returnDamage?: number;
+  returnBase?: number;
   /** Zona no chão: dura `ms`; `split` = em quantos pulsos o dano do jutsu se divide; `endHit` = o dano cai no fim. */
   zone?: {
     ms: number; tickMs?: number; kind: 'fogo' | 'lama' | 'cura' | 'agua' | 'sombra' | 'ilusao' | 'armas';
     slow?: boolean; heal?: number; follow?: boolean; self?: boolean; pull?: number; split?: number;
     endHit?: boolean; endStunMs?: number; firstRootMs?: number;
+    /** v30: escurece quem está dentro (Ocultação na Névoa); armadilha: dispara no 1º que pisar e some. */
+    dark?: boolean; trap?: boolean;
   };
 }
 

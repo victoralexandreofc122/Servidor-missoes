@@ -1053,7 +1053,7 @@ function handleMessage(msg) {
       else if (form === 'anel_golpe') state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: info.radius ?? 2, color, start: now });
       else if (form === 'impacto' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_ring', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: info.radius ?? 1.5, color, start: now });
       else if (form === 'alvo' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_burst', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: 0.9, color, start: now });
-      else if (['zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque'].includes(form) && fxKind !== 'fire' && fxKind !== 'weapons') {
+      else if (['zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque', 'palma'].includes(form) && fxKind !== 'fire' && fxKind !== 'weapons') {
         // o efeito vem da zona, do aviso, do projétil ou do avanço; só um brilho em quem lançou
         state.effects.push({ skill: 'jutsu_burst', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 0.6, color, start: now });
       }
@@ -5168,7 +5168,9 @@ function update(dt) {
   if (me && predWorld) {
     // Próprio jogador: predição (anda já) + envio das entradas em lote + correção suave.
     const canMove = state.connected && !state.me.dead;
-    const dx = quantize(dir.x), dy = quantize(dir.y);
+    // v30: controles invertidos (Distúrbio Nervoso): anda ao contrário enquanto durar
+    const inv = me.fx?.invertido > now ? -1 : 1;
+    const dx = quantize(dir.x) * inv, dy = quantize(dir.y) * inv;
     const s = speed * debugSpeedFactor;
     for (const msg of pred.advance(dt * 1000, dx, dy, s, predWorld, canMove)) send(msg);
     const [vx, vy] = pred.view(dt * 1000, dx, dy, s, predWorld, canMove);
@@ -5303,6 +5305,20 @@ function updateCamera(dt, me) {
   cam.ox += (want.ox - cam.ox) * k;
   cam.oy += (want.oy - cam.oy) * k;
   cam.scale += (want.scale - cam.scale) * k;
+}
+
+/** v30: no escuro, a tela fica preta em volta de você e só se vê ~2 casas (a interface continua). */
+function drawDarkness(me, toScreenX, toScreenY, T, now) {
+  if (!me || !(me.fx?.escuridao > now)) return;
+  const x = toScreenX(me.x), y = toScreenY(me.y);
+  const w = ctx.canvas.width / dpr, h = ctx.canvas.height / dpr;
+  const g = ctx.createRadialGradient(x, y, T * 1.2, x, y, T * 2.6);
+  g.addColorStop(0, 'rgba(4, 4, 12, 0)');
+  g.addColorStop(1, 'rgba(4, 4, 12, 0.94)');
+  ctx.save();
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
 }
 
 /** v29: a barra de selos grande, perto dos botões (só para quem conjura). */
@@ -5454,6 +5470,7 @@ function draw(now) {
   }
 
   for (const fx of state.effects) if (!GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
+  drawDarkness(me, toScreenX, toScreenY, T, now);     // v30: escuridão (Ocultação na Névoa, Noite Eterna)
   vfx.draw(ctx, 'top', toScreenX, toScreenY, T, dpr, now);
 
   // Por cima de todos: o telhado do portão (quem passa por baixo fica escondido por ele).
