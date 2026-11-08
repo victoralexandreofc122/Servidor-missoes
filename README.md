@@ -215,6 +215,18 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+## Continuar em outra janela (estado em 8/11/2026)
+
+- **Relatório completo** (versão final, progresso, pendências e como continuar): `docs/relatorio-final-e-progresso-2026-11.md`
+  e o PDF `docs/relatorio-final-e-progresso-2026-11.pdf`.
+- **Versão publicada:** v29 (`main`). **Trabalho em andamento:** branch `jutsus-v2`.
+- **Jutsus v2, onde parou:** entregas 0 e 1 prontas e verificadas. A entrega 2 (Fogo com 7 jutsus novos) está em
+  `revisao_egm/jutsus/entrega2-em-andamento.patch`; falta atualizar os testes que mudaram de propósito, a migração v16
+  (`INSERT ... ON CONFLICT` dos jutsus novos em `game.jutsus`) e o desenho no cliente.
+- **Conjuração:** tempos e interrupção definidos (`revisao_egm/jutsus/conjuracao_*.md`); o servidor já tem o campo de
+  conjuração e a interrupção por controle, falta ligar aos jutsus da entrega 2 e desenhar a barra.
+- **Antes de qualquer commit:** `npm run verify` (556 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
+
 ### v29: modo rankeado (migração v15, `db/schema_v15_rankeado.sql`)
 
 - **Vale das Estátuas:** botão **Rankeado** no menu (lá vira **Voltar**). Mapa comum a todas as vilas: arena fechada no

@@ -18,7 +18,9 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   `public/figure.js` cache e giro). Detalhes em `arte/personagem-rig/LEIAME.md`. O estilo segue a folha de referência
   do Victor (chibi, contorno escuro, sombreado em 2-3 tons). Toda mudança de arte é comparada lado a lado com a
   referência e conferida dentro do jogo antes de fechar.
-- **Versão atual:** v29 (modo rankeado no Vale das Estátuas, migração v15). Histórico completo no `README.md`.
+- **Versão atual:** v29 (modo rankeado no Vale das Estátuas, migração v15), publicada na `main`. Em andamento: Jutsus
+  v2 no branch `jutsus-v2` (entregas 0 e 1 prontas; entrega 2 em `revisao_egm/jutsus/entrega2-em-andamento.patch`).
+  Histórico completo no `README.md`; relatório de progresso em `docs/relatorio-final-e-progresso-2026-11.md`.
 
 ## Documentos
 
@@ -31,12 +33,13 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 
 ## Próximas entregas
 
-1. PvP na frente de tudo (decisão do Victor, 2026-11-01): duelo 1x1 equilibrado, plano em `concepts_brief.md`
-   (branch `brainstorm-pvp-invocacoes`). A ordem é revista no critério de pronto do duelo ou em 15/12/2026.
-2. Cabeça (rosto e cabelo) desenhada à mão em pixel art: o Victor reprovou o rosto e o cabelo gerados por formas 3D.
-3. Site no Floot (páginas, login com a conta do jogo, admin, notificações).
-4. Salas com imagem: aguardando as imagens do Victor (Areia, Alfaiataria, Academia, Caverna, Clareira, Refúgio).
-5. Arco 1 jogável (sistema de história), depois o social (grupo, amigos, sensei).
+1. Jutsus v2 (decisão do Victor, 03/11): todos os jutsus do PDF adaptados (`docs/jutsus-v2.md`,
+   `revisao_egm/jutsus/`). Entrega 2 (Fogo novo) com migração v16; depois clã Uchiha (v17) e uma classe por vez.
+2. Rankeado, polimento (`revisao_egm/rankeado/`): arquibancada em degraus, estátua, selo de faixa, aviso de próximo.
+3. Cabeça (rosto e cabelo) desenhada à mão em pixel art: o Victor reprovou o rosto e o cabelo gerados por formas 3D.
+4. Site no Floot (páginas, login com a conta do jogo, admin, notificações).
+5. Salas com imagem: aguardando as imagens do Victor (Areia, Alfaiataria, Academia, Caverna, Clareira, Refúgio).
+6. Arco 1 jogável (sistema de história), depois o social (grupo, amigos, sensei).
 
 ## Como trabalhar
 
