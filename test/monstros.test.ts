@@ -30,7 +30,7 @@ const TYPES = REALTIME.combat.monsterTypes;
 
 describe('sprites dos monstros', () => {
   it('um atlas por monstro de caça (e o chefe), servido como image/webp; nenhum a mais', () => {
-    const fighters = [REALTIME.combat.monsters.type, ...Object.keys(TYPES)].filter((t) => t !== 'dummy' && t !== 'sparring');
+    const fighters = [REALTIME.combat.monsters.type, ...Object.keys(TYPES)].filter((t) => t !== 'dummy' && t !== 'sparring' && t !== 'golem' && t !== 'clone_agua');   // v30: invocações desenhadas por código
     assert.deepEqual(Object.keys(art).sort(), [...new Set(fighters)].sort());
     assert.deepEqual([...MONSTER_ART_TYPES].sort(), Object.keys(art).sort());
     const files = loadPublicFiles();

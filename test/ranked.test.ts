@@ -26,7 +26,7 @@ function world() {
   return { ...w, join };
 }
 
-describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
+describe('modo rankeado (v29): Vale dos Guardiões, fila e partida', () => {
   it('Rankeado leva ao Vale (de qualquer vila); Sair volta para onde estava', () => {
     const { world: w, join } = world();
     const a = join('kaito', 'vila_3');
@@ -207,6 +207,49 @@ describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
     assert.equal(session(w.world, b.id).x, VALE.start.b.x);
     w.run(DUEL.reconnectMs);
     assert.equal(a.conn.last('duel_state').phase, 'round', 'não virou W.O.');
+  });
+
+  it('bug da rodada 2: a queimadura que sobra da rodada 1 não mata no intervalo; os dois começam a rodada 2 vivos e agindo', () => {
+    const { world: w, join, run } = world();
+    const a = join('kaito');
+    const b = join('mei', 'vila_3');
+    for (const p of [a, b]) { p.send({ type: 'ranked', action: 'enter' }); p.send({ type: 'ranked', action: 'queue' }); }
+    run(REALTIME.tickMs + DUEL.prepMs);
+    const sa = session(w, a.id), sb = session(w, b.id);
+    // o último golpe da rodada 1 deixa a vítima queimando (Bola de Fogo) e zera a vida dela
+    (w as any).applyEffect({ kind: 'player', id: b.id, x: sb.x, y: sb.y, session: sb }, 'queimadura', (w as any).now(), 3000, 3, sa);
+    sa.x = sb.x - 1; sa.y = sb.y; Object.assign(sa, { fx: 1, fy: 0 }); sa.cooldowns = {};
+    sb.hp = 1;
+    a.send({ type: 'attack', targetId: b.id });
+    assert.equal(a.conn.last('duel_state').phase, 'interval');
+    assert.equal(sb.effects.size, 0, 'a queimadura acabou junto com a rodada');
+    (w as any).applyEffect({ kind: 'player', id: b.id, x: sb.x, y: sb.y, session: sb }, 'queimadura', (w as any).now(), 3000, 3, sa);
+    assert.equal(sb.effects.size, 0, 'no intervalo ninguém ganha efeito (a Bola de Fogo queima depois do golpe)');
+    run(DUEL.intervalMs - 100);
+    assert.equal(b.conn.of('player_died').length, 0, 'morreu de queimadura no intervalo');
+    assert.equal(sb.dead, false);
+    run(200);
+    assert.equal(a.conn.last('duel_state').phase, 'round');
+    assert.deepEqual([sb.dead, sb.hp, sb.effects.size], [false, sb.stats.maxHp, 0]);
+    // a vítima age na rodada 2: anda e bate
+    sb.x = sa.x + 1; sb.y = sa.y; Object.assign(sb, { fx: -1, fy: 0 }); sb.cooldowns = {};
+    const hpA = sa.hp;
+    b.send({ type: 'attack', targetId: a.id });
+    assert.ok(sa.hp < hpA, 'a vítima da rodada 1 não consegue bater na rodada 2');
+  });
+
+  it('se alguém morreu de verdade fora da rodada, a rodada seguinte revive avisando o cliente (player_respawned)', () => {
+    const { world: w, join, run } = world();
+    const a = join('kaito');
+    const b = join('mei', 'vila_3');
+    for (const p of [a, b]) { p.send({ type: 'ranked', action: 'enter' }); p.send({ type: 'ranked', action: 'queue' }); }
+    run(REALTIME.tickMs);
+    const sb = session(w, b.id);
+    Object.assign(sb, { dead: true, hp: 0 });
+    run(DUEL.prepMs + REALTIME.tickMs);
+    assert.equal(a.conn.last('duel_state').phase, 'round');
+    assert.equal(sb.dead, false);
+    assert.equal(b.conn.last('player_respawned')?.playerId, b.id, 'o cliente ficaria na tela de derrota');
   });
 
   it('a chegada no Vale espalha os ninjas pela praça', () => {

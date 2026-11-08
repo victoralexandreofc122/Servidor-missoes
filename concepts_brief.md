@@ -28,7 +28,7 @@
   coisas novas, sem apagar nada.
 * **Casa:** um quadrado do mapa (o ninja ocupa 1 casa).
 * **Kit:** o conjunto de até 4 jutsus que o ninja leva para lutar. Cada ninja monta 2 kits (A e B) e troca entre eles.
-* **Área de PvP:** lugar onde jogador acerta jogador: as 2 áreas do Vale das Estátuas, a arena de cada vila (uma área
+* **Área de PvP:** lugar onde jogador acerta jogador: as 2 áreas do Vale dos Guardiões, a arena de cada vila (uma área
   cercada dentro do mapa da vila) e a Zona de Conflito.
 * **Fator de dano:** o número que multiplica o dano base (jutsus 0,4; Ataque Básico e arma 0,5). Não confundir com o
   fator do novato (MMR, Decisão 2).
@@ -171,7 +171,7 @@ prévia (ver Decisão 2).
   aumenta o risco de quebrar o resto.
 
 Proposta: um arquivo próprio para o duelo (`src/realtime/duel.ts`) com as etapas da partida e testes; o
-`gameWorld.ts` só hospeda a luta. O mapa é o **Vale das Estátuas**, pequeno e fixo, com **2 áreas de duelo lado a
+`gameWorld.ts` só hospeda a luta. O mapa é o **Vale dos Guardiões**, pequeno e fixo, com **2 áreas de duelo lado a
 lado** (2 duelos ao mesmo tempo, no máximo). Ver "Como funciona por dentro".
 
 ### 6. O MMR de hoje não serve para o duelo
@@ -233,7 +233,7 @@ vez, e depois vence quem causou mais dano na partida.
   testadores. Um **bot de duelo** ajuda no treino, mas não é barato: monstro não usa jutsu de jogador, então o bot
   precisa ser um "ninja sem conexão". Fica para depois da noite de duelo; o equilíbrio é medido pelo simulador.
 - Nomes da série original (Vale do Fim, contratos de sapo, Grande Invocação) aumentam o risco de problema com a marca,
-  ainda mais com cosméticos pagos. Usamos nomes próprios desde já: **Vale das Estátuas**.
+  ainda mais com cosméticos pagos. Usamos nomes próprios desde já: **Vale dos Guardiões**.
 
 ## Objetivos e fora do escopo (Goals vs. Non-Goals)
 
@@ -369,7 +369,7 @@ uso 4, 59 pontos no atributo; "contra jogador" já com a curva achatada do PvP).
      Maior parte da vida tirada em 2 s: 44%. Vitórias: Meio a meio e Taijutsu vencem 3 das 4 outras; Armas e Tanque,
      1; Ninjutsu, 0. O simulador não conta a distância: o Ninjutsu bate de longe e o Taijutsu precisa chegar perto.
 7. **Duelo por desafio:** o botão "Desafiar" e o aceite, entre quaisquer vilas, para ninjas a partir do nível 20 (com
-   classe), melhor de 3, no Vale das Estátuas, com as regras da seção "Como funciona por dentro".
+   classe), melhor de 3, no Vale dos Guardiões, com as regras da seção "Como funciona por dentro".
 8. **Regras do duelo como um perfil** (`DuelRules`), lido pelo combate, e não como `if` espalhado:
 
    | Regra | No duelo | Onde é lida |
@@ -443,7 +443,7 @@ Caminho de uma partida:
 | Tabela de equilíbrio | `src/realtime/pvpBalance.ts` (novo) | Curva, nível de uso, custo e recarga, orçamento de controle, rede de segurança, versão. |
 | Dano por acerto | `pvpHitDamage` (função pura) | Usada pelo servidor e pelo simulador. |
 | Simulador | `test/pvpBalance.test.ts` | Roda no `npm run verify`. |
-| Mapa | `maps.ts`: `valley` (Vale das Estátuas) | Campo novo `duelAreas` (o campo `arenas` exige vila). |
+| Mapa | `maps.ts`: `valley` (Vale dos Guardiões) | Campo novo `duelAreas` (o campo `arenas` exige vila). |
 | Registro | `db/schema_v15_duelo.sql` + `game.duel_result` | Grava partida e rodadas numa transação. Não toca karma, recompensa, Akatsuki nem `pvp_kill`. |
 | Tela | `public/game.js` | Botão "Desafiar", convite, placar, cronômetro, kit do adversário, câmera fixa. |
 | Vida por nível | `stats.ts` e `gameWorld.ts` | `derivedStats` recebe o nível; `computeStats` roda também ao subir de nível. |
@@ -550,7 +550,7 @@ CREATE TABLE IF NOT EXISTS game.duel_mmr (
 - Se a gravação falhar, a partida termina normalmente para os jogadores e o erro vai para o log.
 - O nome "v15" aqui é o do arquivo de migração; a versão do jogo desta entrega é a v28.
 
-**Mapa do Vale das Estátuas:** `valley` em `maps.ts`, 40 x 14 casas: 2 áreas de 18 x 12 com 4 casas de muro entre
+**Mapa do Vale dos Guardiões:** `valley` em `maps.ts`, 40 x 14 casas: 2 áreas de 18 x 12 com 4 casas de muro entre
 elas (pedras e pilares, `rock` e `pillar`, tipos que já existem; uma parede "estátua" é arte nova, para depois).
 Cada área tem 2 pontos de partida, a 10 casas um do outro. Só se
 entra levado pelo duelo. No cliente, a câmera fica fixa no centro da área (código novo; hoje ela segue o jogador).

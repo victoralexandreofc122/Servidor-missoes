@@ -49,7 +49,7 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
 export interface Wall extends Box {
   k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit' | 'fence' | 'pillar' | 'gate'
     | 'seal' | 'oak' | 'cliff' | 'tent' | 'cave' | 'deadtree' | 'logs' | 'sink' | 'pool'
-    // v29: estátua de uma vila no Vale das Estátuas (colide só no pedestal; o desenho sobe acima)
+    // v29: estátua de uma vila no Vale dos Guardiões (colide só no pedestal; o desenho sobe acima)
     | 'statue';
   /**
    * Estilo do prédio (sede, hospital, academia, lojas, casa, cabana) ou do móvel do interior
@@ -76,7 +76,7 @@ export interface Wall extends Box {
  */
 export interface Area extends Box {
   g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood' | 'arena' | 'dirt' | 'ash' | 'cave' | 'burnt' | 'pebbles' | 'lodo'
-    // v29: lajes de pedra cinza-oliva com musgo (Vale das Estátuas)
+    // v29: lajes de pedra cinza-oliva com musgo (Vale dos Guardiões)
     | 'slab'
     // trilha da Floresta: o chão é a grama; a trilha curva vem do enfeite 'trail' (aqui só não nasce mato em cima)
     | 'trail';
@@ -97,7 +97,7 @@ export interface Deco extends Box {
     | 'stream' | 'drybed' | 'trail'
     // o que sobrou no Acampamento Queimado: caixote quebrado, panela no tripé, esteira e um pergaminho caído
     | 'crate' | 'pot' | 'bedroll' | 'scroll_drop'
-    // vila: lanterna de pedra (tōrō, acende de noite) e vaso de flores; bandeira da Vila da Nuvem
+    // vila: lanterna de pedra (tōrō, acende de noite) e vaso de flores; bandeira da Aldeia da Rocha Antiga
     | 'toro' | 'planter' | 'flag'
     // v29: a arquibancada do Vale (só desenho: a plateia anda e fica em cima)
     | 'stands';
@@ -155,7 +155,7 @@ export interface Exit {
 export interface Arena extends Box {
   village: Village;
   respawn: { x: number; y: number };
-  /** v29: a arena do modo rankeado (Vale das Estátuas): só lutam os dois da partida da fila. */
+  /** v29: a arena do modo rankeado (Vale dos Guardiões): só lutam os dois da partida da fila. */
   ranked?: boolean;
 }
 
@@ -174,7 +174,7 @@ export interface MapLayout {
   /** Refúgio dos Renegados: só renegado entra. */
   refuge?: boolean;
   /** Zona de Conflito: PvP livre (menos aliados), com ranking. */
-  /** v29: o Vale das Estátuas (modo rankeado): sem clima, PvP só na arena e só entre os dois da partida. */
+  /** v29: o Vale dos Guardiões (modo rankeado): sem clima, PvP só na arena e só entre os dois da partida. */
   ranked?: boolean;
   conflict?: boolean;
   /** Tema de cores (desenho). */
@@ -412,10 +412,10 @@ export function shopDoor(b: Box): { door: Box; outside: { x: number; y: number }
 interface VillageMapDef { id: MapId; name: string; village: Village; theme: MapTheme; gate: boolean }
 
 export const VILLAGE_MAPS: readonly VillageMapDef[] = [
-  { id: 'map_1', name: 'Vila da Folha', village: 'vila_1', theme: 'folha', gate: true },
-  { id: 'vila_nevoa', name: 'Vila da Névoa', village: 'vila_3', theme: 'nevoa', gate: false },
-  { id: 'vila_nuvem', name: 'Vila da Nuvem', village: 'vila_4', theme: 'nuvem', gate: false },
-  { id: 'vila_areia', name: 'Vila da Areia', village: 'vila_5', theme: 'areia', gate: false },
+  { id: 'map_1', name: 'Aldeia da Chama Eterna', village: 'vila_1', theme: 'folha', gate: true },
+  { id: 'vila_nevoa', name: 'Aldeia da Maré Oculta', village: 'vila_3', theme: 'nevoa', gate: false },
+  { id: 'vila_nuvem', name: 'Aldeia da Rocha Antiga', village: 'vila_4', theme: 'nuvem', gate: false },
+  { id: 'vila_areia', name: 'Aldeia do Vento Cortante', village: 'vila_5', theme: 'areia', gate: false },
 ];
 
 /** Posto de Viagem de cada vila: dentro da praça, perto do portão. */
@@ -468,7 +468,7 @@ const crown = (x: number, y: number, w: number, h: number, s?: 'sakura'): Wall =
   wall('tree', r2(x + w * 0.2), r2(y + h * 0.45), r2(w * 0.6), r2(h * 0.55), s);
 
 /**
- * Vila da Folha em imagem (arte/vilas/referencia_folha.jpg, ampliada 4x com o Real-ESRGAN): 78 x 60 casas, a
+ * Aldeia da Chama Eterna em imagem (arte/vilas/referencia_folha.jpg, ampliada 4x com o Real-ESRGAN): 78 x 60 casas, a
  * proporção do desenho. Montanha e sede em cima, hospital à esquerda, Academia à direita, o rio de lado a lado com
  * três pontes e um braço que desce pela esquerda, as três lojas no meio, a praça com o poço embaixo, a arena à direita
  * e o portão no meio da muralha de baixo. Árvores e prédios bloqueiam inteiros (copa e telhado): ninguém passa "atrás"
@@ -577,7 +577,7 @@ function retrace(base: VillageArt, art: string, m: { sx: number; ox: number; sy:
 const bamboo = (x: number, y: number, w: number, h: number): Wall => wall('tree', x, r2(y + h * 0.3), w, r2(h * 0.7));
 
 /**
- * Vila da Névoa (arte/vilas/referencia_nevoa.jpg, ampliada): a planta da Folha, 80 x 60, com bambuzais no lugar das
+ * Aldeia da Maré Oculta (arte/vilas/referencia_nevoa.jpg, ampliada): a planta da Folha, 80 x 60, com bambuzais no lugar das
  * cerejeiras, mais bambu na beira do rio e no pé da praça, e poças (só desenho).
  */
 const NEVOA_ART = retrace(FOLHA_ART, 'nevoa', { sx: 0.9875, ox: 1.49, sy: 0.994, oy: 0 }, { w: 80, h: 60 },
@@ -588,7 +588,7 @@ const NEVOA_ART = retrace(FOLHA_ART, 'nevoa', { sx: 0.9875, ox: 1.49, sy: 0.994,
     bamboo(21.1, 48.6, 3.1, 5.4), bamboo(28.5, 49.6, 7.5, 5), bamboo(43.9, 48.8, 8.7, 5.6), bamboo(55.8, 48.8, 3, 5),  // pé da praça
   ]);
 
-/** Vila da Nuvem (arte/vilas/referencia_nuvem.jpg, ampliada): a planta da Folha no mesmo lugar, com os mastros das bandeiras da praça. */
+/** Aldeia da Rocha Antiga (arte/vilas/referencia_nuvem.jpg, ampliada): a planta da Folha no mesmo lugar, com os mastros das bandeiras da praça. */
 const NUVEM_ART = retrace(FOLHA_ART, 'nuvem', { sx: 1, ox: 0, sy: 1, oy: 0 }, { w: 78, h: 60 }, () => false, [
   wall('furniture', 24.75, 38.6, 0.5, 0.9), wall('furniture', 32.8, 39.1, 0.5, 0.9), wall('furniture', 44.55, 38.6, 0.5, 0.9), wall('furniture', 52.7, 38.8, 0.5, 0.9),
   wall('furniture', 24.75, 49.9, 0.5, 0.9), wall('furniture', 32.8, 49.9, 0.5, 0.9), wall('furniture', 44.55, 49.9, 0.5, 0.9), wall('furniture', 52.7, 50.1, 0.5, 0.9),
@@ -1277,7 +1277,7 @@ function refuge(): MapLayout {
 }
 
 /**
- * Vale das Estátuas (44 x 36, v29): o mapa do modo rankeado, onde se encontram os ninjas de todas as vilas. No meio,
+ * Vale dos Guardiões (44 x 36, v29): o mapa do modo rankeado, onde se encontram os ninjas de todas as vilas. No meio,
  * a arena cercada (fechada: só os dois da partida entram, levados pelo servidor); em volta, a praça de pedra onde a
  * fila espera e assiste, com as estátuas das vilas nos cantos. Tudo é zona segura, menos dentro da cerca.
  *
@@ -1324,7 +1324,7 @@ function vale(): MapLayout {
   ];
   const fight = valeFightBox();
   return {
-    id: 'vale_estatuas', name: 'Vale das Estátuas', kind: 'wild', theme: 'folha', ranked: true, width: W, height: H, safe: true, walls,
+    id: 'vale_estatuas', name: 'Vale dos Guardiões', kind: 'wild', theme: 'folha', ranked: true, width: W, height: H, safe: true, walls,
     exits: [], doors: [],
     areas: [area('slab', 0, 0, W, H), area('arena', f.x, f.y, f.w, f.h)],
     deco: [

@@ -308,7 +308,7 @@ mexer em ruas. Cada vila ganha a sua arena com o tema dela (terra batida na Arei
 - **Celular:** 3x3 com 6 bonecos, invocações e efeitos pesa no aparelho. Limite de partículas por partida e
   invocações desenhadas em cache (como o boneco).
 - **Propriedade intelectual:** "Vale do Fim", contratos de animais e a Grande Invocação deixam o jogo ainda mais
-  perto de Naruto. Como hoje: nomes num lugar só, fáceis de trocar ("Vale das Estátuas", por exemplo).
+  perto de Naruto. Como hoje: nomes num lugar só, fáceis de trocar ("Vale dos Guardiões", por exemplo).
 - **Trapaça:** o servidor já é autoritativo (dano, alcance e acerto são dele); falta só o registro das partidas para
   achar padrões estranhos.
 

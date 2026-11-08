@@ -1,0 +1,320 @@
+{
+ "teleport": {
+  "cost": 10,
+  "cooldownMs": 1500,
+  "range": 3,
+  "mechanic": "teleport"
+ },
+ "substitution": {
+  "cost": 20,
+  "cooldownMs": 30000,
+  "durationMs": 5000,
+  "mechanic": "substitution"
+ },
+ "heal": {
+  "cost": 30,
+  "cooldownMs": 4000,
+  "heal": 30,
+  "radius": 3,
+  "mechanic": "heal"
+ },
+ "heal_2": {
+  "cost": 41,
+  "cooldownMs": 4600,
+  "heal": 44,
+  "radius": 3.5,
+  "mechanic": "heal"
+ },
+ "heal_3": {
+  "cost": 51,
+  "cooldownMs": 5200,
+  "heal": 60,
+  "radius": 4,
+  "mechanic": "heal"
+ },
+ "heal_4": {
+  "cost": 66,
+  "cooldownMs": 6000,
+  "heal": 84,
+  "radius": 4.5,
+  "mechanic": "heal"
+ },
+ "shadow": {
+  "cost": 25,
+  "cooldownMs": 6000,
+  "range": 4,
+  "rootMs": 5000,
+  "mechanic": "shadow"
+ },
+ "shadow_2": {
+  "cost": 34,
+  "cooldownMs": 6900,
+  "range": 4.5,
+  "rootMs": 6000,
+  "mechanic": "shadow"
+ },
+ "shadow_3": {
+  "cost": 43,
+  "cooldownMs": 7800,
+  "range": 5,
+  "rootMs": 7000,
+  "mechanic": "shadow"
+ },
+ "shadow_4": {
+  "cost": 55,
+  "cooldownMs": 9000,
+  "range": 5.5,
+  "rootMs": 8500,
+  "mechanic": "shadow"
+ },
+ "illusion": {
+  "cost": 30,
+  "cooldownMs": 4000,
+  "radius": 3,
+  "stunMs": 3000,
+  "mechanic": "illusion"
+ },
+ "illusion_2": {
+  "cost": 41,
+  "cooldownMs": 4600,
+  "radius": 3.5,
+  "stunMs": 3600,
+  "mechanic": "illusion"
+ },
+ "illusion_3": {
+  "cost": 51,
+  "cooldownMs": 5200,
+  "radius": 4,
+  "stunMs": 4200,
+  "mechanic": "illusion",
+  "silenceMs": 3000
+ },
+ "illusion_4": {
+  "cost": 66,
+  "cooldownMs": 6000,
+  "radius": 4.5,
+  "stunMs": 5100,
+  "mechanic": "illusion",
+  "silenceMs": 4500
+ },
+ "stone": {
+  "cost": 15,
+  "cooldownMs": 6000,
+  "reduction": 0.5,
+  "mechanic": "stone"
+ },
+ "stone_2": {
+  "cost": 20,
+  "cooldownMs": 6900,
+  "reduction": 0.6,
+  "mechanic": "stone"
+ },
+ "stone_3": {
+  "cost": 26,
+  "cooldownMs": 7800,
+  "reduction": 0.7,
+  "mechanic": "stone"
+ },
+ "stone_4": {
+  "cost": 33,
+  "cooldownMs": 9000,
+  "reduction": 0.8,
+  "mechanic": "stone"
+ },
+ "fire": {
+  "cost": 20,
+  "cooldownMs": 1500,
+  "damage": 25,
+  "range": 9,
+  "radius": 2,
+  "speed": 14,
+  "burn": 3,
+  "burnMs": 3000,
+  "mechanic": "fire"
+ },
+ "fire_2": {
+  "cost": 27,
+  "cooldownMs": 1725,
+  "damage": 36,
+  "range": 9.5,
+  "radius": 2.5,
+  "speed": 14,
+  "burn": 4,
+  "burnMs": 3000,
+  "mechanic": "fire"
+ },
+ "fire_3": {
+  "cost": 34,
+  "cooldownMs": 1950,
+  "damage": 50,
+  "range": 10,
+  "radius": 3,
+  "speed": 14,
+  "burn": 6,
+  "burnMs": 3000,
+  "mechanic": "fire"
+ },
+ "fire_4": {
+  "cost": 44,
+  "cooldownMs": 2250,
+  "damage": 70,
+  "range": 10.5,
+  "radius": 3.5,
+  "speed": 14,
+  "burn": 8,
+  "burnMs": 3000,
+  "mechanic": "fire"
+ },
+ "water": {
+  "cost": 15,
+  "cooldownMs": 1000,
+  "damage": 20,
+  "range": 4,
+  "coneDeg": 90,
+  "push": 1.5,
+  "mechanic": "water"
+ },
+ "water_2": {
+  "cost": 20,
+  "cooldownMs": 1150,
+  "damage": 29,
+  "range": 4.5,
+  "coneDeg": 90,
+  "push": 2,
+  "mechanic": "water"
+ },
+ "water_3": {
+  "cost": 26,
+  "cooldownMs": 1300,
+  "damage": 40,
+  "range": 5,
+  "coneDeg": 90,
+  "push": 2.5,
+  "mechanic": "water"
+ },
+ "water_4": {
+  "cost": 33,
+  "cooldownMs": 1500,
+  "damage": 56,
+  "range": 5.5,
+  "coneDeg": 90,
+  "push": 3,
+  "mechanic": "water"
+ },
+ "taijutsu": {
+  "cost": 5,
+  "cooldownMs": 500,
+  "damage": 35,
+  "range": 2.5,
+  "radius": 1,
+  "scaling": "taijutsu",
+  "mechanic": "taijutsu"
+ },
+ "taijutsu_2": {
+  "cost": 7,
+  "cooldownMs": 575,
+  "damage": 51,
+  "range": 3,
+  "radius": 1.5,
+  "scaling": "taijutsu",
+  "mechanic": "taijutsu"
+ },
+ "taijutsu_3": {
+  "cost": 9,
+  "cooldownMs": 650,
+  "damage": 70,
+  "range": 3.5,
+  "radius": 2,
+  "scaling": "taijutsu",
+  "mechanic": "taijutsu"
+ },
+ "taijutsu_4": {
+  "cost": 11,
+  "cooldownMs": 750,
+  "damage": 98,
+  "range": 4,
+  "radius": 2.5,
+  "scaling": "taijutsu",
+  "mechanic": "taijutsu"
+ },
+ "weapons": {
+  "cost": 10,
+  "cooldownMs": 1200,
+  "damage": 18,
+  "range": 4,
+  "shots": 3,
+  "laneGap": 0.7,
+  "speed": 16,
+  "scaling": "weapons",
+  "mechanic": "weapons"
+ },
+ "weapons_2": {
+  "cost": 14,
+  "cooldownMs": 1380,
+  "damage": 26,
+  "range": 4.5,
+  "shots": 3,
+  "laneGap": 0.7,
+  "speed": 16,
+  "scaling": "weapons",
+  "mechanic": "weapons"
+ },
+ "weapons_3": {
+  "cost": 17,
+  "cooldownMs": 1560,
+  "damage": 36,
+  "range": 5,
+  "shots": 3,
+  "laneGap": 0.7,
+  "speed": 16,
+  "scaling": "weapons",
+  "mechanic": "weapons"
+ },
+ "weapons_4": {
+  "cost": 22,
+  "cooldownMs": 1800,
+  "damage": 50,
+  "range": 5.5,
+  "shots": 3,
+  "laneGap": 0.7,
+  "speed": 16,
+  "scaling": "weapons",
+  "mechanic": "weapons"
+ },
+ "lightning": {
+  "cost": 20,
+  "cooldownMs": 2000,
+  "damage": 30,
+  "range": 4.5,
+  "stunMs": 400,
+  "paralysisMs": 2000,
+  "mechanic": "lightning"
+ },
+ "lightning_2": {
+  "cost": 27,
+  "cooldownMs": 2300,
+  "damage": 44,
+  "range": 5,
+  "stunMs": 480,
+  "paralysisMs": 2400,
+  "mechanic": "lightning"
+ },
+ "lightning_3": {
+  "cost": 34,
+  "cooldownMs": 2600,
+  "damage": 60,
+  "range": 5.5,
+  "stunMs": 560,
+  "paralysisMs": 2800,
+  "mechanic": "lightning"
+ },
+ "lightning_4": {
+  "cost": 44,
+  "cooldownMs": 3000,
+  "damage": 84,
+  "range": 6,
+  "stunMs": 680,
+  "paralysisMs": 3400,
+  "mechanic": "lightning"
+ }
+}

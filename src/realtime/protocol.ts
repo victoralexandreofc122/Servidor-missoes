@@ -4,7 +4,8 @@ import type { PvpClassRow, PvpReport } from './pvpStats.js';
 import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
-import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type Mechanic } from './jutsus.js';
+import { CLANS, type Clan } from './jutsusClasses.js';
+import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type JutsuForm, type Mechanic } from './jutsus.js';
 import { ITEM_CODES, type Gear, type ItemDef } from './items.js';
 import { IncomingAppearanceSchema, VILLAGES, type Appearance, type Village } from './appearance.js';
 import type { EndgameModule } from './endgame.js';
@@ -160,7 +161,7 @@ export type Skill = JutsuCode;
  * Mecânicas que miram no alvo focado. Taijutsu é sempre no mais perto; Ilusão é um círculo em volta
  * do jogador; Pedra é em si mesmo; a Cura aceita um ALIADO focado (id de jogador).
  */
-export const DIRECTED_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'water', 'shadow', 'lightning', 'weapons']);
+export const DIRECTED_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'water', 'shadow', 'lightning', 'weapons', 'wind']);
 export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(JUTSUS.filter((j) => DIRECTED_MECHANICS.has(j.mechanic)).map((j) => j.code));
 
 /**
@@ -168,7 +169,7 @@ export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(JUTSUS.filter(
  * segurando e arrastando o botão (o `dir` do cast vira a cardinal mais perto); num toque rápido, o servidor escolhe a
  * direção que passa mais perto do alvo focado (ou do inimigo mais perto no alcance).
  */
-export const LINE_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'shadow', 'lightning', 'weapons']);
+export const LINE_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'shadow', 'lightning', 'weapons', 'wind']);
 
 /** Id de monstro como o servidor cria ("m" + número). */
 const monsterId = z.string().regex(/^m\d{1,9}$/);
@@ -191,6 +192,9 @@ const reason = z.string().max(300);
 /** v29: um lado da partida do rankeado, como aparece na tela (o nome só aparece na preparação). */
 /** v29: uma linha do ranking do rankeado. */
 export interface RankedRowView { position: number; playerId: string; username: string; village: string | null; level: number; mmr: number; wins: number; losses: number }
+/** v29: tipos de zona no chão; 'aviso' = o círculo vermelho do golpe que vai cair. */
+export type GroundKind = 'fogo' | 'lama' | 'cura' | 'aviso' | 'agua' | 'sombra' | 'ilusao' | 'armas';
+
 export interface DuelSideView { id: string; name: string; level: number; village: string | null }
 
 export type KitName = 'A' | 'B';
@@ -203,7 +207,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   // cima, baixo, esquerda ou direita); o ALCANCE é sempre do servidor.
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: targetId.optional(), dir: z.tuple([axis, axis]).optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
-  // v29: modo rankeado: entrar no Vale das Estátuas, sair dele, entrar na fila do Desafio e sair da fila.
+  // v29: modo rankeado: entrar no Vale dos Guardiões, sair dele, entrar na fila do Desafio e sair da fila.
   z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board', 'sit', 'stand']) }),
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z][a-z_]{0,23}$/) }),
@@ -218,6 +222,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('deliver_mission'), senseiId: uuid }),
   z.object({ type: z.literal('evaluate_mission'), missionId: uuid, approved: z.boolean(), score: z.number().int().min(1).max(5) }),
   z.object({ type: z.literal('choose_class'), class: z.enum(CLASSES) }),
+  // v30: o despertar da linhagem (Clã Rubro, Clã Umbra ou Andarilho)
+  z.object({ type: z.literal('clan'), clan: z.enum(CLANS) }),
   z.object({ type: z.literal('extract'), class: z.enum(CLASSES), level: z.number().int().min(1).max(4) }),
   z.object({ type: z.literal('buy'), item: z.enum(ITEM_CODES), qty: z.number().int().min(1).max(99) }),
   z.object({ type: z.literal('equip'), item: z.enum(ITEM_CODES).nullable(), slot: z.enum(['weapon', 'scroll', 'cape', 'feet', 'body']).optional() }),
@@ -364,6 +370,8 @@ export interface NpcView {
 
 /** Progressão do ninja (v7): só o dono vê. */
 export interface NinjaView {
+  /** v30: linhagem (null = ainda não despertou). */
+  clan?: Clan | null;
   /** Passo do tutorial da Academia: 0 a 3 = na sala 1 a 4; 4 = concluído (pode sair). */
   tutorialStep: number;
   ryo: number;
@@ -415,7 +423,8 @@ export type ChatChannel = 'local' | 'global' | 'whisper';
 /** Jutsu como o cliente mostra (botão, aba Jutsus). */
 export interface SkillInfo {
   name: string;
-  class: ClassCode | null;
+  /** v30: só vem quando não é a mecânica (Academia: null); sem ele, a classe é a mecânica. */
+  class?: ClassCode | null;
   tier: number;
   mechanic: Mechanic;
   cost: number;
@@ -428,6 +437,14 @@ export interface SkillInfo {
   /** Kunais: quantas trilhas paralelas e a distância entre elas (casas). */
   shots?: number;
   laneGap?: number;
+  /** v29 (Jutsus v2): como o jutsu sai (cone, leque, meteoros...), para o desenho e a mira. */
+  form?: JutsuForm;
+  /** v29: selos antes de sair (ms). */
+  castMs?: number;
+  /** v29: abertura do cone (graus). */
+  coneDeg?: number;
+  /** v29: buff de Básico: quanto tempo dura (para o brilho na arma). */
+  durationMs?: number;
 }
 
 /** Missão de sensei como o jogador vê (Sala de Missões). */
@@ -517,7 +534,7 @@ export interface WorldInfo {
   maxLevel: number;
 }
 
-export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED' | 'SILENCED' | 'ASLEEP';
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED' | 'SILENCED' | 'ASLEEP' | 'CASTING';
 /** Por que a meditação acabou. */
 export type MeditationEnd = 'manual' | 'moved' | 'cast' | 'damaged' | 'died';
 export type MonsterStatus = 'stunned' | 'rooted';
@@ -567,6 +584,18 @@ export type ServerMessage =
   | { type: 'player_died'; playerId: string; respawnInMs: number; arena?: boolean }
   // v29: modo rankeado. A fila (só para quem está nela) e o estado da partida da arena (para todos no Vale).
   | { type: 'duel_queue'; queued: boolean; position: number; size: number }
+  // v29 (Jutsus v2, entrega 1): zona no chão (fogo, lama, cura...) e aviso de golpe que cai depois de `ms`.
+  | { type: 'ground'; id: number; kind: GroundKind; x: number; y: number; r: number; ms: number; skill?: string; follow?: string }
+  | { type: 'ground_end'; id: number }
+  // v30: muro de jutsu (entra nas paredes do mapa enquanto existe)
+  | { type: 'barrier'; id: number; kind: 'rocha' | 'agua'; x: number; y: number; w: number; h: number; hp: number; ms: number }
+  | { type: 'barrier_end'; id: number }
+  // v30: invocação de um ninja (é um monstro com dono; some no fim) e o soco do Golem
+  | { type: 'summon'; id: string; ownerId: string; kind: string; hp: number; maxHp: number; ms: number }
+  | { type: 'summon_punch'; id: string; x: number; y: number; r: number }
+  // v29: conjuração (selos) começou, e foi interrompida
+  | { type: 'cast_start'; playerId: string; skill: string; ms: number }
+  | { type: 'cast_interrupted'; playerId: string; skill: string; reason: 'interrupted' | 'cancel' }
   // v29: sentou ou levantou da arquibancada do Vale (todos no mapa veem)
   | { type: 'sit'; playerId: string; active: boolean }
   // v29 (migração v15): os pontos de quem lutou depois da partida, e o painel do ranking.
@@ -598,6 +627,8 @@ export type ServerMessage =
   | { type: 'tutorial'; step: number }
   | { type: 'inventory'; ryo: number; items: Record<string, number>; equipped: string | null; equippedScroll: string | null; equippedShoes: string | null; equippedAccessory: string | null; cape?: string | null }
   | { type: 'classes'; primary: ClassCode | null; secondary: ClassCode | null }
+  // v30: a linhagem despertou
+  | { type: 'clan'; clan: Clan }
   | { type: 'jutsus'; jutsus: Record<string, number> }
   | { type: 'jutsu_level'; skill: Skill; level: number }
   | { type: 'class_choice'; kind: 'primary' | 'secondary'; classes: ClassCode[] }

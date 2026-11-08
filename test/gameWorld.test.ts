@@ -35,9 +35,9 @@ describe('GameWorld: entrar e sair', () => {
     assert.deepEqual(w.monsters, []);
     assert.equal(w.world.speed, REALTIME.speedTilesPerSecond);
     assert.deepEqual(w.world.spawn, S);
-    assert.deepEqual(w.world.skills.fire, { name: 'Fogo', class: 'fire', tier: 1, mechanic: 'fire', cost: 20, cooldownMs: 1500, range: 9, radius: 2, line: true });
+    assert.deepEqual(w.world.skills.fire, { name: 'Fogo', tier: 1, mechanic: 'fire', cost: 20, cooldownMs: 1500, range: 9, radius: 2, line: true });   // v30: sem a classe (= a mecânica)
     assert.deepEqual([w.world.skills.weapons.shots, w.world.skills.weapons.laneGap, w.world.skills.water.line], [3, 0.7, undefined]);
-    assert.equal(Object.keys(w.world.skills).length, 38, '2 da Academia + 9 classes x 4 tiers');
+    assert.equal(Object.keys(w.world.skills).length, 94, '2 da Academia + 10 classes x 4 tiers + 7 do Fogo novo (v29) + 41 das outras classes + 4 do Clã Rubro (v30)');
     assert.deepEqual(w.world.rankLevels, { genin: 11, chunin: 40, kage: 60 });
     assert.equal(w.ninja.tutorialStep, 4, 'sem ficha do banco: tutorial concluído');
 

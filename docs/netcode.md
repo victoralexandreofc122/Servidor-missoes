@@ -1,6 +1,6 @@
 # Netcode e combate (PvP e PvE)
 
-Como o servidor de Vontade do Fogo trata os pontos críticos de combate em MMO. Cada item diz **o que já existe**, onde
+Como o servidor de Herança do Fogo trata os pontos críticos de combate em MMO. Cada item diz **o que já existe**, onde
 está no código e **o que falta** (em ordem de prioridade no fim).
 
 ## A base: servidor autoritativo

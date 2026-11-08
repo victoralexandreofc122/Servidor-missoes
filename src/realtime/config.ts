@@ -38,6 +38,91 @@ export interface SkillConfig {
   scaling?: 'taijutsu' | 'ninjutsu' | 'weapons';
   /** Efeito que dura (Substituição: 5 s esperando o próximo golpe). */
   durationMs?: number;
+  /** v29 (Jutsus v2): dano equivalente de tier 1, por golpe (o PvP usa este com a curva achatada). */
+  base?: number;
+  /** v29: tempo de conjuração (selos) antes de sair; 0 ou sem = instantâneo. */
+  castMs?: number;
+  /** v29: buff de Ataque Básico: quanto a mais (0,15 = +15%) por `durationMs`. */
+  basicBuff?: number;
+  /** v29: velocidade durante os selos (fração; 0 = parado). Sem = a regra da faixa (castSlowOf). */
+  castSlow?: number;
+  // ---- v30 (Jutsus v2, as outras classes): o que o golpe faz além do dano (jutsusClasses.ts)
+  /** Deixa molhado (combo com o Relâmpago). */
+  wet?: boolean;
+  /** Lentidão (o efeito de sempre, 40%) por este tempo. */
+  slowMs?: number;
+  /** Levantado: conta como atordoado (orçamento de controle) e pode levar dano. */
+  liftMs?: number;
+  /** Quem lança fica preso este tempo (Prisão de Água: segura o alvo parado). */
+  selfRootMs?: number;
+  /** Tira chakra do alvo. */
+  drain?: number;
+  /** Golpes no mesmo alvo (Cem Golpes, Punho do Céu); `hitsPve` = contra monstro (o teto de golpes é regra do PvP). */
+  hits?: number;
+  hitsPve?: number;
+  /** Leque: no máximo quantos projéteis acertam o mesmo alvo. */
+  cap?: number;
+  /** Ricochete: quantos saltos (cada um tira 30%). */
+  bounce?: number;
+  /** Avanço sem dano: casas (negativo = para trás). */
+  dash?: number;
+  /** Reduz o dano recebido (0,5 = metade) por `durationMs`. */
+  dr?: number;
+  /** Buff de Básico: o 1º golpe atordoa / queima (por pulso). */
+  firstStunMs?: number;
+  firstBleed?: number;
+  /** Tira estes efeitos de si (Desintoxicação, Dissipação). */
+  cleanse?: string[];
+  /** Cura ao longo do tempo em si: fração da vida máxima por segundo, por `durationMs`. */
+  hot?: number;
+  /** Paga o custo e a recarga maiores do PvP da mecânica (Armas x2,5). Sem: jutsu com números próprios paga o seu. */
+  pvpScale?: boolean;
+  /** Avanço que acerta todos no caminho. */
+  pierce?: boolean;
+  /** Aviso no chão: quantas ondas (a cada 0,25 s). */
+  waves?: number;
+  /** O golpe do alvo cai depois deste tempo (Árvore Prendedora). */
+  strikeDelayMs?: number;
+  /** Só acerta alvo preso (Estrangulamento). */
+  needsRooted?: boolean;
+  /** Agarre: quantos alvos na linha. */
+  targets?: number;
+  /** Buff: velocidade a mais (0,15 = +15%) por `durationMs`. */
+  speedBuff?: number;
+  /** Custo em vida (fração da vida atual; nunca mata). */
+  hpCost?: number;
+  /** Sai mesmo em silêncio (Dissipação). */
+  ignoresSilence?: boolean;
+  /** v30: escuridão no alvo (Noite Eterna) / controles invertidos (Distúrbio Nervoso), em ms. */
+  darkMs?: number;
+  invertMs?: number;
+  /** v30: dano ao longo do tempo (queimadura) ao acertar: por pulso e duração (Chamas Negras). */
+  dotAmount?: number;
+  dotMs?: number;
+  /** v30: escudo de vida (Véu de Vento): parte da vida máxima, por `durationMs` (regra única: até 25%). */
+  shieldShare?: number;
+  /** v30: ferida (cura recebida pela metade) por este tempo (Estrela Espiral). */
+  woundMs?: number;
+  /** v30: invocação: tipo de monstro, vida (parte da vida máxima de quem invoca) e o soco a cada tanto (Golem). */
+  summonType?: string;
+  summonHp?: number;
+  punchEveryMs?: number;
+  /** v30: muro: espessura, vida (fixa ou parte da vida máxima de quem ergue) e tipo. */
+  thick?: number;
+  wallHp?: number;
+  wallHpShare?: number;
+  wallKind?: 'rocha' | 'agua';
+  /** v30: bumerangue: o dano da volta (a ida é `damage`). */
+  returnDamage?: number;
+  returnBase?: number;
+  /** Zona no chão: dura `ms`; `split` = em quantos pulsos o dano do jutsu se divide; `endHit` = o dano cai no fim. */
+  zone?: {
+    ms: number; tickMs?: number; kind: 'fogo' | 'lama' | 'cura' | 'agua' | 'sombra' | 'ilusao' | 'armas';
+    slow?: boolean; heal?: number; follow?: boolean; self?: boolean; pull?: number; split?: number;
+    endHit?: boolean; endStunMs?: number; firstRootMs?: number;
+    /** v30: escurece quem está dentro (Ocultação na Névoa); armadilha: dispara no 1º que pisar e some. */
+    dark?: boolean; trap?: boolean;
+  };
 }
 
 /** Tipo de monstro. O slime é o de caça; os bonecos da Academia ficam parados e renascem rápido. */
@@ -347,6 +432,9 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     monsterTypes: {
       // Sala 1: destruir 3 com o Ataque Básico (2 golpes cada). Não batem.
       dummy: { maxHp: 12, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 2500 },
+      // v30: invocações dos jutsus (a vida de verdade vem de quem invoca; não andam, não dão XP, não renascem)
+      clone_agua: { maxHp: 50, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12 },
+      golem: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12 },
       // Sala de Jutsus: ARMADILHA de lâminas que bate (fraco) em quem chega perto: treina a Substituição.
       sparring: { maxHp: 400, xp: 0, attackRange: 1.6, attackDamage: 6, attackEveryMs: 1800, stationary: true, respawnMs: 2500 },
       // Zona de Conflito: lodo sombrio, mais forte que o slime (para quem já é Chunin).

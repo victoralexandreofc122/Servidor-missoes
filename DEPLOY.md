@@ -26,7 +26,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 19 | Atualização v12: Modo Administrador, atributo Chakra, chat com histórico, Sala de Missões e Academia nova, com SQL | ~15 min |
 | 20 | Atualização v13: personagem em sprites (gênero, cabelo, olhos, roupa e vila), com SQL | ~10 min |
 | 21 | Atualização v14: hitboxes, efeitos dos golpes e armas no boneco, sem SQL | ~10 min |
-| 22 | Atualização v15: nome Vontade do Fogo, arena da vila e design geral, com SQL opcional | ~10 min |
+| 22 | Atualização v15: nome Herança do Fogo, arena da vila e design geral, com SQL opcional | ~10 min |
 | 23 | Atualização v16: fim de jogo (vilas, Kage, PvP, renegados, Akatsuki, capas), com SQL opcional | ~15 min |
 | 24 | Atualização v18: sapatos (equipamento dos pés), tela de equipamentos e `/admin ryo`, com SQL **antes** do deploy | ~10 min |
 | 25 | Atualização v19: Rei Lodo, silêncio da Ilusão, números de PvP e Painel do Admin, **sem SQL** | ~5 min |
@@ -771,7 +771,7 @@ O que muda:
    `/admin giveitem Victor fuma_shuriken 1` para ganhar a Shuriken Gigante.
 
 
-## Passo 22 — Atualização v15: Vontade do Fogo, arena da vila e o design geral
+## Passo 22 — Atualização v15: Herança do Fogo, arena da vila e o design geral
 
 **Banco (opcional, pode ser antes ou depois do deploy):** no Neon → **SQL Editor** (confira que o branch é o
 `production`), cole e rode o arquivo `db/schema_v10_design.sql` inteiro. Ele cria a tabela das falhas seguidas na
@@ -790,7 +790,7 @@ SELECT (SELECT count(*) FROM information_schema.tables WHERE table_schema = 'gam
 
 ### Testar no celular
 
-1. **Nome:** a tela de login mostra **Vontade do Fogo**. Adicionando à tela inicial, o atalho também.
+1. **Nome:** a tela de login mostra **Herança do Fogo**. Adicionando à tela inicial, o atalho também.
 2. **Arena:** na Vila, desça a avenida, siga a rua de baixo para a direita e entre pela abertura da cerca de madeira
    (no antigo campo de treino). O topo mostra **⚔️ arena**. Com outra conta da mesma vila lá dentro, toque em 🎯: o
    foco vai nela (nome vermelho) e o 🗡️ e os jutsus acertam. Quem perde volta em 3 s na entrada oeste, sem perder
@@ -965,7 +965,7 @@ Salve. O Render reinicia o servidor sozinho.
 
 ### 3. Floot
 
-No projeto **Vontade do Fogo**, conecte a credencial que o site pede (o Floot mostra um link para isso):
+No projeto **Herança do Fogo**, conecte a credencial que o site pede (o Floot mostra um link para isso):
 
 - `GAME_URL` = `https://servidor-missoes-ffb4.onrender.com`;
 - `SITE_TOKEN` = o **mesmo** segredo do item 1.
@@ -1051,8 +1051,72 @@ minuto (não precisa reiniciar).
 
 ### Testar no celular
 
-1. **Menu → Rankeado:** vai para o Vale das Estátuas (o botão vira **Voltar**, que devolve para onde você estava).
+1. **Menu → Rankeado:** vai para o Vale dos Guardiões (o botão vira **Voltar**, que devolve para onde você estava).
 2. **⚔️ Desafio** (embaixo, no meio): entra na fila; o botão mostra a posição. Com 2 na fila, a preparação começa e o
    placar no alto mostra os nomes. Rodadas de até 50 s, melhor de 3; ninguém morre.
 3. No fim, aparece "+N pontos" para os dois; **🏆 Ranking** mostra a temporada, o top 50 e a sua posição.
 4. Conta de admin não ganha nem perde pontos (o chat avisa "não contou").
+
+## Passo 31 — Atualização v29: Jutsus v2, o Fogo novo e a conjuração (SQL v16)
+
+**Banco e código em seguida, sem intervalo.** No Neon, abra o **SQL Editor**, confira no seletor que o branch é o
+`production` e rode o arquivo `db/schema_v16_jutsus_fogo.sql` inteiro. Ele segue as regras de sempre (sem bloco `DO $$`,
+tudo dentro de `BEGIN; ... COMMIT;`) e pode rodar de novo. Ele:
+
+- coloca os 7 jutsus de Fogo novos em `game.jutsus` e troca os nomes de `fire_2`, `fire_3` e `fire_4` (os códigos ficam:
+  ninguém perde jutsu, uso nem nível);
+- troca a regra dos kits (`game.valid_kit`) para aceitar os códigos novos.
+
+**Logo depois, o código:** mescle na `main` (o Render publica sozinho). Entre a migração e o deploy, quem fizer uma
+Extração de Fogo pode ganhar um jutsu que o servidor antigo ainda não conhece; por isso as duas coisas em seguida.
+(O código novo sem a migração funciona: só não sorteia os jutsus novos.)
+
+Para conferir: `SELECT tier, count(*) FROM game.jutsus WHERE class_code = 'fire' GROUP BY tier ORDER BY tier;` mostra
+1: 4, 2: 4, 3: 2, 4: 1.
+
+### Testar no celular
+
+1. **Fogo:** um ninja de Fogo com os jutsus novos (Extração de Fogo nos tiers 1 a 3) vê a barra de selos sobre a cabeça
+   e perto dos botões nos jutsus com conjuração (Chamas da Fênix, Dragão Guiado, Destruição Magnífica, Míssil Dragão,
+   Chuva de Meteoros).
+2. **Interromper:** na arena, um ninja de Relâmpago acerta o de Fogo no meio dos selos: aparece "Interrompido!".
+3. **Rankeado:** perca a rodada 1 com o adversário queimando você: no intervalo não aparece a tela de derrota e na
+   rodada 2 você volta com a vida cheia e consegue lutar.
+
+## Passo 32 — Fase 1: Herança do Fogo e as aldeias (SQL v17)
+
+Rode `db/schema_v17_nomes.sql` inteiro no SQL Editor do Neon (branch `production`). Só troca os nomes das vilas em
+`game.villages` (Chama Eterna, Maré Oculta, Rocha Antiga, Vento Cortante); ninguém muda de vila. Pode rodar de novo.
+Para conferir: `SELECT code, name FROM game.villages ORDER BY sort_order;`
+
+## Passo 33 — As outras 8 classes (SQL v18)
+
+Rode `db/schema_v18_jutsus_classes.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v16**. Ele põe
+os jutsus de Água, Relâmpago, Terra, Médico, Armas, Ilusão, Taijutsu e Sombra em `game.jutsus` (27 novos e os nomes novos
+dos tiers 2 a 4) e deixa a regra dos kits aceitar os 72 códigos. Pode rodar de novo.
+
+**Depois das três (v16, v17, v18), o código:** mescle o branch na `main` logo em seguida (o Render publica sozinho).
+Entre as migrações e o deploy, uma Extração pode dar um jutsu que o servidor antigo ainda não conhece.
+
+Para conferir: `SELECT count(*) FROM game.jutsus;` mostra 72.
+
+### Testar no celular
+
+1. Tela de entrada e título: **Herança do Fogo**. No chat, as mensagens dizem "Aldeia da Chama Eterna" etc.
+2. Extração de qualquer classe: os jutsus novos aparecem; no kit, cada um sai com o desenho da forma dele (linha, anel,
+   cone, zona no chão, aviso).
+
+## Passo 34 — Os clãs (SQL v19)
+
+Rode `db/schema_v19_clas.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v18**. Ela cria a coluna
+da linhagem (`game.players.clan`), marca jutsu de clã em `game.jutsus` (`clan_code`) e põe os 4 jutsus do Clã Rubro.
+Pode rodar de novo. **O código novo precisa da v19** (ele lê a linhagem ao entrar): rode as migrações antes de mesclar.
+
+Para conferir: `SELECT code, tier FROM game.jutsus WHERE clan_code = 'rubro' ORDER BY tier;` mostra 4 linhas.
+
+### Testar no celular
+
+1. Um ninja Genin (nível 11 ou mais) recebe o aviso da linhagem; no chat: `/linhagem rubro`, `/linhagem umbra` ou
+   `/linhagem andarilho`. Uma vez só.
+2. Rubro: o Olho da Percepção aparece nos jutsus; os outros chegam nos níveis 20, 40 e 60.
+

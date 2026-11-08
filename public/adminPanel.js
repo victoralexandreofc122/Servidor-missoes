@@ -14,7 +14,7 @@ const WEATHERS = [['normal', '☁️ Normal'], ['quente', '☀️ Quente'], ['ch
 const PHASES = [['amanhecer', '🌅 Amanhecer'], ['dia', '🌞 Dia'], ['entardecer', '🌇 Entardecer'], ['noite', '🌙 Noite']];
 const MODULES = [['vilas', 'Vilas e Kage'], ['pvp', 'Zona de Conflito'], ['renegados', 'Renegados'], ['akatsuki', 'Akatsuki']];
 const KIND_NAME = { weapon: 'Arma', scroll: 'Pergaminho', cape: 'Capa', shoes: 'Sapato', accessory: 'Acessório' };
-const CLASS_ORDER = ['fire', 'water', 'lightning', 'stone', 'taijutsu', 'illusion', 'shadow', 'heal', 'weapons'];
+const CLASS_ORDER = ['fire', 'water', 'lightning', 'stone', 'taijutsu', 'illusion', 'shadow', 'heal', 'weapons', 'wind'];
 const CONFIRM_MS = 3000;
 
 export function mountAdminUI(api) {
@@ -144,7 +144,7 @@ export function mountAdminUI(api) {
     const groups = [...CLASS_ORDER.map((c) => [c, classes.find((x) => x.code === c)]), [null, { name: 'Academia', icon: '🎓' }]];
     const out = [hint('Toque no jutsu para ensinar ao jogador alvo (ou subir o nível dele).'), el('div', { class: 'adm-bar' }, el('label', { class: 'adm-inline' }, 'Nível', level))];
     for (const [cls, info] of groups) {
-      const list = skills.filter((k) => (k.class ?? null) === cls).sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name));
+      const list = skills.filter((k) => (k.class !== undefined ? k.class : k.tier > 0 ? k.mechanic : null) === cls).sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name));
       if (!list.length) continue;
       out.push(el('h3', { class: 'adm-group', textContent: `${info?.icon ?? ''} ${info?.name ?? cls}` }),
         el('div', { class: 'adm-grid small' }, ...list.map((k) => el('button', {

@@ -462,7 +462,7 @@ function sandLamp(g, lx, ly) {
 }
 
 /**
- * Prédios da Vila da Areia, na mesma caixa (e com a porta no mesmo lugar) dos da Folha: a sede é uma cúpula quase
+ * Prédios da Aldeia do Vento Cortante, na mesma caixa (e com a porta no mesmo lugar) dos da Folha: a sede é uma cúpula quase
  * redonda com faixa de janelas e duas torres na frente; o hospital, uma cúpula clara com cruz vermelha; a Academia,
  * duas torres ligadas por uma ponte de pedra; as lojas, redondas e baixas com toldos; as casas, torres de cúpula ou de
  * terraço.
@@ -608,7 +608,7 @@ function drawMesa(g, x, y, w, h, seed) {
   for (let bx = x + 6; bx < x + w - 4; bx += 12 + r() * 14) if (r() < 0.6) boulder(g, bx, y + h - 1 + r() * 1.5, 2.6 + r() * 2.6, 1.8 + r() * 1.6, SAND_ROCK);
 }
 
-/** Nuvens no morro da Vila da Nuvem: tufos brancos com a sombra azulada embaixo. */
+/** Nuvens no morro da Aldeia da Rocha Antiga: tufos brancos com a sombra azulada embaixo. */
 function drawCloudBank(g, x, y, w, h, seed) {
   const r = rng(seed);
   const puffs = [[0.08, 0.3, 1.1], [0.26, 0.1, 1.4], [0.47, 0.2, 1.2], [0.68, 0.06, 1.5], [0.88, 0.22, 1.2], [0.37, 0.5, 0.9], [0.8, 0.55, 0.8]];
@@ -1127,7 +1127,7 @@ export function drawWall(g, wall, x, y, w, h, tile) {
  * Árvores, pedras altas e barracas têm ALTURA: são desenhadas por cima do chão, na mesma ordem dos bonecos (quem está
  * atrás fica atrás da copa). `propExtent` diz quanto o desenho passa da caixa de colisão (em casas).
  */
-// ------------------------------------------------------------------ Vale das Estátuas (v29, modo rankeado)
+// ------------------------------------------------------------------ Vale dos Guardiões (v29, modo rankeado)
 
 /** Cor de cada vila nas estátuas: [faixa escura, faixa, brilho] e o símbolo da placa. */
 const VILLAGE_COLORS = {
@@ -2587,7 +2587,7 @@ export function drawDeco(g, d, x, y, w, h) {
       for (let ly = y + 3; ly < y + h - 1; ly += 6) g.fillRect(x + 3, ly, w - 6, 2);
       return;
     }
-    case 'flag': {                                    // bandeira da Vila da Nuvem: pano vinho com a nuvem branca
+    case 'flag': {                                    // bandeira da Aldeia da Rocha Antiga: pano vinho com a nuvem branca
       const px = x + w / 2;
       fr(g, 'rgba(0,0,0,0.3)', px - 3, y + h - 1.5, 9, 3);
       fr(g, '#2a1a0e', px - 1, y - 24, 2.4, h + 24);                          // mastro

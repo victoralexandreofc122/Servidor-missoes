@@ -1,4 +1,4 @@
-// Vontade do Fogo — cliente web (JavaScript puro, sem bibliotecas).
+// Herança do Fogo — cliente web (JavaScript puro, sem bibliotecas).
 //
 // O SERVIDOR DECIDE TUDO no combate: este cliente só pede ("usa Fogo", "renascer") e
 // desenha o que o servidor responde (acertos, dano, vida, chakra, morte, XP).
@@ -558,7 +558,7 @@ const CAST_FAIL_TEXT = {
   FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
   NOT_EQUIPPED: 'Fora do kit ativo', SAFE_ZONE: 'Zona segura: sem combate',
   NOT_LEARNED: 'Jutsu não aprendido', BLOCKED: 'Caminho bloqueado', TUTORIAL_LOCKED: 'Primeiro, o Ataque Básico',
-  STUNNED: 'Atordoado!',
+  STUNNED: 'Atordoado!', CASTING: 'Fazendo os selos…',
 };
 
 function handleMessage(msg) {
@@ -705,6 +705,69 @@ function handleMessage(msg) {
       state.extractFailures = msg.failures || {};
       if (state.shop?.kind === 'scrolls') renderExtraction();
       break;
+    case 'ground':
+      (state.ground ||= new Map()).set(msg.id, { ...msg, start: performance.now(), end: performance.now() + msg.ms });
+      break;
+    case 'ground_end': {
+      // v29 (Fogo novo): o aviso de um jutsu de Fogo caiu (meteoro, cinzas, névoa): explode ali
+      const z = state.ground?.get(msg.id);
+      state.ground?.delete(msg.id);
+      if (z?.kind === 'aviso' && z.skill && mechanicOf(z.skill) === 'fire'
+        && !vfx.play('explosion', z.x, z.y, { start: now, scale: z.r / 2 })) {
+        state.effects.push({ skill: 'fire', x: z.x, y: z.y, fx: 0, fy: 0, r: z.r, start: now });
+      } else if (z?.kind === 'aviso' && z.skill && mechanicOf(z.skill) !== 'fire') {
+        // v30: o golpe avisado das outras classes (Dragão do Trovão, Kunai Explosiva, Dragões Gêmeos) cai: anel na cor
+        state.effects.push({ skill: 'jutsu_ring', x: z.x, y: z.y, fx: 0, fy: 0, r: z.r, color: CAST_COLOR[mechanicOf(z.skill)] || '#fff27a', start: now });
+      }
+      break;
+    }
+    case 'summon': {
+      // v30: a invocação já chegou como monstro; aqui só a vida certa (parte da vida de quem invocou)
+      const m = state.monsters.get(msg.id);
+      if (m) Object.assign(m, { hp: msg.hp, maxHp: msg.maxHp, ownerId: msg.ownerId });
+      break;
+    }
+    case 'summon_punch':
+      state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: msg.r, color: '#c9a678', start: now });
+      break;
+    case 'clan':
+      // v30: a linhagem despertou (o aviso com o que ela dá vem em seguida)
+      state.ninja.clan = msg.clan;
+      addSystemLine(`🩸 Linhagem: ${{ rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' }[msg.clan] || msg.clan}.`);
+      break;
+    case 'barrier': {
+      // v30: muro de jutsu: vira parede (a previsão do movimento esbarra nele) e aparece no chão
+      const walls = state.maps[state.mapId]?.walls;
+      const box = { k: 'iwall', x: msg.x, y: msg.y, w: msg.w, h: msg.h };
+      if (walls) walls.push(box);
+      (state.barriers ||= new Map()).set(msg.id, { ...msg, box, map: state.mapId, start: now });
+      break;
+    }
+    case 'barrier_end': {
+      const b = state.barriers?.get(msg.id);
+      if (b) {
+        const walls = state.maps[b.map]?.walls;
+        const k = walls ? walls.indexOf(b.box) : -1;
+        if (k >= 0) walls.splice(k, 1);
+        state.barriers.delete(msg.id);
+      }
+      break;
+    }
+    case 'cast_start': {
+      // v29: selos. A barra aparece sobre a cabeça de quem conjura (e maior perto dos botões, para quem conjura).
+      const p = state.players.get(msg.playerId);
+      if (p) { p.casting = { skill: msg.skill, start: now, end: now + msg.ms }; p.act = { kind: 'jutsu', start: now }; }
+      break;
+    }
+    case 'cast_interrupted': {
+      const p = state.players.get(msg.playerId);
+      if (p) {
+        p.casting = null;
+        addFloater(p.x, p.y - 0.9, msg.reason === 'cancel' ? 'Selos cancelados' : 'Interrompido!', msg.reason === 'cancel' ? '#d8cdb8' : '#ff9a5a', msg.reason === 'cancel' ? 0.75 : 1);
+      }
+      if (msg.playerId === state.meId) startCooldown(msg.skill, 1500);   // a recarga curta da interrupção (servidor: CAST_RULES)
+      break;
+    }
     case 'duel_state':
       state.duel = { ...msg, until: performance.now() + msg.ms, ...(msg.away ? { awayUntil: performance.now() + msg.away.ms } : {}) };
       duelAnnounce(msg);
@@ -1009,11 +1072,32 @@ function handleMessage(msg) {
     case 'cast': {
       // Efeito pela MECÂNICA do jutsu (os tiers 2 a 4 usam a do tier 1, maior).
       const fxKind = mechanicOf(msg.skill);
+      // v29 (Jutsus v2): as formas novas do Fogo têm desenho próprio (cone, linha, buff); o resto pela mecânica.
+      const info = state.world.skills?.[msg.skill] || {};
+      const form = formOf(msg.skill);
+      const color = CAST_COLOR[fxKind] || '#f4ecd8';
+      const lineEnd = { tx: msg.tx ?? msg.x + msg.fx * (info.range ?? 5), ty: msg.ty ?? msg.y + msg.fy * (info.range ?? 5) };
+      if (form === 'cone_fogo') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 3, cone: info.coneDeg ?? 90, start: now });
+      else if (form === 'linha_fogo') state.effects.push({ skill: 'fire_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, start: now });
+      // v30: as formas das outras classes
+      else if (form === 'cone_golpe') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 1.5, cone: info.coneDeg ?? 90, color, start: now });
+      else if (form === 'linha' || form === 'ricochete' || form === 'agarre' || form === 'faixa') state.effects.push({ skill: 'jutsu_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, color, start: now });
+      else if (form === 'anel_golpe') state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: info.radius ?? 2, color, start: now });
+      else if (form === 'impacto' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_ring', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: info.radius ?? 1.5, color, start: now });
+      else if (form === 'alvo' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_burst', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: 0.9, color, start: now });
+      else if (['zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque', 'palma'].includes(form) && fxKind !== 'fire' && fxKind !== 'weapons') {
+        // o efeito vem da zona, do aviso, do projétil ou do avanço; só um brilho em quem lançou
+        state.effects.push({ skill: 'jutsu_burst', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 0.6, color, start: now });
+      }
       // (Fogo: a explosão é no impacto, mensagem `impact`; nada em volta de quem lançou.)
-      if (fxKind !== 'teleport' && fxKind !== 'fire' && !playCastVfx(msg, fxKind, now)) state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
+      else if (fxKind !== 'teleport' && fxKind !== 'fire' && !playCastVfx(msg, fxKind, now)) state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
       faceTo(msg.playerId, msg.fx, msg.fy);
       const caster = state.players.get(msg.playerId);
-      if (caster) caster.act = { kind: 'jutsu', start: now };
+      if (caster) {
+        caster.act = { kind: 'jutsu', start: now };
+        caster.casting = null;
+        if (form === 'buff_basico') { caster.basicBuffUntil = now + (info.durationMs ?? 5000); caster.basicBuffColor = fxKind; }
+      }
       if (msg.playerId === state.meId) {
         console.log(`[habilidade] ${msg.skill}`);
         startCooldown(msg.skill);
@@ -1886,13 +1970,26 @@ const SKILLS = {
   heal: { color: '#5fe07a', ms: 900 },
   weapons: { color: '#c9d2da', ms: 420 },
   lightning: { color: '#fff27a', ms: 360 },
+  wind: { color: '#9fe8c8', ms: 420 },   // v30
   teleport: { color: '#d6efff', ms: 380 },
   substitution: { color: '#e8c66a', ms: 600 },
   log: { color: '#8b5a2b', ms: 1400 },         // tronco que levou o golpe da Substituição
   attack: { color: '#fff3c4', ms: 260 },   // Ataque Básico: corte rápido na direção do golpe
   slam: { color: '#7a5a3a', ms: 520 },     // golpe marcado caiu: anel de impacto no chão (fx = raio)
+  fire_cone: { color: '#ff7a2e', ms: 560 },   // v29: Sopro Incinerador e Destruição Magnífica (leque de chamas)
+  fire_line: { color: '#ff9a3c', ms: 520 },   // v29: Linha de Fogo Rasante e Chamas do Dragão Guiado
+  // v30: as formas das outras classes, na cor do elemento (fx.color)
+  jutsu_cone: { color: '#f2b13a', ms: 420 },  // cone de golpe (Rasteira, Cem Golpes, Punho do Céu)
+  jutsu_line: { color: '#fff27a', ms: 460 },  // linha (Estaca, Prisão de Água, Lança Saltadora, Agarre)
+  jutsu_ring: { color: '#3ca6ff', ms: 520 },  // anel (Onda de Choque, Chute Ciclone, Fluxo Elétrico) e o golpe avisado caindo
+  jutsu_burst: { color: '#a072ff', ms: 600 }, // no alvo (Prisão de Pilares, Árvore Prendedora, Laço do Destino)
 };
-const GROUND_FX = new Set(['shadow', 'water', 'log', 'slam']);
+const GROUND_FX = new Set(['shadow', 'water', 'log', 'slam', 'fire_cone', 'fire_line', 'jutsu_cone', 'jutsu_line', 'jutsu_ring', 'jutsu_burst']);
+/** v29 (Jutsus v2): a forma do jutsu (o welcome só manda quando não é a da mecânica). */
+const FORM_OF_MECHANIC = { fire: 'linha_explode', water: 'cone', taijutsu: 'avanco', illusion: 'anel', shadow: 'linha_prende', stone: 'escudo', heal: 'cura', weapons: 'trilhas', lightning: 'linha_raio', wind: 'cone_golpe', teleport: 'teleporte', substitution: 'substituicao' };
+const formOf = (skill) => state.world.skills?.[skill]?.form || FORM_OF_MECHANIC[mechanicOf(skill)];
+/** Cor dos selos (barra sobre a cabeça) pelo elemento. */
+const CAST_COLOR = { fire: '#ff7a2e', water: '#3ca6ff', lightning: '#fff27a', illusion: '#a072ff', shadow: '#8b7ad8', stone: '#c9a678', heal: '#5fe07a', taijutsu: '#f2b13a', weapons: '#c9d2da', wind: '#9fe8c8' };
 /** Efeitos em sprite (assets/vfx). Os de `SKILLS`/drawEffect ficam de reserva, se as folhas não carregarem. */
 const vfx = new VFXManager();
 
@@ -1938,7 +2035,7 @@ function playCastVfx(msg, mechanic, now) {
  * Mecânicas que miram no alvo focado (as mesmas do servidor). Taijutsu: sempre o mais perto; Ilusão: círculo
  * em volta do jogador; Pedra e Cura: em si mesmo (a Cura pega o aliado mais ferido por perto).
  */
-const DIRECTED = new Set(['fire', 'water', 'shadow', 'lightning', 'weapons']);
+const DIRECTED = new Set(['fire', 'water', 'shadow', 'lightning', 'weapons', 'wind']);
 /** Mecânica e nome de um jutsu (catálogo do welcome). */
 const mechanicOf = (skill) => state.world.skills?.[skill]?.mechanic || skill;
 const skillName = (skill) => state.world.skills?.[skill]?.name || skill;
@@ -1974,7 +2071,7 @@ function showDuelBanner(won, score, points, voided = false) {
   bannerTimer = setTimeout(() => { ui.duelBanner.hidden = true; }, 6000);
 }
 
-const VILLAGE_SHORT = { vila_1: 'Folha', vila_3: 'Névoa', vila_4: 'Nuvem', vila_5: 'Areia' };
+const VILLAGE_SHORT = { vila_1: 'Chama Eterna', vila_3: 'Maré Oculta', vila_4: 'Rocha Antiga', vila_5: 'Vento Cortante' };
 
 /** Este jogador está numa partida do rankeado agora? */
 function duelFighting() {
@@ -1982,7 +2079,7 @@ function duelFighting() {
   return !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
 }
 
-/** No Vale das Estátuas: o outro lado da partida, só durante a rodada (o servidor confere de novo). */
+/** No Vale dos Guardiões: o outro lado da partida, só durante a rodada (o servidor confere de novo). */
 function duelFoe(id) {
   const d = state.duel;
   if (!d || d.phase !== 'round' || !d.a || !d.b) return false;
@@ -2139,6 +2236,52 @@ function duelAnnounce(msg) {
       if (msg.voided) showDuelBanner(won, 'Ninguém causou dano: não conta pontos', '', true);
       else showDuelBanner(won, msg.reason === 'forfeit' ? (won ? 'Vitória por W.O.: o adversário saiu' : 'Você saiu da partida') : `${Math.max(msg.wins.a, msg.wins.b)} x ${Math.min(msg.wins.a, msg.wins.b)}`, 'Calculando os pontos…');
     }
+  }
+}
+
+// ------------------------------------------------------------------ zonas no chão e avisos (v29, Jutsus v2)
+
+/** '#rrggbb' + alfa -> 'rgba(...)'. */
+function hexA(hex, a) {
+  const n = parseInt(String(hex || '#ffffff').slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(1, a))})`;
+}
+
+const GROUND_COLORS = {
+  // v30: as zonas das outras classes
+  agua: ['rgba(60, 166, 255, 0.25)', 'rgba(140, 210, 255, 0.85)'],
+  sombra: ['rgba(30, 20, 50, 0.45)', 'rgba(139, 122, 216, 0.85)'],
+  ilusao: ['rgba(160, 114, 255, 0.22)', 'rgba(200, 170, 255, 0.85)'],
+  armas: ['rgba(201, 210, 218, 0.15)', 'rgba(230, 236, 242, 0.9)'],
+  fogo: ['rgba(255, 120, 40, 0.30)', 'rgba(255, 170, 60, 0.85)'],
+  lama: ['rgba(110, 80, 40, 0.40)', 'rgba(160, 120, 70, 0.85)'],
+  cura: ['rgba(90, 220, 120, 0.25)', 'rgba(150, 255, 170, 0.85)'],
+  aviso: ['rgba(230, 40, 40, 0.18)', 'rgba(255, 70, 60, 0.95)'],
+};
+
+/** Zona: círculo pulsando com borda tracejada. Aviso: círculo vermelho que vai enchendo até o golpe cair. */
+function drawGround(toScreenX, toScreenY, T, now) {
+  if (!state.ground || state.ground.size === 0) return;
+  for (const [id, z] of state.ground) {
+    if (now > z.end + 300) { state.ground.delete(id); continue; }
+    const owner = z.follow ? state.players.get(z.follow) : null;      // v30: zona que anda junto (Aura, Lâminas, Dança)
+    const x = toScreenX(owner ? owner.x : z.x), y = toScreenY(owner ? owner.y : z.y), r = z.r * T;
+    const [fill, edge] = GROUND_COLORS[z.kind] || GROUND_COLORS.fogo;
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.9, 0, 0, Math.PI * 2);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = edge;
+    if (z.kind === 'aviso') {
+      const k = Math.max(0, Math.min(1, (now - z.start) / Math.max(1, z.end - z.start)));
+      ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y, r * k, r * 0.9 * k, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 60, 50, 0.30)'; ctx.fill();
+    } else {
+      ctx.setLineDash([6, 5]); ctx.lineDashOffset = -now / 60;
+      ctx.globalAlpha = 0.75 + 0.25 * Math.sin(now / 180);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 
@@ -2678,7 +2821,7 @@ function capeIcon(code) {
 /** Cor da classe (o selo no pergaminho de classe). */
 const CLASS_TINT = {
   fire: '#e8572f', water: '#3c9be0', lightning: '#f2d25a', taijutsu: '#d9a441', illusion: '#9a6be0',
-  shadow: '#5a4f83', stone: '#8a6a45', heal: '#4fbf6a', weapons: '#b8b8c8',
+  shadow: '#5a4f83', stone: '#8a6a45', heal: '#4fbf6a', weapons: '#b8b8c8', wind: '#6fcfa8',
 };
 
 /** O ícone de um item num canvas: a pixel art da arma, do pergaminho (com o selo da classe), da capa ou do sapato. */
@@ -3091,6 +3234,7 @@ const SKILL_UI = {
   heal: { icon: '✚', color: '#4fbf6a' },
   weapons: { icon: '🗡️', color: '#8a96a3' },
   lightning: { icon: '⚡', color: '#d9c22e' },
+  wind: { icon: '🌪️', color: '#6fcfa8' },   // v30: a classe Vento
   teleport: { icon: '💨', color: '#6fa8d6' },
   substitution: { icon: '🪵', color: '#a0703a' },
 };
@@ -3627,7 +3771,8 @@ function renderJutsus() {
     const name = document.createElement('span');
     name.className = 'name';
     name.textContent = info ? info.name : skill;
-    const cls = state.world.skills[skill]?.class;
+    const sinfo = state.world.skills[skill];
+    const cls = sinfo ? (sinfo.class !== undefined ? sinfo.class : sinfo.tier > 0 ? sinfo.mechanic : null) : undefined;   // v30: a classe é a mecânica quando não vem
     const small = document.createElement('small');
     small.textContent = cls ? `${state.world.classes?.find((c) => c.code === cls)?.name || cls} · Tier ${info?.tier ?? 1}` : 'Academia';
     name.append(small);
@@ -4152,6 +4297,13 @@ ui.chat.addEventListener('submit', (e) => {
   const message = ui.chatInput.value.trim();
   if (!message) return closeChat();
   if (!state.connected) return addSystemLine('Sem conexão. Tentando reconectar…');
+  // v30: o despertar da linhagem (a partir de Genin): /linhagem rubro | umbra | andarilho
+  const lin = /^\/linhagem\s+(rubro|umbra|andarilho)$/i.exec(message);
+  if (lin) {
+    send({ type: 'clan', clan: lin[1].toLowerCase() });
+    ui.chatInput.value = '';
+    return;
+  }
   send({ type: 'chat', message });
   ui.chatInput.value = '';
 });
@@ -4527,7 +4679,7 @@ function lightStoneTile(seed) {
   });
 }
 
-/** Areia do deserto (os gramados da Vila da Areia): grão fino e ondinhas de vento. */
+/** Areia do deserto (os gramados da Aldeia do Vento Cortante): grão fino e ondinhas de vento. */
 function desertTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
@@ -4676,7 +4828,7 @@ function stoneTile(seed) {
 
 /** Calçamento de cada vila (v16): a mesma planta da Folha com a pedra da terra dela. [base, bloco, bloco 2, brilho, pontos]. */
 /**
- * v29 (revisão EGM): o chão do Vale das Estátuas. Lajes grandes de pedra cinza-oliva (2 por casa, de tamanhos
+ * v29 (revisão EGM): o chão do Vale dos Guardiões. Lajes grandes de pedra cinza-oliva (2 por casa, de tamanhos
  * diferentes), juntas escuras com musgo e uma laje rachada de vez em quando. Escuro o bastante para não estourar no sol.
  */
 function valeSlabTile(seed, cracked = false) {
@@ -4883,7 +5035,7 @@ function tileAt(x, y) {
     case 'burnt': return TILES.burnt[h % 3];                       // Acampamento e Clareira Queimada
     case 'pebbles': return TILES.pebbles[h & 1];                   // leito seco da cachoeira
     case 'lodo': return TILES.lodo[0];
-    case 'slab': return TILES.slab[h % 31 === 0 ? 8 : (h >>> 3) % 8];   // Vale das Estátuas: lajes com musgo
+    case 'slab': return TILES.slab[h % 31 === 0 ? 8 : (h >>> 3) % 8];   // Vale dos Guardiões: lajes com musgo
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
     case 'arena':                                                  // arena da vila: lajes, losango a cada 4 (na Areia, terra batida)
@@ -5058,7 +5210,9 @@ function update(dt) {
   if (me && predWorld) {
     // Próprio jogador: predição (anda já) + envio das entradas em lote + correção suave.
     const canMove = state.connected && !state.me.dead;
-    const dx = quantize(dir.x), dy = quantize(dir.y);
+    // v30: controles invertidos (Distúrbio Nervoso): anda ao contrário enquanto durar
+    const inv = me.fx?.invertido > now ? -1 : 1;
+    const dx = quantize(dir.x) * inv, dy = quantize(dir.y) * inv;
     const s = speed * debugSpeedFactor;
     for (const msg of pred.advance(dt * 1000, dx, dy, s, predWorld, canMove)) send(msg);
     const [vx, vy] = pred.view(dt * 1000, dx, dy, s, predWorld, canMove);
@@ -5195,7 +5349,72 @@ function updateCamera(dt, me) {
   cam.scale += (want.scale - cam.scale) * k;
 }
 
+/** v30: muros dos jutsus: rocha (blocos com contorno) ou água (lâmina azul que ondula). */
+function drawBarriers(toScreenX, toScreenY, T, now) {
+  if (!state.barriers || state.barriers.size === 0) return;
+  for (const b of state.barriers.values()) {
+    if (b.map !== state.mapId) continue;
+    const x = toScreenX(b.x), y = toScreenY(b.y), w = b.w * T, h = b.h * T;
+    const k = Math.min(1, (now - b.start) / 180);              // sobe do chão
+    ctx.save();
+    if (b.kind === 'agua') {
+      ctx.fillStyle = `rgba(60, 166, 255, ${0.45 * k})`;
+      ctx.fillRect(x, y + h * (1 - k), w, h * k);
+      ctx.strokeStyle = 'rgba(200, 235, 255, 0.9)'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i <= 8; i++) {
+        const px = x + (w * i) / 8, py = y + Math.sin(now / 160 + i) * 2;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    } else {
+      const lift = T * 0.5 * k;
+      ctx.fillStyle = '#5b4632'; ctx.fillRect(x, y - lift, w, h + lift);
+      ctx.fillStyle = '#8a6a48'; ctx.fillRect(x + 2, y - lift + 2, w - 4, Math.max(2, (h + lift) * 0.45));
+      ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.strokeRect(x, y - lift, w, h + lift);
+      ctx.strokeStyle = 'rgba(42, 28, 16, 0.6)'; ctx.lineWidth = 1;
+      const cells = Math.max(2, Math.round(Math.max(w, h) / T));
+      for (let i = 1; i < cells; i++) {
+        ctx.beginPath();
+        if (w >= h) { ctx.moveTo(x + (w * i) / cells, y - lift); ctx.lineTo(x + (w * i) / cells, y + h); }
+        else { ctx.moveTo(x, y - lift + ((h + lift) * i) / cells); ctx.lineTo(x + w, y - lift + ((h + lift) * i) / cells); }
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+}
+
+/** v30: no escuro, a tela fica preta em volta de você e só se vê ~2 casas (a interface continua). */
+function drawDarkness(me, toScreenX, toScreenY, T, now) {
+  if (!me || !(me.fx?.escuridao > now)) return;
+  const x = toScreenX(me.x), y = toScreenY(me.y);
+  const w = ctx.canvas.width / dpr, h = ctx.canvas.height / dpr;
+  const g = ctx.createRadialGradient(x, y, T * 1.2, x, y, T * 2.6);
+  g.addColorStop(0, 'rgba(4, 4, 12, 0)');
+  g.addColorStop(1, 'rgba(4, 4, 12, 0.94)');
+  ctx.save();
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+/** v29: a barra de selos grande, perto dos botões (só para quem conjura). */
+const castHud = { el: document.getElementById('cast-bar'), fill: document.querySelector('#cast-bar .fill'), name: document.querySelector('#cast-bar .name'), shown: false };
+function updateCastHud(me, now) {
+  if (!castHud.el) return;
+  const c = me && !me.dead ? me.casting : null;
+  const on = !!c && now < c.end + 120;
+  if (on !== castHud.shown) { castHud.el.hidden = !on; castHud.shown = on; }
+  if (!on) return;
+  const k = Math.max(0, Math.min(1, (now - c.start) / Math.max(1, c.end - c.start)));
+  castHud.fill.style.width = `${Math.round(k * 100)}%`;
+  castHud.fill.style.background = CAST_COLOR[mechanicOf(c.skill)] || '#f4ecd8';
+  if (castHud.name.dataset.skill !== c.skill) { castHud.name.dataset.skill = c.skill; castHud.name.textContent = skillName(c.skill); }
+}
+
 function draw(now) {
+  updateCastHud(state.players.get(state.meId), now);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = false;
   const me = state.players.get(state.meId);
@@ -5280,6 +5499,8 @@ function draw(now) {
   let alive = 0;
   for (const fx of state.effects) if (SKILLS[fx.skill] && now - fx.start < SKILLS[fx.skill].ms) state.effects[alive++] = fx;
   state.effects.length = alive;
+  drawGround(toScreenX, toScreenY, T, now);           // v29: zonas no chão e avisos de golpe
+  drawBarriers(toScreenX, toScreenY, T, now);         // v30: muros dos jutsus
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   vfx.draw(ctx, 'ground', toScreenX, toScreenY, T, dpr, now);
   drawTelegraphs(toScreenX, toScreenY, T, now);
@@ -5328,6 +5549,7 @@ function draw(now) {
   }
 
   for (const fx of state.effects) if (!GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
+  drawDarkness(me, toScreenX, toScreenY, T, now);     // v30: escuridão (Ocultação na Névoa, Noite Eterna)
   vfx.draw(ctx, 'top', toScreenX, toScreenY, T, dpr, now);
 
   // Por cima de todos: o telhado do portão (quem passa por baixo fica escondido por ele).
@@ -6095,6 +6317,75 @@ function drawEffect(fx, sx, sy, T, now) {
   const fade = 1 - t;
   ctx.save();
   switch (fx.skill) {
+    case 'fire_cone': {                  // v29: leque de chamas que abre até o alcance e apaga
+      const a0 = Math.atan2(fx.fy, fx.fx), half = (fx.cone * Math.PI) / 360;
+      const R = T * fx.r * (0.55 + 0.45 * Math.min(1, t * 2));
+      const alpha = Math.min(1, fade * 1.4);
+      const g = ctx.createRadialGradient(sx, sy, T * 0.2, sx, sy, R);
+      if (fx.color) {                    // v30: cone de golpe na cor do elemento
+        g.addColorStop(0, `rgba(255, 255, 255, ${0.8 * alpha})`);
+        g.addColorStop(0.4, hexA(fx.color, 0.75 * alpha));
+        g.addColorStop(1, hexA(fx.color, 0.1 * alpha));
+      } else {
+        g.addColorStop(0, `rgba(255, 245, 190, ${0.95 * alpha})`);
+        g.addColorStop(0.35, `rgba(255, 170, 50, ${0.9 * alpha})`);
+        g.addColorStop(0.8, `rgba(235, 80, 20, ${0.75 * alpha})`);
+        g.addColorStop(1, `rgba(150, 30, 10, ${0.2 * alpha})`);
+      }
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.arc(sx, sy, R, a0 - half, a0 + half); ctx.closePath(); ctx.fill();
+      // borda de chamas: a frente da onda
+      ctx.strokeStyle = `rgba(255, 220, 120, ${0.9 * alpha})`;
+      ctx.lineWidth = Math.max(2, T * 0.12);
+      ctx.beginPath(); ctx.arc(sx, sy, R * 0.97, a0 - half * 0.95, a0 + half * 0.95); ctx.stroke();
+      ctx.fillStyle = `rgba(255, 210, 120, ${0.9 * fade})`;
+      for (let k = 0; k < 9; k++) {      // fagulhas
+        const a = a0 - half + (k + 0.5) * (2 * half / 9), d = R * (0.55 + 0.4 * ((k * 37) % 10) / 10);
+        ctx.fillRect(Math.round(sx + Math.cos(a) * d) - 2, Math.round(sy + Math.sin(a) * d) - 2, 4, 4);
+      }
+      break;
+    }
+    case 'jutsu_line': {                 // v30: linha na cor do elemento
+      const ex = sx + (fx.tx - fx.x) * T, ey = sy + (fx.ty - fx.y) * T;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = hexA(fx.color, 0.45 * fade); ctx.lineWidth = T * 0.5;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.strokeStyle = hexA(fx.color, 0.95 * fade); ctx.lineWidth = T * 0.2;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.9 * fade})`; ctx.lineWidth = T * 0.06;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      break;
+    }
+    case 'jutsu_ring': {                 // v30: anel que abre até o raio
+      const R = T * (fx.r || 2) * (0.35 + 0.65 * t);
+      ctx.fillStyle = hexA(fx.color, 0.22 * fade);
+      ctx.beginPath(); ctx.ellipse(sx, sy, R, R * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = hexA(fx.color, 0.95 * fade); ctx.lineWidth = Math.max(2, T * 0.14 * fade + 1);
+      ctx.beginPath(); ctx.ellipse(sx, sy, R, R * 0.8, 0, 0, Math.PI * 2); ctx.stroke();
+      break;
+    }
+    case 'jutsu_burst': {                // v30: no alvo: pulso e faíscas
+      const R = T * (fx.r || 0.9) * (0.6 + 0.6 * t);
+      ctx.strokeStyle = hexA(fx.color, 0.95 * fade); ctx.lineWidth = Math.max(2, T * 0.12);
+      ctx.beginPath(); ctx.ellipse(sx, sy, R, R * 0.8, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = hexA(fx.color, 0.9 * fade);
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2 + t;
+        ctx.fillRect(Math.round(sx + Math.cos(a) * R * 1.1) - 2, Math.round(sy + Math.sin(a) * R * 0.9) - 2, 4, 4);
+      }
+      break;
+    }
+    case 'fire_line': {                  // v29: chama rasteira em linha (do lançador até onde acertou)
+      const ex = sx + (fx.tx - fx.x) * T, ey = sy + (fx.ty - fx.y) * T;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(200, 50, 10, ${0.55 * fade})`;
+      ctx.lineWidth = T * 0.55; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 170, 60, ${0.9 * fade})`;
+      ctx.lineWidth = T * 0.28; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 245, 190, ${fade})`;
+      ctx.lineWidth = T * 0.09; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      break;
+    }
     case 'slam': {                       // impacto do golpe marcado: anel que abre até o raio e rachaduras
       const r = T * fx.fx * (0.6 + 0.4 * t);
       ctx.globalAlpha = 0.75 * fade;
@@ -6440,8 +6731,40 @@ function drawCrown(g, sx, top, r) {
   g.restore();
 }
 
+/** v30: invocações dos jutsus: o Golem de Terra (pedra) e o Clone de Água (um ninja d'água translúcido). */
+function drawSummon(m, sx, sy, T, now) {
+  const golem = m.type === 'golem';
+  const s = golem ? 1.5 : 1;
+  const w = T * 0.62 * s, h = T * 0.95 * s;
+  const born = Math.max(0.1, Math.min(1, (now - (m.bornAt || now)) / 300));
+  ctx.save();
+  ctx.globalAlpha = golem ? 1 : 0.62;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.3, w * 0.7, T * 0.16 * s, 0, 0, Math.PI * 2); ctx.fill();
+  const top = sy + T * 0.3 - h * born;
+  if (golem) {
+    ctx.fillStyle = '#6b5236'; ctx.fillRect(sx - w / 2, top + h * 0.25, w, h * 0.75);           // corpo
+    ctx.fillStyle = '#8a6a48'; ctx.fillRect(sx - w * 0.35, top, w * 0.7, h * 0.32);              // cabeça
+    ctx.fillStyle = '#5b4632'; ctx.fillRect(sx - w * 0.85, top + h * 0.3, w * 0.32, h * 0.5);    // braços
+    ctx.fillRect(sx + w * 0.53, top + h * 0.3, w * 0.32, h * 0.5);
+    ctx.fillStyle = '#ffcf5a'; ctx.fillRect(sx - w * 0.2, top + h * 0.12, 4, 4); ctx.fillRect(sx + w * 0.12, top + h * 0.12, 4, 4);   // olhos
+    ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.strokeRect(sx - w / 2, top + h * 0.25, w, h * 0.75); ctx.strokeRect(sx - w * 0.35, top, w * 0.7, h * 0.32);
+  } else {
+    const g = ctx.createLinearGradient(0, top, 0, top + h);
+    g.addColorStop(0, '#bfe6ff'); g.addColorStop(1, '#3ca6ff');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(sx, top + h * 0.2, w * 0.38, h * 0.2, 0, 0, Math.PI * 2); ctx.fill();              // cabeça
+    ctx.fillRect(sx - w * 0.32, top + h * 0.36, w * 0.64, h * 0.64);                                               // corpo
+    ctx.strokeStyle = 'rgba(230, 248, 255, 0.9)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(sx - w * 0.3, top + h * (0.55 + 0.05 * Math.sin(now / 150))); ctx.lineTo(sx + w * 0.3, top + h * 0.55); ctx.stroke();
+  }
+  ctx.restore();
+  if (m.hp !== undefined && m.maxHp) drawHpBar(sx, top - 6, w + 6, m.hp / m.maxHp, golem ? '#c9a678' : '#8fd6ff');
+}
+
 function drawMonster(m, sx, sy, T, now) {
   if (m.type === 'dummy' || m.type === 'sparring') return drawDummyMonster(m, sx, sy, T, now);
+  if (m.type === 'golem' || m.type === 'clone_agua') return drawSummon(m, sx, sy, T, now);   // v30: invocações
   const born = Math.max(0.05, Math.min(1, (now - m.bornAt) / 250));
   const art = monsterArtReady(m.type);
   // Com sprite, a morte é a animação dela (monsterSprites.js); sem, o slime encolhe e some em 0,45 s.
@@ -6884,6 +7207,52 @@ function knockOffset(p, now, axis) {
   return k[axis] * (1 - t) * (1 - t);
 }
 
+/** v29 (Jutsus v2): os selos. Barra na cor do elemento sobre a cabeça, enchendo até o jutsu sair; brilho nas mãos. */
+function drawCastBar(p, sx, headTop, r, T, now) {
+  const c = p.casting;
+  const k = Math.max(0, Math.min(1, (now - c.start) / Math.max(1, c.end - c.start)));
+  const color = CAST_COLOR[mechanicOf(c.skill)] || '#f4ecd8';
+  const w = Math.max(34, T * 1.15), h = Math.max(5, Math.round(T * 0.14));
+  const x = Math.round(sx - w / 2), y = Math.round(headTop - Math.max(30, T * 0.95));
+  ctx.save();
+  ctx.fillStyle = 'rgba(8, 10, 20, 0.8)';
+  roundRect(x - 2, y - 2, w + 4, h + 4, 3); ctx.fill();
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, Math.round(w * k), h);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.fillRect(x, y, Math.round(w * k), Math.max(1, Math.round(h / 3)));
+  // selos: duas faíscas na cor do elemento em volta das mãos
+  ctx.globalAlpha = 0.6 + 0.4 * Math.sin(now / 60);
+  ctx.fillStyle = color;
+  for (const side of [-1, 1]) ctx.fillRect(Math.round(sx + side * r * 0.55) - 2, Math.round(headTop + r * 1.35 + Math.sin(now / 90 + side) * 2) - 2, 4, 4);
+  ctx.restore();
+}
+
+/** v29: Lâmina de Fogo ativa: brasa no chão e chamas subindo em volta do ninja (o Básico bate mais forte). */
+const BUFF_COLORS = { fire: ['#fff0a8', '#ffa23a', '#e8461c', '255, 190, 80'], stone: ['#f1dfb4', '#c9a678', '#7a5a3a', '201, 166, 120'], heal: ['#e6ffd8', '#8fe0a0', '#3fae5a', '120, 230, 140'], taijutsu: ['#fff3c4', '#f2b13a', '#c26a12', '242, 177, 58'] };
+function drawBasicBuff(sx, sy, r, T, now, kind = 'fire') {
+  const [c1, c2, c3, glow] = BUFF_COLORS[kind] || BUFF_COLORS.fire;
+  ctx.save();
+  const pulse = 0.75 + 0.25 * Math.sin(now / 140);
+  const R = T * 0.75, foot = sy + r * 0.9;
+  const g = ctx.createRadialGradient(sx, foot, T * 0.1, sx, foot, R);
+  g.addColorStop(0, `rgba(${glow}, ${0.7 * pulse})`);
+  g.addColorStop(1, `rgba(${glow}, 0)`);
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(sx, foot, R, R * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+  const size = Math.max(5, Math.round(T * 0.17));
+  for (let k = 0; k < 12; k++) {
+    const ph = (now / 650 + k / 12) % 1;
+    const side = k % 2 === 0 ? -1 : 1;
+    const x = sx + side * T * (0.42 + 0.12 * Math.sin(now / 200 + k)) * (1 - 0.35 * ph);
+    const y = foot - ph * T * 1.45;
+    ctx.globalAlpha = 0.95 * (1 - ph * ph);
+    ctx.fillStyle = ph < 0.3 ? c1 : ph < 0.65 ? c2 : c3;
+    ctx.fillRect(Math.round(x - size / 2), Math.round(y - size), size, Math.round(size * 1.4));
+  }
+  ctx.restore();
+}
+
 function drawPlayer(p, sx, sy, T, isMe, now) {
   if (p.dead) ctx.globalAlpha = 0.45;
   const r = T * 0.38;
@@ -6923,6 +7292,8 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
       ctx.fillRect(Math.round(sx + Math.cos(a) * r * 0.9) - 2, Math.round(headTop - 4 + Math.sin(a) * r * 0.25) - 2, 4, 4);
     }
   }
+  if (!p.dead && now < (p.basicBuffUntil || 0)) drawBasicBuff(sx, sy, r, T, now, p.basicBuffColor);   // v29: Lâmina de Fogo; v30: os outros buffs de Básico
+  if (!p.dead && p.casting && now < p.casting.end + 120) drawCastBar(p, sx, headTop, r, T, now);   // v29: selos
   if (isMe) {                         // marquinha para achar o próprio boneco no meio dos outros
     ctx.fillStyle = '#ffe2a8';
     ctx.beginPath();

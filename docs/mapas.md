@@ -1,6 +1,6 @@
 # Design dos mapas: o mundo do Arco 1
 
-Como o mundo do **Vontade do Fogo** se organiza, com a planta de cada mapa que o [Arco 1](historia/arco-1.md) pede.
+Como o mundo do **Herança do Fogo** se organiza, com a planta de cada mapa que o [Arco 1](historia/arco-1.md) pede.
 O [design geral](design-do-jogo.md) e o [fim de jogo](endgame.md) continuam valendo; este documento cuida de
 **onde as coisas ficam** e **por quê**.
 
@@ -37,7 +37,7 @@ O jogo é jogado num celular deitado, com a câmera vendo cerca de **20 x 11 cas
 
 ```
                  ┌────────────────────┐
-                 │  Vila da Folha     │  80 x 80 · segura
+                 │  Aldeia da Chama Eterna     │  80 x 80 · segura
                  │  (Poço sob a Praça)│──── poço lacrado ────► Poço sob a Praça (24 x 18) · M13
                  └─────────┬──────────┘
                      portão sul
@@ -55,7 +55,7 @@ O jogo é jogado num celular deitado, com a câmera vendo cerca de **20 x 11 cas
    Refúgio dos Renegados ──Posto de Viagem──► Zona de Conflito
 ```
 
-- **A Vila da Folha** é o centro do Arco 1. As outras vilas, a Zona de Conflito e o Refúgio são do fim de jogo e já
+- **A Aldeia da Chama Eterna** é o centro do Arco 1. As outras vilas, a Zona de Conflito e o Refúgio são do fim de jogo e já
   existem ([endgame.md](endgame.md)).
 - **A Floresta** é o mapa grande do arco: quase todas as missões passam por ela.
 - **Os mapas novos** saem dela: a Caverna do Lodo (pelo abismo) e a Clareira Queimada (pela passagem sul). O Poço
@@ -240,9 +240,9 @@ código por cima: o chão, as paredes, as tochas e os enfeites já estão no des
 | Mapa | Imagem | Recorte | Tamanho |
 |---|---|---|---|
 | Poço sob a Praça | `arte/mapas/referencia_poco.jpg` (1500 x 1120) | `37,34,1464,1087` | 24 x 18 |
-| Vila da Folha | `arte/vilas/folha_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
-| Vila da Névoa | `arte/vilas/nevoa_ampliada.jpg` (6000 x 4480, ampliada) | `0,0,6000,4480` | 80 x 60 |
-| Vila da Nuvem | `arte/vilas/nuvem_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
+| Aldeia da Chama Eterna | `arte/vilas/folha_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
+| Aldeia da Maré Oculta | `arte/vilas/nevoa_ampliada.jpg` (6000 x 4480, ampliada) | `0,0,6000,4480` | 80 x 60 |
+| Aldeia da Rocha Antiga | `arte/vilas/nuvem_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
 | Floresta | `arte/mapas/floresta_ampliada.jpg` (6000 x 4480, ampliada) | `0,0,6000,4480` | 100 x 75 |
 | Zona de Conflito | `arte/mapas/zona_ampliada.jpg` (4500 x 3360, ampliada) | `44,32,4456,3328` | 110 x 80 (esticada 2,8% na largura) |
 | Armaria | `arte/mapas/referencia_armaria.jpg` (2000 x 1493) | `56,52,1944,1493` | 17 x 13 |
@@ -262,7 +262,7 @@ os NPCs, onde se nasce e renasce, onde se chega de viagem e o fim do tutorial.
 
 ---
 
-## 7. Vila da Folha (o que muda)
+## 7. Aldeia da Chama Eterna (o que muda)
 
 - **Grade do canal** (M2): onde o rio do oeste passa por baixo da muralha sul, uma grade de ferro. "A água desse
   canal vem da Floresta. Por baixo da terra."

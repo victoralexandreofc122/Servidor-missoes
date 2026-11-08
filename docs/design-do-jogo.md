@@ -1,4 +1,4 @@
-# Vontade do Fogo: design geral do jogo
+# Herança do Fogo: design geral do jogo
 
 Este é o documento de design (GDD) do jogo. Ele diz **o que** o jogo é, **por que** cada sistema existe e **para
 onde** ele vai. Os detalhes técnicos ficam em outros lugares:
@@ -17,7 +17,7 @@ onde** ele vai. Os detalhes técnicos ficam em outros lugares:
 - **[proposta]**: o design recomenda, mas ainda não está feito.
 - **[decidir]**: precisa de uma decisão do Victor (lista completa na seção 21).
 
-**v15 (24/10/2026):** o Victor aprovou as ideias, escolheu o nome **Vontade do Fogo** e pediu uma **arena em cada
+**v15 (24/10/2026):** o Victor aprovou as ideias, escolheu o nome **Herança do Fogo** e pediu uma **arena em cada
 vila** para os ninjas da mesma vila treinarem PvP. O que entrou no jogo nessa versão está marcado como [existe]
 (veja também o README, seção v15).
 
@@ -34,7 +34,7 @@ sobe de rank com cerimônia, aprende com outros jogadores e ensina os novatos, a
 
 | | |
 |---|---|
-| **Nome** | **Vontade do Fogo** (decidido; veja a nota sobre o nome na seção 22) |
+| **Nome** | **Herança do Fogo** (decidido; veja a nota sobre o nome na seção 22) |
 | **Gênero** | MMORPG de ação 2D, combate em tempo real, progressão por rank |
 | **Plataforma principal** | navegador no celular, **deitado** (paisagem) |
 | **Outras plataformas** | computador no navegador (teclado já mapeado); app nativo no futuro, com o mesmo protocolo (o servidor já aceita `Authorization: Bearer`) |
@@ -883,7 +883,7 @@ classificação indicativa.
 
 | # | Decisão | Opções | Estado |
 |---|---|---|---|
-| 1 | Nome do jogo | manter "Nin Online Mobile" / nome próprio | **decidido: Vontade do Fogo** (nota na seção 22) |
+| 1 | Nome do jogo | manter "Nin Online Mobile" / nome próprio | **decidido: Herança do Fogo** (nota na seção 22) |
 | 2 | Título do líder da vila | "Hokage" / título próprio | **decidido: Kage** (Victor, v16; risco na seção 22) |
 | 3 | Nomes das vilas | a criar | **decidido: Folha, Névoa, Nuvem e Areia** (Victor, v16; a Pedra saiu na v13; risco na seção 22) |
 | 4 | Vila no Criador | A travar / B origem / C ganhar no Arco 1 | **decidido e feito: A** (seção 11.1) |
@@ -901,7 +901,7 @@ classificação indicativa.
 
 | Risco | Por que importa | Como reduzir |
 |---|---|---|
-| **Nome** | O nome antigo, "Nin Online", é de um jogo de outra empresa (Hitspark), na Steam desde junho de 2025 ([Steambase](https://steambase.io/games/nin-online/info), [itch.io](https://ninonline.itch.io/nin-online)); por isso virou **Vontade do Fogo**. O nome novo tem um risco menor, mas existe: "Vontade do Fogo" é como a dublagem brasileira de Naruto traduz "Will of Fire", um conceito central da série | antes de abrir ao público, buscar o nome no INPI e, se possível, registrar a marca; evitar no jogo o símbolo e o discurso da "Vontade do Fogo" de Naruto (a nossa vontade é a chama do Pergaminho em Chamas) |
+| **Nome** | O nome antigo, "Nin Online", é de um jogo de outra empresa (Hitspark), na Steam desde junho de 2025 ([Steambase](https://steambase.io/games/nin-online/info), [itch.io](https://ninonline.itch.io/nin-online)); por isso virou **Herança do Fogo**. O nome novo tem um risco menor, mas existe: "Herança do Fogo" é como a dublagem brasileira de Naruto traduz "Will of Fire", um conceito central da série | antes de abrir ao público, buscar o nome no INPI e, se possível, registrar a marca; evitar no jogo o símbolo e o discurso da "Herança do Fogo" de Naruto (a nossa vontade é a chama do Pergaminho em Chamas) |
 | **Termos de outras obras** | Kage, Akatsuki, renegado, Folha, Areia, Névoa e Nuvem (v16) vêm de Naruto. Genin, Chunin e Jonin são ranks ninja históricos, com menos risco | para jogar entre amigos, sem cobrar, o risco é baixo; antes de abrir ao público, trocar os nomes, que ficam num lugar só (`villages.ts`, `akatsuki.ts` e o catálogo do banco) |
 | **MMO vazio** | com poucos jogadores online, PvP e sensei não acontecem | tudo do Arco 1 dá para fazer sozinho; o NPC luta junto; monstros escalam com o mapa; um servidor só |
 | **Estado em memória** | um deploy derruba todos e a posição volta ao início | publicar fora do horário de pico; avisar no chat antes; no futuro, gravar o mapa e a posição |

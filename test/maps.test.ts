@@ -52,7 +52,7 @@ function reach(from: [number, number], r: number): Set<string> {
 }
 
 describe('mapas: layout', () => {
-  it('Vila da Folha (78x60, sem monstros) e Floresta (100x75, caça), as duas em imagem; sempre o mesmo layout', () => {
+  it('Aldeia da Chama Eterna (78x60, sem monstros) e Floresta (100x75, caça), as duas em imagem; sempre o mesmo layout', () => {
     assert.deepEqual([VILA.id, VILA.kind, VILA.width, VILA.height, VILA.safe, VILA.art], ['map_1', 'village', 78, 60, true, 'folha']);
     assert.deepEqual([FLORESTA.id, FLORESTA.kind, FLORESTA.width, FLORESTA.height, FLORESTA.safe, FLORESTA.art], ['map_2', 'forest', 100, 75, false, 'floresta']);
     assert.deepEqual(buildMaps(), WORLD_MAPS, 'a floresta tem semente fixa: igual em todo boot');
@@ -312,7 +312,7 @@ describe('mapas: servidor (salas)', () => {
     assert.deepEqual(w.world.maps.map_1.safeZones, VILA.safeZones);
     assert.deepEqual(w.players, [], 'kaito está na Floresta: não aparece na Vila');
     // a Floresta do Arco 1 é maior (trilhas e riacho em curvas) e o céu vem junto (clima)
-    assert.ok(JSON.stringify(w).length < 36_000, `welcome leve (v23: + a colisão da Folha em imagem) (${JSON.stringify(w).length} bytes)`);
+    assert.ok(JSON.stringify(w).length < 48_000, `welcome leve (v23: + a colisão da Folha em imagem; v30: o catálogo com 90 jutsus e 10 classes) (${JSON.stringify(w).length} bytes)`);
   });
 });
 

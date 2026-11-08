@@ -277,7 +277,7 @@ describe('v16: Zona de Conflito', () => {
     await flush();
     const s = sessionOf(world, a.id);
     assert.equal(s.village, null);
-    assert.match(b.conn.last('announce').message, /kaito virou renegado \(Folha\)/);
+    assert.match(b.conn.last('announce').message, /kaito virou renegado \(Chama Eterna\)/);
     assert.deepEqual(a.conn.last('player_faction').faction, { village: null, renegadeFrom: 'vila_1' });
     // Ainda na Zona (é dele também). Morrendo, renasce no Refúgio.
     assert.equal(s.map, 'zona_conflito');
@@ -330,7 +330,7 @@ describe('v16: Kage e diplomacia', () => {
     };
     kage.send({ type: 'kage_action', action: 'guerra', village: 'vila_3' });
     await flush();
-    assert.match(kage.conn.last('announce').message, /Folha declarou guerra à Vila da Névoa/);
+    assert.match(kage.conn.last('announce').message, /Chama Eterna declarou guerra à Aldeia da Maré Oculta/);
     assert.equal(kage.conn.last('endgame').relations[0].state, 'guerra');
   });
 
@@ -491,7 +491,8 @@ describe('v16: comandos de admin do fim de jogo', () => {
       return r.command;
     };
     assert.deepEqual(ok('/admin endgame pvp on'), { cmd: 'endgame', module: 'pvp', mode: 'on' });
-    assert.deepEqual(ok('/admin vila Kaito nevoa'), { cmd: 'vila', username: 'Kaito', village: 'vila_3' });
+    assert.deepEqual(ok('/admin vila Kaito mare'), { cmd: 'vila', username: 'Kaito', village: 'vila_3' });
+    assert.deepEqual(ok('/admin vila Kaito nevoa'), { cmd: 'vila', username: 'Kaito', village: 'vila_3' }, 'o nome antigo ainda vale');
     assert.deepEqual(ok('/admin kage Névoa Kaito'), { cmd: 'kage', village: 'vila_3', username: 'Kaito' });
     assert.deepEqual(ok('/admin evento tregua todas 12'), { cmd: 'evento', kind: 'tregua', a: null, b: null, hours: 12 });
     assert.deepEqual(ok('/admin evento guerra folha areia 24'), { cmd: 'evento', kind: 'guerra', a: 'vila_1', b: 'vila_5', hours: 24 });
@@ -523,7 +524,7 @@ describe('v16: comandos de admin do fim de jogo', () => {
     boss.send({ type: 'chat', message: '/admin vila alvo nevoa' });
     await flush();
     assert.deepEqual(used, [[boss.id, 'vila', alvo.id]]);
-    assert.match(boss.conn.last('notice').text, /alvo agora é da Vila da Névoa/);
+    assert.match(boss.conn.last('notice').text, /alvo agora é da Aldeia da Maré Oculta/);
     assert.equal(alvo.conn.of('announce').length, 0);           // admin não anuncia nada
   });
 });

@@ -1,6 +1,6 @@
 # servidor-missoes
 
-Servidor e cliente web do **Vontade do Fogo**, um MMORPG ninja 2D em pixel art para o celular.
+Servidor e cliente web do **Herança do Fogo** (antes Vontade do Fogo), um MMORPG ninja 2D em pixel art para o celular.
 
 API do ciclo de missões de sensei (Fastify + TypeScript + `pg`, SQL puro).
 O banco (`db/schema_ranks_missoes_sensei.sql`, v2) valida as regras de negócio;
@@ -215,9 +215,72 @@ Regras (em `src/realtime/config.ts`):
 
 O estado fica em memória: reinício ou deploy do Render desconecta todos e as posições voltam ao início.
 
+## Continuar em outra janela (estado em 8/11/2026)
+
+- **Relatório completo** (versão final, progresso, pendências e como continuar): `docs/relatorio-final-e-progresso-2026-11.md`
+  e o PDF `docs/relatorio-final-e-progresso-2026-11.pdf`.
+- **Versão publicada:** v29 (`main`). **Pronto para publicar (aguarda o Victor), no branch:** correção do rankeado,
+  Jutsus v2 entrega 2 (Fogo) com a v16, Fase 1 dos nomes (Herança do Fogo) com a v17 e as outras 8 classes com a v18.
+  Ordem no Neon: v16, v17, v18, v19; depois o código na `main` (DEPLOY.md, passos 31 a 34).
+- **Antes de qualquer commit:** `npm run verify` (619 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
+- **Visão do endgame (referência):** `docs/endgame-visao.md`.
+
+### v29: Jutsus v2, entrega 2 (o Fogo novo) e a conjuração (migração v16, `db/schema_v16_jutsus_fogo.sql`)
+
+- **11 jutsus de Fogo** (antes 4): tier 1 Bola de Fogo, Sopro Incinerador (cone que queima), Névoa Inflamável (nuvem
+  que detona em 3 s), Linha de Fogo Rasante; tier 2 Chamas da Fênix (leque de 3 bolas, cada alvo leva no máximo 2),
+  Chamas do Dragão Guiado (linha instantânea), Nuvem de Cinzas Ardentes (aviso em volta, cai em 1 s), Lâmina de Fogo
+  (Ataque Básico +15% por 5 s); tier 3 Destruição Magnífica (onda em cone 120°), Míssil Dragão de Fogo (projétil lento
+  que explode); tier 4 Chuva de Meteoros (5 avisos de 0,8 s; 3 caem no ponto mirado).
+- Os códigos `fire_2`, `fire_3` e `fire_4` ficam (quem tinha continua com eles, com o uso e o nível); só o jutsu muda.
+  Os nomes visíveis são os em português da adaptação (a Fase 1 do roadmap tira os nomes da série).
+- **Conjuração (selos):** barra na cor do elemento sobre a cabeça e uma maior perto dos botões. Anda a 50% (longo e a
+  Chuva de Meteoros: parado). Nenhum outro jutsu nem o Básico sai durante os selos; Substituição e Teleporte cancelam
+  (metade do chakra). Atordoar, silêncio, sono e empurrão de 1,5 casa **interrompem** ("Interrompido!"): metade do
+  chakra, recarga de 1,5 s e 3 s de Concentração (a próxima não se interrompe). Dano comum não interrompe; controle e
+  fim dos selos no mesmo tick: o controle vence. Recompensa: 0,5 s ou mais = +5% de dano e -10% de recarga.
+- **Simulador (`pvpSim`)** agora conhece a base própria dos jutsus novos, os golpes por forma (leque 2, meteoros 3),
+  os selos e a interrupção. Para passar no critério "ninguém vence todas", a Destruição Magnífica custa 30 (o tier
+  dava 34).
+- **Migração v16:** os 7 jutsus novos e os nomes novos em `game.jutsus`, e a regra dos kits (`game.valid_kit`) aceitando
+  os códigos novos (sem ela, salvar um kit com jutsu novo dá erro).
+
+### v30: Fase 1 (nomes) e as outras 8 classes (migrações v17 e v18)
+
+- **Herança do Fogo** (antes Vontade do Fogo). Aldeias: Chama Eterna (era Folha), Maré Oculta (Névoa), Rocha Antiga
+  (Nuvem), Vento Cortante (Areia); Vale dos Guardiões (era Vale das Estátuas). Os códigos das vilas não mudam.
+  `/admin vila` e `/admin kage` aceitam chama|mare|rocha|vento (os nomes antigos ainda valem). Migração v17.
+- **72 jutsus** (antes 45): Água, Relâmpago, Terra, Médico, Armas, Ilusão, Taijutsu e Sombra ganharam os jutsus da
+  adaptação (27 códigos novos; os tiers 2 a 4 de cada classe viraram os da adaptação, com o mesmo código). Catálogo em
+  `src/realtime/jutsusClasses.ts`. Formas novas: linha com efeito, alvo único, anel, cone com vários golpes, zona (em
+  pulsos, que anda junto, que puxa, que prende o 1º que entra, golpe no fim), investida, recuo, aviso em ondas,
+  limpeza, cura ao longo do tempo, impacto, ricochete e agarre.
+- **Sistemas próprios (pedido do Victor, 08/11):** escuridão (a tela escurece em volta), controles invertidos,
+  armadilha, canalização (Palma Mística), bumerangue, muros (Muralha de Terra, Muro de Água: bloqueiam passagem e
+  projéteis, têm vida), invocações (Clone de Água, Golem de Terra Titânico: monstro com dono, sem XP, some no fim), a
+  classe **Vento** (10ª classe, 8 jutsus, escudo com vida) e os **clãs**: `/linhagem rubro|umbra|andarilho` a partir de
+  Genin (nível 11), uma vez só; os jutsus do clã chegam nos níveis 11, 20, 40 e 60 (Clã Rubro: 4 jutsus novos; Clã
+  Umbra: a árvore das sombras e +10% de alcance; Andarilho: Substituição 15% mais rápida). Migração v19.
+- **Controle mais forte:** 2,5 s por golpe e 5 s a cada 15 s (eram 1,5 e 2,5); todo controle dos jutsus x1,6; o choque
+  da paralisia pesa metade.
+- **Ainda não:** monstros atraídos pela invocação, a escolha da linhagem no Criador, a missão de despertar com objetivo, o
+  olho do Clã Rubro que muda de visual, a conversão da classe Sombra em Clã Umbra, Lua Ilusória e Guardião Espectral
+  Completo (poderes de evento). Cura, Ilusão e Possessão da Sombra (tier 1) continuam sem selos.
+- **Equilíbrio:** jutsu com números próprios paga o próprio custo no PvP (o x4 era do Golpe Avançado); as Armas novas
+  pagam o x2,5 e usam as bases da adaptação x0,72 (o atributo e a arma somam por cima). O simulador escolhe pelo dano
+  por tempo gasto (toque + selos). Todos os critérios do `pvpSim` passam.
+- **Migração v18:** os jutsus em `game.jutsus` e `game.valid_kit` com os 72 códigos.
+
+### Correção do rankeado (sem migração)
+
+- O perdedor da rodada 1 não voltava na rodada 2 e apanhava parado. Causa: a queimadura do último golpe continuava no
+  intervalo, com a vida já em 0, e matava de verdade; na rodada 2 o cliente nunca recebia o "reviveu". Agora, no Vale,
+  ninguém apanha nem ganha efeito fora da rodada, o fim da rodada apaga os efeitos, o começo da rodada zera atordoado e
+  preso, e quem estiver morto recebe `player_respawned`.
+
 ### v29: modo rankeado (migração v15, `db/schema_v15_rankeado.sql`)
 
-- **Vale das Estátuas:** botão **Rankeado** no menu (lá vira **Voltar**). Mapa comum a todas as vilas: arena fechada no
+- **Vale dos Guardiões:** botão **Rankeado** no menu (lá vira **Voltar**). Mapa comum a todas as vilas: arena fechada no
   meio, arquibancadas dos dois lados (dá para **sentar** e, sentado, **assistir** a luta), estátuas das 4 vilas.
 - **Fila do Desafio** (`src/realtime/duel.ts`): quem entrou primeiro luta primeiro; o adversário sai das 4 pessoas
   seguintes (nível parecido); ninguém é passado mais de 2 vezes; evita repetir a dupla. O adversário só aparece na
@@ -304,7 +367,7 @@ Plano completo em `concepts_brief.md` (revisado pelo método EGM; relatórios em
   acendendo no escuro da caverna (`lights`).
 - **Armaria e Casa dos Pergaminhos:** salas em imagem de 17 x 13, cada uma com a sua planta (`shopRoom()`: lojista,
   frente do balcão, chegada e saída). A Alfaiataria segue na sala 15 x 15 por código até ter imagem.
-- **Vila da Folha:** em imagem, ampliada 4x com o Real-ESRGAN (`arte/mapas/ampliar.py`), em 78 x 60 casas. Cada vila
+- **Aldeia da Chama Eterna:** em imagem, ampliada 4x com o Real-ESRGAN (`arte/mapas/ampliar.py`), em 78 x 60 casas. Cada vila
   em imagem tem a sua planta (`villagePlan()`: renascimento, Mestre, praça, Posto de Viagem, portão, lojas, Academia,
   arena); NPCs, renascimento, viagem e o fim do tutorial saem dela. A borda norte da Floresta só atravessa no trecho
   do portão da Folha.
@@ -544,9 +607,9 @@ opcional:** sem ela tudo fica desligado, e aplicar no Neon não precisa reinicia
 - Mensagens novas: `endgame`, `player_faction`, `village_panel`, `travel_options`, `ranking`, `pvp_result`,
   `akatsuki_invite`, `power` / `power_failed`; `PlayerView.faction` e `SelfView.doorBack`.
 
-### v15: design geral, nome Vontade do Fogo e arena da vila (migração opcional `db/schema_v10_design.sql`)
+### v15: design geral, nome Herança do Fogo e arena da vila (migração opcional `db/schema_v10_design.sql`)
 
-Primeira leva do [design geral](docs/design-do-jogo.md). O jogo passou a se chamar **Vontade do Fogo**.
+Primeira leva do [design geral](docs/design-do-jogo.md). O jogo passou a se chamar **Herança do Fogo**.
 
 - **Arena da Vila** (`VILLAGE_ARENA` em `maps.ts`): o campo de treino virou uma arena de terra batida com cerca de
   madeira, entradas ao norte e a oeste, dois pilares de pedra (cobertura: param linhas e projéteis), estandartes e

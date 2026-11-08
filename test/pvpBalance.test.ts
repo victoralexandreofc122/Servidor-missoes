@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { DEFAULT_APPEARANCE } from '../src/realtime/appearance.js';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { BASE_SKILLS } from '../src/realtime/jutsus.js';
-import { PVP_BALANCE_VERSION, PVP_SHIELD, ccAllow, safetyNet, ccUsed, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from '../src/realtime/pvpBalance.js';
+import { CC_WEIGHT, PVP_BALANCE_VERSION, PVP_SHIELD, ccAllow, safetyNet, ccUsed, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from '../src/realtime/pvpBalance.js';
 import { NO_ATTRIBUTES, derivedStats, type Attributes } from '../src/realtime/stats.js';
 import { simulateAll } from '../src/realtime/pvpSim.js';
 import { FakeConn, placeIn, setupWorld } from './support/world.js';
@@ -107,8 +107,8 @@ describe('pvpBalance no jogo (arena das vilas)', () => {
     assert.equal(ses(a.id).chakra, 95, 'na Floresta, o custo de sempre');
   });
 
-  it('Relâmpago tier 4 num ninja na arena sai da tabela do PvP; no monstro, o dano de fora', () => {
-    const { world, join, at, ses } = arena();
+  it('Relâmpago tier 4 (v30: Dragão do Trovão, aviso no chão) num ninja na arena sai da tabela do PvP', () => {
+    const { world, join, at, ses, run } = arena();
     const a = join('kaito');
     const b = join('mei');
     at(a, 'map_1', IN.x, IN.y);
@@ -120,35 +120,39 @@ describe('pvpBalance no jogo (arena das vilas)', () => {
     s.kits[s.activeKit] = [...s.kits[s.activeKit].slice(0, 3), 'lightning_4'];
     Object.assign(s, { chakra: 1000, cooldowns: {} });
     const hpBefore = ses(b.id).hp = 1000;
+    ses(b.id).stats = { ...ses(b.id).stats, maxHp: 1000 };            // longe da rede de segurança (50% da vida em 2 s)
     a.send({ type: 'cast', skill: 'lightning_4', targetId: b.id });
     assert.equal(a.conn.last('cast_failed'), undefined);
-    const esperado = pvpHitDamage(hit('lightning', { passive: world.passive(s, 'jutsu') }), s.stats, SCALE);
-    assert.equal(hpBefore - ses(b.id).hp, esperado, `PvP: ${esperado}`);
-    assert.ok(esperado < 60, 'bem abaixo dos 105 contra monstro');
+    run(REALTIME.combat.skills.lightning_4.castMs! + REALTIME.combat.skills.lightning_4.durationMs! + 100);   // selos + aviso
+    const esperado = pvpHitDamage(hit('lightning', { base: REALTIME.combat.skills.lightning_4.base!, passive: world.passive(s, 'jutsu') }), s.stats, SCALE);
+    const golpe = a.conn.of('hit').filter((h: any) => h.target === 'player' && h.id === b.id && h.kind === 'damage').at(-1);
+    assert.equal(golpe?.amount, esperado, `PvP: ${esperado} (vida antes ${hpBefore})`);
+    assert.ok(esperado < 60, 'bem abaixo do dano contra monstro');
   });
 });
 
 describe('orçamento de controle (passo 1e)', () => {
   const e = (kind: CcKind, startedAt: number, until: number): CcEntry => ({ kind, startedAt, until, weight: kind === 'silencio' ? 0.5 : 1, sourceId: null });
 
-  it('no máximo 1,5 s por aplicação; o resto do orçamento (2,5 s) pega em parte; sobra menor que 0,2 s não pega', () => {
-    assert.equal(ccAllow([], 0, 'stunned', 5100), 1500);
-    const log = [e('stunned', 0, 1500)];
-    assert.equal(ccAllow(log, 2000, 'rooted', 5000), 1000, 'sobra 1 s');
-    log.push(e('rooted', 2000, 2900));
-    assert.equal(ccAllow(log, 3000, 'stunned', 400), 0, 'sobra 0,1 s: não pega');
+  it('v30: no máximo 2,5 s por aplicação; o resto do orçamento (5 s) pega em parte; sobra menor que 0,2 s não pega', () => {
+    assert.equal(ccAllow([], 0, 'stunned', 5100), 2500);
+    const log = [e('stunned', 0, 2500)];
+    assert.equal(ccAllow(log, 2000, 'rooted', 5000), 2500, 'sobra 2,5 s');
+    log.push(e('rooted', 2000, 4900));
+    assert.equal(ccAllow(log, 5000, 'stunned', 400), 0, 'sobra 0,1 s: não pega');
   });
 
   it('a janela de 15 s anda: depois dela, pega inteiro', () => {
-    const log = [e('stunned', 0, 1500), e('rooted', 2000, 3000)];
+    const log = [e('stunned', 0, 2500), e('rooted', 3000, 5500)];
     assert.equal(ccAllow(log, 10_000, 'stunned', 1000), 0);
     assert.equal(ccAllow(log, 18_100, 'stunned', 1000), 1000);
   });
 
-  it('dois controles juntos contam o de maior peso; o silêncio pesa a metade (exemplo da Ilusão tier 4)', () => {
+  it('dois controles juntos contam o de maior peso; o silêncio e o choque da paralisia pesam a metade', () => {
     assert.equal(ccUsed([e('stunned', 0, 1000), e('silencio', 0, 3000)], -15_000), 2000, '1 s cheio + 2 s pela metade');
-    const log = [e('stunned', 0, 1500)];
-    assert.equal(ccAllow(log, 0, 'silencio', 9600), 3000, 'silêncio: 1,5 s de peso no máximo = 3 s reais');
+    const log = [e('stunned', 0, 2500)];
+    assert.equal(ccAllow(log, 0, 'silencio', 9600), 5000, 'silêncio: 2,5 s de peso no máximo = 5 s reais');
+    assert.equal(CC_WEIGHT.shock, 0.5);
   });
 });
 
