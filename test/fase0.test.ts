@@ -98,7 +98,7 @@ function cast(skill: string, uses: number) {
 }
 
 describe('Maestria no jogo', () => {
-  it('Chamas do Dragão Guiado (dano puro): nível 4 dá 30% mais dano e a mesma recarga', () => {
+  it('Lança de Fogo (dano puro): nível 4 dá 30% mais dano e a mesma recarga', () => {
     const low = cast('fire_ryuka', 0);
     const high = cast('fire_ryuka', 2000);
     assert.ok(low.dealt > 0);

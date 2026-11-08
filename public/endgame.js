@@ -46,7 +46,7 @@ export function shopFactor(view, faction, now = Date.now()) {
 export function factionStyle(view, me, p, zone, now = Date.now()) {
   const f = p.faction;
   if (!f || !egOn(view, 'vilas')) return { color: null, prefix: '', bounty: 0 };
-  const prefix = `${f.kage ? '👑 ' : ''}${f.akatsuki ? '☁ ' : ''}`;
+  const prefix = `${f.kage ? '👑 ' : ''}${f.akatsuki ? '🌑 ' : ''}`;
   let color = null;
   if (zone && me?.faction && p !== me) {
     const hostile = egOn(view, 'pvp') && conflictHostile(
@@ -292,7 +292,7 @@ export function mountEndgameUI(api) {
       const m = members.find((x) => x.slot === p.slot);
       return el('li', {}, el('span', { textContent: `${p.slot}. ${p.name}` }), el('small', { textContent: ` ${p.text}` }),
         el('b', { class: m ? 'eg-rel guerra' : 'eg-rel neutro', textContent: m ? m.username : 'livre' }),
-        f?.akatsuki === 1 && m && m.slot !== 1 ? btn('Expulsar', () => confirm(`Expulsar ${m.username} da Akatsuki?`) && api.send({ type: 'akatsuki_expel', name: m.username })) : null);
+        f?.akatsuki === 1 && m && m.slot !== 1 ? btn('Expulsar', () => confirm(`Expulsar ${m.username} dos Cinzas?`) && api.send({ type: 'akatsuki_expel', name: m.username })) : null);
     })));
     if (f?.akatsuki === 1) {
       const free = v.powers.filter((p) => p.slot > 1 && !members.some((m) => m.slot === p.slot));
@@ -301,7 +301,7 @@ export function mountEndgameUI(api) {
       out.push(el('h3', { textContent: 'Convidar' }), el('div', { class: 'eg-form' }, name, slot,
         btn('Convidar', () => name.value.trim() && api.send({ type: 'akatsuki_invite', name: name.value.trim(), slot: Number(slot.value) }), 'primary', free.length === 0)));
     } else if (f?.akatsuki) {
-      out.push(btn('Sair da Akatsuki', () => confirm('Sair da Akatsuki? Você continua renegado.') && api.send({ type: 'akatsuki_leave' }), 'secondary'));
+      out.push(btn('Sair dos Cinzas', () => confirm('Sair dos Cinzas? Você continua renegado.') && api.send({ type: 'akatsuki_leave' }), 'secondary'));
     }
     return out;
   }
@@ -349,7 +349,7 @@ export function mountEndgameUI(api) {
         openTravel(msg.options || []);
         return true;
       case 'akatsuki_invite':
-        ui.inviteText.textContent = `${msg.from} convida você para a Akatsuki: vaga ${msg.slot} (${msg.power}). Aceitar transforma você em renegado: `
+        ui.inviteText.textContent = `${msg.from} convida você para os Cinzas: vaga ${msg.slot} (${msg.power}). Aceitar transforma você em renegado: `
           + 'perde a vila e a passiva, e não tem volta. Vale até ' + when(msg.expiresAt) + '.';
         ui.invite.hidden = false;
         return true;
@@ -360,7 +360,7 @@ export function mountEndgameUI(api) {
         return true;
       }
       case 'power_failed':
-        api.toast({ NOT_MEMBER: 'Só membros da Akatsuki', COOLDOWN: 'Recarregando…', NO_CHAKRA: 'Chakra insuficiente', NO_TARGET: 'Nenhum alvo perto', DEAD: 'Você está derrotado', SAFE_ZONE: 'Zona segura: sem combate', STUNNED: 'Atordoado!' }[msg.reason] || 'Não deu.', 'bad');
+        api.toast({ NOT_MEMBER: 'Só membros dos Cinzas', COOLDOWN: 'Recarregando…', NO_CHAKRA: 'Chakra insuficiente', NO_TARGET: 'Nenhum alvo perto', DEAD: 'Você está derrotado', SAFE_ZONE: 'Zona segura: sem combate', STUNNED: 'Atordoado!' }[msg.reason] || 'Não deu.', 'bad');
         return true;
       default:
         return false;

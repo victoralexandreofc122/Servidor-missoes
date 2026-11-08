@@ -11,10 +11,12 @@
 
 - **Nome:** Herança do Fogo (antes "Vontade do Fogo"; trocar em toda UI, docs e textos visíveis).
 - **Modelo:** free-to-play, sem pay-to-win.
-- **Akatsuki:** nome só interno (docs e código). O nome in-game está em aberto: não implementar nome visível.
+- **Akatsuki:** nome só interno (docs e código). **Nome que o jogador vê: "Os Cinzas"** (aprovado pela recomendação da Fase 1; vem do lore do
+  Arco 1: ninjas expulsos de bandana queimada). O Manto da Akatsuki virou **Manto Cinza** (brasas laranja no lugar das nuvens vermelhas).
 - **ANBU:** mantido (decisão do autor).
 - **Nomes da série** (clãs Uchiha e Nara, Vale das Estátuas, Soco Tsunade, os jutsus com nome da série): renomear antes
-  de monetizar (Fase 1).
+  de monetizar (Fase 1). Em andamento: ver `docs/fase1-renomeacao.md` (clãs já são Rubro e Umbra; Soco Tsunade já é Punho Sísmico;
+  Vale = Arena das Quatro Heranças; 38 jutsus e os 10 poderes renomeados na v21).
 
 ## 2. As 4 aldeias
 
@@ -219,7 +221,7 @@ O Maior Vilão escolhe os 10 a 60 vilões da temporada.
 
 ## 15. Pendências em aberto (não implementar)
 
-1. Nome in-game da organização vilanesca.
+1. ~~Nome in-game da organização vilanesca~~ (decidido: Os Cinzas).
 2. Detalhamento das chaves simultâneas do Torneio da Temporada.
 3. Modo separado do ranqueado de Jounin (a detalhar na implementação).
 4. Clãs futuros (únicos por aldeia).
@@ -232,7 +234,8 @@ O Maior Vilão escolhe os 10 a 60 vilões da temporada.
 - **Fase 0 (agora):** terminar Jutsus v2 (entrega 2, conjuração no Fogo, migração v16, verify), corrigir a Extração e
   ajustar a maestria. **Feita no branch** (Extração e maestria com a migração v20).
 - **Fase 1 (antes de monetizar):** renomeação: Herança do Fogo na UI e nos docs, as 4 aldeias, clãs, Vale das Estátuas,
-  Soco Tsunade e os jutsus com nomes originais. Parte já feita (v17: nome do jogo, aldeias e Vale dos Guardiões).
+  Soco Tsunade e os jutsus com nomes originais. Feito: nome do jogo e aldeias (v17), Os Cinzas, Arena das Quatro Heranças e 38 jutsus (v21).
+  Falta: confirmar a ordem das aldeias Nuvem/Areia e limpar os docs internos.
 - **Fase 2 (endgame sobre a base):** Torneio da Temporada (modo separado), ANBU, Torneios dos Heróis e dos Vilões,
   Torneio dos Renegados, Terra Sem Lei, Sistema de Caçada, guerra semanal, guerra final (servidor isolado e espectador),
   balanceamento populacional, infiltração e mentoria.

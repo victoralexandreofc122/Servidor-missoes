@@ -1137,3 +1137,17 @@ Para conferir: `SELECT count(*) FROM game.jutsus;` dá 96.
 2. Duas Extrações de tier 1 dão jutsu sempre; a 3ª mostra 90%. Tier 3 custa 3 pergaminhos e mostra 60%.
 3. ☰ → Perfil → Jutsus: cada jutsu do Fogo mostra a linha "Maestria" (ex.: Chuva de Meteoros: "dano +0% · recarga −0%"
    no nível 1; "dano +30% · recarga −15%" no nível 4).
+
+## Passo 36 — Fase 1: nomes originais (SQL v21)
+
+Rode `db/schema_v21_nomes_jutsus.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v20**. Ela só troca nomes exibidos:
+38 jutsus em `game.jutsus` e o nome do manto em `game.items`. Ninguém perde nada (os códigos não mudam). Pode rodar de novo.
+**Se você rodar a v16, a v18, a v19 ou a v20 de novo depois, rode a v21 outra vez** (elas devolvem os nomes antigos).
+
+Para conferir: `SELECT name FROM game.items WHERE code = 'manto_akatsuki';` mostra Manto Cinza.
+
+### Testar no celular
+
+1. ☰ → Perfil → Jutsus: nomes novos (por exemplo "Revoada de Brasas", "Disco do Furacão").
+2. Botão do Rankeado: o lugar se chama Arena das Quatro Heranças.
+3. Com o módulo ligado: o painel da vila tem a aba **Cinzas** e o convite diz "Convite dos Cinzas".

@@ -107,7 +107,7 @@ describe('pvpBalance no jogo (arena das vilas)', () => {
     assert.equal(ses(a.id).chakra, 95, 'na Floresta, o custo de sempre');
   });
 
-  it('Relâmpago tier 4 (v30: Dragão do Trovão, aviso no chão) num ninja na arena sai da tabela do PvP', () => {
+  it('Relâmpago tier 4 (v30: Julgamento do Trovão, aviso no chão) num ninja na arena sai da tabela do PvP', () => {
     const { world, join, at, ses, run } = arena();
     const a = join('kaito');
     const b = join('mei');

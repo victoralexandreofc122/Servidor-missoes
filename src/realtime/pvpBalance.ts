@@ -1,6 +1,6 @@
 /*
  * Tabela de equilíbrio do PvP (v28, plano do duelo em `concepts_brief.md`). Vale só nas ÁREAS DE PvP (arena das
- * vilas, Zona de Conflito e, depois, o Vale dos Guardiões) e só quando um jogador acerta outro: contra monstros nada
+ * vilas, Zona de Conflito e, depois, o Arena das Quatro Heranças) e só quando um jogador acerta outro: contra monstros nada
  * muda. Funções PURAS: o servidor e o simulador usam as mesmas.
  */
 import type { DerivedStats, DamageScaling } from './stats.js';
@@ -143,7 +143,7 @@ export function ccAllow(log: readonly CcEntry[], t: number, kind: CcKind, wantMs
 // ---------------------------------------------------------------- rede de segurança (passo 1f)
 /**
  * Rede de segurança: o dano que um ninja recebe de UM outro ninja, em qualquer trecho de 2 s, fica limitado a 50% da
- * vida máxima. Conta o dano depois do escudo e dos Cinco Corações; o que passar é cortado.
+ * vida máxima. Conta o dano depois do escudo e dos Vidas Costuradas; o que passar é cortado.
  */
 export const SAFETY_NET = { windowMs: 2000, maxShare: 0.5 } as const;
 export interface NetHit { t: number; dmg: number }

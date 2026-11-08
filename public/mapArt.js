@@ -1127,7 +1127,7 @@ export function drawWall(g, wall, x, y, w, h, tile) {
  * Árvores, pedras altas e barracas têm ALTURA: são desenhadas por cima do chão, na mesma ordem dos bonecos (quem está
  * atrás fica atrás da copa). `propExtent` diz quanto o desenho passa da caixa de colisão (em casas).
  */
-// ------------------------------------------------------------------ Vale dos Guardiões (v29, modo rankeado)
+// ------------------------------------------------------------------ Arena das Quatro Heranças (v29, modo rankeado)
 
 /** Cor de cada vila nas estátuas: [faixa escura, faixa, brilho] e o símbolo da placa. */
 const VILLAGE_COLORS = {

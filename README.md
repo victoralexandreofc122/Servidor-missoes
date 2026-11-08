@@ -223,7 +223,7 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   Jutsus v2 entrega 2 (Fogo) com a v16, Fase 1 dos nomes (Herança do Fogo) com a v17, as outras 8 classes com a v18,
   os clãs com a v19 e a Fase 0 (Extração nova e maestria por jutsu) com a v20.
   Ordem no Neon: v16, v17, v18, v19, v20; depois o código na `main` (DEPLOY.md, passos 31 a 35).
-- **Antes de qualquer commit:** `npm run verify` (630 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
+- **Antes de qualquer commit:** `npm run verify` (633 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
 - **Visão do endgame (documento canônico):** `docs/endgame-visao.md`.
 
 ## Roadmap (documento canônico, `docs/endgame-visao.md` seção 13)
@@ -231,13 +231,30 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 0 (feita no branch):** Jutsus v2 entrega 2 + conjuração no Fogo + v16; Extração do design final e maestria por
   jutsu (v20).
 - **Fase 1 (antes de monetizar):** renomeação. Já feito: Herança do Fogo na UI e nos docs, as 4 aldeias e o Vale dos
-  Guardiões (v17). Falta: clãs Uchiha/Nara, Soco Tsunade e os jutsus que ainda têm nome da série.
+  Guardiões (v17); Os Cinzas, Arena das Quatro Heranças e 38 jutsus renomeados (v21). Os clãs já são Rubro e Umbra e o Soco Tsunade já é
+  Punho Sísmico. Falta confirmar a ordem das aldeias Nuvem/Areia (`docs/fase1-renomeacao.md`).
 - **Fase 2 (endgame sobre a base):** Torneio da Temporada, ANBU, torneios de campeão, Terra Sem Lei e Caçada, guerras
   20v20 e final, balanceamento populacional, infiltração, mentoria.
 - **Fase 2.5: 74 jutsus novos** para fechar 4 jutsus por classe por tier (4/4/4/4 nas 10 classes = 160). É a maior frente
   de conteúdo; **não começar sem o Victor pedir**. Hoje a distribuição varia (a Cura tem 5 no tier 1; o Fogo, 4/4/2/1).
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
+
+### v32: Fase 1, os nomes originais (migração v21, `db/schema_v21_nomes_jutsus.sql`)
+
+- **Só trocou nomes** (nenhuma mecânica nova). Auditoria e as 3 opções de cada nome: `docs/fase1-renomeacao.md`; aprovado: a opção recomendada.
+- **A organização vilanesca** passou a se chamar **Os Cinzas** na tela (aba, convite, avisos, erros, painel do admin); o **Manto da Akatsuki**
+  virou **Manto Cinza** (ícone 🌑 e brasas laranja no lugar das nuvens vermelhas). Os **10 poderes** têm nomes novos (Gravidade Invertida,
+  Lâmina Faminta, Pacto de Sangue, Escultura Detonante, Fios do Titereiro, Revoada Sombria, Vidas Costuradas, Passo Radicular,
+  Tempestade de Páginas, Forma Fantasma). Os IDs e o nome interno (`akatsuki`) não mudam.
+- **38 jutsus** (tradução direta de golpes da série) com nome original, por exemplo Chamas Negras → Brasa Sem Luz, Lua Ilusória → Mundo Espelhado,
+  Dragão d’Água → Serpente d’Água, Estrela Espiral → Disco do Furacão. Os códigos não mudam (ninguém perde jutsu, uso, nível ou kit).
+- **Arena das Quatro Heranças** (era Vale dos Guardiões; o ID `vale_estatuas` fica). Clã Rubro, Linhagem Umbra e Punho Sísmico ficam.
+- **Teste `test/nomes.test.ts`:** trava nomes da série em jutsus, itens, poderes, mapas e NPCs, e nomes de jutsu repetidos.
+- **Migração v21:** um UPDATE por jutsu em `game.jutsus.name` e o nome do manto em `game.items`. Rodar a v16, v18, v19 ou v20 de novo devolve
+  nomes antigos: se rodar, rode a v21 outra vez.
+- **Ainda não:** a ordem das aldeias Nuvem/Areia (esperando o Victor), os selos dos jutsus de tier 1 (ficam para a Fase 2) e a limpeza dos
+  documentos internos de design.
 
 ### v31: Fase 0, a Extração do design final e a maestria por jutsu (migração v20, `db/schema_v20_extracao.sql`)
 

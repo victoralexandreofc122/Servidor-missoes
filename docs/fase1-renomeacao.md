@@ -1,7 +1,8 @@
 # Fase 1: auditoria de nomes e propostas de renomeação
 
-* **Status:** só proposta. **Nenhum nome foi alterado no código, no banco, nos testes nem nos docs de referência.**
-  Aplicar só depois da aprovação do Victor, item a item (Tarefa 2).
+* **Status:** proposta **aprovada pela recomendação** (08/11/2026) e aplicada na v21, **exceto** a ordem das aldeias (seção 0, achado 3: espera a resposta
+  do Victor) e os selos (ficam para a Fase 2). Mantidos: Clã Rubro, Linhagem Umbra, Punho Sísmico. Escolhidos: Os Cinzas, Arena das Quatro Heranças e a
+  coluna "Recomendo" de cada tabela.
 * **Data:** 08/11/2026. **Base:** branch `ccr-2afc1981-eq01zm` (Fase 0 + v20). Fonte dos números: busca no código, nos SQL e na UI.
 * Os IDs internos (`fire_endan`, `rubro_chamas`, `akatsuki_*`, `vale_estatuas`...) **não mudam**: só o texto que o jogador vê.
 

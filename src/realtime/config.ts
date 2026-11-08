@@ -53,7 +53,7 @@ export interface SkillConfig {
   slowMs?: number;
   /** Levantado: conta como atordoado (orçamento de controle) e pode levar dano. */
   liftMs?: number;
-  /** Quem lança fica preso este tempo (Prisão de Água: segura o alvo parado). */
+  /** Quem lança fica preso este tempo (Cárcere Líquido: segura o alvo parado). */
   selfRootMs?: number;
   /** Tira chakra do alvo. */
   drain?: number;
@@ -81,7 +81,7 @@ export interface SkillConfig {
   pierce?: boolean;
   /** Aviso no chão: quantas ondas (a cada 0,25 s). */
   waves?: number;
-  /** O golpe do alvo cai depois deste tempo (Árvore Prendedora). */
+  /** O golpe do alvo cai depois deste tempo (Raízes do Pesadelo). */
   strikeDelayMs?: number;
   /** Só acerta alvo preso (Estrangulamento). */
   needsRooted?: boolean;
@@ -93,17 +93,17 @@ export interface SkillConfig {
   hpCost?: number;
   /** Sai mesmo em silêncio (Dissipação). */
   ignoresSilence?: boolean;
-  /** v30: escuridão no alvo (Noite Eterna) / controles invertidos (Distúrbio Nervoso), em ms. */
+  /** v30: escuridão no alvo (Noite Eterna) / controles invertidos (Descontrole Muscular), em ms. */
   darkMs?: number;
   invertMs?: number;
-  /** v30: qualquer dano nos selos faz o jutsu falhar (Lua Ilusória); volta metade da recarga. */
+  /** v30: qualquer dano nos selos faz o jutsu falhar (Mundo Espelhado); volta metade da recarga. */
   breakOnDamage?: boolean;
-  /** v30: dano ao longo do tempo (queimadura) ao acertar: por pulso e duração (Chamas Negras). */
+  /** v30: dano ao longo do tempo (queimadura) ao acertar: por pulso e duração (Brasa Sem Luz). */
   dotAmount?: number;
   dotMs?: number;
   /** v30: escudo de vida (Véu de Vento): parte da vida máxima, por `durationMs` (regra única: até 25%). */
   shieldShare?: number;
-  /** v30: ferida (cura recebida pela metade) por este tempo (Estrela Espiral). */
+  /** v30: ferida (cura recebida pela metade) por este tempo (Disco do Furacão). */
   woundMs?: number;
   /** v30: invocação: tipo de monstro, vida (parte da vida máxima de quem invoca) e o soco a cada tanto (Golem). */
   summonType?: string;
@@ -122,7 +122,7 @@ export interface SkillConfig {
     ms: number; tickMs?: number; kind: 'fogo' | 'lama' | 'cura' | 'agua' | 'sombra' | 'ilusao' | 'armas';
     slow?: boolean; heal?: number; follow?: boolean; self?: boolean; pull?: number; split?: number;
     endHit?: boolean; endStunMs?: number; firstRootMs?: number;
-    /** v30: escurece quem está dentro (Ocultação na Névoa); armadilha: dispara no 1º que pisar e some. */
+    /** v30: escurece quem está dentro (Véu de Bruma); armadilha: dispara no 1º que pisar e some. */
     dark?: boolean; trap?: boolean;
   };
 }

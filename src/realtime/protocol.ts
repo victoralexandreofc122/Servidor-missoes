@@ -207,7 +207,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   // cima, baixo, esquerda ou direita); o ALCANCE é sempre do servidor.
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: targetId.optional(), dir: z.tuple([axis, axis]).optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
-  // v29: modo rankeado: entrar no Vale dos Guardiões, sair dele, entrar na fila do Desafio e sair da fila.
+  // v29: modo rankeado: entrar no Arena das Quatro Heranças, sair dele, entrar na fila do Desafio e sair da fila.
   z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board', 'sit', 'stand']) }),
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z][a-z_]{0,23}$/) }),

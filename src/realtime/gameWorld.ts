@@ -30,7 +30,7 @@ import { CLAN_TIER_LEVEL, clanJutsusFor, type Clan } from './jutsusClasses.js';
 /** v30: nomes e o que cada linhagem dá. */
 const CLAN_NAMES: Readonly<Record<Clan, string>> = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' };
 const CLAN_HINT: Readonly<Record<Clan, string>> = {
-  rubro: 'O Olho da Percepção já é seu; os outros jutsus do clã chegam nos níveis 20, 40 e 60.',
+  rubro: 'O Olhar Rubro já é seu; os outros jutsus do clã chegam nos níveis 20, 40 e 60.',
   umbra: 'A Possessão da Sombra já é sua; os outros chegam nos níveis 20, 40 e 60, e os jutsus de sombra alcançam 10% mais longe.',
   andarilho: 'Sem clã, a Substituição volta 15% mais rápido.',
 };
@@ -390,7 +390,7 @@ interface Session {
 const NO_POLITICS: Politics = { modules: [], kages: [], relations: [], events: [], elections: [], akatsuki: [], season: null };
 /** Nome de cada módulo no anúncio de quando ele abre. */
 const MODULE_NAMES: Record<EndgameModule, string> = {
-  vilas: 'as quatro vilas e os Kages', pvp: 'a Zona de Conflito e as temporadas de PvP', renegados: 'os renegados', akatsuki: 'a Akatsuki',
+  vilas: 'as quatro vilas e os Kages', pvp: 'a Zona de Conflito e as temporadas de PvP', renegados: 'os renegados', akatsuki: 'os Cinzas',
 };
 const villageName = (v: Village) => villageFullName(v);
 /** Pedidos do fim de jogo que vão ao banco (endgameRequest). */
@@ -398,7 +398,7 @@ type EndgameRequest = 'village_panel' | 'kage_vote' | 'kage_action' | 'kage_answ
   | 'akatsuki_invite' | 'akatsuki_answer' | 'akatsuki_expel' | 'akatsuki_leave';
 
 interface Monster {
-  /** v30: invocação de um ninja (Clone de Água, Golem de Terra): dono, fim e o soco do Golem. */
+  /** v30: invocação de um ninja (Duplo de Água, Golem de Terra): dono, fim e o soco do Golem. */
   ownerId?: string;
   summonUntil?: number;
   /** v30: provocado: persegue e bate nesta invocação (Golem, Clone) enquanto ela existir. */
@@ -507,7 +507,7 @@ interface Projectile {
 interface LaunchSpec {
   skill?: Skill;
   weapon?: string;
-  /** Poder da Akatsuki (Argila Viva, Chuva de Papel). */
+  /** Poder da Akatsuki (Escultura Detonante, Tempestade de Páginas). */
   power?: PowerKind;
   speed: number;
   range: number;
@@ -792,7 +792,7 @@ export class GameWorld {
     );
   }
 
-  /** Velocidade atual (casas/s): andar ou correr, mais a agilidade (e a passiva da Névoa, já nos stats). Raízes Gêmeas: +20%. */
+  /** Velocidade atual (casas/s): andar ou correr, mais a agilidade (e a passiva da Névoa, já nos stats). Passo Radicular: +20%. */
   private speedOf(s: Session): number {
     const base = s.running ? s.stats.runSpeed : s.stats.walkSpeed;
     const slow = s.effects.size > 0 ? speedFactor(s.effects, this.now()) : 1;   // Lentidão
@@ -1591,7 +1591,7 @@ export class GameWorld {
       case 'vila': return `O administrador mudou a sua vila: agora você é da ${villageName(c.village)}.`;
       case 'kage': return `Você é o Kage da ${villageName(c.village)}.`;
       case 'renegado': return c.on ? 'O administrador tornou você renegado.' : 'O administrador devolveu você à sua vila.';
-      case 'akatsuki': return c.action === 'lider' ? 'Você é o líder da Akatsuki.' : 'Você saiu da Akatsuki.';
+      case 'akatsuki': return c.action === 'lider' ? 'Você é o líder dos Cinzas.' : 'Você saiu dos Cinzas.';
       default: return null;
     }
   }
@@ -1605,7 +1605,7 @@ export class GameWorld {
       case 'eleicao': return `Admin: eleição da ${villageName(c.village)} fechada${result ? '' : ' (sem vencedor)'}.`;
       case 'evento': return `Admin: ${c.kind === 'guerra' ? 'guerra' : 'trégua'} forçada (${name(c.a)}${c.b ? ` x ${name(c.b)}` : ''}) por ${c.hours} h.`;
       case 'renegado': return c.on ? `Admin: ${who} virou renegado.` : `Admin: ${who} voltou para a vila de antes.`;
-      case 'akatsuki': return c.action === 'lider' ? `Admin: ${who} é o líder da Akatsuki.` : `Admin: ${who} saiu da Akatsuki.`;
+      case 'akatsuki': return c.action === 'lider' ? `Admin: ${who} é o líder dos Cinzas.` : `Admin: ${who} saiu dos Cinzas.`;
       case 'temporada': return `Admin: temporada ${result ?? ''} fechada.`;
     }
   }
@@ -2071,7 +2071,7 @@ export class GameWorld {
   private canHurt(attacker: Session, victim: Session, t: number = this.now()): boolean {
     if (attacker === victim || victim.dead || victim.closed || victim.map !== attacker.map) return false;
     if (attacker.tutorial < 4 || victim.tutorial < 4 || t < victim.protectedUntil) return false;
-    // v29: no Vale dos Guardiões só lutam os dois da partida, e só durante a rodada.
+    // v29: no Arena das Quatro Heranças só lutam os dois da partida, e só durante a rodada.
     if (this.layout(attacker.map).ranked) {
       const d = this.duel;
       return !!d && d.phase === 'round' && sideOf(d, attacker.id) !== null && sideOf(d, victim.id) !== null;
@@ -2176,7 +2176,7 @@ export class GameWorld {
       const owner = this.sessions.get(z.ownerId);
       if (owner && !owner.closed && z.follow && owner.map === z.map) { z.x = owner.x; z.y = owner.y; }   // v30: anda junto
       if (!owner || owner.closed || t >= z.until) {
-        // v30: o golpe do fim (Templo do Nirvana, Domínio das Sombras) em quem ficou dentro
+        // v30: o golpe do fim (Santuário das Penas, Domínio das Sombras) em quem ficou dentro
         if (owner && !owner.closed && owner.map === z.map && (z.endDamage || z.endStunMs)) {
           for (const x of this.targetsFor(owner)) {
             if (!inside(x, z)) continue;
@@ -2259,7 +2259,7 @@ export class GameWorld {
       this.damagePlayer(target.session, amount, t, attacker, attacker, label);
       hurt = true;
     }
-    // Akatsuki (Lâmina Sanguessuga / Foice do Pacto): o Ataque Básico drena chakra do ninja atingido ou cura o dono.
+    // Akatsuki (Lâmina Faminta / Pacto de Sangue): o Ataque Básico drena chakra do ninja atingido ou cura o dono.
     const buff = attacker.powerBuff;
     if (hurt && source === 'attack' && buff && t < buff.until && !attacker.dead) {
       if (buff.kind === 'lifesteal') {
@@ -2360,7 +2360,7 @@ export class GameWorld {
 
   /**
    * Choque da paralisia: parado por `ms` (todos veem). Fora do teto de controle (é curto e já veio de um Relâmpago que
-   * contou no teto); a Máscara Intangível ignora.
+   * contou no teto); a Forma Fantasma ignora.
    */
   private shock(x: Target, ms: number, t: number, sourceId: string | null = null): void {
     if (x.kind === 'player') {
@@ -2433,7 +2433,7 @@ export class GameWorld {
         return { hits: [], dashTo };
       }
       case 'escudo_vida':
-        // Guardião Espectral: o escudo e um corte em cone na frente (o Véu de Vento não corta)
+        // Sentinela Espectral: o escudo e um corte em cone na frente (o Véu de Vento não corta)
         return { hits: (cfg.damage ?? 0) > 0 ? targets.filter((x) => isInCone(o, fx, fy, x, reach || 1.5, cfg.coneDeg ?? 120)) : [] };
       case 'faixa': {
         // linha larga: todos numa faixa de largura 2 x radius até o alcance (para na parede)
@@ -2492,7 +2492,7 @@ export class GameWorld {
       case 'alvo':
         for (const x of hits) {
           if (this.stillThere(x)) this.applyExtras(x, s, cfg, t, o);
-          // Árvore Prendedora: o golpe cai no fim da prisão (no lugar do alvo, que está preso)
+          // Raízes do Pesadelo: o golpe cai no fim da prisão (no lugar do alvo, que está preso)
           if (cfg.strikeDelayMs && dmg > 0) this.warnStrike(s, { x: x.x, y: x.y, r: 0.9, delayMs: cfg.strikeDelayMs, damage: dmg, label: skill, hit }, t);
           else strike(x);
         }
@@ -2574,12 +2574,12 @@ export class GameWorld {
         break;
       }
       case 'transformacao': {
-        // Guardião Espectral Completo: escudo + Básico mais forte agora; a onda à frente cai no fim
+        // Colosso Espectral: escudo + Básico mais forte agora; a onda à frente cai no fim
         s.absorb = { hp: Math.round(s.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.25)), until: t + (cfg.durationMs ?? 5000) };
         s.basicBuff = { until: t + (cfg.durationMs ?? 5000), bonus: cfg.basicBuff ?? 0.15 };
         const at = ahead(o, fx, fy, cfg.range ?? 2.5);
         this.warnStrike(s, { x: at.x, y: at.y, r: cfg.radius ?? 2.5, delayMs: cfg.durationMs ?? 5000, damage: dmg, label: skill, hit, ...(cfg.liftMs ? { stunMs: cfg.liftMs } : {}) }, t);
-        this.sendTo(s, { type: 'notice', text: `Guardião Espectral Completo: escudo de ${s.absorb.hp} e Básico +15% por ${Math.round((cfg.durationMs ?? 5000) / 1000)} s.`, tone: 'good' });
+        this.sendTo(s, { type: 'notice', text: `Colosso Espectral: escudo de ${s.absorb.hp} e Básico +15% por ${Math.round((cfg.durationMs ?? 5000) / 1000)} s.`, tone: 'good' });
         break;
       }
       case 'escudo_vida': {
@@ -2639,7 +2639,7 @@ export class GameWorld {
     if (cfg.darkMs && x.kind === 'player' && this.stillThere(x)) this.applyEffect(x, 'escuridao', t, cfg.darkMs, undefined, by);
     if (cfg.invertMs && x.kind === 'player' && this.stillThere(x)) this.applyEffect(x, 'invertido', t, cfg.invertMs, undefined, by);
     if (cfg.woundMs && this.stillThere(x)) this.applyEffect(x, 'ferida', t, cfg.woundMs, undefined, by);
-    if (cfg.dotAmount && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, cfg.dotMs ?? 4000, cfg.dotAmount, by);   // Chamas Negras
+    if (cfg.dotAmount && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, cfg.dotMs ?? 4000, cfg.dotAmount, by);   // Brasa Sem Luz
     if (cfg.drain && x.kind === 'player') {
       const got = Math.min(cfg.drain, x.session.chakra);
       x.session.chakra -= got;
@@ -2794,11 +2794,11 @@ export class GameWorld {
   private applyStatus(target: Target, status: MonsterStatus, ms: number, t: number, source?: Session): void {
     const who = target.kind === 'monster' ? target.monster : target.session;
     if (target.kind === 'player' && source) {
-      if (t < target.session.intangibleUntil) return;          // Máscara Intangível: nada de atordoar
+      if (t < target.session.intangibleUntil) return;          // Forma Fantasma: nada de atordoar
       ms = this.ccGate(target.session, source, status, ms, t);
       if (ms <= 0) return;
     } else if (target.kind === 'player') {
-      if (t < target.session.intangibleUntil) return;          // Máscara Intangível: nada de atordoar
+      if (t < target.session.intangibleUntil) return;          // Forma Fantasma: nada de atordoar
       const { windowMs, factors } = this.config.combat.controlDr;
       const dr = target.session.controlDr[status];
       if (t >= dr.until) dr.n = 0;
@@ -3043,7 +3043,7 @@ export class GameWorld {
     }
     const hits = targets.filter((x) => isInArc(session, session.fx, session.fy, x, swing.range, swing.arcDeg));
     for (const x of hits) this.hitTarget(x, damage, session, t, 'attack');
-    // v30: buff de Básico com efeito no 1º golpe (Punho de Rocha atordoa; Bisturi de Chakra queima/sangra)
+    // v30: buff de Básico com efeito no 1º golpe (Punho de Rocha atordoa; Corte Cirúrgico queima/sangra)
     const bf = session.basicBuff;
     if (bf && t < bf.until && hits.length > 0 && (bf.firstStunMs || bf.firstBleed)) {
       const x = hits[0]!;
@@ -3999,14 +3999,14 @@ export class GameWorld {
    * (jutsu, "attack", "arma:…", "poder:…", "efeito:…"), para os números do PvP (pvpStats.ts).
    */
   private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session, label?: string): void {
-    if (t < session.intangibleUntil) return;                    // Máscara Intangível (Akatsuki)
-    // v29 (bug da rodada 2): no Vale dos Guardiões só se apanha durante a rodada, e só quem está na partida. Uma
+    if (t < session.intangibleUntil) return;                    // Forma Fantasma (Akatsuki)
+    // v29 (bug da rodada 2): no Arena das Quatro Heranças só se apanha durante a rodada, e só quem está na partida. Uma
     // queimadura que sobrava da rodada 1 batia no intervalo, com a vida já em 0, e matava de verdade o perdedor.
     if (this.layout(session.map).ranked) {
       const d = this.duel;
       if (!d || d.phase !== 'round' || !sideOf(d, session.id)) return;
     }
-    // v30: Lua Ilusória: qualquer dano nos selos faz falhar (sem Concentração que salve); volta metade da recarga
+    // v30: Mundo Espelhado: qualquer dano nos selos faz falhar (sem Concentração que salve); volta metade da recarga
     if (session.casting && amount > 0 && this.config.combat.skills[session.casting.skill]?.breakOnDamage) {
       const c = session.casting;
       this.cancelCast(session, t, 'interrupted');
@@ -4023,7 +4023,7 @@ export class GameWorld {
       dmg = shieldedDamage(amount, session.shield);
       session.shield = 0;
       shielded = true;
-    } else if (session.hearts > 0) {                            // Cinco Corações: cada carga corta metade de um golpe
+    } else if (session.hearts > 0) {                            // Vidas Costuradas: cada carga corta metade de um golpe
       dmg = Math.round(amount * (1 - session.heartsCut));
       session.hearts -= 1;
       shielded = true;
@@ -4911,7 +4911,7 @@ export class GameWorld {
       if (s.tutorial === 1 && s.meditating && s.chakra >= s.stats.maxChakra && s.map === 'academy_interior'
         && s.x >= ACADEMY.room && s.x < ACADEMY.room * 2) this.advanceTutorial(s, 2);
       if (s.usagePending.size > 0 && t - s.lastUsageFlush >= 15_000) void this.flushUsage(s);
-      // Raízes Gêmeas: a velocidade extra acabou (o cliente prevê com a velocidade nova).
+      // Passo Radicular: a velocidade extra acabou (o cliente prevê com a velocidade nova).
       if (s.hasteUntil > 0 && t >= s.hasteUntil) {
         s.hasteUntil = 0;
         this.sendStats(s, t);
@@ -5409,7 +5409,7 @@ export class GameWorld {
           if (!r.ok) return refuse(r);
           await this.refreshPolitics();
           await this.reloadFaction(id);
-          this.broadcast({ type: 'announce', message: `☁️ ${username} entrou para a Akatsuki.` });
+          this.broadcast({ type: 'announce', message: `🌑 ${username} entrou para os Cinzas.` });
           return;
         }
         case 'akatsuki_expel': {
@@ -5417,15 +5417,15 @@ export class GameWorld {
           if (!r.ok) return refuse(r);
           await this.refreshPolitics();
           await this.reloadFaction(r.targetId);
-          this.notice(r.targetId, 'Você foi expulso da Akatsuki (continua renegado).', 'bad');
-          return say(`${r.username} saiu da Akatsuki.`, 'info');
+          this.notice(r.targetId, 'Você foi expulso dos Cinzas (continua renegado).', 'bad');
+          return say(`${r.username} saiu dos Cinzas.`, 'info');
         }
         case 'akatsuki_leave': {
           const r = await store.akatsukiLeave(id);
           if (!r.ok) return refuse(r);
           await this.refreshPolitics();
           await this.reloadFaction(id);
-          return say('Você saiu da Akatsuki (continua renegado).', 'info');
+          return say('Você saiu dos Cinzas (continua renegado).', 'info');
         }
       }
     });
@@ -5582,7 +5582,7 @@ export class GameWorld {
       this.broadcastFaction(l);
     }
     if (r.kageHunted) {
-      this.broadcast({ type: 'announce', message: `☁️ ${base.winner}, da Akatsuki, derrotou o Kage da ${VILLAGE_INFO[r.kageHunted].name}!` });
+      this.broadcast({ type: 'announce', message: `🌑 ${base.winner}, dos Cinzas, derrotou o Kage da ${VILLAGE_INFO[r.kageHunted].name}!` });
     }
     if (r.becameRenegade) await this.becameRenegade(base.winnerId, base.winner, winnerVillage, 'karma');
     else if (r.bountyPaid >= 1000 || r.kageHunted) await this.reloadFaction(base.winnerId);
@@ -5595,7 +5595,7 @@ export class GameWorld {
     if (item !== null && ITEM_BY_CODE.get(item)?.kind !== 'cape') return this.sendError(s, 'NOT_A_CAPE');
     if (item !== null && !ROLE_CAPES[item] && !((s.items[item] ?? 0) > 0)) return this.sendError(s, 'ITEM_NOT_OWNED');
     if (item === 'manto_kage' && !s.kageOf) return this.sendTo(s, { type: 'notice', text: 'O Manto do Kage é só do Kage.', tone: 'bad' });
-    if (item === 'manto_akatsuki' && s.akatsukiSlot === null) return this.sendTo(s, { type: 'notice', text: 'O Manto da Akatsuki é só dos membros.', tone: 'bad' });
+    if (item === 'manto_akatsuki' && s.akatsukiSlot === null) return this.sendTo(s, { type: 'notice', text: 'O Manto Cinza é só dos membros.', tone: 'bad' });
     const finish = (current: Session, cape: string | null) => {
       const before = JSON.stringify(this.factionView(current));
       current.cape = cape;

@@ -1,5 +1,5 @@
 /*
- * Modo rankeado (v29, pedido do Victor em 03/11/2026): o ninja aperta "Rankeado" e vai para o Vale dos Guardiões,
+ * Modo rankeado (v29, pedido do Victor em 03/11/2026): o ninja aperta "Rankeado" e vai para o Arena das Quatro Heranças,
  * um mapa onde se encontram os ninjas de todas as vilas. Lá ele aperta "Desafio" e entra na FILA; enquanto espera,
  * assiste à luta da arena. Ninguém sabe contra quem vai lutar até a preparação começar.
  *

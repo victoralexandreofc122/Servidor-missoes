@@ -49,7 +49,7 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
 export interface Wall extends Box {
   k: 'wall' | 'gatepost' | 'rock' | 'house' | 'tree' | 'water' | 'dummy' | 'iwall' | 'counter' | 'furniture' | 'pit' | 'fence' | 'pillar' | 'gate'
     | 'seal' | 'oak' | 'cliff' | 'tent' | 'cave' | 'deadtree' | 'logs' | 'sink' | 'pool'
-    // v29: estátua de uma vila no Vale dos Guardiões (colide só no pedestal; o desenho sobe acima)
+    // v29: estátua de uma vila no Arena das Quatro Heranças (colide só no pedestal; o desenho sobe acima)
     | 'statue';
   /**
    * Estilo do prédio (sede, hospital, academia, lojas, casa, cabana) ou do móvel do interior
@@ -76,7 +76,7 @@ export interface Wall extends Box {
  */
 export interface Area extends Box {
   g: 'stone' | 'grass' | 'sand' | 'water' | 'bridge' | 'path' | 'wood' | 'arena' | 'dirt' | 'ash' | 'cave' | 'burnt' | 'pebbles' | 'lodo'
-    // v29: lajes de pedra cinza-oliva com musgo (Vale dos Guardiões)
+    // v29: lajes de pedra cinza-oliva com musgo (Arena das Quatro Heranças)
     | 'slab'
     // trilha da Floresta: o chão é a grama; a trilha curva vem do enfeite 'trail' (aqui só não nasce mato em cima)
     | 'trail';
@@ -155,7 +155,7 @@ export interface Exit {
 export interface Arena extends Box {
   village: Village;
   respawn: { x: number; y: number };
-  /** v29: a arena do modo rankeado (Vale dos Guardiões): só lutam os dois da partida da fila. */
+  /** v29: a arena do modo rankeado (Arena das Quatro Heranças): só lutam os dois da partida da fila. */
   ranked?: boolean;
 }
 
@@ -174,7 +174,7 @@ export interface MapLayout {
   /** Refúgio dos Renegados: só renegado entra. */
   refuge?: boolean;
   /** Zona de Conflito: PvP livre (menos aliados), com ranking. */
-  /** v29: o Vale dos Guardiões (modo rankeado): sem clima, PvP só na arena e só entre os dois da partida. */
+  /** v29: o Arena das Quatro Heranças (modo rankeado): sem clima, PvP só na arena e só entre os dois da partida. */
   ranked?: boolean;
   conflict?: boolean;
   /** Tema de cores (desenho). */
@@ -1277,7 +1277,7 @@ function refuge(): MapLayout {
 }
 
 /**
- * Vale dos Guardiões (44 x 36, v29): o mapa do modo rankeado, onde se encontram os ninjas de todas as vilas. No meio,
+ * Arena das Quatro Heranças (44 x 36, v29): o mapa do modo rankeado, onde se encontram os ninjas de todas as vilas. No meio,
  * a arena cercada (fechada: só os dois da partida entram, levados pelo servidor); em volta, a praça de pedra onde a
  * fila espera e assiste, com as estátuas das vilas nos cantos. Tudo é zona segura, menos dentro da cerca.
  *
@@ -1324,7 +1324,7 @@ function vale(): MapLayout {
   ];
   const fight = valeFightBox();
   return {
-    id: 'vale_estatuas', name: 'Vale dos Guardiões', kind: 'wild', theme: 'folha', ranked: true, width: W, height: H, safe: true, walls,
+    id: 'vale_estatuas', name: 'Arena das Quatro Heranças', kind: 'wild', theme: 'folha', ranked: true, width: W, height: H, safe: true, walls,
     exits: [], doors: [],
     areas: [area('slab', 0, 0, W, H), area('arena', f.x, f.y, f.w, f.h)],
     deco: [

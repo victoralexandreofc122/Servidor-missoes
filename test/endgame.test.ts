@@ -144,9 +144,9 @@ describe('fim de jogo: cliente e servidor com a mesma conta', () => {
         assert.ok(px(only) > 20, `${cape} na direção ${dir}`);
       }
     }
-    // De costas: as nuvens vermelhas da Akatsuki aparecem; a capa cobre as costas e os ombros.
+    // De costas: as brasas do Manto Cinza aparecem; a capa cobre as costas e os ombros.
     const back = ART.renderFigure(look, RIG.poseOf('parado', 0.1), RIG.YAW_OF_DIR[3], { cape: 'manto_akatsuki' });
-    assert.ok(count(back, '#c8261e') > 10, 'nuvens da Akatsuki');
+    assert.ok(count(back, '#d9772b') > 10, 'brasas do Manto Cinza');
     // Renegado: a placa da bandana ganha o risco escuro (de frente).
     const scratch = (renegade: boolean) => count(ART.renderFigure(look, RIG.poseOf('parado', 0.1), 0, { renegade }), '#1b1512');
     assert.ok(scratch(true) >= 4 && scratch(false) === 0);

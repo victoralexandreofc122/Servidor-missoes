@@ -391,7 +391,7 @@ describe('v16: Akatsuki', () => {
     assert.equal(p.conn.last('power_failed').reason, 'NOT_MEMBER');
   });
 
-  it('Corvos da Ilusão: atordoa todos em volta; recarga e chakra contados pelo servidor', async () => {
+  it('Revoada Sombria: atordoa todos em volta; recarga e chakra contados pelo servidor', async () => {
     const { join, at, p, s, world } = await member(6);
     const foe = join('mizu', 'vila_3');
     at(foe, 'zona_conflito', 41.5, 30);
@@ -403,7 +403,7 @@ describe('v16: Akatsuki', () => {
     assert.equal(p.conn.last('power_failed').reason, 'COOLDOWN');
   });
 
-  it('Atração do Vazio: puxa o inimigo para perto; Máscara Intangível: nenhum dano', async () => {
+  it('Gravidade Invertida: puxa o inimigo para perto; Forma Fantasma: nenhum dano', async () => {
     const env = await member(1);
     const foe = env.join('mizu', 'vila_3');
     env.at(foe, 'zona_conflito', 43.5, 30);
@@ -418,7 +418,7 @@ describe('v16: Akatsuki', () => {
     assert.equal(masked.s.hp, hp);
   });
 
-  it('Cinco Corações: três golpes pela metade; Akatsuki não bate em Akatsuki', async () => {
+  it('Vidas Costuradas: três golpes pela metade; Akatsuki não bate em Akatsuki', async () => {
     const env = await member(7);
     env.p.send({ type: 'power' });
     const before = env.s.hp;
@@ -446,7 +446,7 @@ describe('v16: Akatsuki', () => {
     await flush();
     const inv = target.conn.last('akatsuki_invite');
     assert.equal(inv.from, 'lider');
-    assert.equal(inv.power, 'Argila Viva');
+    assert.equal(inv.power, 'Escultura Detonante');
     env.fake.store.akatsukiAccept = async () => {
       env.fake.politics.akatsuki.push({ slot: 4, playerId: target.id, username: 'alvo' });
       env.fake.setVillage(target.id, null, 'vila_1');
@@ -459,7 +459,7 @@ describe('v16: Akatsuki', () => {
     assert.equal(s.akatsukiSlot, 4);
     assert.equal(s.village, null);
     assert.equal(s.map, 'refugio');
-    assert.match(leader.conn.last('announce').message, /alvo entrou para a Akatsuki/);
+    assert.match(leader.conn.last('announce').message, /alvo entrou para os Cinzas/);
   });
 });
 

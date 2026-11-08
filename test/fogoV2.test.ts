@@ -92,9 +92,9 @@ describe('Jutsus v2, entrega 2: o Fogo novo', () => {
   it('recompensa da conjuração: médio +5% de dano e -10% de recarga; rápido nada', () => {
     assert.deepEqual(castReward(600), { damage: 1.05, cooldown: 0.9 });
     assert.deepEqual(castReward(300), { damage: 1, cooldown: 1 });
-    assert.equal(SK.fire_3.cooldownMs, 5400, 'Destruição Magnífica: 6 s x 0,9');
+    assert.equal(SK.fire_3.cooldownMs, 5400, 'Varredura Flamejante: 6 s x 0,9');
     assert.equal(SK.fire_3.base, 29.4, '28 x 1,05');
-    assert.equal(SK.fire_2.cooldownMs, 2300, 'Chamas da Fênix (0,2 s): sem recompensa');
+    assert.equal(SK.fire_2.cooldownMs, 2300, 'Revoada de Brasas (0,2 s): sem recompensa');
   });
 
   it('Sopro Incinerador: cone curto que acerta e queima (2/s por 2 s); de longe não pega', () => {
@@ -116,7 +116,7 @@ describe('Jutsus v2, entrega 2: o Fogo novo', () => {
     assert.equal(dealt(), SK.fire_hibashiri.damage);
   });
 
-  it('Chamas da Fênix: 0,2 s de selos, 3 bolas em leque e cada alvo leva no máximo 2', () => {
+  it('Revoada de Brasas: 0,2 s de selos, 3 bolas em leque e cada alvo leva no máximo 2', () => {
     const { a, run, dealt } = scene('fire_2', 2);
     a.send({ type: 'cast', skill: 'fire_2' });
     assert.equal(a.conn.last('cast_start').ms, 200);
@@ -127,7 +127,7 @@ describe('Jutsus v2, entrega 2: o Fogo novo', () => {
     assert.equal(dealt(), 2 * SK.fire_2.damage!, 'no máximo 2 no mesmo alvo');
   });
 
-  it('Nuvem de Cinzas Ardentes: aviso em volta de quem lança e o golpe cai 1 s depois', () => {
+  it('Cinzas Detonantes: aviso em volta de quem lança e o golpe cai 1 s depois', () => {
     const { a, run, dealt } = scene('fire_haiseki', 1.5);
     a.send({ type: 'cast', skill: 'fire_haiseki' });
     const g = a.conn.last('ground');
@@ -161,7 +161,7 @@ describe('Jutsus v2, entrega 2: o Fogo novo', () => {
     assert.equal(dealt(), 3 * SK.fire_4.damage!);
   });
 
-  it('Míssil Dragão de Fogo: selos de 0,6 s e o projétil lento que explode', () => {
+  it('Projétil Dracônico: selos de 0,6 s e o projétil lento que explode', () => {
     const { a, run, dealt } = scene('fire_hotan', 3);
     a.send({ type: 'cast', skill: 'fire_hotan' });
     run(550);

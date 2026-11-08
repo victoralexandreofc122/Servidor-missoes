@@ -100,7 +100,7 @@
       <button id="chat-toggle" class="menu-btn" type="button" aria-label="Escrever no chat" aria-expanded="false" aria-controls="chat"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M8 9.5h8M8 12.5h5"/></svg><span>Chat</span></button>
       <!-- Painel do Admin (v19): só aparece para quem é administrador. No menu, para não cobrir o chat (v20). -->
       <button id="admin-toggle" class="menu-btn admin-toggle" type="button" hidden aria-expanded="false" aria-controls="admin-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.6-3.4 8.4-8 9-4.6-.6-8-4.4-8-9V6z"/><path d="M8.8 12.2l2.3 2.3 4.2-4.6"/></svg><span>Admin</span></button>
-      <!-- v29: modo rankeado: vai ao Vale dos Guardiões (lá o mesmo botão volta). -->
+      <!-- v29: modo rankeado: vai ao Arena das Quatro Heranças (lá o mesmo botão volta). -->
       <button id="ranked-toggle" class="menu-btn" type="button"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4l9 9"/><path d="M20 4l-9 9"/><path d="M6.5 15.5l-2.5 2.5 2 2 2.5-2.5"/><path d="M17.5 15.5l2.5 2.5-2 2-2.5-2.5"/><path d="M4 4h3v3"/><path d="M20 4h-3v3"/></svg><span id="ranked-label">Rankeado</span></button>
       <!-- v29: entra e sai da tela cheia (some no iPhone, que não deixa site nenhum usar tela cheia). -->
       <button id="fullscreen-toggle" class="menu-btn" type="button" hidden><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/></svg><span id="fullscreen-label">Tela cheia</span></button>
@@ -336,7 +336,7 @@
         <button type="button" class="tab active" role="tab" aria-selected="true" data-tab="vila">Vila</button>
         <button type="button" class="tab" role="tab" aria-selected="false" data-tab="kage" hidden>Kage</button>
         <button type="button" class="tab" role="tab" aria-selected="false" data-tab="ranking" hidden>Ranking</button>
-        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="akatsuki" hidden>Akatsuki</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="akatsuki" hidden>Cinzas</button>
       </div>
       <div id="village-body" class="village-body"></div>
     </section>
@@ -374,7 +374,7 @@
 
     <section id="akatsuki-invite" class="mission-panel invite-panel" hidden role="alertdialog" aria-labelledby="akatsuki-invite-title">
       <header class="mission-head">
-        <h2 id="akatsuki-invite-title">☁️ Convite da Akatsuki</h2>
+        <h2 id="akatsuki-invite-title">🌑 Convite dos Cinzas</h2>
       </header>
       <p id="akatsuki-invite-text" class="mission-status"></p>
       <div class="eval-actions">
@@ -401,7 +401,7 @@
       <button id="kit-btn" type="button" class="cbtn small kit" aria-label="Trocar de kit (ativo: A)"><span class="ico" aria-hidden="true">🔄</span><b id="kit-label" class="kit-label">A</b></button>
       <button id="target-btn" type="button" class="cbtn small target" aria-pressed="false" aria-label="Focar alvo"><span class="ico" aria-hidden="true">🎯</span></button>
       <button id="talk-btn" type="button" class="cbtn small talk" hidden aria-label="Falar"><span class="ico" aria-hidden="true">💬</span></button>
-      <button id="power-btn" type="button" class="cbtn small power" hidden aria-label="Poder da Akatsuki"><span class="ico" aria-hidden="true">☁️</span><i class="cd" aria-hidden="true"></i></button>
+      <button id="power-btn" type="button" class="cbtn small power" hidden aria-label="Poder dos Cinzas"><span class="ico" aria-hidden="true">🌑</span><i class="cd" aria-hidden="true"></i></button>
     </div>
 
     <!-- Configurações: layout da HUD (só muda no modo "Editar layout", nunca sem querer), tamanho e transparência. -->

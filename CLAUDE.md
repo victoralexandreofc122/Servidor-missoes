@@ -19,10 +19,11 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   do Victor (chibi, contorno escuro, sombreado em 2-3 tons). Toda mudança de arte é comparada lado a lado com a
   referência e conferida dentro do jogo antes de fechar.
 - **Versão atual:** v29 (modo rankeado no Vale dos Guardiões, migração v15), publicada na `main`. Pronto e esperando o
-  Victor (branch, migrações v16, v17, v18, v19 e v20 nessa ordem): Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o
+  Victor (branch, migrações v16, v17, v18, v19, v20 e v21 nessa ordem): Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o
   Clã Rubro), conjuração, sistemas próprios (muros, invocações, escuridão...), clãs por linhagem, controle mais forte, a
   Fase 1 dos nomes (Herança do Fogo, 4 aldeias), a correção da rodada 2 do rankeado e a Fase 0 (Extração do design
-  final e maestria por jutsu, feita no Fogo). Documento canônico do endgame (identidade, aldeias, hierarquia, ANBU,
+  final e maestria por jutsu, feita no Fogo) e a Fase 1 dos nomes originais (Os Cinzas, Arena das Quatro Heranças, 38 jutsus, v21;
+  falta confirmar a ordem das aldeias Nuvem/Areia: `docs/fase1-renomeacao.md`). Documento canônico do endgame (identidade, aldeias, hierarquia, ANBU,
   torneios, Terra Sem Lei, guerras, roadmap Fase 0 a 3): `docs/endgame-visao.md`; nada dele é implementado sem o OK do
   Victor. **Stack:** em avaliação (empacotamento nativo, WASM, N-API, Capacitor/Tauri, C/C++); não mudar nada até ele
   decidir.

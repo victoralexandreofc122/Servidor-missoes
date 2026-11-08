@@ -160,7 +160,7 @@ describe('números do PvP (por classe e por golpe)', () => {
   it('nomes dos golpes: jutsu, Ataque Básico, arma lançada, poder da Akatsuki e efeito', () => {
     assert.equal(moveName('attack'), 'Ataque Básico');
     assert.equal(moveName('efeito:queimadura'), 'Queimadura');
-    assert.equal(moveName('poder:blast'), 'Argila Viva');
+    assert.equal(moveName('poder:blast'), 'Escultura Detonante');
     assert.equal(moveName('fire'), JUTSU_BY_CODE.get('fire')!.name);
     assert.equal(moveName('arma:kunai'), ITEM_BY_CODE.get('kunai')!.name);
   });

@@ -143,7 +143,7 @@ export const ACCESSORIES = {
 const CAPE_COLORS = {
   capa_viagem: ['#7a5a3a', '#5a4029', '#c9a46a'],
   manto_kage: ['#eeeae0', '#c9c3b4', '#c8321e'],
-  manto_akatsuki: ['#1d1a22', '#0f0d12', '#c8261e'],
+  manto_akatsuki: ['#3a393f', '#222126', '#d9772b'],
   manto_campeao: ['#4b2a7a', '#341c56', '#e8c66a'],
 };
 const VILLAGE_CAPE = { vila_1: '#3f7d3a', vila_3: '#4f9cc4', vila_4: '#7a2a3a', vila_5: '#c9822e' };
@@ -685,7 +685,7 @@ function capeLayer(c) {
     const n = norm(mix(mix(vn[j][i], vn[j][i + 1], ku), mix(vn[j + 1][i], vn[j + 1][i + 1], ku), kv));
     return [add(p, scl(n, 0.3)), n];
   };
-  const emblem = { manto_akatsuki: [[0.4, 0.34, 'nuvem'], [0.6, 0.52, 'nuvem'], [0.43, 0.72, 'nuvem']], manto_kage: [[0.5, 0.45, 'kage']],
+  const emblem = { manto_akatsuki: [[0.4, 0.34, 'brasa'], [0.6, 0.52, 'brasa'], [0.43, 0.72, 'brasa']], manto_kage: [[0.5, 0.45, 'kage']],
     manto_campeao: [[0.5, 0.42, 'circulo']], capa_vila: [[0.5, 0.42, 'circulo_vila']] }[opts.cape] || [];
   for (const [u, v, kind] of emblem) {
     const [p, n] = point(u, v);
@@ -1002,7 +1002,7 @@ const SYMBOLS = {
   vila_5: { g: ['KKKKK', '.K.K.', '..K..', '.K.K.', 'KKKKK'], p: ['KKK', '.K.', 'KKK'] },          // areia (ampulheta)
 };
 const CAPE_EMBLEMS = {
-  nuvem: ['..WWW....', '.WRRRWWW.', 'WRRRRRRRW', 'WRRRRRRRW', '.WWWWWWW.'],
+  brasa: ['...R...', '..RRR..', '.RRWRR.', 'RRWWWRR', '.RRWRR.', '..RRR..', '...R...'],
   kage: ['...R...', 'RRRRRRR', '.R.R.R.', '.RRRRR.', '..R.R..', '.RRRRR.', 'R.R.R.R', '..R.R..'],
   circulo: ['..RRR..', '.RRRRR.', 'RRR.RRR', 'RR...RR', 'RRR.RRR', '.RRRRR.', '..RRR..'],
   circulo_vila: ['..RRR..', '.RRRRR.', 'RRRRRRR', 'RRRRRRR', 'RRRRRRR', '.RRRRR.', '..RRR..'],
@@ -1195,7 +1195,7 @@ function stamp(buf, scene, col, st, S, look, pose, mats) {
     colors = { K: pack(st.mat.rgb[0]) };
   } else if (st.kind === 'capa') {
     rows = CAPE_EMBLEMS[st.emblem];
-    colors = { R: pack(st.emblem === 'nuvem' ? rgbOf('#c8261e') : st.mat.rgb[2]), W: pack(rgbOf('#f4ead8')) };
+    colors = { R: pack(st.emblem === 'brasa' ? rgbOf('#d9772b') : st.mat.rgb[2]), W: pack(rgbOf('#f4ead8')) };
   }
   if (!rows) return;
   const h = rows.length, w = rows[0].length;

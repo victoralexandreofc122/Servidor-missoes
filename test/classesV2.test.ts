@@ -92,7 +92,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     void a; void s;
   });
 
-  it('anel com efeito (Onda de Choque Aquática): todos em volta levam, são empurrados e ficam molhados', () => {
+  it('anel com efeito (Estouro de Maré): todos em volta levam, são empurrados e ficam molhados', () => {
     const { ms, cast, world, dealt } = scene('water_2', [[2, 0], [-2, 0]]);
     const before = ms.map((m) => m.x);
     cast();
@@ -109,7 +109,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(dealt(m), 3 * SK.taijutsu_3.damage!);
   });
 
-  it('zona dividida em pulsos (Pântano do Submundo): o dano do jutsu em 4 pulsos, com lentidão', () => {
+  it('zona dividida em pulsos (Lamaçal Profundo): o dano do jutsu em 4 pulsos, com lentidão', () => {
     const { m, cast, run, dealt, world } = scene('stone_2', [[3, 0]]);
     cast();
     run(1050);
@@ -160,7 +160,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.ok(Math.abs(s.x - (row.x - 3)) < 0.01, `${s.x}`);
   });
 
-  it('aviso em ondas (Dragões Gêmeos): 4 golpes avisados no mesmo lugar', () => {
+  it('aviso em ondas (Ascensão Dupla): 4 golpes avisados no mesmo lugar', () => {
     const { m, cast, run, dealt, a } = scene('weapons_dragoes', [[3, 0]]);
     cast();
     assert.equal(a.conn.of('ground').filter((g: any) => g.skill === 'weapons_dragoes').length, 4);
@@ -187,7 +187,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(s.effects.has('silencio'), false);
   });
 
-  it('cura ao longo do tempo (Regeneração Mitótica): 3% da vida por segundo por 10 s', () => {
+  it('cura ao longo do tempo (Renovação Celular): 3% da vida por segundo por 10 s', () => {
     const { s, cast, run } = scene('heal_4', []);
     s.hp = 10;
     cast();
@@ -211,7 +211,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(dealt(ms[1]), Math.round(SK.lightning_raio.damage! * 0.7));
   });
 
-  it('agarre (Agarre Múltiplo): prende até 2 na linha e divide o dano', () => {
+  it('agarre (Rede de Sombra): prende até 2 na linha e divide o dano', () => {
     const { ms, cast, dealt, clock } = scene('shadow_agarre', [[2, 0], [4, 0], [5.5, 0]]);
     cast();
     assert.ok(ms[0].rootedUntil > clock.now() && ms[1].rootedUntil > clock.now());
@@ -219,7 +219,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(dealt(ms[0]), Math.round(SK.shadow_agarre.damage! / 2));
   });
 
-  it('projétil com efeito (Dragão d’Água): molha quem acerta', () => {
+  it('projétil com efeito (Serpente d’Água): molha quem acerta', () => {
     const { m, cast, run, world, dealt } = scene('water_dragao', [[3, 0]]);
     cast();
     run(600);
@@ -283,7 +283,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(b.conn.last('effect').effect, 'escuridao');
   });
 
-  it('zona que escurece (Ocultação na Névoa): quem entra fica no escuro; quem lançou, não', () => {
+  it('zona que escurece (Véu de Bruma): quem entra fica no escuro; quem lançou, não', () => {
     const w = scene('water_nevoa', [], true);
     const b = w.connect('mei');
     const sb = w.world.sessions.get(b.id);
@@ -295,7 +295,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(w.s.effects.has('escuridao'), false, 'quem lançou enxerga');
   });
 
-  it('controles invertidos (Distúrbio Nervoso): efeito embaralhado no ninja, dentro do orçamento de controle', () => {
+  it('controles invertidos (Descontrole Muscular): efeito embaralhado no ninja, dentro do orçamento de controle', () => {
     const w = scene('heal_disturbio', [], true);
     const b = w.connect('mei');
     const sb = w.world.sessions.get(b.id);
@@ -321,7 +321,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     void cast; void row;
   });
 
-  it('canalização (Palma Mística): 2 s de selos andando devagar; cura o aliado colado ou a si pela metade; vida cheia não sai', () => {
+  it('canalização (Palma Curadora): 2 s de selos andando devagar; cura o aliado colado ou a si pela metade; vida cheia não sai', () => {
     const { s, a, run } = scene('heal_palma', []);
     a.send({ type: 'cast', skill: 'heal_palma' });
     assert.equal(a.conn.last('cast_failed').reason, 'FULL_HP');
@@ -335,7 +335,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(s.hp, s.stats.maxHp - 40 + 15, 'em si: metade de 30');
   });
 
-  it('bumerangue (Shuriken Gigante de Chakra): atravessa na ida e acerta de novo na volta', () => {
+  it('bumerangue (Shuriken Colossal): atravessa na ida e acerta de novo na volta', () => {
     const { m, cast, run, a } = scene('weapons_gigante', [[3, 0]]);
     cast();
     run(2500);
@@ -389,7 +389,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(world.monsters.has(sum.id), false, 'acabou');
   });
 
-  it('invocação (Clone de Água): isca que o inimigo pode acertar; morrer não dá XP', () => {
+  it('invocação (Duplo de Água): isca que o inimigo pode acertar; morrer não dá XP', () => {
     const w = scene('water_clone', [], true);
     const b = w.connect('mei');
     const sb = w.world.sessions.get(b.id);
@@ -407,7 +407,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
 
   // ---------------------------------------------------------------- a classe Vento (v30)
 
-  it('Vento: a classe nova tem os 4 tiers e mira em linha; Palma do Vendaval empurra', () => {
+  it('Vento: a classe nova tem os 4 tiers e mira em linha; Rajada Aberta empurra', () => {
     assert.ok(CLASSES.includes('wind'));
     const { m, cast, dealt, row } = scene('wind', [[1.5, 0]]);
     const before = m.x;
@@ -434,7 +434,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(s.absorb, undefined, 'acabou');
   });
 
-  it('Estrela Espiral: explode em área e deixa ferida (cura recebida pela metade)', () => {
+  it('Disco do Furacão: explode em área e deixa ferida (cura recebida pela metade)', () => {
     const { ms, cast, run, world, dealt } = scene('wind_4', [[3, 0], [3.5, 1]]);
     cast();
     run(1000);
@@ -470,13 +470,13 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.deepEqual(rubro.map((j) => j.tier), [1, 2, 3, 4, 4, 4]);
   });
 
-  it('Chamas Negras: linha que queima 3/s por 4 s', () => {
+  it('Brasa Sem Luz: linha que queima 3/s por 4 s', () => {
     const { m, cast, world } = scene('rubro_chamas', [[3, 0]]);
     cast();
     assert.ok(world.effectsOf({ kind: 'monster', id: m.id, monster: m }).has('queimadura'));
   });
 
-  it('Guardião Espectral: escudo de 20% da vida e um corte na frente', () => {
+  it('Sentinela Espectral: escudo de 20% da vida e um corte na frente', () => {
     const { s, m, a, dealt } = scene('rubro_guardiao', [[1, 0]]);
     a.send({ type: 'cast', skill: 'rubro_guardiao' });                 // confere já (o monstro de teste bate de volta)
     assert.equal(s.absorb.hp, Math.round(s.stats.maxHp * 0.2));
@@ -507,14 +507,14 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     void run;
   });
 
-  it('Clã Rubro no nível 60: Lua Ilusória e Guardião Espectral Completo chegam junto com o tier 4', () => {
+  it('Clã Rubro no nível 60: Mundo Espelhado e Colosso Espectral chegam junto com o tier 4', () => {
     const { s, world } = scene('fire', []);
     Object.assign(s, { clan: 'rubro', level: 60 });
     world.grantClanJutsus(s);
     for (const c of ['rubro_guardiao', 'rubro_lua', 'rubro_completo']) assert.ok(s.jutsus.has(c), c);
   });
 
-  it('Lua Ilusória: qualquer dano nos selos faz falhar (volta metade da recarga); sem dano, atordoa forte', () => {
+  it('Mundo Espelhado: qualquer dano nos selos faz falhar (volta metade da recarga); sem dano, atordoa forte', () => {
     const { s, a, run, world, m, clock } = scene('rubro_lua', [[4.5, 0]]);   // longe: o monstro de teste não bate nos selos
     a.send({ type: 'cast', skill: 'rubro_lua' });
     run(300);
@@ -528,7 +528,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.ok(m.stunnedUntil > clock.now() + 1500, 'atordoado');
   });
 
-  it('Guardião Espectral Completo: escudo de 25%, Básico +15% por 5 s e a onda no fim', () => {
+  it('Colosso Espectral: escudo de 25%, Básico +15% por 5 s e a onda no fim', () => {
     const { s, a, run, m, dealt } = scene('rubro_completo', [[2.5, 0]]);
     a.send({ type: 'cast', skill: 'rubro_completo' });
     run(560);

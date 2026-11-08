@@ -30,7 +30,7 @@ export function moveName(label: string): string {
   if (kind === 'efeito') return EFFECTS[code as EffectCode]?.name ?? code;
   return JUTSU_BY_CODE.get(label as never)?.name ?? label;
 }
-const POWER_NAMES: Record<string, string> = { blast: 'Argila Viva', paper: 'Chuva de Papel' };
+const POWER_NAMES: Record<string, string> = { blast: 'Escultura Detonante', paper: 'Tempestade de Páginas' };
 
 export const className = (code: string): string => CLASS_INFO[code as ClassCode]?.name ?? 'Sem classe';
 
