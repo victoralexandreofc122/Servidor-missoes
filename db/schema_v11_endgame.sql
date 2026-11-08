@@ -944,7 +944,7 @@ END $$;
 -- ---------------------------------------------------------------- 8. capas e o que mostrar no boneco
 
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
-ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes'));   -- 'shoes': v12 (rodar a v11 de novo não quebra)
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory'));   -- 'shoes': v12, 'accessory': v14 (rodar a v11 de novo não quebra)
 INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
   ('capa_viagem',    'Capa de Viagem',    'cape', NULL, NULL, 400,  'clothes'),
   ('capa_vila',      'Capa da Vila',      'cape', NULL, NULL, 900,  'clothes'),

@@ -16,6 +16,8 @@ const noDatabase = process.env.TEST_DATABASE_URL
 const V7 = readFileSync(new URL('../db/schema_v7_progressao.sql', import.meta.url), 'utf8');
 const V8 = readFileSync(new URL('../db/schema_v8_admin_chat.sql', import.meta.url), 'utf8');
 const V12 = readFileSync(new URL('../db/schema_v12_sapatos.sql', import.meta.url), 'utf8');
+/** As colunas que o findPlayer lê hoje: o acessório (v14) e a linhagem (v19). */
+const V14_V19 = ['schema_v14_acessorio.sql', 'schema_v19_clas.sql'].map((f) => readFileSync(new URL(`../db/${f}`, import.meta.url), 'utf8')).join('\n');
 const rule = (name: string) => (e: { constraint?: string }) => e.constraint === name;
 
 describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () => {
@@ -90,20 +92,21 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     assert.deepEqual(await store.chooseSecondary(id, 'water'), { ok: false, text: 'A classe Secundária é para Chunin de nível 40, diferente da Primária e escolhida uma vez só.' });
   });
 
-  it('Extração: só da própria classe; custo 1/2/4/8; falha gasta os pergaminhos; sucesso ensina um jutsu do tier', async () => {
+  it('Extração (v20): só da própria classe; custo 1/2/3/4; falha gasta os pergaminhos; sucesso ensina um jutsu do tier', async () => {
     const id = await t.createPlayer('extrator');
     const store = makeNinjaStore(t.db);
     await finishTutorial(id);
     await toLevel(id, 11);
-    await store.becomeGenin(id, 'water');
+    await store.becomeGenin(id, 'water');                                 // ganha 1 pergaminho de Água
     assert.deepEqual(await store.extract(id, 'fire', 1, 0, 0), { ok: false, text: 'Você só aprende jutsus da sua classe.' });
     assert.equal((await store.extract(id, 'water', 2, 0, 0) as { outcome: string }).outcome, 'no_scrolls', '2 pergaminhos para o nível 2');
     await assert.rejects(t.pool.query('SELECT * FROM game.extract_jutsu($1, $2, 5, 0, 0)', [id, 'water']), rule('rule_extraction_input'));
     await assert.rejects(t.pool.query('SELECT * FROM game.extract_jutsu($1, $2, 1, 1.5, 0)', [id, 'water']), rule('rule_extraction_input'));
-    const failed = await store.extract(id, 'water', 1, 0.8, 0);         // 0,8 >= 80%: falha
-    assert.ok(failed.ok && failed.outcome === 'failed' && failed.consumed === 1 && failed.scrollsLeft === 0);
+    await store.addItem(id, 'scroll_water', 1);
+    const failed = await store.extract(id, 'water', 2, 0.8, 0);         // 0,8 >= 80%: falha
+    assert.ok(failed.ok && failed.outcome === 'failed' && failed.consumed === 2 && failed.scrollsLeft === 0);
     await store.addItem(id, 'scroll_water', 3);
-    const ok = await store.extract(id, 'water', 2, 0.59, 0);              // < 60%: sucesso
+    const ok = await store.extract(id, 'water', 2, 0.79, 0);              // < 80% (+10 da falha): sucesso
     assert.ok(ok.ok && ok.outcome === 'success' && ok.jutsu === 'water_2' && ok.scrollsLeft === 1);
     // v30: o tier 2 da Água tem vários jutsus: cada Extração dá um que falta, até acabarem
     const tier2: string[] = JUTSUS.filter((j) => j.class === 'water' && j.tier === 2).map((j) => j.code).sort();
@@ -114,9 +117,16 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     }
     await store.addItem(id, 'scroll_water', 2);
     assert.equal((await store.extract(id, 'water', 2, 0, 0) as { outcome: string }).outcome, 'all_learned');
-    const success = await store.extract(id, 'water', 1, 0.1, 0);
-    assert.ok(success.ok && success.jutsu === 'water');
-    assert.deepEqual(Object.keys((await makeFindPlayer(t.db)(id))!.jutsus!).sort(), ['substitution', 'teleport', 'water', ...tier2].sort());
+    // tier 1: as 2 primeiras são garantidas (até com o pior sorteio); a 3ª volta para 90%
+    const g1 = await store.extract(id, 'water', 1, 0.999999, 0);
+    const g2 = await store.extract(id, 'water', 1, 0.999999, 0);
+    assert.ok(g1.ok && g1.outcome === 'success' && g1.jutsu === 'water' && g1.consumed === 1);
+    assert.ok(g2.ok && g2.outcome === 'success' && g2.jutsu === 'water_dragao');
+    const third = await store.extract(id, 'water', 1, 0.95, 0);
+    assert.ok(third.ok && third.outcome === 'failed' && third.scrollsLeft === 0, '0,95 >= 90%: a 3ª pode falhar');
+    assert.deepEqual(Object.keys((await makeFindPlayer(t.db)(id))!.jutsus!).sort(), ['substitution', 'teleport', 'water', 'water_dragao', ...tier2].sort());
+    await store.addItem(id, 'scroll_water', 2);
+    assert.equal((await store.extract(id, 'water', 3, 0, 0) as { outcome: string }).outcome, 'no_scrolls', '3 pergaminhos para o nível 3');
   });
 
   it('loja: preço do catálogo, ryō não fica negativo, item fora da loja recusado; equipar só o que tem', async () => {
@@ -174,6 +184,7 @@ describe('v7 no banco: migração sobre quem já jogava', { skip: noDatabase }, 
     await t.pool.query(V7);                                                                       // de novo: sem erro
     await t.pool.query(V8);                                                                       // e a v8 e a v12 (findPlayer lê as colunas delas)
     await t.pool.query(V12);
+    await t.pool.query(V14_V19);
     const found = await makeFindPlayer(t.db)(id);
     assert.equal(found!.tutorialStep, 4);
     assert.equal(found!.level, levelForXp(5000));

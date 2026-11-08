@@ -7,7 +7,7 @@ import { createDb, type Db } from '../../src/db.js';
  * e apaga tudo no final. TEST_DATABASE_URL precisa de um role com CREATEDB.
  * `files` permite subir um banco sem alguma migração (ex.: testar a v4 ausente).
  */
-export const MIGRATIONS = ['schema_ranks_missoes_sensei.sql', 'schema_v3_auth.sql', 'schema_v4_npc_missions.sql', 'schema_v5_atributos.sql', 'schema_v6_aparencia.sql', 'schema_v7_progressao.sql', 'schema_v8_admin_chat.sql', 'schema_v9_visual_sprites.sql', 'schema_v10_design.sql', 'schema_v11_endgame.sql', 'schema_v12_sapatos.sql', 'schema_v13_sem_pedra.sql', 'schema_v14_acessorio.sql', 'schema_v15_rankeado.sql', 'schema_v16_jutsus_fogo.sql', 'schema_v17_nomes.sql', 'schema_v18_jutsus_classes.sql', 'schema_v19_clas.sql'] as const;
+export const MIGRATIONS = ['schema_ranks_missoes_sensei.sql', 'schema_v3_auth.sql', 'schema_v4_npc_missions.sql', 'schema_v5_atributos.sql', 'schema_v6_aparencia.sql', 'schema_v7_progressao.sql', 'schema_v8_admin_chat.sql', 'schema_v9_visual_sprites.sql', 'schema_v10_design.sql', 'schema_v11_endgame.sql', 'schema_v12_sapatos.sql', 'schema_v13_sem_pedra.sql', 'schema_v14_acessorio.sql', 'schema_v15_rankeado.sql', 'schema_v16_jutsus_fogo.sql', 'schema_v17_nomes.sql', 'schema_v18_jutsus_classes.sql', 'schema_v19_clas.sql', 'schema_v20_extracao.sql'] as const;
 
 export async function createTestDatabase(files: readonly string[] = MIGRATIONS) {
   const adminUrl = process.env.TEST_DATABASE_URL;

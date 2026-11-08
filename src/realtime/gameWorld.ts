@@ -23,7 +23,7 @@ import type { Profile } from './profile.js';
 import type { Classes, Inventory, NinjaStore } from './ninjaStore.js';
 import {
   ACADEMY_JUTSUS, CAST_RULES, CLASSES, CLASS_INFO, EXTRACTION, castSlowOf, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
-  BASE_SKILLS, FORM_OF_MECHANIC, type JutsuForm, jutsuLevel, jutsuPower, substitutionCooldownMs, teleportRange, type ClassCode,
+  BASE_SKILLS, FORM_OF_MECHANIC, type JutsuForm, jutsuLevel, MASTERY, type MasteryGain, masteryBonus, masteryUseLevel, withMastery, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
 import { CLAN_TIER_LEVEL, clanJutsusFor, type Clan } from './jutsusClasses.js';
 
@@ -555,6 +555,16 @@ const round3 = (n: number) => Math.round(n * 1000) / 1000;
 /** Vida mostrada: arredonda para cima (0,4 de vida ainda é "vivo com 1"). */
 const shownHp = (hp: number) => Math.ceil(hp);
 
+/**
+ * v31: o que a maestria melhora neste jutsu, para a aba Jutsus. Os da tabela nova (MASTERY) vão como estão; os da
+ * regra antiga mostram só o que o jutsu tem (dano e/ou cura; nada nos sem dano e sem cura). Sem o campo = só dano.
+ */
+function masteryInfo(code: string, v: SkillConfig): { mastery?: MasteryGain[] } {
+  const own = MASTERY[code];
+  const list: MasteryGain[] = own ? [...own] : [...(v.damage ? ['dano' as const] : []), ...(v.heal ? ['cura' as const] : [])];
+  return list.length === 1 && list[0] === 'dano' ? {} : { mastery: list };
+}
+
 export class GameWorld {
   private readonly sessions = new Map<string, Session>();
   private readonly monsters = new Map<string, Monster>();
@@ -827,6 +837,7 @@ export class GameWorld {
           ...(v.castMs ? { castMs: v.castMs } : {}),
           ...(v.coneDeg !== undefined ? { coneDeg: v.coneDeg } : {}),
           ...(j.form === 'buff_basico' ? { durationMs: v.durationMs ?? 5000 } : {}),
+          ...masteryInfo(j.code, v),   // v31: o que a maestria melhora (sem o campo: só dano)
         }];
       }),
     ) as WorldInfo['skills'];
@@ -1692,7 +1703,8 @@ export class GameWorld {
    * Acertam monstros e, com o PvP ligado, outros jogadores (targetsFor).
    */
   private cast(session: Session, skill: Skill, t: number, targetId?: string, dir?: [number, number], resolving = false): void {
-    const cfg = this.config.combat.skills[skill];
+    // Maestria (Fase 0): os números no nível de uso deste jogador (efeito, alcance e recarga; o dano e a cura, no golpe)
+    const cfg = withMastery(this.config.combat.skills[skill], skill, jutsuLevel(session.jutsus.get(skill) ?? 0));
     const fail = (reason: CastFailReason) => this.sendTo(session, { type: 'cast_failed', skill, reason });
     // Qualquer TENTATIVA de usar habilidade encerra a meditação (mesmo que a habilidade falhe).
     this.stopMeditation(session, 'cast');
@@ -1751,7 +1763,7 @@ export class GameWorld {
     const sky = this.skyEffectsAt(session.map);
     const scale = this.config.combat.damageScale;
     const dmg = scaledDamage((cfg.damage ?? 0) * scale.jutsu + weaponBonus * scale.basic,
-      damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * jutsuPower(level) * this.passive(session, 'jutsu') * (sky?.damage[mechanic] ?? 1));
+      damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * (1 + masteryBonus(skill, 'dano', level)) * this.passive(session, 'jutsu') * (sky?.damage[mechanic] ?? 1));
     const lasting = (ms: number) => Math.round(ms * (sky?.status[mechanic] ?? 1));
     const tier = Math.max(1, JUTSU_BY_CODE.get(skill)?.tier ?? 1);
     const base1 = BASE_SKILLS[mechanic];
@@ -1760,7 +1772,7 @@ export class GameWorld {
     const pvpBase = own ? (cfg.base ?? 0) : (base1.damage ?? 0);
     const burnBase = own ? (cfg.burn ?? 0) : (base1.burn ?? 0);
     const hit: HitInfo = {
-      base: pvpBase, tier, useLevel: level, weapon: weaponBonus, scaling: cfg.scaling ?? 'ninjutsu',
+      base: pvpBase, tier, useLevel: masteryUseLevel(skill, 'dano', level), weapon: weaponBonus, scaling: cfg.scaling ?? 'ninjutsu',
       passive: this.passive(session, 'jutsu'), sky: sky?.damage[mechanic] ?? 1,
       ...(burnBase ? { burn: { base: burnBase, ms: cfg.burnMs ?? 3000 } } : {}),
     };
@@ -1891,6 +1903,7 @@ export class GameWorld {
     this.broadcastMap(session.map, {
       type: 'cast', playerId: session.id, skill, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy),
       ...(to ? { tx: round2(to.x), ty: round2(to.y) } : {}),
+      cd: session.cooldowns[skill]! - t,   // a recarga de verdade (maestria, PvP, Andarilho): o cliente não precisa adivinhar
     });
 
     switch (form) {
@@ -2010,8 +2023,8 @@ export class GameWorld {
         break;
       case 'cura':
         // Passiva da Folha: +10% de cura (de quem cura). Ferida (anti-cura): metade.
-        this.healPlayer(healed!, pvp ? pvpHeal(base1.heal ?? 0, tier, level, this.passive(session, 'heal'))
-          : (cfg.heal ?? 0) * jutsuPower(level) * this.passive(session, 'heal'), t);
+        this.healPlayer(healed!, pvp ? pvpHeal(base1.heal ?? 0, tier, masteryUseLevel(skill, 'cura', level), this.passive(session, 'heal'))
+          : (cfg.heal ?? 0) * (1 + masteryBonus(skill, 'cura', level)) * this.passive(session, 'heal'), t);
         break;
       case 'teleporte': {
         const from = { x: session.x, y: session.y };

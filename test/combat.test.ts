@@ -124,7 +124,7 @@ describe('combate: habilidades', () => {
     const far = world.spawnMonster({ x: S.x + 2, y: S.y - 3 });    // 3 casas do impacto: fora
     const behind = world.spawnMonster({ x: S.x - 3, y: S.y });     // atrás do jogador: nunca
     a.send({ type: 'cast', skill: 'fire' });
-    assert.deepEqual(b.conn.last('cast'), { type: 'cast', playerId: a.id, skill: 'fire', x: S.x, y: S.y, fx: 1, fy: 0 });
+    assert.deepEqual(b.conn.last('cast'), { type: 'cast', playerId: a.id, skill: 'fire', x: S.x, y: S.y, fx: 1, fy: 0, cd: 1500 });
     const shot = b.conn.last('projectile');
     assert.deepEqual({ ...shot, id: 0 }, { type: 'projectile', id: 0, playerId: a.id, skill: 'fire', x: S.x, y: S.y, fx: 1, fy: 0, speed: 14, range: 9 });
     assert.equal(monsterHp(world, near.id), M.maxHp, 'ainda voando: nada de dano');

@@ -1100,7 +1100,7 @@ function handleMessage(msg) {
       }
       if (msg.playerId === state.meId) {
         console.log(`[habilidade] ${msg.skill}`);
-        startCooldown(msg.skill);
+        startCooldown(msg.skill, msg.cd);   // v31: o servidor manda a recarga (maestria, PvP, linhagem)
       }
       break;
     }
@@ -2703,8 +2703,15 @@ function renderExtraction() {
   } else if (rule) {
     // Proteção contra azar: cada falha seguida nesta classe e neste tier soma pontos na chance (o servidor conta).
     const fails = extractChoice.cls ? state.extractFailures?.[extractChoice.cls]?.[rule.level] || 0 : 0;
-    const chance = Math.min(1, rule.chance + (state.world.extractionPityStep || 0) * fails);
-    const luck = fails > 0 ? ` (${Math.round(rule.chance * 100)}% + ${Math.round((chance - rule.chance) * 100)}% de sorte acumulada)` : '';
+    // v31: no tier 1, as 2 primeiras de cada classe são garantidas (o servidor conta os jutsus que você já sabe)
+    const learned = Object.keys(state.ninja.jutsus || {}).filter((code) => {
+      const sk = state.world.skills?.[code];
+      return sk && sk.tier === rule.level && (sk.class !== undefined ? sk.class : sk.mechanic) === extractChoice.cls;
+    }).length;
+    const sure = rule.guaranteed !== undefined && learned < rule.guaranteed;
+    const chance = sure ? 1 : Math.min(1, rule.chance + (state.world.extractionPityStep || 0) * fails);
+    const luck = sure ? ` (garantida: ${rule.guaranteed - learned} de ${rule.guaranteed} ainda)`
+      : fails > 0 ? ` (${Math.round(rule.chance * 100)}% + ${Math.round((chance - rule.chance) * 100)}% de sorte acumulada)` : '';
     ui.extractInfo.textContent = `Custa ${rule.scrolls} ${rule.scrolls === 1 ? 'pergaminho' : 'pergaminhos'} · chance de ${Math.round(chance * 100)}%${luck} · jutsu do Tier ${rule.level}. Você tem ${have}.`;
   }
   ui.extractGo.disabled = !owned.length || !rule || have < rule.scrolls;
@@ -3755,6 +3762,15 @@ function renderDraftKits() {
   ui.kitCount.textContent = `Kit A: ${draftKits.A.length}/4 · Kit B: ${draftKits.B.length}/4`;
 }
 
+/** v31: maestria (o mesmo passo do servidor, jutsus.ts MASTERY_STEP): o bônus que o nível de uso já deu. */
+const MASTERY_TEXT = {
+  dano: (n) => `dano +${10 * n}%`,
+  efeito: (n) => `efeito +${10 * n}%`,
+  cura: (n) => `cura +${10 * n}%`,
+  alcance: (n) => `alcance +${5 * n}%`,
+  recarga: (n) => `recarga −${5 * n}%`,
+};
+
 /** Aba Jutsus: nível pelo USO e a barra até o próximo nível (números do servidor). */
 function renderJutsus() {
   if (ui.statusPanel.hidden) return;
@@ -3776,6 +3792,15 @@ function renderJutsus() {
     const small = document.createElement('small');
     small.textContent = cls ? `${state.world.classes?.find((c) => c.code === cls)?.name || cls} · Tier ${info?.tier ?? 1}` : 'Academia';
     name.append(small);
+    // v31: maestria: o que este jutsu ganha a cada nível de uso (sem a lista: só dano)
+    const gains = sinfo?.tier > 0 ? (sinfo.mastery || ['dano']) : [];
+    if (gains.length) {
+      const m = document.createElement('small');
+      m.className = 'mastery';
+      const now = Math.max(0, level - 1);
+      m.textContent = 'Maestria: ' + gains.map((g) => MASTERY_TEXT[g](now)).join(' · ');
+      name.append(m);
+    }
     const lvl = document.createElement('b');
     lvl.className = 'lvl';
     lvl.textContent = `Nv ${level}`;

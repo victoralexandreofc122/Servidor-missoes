@@ -859,6 +859,7 @@ body.safe-zone .cbtn.skill {
 .jutsu-list .ico { grid-area: ico; font-size: 1.4em; text-align: center; }
 .jutsu-list .name { grid-area: name; font-weight: 700; font-size: 14px; }
 .jutsu-list .name small { display: block; color: var(--muted); font-weight: 600; font-size: 11px; }
+.jutsu-list .name small.mastery { color: #e0b24a; font-weight: 700; }
 .jutsu-list .lvl { grid-area: lvl; color: #ffe2a8; font-weight: 800; font-size: 13px; }
 .jutsu-list .use { grid-area: bar; position: relative; height: 14px; border-radius: 7px; background: rgba(0, 0, 0, 0.45); overflow: hidden; }
 .jutsu-list .use span { position: absolute; inset: 0; transform-origin: left center; background: linear-gradient(180deg, #6fc0ff, #2f6fb5); }

@@ -245,6 +245,60 @@ export const substitutionCooldownMs = (level: number) => (35 - 5 * Math.max(1, M
 /** Jutsu de classe: +10% de efeito (dano, cura) por nível acima do 1. */
 export const jutsuPower = (level: number) => 1 + 0.1 * (Math.max(1, Math.min(4, level)) - 1);
 
+/**
+ * Maestria (design final, Fase 0): cada nível de uso acima do 1 melhora o que faz sentido para AQUELE jutsu, não
+ * necessariamente tudo:
+ *  - dano: +10% de dano por nível (o jutsu de dano puro);
+ *  - efeito: +10% na duração do que ele causa (atordoa, prende, silencia, queima, deixa lento...) por nível;
+ *  - cura: +10% de cura por nível;
+ *  - alcance: +5% de alcance por nível;
+ *  - recarga: -5% de recarga por nível (o jutsu de recarga longa).
+ * No nível 4: +30% de dano/efeito/cura, +15% de alcance, -15% de recarga. O controle continua dentro do orçamento
+ * (pvpBalance CC_BUDGET), então a duração maior nunca passa do teto.
+ * Os jutsus fora desta tabela seguem a regra antiga (dano e cura) até serem ajustados, aos poucos (README).
+ */
+export type MasteryGain = 'dano' | 'efeito' | 'cura' | 'alcance' | 'recarga';
+export const MASTERY_STEP: Readonly<Record<MasteryGain, number>> = { dano: 0.1, efeito: 0.1, cura: 0.1, alcance: 0.05, recarga: 0.05 };
+const MASTERY_DEFAULT: readonly MasteryGain[] = ['dano', 'cura'];
+/** O Fogo (entrega 2) já com a regra nova. */
+export const MASTERY: Readonly<Record<string, readonly MasteryGain[]>> = {
+  fire: ['dano', 'efeito'],               // Fogo: projétil que queima; a queimadura dura mais
+  fire_endan: ['dano', 'efeito'],         // Sopro Incinerador: cone curto que queima
+  fire_hibashiri: ['dano', 'alcance'],    // Linha de Fogo Rasante: a linha vai mais longe
+  fire_kasumi: ['dano', 'recarga'],       // Névoa Inflamável: recarga de 8 s
+  fire_2: ['dano'],                       // Chamas da Fênix: dano puro
+  fire_ryuka: ['dano'],                   // Chamas do Dragão Guiado: dano puro
+  fire_haiseki: ['dano', 'recarga'],      // Nuvem de Cinzas Ardentes: recarga de 7 s
+  fire_lamina: ['recarga'],               // Lâmina de Fogo (buff): sem dano próprio, volta mais rápido
+  fire_3: ['dano'],                       // Destruição Magnífica: dano puro
+  fire_hotan: ['dano'],                   // Míssil Dragão de Fogo: dano puro
+  fire_4: ['dano', 'recarga'],            // Chuva de Meteoros: recarga de 12 s
+};
+/** O que o jutsu ganha com a maestria. */
+export const masteryOf = (code: string): readonly MasteryGain[] => MASTERY[code] ?? MASTERY_DEFAULT;
+/** Bônus da maestria (0 no nível 1; 0,3 no nível 4 para dano/efeito/cura). */
+export function masteryBonus(code: string, gain: MasteryGain, level: number): number {
+  return masteryOf(code).includes(gain) ? MASTERY_STEP[gain] * (Math.max(1, Math.min(4, level)) - 1) : 0;
+}
+/** O nível de uso que conta no dano (ou na cura) do PvP: 1 quando a maestria do jutsu não melhora isso. */
+export const masteryUseLevel = (code: string, gain: 'dano' | 'cura', level: number) => (masteryOf(code).includes(gain) ? level : 1);
+
+/** Durações de efeito que a maestria "efeito" alonga. */
+const EFFECT_KEYS = ['stunMs', 'rootMs', 'silenceMs', 'paralysisMs', 'burnMs', 'slowMs', 'darkMs', 'invertMs', 'woundMs', 'dotMs', 'firstStunMs'] as const;
+
+/** Os números do jutsu no nível de uso `level`, com a maestria de efeito, alcance e recarga (dano e cura: no golpe). */
+export function withMastery<T extends SkillConfig>(cfg: T, code: string, level: number): T {
+  if (!MASTERY[code] || level <= 1) return cfg;
+  const out: T = { ...cfg };
+  const effect = 1 + masteryBonus(code, 'efeito', level);
+  if (effect !== 1) for (const k of EFFECT_KEYS) if (typeof out[k] === 'number') out[k] = Math.round(out[k]! * effect);
+  const cd = 1 - masteryBonus(code, 'recarga', level);
+  if (cd !== 1) out.cooldownMs = Math.round(out.cooldownMs * cd);
+  const reach = 1 + masteryBonus(code, 'alcance', level);
+  if (reach !== 1 && out.range !== undefined) out.range = Math.round(out.range * reach * 100) / 100;
+  return out;
+}
+
 // ------------------------------------------------------------------ números de combate
 
 /** Tier 1 de cada mecânica (os 7 antigos com os MESMOS números de antes). */
@@ -337,22 +391,32 @@ export function buildSkills(): Record<JutsuCode, SkillConfig & { mechanic: Mecha
 
 // ------------------------------------------------------------------ Extração (gacha)
 
-/** Nível de Extração 1 a 4: pergaminhos gastos e chance de sucesso (o BANCO usa a mesma tabela). */
-export const EXTRACTION = [
-  { level: 1, scrolls: 1, chance: 0.8 },
-  { level: 2, scrolls: 2, chance: 0.6 },
-  { level: 3, scrolls: 4, chance: 0.4 },
-  { level: 4, scrolls: 8, chance: 0.2 },
-] as const;
+/**
+ * Nível de Extração 1 a 4: pergaminhos gastos e chance de sucesso (o BANCO usa a mesma tabela, v20).
+ * v31 (design final): 1, 2, 3 e 4 pergaminhos; 90%, 80%, 60% e 40%. No tier 1, as 2 primeiras Extrações de cada classe
+ * são garantidas (`guaranteed`: enquanto o jogador sabe menos de 2 jutsus de tier 1 da classe, a chance é 100%).
+ */
+export const EXTRACTION: readonly { level: number; scrolls: number; chance: number; guaranteed?: number }[] = [
+  { level: 1, scrolls: 1, chance: 0.9, guaranteed: 2 },
+  { level: 2, scrolls: 2, chance: 0.8 },
+  { level: 3, scrolls: 3, chance: 0.6 },
+  { level: 4, scrolls: 4, chance: 0.4 },
+];
 
 /**
  * Proteção contra azar (v10, design 7.3): cada falha seguida na mesma classe e no mesmo tier soma isto à
- * chance da próxima; acertou, zera. A MESMA conta está em game.extract_jutsu (db/schema_v10_design.sql).
+ * chance da próxima; acertou, zera. A MESMA conta está em game.extract_jutsu (db/schema_v20_extracao.sql).
+ * O limite é 100%: no tier 4 (40%), a 7ª tentativa seguida é certa.
  */
 export const EXTRACTION_PITY_STEP = 0.1;
 
-/** Chance da próxima Extração do tier `level` depois de `failures` falhas seguidas (0 a 1). */
-export function extractionChance(level: number, failures: number): number {
-  const base = EXTRACTION.find((e) => e.level === level)?.chance ?? 0;
-  return Math.min(1, base + EXTRACTION_PITY_STEP * Math.max(0, failures));
+/**
+ * Chance da próxima Extração do tier `level` depois de `failures` falhas seguidas (0 a 1). `learned` = quantos jutsus
+ * daquele tier e daquela classe o jogador já sabe (o tier 1 garante as 2 primeiras).
+ */
+export function extractionChance(level: number, failures: number, learned = Infinity): number {
+  const rule = EXTRACTION.find((e) => e.level === level);
+  if (!rule) return 0;
+  if (rule.guaranteed !== undefined && learned < rule.guaranteed) return 1;
+  return Math.min(1, rule.chance + EXTRACTION_PITY_STEP * Math.max(0, failures));
 }

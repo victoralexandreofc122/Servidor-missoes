@@ -15,11 +15,12 @@ describe('v19 no banco: os clãs', { skip: noDatabase }, () => {
   before(async () => { t = await createTestDatabase(); });
   after(async () => { await t?.drop(); });
 
-  it('roda de novo sem erro; os 4 jutsus do Clã Rubro sem classe; a Extração não os vê', async () => {
+  it('roda de novo sem erro; os jutsus do Clã Rubro sem classe (4 da v19 + 2 do nível 60 da v20); a Extração não os vê', async () => {
     await t.pool.query(V19);
     await t.pool.query(V19);
-    const rows = (await t.pool.query(`SELECT code, class_code, clan_code, tier FROM game.jutsus WHERE clan_code = 'rubro' ORDER BY tier`)).rows;
-    assert.deepEqual(rows.map((r) => [r.code, r.class_code, r.tier]), [['rubro_olho', null, 1], ['rubro_transe', null, 2], ['rubro_chamas', null, 3], ['rubro_guardiao', null, 4]]);
+    const rows = (await t.pool.query(`SELECT code, class_code, clan_code, tier FROM game.jutsus WHERE clan_code = 'rubro' ORDER BY tier, code`)).rows;
+    assert.deepEqual(rows.map((r) => [r.code, r.class_code, r.tier]), [['rubro_olho', null, 1], ['rubro_transe', null, 2], ['rubro_chamas', null, 3],
+      ['rubro_completo', null, 4], ['rubro_guardiao', null, 4], ['rubro_lua', null, 4]]);
     await assert.rejects(t.pool.query(`INSERT INTO game.jutsus (code, name, class_code, clan_code, tier) VALUES ('x_sem_nada', 'X', NULL, NULL, 2)`));
   });
 
