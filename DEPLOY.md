@@ -26,7 +26,7 @@ e `https://servidor-missoes.onrender.com/health` mostrando `{"status":"ok"}`.
 | 19 | Atualização v12: Modo Administrador, atributo Chakra, chat com histórico, Sala de Missões e Academia nova, com SQL | ~15 min |
 | 20 | Atualização v13: personagem em sprites (gênero, cabelo, olhos, roupa e vila), com SQL | ~10 min |
 | 21 | Atualização v14: hitboxes, efeitos dos golpes e armas no boneco, sem SQL | ~10 min |
-| 22 | Atualização v15: nome Vontade do Fogo, arena da vila e design geral, com SQL opcional | ~10 min |
+| 22 | Atualização v15: nome Herança do Fogo, arena da vila e design geral, com SQL opcional | ~10 min |
 | 23 | Atualização v16: fim de jogo (vilas, Kage, PvP, renegados, Akatsuki, capas), com SQL opcional | ~15 min |
 | 24 | Atualização v18: sapatos (equipamento dos pés), tela de equipamentos e `/admin ryo`, com SQL **antes** do deploy | ~10 min |
 | 25 | Atualização v19: Rei Lodo, silêncio da Ilusão, números de PvP e Painel do Admin, **sem SQL** | ~5 min |
@@ -771,7 +771,7 @@ O que muda:
    `/admin giveitem Victor fuma_shuriken 1` para ganhar a Shuriken Gigante.
 
 
-## Passo 22 — Atualização v15: Vontade do Fogo, arena da vila e o design geral
+## Passo 22 — Atualização v15: Herança do Fogo, arena da vila e o design geral
 
 **Banco (opcional, pode ser antes ou depois do deploy):** no Neon → **SQL Editor** (confira que o branch é o
 `production`), cole e rode o arquivo `db/schema_v10_design.sql` inteiro. Ele cria a tabela das falhas seguidas na
@@ -790,7 +790,7 @@ SELECT (SELECT count(*) FROM information_schema.tables WHERE table_schema = 'gam
 
 ### Testar no celular
 
-1. **Nome:** a tela de login mostra **Vontade do Fogo**. Adicionando à tela inicial, o atalho também.
+1. **Nome:** a tela de login mostra **Herança do Fogo**. Adicionando à tela inicial, o atalho também.
 2. **Arena:** na Vila, desça a avenida, siga a rua de baixo para a direita e entre pela abertura da cerca de madeira
    (no antigo campo de treino). O topo mostra **⚔️ arena**. Com outra conta da mesma vila lá dentro, toque em 🎯: o
    foco vai nela (nome vermelho) e o 🗡️ e os jutsus acertam. Quem perde volta em 3 s na entrada oeste, sem perder
@@ -965,7 +965,7 @@ Salve. O Render reinicia o servidor sozinho.
 
 ### 3. Floot
 
-No projeto **Vontade do Fogo**, conecte a credencial que o site pede (o Floot mostra um link para isso):
+No projeto **Herança do Fogo**, conecte a credencial que o site pede (o Floot mostra um link para isso):
 
 - `GAME_URL` = `https://servidor-missoes-ffb4.onrender.com`;
 - `SITE_TOKEN` = o **mesmo** segredo do item 1.
@@ -1051,7 +1051,7 @@ minuto (não precisa reiniciar).
 
 ### Testar no celular
 
-1. **Menu → Rankeado:** vai para o Vale das Estátuas (o botão vira **Voltar**, que devolve para onde você estava).
+1. **Menu → Rankeado:** vai para o Vale dos Guardiões (o botão vira **Voltar**, que devolve para onde você estava).
 2. **⚔️ Desafio** (embaixo, no meio): entra na fila; o botão mostra a posição. Com 2 na fila, a preparação começa e o
    placar no alto mostra os nomes. Rodadas de até 50 s, melhor de 3; ninguém morre.
 3. No fim, aparece "+N pontos" para os dois; **🏆 Ranking** mostra a temporada, o top 50 e a sua posição.

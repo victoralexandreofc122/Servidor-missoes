@@ -1,6 +1,6 @@
 # Personagem-base (pixel art em peças)
 
-Arte-base do ninja do Vontade do Fogo, separada peça por peça para animar no jogo.
+Arte-base do ninja do Herança do Fogo, separada peça por peça para animar no jogo.
 
 - **Quadro:** 32 x 48 px. Todas as peças de uma direção usam o MESMO quadro, já no lugar certo:
   é só desenhar uma por cima da outra na ordem de `manifesto.json` → `camadas`.

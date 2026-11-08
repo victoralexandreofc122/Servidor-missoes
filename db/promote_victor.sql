@@ -1,7 +1,7 @@
 -- =====================================================================
--- Vontade do Fogo: SCRIPT DE TESTE (não é migração do jogo)
+-- Herança do Fogo: SCRIPT DE TESTE (não é migração do jogo)
 --
--- Deixa a conta "Victor" no rank máximo (Hokage) para testar o lado social:
+-- Deixa a conta "Victor" no rank máximo (Kage) para testar o lado social:
 -- criar missões de sensei para outros jogadores, avaliar, etc.
 --
 -- Rode no SQL Editor do Neon quando quiser. Pode rodar de novo sem erro.
@@ -14,14 +14,14 @@
 --     registrada no histórico (player_rank_changes) pelo trigger do schema.
 --  3. Com a migração v8 aplicada, liga o Modo Administrador (is_admin) da mesma conta.
 --
--- Efeito colateral esperado: o NPC Mestre fica ABAIXO do Hokage, então ele não passa
+-- Efeito colateral esperado: o NPC Mestre fica ABAIXO do Kage, então ele não passa
 -- treino para essa conta ("Seu rank já passou dos meus treinos"). Para as outras, nada muda.
 -- =====================================================================
 
 BEGIN;
 
 INSERT INTO game.ranks (code, name, tier, can_be_sensei)
-SELECT 'HOKAGE', 'Hokage', max(tier) + 10, true FROM game.ranks
+SELECT 'HOKAGE', 'Kage', max(tier) + 10, true FROM game.ranks
 ON CONFLICT (code) DO NOTHING;
 
 DO $$
@@ -35,7 +35,7 @@ BEGIN
   IF n = 0 THEN
     RAISE NOTICE 'Nenhuma conta com o nome "Victor". Crie a conta no jogo e rode este script de novo.';
   ELSE
-    RAISE NOTICE 'Conta Victor agora é Hokage. Saia e entre de novo no jogo.';
+    RAISE NOTICE 'Conta Victor agora é Kage. Saia e entre de novo no jogo.';
   END IF;
 END
 $$;

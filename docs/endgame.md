@@ -1,6 +1,6 @@
 # Fim de jogo: vilas, política, PvP, renegados e Akatsuki
 
-Especificação dos sistemas de fim de jogo do **Vontade do Fogo** (pedido do Victor, 24/10/2026). O
+Especificação dos sistemas de fim de jogo do **Herança do Fogo** (pedido do Victor, 24/10/2026). O
 [design geral](design-do-jogo.md) continua valendo; onde este documento muda uma decisão de lá, ele avisa.
 
 **Regra de ouro:** o servidor é a autoridade sobre vila, Kage, guerra, aliança, renegado, ranking e Akatsuki. O
@@ -241,7 +241,7 @@ valendo):
 
 ## Risco de propriedade intelectual
 
-Folha, Névoa, Areia, Nuvem, Kage, Akatsuki, renegado (missing-nin) e "Vontade do Fogo" vêm todos de
+Folha, Névoa, Areia, Nuvem, Kage, Akatsuki, renegado (missing-nin) e "Herança do Fogo" vêm todos de
 Naruto. Juntos, deixam claro que este é um jogo de fã de Naruto. Para jogar entre amigos, sem cobrar, o risco é baixo;
 para lançar ao público ou vender qualquer coisa, os donos da marca podem pedir para tirar o jogo do ar. Por isso os
 nomes ficam em **um lugar só** (`src/realtime/villages.ts` e o catálogo do banco): trocar é editar uma tabela.

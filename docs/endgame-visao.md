@@ -21,7 +21,7 @@
 - **Akatsuki:** fica só como nome interno (docs e código). O nome que o jogador vê está em aberto.
 - **ANBU:** mantido (decisão do Victor, ciente do risco).
 - **Nomes da série que ainda estão no jogo** (frente própria, com migração versionada, antes de qualquer item pago):
-  clãs Uchiha e Nara, Vale das Estátuas, Soco Tsunade e os jutsus com nomes japoneses da série. É a Fase 1.
+  clãs Uchiha e Nara, Vale dos Guardiões, Soco Tsunade e os jutsus com nomes japoneses da série. É a Fase 1.
 
 ## 2. Progressão (mantida)
 
@@ -132,7 +132,7 @@ O Kage e o Maior Vilão **não** entram nos torneios de campeão (já têm a pas
 
 ## 13. Roadmap (não começar sem o OK do Victor)
 
-- **Fase 1, nomes** (antes de qualquer monetização): migração dos nomes (aldeias, clãs, jutsus, Vale das Estátuas,
+- **Fase 1, nomes** (antes de qualquer monetização): migração dos nomes (aldeias, clãs, jutsus, Vale dos Guardiões,
   Soco Tsunade) e Herança do Fogo no título, na UI e nos docs.
 - **Fase 2, endgame sobre a base de hoje:** Kage exige Jounin + Torneio da Temporada; ANBU; Torneios dos Heróis e dos
   Vilões; Torneio dos Renegados e Maior Vilão; Terra Sem Lei e recompensa; guerra semanal 20v20 com buffs, debuffs e

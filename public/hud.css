@@ -359,7 +359,7 @@ body.menu-open .menu-grid {                    /* celular: abre embaixo do ☰ *
   background: linear-gradient(180deg, rgba(14, 18, 42, 0.95), rgba(8, 11, 26, 0.95));
   box-shadow: var(--frame);
 }
-/* v29: modo rankeado (Vale das Estátuas) */
+/* v29: modo rankeado (Vale dos Guardiões) */
 .duel-hud {
   position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6;
   display: flex; align-items: stretch; gap: 6px; pointer-events: none;

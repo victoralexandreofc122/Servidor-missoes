@@ -98,7 +98,7 @@ describe('v20 no banco: API do site do jogo', { skip: noDatabase }, () => {
   it('visão geral: módulos, vilas com membros e Kage, temporada e quantos estão online', async () => {
     const o = (await get('/site/overview')).json();
     assert.deepEqual(o.modules.map((m: any) => [m.code, m.on]), [['vilas', true], ['pvp', true], ['renegados', true], ['akatsuki', true]]);
-    assert.deepEqual(o.villages.map((v: any) => v.name), ['Folha', 'Névoa', 'Nuvem', 'Areia']);
+    assert.deepEqual(o.villages.map((v: any) => v.name), ['Chama Eterna', 'Maré Oculta', 'Rocha Antiga', 'Vento Cortante']);
     assert.equal(o.villages.find((v: any) => v.code === 'vila_3').members, 5);
     assert.equal(o.villages.find((v: any) => v.code === 'vila_1').members, 1, 'o admin não conta');
     assert.equal(o.villages[0].passive, '+10% de cura');
@@ -122,7 +122,7 @@ describe('v20 no banco: API do site do jogo', { skip: noDatabase }, () => {
   it('perfil público por nome; admin e quem não existe: 404', async () => {
     const p = (await get('/site/players/KAITO')).json();
     assert.equal(p.username, 'kaito');
-    assert.deepEqual(p.village, { code: 'vila_1', name: 'Folha' });
+    assert.deepEqual(p.village, { code: 'vila_1', name: 'Chama Eterna' });
     assert.equal(p.pvp.wins, 1);
     assert.equal(p.season.wins, 1);
     assert.equal((await get('/site/players/victor')).statusCode, 404);

@@ -52,7 +52,7 @@ function reach(from: [number, number], r: number): Set<string> {
 }
 
 describe('mapas: layout', () => {
-  it('Vila da Folha (78x60, sem monstros) e Floresta (100x75, caça), as duas em imagem; sempre o mesmo layout', () => {
+  it('Aldeia da Chama Eterna (78x60, sem monstros) e Floresta (100x75, caça), as duas em imagem; sempre o mesmo layout', () => {
     assert.deepEqual([VILA.id, VILA.kind, VILA.width, VILA.height, VILA.safe, VILA.art], ['map_1', 'village', 78, 60, true, 'folha']);
     assert.deepEqual([FLORESTA.id, FLORESTA.kind, FLORESTA.width, FLORESTA.height, FLORESTA.safe, FLORESTA.art], ['map_2', 'forest', 100, 75, false, 'floresta']);
     assert.deepEqual(buildMaps(), WORLD_MAPS, 'a floresta tem semente fixa: igual em todo boot');

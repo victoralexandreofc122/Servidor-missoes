@@ -1,6 +1,6 @@
 /*
  * Tabela de equilíbrio do PvP (v28, plano do duelo em `concepts_brief.md`). Vale só nas ÁREAS DE PvP (arena das
- * vilas, Zona de Conflito e, depois, o Vale das Estátuas) e só quando um jogador acerta outro: contra monstros nada
+ * vilas, Zona de Conflito e, depois, o Vale dos Guardiões) e só quando um jogador acerta outro: contra monstros nada
  * muda. Funções PURAS: o servidor e o simulador usam as mesmas.
  */
 import type { DerivedStats, DamageScaling } from './stats.js';

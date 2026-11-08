@@ -1,6 +1,6 @@
 # servidor-missoes
 
-Servidor e cliente web do **Vontade do Fogo**, um MMORPG ninja 2D em pixel art para o celular.
+Servidor e cliente web do **Herança do Fogo** (antes Vontade do Fogo), um MMORPG ninja 2D em pixel art para o celular.
 
 API do ciclo de missões de sensei (Fastify + TypeScript + `pg`, SQL puro).
 O banco (`db/schema_ranks_missoes_sensei.sql`, v2) valida as regras de negócio;
@@ -253,7 +253,7 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 
 ### v29: modo rankeado (migração v15, `db/schema_v15_rankeado.sql`)
 
-- **Vale das Estátuas:** botão **Rankeado** no menu (lá vira **Voltar**). Mapa comum a todas as vilas: arena fechada no
+- **Vale dos Guardiões:** botão **Rankeado** no menu (lá vira **Voltar**). Mapa comum a todas as vilas: arena fechada no
   meio, arquibancadas dos dois lados (dá para **sentar** e, sentado, **assistir** a luta), estátuas das 4 vilas.
 - **Fila do Desafio** (`src/realtime/duel.ts`): quem entrou primeiro luta primeiro; o adversário sai das 4 pessoas
   seguintes (nível parecido); ninguém é passado mais de 2 vezes; evita repetir a dupla. O adversário só aparece na
@@ -340,7 +340,7 @@ Plano completo em `concepts_brief.md` (revisado pelo método EGM; relatórios em
   acendendo no escuro da caverna (`lights`).
 - **Armaria e Casa dos Pergaminhos:** salas em imagem de 17 x 13, cada uma com a sua planta (`shopRoom()`: lojista,
   frente do balcão, chegada e saída). A Alfaiataria segue na sala 15 x 15 por código até ter imagem.
-- **Vila da Folha:** em imagem, ampliada 4x com o Real-ESRGAN (`arte/mapas/ampliar.py`), em 78 x 60 casas. Cada vila
+- **Aldeia da Chama Eterna:** em imagem, ampliada 4x com o Real-ESRGAN (`arte/mapas/ampliar.py`), em 78 x 60 casas. Cada vila
   em imagem tem a sua planta (`villagePlan()`: renascimento, Mestre, praça, Posto de Viagem, portão, lojas, Academia,
   arena); NPCs, renascimento, viagem e o fim do tutorial saem dela. A borda norte da Floresta só atravessa no trecho
   do portão da Folha.
@@ -580,9 +580,9 @@ opcional:** sem ela tudo fica desligado, e aplicar no Neon não precisa reinicia
 - Mensagens novas: `endgame`, `player_faction`, `village_panel`, `travel_options`, `ranking`, `pvp_result`,
   `akatsuki_invite`, `power` / `power_failed`; `PlayerView.faction` e `SelfView.doorBack`.
 
-### v15: design geral, nome Vontade do Fogo e arena da vila (migração opcional `db/schema_v10_design.sql`)
+### v15: design geral, nome Herança do Fogo e arena da vila (migração opcional `db/schema_v10_design.sql`)
 
-Primeira leva do [design geral](docs/design-do-jogo.md). O jogo passou a se chamar **Vontade do Fogo**.
+Primeira leva do [design geral](docs/design-do-jogo.md). O jogo passou a se chamar **Herança do Fogo**.
 
 - **Arena da Vila** (`VILLAGE_ARENA` em `maps.ts`): o campo de treino virou uma arena de terra batida com cerca de
   madeira, entradas ao norte e a oeste, dois pilares de pedra (cobertura: param linhas e projéteis), estandartes e

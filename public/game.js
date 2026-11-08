@@ -1,4 +1,4 @@
-// Vontade do Fogo — cliente web (JavaScript puro, sem bibliotecas).
+// Herança do Fogo — cliente web (JavaScript puro, sem bibliotecas).
 //
 // O SERVIDOR DECIDE TUDO no combate: este cliente só pede ("usa Fogo", "renascer") e
 // desenha o que o servidor responde (acertos, dano, vida, chakra, morte, XP).
@@ -2018,7 +2018,7 @@ function showDuelBanner(won, score, points, voided = false) {
   bannerTimer = setTimeout(() => { ui.duelBanner.hidden = true; }, 6000);
 }
 
-const VILLAGE_SHORT = { vila_1: 'Folha', vila_3: 'Névoa', vila_4: 'Nuvem', vila_5: 'Areia' };
+const VILLAGE_SHORT = { vila_1: 'Chama Eterna', vila_3: 'Maré Oculta', vila_4: 'Rocha Antiga', vila_5: 'Vento Cortante' };
 
 /** Este jogador está numa partida do rankeado agora? */
 function duelFighting() {
@@ -2026,7 +2026,7 @@ function duelFighting() {
   return !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
 }
 
-/** No Vale das Estátuas: o outro lado da partida, só durante a rodada (o servidor confere de novo). */
+/** No Vale dos Guardiões: o outro lado da partida, só durante a rodada (o servidor confere de novo). */
 function duelFoe(id) {
   const d = state.duel;
   if (!d || d.phase !== 'round' || !d.a || !d.b) return false;
@@ -4605,7 +4605,7 @@ function lightStoneTile(seed) {
   });
 }
 
-/** Areia do deserto (os gramados da Vila da Areia): grão fino e ondinhas de vento. */
+/** Areia do deserto (os gramados da Aldeia do Vento Cortante): grão fino e ondinhas de vento. */
 function desertTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);
@@ -4754,7 +4754,7 @@ function stoneTile(seed) {
 
 /** Calçamento de cada vila (v16): a mesma planta da Folha com a pedra da terra dela. [base, bloco, bloco 2, brilho, pontos]. */
 /**
- * v29 (revisão EGM): o chão do Vale das Estátuas. Lajes grandes de pedra cinza-oliva (2 por casa, de tamanhos
+ * v29 (revisão EGM): o chão do Vale dos Guardiões. Lajes grandes de pedra cinza-oliva (2 por casa, de tamanhos
  * diferentes), juntas escuras com musgo e uma laje rachada de vez em quando. Escuro o bastante para não estourar no sol.
  */
 function valeSlabTile(seed, cracked = false) {
@@ -4961,7 +4961,7 @@ function tileAt(x, y) {
     case 'burnt': return TILES.burnt[h % 3];                       // Acampamento e Clareira Queimada
     case 'pebbles': return TILES.pebbles[h & 1];                   // leito seco da cachoeira
     case 'lodo': return TILES.lodo[0];
-    case 'slab': return TILES.slab[h % 31 === 0 ? 8 : (h >>> 3) % 8];   // Vale das Estátuas: lajes com musgo
+    case 'slab': return TILES.slab[h % 31 === 0 ? 8 : (h >>> 3) % 8];   // Vale dos Guardiões: lajes com musgo
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
     case 'arena':                                                  // arena da vila: lajes, losango a cada 4 (na Areia, terra batida)

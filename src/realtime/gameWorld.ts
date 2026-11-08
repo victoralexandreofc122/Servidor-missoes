@@ -31,7 +31,7 @@ import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Villa
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
 import type { RankedStore } from './rankedStore.js';
 import { SHOW_ALL, type Display, type EndgamePlayer, type EndgameStore, type KageAction, type Politics, type PvpKill, type TickEvent } from './endgameStore.js';
-import { VILLAGE_INFO, alliesOf, conflictHostile, mapAllowed, type Diplomacy, type Faction, type MapAccess, type PassiveKind } from './villages.js';
+import { VILLAGE_INFO, alliesOf, villageFullName, conflictHostile, mapAllowed, type Diplomacy, type Faction, type MapAccess, type PassiveKind } from './villages.js';
 import { POWERS, POWER_BY_SLOT, type PowerDef, type PowerKind } from './akatsuki.js';
 import {
   damageMultiplier, derivedStats, levelProgress, MAX_LEVEL, NO_ATTRIBUTES, nextPointGains, scaledDamage,
@@ -374,7 +374,7 @@ const NO_POLITICS: Politics = { modules: [], kages: [], relations: [], events: [
 const MODULE_NAMES: Record<EndgameModule, string> = {
   vilas: 'as quatro vilas e os Kages', pvp: 'a Zona de Conflito e as temporadas de PvP', renegados: 'os renegados', akatsuki: 'a Akatsuki',
 };
-const villageName = (v: Village) => `Vila da ${VILLAGE_INFO[v].name}`;
+const villageName = (v: Village) => villageFullName(v);
 /** Pedidos do fim de jogo que vão ao banco (endgameRequest). */
 type EndgameRequest = 'village_panel' | 'kage_vote' | 'kage_action' | 'kage_answer' | 'kage_exile' | 'report_player' | 'kage_report' | 'ranking'
   | 'akatsuki_invite' | 'akatsuki_answer' | 'akatsuki_expel' | 'akatsuki_leave';
@@ -1369,7 +1369,7 @@ export class GameWorld {
       .slice(0, ADMIN_PANEL.maxPlayers);
     const monsters = this.monsterTypeNames().map((code) => ({ code, name: monsterName(code) }));
     const maps = Object.values(this.config.maps).map((m) => ({ id: m.id, name: m.name }));
-    const villages = VILLAGES.map((v) => ({ code: VILLAGE_INFO[v].name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(), name: villageName(v) }));
+    const villages = VILLAGES.map((v) => ({ code: VILLAGE_INFO[v].slug, name: villageName(v) }));
     this.sendTo(session, { type: 'admin_catalog', players, monsters, maps, villages });
   }
 
@@ -1982,7 +1982,7 @@ export class GameWorld {
   private canHurt(attacker: Session, victim: Session, t: number = this.now()): boolean {
     if (attacker === victim || victim.dead || victim.closed || victim.map !== attacker.map) return false;
     if (attacker.tutorial < 4 || victim.tutorial < 4 || t < victim.protectedUntil) return false;
-    // v29: no Vale das Estátuas só lutam os dois da partida, e só durante a rodada.
+    // v29: no Vale dos Guardiões só lutam os dois da partida, e só durante a rodada.
     if (this.layout(attacker.map).ranked) {
       const d = this.duel;
       return !!d && d.phase === 'round' && sideOf(d, attacker.id) !== null && sideOf(d, victim.id) !== null;
@@ -3447,7 +3447,7 @@ export class GameWorld {
    */
   private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session, label?: string): void {
     if (t < session.intangibleUntil) return;                    // Máscara Intangível (Akatsuki)
-    // v29 (bug da rodada 2): no Vale das Estátuas só se apanha durante a rodada, e só quem está na partida. Uma
+    // v29 (bug da rodada 2): no Vale dos Guardiões só se apanha durante a rodada, e só quem está na partida. Uma
     // queimadura que sobrava da rodada 1 batia no intervalo, com a vida já em 0, e matava de verdade o perdedor.
     if (this.layout(session.map).ranked) {
       const d = this.duel;

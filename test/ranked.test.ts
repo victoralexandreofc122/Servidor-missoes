@@ -26,7 +26,7 @@ function world() {
   return { ...w, join };
 }
 
-describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
+describe('modo rankeado (v29): Vale dos Guardiões, fila e partida', () => {
   it('Rankeado leva ao Vale (de qualquer vila); Sair volta para onde estava', () => {
     const { world: w, join } = world();
     const a = join('kaito', 'vila_3');

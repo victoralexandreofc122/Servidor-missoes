@@ -49,7 +49,7 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
 
   it('migração: roda de novo sem erro; vilas, módulos em auto; jogador novo é da Folha; o Kage substitui o Hokage', async () => {
     await t.pool.query(V11);
-    assert.deepEqual((await t.pool.query('SELECT code, name FROM game.villages ORDER BY sort_order')).rows.map((r) => r.name), ['Folha', 'Névoa', 'Nuvem', 'Areia']);
+    assert.deepEqual((await t.pool.query('SELECT code, name FROM game.villages ORDER BY sort_order')).rows.map((r) => r.name), ['Chama Eterna', 'Maré Oculta', 'Rocha Antiga', 'Vento Cortante']);
     assert.deepEqual((await t.pool.query(`SELECT code, mode, activated_at FROM game.endgame_modules ORDER BY code`)).rows.map((r) => r.mode), ['auto', 'auto', 'auto', 'auto']);
     const id = await t.createPlayer('novato');
     assert.equal((await one('SELECT village FROM game.players WHERE id = $1', [id])).village, 'vila_1');
@@ -362,7 +362,7 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
 
   it('sem a v11, o servidor sabe (available = false)', async () => {
     // Sem a v11 e sem a v13 (que limpa tabelas da v11).
-    const old = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v11_endgame.sql' && f !== 'schema_v13_sem_pedra.sql'));
+    const old = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v11_endgame.sql' && f !== 'schema_v13_sem_pedra.sql' && f !== 'schema_v17_nomes.sql'));
     try {
       assert.equal(await makeEndgameStore(old.db).available(), false);
     } finally {
