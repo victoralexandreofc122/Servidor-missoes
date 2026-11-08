@@ -401,6 +401,8 @@ interface Monster {
   /** v30: invocação de um ninja (Clone de Água, Golem de Terra): dono, fim e o soco do Golem. */
   ownerId?: string;
   summonUntil?: number;
+  /** v30: provocado: persegue e bate nesta invocação (Golem, Clone) enquanto ela existir. */
+  tauntId?: string;
   punch?: { damage: number; hit: HitInfo; liftMs: number; everyMs: number; nextAt: number; radius: number };
   readonly id: string;
   readonly type: string;
@@ -2633,6 +2635,29 @@ export class GameWorld {
     if (cfg.push && this.stillThere(x)) this.pushAway(x, by, from, cfg.push, t);
   }
 
+  /** v30: a invocação mais perto de um monstro, no raio (só as de ninjas; o monstro não provoca a si mesmo). */
+  private summonNear(m: Monster, range: number): Monster | undefined {
+    if (m.ownerId) return undefined;
+    let best: Monster | undefined;
+    let bestD = range;
+    for (const x of this.monsters.values()) {
+      if (!x.ownerId || x.hp <= 0 || x.map !== m.map) continue;
+      const d = distance(m, x);
+      if (d <= bestD) { best = x; bestD = d; }
+    }
+    return best;
+  }
+
+  /** v30: monstro bate na invocação (ela some ao zerar; sem recompensa). */
+  private hurtSummon(x: Monster, amount: number, t: number): void {
+    x.hp = Math.max(0, x.hp - amount);
+    this.broadcastMap(x.map, { type: 'hit', target: 'monster', id: x.id, amount, kind: 'damage', hp: x.hp, maxHp: x.maxHp });
+    if (x.hp > 0) return;
+    this.monsters.delete(x.id);
+    this.broadcastMap(x.map, { type: 'monster_died', id: x.id, killerId: '' });
+    void t;
+  }
+
   /** v30: a invocação: acaba no tempo; o Golem soca quem está em volta a cada `everyMs` (levanta). */
   private summonTick(m: Monster, t: number): void {
     const owner = m.ownerId ? this.sessions.get(m.ownerId) : undefined;
@@ -4627,8 +4652,10 @@ export class GameWorld {
     if (m.mind === 'idle' || !type.ai) return t >= m.nextStepAt && this.stepMonster(m, t);
     if (t < m.stunnedUntil || t < m.rootedUntil || effectBlock(m.effects, t) === 'all' || !m.dir) return false;
     if (m.mind === 'chase') {                       // encostou: para e bate (monsterAttack)
-      const target = m.targetId ? this.sessions.get(m.targetId) : undefined;
+      const summon = m.tauntId ? this.monsters.get(m.tauntId) : undefined;   // v30: provocado pela invocação
+      const target = summon ?? (m.targetId ? this.sessions.get(m.targetId) : undefined);
       if (!target || distance(m, target) <= type.attackRange * 0.85) return false;
+      if (summon) m.dir = unit(summon.x - m.x, summon.y - m.y);
     }
     const layout = this.layout(m.map);
     const free = (x: number, y: number) =>
@@ -4653,7 +4680,17 @@ export class GameWorld {
       m.dir = unit(closestInBox(zone, m).x - m.x, closestInBox(zone, m).y - m.y);
       return;
     }
-    if (m.mind === 'chase' && distanceToBox(zone, m) > ai.leashRange) return this.monsterReturn(m, zone);
+    if (m.mind === 'chase' && distanceToBox(zone, m) > ai.leashRange) { m.tauntId = undefined; return this.monsterReturn(m, zone); }
+    // v30: provocação: a invocação de um ninja no raio de aggro atrai o monstro (a mais perto)
+    const taunt = this.summonNear(m, ai.aggroRange);
+    if (taunt) {
+      if (m.tauntId !== taunt.id) this.broadcastMap(m.map, { type: 'monster_aggro', id: m.id, targetId: taunt.id });
+      m.tauntId = taunt.id;
+      m.mind = 'chase';
+      m.dir = unit(taunt.x - m.x, taunt.y - m.y);
+      return;
+    }
+    m.tauntId = undefined;
     const layout = this.layout(m.map);
     const ok = (s: Session) => s.map === m.map && !s.dead && !s.closed && !inSafeZone(layout, s.x, s.y);
     let target: Session | undefined;
@@ -4817,6 +4854,14 @@ export class GameWorld {
     const cfg = this.monsterType(m.type);
     if (m.windup) return;                                          // preparando o golpe marcado
     if (cfg.attackDamage <= 0 || t < m.nextAttackAt || t < m.stunnedUntil || effectBlock(m.effects, t) === 'all') return;
+    // v30: provocado: bate na invocação quando encosta nela
+    const summon = m.tauntId ? this.monsters.get(m.tauntId) : undefined;
+    if (summon && summon.hp > 0 && distance(m, summon) <= cfg.attackRange) {
+      m.nextAttackAt = t + Math.round(cfg.attackEveryMs / m.enrage);
+      this.broadcastMap(m.map, { type: 'monster_attack', id: m.id, targetId: summon.id });
+      this.hurtSummon(summon, cfg.attackDamage, t);
+      return;
+    }
     const target = nearest(m, this.mapPlayers.get(m.map) ?? [], cfg.attackRange, (s) => !s.dead && !s.closed && !this.inSafeZone(s));
     if (!target) return;
     m.nextAttackAt = t + Math.round(cfg.attackEveryMs / m.enrage);   // chefe furioso: mais rápido

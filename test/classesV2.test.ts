@@ -538,5 +538,25 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     run(5100);
     assert.ok(dealt(m) > before, 'a onda do fim acertou');
   });
+
+  it('provocação: o monstro de caça perto da invocação persegue e bate nela, e não no ninja', () => {
+    const w = setupWorld({ ...config(), combat: { ...config().combat, monsters: { ...REALTIME.combat.monsters, count: 0, attackDamage: 8 } } });
+    const world: any = w.world;
+    const a = w.connect('kaito');
+    const row = openRow(10);
+    placeIn(world, a.id, 'map_2', row.x, row.y);
+    const s = world.sessions.get(a.id);
+    Object.assign(s, { fx: 1, fy: 0, chakra: 1000, cooldowns: {}, tutorial: 4 });
+    s.jutsus.set('water_clone', 0);
+    s.kits[s.activeKit] = ['water_clone', ...s.kits[s.activeKit].slice(0, 3)];
+    a.send({ type: 'cast', skill: 'water_clone' });
+    const sum = a.conn.last('summon');
+    const clone = world.monsters.get(sum.id);
+    world.spawnMonster({ x: clone.x + 4, y: clone.y }, undefined, 'map_2');
+    const hp = s.hp;
+    w.run(4000);
+    assert.ok(!world.monsters.has(sum.id) || world.monsters.get(sum.id).hp < sum.maxHp, 'o clone apanhou');
+    assert.equal(s.hp, hp, 'o ninja não apanhou');
+  });
 });
 
