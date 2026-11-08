@@ -46,6 +46,59 @@ export interface SkillConfig {
   basicBuff?: number;
   /** v29: velocidade durante os selos (fração; 0 = parado). Sem = a regra da faixa (castSlowOf). */
   castSlow?: number;
+  // ---- v30 (Jutsus v2, as outras classes): o que o golpe faz além do dano (jutsusClasses.ts)
+  /** Deixa molhado (combo com o Relâmpago). */
+  wet?: boolean;
+  /** Lentidão (o efeito de sempre, 40%) por este tempo. */
+  slowMs?: number;
+  /** Levantado: conta como atordoado (orçamento de controle) e pode levar dano. */
+  liftMs?: number;
+  /** Quem lança fica preso este tempo (Prisão de Água: segura o alvo parado). */
+  selfRootMs?: number;
+  /** Tira chakra do alvo. */
+  drain?: number;
+  /** Golpes no mesmo alvo (Cem Golpes, Punho do Céu); `hitsPve` = contra monstro (o teto de golpes é regra do PvP). */
+  hits?: number;
+  hitsPve?: number;
+  /** Leque: no máximo quantos projéteis acertam o mesmo alvo. */
+  cap?: number;
+  /** Ricochete: quantos saltos (cada um tira 30%). */
+  bounce?: number;
+  /** Avanço sem dano: casas (negativo = para trás). */
+  dash?: number;
+  /** Reduz o dano recebido (0,5 = metade) por `durationMs`. */
+  dr?: number;
+  /** Buff de Básico: o 1º golpe atordoa / queima (por pulso). */
+  firstStunMs?: number;
+  firstBleed?: number;
+  /** Tira estes efeitos de si (Desintoxicação, Dissipação). */
+  cleanse?: string[];
+  /** Cura ao longo do tempo em si: fração da vida máxima por segundo, por `durationMs`. */
+  hot?: number;
+  /** Paga o custo e a recarga maiores do PvP da mecânica (Armas x2,5). Sem: jutsu com números próprios paga o seu. */
+  pvpScale?: boolean;
+  /** Avanço que acerta todos no caminho. */
+  pierce?: boolean;
+  /** Aviso no chão: quantas ondas (a cada 0,25 s). */
+  waves?: number;
+  /** O golpe do alvo cai depois deste tempo (Árvore Prendedora). */
+  strikeDelayMs?: number;
+  /** Só acerta alvo preso (Estrangulamento). */
+  needsRooted?: boolean;
+  /** Agarre: quantos alvos na linha. */
+  targets?: number;
+  /** Buff: velocidade a mais (0,15 = +15%) por `durationMs`. */
+  speedBuff?: number;
+  /** Custo em vida (fração da vida atual; nunca mata). */
+  hpCost?: number;
+  /** Sai mesmo em silêncio (Dissipação). */
+  ignoresSilence?: boolean;
+  /** Zona no chão: dura `ms`; `split` = em quantos pulsos o dano do jutsu se divide; `endHit` = o dano cai no fim. */
+  zone?: {
+    ms: number; tickMs?: number; kind: 'fogo' | 'lama' | 'cura' | 'agua' | 'sombra' | 'ilusao' | 'armas';
+    slow?: boolean; heal?: number; follow?: boolean; self?: boolean; pull?: number; split?: number;
+    endHit?: boolean; endStunMs?: number; firstRootMs?: number;
+  };
 }
 
 /** Tipo de monstro. O slime é o de caça; os bonecos da Academia ficam parados e renascem rápido. */

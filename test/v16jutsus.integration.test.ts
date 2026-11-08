@@ -33,7 +33,7 @@ describe('v16 no banco: o Fogo novo (Jutsus v2, entrega 2)', { skip: noDatabase 
   before(async () => { t = await createTestDatabase(); });
   after(async () => { await t?.drop(); });
 
-  it('o catálogo do banco é o do servidor (45 jutsus; Fogo 4 + 4 + 2 + 1); rodar de novo não muda nada', async () => {
+  it('o catálogo do banco é o do servidor (Fogo 4 + 4 + 2 + 1); rodar a v16 de novo (até depois da v18) não muda nada', async () => {
     const read = async () => (await t.pool.query('SELECT code, name, class_code, tier FROM game.jutsus ORDER BY code')).rows;
     const want = JUTSUS.map((j) => ({ code: j.code, name: j.name, class_code: j.class, tier: j.tier })).sort((a, b) => (a.code < b.code ? -1 : 1));
     assert.deepEqual(await read(), want);
@@ -80,6 +80,6 @@ describe('v16 sobre um banco de antes: quem tinha o Fogo antigo continua com ele
     const row = (await t.pool.query(`SELECT usage_count, level FROM game.player_jutsus WHERE player_id = $1 AND jutsu_code = 'fire_4'`, [id])).rows[0];
     assert.deepEqual(row, { usage_count: 600, level: 3 });
     assert.equal((await t.pool.query(`SELECT name FROM game.jutsus WHERE code = 'fire_4'`)).rows[0].name, 'Chuva de Meteoros');
-    assert.equal(Number((await t.pool.query('SELECT count(*) AS n FROM game.jutsus')).rows[0].n), 45);
+    assert.equal(Number((await t.pool.query('SELECT count(*) AS n FROM game.jutsus')).rows[0].n), JUTSUS.length);
   });
 });

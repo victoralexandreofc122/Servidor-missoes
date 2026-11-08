@@ -193,24 +193,24 @@ describe('Rei Lodo (chefe da Caverna do Lodo)', () => {
   });
 });
 
-describe('Ilusão tier 3 e 4: silêncio depois do atordoamento', () => {
-  it('Labirinto Mental: o alvo fica atordoado e, depois, mais 3 s sem jutsu', () => {
-    assert.deepEqual(['illusion', 'illusion_2', 'illusion_3', 'illusion_4'].map((k) => SK[k as 'illusion']!.silenceMs), [undefined, undefined, 3000, 4500]);
+describe('Ilusão tier 4 (v30: Laço do Destino): prende e silencia', () => {
+  it('Laço do Destino: o alvo fica preso e sem jutsu', () => {
+    assert.deepEqual(['illusion', 'illusion_2', 'illusion_3', 'illusion_4'].map((k) => SK[k as 'illusion']!.silenceMs), [undefined, undefined, undefined, 2000]);
     const w = setupWorld(config(true));
     const a = w.connect('kaito');
     const b = w.connect('mei');
     const row = openRow(6);
     placeIn(w.world, a.id, 'map_2', row.x, row.y);
     placeIn(w.world, b.id, 'map_2', row.x + 2, row.y);
-    session(w.world, a.id).jutsus.set('illusion_3', 0);
-    session(w.world, a.id).kits.A = ['illusion_3', 'water', 'fire', 'taijutsu'];
+    session(w.world, a.id).jutsus.set('illusion_4', 0);
+    session(w.world, a.id).kits.A = ['illusion_4', 'water', 'fire', 'taijutsu'];
     session(w.world, a.id).chakra = 100;
-    a.send({ type: 'cast', skill: 'illusion_3' });
+    a.send({ type: 'cast', skill: 'illusion_4' });
+    w.run(SK.illusion_4.castMs! + 100);                              // os selos (1 s, parado)
     const sil = b.conn.of('effect').find((e: any) => e.effect === 'silencio');
-    // v28: entre jogadores, o orçamento de controle corta: atordoa 1,5 s e o silêncio (peso 0,5) fica em 3 s.
-    assert.equal(b.conn.last('player_status').ms, 1500);
-    assert.equal(sil.ms, 3000);
-    w.run(1500 + 200);                                               // acordou...
+    assert.equal(b.conn.last('player_status').status, 'rooted');
+    assert.ok(sil && sil.ms > 0, 'silenciado');
+    w.run(200);
     b.send({ type: 'cast', skill: 'water' });
     assert.equal(b.conn.last('cast_failed').reason, 'SILENCED', '...mas ainda sem jutsu');
     b.send({ type: 'attack' });

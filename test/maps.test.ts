@@ -312,7 +312,7 @@ describe('mapas: servidor (salas)', () => {
     assert.deepEqual(w.world.maps.map_1.safeZones, VILA.safeZones);
     assert.deepEqual(w.players, [], 'kaito está na Floresta: não aparece na Vila');
     // a Floresta do Arco 1 é maior (trilhas e riacho em curvas) e o céu vem junto (clima)
-    assert.ok(JSON.stringify(w).length < 36_000, `welcome leve (v23: + a colisão da Folha em imagem) (${JSON.stringify(w).length} bytes)`);
+    assert.ok(JSON.stringify(w).length < 44_000, `welcome leve (v23: + a colisão da Folha em imagem; v30: o catálogo com 72 jutsus) (${JSON.stringify(w).length} bytes)`);
   });
 });
 

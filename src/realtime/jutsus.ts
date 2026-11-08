@@ -11,6 +11,7 @@
  *  - Nível do jutsu por USO (contado só pelo servidor): 100 usos = Nv 2, 500 = Nv 3, 2000 = Nv 4.
  */
 import type { SkillConfig } from './config.js';
+import { CAST_OF_EXISTING, CLASS_V2, CLASS_V2_CODES } from './jutsusClasses.js';
 
 export const CLASSES = ['heal', 'shadow', 'illusion', 'stone', 'fire', 'water', 'taijutsu', 'weapons', 'lightning'] as const;
 export type ClassCode = (typeof CLASSES)[number];
@@ -51,8 +52,23 @@ export type JutsuForm =
   | 'leque'           // 3 ou 4 projéteis em leque (Hōsenka)
   | 'aviso_em_volta'  // aviso no chão em volta de quem lança, detona depois (Haisekishō)
   | 'nuvem_detona'    // nuvem que detona ao acabar (Kasumi Enbu)
-  | 'buff_basico'     // Ataque Básico mais forte por um tempo (Lâmina de Fogo)
-  | 'meteoros';       // vários golpes avisados numa área (Tenrai Gōen)
+  | 'buff_basico'     // Ataque Básico mais forte por um tempo (Lâmina de Fogo, Punho de Rocha, Despertar do Corpo)
+  | 'meteoros'        // vários golpes avisados numa área (Chuva de Meteoros)
+  // v30 (as outras classes, jutsusClasses.ts)
+  | 'projetil'        // projétil reto que acerta o primeiro (Dragão d'Água, Shuriken do Trovão)
+  | 'linha'           // linha instantânea que acerta o primeiro, com efeito (Estaca, Prisão de Água)
+  | 'alvo'            // o alvo focado ou o mais perto no alcance (Prisão de Pilares, Laço do Destino)
+  | 'anel_golpe'      // círculo em volta com dano e efeito (Onda de Choque, Chute Ciclone)
+  | 'cone_golpe'      // cone na frente com dano, vários golpes e efeito (Rasteira, Punho do Céu)
+  | 'zona'            // zona no chão por um tempo (Xarope, Pântano, Domínio das Sombras, Lâminas Flutuantes)
+  | 'investida'       // avança e golpeia na chegada, com efeito (Investida Elétrica, Chute Ascendente)
+  | 'recuo'           // avanço sem dano, para a frente ou para trás (Impulso Estático, Reflexo Tático)
+  | 'aviso'           // golpe avisado no chão onde se mira (Dragão do Trovão, Kunai Explosiva)
+  | 'limpeza'         // tira efeitos de si (Desintoxicação, Dissipação)
+  | 'cura_tempo'      // cura ao longo do tempo em si (Regeneração Mitótica)
+  | 'impacto'         // soco colado: o alvo leva tudo, quem está em volta metade (Punho Sísmico)
+  | 'ricochete'       // linha que salta para o próximo alvo (Lança Saltadora)
+  | 'agarre';         // linha que prende vários alvos (Agarre Múltiplo)
 
 export const FORM_OF_MECHANIC: Readonly<Record<Mechanic, JutsuForm>> = {
   fire: 'linha_explode', water: 'cone', taijutsu: 'avanco', illusion: 'anel', shadow: 'linha_prende', stone: 'escudo',
@@ -91,7 +107,7 @@ const NAMES: Readonly<Record<ClassCode, readonly [string, string, string, string
 
 export const ACADEMY_JUTSUS = ['teleport', 'substitution'] as const;
 /** Código de jutsu: os 2 da Academia, o tier 1 de cada classe ('fire') e os tiers 2 a 4 ('fire_2'). */
-export type JutsuCode = (typeof ACADEMY_JUTSUS)[number] | ClassCode | `${ClassCode}_${2 | 3 | 4}` | (typeof V2_CODES)[number];
+export type JutsuCode = (typeof ACADEMY_JUTSUS)[number] | ClassCode | `${ClassCode}_${2 | 3 | 4}` | (typeof V2_CODES)[number] | (typeof CLASS_V2_CODES)[number];
 
 /** v29 (Jutsus v2): jutsus novos (códigos novos). Os de hoje mantêm os códigos (o banco e os kits guardam). */
 export const V2_CODES = ['fire_endan', 'fire_kasumi', 'fire_hibashiri', 'fire_ryuka', 'fire_haiseki', 'fire_lamina', 'fire_hotan'] as const;
@@ -168,9 +184,16 @@ export const JUTSUS: readonly JutsuDef[] = [
     tier: (i + 1) as 1 | 2 | 3 | 4,
     mechanic: c,
     form: FORM_OF_MECHANIC[c],
-  }))).map((j) => (FIRE_V2[j.code] ? { ...j, ...FIRE_V2[j.code]! } : j)),
-  // v29: os jutsus novos (códigos novos), depois dos de hoje
+  }))).map((j) => {
+    const v2 = FIRE_V2[j.code] ?? CLASS_V2[j.code];
+    return v2 ? { ...j, name: v2.name, tier: v2.tier, form: v2.form, numbers: v2.numbers } : j;
+  }),
+  // v29: os jutsus novos do Fogo; v30: os das outras classes (códigos novos, depois dos de hoje)
   ...V2_CODES.map((code): JutsuDef => ({ code, class: 'fire', mechanic: 'fire', ...FIRE_V2[code]! } as JutsuDef)),
+  ...CLASS_V2_CODES.map((code): JutsuDef => {
+    const v = CLASS_V2[code]!;
+    return { code, name: v.name, class: v.class, tier: v.tier, mechanic: v.class, form: v.form, numbers: v.numbers };
+  }),
 ];
 
 export const JUTSU_CODES = JUTSUS.map((j) => j.code) as unknown as readonly [JutsuCode, ...JutsuCode[]];
@@ -258,7 +281,12 @@ export function skillConfig(j: JutsuDef): SkillConfig & { mechanic: Mechanic } {
     return out as unknown as SkillConfig & { mechanic: Mechanic };
   }
   const base = BASE_SKILLS[j.mechanic];
-  if (j.tier <= 1) return { ...base, mechanic: j.mechanic };
+  if (j.tier <= 1) {
+    // v30: os selos dos tier 1 que já existiam (Cura, Ilusão, Possessão da Sombra), com a recompensa da conjuração
+    const castMs = CAST_OF_EXISTING[j.code];
+    if (!castMs) return { ...base, mechanic: j.mechanic };
+    return { ...base, mechanic: j.mechanic, castMs, cooldownMs: Math.round(base.cooldownMs * castReward(castMs).cooldown) };
+  }
   const t = j.tier - 1;
   const r = (n: number | undefined, k: number) => (n === undefined ? undefined : Math.round(n * k));
   const out: SkillConfig & { mechanic: Mechanic } = {

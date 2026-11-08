@@ -107,8 +107,8 @@ describe('pvpBalance no jogo (arena das vilas)', () => {
     assert.equal(ses(a.id).chakra, 95, 'na Floresta, o custo de sempre');
   });
 
-  it('Relâmpago tier 4 num ninja na arena sai da tabela do PvP; no monstro, o dano de fora', () => {
-    const { world, join, at, ses } = arena();
+  it('Relâmpago tier 4 (v30: Dragão do Trovão, aviso no chão) num ninja na arena sai da tabela do PvP', () => {
+    const { world, join, at, ses, run } = arena();
     const a = join('kaito');
     const b = join('mei');
     at(a, 'map_1', IN.x, IN.y);
@@ -120,11 +120,14 @@ describe('pvpBalance no jogo (arena das vilas)', () => {
     s.kits[s.activeKit] = [...s.kits[s.activeKit].slice(0, 3), 'lightning_4'];
     Object.assign(s, { chakra: 1000, cooldowns: {} });
     const hpBefore = ses(b.id).hp = 1000;
+    ses(b.id).stats = { ...ses(b.id).stats, maxHp: 1000 };            // longe da rede de segurança (50% da vida em 2 s)
     a.send({ type: 'cast', skill: 'lightning_4', targetId: b.id });
     assert.equal(a.conn.last('cast_failed'), undefined);
-    const esperado = pvpHitDamage(hit('lightning', { passive: world.passive(s, 'jutsu') }), s.stats, SCALE);
-    assert.equal(hpBefore - ses(b.id).hp, esperado, `PvP: ${esperado}`);
-    assert.ok(esperado < 60, 'bem abaixo dos 105 contra monstro');
+    run(REALTIME.combat.skills.lightning_4.castMs! + REALTIME.combat.skills.lightning_4.durationMs! + 100);   // selos + aviso
+    const esperado = pvpHitDamage(hit('lightning', { base: REALTIME.combat.skills.lightning_4.base!, passive: world.passive(s, 'jutsu') }), s.stats, SCALE);
+    const golpe = a.conn.of('hit').filter((h: any) => h.target === 'player' && h.id === b.id && h.kind === 'damage').at(-1);
+    assert.equal(golpe?.amount, esperado, `PvP: ${esperado} (vida antes ${hpBefore})`);
+    assert.ok(esperado < 60, 'bem abaixo do dano contra monstro');
   });
 });
 

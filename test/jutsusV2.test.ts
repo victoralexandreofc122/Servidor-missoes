@@ -4,13 +4,16 @@ import { describe, it } from 'node:test';
 import { FORM_OF_MECHANIC, JUTSUS, buildSkills, skillConfig } from '../src/realtime/jutsus.js';
 
 describe('Jutsus v2, entrega 0: base nova sem mudar números', () => {
-  it('os números de todos os jutsus são os mesmos de antes da v2 (menos os tiers 2 a 4 do Fogo, de propósito, na entrega 2)', () => {
+  it('os números dos jutsus de antes da v2 não mudam, menos os que viraram jutsu da adaptação (Fogo na entrega 2, as outras classes na 5)', () => {
     const before = JSON.parse(readFileSync(new URL('./fixtures/skills-antes-v2.json', import.meta.url), 'utf8'));
     const now = JSON.parse(JSON.stringify(buildSkills()));
+    const changed = new Set<string>(JUTSUS.filter((j) => j.numbers).map((j) => j.code));
     for (const code of Object.keys(before)) {
-      if (['fire_2', 'fire_3', 'fire_4'].includes(code)) assert.notDeepEqual(now[code], before[code], code);
+      if (changed.has(code)) assert.notDeepEqual(now[code], before[code], code);
       else assert.deepEqual(now[code], before[code], code);
     }
+    // os tier 1 de cada classe (os jutsus de sempre) ficam iguais
+    for (const c of ['fire', 'water', 'lightning', 'stone', 'heal', 'weapons', 'illusion', 'taijutsu', 'shadow']) assert.deepEqual(now[c], before[c], c);
   });
 
   it('todo jutsu tem uma forma; os sem números próprios seguem a da mecânica', () => {

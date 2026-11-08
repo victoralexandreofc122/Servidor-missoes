@@ -5,7 +5,7 @@
  *  1. 5 builds no nível 60 (59 pontos), cada uma com 2 kits (8 jutsus: os 4 tiers de 2 classes, nível de uso 4) e a
  *     Espada Longa;
  *  2. os dois começam com vida e chakra cheios e agem a cada 0,4 s (um toque), sem errar;
- *  3. em cada toque: o jutsu que mais dá dano, pronto e que caiba no chakra; senão o Ataque Básico (se a recarga
+ *  3. em cada toque: o jutsu que mais dá dano pelo tempo gasto (toque + selos), pronto e que caiba no chakra; senão o Ataque Básico (se a recarga
  *     deixar); o chakra não volta sozinho (v29, decisão do Victor); atordoado não age;
  *  4. o controle passa pelo orçamento de controle (pvpBalance.ts);
  *  5. vence quem zera a vida do outro primeiro; diferença menor que 0,4 s = empate.
@@ -42,8 +42,8 @@ export const METEOR_ON_SPOT = 3;
 
 interface Move {
   code: string; hit: HitInfo; cost: number; cooldownMs: number; stunMs: number; paralysisMs: number; ready: number;
-  /** Golpes que acertam o mesmo alvo (leque, meteoros); selos; atraso do aviso no chão. */
-  hits: number; castMs: number; delayMs: number;
+  /** Golpes que acertam o mesmo alvo (leque, meteoros, pulsos da zona); selos; atraso do 1º golpe; tempo entre golpes. */
+  hits: number; castMs: number; delayMs: number; spacingMs: number;
 }
 
 interface Fighter {
@@ -82,18 +82,33 @@ function fighter(b: SimBuild): Fighter {
     const j = JUTSU_BY_CODE.get(code as never)!;
     const cfg = skillConfig(j);
     const base1 = BASE_SKILLS[j.mechanic];
-    const price = pvpCostCooldown(j.mechanic, cfg.cost, cfg.cooldownMs);
-    // a mesma conta do servidor (gameWorld.cast): jutsu com números próprios usa a base e a queimadura dele
+    // a mesma conta do servidor (gameWorld.cast): jutsu com números próprios paga o seu custo (menos os de pvpScale)
     const own = !!j.numbers;
+    const price = !own || cfg.pvpScale ? pvpCostCooldown(j.mechanic, cfg.cost, cfg.cooldownMs) : { cost: cfg.cost, cooldownMs: cfg.cooldownMs };
     const base = own ? (cfg.base ?? 0) : (base1.damage ?? 0);
     const burn = own ? (cfg.burn ?? 0) : (base1.burn ?? 0);
-    const hits = j.form === 'leque' ? Math.min(2, cfg.shots ?? 3) : j.form === 'meteoros' ? Math.min(METEOR_ON_SPOT, cfg.shots ?? 5) : 1;
-    const delayMs = j.form === 'meteoros' || j.form === 'aviso_em_volta' || j.form === 'nuvem_detona' ? cfg.durationMs ?? 0 : 0;
+    // quantos golpes acertam o mesmo alvo parado, e quando o golpe cai depois dos selos
+    const zone = cfg.zone;
+    const pulses = j.form === 'zona' && zone && !zone.endHit ? Math.max(1, zone.split ?? 1) : 1;
+    const hits = pulses > 1 ? pulses
+      : j.form === 'leque' ? Math.min(cfg.cap ?? 2, cfg.shots ?? 3)
+      : j.form === 'meteoros' ? Math.min(METEOR_ON_SPOT, cfg.shots ?? 5)
+      : j.form === 'cone_golpe' ? Math.max(1, cfg.hits ?? 1)
+      : j.form === 'aviso' ? Math.max(1, cfg.waves ?? 1)
+      : j.form === 'projetil' ? Math.max(1, cfg.shots ?? 1) : 1;
+    const delayMs = j.form === 'meteoros' || j.form === 'aviso_em_volta' || j.form === 'nuvem_detona' || j.form === 'aviso' ? cfg.durationMs ?? 0
+      : j.form === 'zona' && zone ? (zone.endHit ? zone.ms : zone.tickMs ?? 1000)
+      : cfg.strikeDelayMs ?? 0;
+    const spacingMs = pulses > 1 ? zone!.tickMs ?? 1000 : j.form === 'meteoros' || j.form === 'aviso' ? 250 : 0;
+    // golpes divididos (zona em pulsos): a arma entra uma vez no total, não em cada pulso (servidor: v2Apply.scaled)
+    const weaponShare = 1 / Math.max(1, j.form === 'zona' && zone && !zone.endHit ? zone.split ?? 1 : 1);
+    // zona sem dano (Xarope, curas) e o que não acerta o outro (limpeza, recuo, buffs) ficam fora (base 0)
+    const hurts = !(j.form === 'zona' && zone?.heal) && !['limpeza', 'recuo', 'cura_tempo', 'buff_basico'].includes(j.form);
     return {
-      code, cost: price.cost, cooldownMs: price.cooldownMs, stunMs: cfg.stunMs ?? 0, paralysisMs: cfg.paralysisMs ?? 0, ready: 0,
-      hits, castMs: cfg.castMs ?? 0, delayMs,
+      code, cost: price.cost, cooldownMs: price.cooldownMs, stunMs: Math.max(cfg.stunMs ?? 0, cfg.liftMs ?? 0, zone?.endStunMs ?? 0), paralysisMs: cfg.paralysisMs ?? 0, ready: 0,
+      hits, castMs: cfg.castMs ?? 0, delayMs, spacingMs,
       hit: {
-        base, tier: j.tier, useLevel: 4, weapon: j.mechanic === 'weapons' ? KATANA : 0,
+        base: hurts ? base / pulses : 0, tier: j.tier, useLevel: 4, weapon: j.mechanic === 'weapons' ? KATANA * weaponShare : 0,
         scaling: cfg.scaling ?? 'ninjutsu', passive: 1, sky: 1,
         ...(burn ? { burn: { base: burn, ms: cfg.burnMs ?? 3000 } } : {}),
       },
@@ -148,7 +163,7 @@ function release(me: Fighter, foe: Fighter, m: Move, t: number): void {
   m.ready = t + m.cooldownMs;
   const dmg = pvpHitDamage(m.hit, me.stats, scale());
   for (let i = 0; i < m.hits; i++) {
-    const at = t + m.delayMs + (m.hits > 1 && m.delayMs > 0 ? i * 250 : 0);
+    const at = t + m.delayMs + i * m.spacingMs;
     if (at <= t) land(m, dmg, foe, t);
     else foe.incoming.push({ at, dmg, move: m });
   }
@@ -160,9 +175,10 @@ function act(me: Fighter, foe: Fighter, t: number): void {
     return;
   }
   if (t < me.nextTap || t < me.stunnedUntil) return;
+  // v30: com selos, o que conta é o dano pelo tempo parado (os selos tiram tempo de Ataque Básico): dano / (toque + selos)
   const move = me.moves.filter((m) => m.ready <= t && m.cost <= me.chakra && m.hit.base > 0)
     .map((m) => ({ m, dmg: pvpHitDamage(m.hit, me.stats, scale()) * m.hits }))
-    .sort((a, b) => b.dmg - a.dmg)[0];
+    .sort((a, b) => b.dmg / (SIM_TAP_MS + b.m.castMs) - a.dmg / (SIM_TAP_MS + a.m.castMs))[0];
   if (move) {
     if (move.m.castMs > 0) me.casting = { move: move.m, until: t + move.m.castMs };
     else release(me, foe, move.m, t);

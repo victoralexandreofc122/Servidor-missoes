@@ -715,6 +715,9 @@ function handleMessage(msg) {
       if (z?.kind === 'aviso' && z.skill && mechanicOf(z.skill) === 'fire'
         && !vfx.play('explosion', z.x, z.y, { start: now, scale: z.r / 2 })) {
         state.effects.push({ skill: 'fire', x: z.x, y: z.y, fx: 0, fy: 0, r: z.r, start: now });
+      } else if (z?.kind === 'aviso' && z.skill && mechanicOf(z.skill) !== 'fire') {
+        // v30: o golpe avisado das outras classes (Dragão do Trovão, Kunai Explosiva, Dragões Gêmeos) cai: anel na cor
+        state.effects.push({ skill: 'jutsu_ring', x: z.x, y: z.y, fx: 0, fy: 0, r: z.r, color: CAST_COLOR[mechanicOf(z.skill)] || '#fff27a', start: now });
       }
       break;
     }
@@ -1040,8 +1043,20 @@ function handleMessage(msg) {
       // v29 (Jutsus v2): as formas novas do Fogo têm desenho próprio (cone, linha, buff); o resto pela mecânica.
       const info = state.world.skills?.[msg.skill] || {};
       const form = formOf(msg.skill);
+      const color = CAST_COLOR[fxKind] || '#f4ecd8';
+      const lineEnd = { tx: msg.tx ?? msg.x + msg.fx * (info.range ?? 5), ty: msg.ty ?? msg.y + msg.fy * (info.range ?? 5) };
       if (form === 'cone_fogo') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 3, cone: info.coneDeg ?? 90, start: now });
-      else if (form === 'linha_fogo') state.effects.push({ skill: 'fire_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, tx: msg.tx ?? msg.x + msg.fx * (info.range ?? 5), ty: msg.ty ?? msg.y + msg.fy * (info.range ?? 5), start: now });
+      else if (form === 'linha_fogo') state.effects.push({ skill: 'fire_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, start: now });
+      // v30: as formas das outras classes
+      else if (form === 'cone_golpe') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 1.5, cone: info.coneDeg ?? 90, color, start: now });
+      else if (form === 'linha' || form === 'ricochete' || form === 'agarre') state.effects.push({ skill: 'jutsu_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, color, start: now });
+      else if (form === 'anel_golpe') state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: info.radius ?? 2, color, start: now });
+      else if (form === 'impacto' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_ring', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: info.radius ?? 1.5, color, start: now });
+      else if (form === 'alvo' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_burst', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: 0.9, color, start: now });
+      else if (['zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque'].includes(form) && fxKind !== 'fire' && fxKind !== 'weapons') {
+        // o efeito vem da zona, do aviso, do projétil ou do avanço; só um brilho em quem lançou
+        state.effects.push({ skill: 'jutsu_burst', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 0.6, color, start: now });
+      }
       // (Fogo: a explosão é no impacto, mensagem `impact`; nada em volta de quem lançou.)
       else if (fxKind !== 'teleport' && fxKind !== 'fire' && !playCastVfx(msg, fxKind, now)) state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
       faceTo(msg.playerId, msg.fx, msg.fy);
@@ -1049,7 +1064,7 @@ function handleMessage(msg) {
       if (caster) {
         caster.act = { kind: 'jutsu', start: now };
         caster.casting = null;
-        if (form === 'buff_basico') caster.basicBuffUntil = now + (info.durationMs ?? 5000);
+        if (form === 'buff_basico') { caster.basicBuffUntil = now + (info.durationMs ?? 5000); caster.basicBuffColor = fxKind; }
       }
       if (msg.playerId === state.meId) {
         console.log(`[habilidade] ${msg.skill}`);
@@ -1930,8 +1945,13 @@ const SKILLS = {
   slam: { color: '#7a5a3a', ms: 520 },     // golpe marcado caiu: anel de impacto no chão (fx = raio)
   fire_cone: { color: '#ff7a2e', ms: 560 },   // v29: Sopro Incinerador e Destruição Magnífica (leque de chamas)
   fire_line: { color: '#ff9a3c', ms: 520 },   // v29: Linha de Fogo Rasante e Chamas do Dragão Guiado
+  // v30: as formas das outras classes, na cor do elemento (fx.color)
+  jutsu_cone: { color: '#f2b13a', ms: 420 },  // cone de golpe (Rasteira, Cem Golpes, Punho do Céu)
+  jutsu_line: { color: '#fff27a', ms: 460 },  // linha (Estaca, Prisão de Água, Lança Saltadora, Agarre)
+  jutsu_ring: { color: '#3ca6ff', ms: 520 },  // anel (Onda de Choque, Chute Ciclone, Fluxo Elétrico) e o golpe avisado caindo
+  jutsu_burst: { color: '#a072ff', ms: 600 }, // no alvo (Prisão de Pilares, Árvore Prendedora, Laço do Destino)
 };
-const GROUND_FX = new Set(['shadow', 'water', 'log', 'slam', 'fire_cone', 'fire_line']);
+const GROUND_FX = new Set(['shadow', 'water', 'log', 'slam', 'fire_cone', 'fire_line', 'jutsu_cone', 'jutsu_line', 'jutsu_ring', 'jutsu_burst']);
 /** v29 (Jutsus v2): a forma do jutsu (o welcome só manda quando não é a da mecânica). */
 const FORM_OF_MECHANIC = { fire: 'linha_explode', water: 'cone', taijutsu: 'avanco', illusion: 'anel', shadow: 'linha_prende', stone: 'escudo', heal: 'cura', weapons: 'trilhas', lightning: 'linha_raio', teleport: 'teleporte', substitution: 'substituicao' };
 const formOf = (skill) => state.world.skills?.[skill]?.form || FORM_OF_MECHANIC[mechanicOf(skill)];
@@ -2188,7 +2208,18 @@ function duelAnnounce(msg) {
 
 // ------------------------------------------------------------------ zonas no chão e avisos (v29, Jutsus v2)
 
+/** '#rrggbb' + alfa -> 'rgba(...)'. */
+function hexA(hex, a) {
+  const n = parseInt(String(hex || '#ffffff').slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(1, a))})`;
+}
+
 const GROUND_COLORS = {
+  // v30: as zonas das outras classes
+  agua: ['rgba(60, 166, 255, 0.25)', 'rgba(140, 210, 255, 0.85)'],
+  sombra: ['rgba(30, 20, 50, 0.45)', 'rgba(139, 122, 216, 0.85)'],
+  ilusao: ['rgba(160, 114, 255, 0.22)', 'rgba(200, 170, 255, 0.85)'],
+  armas: ['rgba(201, 210, 218, 0.15)', 'rgba(230, 236, 242, 0.9)'],
   fogo: ['rgba(255, 120, 40, 0.30)', 'rgba(255, 170, 60, 0.85)'],
   lama: ['rgba(110, 80, 40, 0.40)', 'rgba(160, 120, 70, 0.85)'],
   cura: ['rgba(90, 220, 120, 0.25)', 'rgba(150, 255, 170, 0.85)'],
@@ -2200,7 +2231,8 @@ function drawGround(toScreenX, toScreenY, T, now) {
   if (!state.ground || state.ground.size === 0) return;
   for (const [id, z] of state.ground) {
     if (now > z.end + 300) { state.ground.delete(id); continue; }
-    const x = toScreenX(z.x), y = toScreenY(z.y), r = z.r * T;
+    const owner = z.follow ? state.players.get(z.follow) : null;      // v30: zona que anda junto (Aura, Lâminas, Dança)
+    const x = toScreenX(owner ? owner.x : z.x), y = toScreenY(owner ? owner.y : z.y), r = z.r * T;
     const [fill, edge] = GROUND_COLORS[z.kind] || GROUND_COLORS.fogo;
     ctx.save();
     ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.9, 0, 0, Math.PI * 2);
@@ -6194,10 +6226,16 @@ function drawEffect(fx, sx, sy, T, now) {
       const R = T * fx.r * (0.55 + 0.45 * Math.min(1, t * 2));
       const alpha = Math.min(1, fade * 1.4);
       const g = ctx.createRadialGradient(sx, sy, T * 0.2, sx, sy, R);
-      g.addColorStop(0, `rgba(255, 245, 190, ${0.95 * alpha})`);
-      g.addColorStop(0.35, `rgba(255, 170, 50, ${0.9 * alpha})`);
-      g.addColorStop(0.8, `rgba(235, 80, 20, ${0.75 * alpha})`);
-      g.addColorStop(1, `rgba(150, 30, 10, ${0.2 * alpha})`);
+      if (fx.color) {                    // v30: cone de golpe na cor do elemento
+        g.addColorStop(0, `rgba(255, 255, 255, ${0.8 * alpha})`);
+        g.addColorStop(0.4, hexA(fx.color, 0.75 * alpha));
+        g.addColorStop(1, hexA(fx.color, 0.1 * alpha));
+      } else {
+        g.addColorStop(0, `rgba(255, 245, 190, ${0.95 * alpha})`);
+        g.addColorStop(0.35, `rgba(255, 170, 50, ${0.9 * alpha})`);
+        g.addColorStop(0.8, `rgba(235, 80, 20, ${0.75 * alpha})`);
+        g.addColorStop(1, `rgba(150, 30, 10, ${0.2 * alpha})`);
+      }
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.arc(sx, sy, R, a0 - half, a0 + half); ctx.closePath(); ctx.fill();
       // borda de chamas: a frente da onda
@@ -6208,6 +6246,36 @@ function drawEffect(fx, sx, sy, T, now) {
       for (let k = 0; k < 9; k++) {      // fagulhas
         const a = a0 - half + (k + 0.5) * (2 * half / 9), d = R * (0.55 + 0.4 * ((k * 37) % 10) / 10);
         ctx.fillRect(Math.round(sx + Math.cos(a) * d) - 2, Math.round(sy + Math.sin(a) * d) - 2, 4, 4);
+      }
+      break;
+    }
+    case 'jutsu_line': {                 // v30: linha na cor do elemento
+      const ex = sx + (fx.tx - fx.x) * T, ey = sy + (fx.ty - fx.y) * T;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = hexA(fx.color, 0.45 * fade); ctx.lineWidth = T * 0.5;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.strokeStyle = hexA(fx.color, 0.95 * fade); ctx.lineWidth = T * 0.2;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.9 * fade})`; ctx.lineWidth = T * 0.06;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      break;
+    }
+    case 'jutsu_ring': {                 // v30: anel que abre até o raio
+      const R = T * (fx.r || 2) * (0.35 + 0.65 * t);
+      ctx.fillStyle = hexA(fx.color, 0.22 * fade);
+      ctx.beginPath(); ctx.ellipse(sx, sy, R, R * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = hexA(fx.color, 0.95 * fade); ctx.lineWidth = Math.max(2, T * 0.14 * fade + 1);
+      ctx.beginPath(); ctx.ellipse(sx, sy, R, R * 0.8, 0, 0, Math.PI * 2); ctx.stroke();
+      break;
+    }
+    case 'jutsu_burst': {                // v30: no alvo: pulso e faíscas
+      const R = T * (fx.r || 0.9) * (0.6 + 0.6 * t);
+      ctx.strokeStyle = hexA(fx.color, 0.95 * fade); ctx.lineWidth = Math.max(2, T * 0.12);
+      ctx.beginPath(); ctx.ellipse(sx, sy, R, R * 0.8, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = hexA(fx.color, 0.9 * fade);
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2 + t;
+        ctx.fillRect(Math.round(sx + Math.cos(a) * R * 1.1) - 2, Math.round(sy + Math.sin(a) * R * 0.9) - 2, 4, 4);
       }
       break;
     }
@@ -7033,13 +7101,15 @@ function drawCastBar(p, sx, headTop, r, T, now) {
 }
 
 /** v29: Lâmina de Fogo ativa: brasa no chão e chamas subindo em volta do ninja (o Básico bate mais forte). */
-function drawBasicBuff(sx, sy, r, T, now) {
+const BUFF_COLORS = { fire: ['#fff0a8', '#ffa23a', '#e8461c', '255, 190, 80'], stone: ['#f1dfb4', '#c9a678', '#7a5a3a', '201, 166, 120'], heal: ['#e6ffd8', '#8fe0a0', '#3fae5a', '120, 230, 140'], taijutsu: ['#fff3c4', '#f2b13a', '#c26a12', '242, 177, 58'] };
+function drawBasicBuff(sx, sy, r, T, now, kind = 'fire') {
+  const [c1, c2, c3, glow] = BUFF_COLORS[kind] || BUFF_COLORS.fire;
   ctx.save();
   const pulse = 0.75 + 0.25 * Math.sin(now / 140);
   const R = T * 0.75, foot = sy + r * 0.9;
   const g = ctx.createRadialGradient(sx, foot, T * 0.1, sx, foot, R);
-  g.addColorStop(0, `rgba(255, 190, 80, ${0.7 * pulse})`);
-  g.addColorStop(1, 'rgba(255, 90, 20, 0)');
+  g.addColorStop(0, `rgba(${glow}, ${0.7 * pulse})`);
+  g.addColorStop(1, `rgba(${glow}, 0)`);
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.ellipse(sx, foot, R, R * 0.42, 0, 0, Math.PI * 2); ctx.fill();
   const size = Math.max(5, Math.round(T * 0.17));
@@ -7049,7 +7119,7 @@ function drawBasicBuff(sx, sy, r, T, now) {
     const x = sx + side * T * (0.42 + 0.12 * Math.sin(now / 200 + k)) * (1 - 0.35 * ph);
     const y = foot - ph * T * 1.45;
     ctx.globalAlpha = 0.95 * (1 - ph * ph);
-    ctx.fillStyle = ph < 0.3 ? '#fff0a8' : ph < 0.65 ? '#ffa23a' : '#e8461c';
+    ctx.fillStyle = ph < 0.3 ? c1 : ph < 0.65 ? c2 : c3;
     ctx.fillRect(Math.round(x - size / 2), Math.round(y - size), size, Math.round(size * 1.4));
   }
   ctx.restore();
@@ -7094,7 +7164,7 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
       ctx.fillRect(Math.round(sx + Math.cos(a) * r * 0.9) - 2, Math.round(headTop - 4 + Math.sin(a) * r * 0.25) - 2, 4, 4);
     }
   }
-  if (!p.dead && now < (p.basicBuffUntil || 0)) drawBasicBuff(sx, sy, r, T, now);   // v29: Lâmina de Fogo
+  if (!p.dead && now < (p.basicBuffUntil || 0)) drawBasicBuff(sx, sy, r, T, now, p.basicBuffColor);   // v29: Lâmina de Fogo; v30: os outros buffs de Básico
   if (!p.dead && p.casting && now < p.casting.end + 120) drawCastBar(p, sx, headTop, r, T, now);   // v29: selos
   if (isMe) {                         // marquinha para achar o próprio boneco no meio dos outros
     ctx.fillStyle = '#ffe2a8';

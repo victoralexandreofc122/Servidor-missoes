@@ -36,7 +36,7 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     }
   });
 
-  it('catálogo do banco == catálogo do servidor (classes, 45 jutsus com a v16, itens)', async () => {
+  it('catálogo do banco == catálogo do servidor (classes, 72 jutsus com a v16 e a v18, itens)', async () => {
     const classes = (await t.pool.query('SELECT code, name, icon FROM game.classes ORDER BY sort_order')).rows;
     assert.deepEqual(classes, CLASSES.map((c) => ({ code: c, name: CLASS_INFO[c].name, icon: CLASS_INFO[c].icon })));
     const jutsus = (await t.pool.query('SELECT code, name, class_code, tier FROM game.jutsus ORDER BY code')).rows;
@@ -103,12 +103,17 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     const failed = await store.extract(id, 'water', 1, 0.8, 0);         // 0,8 >= 80%: falha
     assert.ok(failed.ok && failed.outcome === 'failed' && failed.consumed === 1 && failed.scrollsLeft === 0);
     await store.addItem(id, 'scroll_water', 3);
-    const ok = await store.extract(id, 'water', 2, 0.59, 0.99);           // < 60%: sucesso
+    const ok = await store.extract(id, 'water', 2, 0.59, 0);              // < 60%: sucesso
     assert.ok(ok.ok && ok.outcome === 'success' && ok.jutsu === 'water_2' && ok.scrollsLeft === 1);
+    // v30: o tier 2 da Água tem 2 jutsus (Onda de Choque e Xarope Pegajoso): o 2º sai na próxima, depois acabou
+    await store.addItem(id, 'scroll_water', 1);
+    const second = await store.extract(id, 'water', 2, 0, 0);
+    assert.ok(second.ok && second.jutsu === 'water_xarope');
+    await store.addItem(id, 'scroll_water', 2);
     assert.equal((await store.extract(id, 'water', 2, 0, 0) as { outcome: string }).outcome, 'all_learned');
     const success = await store.extract(id, 'water', 1, 0.1, 0);
     assert.ok(success.ok && success.jutsu === 'water');
-    assert.deepEqual(Object.keys((await makeFindPlayer(t.db)(id))!.jutsus!).sort(), ['substitution', 'teleport', 'water', 'water_2']);
+    assert.deepEqual(Object.keys((await makeFindPlayer(t.db)(id))!.jutsus!).sort(), ['substitution', 'teleport', 'water', 'water_2', 'water_xarope']);
   });
 
   it('loja: preço do catálogo, ryō não fica negativo, item fora da loja recusado; equipar só o que tem', async () => {

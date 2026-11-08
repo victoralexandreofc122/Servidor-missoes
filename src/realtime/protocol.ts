@@ -192,7 +192,7 @@ const reason = z.string().max(300);
 /** v29: uma linha do ranking do rankeado. */
 export interface RankedRowView { position: number; playerId: string; username: string; village: string | null; level: number; mmr: number; wins: number; losses: number }
 /** v29: tipos de zona no chão; 'aviso' = o círculo vermelho do golpe que vai cair. */
-export type GroundKind = 'fogo' | 'lama' | 'cura' | 'aviso';
+export type GroundKind = 'fogo' | 'lama' | 'cura' | 'aviso' | 'agua' | 'sombra' | 'ilusao' | 'armas';
 
 export interface DuelSideView { id: string; name: string; level: number; village: string | null }
 
@@ -579,7 +579,7 @@ export type ServerMessage =
   // v29: modo rankeado. A fila (só para quem está nela) e o estado da partida da arena (para todos no Vale).
   | { type: 'duel_queue'; queued: boolean; position: number; size: number }
   // v29 (Jutsus v2, entrega 1): zona no chão (fogo, lama, cura...) e aviso de golpe que cai depois de `ms`.
-  | { type: 'ground'; id: number; kind: GroundKind; x: number; y: number; r: number; ms: number; skill?: string }
+  | { type: 'ground'; id: number; kind: GroundKind; x: number; y: number; r: number; ms: number; skill?: string; follow?: string }
   | { type: 'ground_end'; id: number }
   // v29: conjuração (selos) começou, e foi interrompida
   | { type: 'cast_start'; playerId: string; skill: string; ms: number }
