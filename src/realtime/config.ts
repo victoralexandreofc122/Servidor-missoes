@@ -96,6 +96,11 @@ export interface SkillConfig {
   /** v30: escuridão no alvo (Noite Eterna) / controles invertidos (Distúrbio Nervoso), em ms. */
   darkMs?: number;
   invertMs?: number;
+  /** v30: muro: espessura, vida (fixa ou parte da vida máxima de quem ergue) e tipo. */
+  thick?: number;
+  wallHp?: number;
+  wallHpShare?: number;
+  wallKind?: 'rocha' | 'agua';
   /** v30: bumerangue: o dano da volta (a ida é `damage`). */
   returnDamage?: number;
   returnBase?: number;

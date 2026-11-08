@@ -2,10 +2,10 @@
 -- v18: Jutsus v2, entrega 5 (as outras 8 classes). Rode no SQL Editor do Neon, no branch `production`, depois da v16.
 -- Pode rodar de novo sem erro. Mexe no catálogo game.jutsus e na regra dos kits (game.valid_kit):
 --
---  1. 56 jutsus em game.jutsus: os 33 novos (códigos novos) e os nomes novos dos tiers 2 a 4 de Água, Relâmpago,
+--  1. 58 jutsus em game.jutsus: os 35 novos (códigos novos) e os nomes novos dos tiers 2 a 4 de Água, Relâmpago,
 --     Terra, Médico, Armas, Ilusão, Taijutsu e Sombra (os códigos ficam: quem já tem continua com eles, com o uso e o
 --     nível). A Extração (game.extract_jutsu, v10) passa a sortear entre eles.
---  2. game.valid_kit aceita os 78 códigos do jogo. A lista só cresce: todo kit de hoje continua valendo.
+--  2. game.valid_kit aceita os 80 códigos do jogo. A lista só cresce: todo kit de hoje continua valendo.
 --
 -- Nenhum código é renomeado nem apagado.
 -- =====================================================================================================================
@@ -67,7 +67,9 @@ INSERT INTO game.jutsus (code, name, class_code, tier) VALUES
   ('heal_disturbio', 'Distúrbio Nervoso', 'heal', 2),
   ('shadow_armadilha', 'Sombra Oculta', 'shadow', 2),
   ('heal_palma', 'Palma Mística', 'heal', 1),
-  ('weapons_gigante', 'Shuriken Gigante de Chakra', 'weapons', 2)
+  ('weapons_gigante', 'Shuriken Gigante de Chakra', 'weapons', 2),
+  ('water_muro', 'Muro de Água', 'water', 1),
+  ('stone_muralha', 'Muralha de Terra', 'stone', 1)
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, class_code = EXCLUDED.class_code, tier = EXCLUDED.tier;
 
 CREATE OR REPLACE FUNCTION game.valid_kit(kit text[]) RETURNS boolean
@@ -85,13 +87,14 @@ RETURN kit IS NOT NULL
     'heal_desintox', 'heal_bisturi', 'heal_aura', 'weapons_multi', 'weapons_kunai', 'weapons_dragoes',
     'illusion_kai', 'illusion_estaca', 'illusion_templo', 'taijutsu_rasteira', 'taijutsu_ascendente',
     'taijutsu_lotus', 'taijutsu_portoes', 'shadow_recuo', 'shadow_estrangular', 'shadow_agarre', 'water_nevoa',
-    'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma', 'weapons_gigante'
+    'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma', 'weapons_gigante', 'water_muro',
+    'stone_muralha'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
 COMMIT;
 
 -- Conferência (opcional):
--- SELECT count(*) FROM game.jutsus;                                                               -- 78
+-- SELECT count(*) FROM game.jutsus;                                                               -- 80
 -- SELECT class_code, count(*) FROM game.jutsus GROUP BY class_code ORDER BY class_code;
 -- SELECT game.valid_kit(ARRAY['water_dragao', 'stone_pilares', 'heal_aura', 'shadow_4']);         -- true

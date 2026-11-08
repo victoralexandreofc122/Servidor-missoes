@@ -721,6 +721,24 @@ function handleMessage(msg) {
       }
       break;
     }
+    case 'barrier': {
+      // v30: muro de jutsu: vira parede (a previsão do movimento esbarra nele) e aparece no chão
+      const walls = state.maps[state.mapId]?.walls;
+      const box = { k: 'iwall', x: msg.x, y: msg.y, w: msg.w, h: msg.h };
+      if (walls) walls.push(box);
+      (state.barriers ||= new Map()).set(msg.id, { ...msg, box, map: state.mapId, start: now });
+      break;
+    }
+    case 'barrier_end': {
+      const b = state.barriers?.get(msg.id);
+      if (b) {
+        const walls = state.maps[b.map]?.walls;
+        const k = walls ? walls.indexOf(b.box) : -1;
+        if (k >= 0) walls.splice(k, 1);
+        state.barriers.delete(msg.id);
+      }
+      break;
+    }
     case 'cast_start': {
       // v29: selos. A barra aparece sobre a cabeça de quem conjura (e maior perto dos botões, para quem conjura).
       const p = state.players.get(msg.playerId);
@@ -3737,7 +3755,8 @@ function renderJutsus() {
     const name = document.createElement('span');
     name.className = 'name';
     name.textContent = info ? info.name : skill;
-    const cls = state.world.skills[skill]?.class;
+    const sinfo = state.world.skills[skill];
+    const cls = sinfo ? (sinfo.class !== undefined ? sinfo.class : sinfo.tier > 0 ? sinfo.mechanic : null) : undefined;   // v30: a classe é a mecânica quando não vem
     const small = document.createElement('small');
     small.textContent = cls ? `${state.world.classes?.find((c) => c.code === cls)?.name || cls} · Tier ${info?.tier ?? 1}` : 'Academia';
     name.append(small);
@@ -5307,6 +5326,42 @@ function updateCamera(dt, me) {
   cam.scale += (want.scale - cam.scale) * k;
 }
 
+/** v30: muros dos jutsus: rocha (blocos com contorno) ou água (lâmina azul que ondula). */
+function drawBarriers(toScreenX, toScreenY, T, now) {
+  if (!state.barriers || state.barriers.size === 0) return;
+  for (const b of state.barriers.values()) {
+    if (b.map !== state.mapId) continue;
+    const x = toScreenX(b.x), y = toScreenY(b.y), w = b.w * T, h = b.h * T;
+    const k = Math.min(1, (now - b.start) / 180);              // sobe do chão
+    ctx.save();
+    if (b.kind === 'agua') {
+      ctx.fillStyle = `rgba(60, 166, 255, ${0.45 * k})`;
+      ctx.fillRect(x, y + h * (1 - k), w, h * k);
+      ctx.strokeStyle = 'rgba(200, 235, 255, 0.9)'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i <= 8; i++) {
+        const px = x + (w * i) / 8, py = y + Math.sin(now / 160 + i) * 2;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    } else {
+      const lift = T * 0.5 * k;
+      ctx.fillStyle = '#5b4632'; ctx.fillRect(x, y - lift, w, h + lift);
+      ctx.fillStyle = '#8a6a48'; ctx.fillRect(x + 2, y - lift + 2, w - 4, Math.max(2, (h + lift) * 0.45));
+      ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.strokeRect(x, y - lift, w, h + lift);
+      ctx.strokeStyle = 'rgba(42, 28, 16, 0.6)'; ctx.lineWidth = 1;
+      const cells = Math.max(2, Math.round(Math.max(w, h) / T));
+      for (let i = 1; i < cells; i++) {
+        ctx.beginPath();
+        if (w >= h) { ctx.moveTo(x + (w * i) / cells, y - lift); ctx.lineTo(x + (w * i) / cells, y + h); }
+        else { ctx.moveTo(x, y - lift + ((h + lift) * i) / cells); ctx.lineTo(x + w, y - lift + ((h + lift) * i) / cells); }
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+}
+
 /** v30: no escuro, a tela fica preta em volta de você e só se vê ~2 casas (a interface continua). */
 function drawDarkness(me, toScreenX, toScreenY, T, now) {
   if (!me || !(me.fx?.escuridao > now)) return;
@@ -5422,6 +5477,7 @@ function draw(now) {
   for (const fx of state.effects) if (SKILLS[fx.skill] && now - fx.start < SKILLS[fx.skill].ms) state.effects[alive++] = fx;
   state.effects.length = alive;
   drawGround(toScreenX, toScreenY, T, now);           // v29: zonas no chão e avisos de golpe
+  drawBarriers(toScreenX, toScreenY, T, now);         // v30: muros dos jutsus
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   vfx.draw(ctx, 'ground', toScreenX, toScreenY, T, dpr, now);
   drawTelegraphs(toScreenX, toScreenY, T, now);

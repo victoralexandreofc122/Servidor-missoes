@@ -47,7 +47,7 @@ import { NO_CLASS, PvpStats, reportText, toClassRows } from './pvpStats.js';
 import { DUEL, leavePenalty, addDamage, advance, endRound, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, timeoutWinner, type DuelMatch, type QueueEntry, type Side } from './duel.js';
 import {
   VALE, ACADEMY, REFUGE, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
-  type MapLayout,
+  type MapLayout, type Wall,
 } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
 import type { WorldWatch } from './watch.js';
@@ -569,6 +569,8 @@ export class GameWorld {
   private readonly arenaRecord = new Map<string, { wins: number; losses: number }>();
   /** v29: modo rankeado. A fila do Desafio, a partida da arena do Vale e para onde cada um volta ao sair do Vale. */
   private rankedQueue: QueueEntry[] = [];
+  /** v30: muros dos jutsus (Muralha de Terra, Muro de Água): a caixa está nas paredes do mapa enquanto o muro existe. */
+  private barriers: { id: number; map: MapId; box: Wall; hp: number; kind: 'rocha' | 'agua'; until: number }[] = [];
   private duel: DuelMatch | null = null;
   private duelSeq = 0;
   private readonly rankedReturn = new Map<string, { map: MapId; x: number; y: number }>();
@@ -596,11 +598,13 @@ export class GameWorld {
   private endgameBusy = false;
 
   constructor(
-    private readonly config: RealtimeConfig = REALTIME,
+    private config: RealtimeConfig = REALTIME,
     private readonly now: () => number = Date.now,
     private readonly log: WorldLogger = silent,
     options: WorldOptions = {},
   ) {
+    // v30: cada mundo tem a sua cópia das paredes (os muros dos jutsus entram e saem dela sem mexer no catálogo)
+    this.config = { ...config, maps: Object.fromEntries(Object.entries(config.maps).map(([k, m]) => [k, { ...m, walls: [...m.walls] }])) as RealtimeConfig['maps'] };
     this.random = options.random ?? Math.random;
     this.progression = options.progression;
     this.missions = options.missions;
@@ -793,7 +797,7 @@ export class GameWorld {
         const v = combat.skills[j.code];
         const range = v.range ?? v.radius;
         return [j.code, {
-          name: j.name, class: j.class, tier: j.tier, mechanic: v.mechanic, cost: v.cost, cooldownMs: v.cooldownMs,
+          name: j.name, ...(j.class !== v.mechanic ? { class: j.class } : {}), tier: j.tier, mechanic: v.mechanic, cost: v.cost, cooldownMs: v.cooldownMs,   // v30: sem a classe repetida (= mecânica)
           ...(range !== undefined ? { range } : {}),
           ...(v.radius !== undefined ? { radius: v.radius } : {}),
           ...(LINE_MECHANICS.has(v.mechanic) ? { line: true } : {}),
@@ -2115,6 +2119,7 @@ export class GameWorld {
   }
 
   private stepGround(t: number): void {
+    for (const b of [...this.barriers]) if (t >= b.until) this.dropBarrier(b.id);   // v30: o muro acabou
     const inside = (x: Target, c: { x: number; y: number; r: number }) => Math.hypot(x.x - c.x, x.y - c.y) <= c.r;
     for (let i = this.zones.length - 1; i >= 0; i--) {
       const z = this.zones[i]!;
@@ -2377,6 +2382,11 @@ export class GameWorld {
         if (distance(o, dashTo) < 0.3) return { hits: [], fail: 'BLOCKED' };
         return { hits: [], dashTo };
       }
+      case 'muro': {
+        // à frente, atravessado na direção em que olha (3 casas de largura)
+        const c = ahead(o, fx, fy, Math.max(1.5, reach || 2.5));
+        return { hits: [], to: c };
+      }
       case 'palma': {
         // canalização: o aliado ferido colado (o focado primeiro); sem ninguém, em si (pela metade); vida cheia: não sai
         const hurt = (p: Session) => !p.dead && !p.closed && p.hp < p.stats.maxHp;
@@ -2486,6 +2496,15 @@ export class GameWorld {
         }
         break;
       }
+      case 'muro': {
+        if (!to) break;
+        const width = cfg.radius ?? 3, thick = cfg.thick ?? 1;
+        const vertical = Math.abs(fx) >= Math.abs(fy);
+        const w = vertical ? thick : width, h = vertical ? width : thick;
+        const hp = cfg.wallHpShare ? Math.round(s.stats.maxHp * cfg.wallHpShare) : cfg.wallHp ?? 60;
+        this.raiseBarrier(s.map, { k: 'iwall', x: q3(to.x - w / 2), y: q3(to.y - h / 2), w, h }, hp, cfg.wallKind ?? 'rocha', cfg.durationMs ?? 5000, t);
+        break;
+      }
       case 'palma': {
         const k = pvp ? 0.5 : 1;
         const ally = hits[0];
@@ -2532,6 +2551,35 @@ export class GameWorld {
       if (got > 0) { x.session.calmSince = t; this.sendStats(x.session, t); }
     }
     if (cfg.push && this.stillThere(x)) this.pushAway(x, by, from, cfg.push, t);
+  }
+
+  /** v30: ergue um muro (entra nas paredes do mapa: bloqueia passagem, linhas e projéteis) e avisa o mapa. */
+  private raiseBarrier(map: MapId, box: Wall, hp: number, kind: 'rocha' | 'agua', ms: number, t: number): number {
+    const id = ++this.groundSeq;
+    this.barriers.push({ id, map, box, hp, kind, until: t + ms });
+    this.layout(map).walls.push(box);
+    this.broadcastMap(map, { type: 'barrier', id, kind, x: box.x, y: box.y, w: box.w, h: box.h, hp, ms });
+    return id;
+  }
+
+  /** O muro some (acabou o tempo ou a vida). */
+  private dropBarrier(id: number): void {
+    const i = this.barriers.findIndex((b) => b.id === id);
+    if (i < 0) return;
+    const b = this.barriers[i]!;
+    this.barriers.splice(i, 1);
+    const walls = this.layout(b.map).walls;
+    const k = walls.indexOf(b.box);
+    if (k >= 0) walls.splice(k, 1);
+    this.broadcastMap(b.map, { type: 'barrier_end', id });
+  }
+
+  /** Um projétil parou num muro: o muro perde vida (o dano do projétil). */
+  private hitBarrier(map: MapId, at: Point, damage: number): void {
+    const b = this.barriers.find((x) => x.map === map && at.x > x.box.x - 0.6 && at.x < x.box.x + x.box.w + 0.6 && at.y > x.box.y - 0.6 && at.y < x.box.y + x.box.h + 0.6);
+    if (!b) return;
+    b.hp -= damage;
+    if (b.hp <= 0) this.dropBarrier(b.id);
   }
 
   /** Puxa o alvo `dist` casas para o centro da zona (Prisão do Vórtice). */
@@ -2706,8 +2754,10 @@ export class GameWorld {
     }
     const first = firstOnLine(from, end, fresh, p.hitRadius);
     if (first) this.impact(p, first.at, first.target, t);
-    else if (wall || p.left <= 1e-9) this.impact(p, end, undefined, t);
-    else return false;
+    else if (wall || p.left <= 1e-9) {
+      if (wall && this.barriers.length) this.hitBarrier(p.map, end, p.damage);   // v30: o muro segura e perde vida
+      this.impact(p, end, undefined, t);
+    } else return false;
     return true;
   }
 

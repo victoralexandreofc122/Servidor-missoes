@@ -70,7 +70,8 @@ export type JutsuForm =
   | 'ricochete'       // linha que salta para o próximo alvo (Lança Saltadora)
   | 'agarre'          // linha que prende vários alvos (Agarre Múltiplo)
   | 'palma'           // canalização: cura o aliado colado (ou a si, pela metade) no fim (Palma Mística)
-  | 'bumerangue';     // projétil que vai, atravessa e volta para a mão (Shuriken Gigante de Chakra)
+  | 'bumerangue'      // projétil que vai, atravessa e volta para a mão (Shuriken Gigante de Chakra)
+  | 'muro';           // muro à frente: bloqueia passagem e projéteis, tem vida (Muralha de Terra, Muro de Água)
 
 export const FORM_OF_MECHANIC: Readonly<Record<Mechanic, JutsuForm>> = {
   fire: 'linha_explode', water: 'cone', taijutsu: 'avanco', illusion: 'anel', shadow: 'linha_prende', stone: 'escudo',

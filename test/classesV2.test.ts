@@ -57,9 +57,9 @@ function scene(skill: string, monsters: [number, number][] = [[2, 0]], pvp = fal
 }
 
 describe('Jutsus v2, entrega 5: as outras classes', () => {
-  it('catálogo: 78 jutsus; 33 códigos novos; toda classe tem os 4 tiers e o tier 1 de sempre', () => {
-    assert.equal(JUTSUS.length, 78);
-    assert.equal(CLASS_V2_CODES.length, 33);
+  it('catálogo: 80 jutsus; 35 códigos novos; toda classe tem os 4 tiers e o tier 1 de sempre', () => {
+    assert.equal(JUTSUS.length, 80);
+    assert.equal(CLASS_V2_CODES.length, 35);
     for (const c of CLASSES) {
       const tiers = new Set(JUTSUS.filter((j) => j.class === c).map((j) => j.tier));
       assert.deepEqual([...tiers].sort(), [1, 2, 3, 4], c);
@@ -342,5 +342,33 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     const hits = a.conn.of('hit').filter((h: any) => h.target === 'monster' && h.id === m.id && h.kind === 'damage');
     assert.equal(hits.length, 2, 'ida e volta');
     assert.ok(hits[1].amount < hits[0].amount, 'a volta bate menos');
+  });
+
+  it('muro (Muralha de Terra): bloqueia a passagem e o projétil, perde vida com o golpe e some no fim', () => {
+    const { s, a, run, world, row } = scene('stone_muralha', []);
+    a.send({ type: 'cast', skill: 'stone_muralha' });
+    const bar = a.conn.last('barrier');
+    assert.equal(bar.kind, 'rocha');
+    assert.equal(bar.hp, Math.round(s.stats.maxHp * 0.15));
+    assert.ok(world.layout('map_2').walls.some((w: any) => w.x === bar.x && w.y === bar.y), 'virou parede');
+    // tenta andar através dele
+    for (let i = 0; i < 12; i++) { s.inputQueue.push({ seq: 1000 + i, dx: 1, dy: 0, dist: 0 }); run(50); }
+    assert.ok(s.x < bar.x, `parou antes do muro (${s.x} < ${bar.x})`);
+    run(5100);
+    assert.ok(a.conn.last('barrier_end'), 'acabou');
+    assert.equal(world.layout('map_2').walls.some((w: any) => w.x === bar.x && w.y === bar.y), false);
+    void row;
+  });
+
+  it('Muro de Água: segura o projétil e perde a vida dele; com vida acabando, cai antes do tempo', () => {
+    const { a, run, world, s } = scene('water_muro', []);
+    a.send({ type: 'cast', skill: 'water_muro' });
+    const bar = a.conn.last('barrier');
+    const b = world.barriers[0];
+    assert.equal(b.hp, 60);
+    // um projétil de outro ninja vindo de frente: para no muro
+    world.hitBarrier('map_2', { x: bar.x, y: bar.y + 1 }, 70);
+    assert.ok(a.conn.last('barrier_end'), 'quebrou');
+    void run; void s;
   });
 });

@@ -418,7 +418,8 @@ export type ChatChannel = 'local' | 'global' | 'whisper';
 /** Jutsu como o cliente mostra (botão, aba Jutsus). */
 export interface SkillInfo {
   name: string;
-  class: ClassCode | null;
+  /** v30: só vem quando não é a mecânica (Academia: null); sem ele, a classe é a mecânica. */
+  class?: ClassCode | null;
   tier: number;
   mechanic: Mechanic;
   cost: number;
@@ -581,6 +582,9 @@ export type ServerMessage =
   // v29 (Jutsus v2, entrega 1): zona no chão (fogo, lama, cura...) e aviso de golpe que cai depois de `ms`.
   | { type: 'ground'; id: number; kind: GroundKind; x: number; y: number; r: number; ms: number; skill?: string; follow?: string }
   | { type: 'ground_end'; id: number }
+  // v30: muro de jutsu (entra nas paredes do mapa enquanto existe)
+  | { type: 'barrier'; id: number; kind: 'rocha' | 'agua'; x: number; y: number; w: number; h: number; hp: number; ms: number }
+  | { type: 'barrier_end'; id: number }
   // v29: conjuração (selos) começou, e foi interrompida
   | { type: 'cast_start'; playerId: string; skill: string; ms: number }
   | { type: 'cast_interrupted'; playerId: string; skill: string; reason: 'interrupted' | 'cancel' }
