@@ -362,6 +362,8 @@ interface Session {
   /** v30: dano recebido reduzido (Dança dos Mil Cortes, Toupeira) até `drUntil`. */
   drUntil: number;
   drPct: number;
+  /** v30: escudo com vida (Véu de Vento): absorve dano até acabar a vida ou o tempo; um por vez. */
+  absorb: { hp: number; until: number } | undefined;
   hearts: number;
   heartsCut: number;
   intangibleUntil: number;
@@ -978,6 +980,7 @@ export class GameWorld {
       concentrationUntil: 0,
       drUntil: 0,
       drPct: 0,
+      absorb: undefined,
       hearts: previous?.hearts ?? 0,
       heartsCut: previous?.heartsCut ?? 0,
       intangibleUntil: previous?.intangibleUntil ?? 0,
@@ -1962,6 +1965,7 @@ export class GameWorld {
         const burn = cfg.burn ? { amount: Math.max(1, Math.round(cfg.burn * (dmg / (cfg.damage ?? 1)))), ms: cfg.burnMs ?? 3000 } : undefined;
         this.launch(session, fx, fy, {
           skill, speed: cfg.speed ?? 12, range: reach, damage: dmg, radius: cfg.radius ?? 0, volley: new Set(), ...(burn ? { burn } : {}), hit,
+          ...(cfg.woundMs ? { extras: true } : {}),
         });
         break;
       }
@@ -2391,6 +2395,11 @@ export class GameWorld {
         if (distance(o, dashTo) < 0.3) return { hits: [], fail: 'BLOCKED' };
         return { hits: [], dashTo };
       }
+      case 'faixa': {
+        // linha larga: todos numa faixa de largura 2 x radius até o alcance (para na parede)
+        const end = rayEnd(layout, o.x, o.y, fx, fy, reach);
+        return { hits: targets.filter((x) => lineIntersects(o, end, x, cfg.radius ?? 1.5)), to: end };
+      }
       case 'muro': {
         // à frente, atravessado na direção em que olha (3 casas de largura)
         const c = ahead(o, fx, fy, Math.max(1.5, reach || 2.5));
@@ -2433,7 +2442,7 @@ export class GameWorld {
       this.broadcastMap(s.map, { type: 'player_status', playerId: s.id, status: 'rooted', ms: cfg.selfRootMs });
     }
     switch (form) {
-      case 'linha': case 'anel_golpe': case 'agarre': {
+      case 'linha': case 'anel_golpe': case 'agarre': case 'faixa': {
         const k = form === 'agarre' && hits.length > 1 ? 1 / hits.length : 1;
         for (const x of hits) { strike(x, k); if (this.stillThere(x)) this.applyExtras(x, s, cfg, t, o); }
         break;
@@ -2522,6 +2531,12 @@ export class GameWorld {
         this.broadcastMap(s.map, { type: 'summon', id: m.id, ownerId: s.id, kind: m.type, hp, maxHp: hp, ms: cfg.durationMs ?? 6000 });
         break;
       }
+      case 'escudo_vida': {
+        // escudo único: até 25% da vida máxima; o novo troca o anterior
+        s.absorb = { hp: Math.round(s.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.12)), until: t + (cfg.durationMs ?? 3000) };
+        this.sendTo(s, { type: 'notice', text: `Escudo: ${s.absorb.hp} de vida por ${Math.round((cfg.durationMs ?? 3000) / 1000)} s.`, tone: 'good' });
+        break;
+      }
       case 'muro': {
         if (!to) break;
         const width = cfg.radius ?? 3, thick = cfg.thick ?? 1;
@@ -2571,6 +2586,7 @@ export class GameWorld {
     if (cfg.silenceMs && this.stillThere(x)) this.applyEffect(x, 'silencio', t, cfg.silenceMs, undefined, by);
     if (cfg.darkMs && x.kind === 'player' && this.stillThere(x)) this.applyEffect(x, 'escuridao', t, cfg.darkMs, undefined, by);
     if (cfg.invertMs && x.kind === 'player' && this.stillThere(x)) this.applyEffect(x, 'invertido', t, cfg.invertMs, undefined, by);
+    if (cfg.woundMs && this.stillThere(x)) this.applyEffect(x, 'ferida', t, cfg.woundMs, undefined, by);
     if (cfg.drain && x.kind === 'player') {
       const got = Math.min(cfg.drain, x.session.chakra);
       x.session.chakra -= got;
@@ -2820,6 +2836,7 @@ export class GameWorld {
         const burn = p.burn && p.hit && x.kind === 'player' && this.inPvpArea(p.owner)
           ? { ms: p.burn.ms, amount: pvpBurnPerTick(p.hit, p.owner.stats, this.config.combat.damageScale) } : p.burn;
         if (burn && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, burn.ms, burn.amount, p.owner);
+        if (p.extras && p.skill && this.stillThere(x)) this.applyExtras(x, p.owner, this.config.combat.skills[p.skill], t, at);   // v30
       }
     } else if (hit) {
       p.volley.add(hit.id);
@@ -3907,6 +3924,12 @@ export class GameWorld {
       session.netLog.set(by.id, log);
     }
     if (t < session.drUntil) dmg = Math.round(dmg * (1 - session.drPct));   // v30: Dança dos Mil Cortes, Toupeira
+    if (session.absorb && t < session.absorb.until && dmg > 0) {            // v30: escudo com vida (Véu de Vento)
+      const took = Math.min(dmg, session.absorb.hp);
+      session.absorb.hp -= took;
+      dmg -= took;
+      if (session.absorb.hp <= 0) session.absorb = undefined;
+    }
     const before = session.hp;
     session.hp = Math.max(0, session.hp - dmg);
     if (by && label) this.pvpStats.hit(label, classOf(by), before - session.hp);
@@ -4144,6 +4167,7 @@ export class GameWorld {
     s.basicBuff = undefined;
     s.concentrationUntil = 0;
     s.drUntil = 0;
+    s.absorb = undefined;
     s.hp = s.stats.maxHp;
     s.chakra = s.stats.maxChakra;
     s.shield = 0;

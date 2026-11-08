@@ -36,7 +36,7 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     }
   });
 
-  it('catálogo do banco == catálogo do servidor (classes, 72 jutsus com a v16 e a v18, itens)', async () => {
+  it('catálogo do banco == catálogo do servidor (10 classes, todos os jutsus com a v16 e a v18, itens)', async () => {
     const classes = (await t.pool.query('SELECT code, name, icon FROM game.classes ORDER BY sort_order')).rows;
     assert.deepEqual(classes, CLASSES.map((c) => ({ code: c, name: CLASS_INFO[c].name, icon: CLASS_INFO[c].icon })));
     const jutsus = (await t.pool.query('SELECT code, name, class_code, tier FROM game.jutsus ORDER BY code')).rows;
@@ -105,15 +105,18 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     await store.addItem(id, 'scroll_water', 3);
     const ok = await store.extract(id, 'water', 2, 0.59, 0);              // < 60%: sucesso
     assert.ok(ok.ok && ok.outcome === 'success' && ok.jutsu === 'water_2' && ok.scrollsLeft === 1);
-    // v30: o tier 2 da Água tem 2 jutsus (Onda de Choque e Xarope Pegajoso): o 2º sai na próxima, depois acabou
-    await store.addItem(id, 'scroll_water', 1);
-    const second = await store.extract(id, 'water', 2, 0, 0);
-    assert.ok(second.ok && second.jutsu === 'water_xarope');
+    // v30: o tier 2 da Água tem vários jutsus: cada Extração dá um que falta, até acabarem
+    const tier2: string[] = JUTSUS.filter((j) => j.class === 'water' && j.tier === 2).map((j) => j.code).sort();
+    for (let i = 1; i < tier2.length; i++) {
+      await store.addItem(id, 'scroll_water', 2);
+      const next = await store.extract(id, 'water', 2, 0, 0);
+      assert.ok(next.ok && next.outcome === 'success' && tier2.includes(next.jutsu!));
+    }
     await store.addItem(id, 'scroll_water', 2);
     assert.equal((await store.extract(id, 'water', 2, 0, 0) as { outcome: string }).outcome, 'all_learned');
     const success = await store.extract(id, 'water', 1, 0.1, 0);
     assert.ok(success.ok && success.jutsu === 'water');
-    assert.deepEqual(Object.keys((await makeFindPlayer(t.db)(id))!.jutsus!).sort(), ['substitution', 'teleport', 'water', 'water_2', 'water_xarope']);
+    assert.deepEqual(Object.keys((await makeFindPlayer(t.db)(id))!.jutsus!).sort(), ['substitution', 'teleport', 'water', ...tier2].sort());
   });
 
   it('loja: preço do catálogo, ryō não fica negativo, item fora da loja recusado; equipar só o que tem', async () => {

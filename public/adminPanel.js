@@ -14,7 +14,7 @@ const WEATHERS = [['normal', '☁️ Normal'], ['quente', '☀️ Quente'], ['ch
 const PHASES = [['amanhecer', '🌅 Amanhecer'], ['dia', '🌞 Dia'], ['entardecer', '🌇 Entardecer'], ['noite', '🌙 Noite']];
 const MODULES = [['vilas', 'Vilas e Kage'], ['pvp', 'Zona de Conflito'], ['renegados', 'Renegados'], ['akatsuki', 'Akatsuki']];
 const KIND_NAME = { weapon: 'Arma', scroll: 'Pergaminho', cape: 'Capa', shoes: 'Sapato', accessory: 'Acessório' };
-const CLASS_ORDER = ['fire', 'water', 'lightning', 'stone', 'taijutsu', 'illusion', 'shadow', 'heal', 'weapons'];
+const CLASS_ORDER = ['fire', 'water', 'lightning', 'stone', 'taijutsu', 'illusion', 'shadow', 'heal', 'weapons', 'wind'];
 const CONFIRM_MS = 3000;
 
 export function mountAdminUI(api) {

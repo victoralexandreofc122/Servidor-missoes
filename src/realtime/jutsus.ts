@@ -13,7 +13,7 @@
 import type { SkillConfig } from './config.js';
 import { CAST_OF_EXISTING, CLASS_V2, CLASS_V2_CODES } from './jutsusClasses.js';
 
-export const CLASSES = ['heal', 'shadow', 'illusion', 'stone', 'fire', 'water', 'taijutsu', 'weapons', 'lightning'] as const;
+export const CLASSES = ['heal', 'shadow', 'illusion', 'stone', 'fire', 'water', 'taijutsu', 'weapons', 'lightning', 'wind'] as const;
 export type ClassCode = (typeof CLASSES)[number];
 
 export const CLASS_INFO: Readonly<Record<ClassCode, { name: string; icon: string; desc: string }>> = {
@@ -26,6 +26,8 @@ export const CLASS_INFO: Readonly<Record<ClassCode, { name: string; icon: string
   taijutsu: { name: 'Taijutsu', icon: '👊', desc: 'Avança até o inimigo e golpeia: socos e chutes devastadores.' },
   weapons: { name: 'Armas', icon: '🗡️', desc: 'Kunais em leque: o atributo Armas aumenta o dano.' },
   lightning: { name: 'Relâmpago', icon: '⚡', desc: 'Raio em linha reta que paralisa o primeiro inimigo por um instante. Num alvo molhado: combo, 30% a mais.' },
+  // v30: a classe nova da adaptação (revisao_egm/jutsus/adapt_raiton_futon.md)
+  wind: { name: 'Vento', icon: '🌪️', desc: 'Empurra, corta de longe e joga o inimigo para o alto. Rajadas rápidas e escudo contra tiros.' },
 };
 
 /** Regras de combate. Os jutsus de classe usam a do tier 1; os da Academia têm as próprias. */
@@ -71,12 +73,15 @@ export type JutsuForm =
   | 'agarre'          // linha que prende vários alvos (Agarre Múltiplo)
   | 'palma'           // canalização: cura o aliado colado (ou a si, pela metade) no fim (Palma Mística)
   | 'bumerangue'      // projétil que vai, atravessa e volta para a mão (Shuriken Gigante de Chakra)
+  | 'faixa'           // linha larga: acerta todos numa faixa (Lâmina em Arco)
+  | 'escudo_vida'     // escudo com vida (absorve dano), um por vez, até 25% da vida (Véu de Vento)
   | 'invocacao'       // invocação aliada à frente (Clone de Água, Golem de Terra)
   | 'muro';           // muro à frente: bloqueia passagem e projéteis, tem vida (Muralha de Terra, Muro de Água)
 
 export const FORM_OF_MECHANIC: Readonly<Record<Mechanic, JutsuForm>> = {
   fire: 'linha_explode', water: 'cone', taijutsu: 'avanco', illusion: 'anel', shadow: 'linha_prende', stone: 'escudo',
   heal: 'cura', weapons: 'trilhas', lightning: 'linha_raio', teleport: 'teleporte', substitution: 'substituicao',
+  wind: 'cone_golpe',   // v30: Palma do Vendaval (cone curto que empurra)
 };
 
 export interface JutsuDef {
@@ -107,6 +112,7 @@ const NAMES: Readonly<Record<ClassCode, readonly [string, string, string, string
   taijutsu: ['Taijutsu', 'Chute Ciclone', 'Cem Golpes', 'Punho do Céu'],
   weapons: ['Chuva de Kunais', 'Leque de Shurikens', 'Tempestade de Lâminas', 'Arsenal Celeste'],
   lightning: ['Faísca Rasante', 'Lança Trovão', 'Corrente Elétrica', 'Julgamento do Raio'],
+  wind: ['Palma do Vendaval', 'Esferas de Vácuo', 'Tornado Cortante', 'Estrela Espiral'],
 };
 
 export const ACADEMY_JUTSUS = ['teleport', 'substitution'] as const;
@@ -256,6 +262,8 @@ export const BASE_SKILLS: Readonly<Record<Mechanic, SkillConfig>> = {
   // Relâmpago: linha instantânea de 4,5 casas; o primeiro alvo leva dano alto, um choque rápido e fica paralisado 2 s
   // (anda a 70% e leva um choque de 0,25 s por segundo; mais tempo nos tiers altos).
   lightning: { cost: 20, cooldownMs: 2000, damage: 30, range: 4.5, stunMs: 600, paralysisMs: 2000 },   // v30: atordoa 0,6 s (era 0,4)
+  // v30, Vento: Palma do Vendaval: cone curto de 2 casas (60°) que empurra 2 casas.
+  wind: { cost: 15, cooldownMs: 4000, damage: 18, range: 2, coneDeg: 60, push: 2 },
   // Academia: o alcance e a recarga reais vêm do NÍVEL do jutsu (teleportRange, substitutionCooldownMs).
   teleport: { cost: 10, cooldownMs: 1500, range: 3 },
   substitution: { cost: 20, cooldownMs: 30_000, durationMs: 5000 },

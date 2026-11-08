@@ -36,14 +36,15 @@ RETURN kit IS NOT NULL
     'illusion', 'illusion_2', 'illusion_3', 'illusion_4', 'stone', 'stone_2', 'stone_3', 'stone_4', 'fire', 'fire_2',
     'fire_3', 'fire_4', 'water', 'water_2', 'water_3', 'water_4', 'taijutsu', 'taijutsu_2', 'taijutsu_3',
     'taijutsu_4', 'weapons', 'weapons_2', 'weapons_3', 'weapons_4', 'lightning', 'lightning_2', 'lightning_3',
-    'lightning_4', 'fire_endan', 'fire_kasumi', 'fire_hibashiri', 'fire_ryuka', 'fire_haiseki', 'fire_lamina',
-    'fire_hotan', 'water_dragao', 'water_xarope', 'lightning_corrente', 'lightning_shuriken', 'lightning_impulso',
-    'lightning_raio', 'lightning_fluxo', 'stone_pilares', 'stone_rocha', 'stone_toupeira', 'stone_punho',
-    'heal_desintox', 'heal_bisturi', 'heal_aura', 'weapons_multi', 'weapons_kunai', 'weapons_dragoes',
-    'illusion_kai', 'illusion_estaca', 'illusion_templo', 'taijutsu_rasteira', 'taijutsu_ascendente',
-    'taijutsu_lotus', 'taijutsu_portoes', 'shadow_recuo', 'shadow_estrangular', 'shadow_agarre', 'water_nevoa',
-    'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma', 'weapons_gigante', 'water_muro',
-    'stone_muralha', 'water_clone', 'stone_golem'
+    'lightning_4', 'wind', 'wind_2', 'wind_3', 'wind_4', 'fire_endan', 'fire_kasumi', 'fire_hibashiri', 'fire_ryuka',
+    'fire_haiseki', 'fire_lamina', 'fire_hotan', 'water_dragao', 'water_xarope', 'lightning_corrente',
+    'lightning_shuriken', 'lightning_impulso', 'lightning_raio', 'lightning_fluxo', 'stone_pilares', 'stone_rocha',
+    'stone_toupeira', 'stone_punho', 'heal_desintox', 'heal_bisturi', 'heal_aura', 'weapons_multi', 'weapons_kunai',
+    'weapons_dragoes', 'illusion_kai', 'illusion_estaca', 'illusion_templo', 'taijutsu_rasteira',
+    'taijutsu_ascendente', 'taijutsu_lotus', 'taijutsu_portoes', 'shadow_recuo', 'shadow_estrangular',
+    'shadow_agarre', 'water_nevoa', 'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma',
+    'weapons_gigante', 'water_muro', 'stone_muralha', 'water_clone', 'stone_golem', 'wind_shuriken', 'wind_veu',
+    'wind_salto', 'wind_arco'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 

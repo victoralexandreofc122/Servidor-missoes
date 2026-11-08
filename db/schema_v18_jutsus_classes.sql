@@ -1,15 +1,23 @@
 -- =====================================================================================================================
--- v18: Jutsus v2, entrega 5 (as outras 8 classes). Rode no SQL Editor do Neon, no branch `production`, depois da v16.
+-- v18: Jutsus v2, entrega 5 (as outras classes, a classe Vento e os jutsus de sistema próprio). Rode no SQL Editor do Neon, no branch `production`, depois da v16.
 -- Pode rodar de novo sem erro. Mexe no catálogo game.jutsus e na regra dos kits (game.valid_kit):
 --
---  1. 60 jutsus em game.jutsus: os 37 novos (códigos novos) e os nomes novos dos tiers 2 a 4 de Água, Relâmpago,
+--  1. 68 jutsus em game.jutsus: os 45 novos (códigos novos) e os nomes novos dos tiers 2 a 4 de Água, Relâmpago,
 --     Terra, Médico, Armas, Ilusão, Taijutsu e Sombra (os códigos ficam: quem já tem continua com eles, com o uso e o
 --     nível). A Extração (game.extract_jutsu, v10) passa a sortear entre eles.
---  2. game.valid_kit aceita os 82 códigos do jogo. A lista só cresce: todo kit de hoje continua valendo.
+--  2. game.valid_kit aceita os 90 códigos do jogo. A lista só cresce: todo kit de hoje continua valendo.
 --
 -- Nenhum código é renomeado nem apagado.
 -- =====================================================================================================================
 BEGIN;
+
+-- a classe Vento (a 10ª) e o pergaminho dela, antes dos jutsus (chave estrangeira)
+INSERT INTO game.classes (code, name, icon, sort_order) VALUES
+  ('wind', 'Vento', '🌪️', 10)
+ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, icon = EXCLUDED.icon, sort_order = EXCLUDED.sort_order;
+INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
+  ('scroll_wind', 'Pergaminho de Vento', 'scroll', 'wind', NULL, 150, 'scrolls')
+ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, class_code = EXCLUDED.class_code, price_ryo = EXCLUDED.price_ryo, shop = EXCLUDED.shop;
 
 INSERT INTO game.jutsus (code, name, class_code, tier) VALUES
   ('heal_2', 'Punho Sísmico', 'heal', 2),
@@ -35,6 +43,10 @@ INSERT INTO game.jutsus (code, name, class_code, tier) VALUES
   ('lightning_2', 'Agulhas de Trovão', 'lightning', 2),
   ('lightning_3', 'Investida Elétrica', 'lightning', 3),
   ('lightning_4', 'Dragão do Trovão', 'lightning', 4),
+  ('wind', 'Palma do Vendaval', 'wind', 1),
+  ('wind_2', 'Esferas de Vácuo', 'wind', 2),
+  ('wind_3', 'Tornado Cortante', 'wind', 3),
+  ('wind_4', 'Estrela Espiral', 'wind', 4),
   ('water_dragao', 'Dragão d’Água', 'water', 1),
   ('water_xarope', 'Xarope Pegajoso', 'water', 2),
   ('lightning_corrente', 'Corrente Rasteira', 'lightning', 1),
@@ -71,7 +83,11 @@ INSERT INTO game.jutsus (code, name, class_code, tier) VALUES
   ('water_muro', 'Muro de Água', 'water', 1),
   ('stone_muralha', 'Muralha de Terra', 'stone', 1),
   ('water_clone', 'Clone de Água', 'water', 2),
-  ('stone_golem', 'Golem de Terra Titânico', 'stone', 4)
+  ('stone_golem', 'Golem de Terra Titânico', 'stone', 4),
+  ('wind_shuriken', 'Shuriken do Vento', 'wind', 1),
+  ('wind_veu', 'Véu de Vento', 'wind', 1),
+  ('wind_salto', 'Passo Aéreo', 'wind', 1),
+  ('wind_arco', 'Lâmina em Arco', 'wind', 2)
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, class_code = EXCLUDED.class_code, tier = EXCLUDED.tier;
 
 CREATE OR REPLACE FUNCTION game.valid_kit(kit text[]) RETURNS boolean
@@ -83,20 +99,21 @@ RETURN kit IS NOT NULL
     'illusion', 'illusion_2', 'illusion_3', 'illusion_4', 'stone', 'stone_2', 'stone_3', 'stone_4', 'fire', 'fire_2',
     'fire_3', 'fire_4', 'water', 'water_2', 'water_3', 'water_4', 'taijutsu', 'taijutsu_2', 'taijutsu_3',
     'taijutsu_4', 'weapons', 'weapons_2', 'weapons_3', 'weapons_4', 'lightning', 'lightning_2', 'lightning_3',
-    'lightning_4', 'fire_endan', 'fire_kasumi', 'fire_hibashiri', 'fire_ryuka', 'fire_haiseki', 'fire_lamina',
-    'fire_hotan', 'water_dragao', 'water_xarope', 'lightning_corrente', 'lightning_shuriken', 'lightning_impulso',
-    'lightning_raio', 'lightning_fluxo', 'stone_pilares', 'stone_rocha', 'stone_toupeira', 'stone_punho',
-    'heal_desintox', 'heal_bisturi', 'heal_aura', 'weapons_multi', 'weapons_kunai', 'weapons_dragoes',
-    'illusion_kai', 'illusion_estaca', 'illusion_templo', 'taijutsu_rasteira', 'taijutsu_ascendente',
-    'taijutsu_lotus', 'taijutsu_portoes', 'shadow_recuo', 'shadow_estrangular', 'shadow_agarre', 'water_nevoa',
-    'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma', 'weapons_gigante', 'water_muro',
-    'stone_muralha', 'water_clone', 'stone_golem'
+    'lightning_4', 'wind', 'wind_2', 'wind_3', 'wind_4', 'fire_endan', 'fire_kasumi', 'fire_hibashiri', 'fire_ryuka',
+    'fire_haiseki', 'fire_lamina', 'fire_hotan', 'water_dragao', 'water_xarope', 'lightning_corrente',
+    'lightning_shuriken', 'lightning_impulso', 'lightning_raio', 'lightning_fluxo', 'stone_pilares', 'stone_rocha',
+    'stone_toupeira', 'stone_punho', 'heal_desintox', 'heal_bisturi', 'heal_aura', 'weapons_multi', 'weapons_kunai',
+    'weapons_dragoes', 'illusion_kai', 'illusion_estaca', 'illusion_templo', 'taijutsu_rasteira',
+    'taijutsu_ascendente', 'taijutsu_lotus', 'taijutsu_portoes', 'shadow_recuo', 'shadow_estrangular',
+    'shadow_agarre', 'water_nevoa', 'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma',
+    'weapons_gigante', 'water_muro', 'stone_muralha', 'water_clone', 'stone_golem', 'wind_shuriken', 'wind_veu',
+    'wind_salto', 'wind_arco'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
 COMMIT;
 
 -- Conferência (opcional):
--- SELECT count(*) FROM game.jutsus;                                                               -- 82
+-- SELECT count(*) FROM game.jutsus;                                                               -- 90
 -- SELECT class_code, count(*) FROM game.jutsus GROUP BY class_code ORDER BY class_code;
 -- SELECT game.valid_kit(ARRAY['water_dragao', 'stone_pilares', 'heal_aura', 'shadow_4']);         -- true

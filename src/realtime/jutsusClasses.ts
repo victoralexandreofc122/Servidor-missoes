@@ -40,6 +40,8 @@ export const CLASS_V2_CODES = [
   'water_muro', 'stone_muralha',
   // v30, as invocações
   'water_clone', 'stone_golem',
+  // v30, a classe Vento
+  'wind_shuriken', 'wind_veu', 'wind_salto', 'wind_arco',
 ] as const;
 
 /** Apaga o que vem da mecânica e não vale para o jutsu novo (undefined apaga o número do fundo). */
@@ -177,6 +179,22 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 0, cooldownMs: 20_000, durationMs: 5000, basicBuff: 0.15, speedBuff: 0.15, hpCost: 0.1, castMs: 500, castSlow: 0, range: 0 } },
   taijutsu_4: { name: 'Punho do Céu', class: 'taijutsu', tier: 4, form: 'cone_golpe',
     numbers: { ...CLEAN, base: 6, damage: dmg(6, 4), cost: 30, cooldownMs: 12_000, range: 3, radius: undefined, coneDeg: 90, hits: 3, hitsPve: 5, hpCost: 0.05, castMs: 600, castSlow: 0 } },
+
+  // ------------------------------------------------------------------ Vento (classe nova; o tier 1 é a Palma do Vendaval, mecânica wind)
+  wind_shuriken: { name: 'Shuriken do Vento', class: 'wind', tier: 1, form: 'projetil',
+    numbers: { ...CLEAN, base: 20, damage: dmg(20, 1), cost: 12, cooldownMs: 3000, range: 9, speed: 16, radius: 0, coneDeg: undefined } },
+  wind_veu: { name: 'Véu de Vento', class: 'wind', tier: 1, form: 'escudo_vida',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 15_000, range: 0, coneDeg: undefined, shieldShare: 0.12, durationMs: 3000 } },
+  wind_salto: { name: 'Passo Aéreo', class: 'wind', tier: 1, form: 'recuo',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 9000, range: 4, coneDeg: undefined, dash: 4 } },
+  wind_2: { name: 'Esferas de Vácuo', class: 'wind', tier: 2, form: 'leque',
+    numbers: { ...CLEAN, base: 8, damage: dmg(8, 2), cost: 20, cooldownMs: 5000, range: 7, speed: 15, radius: 0, coneDeg: undefined, shots: 3, cap: 3, castMs: 200 } },
+  wind_arco: { name: 'Lâmina em Arco', class: 'wind', tier: 2, form: 'faixa',
+    numbers: { ...CLEAN, base: 28, damage: dmg(28, 2), cost: 25, cooldownMs: 7000, range: 7, radius: 1.5, coneDeg: undefined, castMs: 300 } },
+  wind_3: { name: 'Tornado Cortante', class: 'wind', tier: 3, form: 'aviso',
+    numbers: { ...CLEAN, base: 22, damage: dmg(22, 3), cost: 30, cooldownMs: 14_000, range: 6, radius: 2, coneDeg: undefined, durationMs: 400, stunMs: 1300, castMs: 500 } },
+  wind_4: { name: 'Estrela Espiral', class: 'wind', tier: 4, form: 'linha_explode',
+    numbers: { ...CLEAN, base: 30, damage: dmg(30, 4), cost: 45, cooldownMs: 30_000, range: 8, radius: 2.5, speed: 11, coneDeg: undefined, woundMs: 4000, castMs: 1200, castSlow: 0 } },
 
   // ------------------------------------------------------------------ Sombra
   shadow_recuo: { name: 'Reflexo Tático', class: 'shadow', tier: 1, form: 'recuo',

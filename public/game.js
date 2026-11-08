@@ -1076,7 +1076,7 @@ function handleMessage(msg) {
       else if (form === 'linha_fogo') state.effects.push({ skill: 'fire_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, start: now });
       // v30: as formas das outras classes
       else if (form === 'cone_golpe') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 1.5, cone: info.coneDeg ?? 90, color, start: now });
-      else if (form === 'linha' || form === 'ricochete' || form === 'agarre') state.effects.push({ skill: 'jutsu_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, color, start: now });
+      else if (form === 'linha' || form === 'ricochete' || form === 'agarre' || form === 'faixa') state.effects.push({ skill: 'jutsu_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, color, start: now });
       else if (form === 'anel_golpe') state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: info.radius ?? 2, color, start: now });
       else if (form === 'impacto' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_ring', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: info.radius ?? 1.5, color, start: now });
       else if (form === 'alvo' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_burst', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: 0.9, color, start: now });
@@ -1965,6 +1965,7 @@ const SKILLS = {
   heal: { color: '#5fe07a', ms: 900 },
   weapons: { color: '#c9d2da', ms: 420 },
   lightning: { color: '#fff27a', ms: 360 },
+  wind: { color: '#9fe8c8', ms: 420 },   // v30
   teleport: { color: '#d6efff', ms: 380 },
   substitution: { color: '#e8c66a', ms: 600 },
   log: { color: '#8b5a2b', ms: 1400 },         // tronco que levou o golpe da Substituição
@@ -1980,10 +1981,10 @@ const SKILLS = {
 };
 const GROUND_FX = new Set(['shadow', 'water', 'log', 'slam', 'fire_cone', 'fire_line', 'jutsu_cone', 'jutsu_line', 'jutsu_ring', 'jutsu_burst']);
 /** v29 (Jutsus v2): a forma do jutsu (o welcome só manda quando não é a da mecânica). */
-const FORM_OF_MECHANIC = { fire: 'linha_explode', water: 'cone', taijutsu: 'avanco', illusion: 'anel', shadow: 'linha_prende', stone: 'escudo', heal: 'cura', weapons: 'trilhas', lightning: 'linha_raio', teleport: 'teleporte', substitution: 'substituicao' };
+const FORM_OF_MECHANIC = { fire: 'linha_explode', water: 'cone', taijutsu: 'avanco', illusion: 'anel', shadow: 'linha_prende', stone: 'escudo', heal: 'cura', weapons: 'trilhas', lightning: 'linha_raio', wind: 'cone_golpe', teleport: 'teleporte', substitution: 'substituicao' };
 const formOf = (skill) => state.world.skills?.[skill]?.form || FORM_OF_MECHANIC[mechanicOf(skill)];
 /** Cor dos selos (barra sobre a cabeça) pelo elemento. */
-const CAST_COLOR = { fire: '#ff7a2e', water: '#3ca6ff', lightning: '#fff27a', illusion: '#a072ff', shadow: '#8b7ad8', stone: '#c9a678', heal: '#5fe07a', taijutsu: '#f2b13a', weapons: '#c9d2da' };
+const CAST_COLOR = { fire: '#ff7a2e', water: '#3ca6ff', lightning: '#fff27a', illusion: '#a072ff', shadow: '#8b7ad8', stone: '#c9a678', heal: '#5fe07a', taijutsu: '#f2b13a', weapons: '#c9d2da', wind: '#9fe8c8' };
 /** Efeitos em sprite (assets/vfx). Os de `SKILLS`/drawEffect ficam de reserva, se as folhas não carregarem. */
 const vfx = new VFXManager();
 
@@ -2029,7 +2030,7 @@ function playCastVfx(msg, mechanic, now) {
  * Mecânicas que miram no alvo focado (as mesmas do servidor). Taijutsu: sempre o mais perto; Ilusão: círculo
  * em volta do jogador; Pedra e Cura: em si mesmo (a Cura pega o aliado mais ferido por perto).
  */
-const DIRECTED = new Set(['fire', 'water', 'shadow', 'lightning', 'weapons']);
+const DIRECTED = new Set(['fire', 'water', 'shadow', 'lightning', 'weapons', 'wind']);
 /** Mecânica e nome de um jutsu (catálogo do welcome). */
 const mechanicOf = (skill) => state.world.skills?.[skill]?.mechanic || skill;
 const skillName = (skill) => state.world.skills?.[skill]?.name || skill;
@@ -2815,7 +2816,7 @@ function capeIcon(code) {
 /** Cor da classe (o selo no pergaminho de classe). */
 const CLASS_TINT = {
   fire: '#e8572f', water: '#3c9be0', lightning: '#f2d25a', taijutsu: '#d9a441', illusion: '#9a6be0',
-  shadow: '#5a4f83', stone: '#8a6a45', heal: '#4fbf6a', weapons: '#b8b8c8',
+  shadow: '#5a4f83', stone: '#8a6a45', heal: '#4fbf6a', weapons: '#b8b8c8', wind: '#6fcfa8',
 };
 
 /** O ícone de um item num canvas: a pixel art da arma, do pergaminho (com o selo da classe), da capa ou do sapato. */
@@ -3228,6 +3229,7 @@ const SKILL_UI = {
   heal: { icon: '✚', color: '#4fbf6a' },
   weapons: { icon: '🗡️', color: '#8a96a3' },
   lightning: { icon: '⚡', color: '#d9c22e' },
+  wind: { icon: '🌪️', color: '#6fcfa8' },   // v30: a classe Vento
   teleport: { icon: '💨', color: '#6fa8d6' },
   substitution: { icon: '🪵', color: '#a0703a' },
 };

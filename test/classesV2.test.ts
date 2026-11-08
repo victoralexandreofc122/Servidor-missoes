@@ -57,9 +57,9 @@ function scene(skill: string, monsters: [number, number][] = [[2, 0]], pvp = fal
 }
 
 describe('Jutsus v2, entrega 5: as outras classes', () => {
-  it('catálogo: 82 jutsus; 37 códigos novos; toda classe tem os 4 tiers e o tier 1 de sempre', () => {
-    assert.equal(JUTSUS.length, 82);
-    assert.equal(CLASS_V2_CODES.length, 37);
+  it('catálogo: 90 jutsus; 41 códigos novos; toda classe tem os 4 tiers e o tier 1 de sempre', () => {
+    assert.equal(JUTSUS.length, 90);
+    assert.equal(CLASS_V2_CODES.length, 41);
     for (const c of CLASSES) {
       const tiers = new Set(JUTSUS.filter((j) => j.class === c).map((j) => j.tier));
       assert.deepEqual([...tiers].sort(), [1, 2, 3, 4], c);
@@ -403,5 +403,44 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     w.world.damageMonster(w.world.monsters.get(sum.id), 10_000, sb, w.world.now(), 'attack');
     assert.equal(w.world.monsters.has(sum.id), false);
     assert.equal(sb.xp ?? 0, xp, 'sem XP');
+  });
+
+  // ---------------------------------------------------------------- a classe Vento (v30)
+
+  it('Vento: a classe nova tem os 4 tiers e mira em linha; Palma do Vendaval empurra', () => {
+    assert.ok(CLASSES.includes('wind'));
+    const { m, cast, dealt, row } = scene('wind', [[1.5, 0]]);
+    const before = m.x;
+    cast();
+    assert.ok(dealt(m) > 0);
+    assert.ok(m.x > before, 'empurrado');
+    void row;
+  });
+
+  it('Lâmina em Arco (faixa): acerta todos na faixa larga, inclusive fora da linha do meio', () => {
+    const { ms, cast, dealt } = scene('wind_arco', [[3, 0], [5, 1.2]]);
+    cast();
+    assert.ok(dealt(ms[0]) > 0 && dealt(ms[1]) > 0);
+  });
+
+  it('Véu de Vento (escudo com vida): absorve até 12% da vida máxima', () => {
+    const { s, cast, world } = scene('wind_veu', []);
+    cast();
+    const cap = Math.round(s.stats.maxHp * 0.12);
+    assert.equal(s.absorb.hp, cap);
+    const hp = s.hp;
+    world.damagePlayer(s, cap + 5, world.now());
+    assert.equal(s.hp, hp - 5, 'o escudo segurou o resto');
+    assert.equal(s.absorb, undefined, 'acabou');
+  });
+
+  it('Estrela Espiral: explode em área e deixa ferida (cura recebida pela metade)', () => {
+    const { ms, cast, run, world, dealt } = scene('wind_4', [[3, 0], [3.5, 1]]);
+    cast();
+    run(1000);
+    for (const m of ms) {
+      assert.ok(dealt(m) > 0);
+      assert.ok(world.effectsOf({ kind: 'monster', id: m.id, monster: m }).has('ferida'));
+    }
   });
 });

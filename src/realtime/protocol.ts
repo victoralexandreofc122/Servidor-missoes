@@ -160,7 +160,7 @@ export type Skill = JutsuCode;
  * Mecânicas que miram no alvo focado. Taijutsu é sempre no mais perto; Ilusão é um círculo em volta
  * do jogador; Pedra é em si mesmo; a Cura aceita um ALIADO focado (id de jogador).
  */
-export const DIRECTED_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'water', 'shadow', 'lightning', 'weapons']);
+export const DIRECTED_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'water', 'shadow', 'lightning', 'weapons', 'wind']);
 export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(JUTSUS.filter((j) => DIRECTED_MECHANICS.has(j.mechanic)).map((j) => j.code));
 
 /**
@@ -168,7 +168,7 @@ export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(JUTSUS.filter(
  * segurando e arrastando o botão (o `dir` do cast vira a cardinal mais perto); num toque rápido, o servidor escolhe a
  * direção que passa mais perto do alvo focado (ou do inimigo mais perto no alcance).
  */
-export const LINE_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'shadow', 'lightning', 'weapons']);
+export const LINE_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'shadow', 'lightning', 'weapons', 'wind']);
 
 /** Id de monstro como o servidor cria ("m" + número). */
 const monsterId = z.string().regex(/^m\d{1,9}$/);
