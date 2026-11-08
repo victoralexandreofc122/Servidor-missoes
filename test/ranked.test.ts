@@ -222,6 +222,9 @@ describe('modo rankeado (v29): Vale das Estátuas, fila e partida', () => {
     sb.hp = 1;
     a.send({ type: 'attack', targetId: b.id });
     assert.equal(a.conn.last('duel_state').phase, 'interval');
+    assert.equal(sb.effects.size, 0, 'a queimadura acabou junto com a rodada');
+    (w as any).applyEffect({ kind: 'player', id: b.id, x: sb.x, y: sb.y, session: sb }, 'queimadura', (w as any).now(), 3000, 3, sa);
+    assert.equal(sb.effects.size, 0, 'no intervalo ninguém ganha efeito (a Bola de Fogo queima depois do golpe)');
     run(DUEL.intervalMs - 100);
     assert.equal(b.conn.of('player_died').length, 0, 'morreu de queimadura no intervalo');
     assert.equal(sb.dead, false);

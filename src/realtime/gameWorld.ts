@@ -2058,6 +2058,8 @@ export class GameWorld {
 
   /** Aplica (ou renova) um efeito e avisa todos no mapa. Sono acaba a meditação; lentidão muda a velocidade do dono. */
   private applyEffect(x: Target, code: EffectCode, t: number, ms?: number, amount?: number, source?: Session): void {
+    // Rankeado: fora da rodada ninguém ganha efeito (a Bola de Fogo que fecha a rodada queimava depois do golpe).
+    if (x.kind === 'player' && this.layout(x.session.map).ranked && !(this.duel?.phase === 'round' && sideOf(this.duel, x.id))) return;
     if (x.kind === 'player' && (code === 'sono' || code === 'silencio')) {
       ms = this.ccGate(x.session, source, code, ms ?? EFFECTS[code].defaultMs, t);
       if (ms <= 0) return;
