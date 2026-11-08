@@ -1106,3 +1106,17 @@ Para conferir: `SELECT count(*) FROM game.jutsus;` mostra 72.
 2. Extração de qualquer classe: os jutsus novos aparecem; no kit, cada um sai com o desenho da forma dele (linha, anel,
    cone, zona no chão, aviso).
 
+## Passo 34 — Os clãs (SQL v19)
+
+Rode `db/schema_v19_clas.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v18**. Ela cria a coluna
+da linhagem (`game.players.clan`), marca jutsu de clã em `game.jutsus` (`clan_code`) e põe os 4 jutsus do Clã Rubro.
+Pode rodar de novo. **O código novo precisa da v19** (ele lê a linhagem ao entrar): rode as migrações antes de mesclar.
+
+Para conferir: `SELECT code, tier FROM game.jutsus WHERE clan_code = 'rubro' ORDER BY tier;` mostra 4 linhas.
+
+### Testar no celular
+
+1. Um ninja Genin (nível 11 ou mais) recebe o aviso da linhagem; no chat: `/linhagem rubro`, `/linhagem umbra` ou
+   `/linhagem andarilho`. Uma vez só.
+2. Rubro: o Olho da Percepção aparece nos jutsus; os outros chegam nos níveis 20, 40 e 60.
+

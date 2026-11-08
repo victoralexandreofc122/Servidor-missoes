@@ -2425,9 +2425,11 @@ export class GameWorld {
         const end = rayEnd(layout, o.x, o.y, fx, fy, reach);
         return { hits: targets.filter((x) => lineIntersects(o, end, x, cfg.radius ?? 1.5)), to: end };
       }
-      case 'muro': {
-        // à frente, atravessado na direção em que olha (3 casas de largura)
-        const c = ahead(o, fx, fy, Math.max(1.5, reach || 2.5));
+      case 'muro': case 'invocacao': {
+        // vira para o inimigo mais perto (até 8 casas) e põe à frente: o muro atravessado, a invocação ao lado
+        const tgt = aim ?? nearest(s, targets, 8);
+        if (tgt) this.faceTo(s, tgt);
+        const c = ahead(o, s.fx, s.fy, form === 'muro' ? Math.max(1.5, reach || 2.5) : 1.5);
         return { hits: [], to: c };
       }
       case 'palma': {
@@ -2541,7 +2543,7 @@ export class GameWorld {
       }
       case 'invocacao': {
         // à frente de quem invoca; a vida é uma parte da vida máxima dele; some no fim
-        const at = ahead(o, fx, fy, 1.5);
+        const at = to ?? ahead(o, s.fx, s.fy, 1.5);
         const view = this.spawnMonster(at, t, s.map, cfg.summonType ?? 'clone_agua', true);
         const m = this.monsters.get(view.id);
         if (!m) break;
@@ -2566,7 +2568,7 @@ export class GameWorld {
       case 'muro': {
         if (!to) break;
         const width = cfg.radius ?? 3, thick = cfg.thick ?? 1;
-        const vertical = Math.abs(fx) >= Math.abs(fy);
+        const vertical = Math.abs(s.fx) >= Math.abs(s.fy);
         const w = vertical ? thick : width, h = vertical ? width : thick;
         const hp = cfg.wallHpShare ? Math.round(s.stats.maxHp * cfg.wallHpShare) : cfg.wallHp ?? 60;
         this.raiseBarrier(s.map, { k: 'iwall', x: q3(to.x - w / 2), y: q3(to.y - h / 2), w, h }, hp, cfg.wallKind ?? 'rocha', cfg.durationMs ?? 5000, t);

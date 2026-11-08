@@ -19,8 +19,9 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   do Victor (chibi, contorno escuro, sombreado em 2-3 tons). Toda mudança de arte é comparada lado a lado com a
   referência e conferida dentro do jogo antes de fechar.
 - **Versão atual:** v29 (modo rankeado no Vale dos Guardiões, migração v15), publicada na `main`. Pronto e esperando o
-  Victor (branch, migrações v16, v17 e v18 nessa ordem): Jutsus v2 com 72 jutsus (Fogo + as outras 8 classes) e a
-  conjuração, a Fase 1 dos nomes (Herança do Fogo, 4 aldeias) e a correção da rodada 2 do rankeado. Visão do endgame (nome Herança do Fogo, 4 aldeias, torneios, roadmap em 3 fases):
+  Victor (branch, migrações v16, v17, v18 e v19 nessa ordem): Jutsus v2 com 94 jutsus (10 classes, Vento nova, e o Clã
+  Rubro), conjuração, sistemas próprios (muros, invocações, escuridão...), clãs por linhagem, controle mais forte, a
+  Fase 1 dos nomes (Herança do Fogo, 4 aldeias) e a correção da rodada 2 do rankeado. Visão do endgame (nome Herança do Fogo, 4 aldeias, torneios, roadmap em 3 fases):
   `docs/endgame-visao.md`; nada dela é implementado sem o OK do Victor.
   Histórico completo no `README.md`; relatório de progresso em `docs/relatorio-final-e-progresso-2026-11.md`.
 
@@ -36,8 +37,8 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 ## Próximas entregas
 
 1. Jutsus v2 (decisão do Victor, 03/11): todos os jutsus do PDF adaptados (`docs/jutsus-v2.md`,
-   `revisao_egm/jutsus/`). Entrega 2 (Fogo novo) com migração v16; Fase 1 (nomes, v17) e as 8 classes (v18) feitas; faltam os sistemas grandes (muro, invocação,
-   canalização, escuridão), a classe Vento e os clãs (Rubro e Umbra, com linhagem).
+   `revisao_egm/jutsus/`). Entrega 2 (Fogo novo) com migração v16; Fase 1 (nomes, v17), as classes e a Vento (v18) e os clãs (v19) feitos; faltam a provocação de
+   monstros, a linhagem no Criador e a missão de despertar com objetivo.
 2. Rankeado, polimento (`revisao_egm/rankeado/`): arquibancada em degraus, estátua, selo de faixa, aviso de próximo.
 3. Cabeça (rosto e cabelo) desenhada à mão em pixel art: o Victor reprovou o rosto e o cabelo gerados por formas 3D.
 4. Site no Floot (páginas, login com a conta do jogo, admin, notificações).

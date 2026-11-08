@@ -221,8 +221,8 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   e o PDF `docs/relatorio-final-e-progresso-2026-11.pdf`.
 - **Versão publicada:** v29 (`main`). **Pronto para publicar (aguarda o Victor), no branch:** correção do rankeado,
   Jutsus v2 entrega 2 (Fogo) com a v16, Fase 1 dos nomes (Herança do Fogo) com a v17 e as outras 8 classes com a v18.
-  Ordem no Neon: v16, v17, v18; depois o código na `main` (DEPLOY.md, passos 31 a 33).
-- **Antes de qualquer commit:** `npm run verify` (599 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
+  Ordem no Neon: v16, v17, v18, v19; depois o código na `main` (DEPLOY.md, passos 31 a 34).
+- **Antes de qualquer commit:** `npm run verify` (619 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
 - **Visão do endgame (referência):** `docs/endgame-visao.md`.
 
 ### v29: Jutsus v2, entrega 2 (o Fogo novo) e a conjuração (migração v16, `db/schema_v16_jutsus_fogo.sql`)
@@ -255,9 +255,17 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   `src/realtime/jutsusClasses.ts`. Formas novas: linha com efeito, alvo único, anel, cone com vários golpes, zona (em
   pulsos, que anda junto, que puxa, que prende o 1º que entra, golpe no fim), investida, recuo, aviso em ondas,
   limpeza, cura ao longo do tempo, impacto, ricochete e agarre.
-- **Fora desta entrega** (precisam de sistema próprio, como a revisão mandou): muros, invocações (clone, golem),
-  canalização, armadilha, controles invertidos, escuridão, o bumerangue, a classe Vento e os clãs (Clã Rubro e Clã
-  Umbra, com linhagem e despertar). Cura, Ilusão e Possessão da Sombra (tier 1) continuam sem selos.
+- **Sistemas próprios (pedido do Victor, 08/11):** escuridão (a tela escurece em volta), controles invertidos,
+  armadilha, canalização (Palma Mística), bumerangue, muros (Muralha de Terra, Muro de Água: bloqueiam passagem e
+  projéteis, têm vida), invocações (Clone de Água, Golem de Terra Titânico: monstro com dono, sem XP, some no fim), a
+  classe **Vento** (10ª classe, 8 jutsus, escudo com vida) e os **clãs**: `/linhagem rubro|umbra|andarilho` a partir de
+  Genin (nível 11), uma vez só; os jutsus do clã chegam nos níveis 11, 20, 40 e 60 (Clã Rubro: 4 jutsus novos; Clã
+  Umbra: a árvore das sombras e +10% de alcance; Andarilho: Substituição 15% mais rápida). Migração v19.
+- **Controle mais forte:** 2,5 s por golpe e 5 s a cada 15 s (eram 1,5 e 2,5); todo controle dos jutsus x1,6; o choque
+  da paralisia pesa metade.
+- **Ainda não:** monstros atraídos pela invocação, a escolha da linhagem no Criador, a missão de despertar com objetivo, o
+  olho do Clã Rubro que muda de visual, a conversão da classe Sombra em Clã Umbra, Lua Ilusória e Guardião Espectral
+  Completo (poderes de evento). Cura, Ilusão e Possessão da Sombra (tier 1) continuam sem selos.
 - **Equilíbrio:** jutsu com números próprios paga o próprio custo no PvP (o x4 era do Golpe Avançado); as Armas novas
   pagam o x2,5 e usam as bases da adaptação x0,72 (o atributo e a arma somam por cima). O simulador escolhe pelo dano
   por tempo gasto (toque + selos). Todos os critérios do `pvpSim` passam.

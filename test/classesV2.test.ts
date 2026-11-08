@@ -497,4 +497,13 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     const cd = an.s.cooldowns.substitution - an.clock.now();
     assert.ok(cd < SK.substitution.cooldownMs * 0.9, `${cd}`);
   });
+
+  it('muro e invocação viram para o inimigo mais perto (o monstro atrás: o muro e o golem vão para trás)', () => {
+    const { a, cast, run, s: me, row } = scene('stone_muralha', [[-4, 0]]);
+    cast();
+    const bar = a.conn.last('barrier');
+    assert.ok(bar.x < row.x, `muro atrás (${bar.x} < ${row.x})`);
+    assert.ok(me.fx < 0);
+    void run;
+  });
 });
