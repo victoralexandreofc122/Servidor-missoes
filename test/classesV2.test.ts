@@ -119,6 +119,13 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(dealt(m), 4 * per);
   });
 
+  it('zona sem foco vai no inimigo mais perto no alcance, mesmo atrás (Prisão do Vórtice)', () => {
+    const { m, a, cast } = scene('water_4', [[-3, 0]]);
+    cast();
+    const g = a.conn.last('ground');
+    assert.ok(Math.abs(g.x - m.x) < 0.05 && Math.abs(g.y - m.y) < 0.05, `${g.x},${g.y} x ${m.x},${m.y}`);
+  });
+
   it('zona com golpe no fim e prisão do 1º que entra (Domínio das Sombras)', () => {
     const { m, cast, run, dealt, clock } = scene('shadow_4', [[3, 0]]);
     cast();

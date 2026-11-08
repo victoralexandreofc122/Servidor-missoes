@@ -219,9 +219,10 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 
 - **Relatório completo** (versão final, progresso, pendências e como continuar): `docs/relatorio-final-e-progresso-2026-11.md`
   e o PDF `docs/relatorio-final-e-progresso-2026-11.pdf`.
-- **Versão publicada:** v29 (`main`). **Pronto para publicar (aguarda o Victor):** Jutsus v2 entrega 2 + conjuração,
-  com a migração v16 (seção abaixo).
-- **Antes de qualquer commit:** `npm run verify` (575 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
+- **Versão publicada:** v29 (`main`). **Pronto para publicar (aguarda o Victor), no branch:** correção do rankeado,
+  Jutsus v2 entrega 2 (Fogo) com a v16, Fase 1 dos nomes (Herança do Fogo) com a v17 e as outras 8 classes com a v18.
+  Ordem no Neon: v16, v17, v18; depois o código na `main` (DEPLOY.md, passos 31 a 33).
+- **Antes de qualquer commit:** `npm run verify` (599 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
 - **Visão do endgame (referência):** `docs/endgame-visao.md`.
 
 ### v29: Jutsus v2, entrega 2 (o Fogo novo) e a conjuração (migração v16, `db/schema_v16_jutsus_fogo.sql`)
@@ -243,6 +244,24 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   dava 34).
 - **Migração v16:** os 7 jutsus novos e os nomes novos em `game.jutsus`, e a regra dos kits (`game.valid_kit`) aceitando
   os códigos novos (sem ela, salvar um kit com jutsu novo dá erro).
+
+### v30: Fase 1 (nomes) e as outras 8 classes (migrações v17 e v18)
+
+- **Herança do Fogo** (antes Vontade do Fogo). Aldeias: Chama Eterna (era Folha), Maré Oculta (Névoa), Rocha Antiga
+  (Nuvem), Vento Cortante (Areia); Vale dos Guardiões (era Vale das Estátuas). Os códigos das vilas não mudam.
+  `/admin vila` e `/admin kage` aceitam chama|mare|rocha|vento (os nomes antigos ainda valem). Migração v17.
+- **72 jutsus** (antes 45): Água, Relâmpago, Terra, Médico, Armas, Ilusão, Taijutsu e Sombra ganharam os jutsus da
+  adaptação (27 códigos novos; os tiers 2 a 4 de cada classe viraram os da adaptação, com o mesmo código). Catálogo em
+  `src/realtime/jutsusClasses.ts`. Formas novas: linha com efeito, alvo único, anel, cone com vários golpes, zona (em
+  pulsos, que anda junto, que puxa, que prende o 1º que entra, golpe no fim), investida, recuo, aviso em ondas,
+  limpeza, cura ao longo do tempo, impacto, ricochete e agarre.
+- **Fora desta entrega** (precisam de sistema próprio, como a revisão mandou): muros, invocações (clone, golem),
+  canalização, armadilha, controles invertidos, escuridão, o bumerangue, a classe Vento e os clãs (Clã Rubro e Clã
+  Umbra, com linhagem e despertar). Cura, Ilusão e Possessão da Sombra (tier 1) continuam sem selos.
+- **Equilíbrio:** jutsu com números próprios paga o próprio custo no PvP (o x4 era do Golpe Avançado); as Armas novas
+  pagam o x2,5 e usam as bases da adaptação x0,72 (o atributo e a arma somam por cima). O simulador escolhe pelo dano
+  por tempo gasto (toque + selos). Todos os critérios do `pvpSim` passam.
+- **Migração v18:** os jutsus em `game.jutsus` e `game.valid_kit` com os 72 códigos.
 
 ### Correção do rankeado (sem migração)
 

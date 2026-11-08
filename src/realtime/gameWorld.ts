@@ -2353,13 +2353,13 @@ export class GameWorld {
         if (distance(o, dashTo) < 0.3) return { hits: [], fail: 'BLOCKED' };
         return { hits: [], dashTo };
       }
-      case 'zona': {
+      case 'zona': case 'aviso': {
+        // sem foco, procura o inimigo mais perto no alcance (Água, Terra e Ilusão não miram em linha); ninguém: à frente
         const z = cfg.zone;
-        const c = z?.self ? { x: o.x, y: o.y } : aim && distance(o, aim) <= reach ? { x: aim.x, y: aim.y } : ahead(o, fx, fy, Math.min(3, reach || 3));
-        return { hits: [], to: c };
-      }
-      case 'aviso': {
-        const c = aim && distance(o, aim) <= reach ? { x: aim.x, y: aim.y } : ahead(o, fx, fy, Math.min(4, reach));
+        const focus = targetId !== undefined ? targets.find((x) => x.id === targetId && distance(o, x) <= reach) : undefined;
+        const tgt = focus ?? (aim && distance(o, aim) <= reach ? aim : nearest(s, targets, reach));
+        if (tgt && !z?.self) this.faceTo(s, tgt);
+        const c = z?.self ? { x: o.x, y: o.y } : tgt ? { x: tgt.x, y: tgt.y } : ahead(o, fx, fy, Math.min(form === 'zona' ? 3 : 4, reach || 3));
         return { hits: [], to: c };
       }
       default:

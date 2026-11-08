@@ -1083,3 +1083,26 @@ Para conferir: `SELECT tier, count(*) FROM game.jutsus WHERE class_code = 'fire'
 3. **Rankeado:** perca a rodada 1 com o adversário queimando você: no intervalo não aparece a tela de derrota e na
    rodada 2 você volta com a vida cheia e consegue lutar.
 
+## Passo 32 — Fase 1: Herança do Fogo e as aldeias (SQL v17)
+
+Rode `db/schema_v17_nomes.sql` inteiro no SQL Editor do Neon (branch `production`). Só troca os nomes das vilas em
+`game.villages` (Chama Eterna, Maré Oculta, Rocha Antiga, Vento Cortante); ninguém muda de vila. Pode rodar de novo.
+Para conferir: `SELECT code, name FROM game.villages ORDER BY sort_order;`
+
+## Passo 33 — As outras 8 classes (SQL v18)
+
+Rode `db/schema_v18_jutsus_classes.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v16**. Ele põe
+os jutsus de Água, Relâmpago, Terra, Médico, Armas, Ilusão, Taijutsu e Sombra em `game.jutsus` (27 novos e os nomes novos
+dos tiers 2 a 4) e deixa a regra dos kits aceitar os 72 códigos. Pode rodar de novo.
+
+**Depois das três (v16, v17, v18), o código:** mescle o branch na `main` logo em seguida (o Render publica sozinho).
+Entre as migrações e o deploy, uma Extração pode dar um jutsu que o servidor antigo ainda não conhece.
+
+Para conferir: `SELECT count(*) FROM game.jutsus;` mostra 72.
+
+### Testar no celular
+
+1. Tela de entrada e título: **Herança do Fogo**. No chat, as mensagens dizem "Aldeia da Chama Eterna" etc.
+2. Extração de qualquer classe: os jutsus novos aparecem; no kit, cada um sai com o desenho da forma dele (linha, anel,
+   cone, zona no chão, aviso).
+

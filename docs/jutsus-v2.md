@@ -43,7 +43,7 @@
 | 2 | **Fogo com 7 jutsus novos** (seção 4; feita em 08/11/2026 com a conjuração da seção 3b: ver README). | **v16**: `INSERT ... ON CONFLICT` dos jutsus novos em `game.jutsus` (o `extract_jutsu` da v10 já sorteia entre vários do mesmo tier). Nenhum código antigo é renomeado ou apagado. | Simulador com Fogo novo passando nos critérios; Extração dá os novos. |
 | 3 | **Buff de Básico e escudo** (as regras da seção 2). | não | Testes das regras de teto. |
 | 4 | **Clã Rubro** + linhagem no Criador + missão de despertar + Andarilho; a classe Sombra vira Clã Umbra (só a troca de dados; a árvore do Umbra vem na 5). | **v17**: coluna `clan`, troca dos jogadores de Sombra. | Simulador: clã x Andarilho entre 45% e 55% de vitórias. |
-| 5+ | **Uma classe por vez** (Água, Relâmpago, Terra, Médico, Armas, Ilusão, Taijutsu, Umbra), cada uma passando pelo simulador. | um `INSERT` por classe | |
+| 5+ | **As outras classes** (Água, Relâmpago, Terra, Médico, Armas, Ilusão, Taijutsu, Sombra): feitas juntas em 08/11/2026 (`src/realtime/jutsusClasses.ts`), passando no simulador. | **v18** | Os que precisam de sistema novo grande ficaram fora (README, v30). |
 
 Fica para uma revisão própria: muro no mapa, invocações (Golem, Clone), voo, canalização, armadilha invisível,
 inverter controles, teletransporte entre sombras, a classe nova **Vento**, Lua Ilusória e Guardião Espectral Completo
