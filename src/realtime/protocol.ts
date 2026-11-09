@@ -433,6 +433,8 @@ export interface SkillInfo {
   name: string;
   /** v30: só vem quando não é a mecânica (Academia: null); sem ele, a classe é a mecânica. */
   class?: ClassCode | null;
+  /** v36: jutsu de clã (Rubro, Umbra): o nome do clã na aba Jutsus. */
+  clan?: Clan;
   tier: number;
   mechanic: Mechanic;
   cost: number;

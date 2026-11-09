@@ -3795,6 +3795,8 @@ const MASTERY_TEXT = {
   cura: (n) => `cura +${10 * n}%`,
   alcance: (n) => `alcance +${5 * n}%`,
   recarga: (n) => `recarga −${5 * n}%`,
+  duracao: (n) => `duração +${10 * n}%`,   // v36 (Fase 1.5)
+  protecao: (n) => `proteção +${10 * n}%`,
 };
 
 /** Aba Jutsus: nível pelo USO e a barra até o próximo nível (números do servidor). */
@@ -3816,7 +3818,8 @@ function renderJutsus() {
     const sinfo = state.world.skills[skill];
     const cls = sinfo ? (sinfo.class !== undefined ? sinfo.class : sinfo.tier > 0 ? sinfo.mechanic : null) : undefined;   // v30: a classe é a mecânica quando não vem
     const small = document.createElement('small');
-    small.textContent = cls ? `${state.world.classes?.find((c) => c.code === cls)?.name || cls} · Tier ${info?.tier ?? 1}` : 'Academia';
+    small.textContent = sinfo?.clan ? `${LINEAGE_NAMES[sinfo.clan] || sinfo.clan} · Tier ${info?.tier ?? 1}`   // v36: jutsu de clã (antes saía "Academia")
+      : cls ? `${state.world.classes?.find((c) => c.code === cls)?.name || cls} · Tier ${info?.tier ?? 1}` : 'Academia';
     name.append(small);
     // v31: maestria: o que este jutsu ganha a cada nível de uso (sem a lista: só dano)
     const gains = sinfo?.tier > 0 ? (sinfo.mastery || ['dano']) : [];

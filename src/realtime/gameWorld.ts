@@ -517,8 +517,8 @@ interface Projectile {
   readonly burn?: { amount: number; ms: number };
   /** v28: o golpe, para recalcular o dano em jogador numa área de PvP (pvpBalance.ts). */
   readonly hit?: HitInfo;
-  /** v30: aplica os efeitos do jutsu em quem acertar. */
-  readonly extras?: boolean;
+  /** v30: aplica os efeitos do jutsu em quem acertar (v36: com os números da maestria de quem lançou). */
+  readonly extras?: SkillConfig;
   readonly ret?: { damage: number; hit: HitInfo };
 }
 
@@ -538,8 +538,8 @@ interface LaunchSpec {
   source?: 'attack' | 'skill';
   /** Fogo: queimadura em quem a explosão pega (dano por pulso e duração). */
   burn?: { amount: number; ms: number };
-  /** v30: aplica o que o jutsu faz além do dano (molhado, lentidão, prender...) em quem acertar. */
-  extras?: boolean;
+  /** v30: aplica o que o jutsu faz além do dano (molhado, lentidão, prender...) em quem acertar (v36: a ficha com a maestria). */
+  extras?: SkillConfig;
   /** v30: bumerangue: no fim do caminho, volta para quem lançou com este golpe. */
   ret?: { damage: number; hit: HitInfo };
   /** De onde sai (Kunais: as trilhas dos lados); sem isto, do dono. */
@@ -859,7 +859,7 @@ export class GameWorld {
         const v = combat.skills[j.code];
         const range = v.range ?? v.radius;
         return [j.code, {
-          name: j.name, ...(j.class !== v.mechanic ? { class: j.class } : {}), tier: j.tier, mechanic: v.mechanic, cost: v.cost, cooldownMs: v.cooldownMs,   // v30: sem a classe repetida (= mecânica)
+          name: j.name, ...(j.class !== v.mechanic ? { class: j.class } : {}), ...(j.clan ? { clan: j.clan } : {}), tier: j.tier, mechanic: v.mechanic, cost: v.cost, cooldownMs: v.cooldownMs,   // v30: sem a classe repetida (= mecânica)
           ...(range !== undefined ? { range } : {}),
           ...(v.radius !== undefined ? { radius: v.radius } : {}),
           ...(LINE_MECHANICS.has(v.mechanic) ? { line: true } : {}),
@@ -2015,7 +2015,7 @@ export class GameWorld {
         for (let i = 0; i < n; i++) {
           const a = (i - (n - 1) / 2) * spread;
           const dx = fx * Math.cos(a) - fy * Math.sin(a), dy = fx * Math.sin(a) + fy * Math.cos(a);
-          this.launch(session, dx, dy, { skill, speed: cfg.speed ?? 14, range: reach, damage: dmg, radius: 0, volley: volleys[i % volleys.length]!, hit, extras: true });
+          this.launch(session, dx, dy, { skill, speed: cfg.speed ?? 14, range: reach, damage: dmg, radius: 0, volley: volleys[i % volleys.length]!, hit, extras: cfg });
         }
         break;
       }
@@ -2080,7 +2080,7 @@ export class GameWorld {
         const burn = cfg.burn ? { amount: Math.max(1, Math.round(cfg.burn * (dmg / (cfg.damage ?? 1)))), ms: cfg.burnMs ?? 3000 } : undefined;
         this.launch(session, fx, fy, {
           skill, speed: cfg.speed ?? 12, range: reach, damage: dmg, radius: cfg.radius ?? 0, volley: new Set(), ...(burn ? { burn } : {}), hit,
-          ...(cfg.woundMs ? { extras: true } : {}),
+          ...(cfg.woundMs ? { extras: cfg } : {}),
         });
         break;
       }
@@ -2102,7 +2102,7 @@ export class GameWorld {
       case 'cura':
         // Passiva da Folha: +10% de cura (de quem cura). Ferida (anti-cura): metade.
         this.healPlayer(healed!, pvp ? pvpHeal(base1.heal ?? 0, tier, masteryUseLevel(skill, 'cura', level), this.passive(session, 'heal'))
-          : (cfg.heal ?? 0) * (1 + masteryBonus(skill, 'cura', level)) * this.passive(session, 'heal'), t);
+          : (cfg.heal ?? 0) * this.passive(session, 'heal'), t);   // v36: a cura da maestria já vem em cfg (withMastery)
         break;
       case 'teleporte': {
         const from = { x: session.x, y: session.y };
@@ -2656,7 +2656,7 @@ export class GameWorld {
       case 'projetil': {
         const n = Math.max(1, cfg.shots ?? 1);
         for (let i = 0; i < n; i++) {
-          this.launch(s, fx, fy, { skill, speed: cfg.speed ?? 12, range: cfg.range ?? 6, damage: dmg, radius: 0, volley: new Set(), hit, extras: true });
+          this.launch(s, fx, fy, { skill, speed: cfg.speed ?? 12, range: cfg.range ?? 6, damage: dmg, radius: 0, volley: new Set(), hit, extras: cfg });
         }
         break;
       }
@@ -2977,7 +2977,7 @@ export class GameWorld {
       hitRadius: spec.hitRadius ?? HIT_RADIUS, pierce: spec.pierce ?? false, source: spec.source ?? 'skill',
       ...(spec.burn ? { burn: spec.burn } : {}),
       ...(spec.hit ? { hit: spec.hit } : {}),
-      ...(spec.extras ? { extras: true } : {}),
+      ...(spec.extras ? { extras: spec.extras } : {}),
       ...(spec.ret ? { ret: spec.ret } : {}),
     };
     this.projectiles.push(p);
@@ -3046,12 +3046,12 @@ export class GameWorld {
         const burn = p.burn && p.hit && x.kind === 'player' && this.inPvpArea(p.owner)
           ? { ms: p.burn.ms, amount: pvpBurnPerTick(p.hit, p.owner.stats, this.config.combat.damageScale) } : p.burn;
         if (burn && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, burn.ms, burn.amount, p.owner);
-        if (p.extras && p.skill && this.stillThere(x)) this.applyExtras(x, p.owner, this.config.combat.skills[p.skill], t, at);   // v30
+        if (p.extras && p.skill && this.stillThere(x)) this.applyExtras(x, p.owner, p.extras, t, at);   // v30
       }
     } else if (hit) {
       p.volley.add(hit.id);
       this.hitTarget(hit, p.damage, p.owner, t, p.source, projectileLabel(p), p.hit);
-      if (p.extras && p.skill && this.stillThere(hit)) this.applyExtras(hit, p.owner, this.config.combat.skills[p.skill], t, { x: p.x - p.ux, y: p.y - p.uy });
+      if (p.extras && p.skill && this.stillThere(hit)) this.applyExtras(hit, p.owner, p.extras, t, { x: p.x - p.ux, y: p.y - p.uy });
     }
   }
 

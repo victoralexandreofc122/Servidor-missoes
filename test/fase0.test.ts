@@ -35,11 +35,44 @@ describe('Extração do design final', () => {
 });
 
 describe('Maestria por jutsu (Fogo)', () => {
-  it('todo jutsu do Fogo tem a regra nova; os demais seguem dano e cura até serem ajustados', () => {
-    const fire = JUTSUS.filter((j) => j.class === 'fire').map((j) => j.code).sort();
-    assert.deepEqual(Object.keys(MASTERY).sort(), fire);
-    assert.deepEqual(masteryOf('water_3'), ['dano', 'cura']);
+  it('Fase 1.5: todo jutsu de classe e de clã tem a regra nova (no máximo 2 ganhos); a Academia evolui do jeito dela', () => {
+    const all = JUTSUS.filter((j) => j.tier > 0).map((j) => j.code).sort();
+    assert.deepEqual(Object.keys(MASTERY).sort(), all);
+    assert.equal(all.length, 98);
+    for (const [code, gains] of Object.entries(MASTERY)) assert.ok(gains.length >= 1 && gains.length <= 2, code);
+    assert.ok(!MASTERY.teleport && !MASTERY.substitution);
+    assert.deepEqual(masteryOf('water_3'), ['dano', 'efeito']);
     assert.deepEqual(masteryOf('fire_lamina'), ['recarga']);
+  });
+
+  it('Fase 1.5: cada ganho da tabela muda um número de verdade no nível 4', () => {
+    const EFFECT = ['stunMs', 'rootMs', 'silenceMs', 'paralysisMs', 'burnMs', 'slowMs', 'darkMs', 'invertMs', 'woundMs', 'dotMs', 'firstStunMs',
+      'liftMs', 'markMs', 'markSlowMs', 'stealthMs', 'nextHitMs'];
+    for (const [code, gains] of Object.entries(MASTERY)) {
+      const c: any = SKILLS[code as 'fire'];
+      const m: any = withMastery(c, code, 4);
+      for (const g of gains) {
+        const changed = g === 'dano' ? (c.damage ?? 0) > 0
+          : g === 'efeito' ? EFFECT.some((k) => c[k] && m[k] > c[k]) || (c.zone && ['firstRootMs', 'endStunMs'].some((k) => c.zone[k] && m.zone[k] > c.zone[k]))
+          : g === 'cura' ? (c.heal && m.heal > c.heal) || (c.hot && m.hot > c.hot) || (c.zone?.heal && m.zone.heal > c.zone.heal)
+          : g === 'alcance' ? (c.range && m.range > c.range) || (c.dash && Math.abs(m.dash) > Math.abs(c.dash))
+          : g === 'recarga' ? m.cooldownMs < c.cooldownMs
+          : g === 'duracao' ? (c.durationMs && m.durationMs > c.durationMs) || (c.zone && m.zone.ms > c.zone.ms)
+          : ['shieldShare', 'wallHp', 'wallHpShare', 'summonHp'].some((k) => c[k] && m[k] > c[k]);
+        assert.ok(changed, `${code}: "${g}" não muda nada`);
+      }
+    }
+  });
+
+  it('Fase 1.5: exemplos (controle, cura contínua, recuo, escudo, invocação)', () => {
+    assert.equal(withMastery(SKILLS.shadow, 'shadow', 4).rootMs, 6500);
+    assert.equal(withMastery(SKILLS.heal_4, 'heal_4', 4).hot, 0.039);
+    assert.equal(withMastery(SKILLS.shadow_recuo, 'shadow_recuo', 4).dash, -3.45);
+    assert.equal(withMastery(SKILLS.wind_veu, 'wind_veu', 4).shieldShare, 0.156);
+    const clone: any = withMastery(SKILLS.water_clone, 'water_clone', 4);
+    assert.deepEqual([clone.durationMs, clone.summonHp], [7800, 0.195]);
+    assert.equal(withMastery(SKILLS.water_3, 'water_3', 4).selfRootMs, SKILLS.water_3.selfRootMs, 'o Cárcere prende mais o alvo, não você');
+    assert.equal((SKILLS.umbra_noite as any).zone.ms, 4000, 'a ficha original não muda');
   });
 
   it('nível 4: dano/efeito +30%, alcance +15%, recarga -15%; o que o jutsu não evolui fica igual', () => {
@@ -52,7 +85,7 @@ describe('Maestria por jutsu (Fogo)', () => {
     assert.equal(fire.burnMs, Math.round((SKILLS.fire.burnMs ?? 0) * 1.3));
     assert.equal(fire.cooldownMs, SKILLS.fire.cooldownMs, 'o Fogo não evolui recarga');
     assert.equal(withMastery(SKILLS.fire_hibashiri, 'fire_hibashiri', 4).range, 5.75);
-    assert.equal(withMastery(SKILLS.water_3, 'water_3', 4), SKILLS.water_3, 'fora da tabela: os mesmos números');
+    assert.equal(withMastery(SKILLS.teleport, 'teleport', 4), SKILLS.teleport, 'fora da tabela (Academia): os mesmos números');
     assert.equal(withMastery(SKILLS.fire_4, 'fire_4', 1), SKILLS.fire_4, 'nível 1: nada muda');
   });
 });
@@ -104,6 +137,30 @@ describe('Maestria no jogo', () => {
     assert.ok(low.dealt > 0);
     assert.ok(Math.abs(high.dealt / low.dealt - 1.3) < 0.05, `${high.dealt} / ${low.dealt}`);
     assert.equal(high.cd, low.cd);
+  });
+
+  it('Fase 1.5: Lâmina Umbral (projétil) prende 30% mais no nível 4 (o efeito vai no projétil)', () => {
+    const ms = (uses: number) => {
+      const w = setupWorld(config());
+      const world: any = w.world;
+      const a = w.connect('kaito');
+      const row = openRow(12);
+      placeIn(world, a.id, 'map_2', row.x, row.y);
+      const s = world.sessions.get(a.id);
+      Object.assign(s, { fx: 1, fy: 0, chakra: 1000, cooldowns: {}, tutorial: 4 });
+      s.classes = { primary: 'shadow', secondary: null };
+      s.jutsus.set('shadow_3', uses);
+      s.kits[s.activeKit] = ['shadow_3'];
+      const m = world.monsters.get(world.spawnMonster({ x: row.x + 4, y: row.y }, undefined, 'map_2', 'lodo_sombrio').id);
+      m.hp = m.maxHp = 100_000;
+      m.speed = 0;
+      a.send({ type: 'cast', skill: 'shadow_3' });
+      w.run((SKILLS.shadow_3.castMs ?? 0) + 700);
+      return m.rootedUntil - w.clock.now();
+    };
+    const low = ms(0), high = ms(2000);
+    assert.ok(low > 0, `prendeu (${low})`);
+    assert.ok(high - low >= 400, `${high} vs ${low}`);
   });
 
   it('Chuva de Meteoros (dano + recarga): no nível 4 a recarga que o servidor manda é 15% menor', () => {

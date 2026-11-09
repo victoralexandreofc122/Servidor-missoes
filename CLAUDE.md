@@ -42,8 +42,8 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 
 1. Jutsus v2 (decisão do Victor, 03/11): todos os jutsus do PDF adaptados (`docs/jutsus-v2.md`,
    `revisao_egm/jutsus/`). Entrega 2 (Fogo novo) com migração v16; Fase 1 (nomes, v17), as classes e a Vento (v18), os
-   clãs (v19), a provocação de monstros e a Fase 0 (Extração e maestria, v20) feitos; faltam a linhagem no Criador, a
-   missão de despertar com objetivo e a maestria nos jutsus fora do Fogo (aos poucos). A Fase 2.5 (74 jutsus novos,
+   clãs (v19), a provocação de monstros e a Fase 0 (Extração e maestria, v20) feitos; a linhagem no Criador e o Rito do
+   Despertar (v25) e a maestria em todos os jutsus (Fase 1.5, v36) feitos. A Fase 2.5 (74 jutsus novos,
    4 por classe por tier) só começa quando o Victor pedir.
 2. Rankeado, polimento (`revisao_egm/rankeado/`): arquibancada em degraus, estátua, selo de faixa, aviso de próximo.
 3. Cabeça (rosto e cabelo) desenhada à mão em pixel art: o Victor reprovou o rosto e o cabelo gerados por formas 3D.

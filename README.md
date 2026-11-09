@@ -240,6 +240,18 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v36: Fase 1.5, maestria em todos os jutsus (sem migração)
+
+- Os 98 jutsus de classe e de clã agora evoluem pela maestria do design final (antes só os 11 do Fogo). Cada jutsu ganha no
+  máximo 2 coisas, as que fazem sentido para ele (tabela `MASTERY` em `src/realtime/jutsus.ts`, com o motivo de cada um):
+  dano, efeito (duração do controle ou status), cura, alcance, recarga e, novos, **duração** (buff, zona de suporte,
+  invocação) e **proteção** (escudo, muro, vida da invocação). No nível 4: +30% (dano, efeito, cura, duração, proteção),
+  +15% de alcance, -15% de recarga. O teto de controle do PvP e o teto de 25% do escudo continuam valendo.
+- A cura da maestria vale para toda cura (zona, contínua, Palma); o alcance também alonga o avanço e o recuo.
+- Correção: o efeito do projétil (prender, deixar lento, ferir) agora usa os números com a maestria de quem lançou.
+- Correção: na aba Jutsus, os jutsus de clã mostram o clã (antes apareciam como "Academia").
+- Teleporte e Substituição (Academia) continuam com a evolução própria. Nenhum jutsu novo.
+
 ### v35: linhagem no Criador, Rito do Despertar e os 4 jutsus do Clã Umbra (migração v25, `db/schema_v25_linhagem.sql`)
 
 - A linhagem (Clã Rubro, Clã Umbra, Andarilho) é **marcada no Criador de Personagem** e **desperta no Rito do Despertar**: no rank
