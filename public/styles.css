@@ -1051,3 +1051,7 @@ body.tut-bag #inv-toggle { animation: ready-glow 1.4s ease-in-out infinite; bord
 /* Botões de combate: aro creme, o ataque com aro dourado e brilho. */
 .cbtn { border-color: rgba(233, 214, 170, 0.42); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(5, 7, 15, 0.6); }
 .cbtn.attack { border-color: var(--gold); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(5, 7, 15, 0.6), 0 0 18px rgba(233, 196, 106, 0.3); }
+
+/* v37: jutsu no kit que não é da sua classe (Missão refeita, reset): aparece para poder tirar */
+.kit-list li.locked { opacity: 0.85; }
+.kit-list li small.lock { display: block; margin-left: 0; color: #ffb36b; }

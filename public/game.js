@@ -3741,7 +3741,11 @@ function usableJutsu(code) {
 /** Aba Kits: uma linha por jutsu APRENDIDO e da sua classe, com os botões A e B. Montada com createElement (nada vira HTML). */
 let kitListKey = '';
 function renderKitList() {
-  const list = learnedJutsus().filter(usableJutsu);
+  // v37: o que ainda está no kit mas não é da sua classe aparece também (com cadeado), para poder tirar; antes ficava
+  // escondido e travava os 4 espaços.
+  const inKit = new Set([...(draftKits?.A || []), ...(draftKits?.B || [])]);
+  const list = learnedJutsus().filter((code) => usableJutsu(code) || inKit.has(code));
+  for (const code of inKit) if (!list.includes(code) && state.world.skills?.[code]) list.push(code);
   const key = list.join(',');
   if (key === kitListKey) return;
   kitListKey = key;
@@ -3756,6 +3760,14 @@ function renderKitList() {
       small.textContent = `T${info.tier}`;
       label.append(small);
     }
+    const locked = !usableJutsu(skill);
+    if (locked) {
+      li.classList.add('locked');
+      const lock = document.createElement('small');
+      lock.className = 'lock';
+      lock.textContent = '🔒 fora da sua classe: toque para tirar';
+      label.append(lock);
+    }
     li.append(label);
     for (const kit of ['A', 'B']) {
       const chip = document.createElement('button');
@@ -3767,7 +3779,7 @@ function renderKitList() {
         const kitSkills = draftKits[kit];
         const i = kitSkills.indexOf(skill);
         if (i >= 0) kitSkills.splice(i, 1);
-        else if (kitSkills.length < 4) kitSkills.push(skill);
+        else if (kitSkills.length < 4 && usableJutsu(skill)) kitSkills.push(skill);   // v37: o bloqueado só sai
         renderDraftKits();
       });
       li.append(chip);

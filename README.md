@@ -251,6 +251,9 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   aparecem ao entrar no jogo e no mapa.
 - Correção: no desligamento (cada deploy no Render), o servidor espera as gravações pendentes de cada jogador (até 5 s)
   antes de sair; antes, o que estava na fila no último segundo podia se perder.
+- Correção: refazer a Missão de Genin com outra classe (admin) deixava os jutsus da classe antiga no kit, escondidos da
+  aba Kits e ocupando os 4 espaços. Agora saem do kit na hora (continuam aprendidos no perfil) e o kit limpo é gravado; a
+  aba Kits também mostra, com cadeado, qualquer jutsu fora da classe que ainda esteja no kit, para poder tirar.
 - A névoa do Umbra ficou mais densa (no chão do jogo a de antes sumia); a faixa do Andarilho ficou clara e mais larga.
 
 ### v36: Fase 1.5, maestria em todos os jutsus (sem migração)

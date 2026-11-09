@@ -3232,6 +3232,19 @@ export class GameWorld {
     return { A: s.kits.A.filter((k) => this.canUse(s, k)), B: s.kits.B.filter((k) => this.canUse(s, k)) };
   }
 
+  /**
+   * v37: a classe mudou no meio da sessão (Missão de Genin refeita, Secundária): tira do kit o que a classe nova não usa,
+   * avisa o cliente e grava. Sem isso, os jutsus antigos ficavam no kit, escondidos da aba Kits, e travavam os 4 espaços.
+   */
+  private pruneKits(s: Session): void {
+    const kits = this.usableKits(s);
+    if (kits.A.length === s.kits.A.length && kits.B.length === s.kits.B.length) return;
+    s.kits = kits;
+    this.sendTo(s, { type: 'kit', ...this.kitView(s) });
+    const { id } = s;
+    if (this.profile) this.profileTask(s, (profile) => profile.saveLoadout(id, kits.A, kits.B).then(() => undefined));
+  }
+
   /** Salvar kits (até 4 por kit, sem repetir: o Zod e o banco conferem; só jutsu APRENDIDO e da sua classe). Grava no banco. */
   private setLoadout(session: Session, kits: Kits): void {
     if (![...kits.A, ...kits.B].every((j) => session.jutsus.has(j))) return this.sendError(session, 'NOT_LEARNED');
@@ -3721,6 +3734,7 @@ export class GameWorld {
         if (!result.ok) return refuse(current, result.text);
         current.classes = { ...result.classes };
         this.sendTo(current, { type: 'classes', ...current.classes });
+        this.pruneKits(current);
         this.sendTo(current, { type: 'notice', text: `Classe Secundária: ${CLASS_INFO[cls].name}.`, tone: 'good' });
         return undefined;
       }));
@@ -3736,6 +3750,7 @@ export class GameWorld {
       current.canBeSensei = result.canBeSensei;
       current.items = result.items;
       this.sendTo(current, { type: 'classes', ...current.classes });
+      this.pruneKits(current);                                 // v37: refez a Missão com outra classe: o kit antigo sai
       this.sendInventory(current);
       this.broadcastMap(current.map, this.rankMsg(current));
       this.broadcast({ type: 'announce', message: `${username} passou na Missão de Genin (classe ${CLASS_INFO[cls].name})!` });
