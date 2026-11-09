@@ -1,5 +1,5 @@
 /*
- * As quatro aldeias (Chama Eterna, Maré Oculta, Rocha Antiga e Vento Cortante; antes Folha, Névoa, Nuvem e Areia; a Pedra saiu na v13) e a política entre elas (docs/endgame.md, módulos 1 a 4). Funções PURAS: o servidor usa e o cliente
+ * As quatro aldeias (Chama Eterna, Maré Oculta, Vento Cortante e Rocha Antiga; antes Folha, Névoa, Nuvem e Areia; a Pedra saiu na v13) e a política entre elas (docs/endgame.md, módulos 1 a 4). Funções PURAS: o servidor usa e o cliente
  * tem a MESMA conta em public/politics.js (test/endgame.test.ts confere as duas).
  *
  * O banco é a autoridade de quem é de qual vila, de quem é Kage, das guerras e alianças (migração v11); aqui só se
@@ -14,6 +14,8 @@ export type PassiveKind = 'heal' | 'speed' | 'jutsu' | 'weapons';
 export interface VillageInfo {
   /** Nome que aparece no jogo (mudar aqui e em game.villages). v30 (Fase 1, Herança do Fogo): os nomes das 4 aldeias. */
   name: string;
+  /** "Aldeia da Chama Eterna", mas "Aldeia do Vento Cortante": o artigo de cada nome. */
+  article: 'da' | 'do';
   /** Apelido do comando de admin (/admin vila kaito chama). */
   slug: string;
   /** Nome de antes da Fase 1 (o comando de admin ainda aceita). */
@@ -24,10 +26,10 @@ export interface VillageInfo {
 }
 
 export const VILLAGE_INFO: Readonly<Record<Village, VillageInfo>> = {
-  vila_1: { name: 'Chama Eterna', slug: 'chama', oldName: 'folha', map: 'map_1', passive: { kind: 'heal', bonus: 0.1, text: '+10% de cura' } },
-  vila_3: { name: 'Maré Oculta', slug: 'mare', oldName: 'nevoa', map: 'vila_nevoa', passive: { kind: 'speed', bonus: 0.1, text: '+10% de velocidade' } },
-  vila_4: { name: 'Rocha Antiga', slug: 'rocha', oldName: 'nuvem', map: 'vila_nuvem', passive: { kind: 'jutsu', bonus: 0.1, text: '+10% de dano dos jutsus' } },
-  vila_5: { name: 'Vento Cortante', slug: 'vento', oldName: 'areia', map: 'vila_areia', passive: { kind: 'weapons', bonus: 0.1, text: '+10% de dano com armas' } },
+  vila_1: { name: 'Chama Eterna', article: 'da', slug: 'chama', oldName: 'folha', map: 'map_1', passive: { kind: 'heal', bonus: 0.1, text: '+10% de cura' } },
+  vila_3: { name: 'Maré Oculta', article: 'da', slug: 'mare', oldName: 'nevoa', map: 'vila_nevoa', passive: { kind: 'speed', bonus: 0.1, text: '+10% de velocidade' } },
+  vila_4: { name: 'Vento Cortante', article: 'do', slug: 'vento', oldName: 'nuvem', map: 'vila_nuvem', passive: { kind: 'jutsu', bonus: 0.1, text: '+10% de dano dos jutsus' } },
+  vila_5: { name: 'Rocha Antiga', article: 'da', slug: 'rocha', oldName: 'areia', map: 'vila_areia', passive: { kind: 'weapons', bonus: 0.1, text: '+10% de dano com armas' } },
 };
 
 /** Aldeia pelo nome do comando de admin ("chama", "mare", "rocha", "vento"; os nomes antigos também valem). */
@@ -41,7 +43,7 @@ export function villageByName(name: string): Village | undefined {
 }
 
 /** "Aldeia da Chama Eterna". */
-export const villageFullName = (v: Village) => `Aldeia da ${VILLAGE_INFO[v].name}`;
+export const villageFullName = (v: Village) => `Aldeia ${VILLAGE_INFO[v].article} ${VILLAGE_INFO[v].name}`;
 
 /** Estado entre duas vilas agora. `tregua` = trégua forçada por evento; `mesma` = a mesma vila. */
 export type Relation = 'mesma' | 'neutro' | 'guerra' | 'alianca' | 'tregua';

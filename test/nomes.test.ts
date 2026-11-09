@@ -5,6 +5,7 @@ import { ITEMS } from '../src/realtime/items.js';
 import { JUTSUS } from '../src/realtime/jutsus.js';
 import { POWERS } from '../src/realtime/akatsuki.js';
 import { REALTIME } from '../src/realtime/config.js';
+import { VILLAGE_INFO, villageFullName } from '../src/realtime/villages.js';
 
 /*
  * Fase 1 (nomes): nenhum nome que o jogador vê pode ser da série. Esta lista é a trava: se um nome proibido voltar para
@@ -57,5 +58,14 @@ describe('Fase 1: nomes originais', () => {
       // sem comentários nem identificadores minúsculos (akatsuki_*, 'akatsuki', data-tab="akatsuki")
       .split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*|<!--)/.test(l)).join('\n');
     assert.ok(!/Akatsuki/.test(texto), 'sobrou "Akatsuki" com A maiúsculo em texto de tela');
+  });
+
+  it('aldeias: o nome completo usa o artigo certo (da Chama Eterna, da Maré Oculta, do Vento Cortante, da Rocha Antiga)', () => {
+    assert.deepEqual((['vila_1', 'vila_3', 'vila_4', 'vila_5'] as const).map(villageFullName),
+      ['Aldeia da Chama Eterna', 'Aldeia da Maré Oculta', 'Aldeia do Vento Cortante', 'Aldeia da Rocha Antiga']);
+    // Nuvem = Vento Cortante e Areia = Rocha Antiga (documento canônico, docs/endgame-visao.md)
+    assert.deepEqual([VILLAGE_INFO.vila_4.slug, VILLAGE_INFO.vila_5.slug], ['vento', 'rocha']);
+    assert.equal(REALTIME.maps.vila_nuvem?.name, 'Aldeia do Vento Cortante');
+    assert.equal(REALTIME.maps.vila_areia?.name, 'Aldeia da Rocha Antiga');
   });
 });

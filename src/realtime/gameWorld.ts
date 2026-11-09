@@ -5582,7 +5582,7 @@ export class GameWorld {
       this.broadcastFaction(l);
     }
     if (r.kageHunted) {
-      this.broadcast({ type: 'announce', message: `🌑 ${base.winner}, dos Cinzas, derrotou o Kage da ${VILLAGE_INFO[r.kageHunted].name}!` });
+      this.broadcast({ type: 'announce', message: `🌑 ${base.winner}, dos Cinzas, derrotou o Kage da ${villageName(r.kageHunted)}!` });
     }
     if (r.becameRenegade) await this.becameRenegade(base.winnerId, base.winner, winnerVillage, 'karma');
     else if (r.bountyPaid >= 1000 || r.kageHunted) await this.reloadFaction(base.winnerId);

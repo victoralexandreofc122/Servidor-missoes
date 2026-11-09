@@ -8,7 +8,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 - **Gênero:** MMORPG de ação 2D, combate em tempo real, progressão por rank (Academia, Genin…), níveis até 60.
 - **Tecnologia:** servidor autoritativo em Node e TypeScript (Fastify + WebSocket), Postgres no **Neon**, cliente em
   Canvas 2D sem engine (`public/`). O Render publica a `main` sozinho.
-- **Mundo:** Aldeia da Chama Eterna 80x80 (lojas com interior, Academia), Aldeias da Maré Oculta, Rocha Antiga e Vento Cortante (antes Folha, Névoa, Nuvem e Areia; a Pedra saiu na v20),
+- **Mundo:** Aldeia da Chama Eterna 80x80 (lojas com interior, Academia), Aldeias da Maré Oculta, Vento Cortante (antes Nuvem) e Rocha Antiga (antes Areia) (antes Folha, Névoa, Nuvem e Areia; a Pedra saiu na v20),
   Floresta 100x100, Caverna do Lodo, Clareira Queimada, Poço sob a Praça, Zona de Conflito e Refúgio dos Renegados.
 - **Sistemas prontos:** combate com jutsus por elemento e efeitos (queimadura, silêncio, paralisia…), habilidades em
   linha nas 4 direções, monstros com máquina de estados e o chefe Rei Lodo, classes, Extração, armas com jeito próprio,
@@ -19,11 +19,11 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   do Victor (chibi, contorno escuro, sombreado em 2-3 tons). Toda mudança de arte é comparada lado a lado com a
   referência e conferida dentro do jogo antes de fechar.
 - **Versão atual:** v29 (modo rankeado no Vale dos Guardiões, migração v15), publicada na `main`. Pronto e esperando o
-  Victor (branch, migrações v16, v17, v18, v19, v20 e v21 nessa ordem): Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o
+  Victor (branch, migrações v16, v17, v18, v19, v20, v21 e v22 nessa ordem): Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o
   Clã Rubro), conjuração, sistemas próprios (muros, invocações, escuridão...), clãs por linhagem, controle mais forte, a
   Fase 1 dos nomes (Herança do Fogo, 4 aldeias), a correção da rodada 2 do rankeado e a Fase 0 (Extração do design
   final e maestria por jutsu, feita no Fogo) e a Fase 1 dos nomes originais (Os Cinzas, Arena das Quatro Heranças, 38 jutsus, v21;
-  falta confirmar a ordem das aldeias Nuvem/Areia: `docs/fase1-renomeacao.md`). Documento canônico do endgame (identidade, aldeias, hierarquia, ANBU,
+  aldeias Nuvem/Areia corrigidas na v22: `docs/fase1-renomeacao.md`). Documento canônico do endgame (identidade, aldeias, hierarquia, ANBU,
   torneios, Terra Sem Lei, guerras, roadmap Fase 0 a 3): `docs/endgame-visao.md`; nada dele é implementado sem o OK do
   Victor. **Stack:** em avaliação (empacotamento nativo, WASM, N-API, Capacitor/Tauri, C/C++); não mudar nada até ele
   decidir.
@@ -52,6 +52,10 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 6. Arco 1 jogável (sistema de história), depois o social (grupo, amigos, sensei).
 
 ## Como trabalhar
+
+- **Renomeações (regra do Victor, 09/11/2026):** nunca aplicar nome novo sem aprovação. O processo é sempre: **auditar, propor 3 opções por item,
+  o Victor escolhe, só então aplicar** (código, banco, testes e docs). "Continuar a partir da sua recomendação" não é escolha: se o Victor
+  não disse qual opção, perguntar. Vale para jutsus, clãs, locais, itens, NPCs, títulos e organizações, nesta e nas próximas fases.
 
 - `npm run verify` (typecheck, testes e build) tem que passar antes de qualquer commit.
 - Mudança visual: conferir no jogo com o navegador automático (Playwright) e mostrar imagens ao Victor.

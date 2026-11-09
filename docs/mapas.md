@@ -242,7 +242,7 @@ código por cima: o chão, as paredes, as tochas e os enfeites já estão no des
 | Poço sob a Praça | `arte/mapas/referencia_poco.jpg` (1500 x 1120) | `37,34,1464,1087` | 24 x 18 |
 | Aldeia da Chama Eterna | `arte/vilas/folha_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
 | Aldeia da Maré Oculta | `arte/vilas/nevoa_ampliada.jpg` (6000 x 4480, ampliada) | `0,0,6000,4480` | 80 x 60 |
-| Aldeia da Rocha Antiga | `arte/vilas/nuvem_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
+| Aldeia do Vento Cortante | `arte/vilas/nuvem_ampliada.jpg` (4500 x 3360, ampliada) | `84,0,4416,3340` | 78 x 60 |
 | Floresta | `arte/mapas/floresta_ampliada.jpg` (6000 x 4480, ampliada) | `0,0,6000,4480` | 100 x 75 |
 | Zona de Conflito | `arte/mapas/zona_ampliada.jpg` (4500 x 3360, ampliada) | `44,32,4456,3328` | 110 x 80 (esticada 2,8% na largura) |
 | Armaria | `arte/mapas/referencia_armaria.jpg` (2000 x 1493) | `56,52,1944,1493` | 17 x 13 |

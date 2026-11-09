@@ -72,10 +72,10 @@ CREATE TABLE IF NOT EXISTS game.villages (
   name       text     NOT NULL UNIQUE,
   sort_order smallint NOT NULL UNIQUE
 );
-COMMENT ON TABLE game.villages IS 'As quatro aldeias: Chama Eterna, Maré Oculta, Rocha Antiga e Vento Cortante (antes Folha, Névoa, Nuvem e Areia; os nomes mudam aqui, na v17 e em src/realtime/villages.ts). A Pedra (vila_2) saiu na v13.';
+COMMENT ON TABLE game.villages IS 'As quatro aldeias: Chama Eterna, Maré Oculta, Vento Cortante e Rocha Antiga (antes Folha, Névoa, Nuvem e Areia; os nomes mudam aqui, na v17 e em src/realtime/villages.ts). A Pedra (vila_2) saiu na v13.';
 -- A Pedra (vila_2) estava aqui até a v13 tirá-la do jogo; fora da lista, rodar esta migração de novo não a traz de volta.
 INSERT INTO game.villages (code, name, sort_order) VALUES
-  ('vila_1', 'Chama Eterna', 1), ('vila_3', 'Maré Oculta', 3), ('vila_4', 'Rocha Antiga', 4), ('vila_5', 'Vento Cortante', 5)
+  ('vila_1', 'Chama Eterna', 1), ('vila_3', 'Maré Oculta', 3), ('vila_4', 'Vento Cortante', 4), ('vila_5', 'Rocha Antiga', 5)
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, sort_order = EXCLUDED.sort_order;
 
 ALTER TABLE game.players ADD COLUMN IF NOT EXISTS village          text REFERENCES game.villages (code);
