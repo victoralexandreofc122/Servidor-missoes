@@ -240,6 +240,8 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+**Teste Alpha:** o checklist para os jogadores está em [`docs/checklist-teste-alpha.md`](docs/checklist-teste-alpha.md).
+
 ### v37: Rito do Despertar à prova de travar e o visual das linhagens no jogo (sem migração)
 
 - Teste de ponta a ponta do Rito com o banco de verdade (`test/rito.integration.test.ts`): marcar, Diretor, 10 Lodos
