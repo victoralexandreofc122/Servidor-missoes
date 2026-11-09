@@ -93,7 +93,8 @@ export function materialsFor(look, opts = {}) {
     gola: cloth('creme'),
     calca: cloth(look.pantsColor),
     faixa: cloth('creme'),
-    faixaAndarilho: cloth('creme'),   // v36: claro, contrasta com qualquer manga (o marrom sumia no jogo)
+    // v39: a faixa do Andarilho na cor da aldeia (a mesma das capas), do ombro ao cotovelo, com pontas soltas
+    faixaAndarilho: (() => { const r = rampFromHex(VILLAGE_CAPE[look.village] || VILLAGE_CAPE.vila_1); return material([r[1], r[1], r[2], r[3], r[4]], { sh: -0.15 }); })(),
     colete: cloth(vila.conjunto[0]),
     terno: cloth(vila.conjunto[1]),
     faixa_vila: cloth(vila.conjunto[2]),
@@ -429,7 +430,8 @@ function shirtLayer(c) {
     ell('camisa', g.shirt, top, sh, R.chest, [3.8, 3.7, 3.7]);
     // v35: a faixa do Andarilho no braço esquerdo (por cima da manga)
     const band = key === 'L' && c.look.lineage && c.look.lineage.clan === 'andarilho';
-    tube('camisa', gs, top, sh, el, c.rArm.up[0] + 0.6, c.rArm.up[1] + 0.55, band ? { ...LIMB, paint: (k) => (k > 0.34 && k < 0.68 ? [mats.faixaAndarilho, 1] : null) } : LIMB);
+    tube('camisa', gs, top, sh, el, c.rArm.up[0] + 0.6, c.rArm.up[1] + 0.55, band ? { ...LIMB, paint: (k) => (k > 0.06 && k < 0.92 ? [mats.faixaAndarilho, 1] : null) } : LIMB);
+    if (band) andarilhoTails(c, 'camisa', gs, sh, el, c.rArm.up[0] + 0.6);
     tube('camisa', gs, top, el, mix(el, wr, 0.82), c.rArm.fore[0] + 0.55, c.rArm.fore[1] + 0.6,
       { ...LIMB, paint: (k) => (k > 0.86 ? [vest ? mats.terno : mats.gola, 1] : null) });
   }
@@ -494,7 +496,8 @@ function coatLayer(c) {
     const gs = (g[`coatArm${key}`] = G());
     ell('casaco', g.coat, mats.casaco, sh, R.chest, [4.4, 4.3, 4.4]);
     const bandC = key === 'L' && c.look.lineage && c.look.lineage.clan === 'andarilho';
-    tube('casaco', gs, mats.casaco, sh, el, c.rArm.up[0] + 1.2 + over * 0.5, c.rArm.up[1] + 1.25 + over * 0.5, bandC ? { ...LIMB, paint: (k) => (k > 0.34 && k < 0.68 ? [mats.faixaAndarilho, 1] : null) } : LIMB);
+    tube('casaco', gs, mats.casaco, sh, el, c.rArm.up[0] + 1.2 + over * 0.5, c.rArm.up[1] + 1.25 + over * 0.5, bandC ? { ...LIMB, paint: (k) => (k > 0.06 && k < 0.92 ? [mats.faixaAndarilho, 1] : null) } : LIMB);
+    if (bandC) andarilhoTails(c, 'casaco', gs, sh, el, c.rArm.up[0] + 1.2 + over * 0.5);
     // A manga alarga no punho e o punho é dobrado (um tom de sombra).
     tube('casaco', gs, mats.casaco, el, mix(el, wr, 0.96), c.rArm.fore[0] + 1.25, c.rArm.fore[1] + 1.6, { ...LIMB, paint: (k) => (k > 0.8 ? [null, 1] : null) });
   }
@@ -660,6 +663,27 @@ function hatLayer(c) {
     const flutter = Math.sin((c.phase * 2 + side * 0.23) * TAU) * (0.15 + c.flow * 0.4);
     const pts = hangChain(start, 5, 2.2, swingDir(S, c.flow, flutter, side * 0.25), hairy, tailBack);
     for (let i = 0; i + 1 < pts.length; i++) tube('chapeu', gb, mats.bandana, pts[i], pts[i + 1], lerp(1.4, 0.9, i / 4), lerp(1.4, 0.9, (i + 1) / 4), { zb: 2 });
+  }
+}
+
+/**
+ * v39: o nó da faixa do Andarilho no lado de fora do braço (logo acima do cotovelo) e as duas pontas soltas, que caem e
+ * balançam com o passo e a corrida (a mesma corrente de pano das pontas da bandana).
+ */
+function andarilhoTails(c, layer, g, sh, el, armR) {
+  const { S, mats, ell, tube, J } = c;
+  const at = mix(sh, el, 0.72);
+  const mid = [(J.shoulderL[0] + J.shoulderR[0]) / 2, at[1], (J.shoulderL[2] + J.shoulderR[2]) / 2];
+  const out = norm([at[0] - mid[0], 0, at[2] - mid[2]]);
+  const knot = add(at, scl(out, armR + 0.6));
+  ell(layer, g, mats.faixaAndarilho, knot, c.R.chest, [1.5, 1.3, 1.5], { zb: 2 });
+  const colliders = c.colliders;
+  for (const [i, side] of [[0, 1], [1, -1]]) {
+    const start = add(knot, [0, -0.4, side * 0.6]);
+    const flutter = Math.sin((c.phase * 2 + i * 0.31) * TAU) * (0.18 + c.flow * 0.45);
+    const dir = norm(add(swingDir(S, c.flow * 0.8, flutter, side * 0.3), scl(out, 0.35)));
+    const pts = hangChain(start, 3, 1.9 + i * 0.3, dir, colliders, out);
+    for (let k = 0; k + 1 < pts.length; k++) tube(layer, g, mats.faixaAndarilho, pts[k], pts[k + 1], lerp(1.1, 0.75, k / 3), lerp(1.1, 0.75, (k + 1) / 3), { zb: 2 });
   }
 }
 

@@ -240,6 +240,12 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v39: faixa do Andarilho nova (sem migração)
+
+- A faixa cobre o braço esquerdo do ombro ao cotovelo, na cor da capa da aldeia (verde, azul, vinho ou areia), com um nó
+  do lado de fora e duas pontas soltas que balançam com o passo e a corrida (a mesma física das pontas da bandana).
+- Prancha: `node arte/personagem-rig/prancha.mjs saida.png faixa` (andando, correndo e nas 4 aldeias).
+
 **Teste Alpha:** o checklist para os jogadores está em [`docs/checklist-teste-alpha.md`](docs/checklist-teste-alpha.md).
 
 ### v37: Rito do Despertar à prova de travar e o visual das linhagens no jogo (sem migração)
