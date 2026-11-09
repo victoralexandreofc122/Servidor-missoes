@@ -1120,3 +1120,34 @@ Para conferir: `SELECT code, tier FROM game.jutsus WHERE clan_code = 'rubro' ORD
    `/linhagem andarilho`. Uma vez só.
 2. Rubro: o Olho da Percepção aparece nos jutsus; os outros chegam nos níveis 20, 40 e 60.
 
+## Passo 35 — Fase 0: a Extração nova e a maestria (SQL v20)
+
+Rode `db/schema_v20_extracao.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v19**. Ela troca a
+função da Extração (`game.extract_jutsu`: 1/2/3/4 pergaminhos; tier 1 com as 2 primeiras garantidas e 90% depois;
+80/60/40%), põe a Lua Ilusória e o Guardião Espectral Completo no catálogo e atualiza a regra dos kits. Pode rodar de
+novo. **Não rode a v10 de novo depois dela** (a v10 volta a Extração para a tabela antiga; se rodar, rode a v20 outra vez).
+
+Sem a v20 o jogo funciona, mas a Extração continua com os números antigos (a tela mostraria os novos).
+
+Para conferir: `SELECT count(*) FROM game.jutsus;` dá 96.
+
+### Testar no celular
+
+1. Um ninja Genin abre a Casa dos Pergaminhos, tier 1: "chance de 100% (garantida: 2 de 2 ainda)" e custa 1 pergaminho.
+2. Duas Extrações de tier 1 dão jutsu sempre; a 3ª mostra 90%. Tier 3 custa 3 pergaminhos e mostra 60%.
+3. ☰ → Perfil → Jutsus: cada jutsu do Fogo mostra a linha "Maestria" (ex.: Chuva de Meteoros: "dano +0% · recarga −0%"
+   no nível 1; "dano +30% · recarga −15%" no nível 4).
+
+## Passo 36 — Fase 1: nomes originais (SQL v21)
+
+Rode `db/schema_v21_nomes_jutsus.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v20**. Ela só troca nomes exibidos:
+38 jutsus em `game.jutsus` e o nome do manto em `game.items`. Ninguém perde nada (os códigos não mudam). Pode rodar de novo.
+**Se você rodar a v16, a v18, a v19 ou a v20 de novo depois, rode a v21 outra vez** (elas devolvem os nomes antigos).
+
+Para conferir: `SELECT name FROM game.items WHERE code = 'manto_akatsuki';` mostra Manto Cinza.
+
+### Testar no celular
+
+1. ☰ → Perfil → Jutsus: nomes novos (por exemplo "Revoada de Brasas", "Disco do Furacão").
+2. Botão do Rankeado: o lugar se chama Arena das Quatro Heranças.
+3. Com o módulo ligado: o painel da vila tem a aba **Cinzas** e o convite diz "Convite dos Cinzas".

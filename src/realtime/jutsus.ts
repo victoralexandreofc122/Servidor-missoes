@@ -58,30 +58,31 @@ export type JutsuForm =
   | 'meteoros'        // vários golpes avisados numa área (Chuva de Meteoros)
   // v30 (as outras classes, jutsusClasses.ts)
   | 'projetil'        // projétil reto que acerta o primeiro (Dragão d'Água, Shuriken do Trovão)
-  | 'linha'           // linha instantânea que acerta o primeiro, com efeito (Estaca, Prisão de Água)
-  | 'alvo'            // o alvo focado ou o mais perto no alcance (Prisão de Pilares, Laço do Destino)
+  | 'linha'           // linha instantânea que acerta o primeiro, com efeito (Estaca, Cárcere Líquido)
+  | 'alvo'            // o alvo focado ou o mais perto no alcance (Prisão de Pilares, Ciclo Sem Fim)
   | 'anel_golpe'      // círculo em volta com dano e efeito (Onda de Choque, Chute Ciclone)
   | 'cone_golpe'      // cone na frente com dano, vários golpes e efeito (Rasteira, Punho do Céu)
   | 'zona'            // zona no chão por um tempo (Xarope, Pântano, Domínio das Sombras, Lâminas Flutuantes)
   | 'investida'       // avança e golpeia na chegada, com efeito (Investida Elétrica, Chute Ascendente)
   | 'recuo'           // avanço sem dano, para a frente ou para trás (Impulso Estático, Reflexo Tático)
-  | 'aviso'           // golpe avisado no chão onde se mira (Dragão do Trovão, Kunai Explosiva)
+  | 'aviso'           // golpe avisado no chão onde se mira (Julgamento do Trovão, Kunai Explosiva)
   | 'limpeza'         // tira efeitos de si (Desintoxicação, Dissipação)
-  | 'cura_tempo'      // cura ao longo do tempo em si (Regeneração Mitótica)
+  | 'cura_tempo'      // cura ao longo do tempo em si (Renovação Celular)
   | 'impacto'         // soco colado: o alvo leva tudo, quem está em volta metade (Punho Sísmico)
   | 'ricochete'       // linha que salta para o próximo alvo (Lança Saltadora)
-  | 'agarre'          // linha que prende vários alvos (Agarre Múltiplo)
-  | 'palma'           // canalização: cura o aliado colado (ou a si, pela metade) no fim (Palma Mística)
-  | 'bumerangue'      // projétil que vai, atravessa e volta para a mão (Shuriken Gigante de Chakra)
+  | 'agarre'          // linha que prende vários alvos (Rede de Sombra)
+  | 'palma'           // canalização: cura o aliado colado (ou a si, pela metade) no fim (Palma Curadora)
+  | 'bumerangue'      // projétil que vai, atravessa e volta para a mão (Shuriken Colossal)
   | 'faixa'           // linha larga: acerta todos numa faixa (Lâmina em Arco)
   | 'escudo_vida'     // escudo com vida (absorve dano), um por vez, até 25% da vida (Véu de Vento)
-  | 'invocacao'       // invocação aliada à frente (Clone de Água, Golem de Terra)
+  | 'transformacao'   // escudo + buff de Básico por um tempo e um golpe no fim (Colosso Espectral)
+  | 'invocacao'       // invocação aliada à frente (Duplo de Água, Golem de Terra)
   | 'muro';           // muro à frente: bloqueia passagem e projéteis, tem vida (Muralha de Terra, Muro de Água)
 
 export const FORM_OF_MECHANIC: Readonly<Record<Mechanic, JutsuForm>> = {
   fire: 'linha_explode', water: 'cone', taijutsu: 'avanco', illusion: 'anel', shadow: 'linha_prende', stone: 'escudo',
   heal: 'cura', weapons: 'trilhas', lightning: 'linha_raio', teleport: 'teleporte', substitution: 'substituicao',
-  wind: 'cone_golpe',   // v30: Palma do Vendaval (cone curto que empurra)
+  wind: 'cone_golpe',   // v30: Rajada Aberta (cone curto que empurra)
 };
 
 export interface JutsuDef {
@@ -114,7 +115,7 @@ const NAMES: Readonly<Record<ClassCode, readonly [string, string, string, string
   taijutsu: ['Taijutsu', 'Chute Ciclone', 'Cem Golpes', 'Punho do Céu'],
   weapons: ['Chuva de Kunais', 'Leque de Shurikens', 'Tempestade de Lâminas', 'Arsenal Celeste'],
   lightning: ['Faísca Rasante', 'Lança Trovão', 'Corrente Elétrica', 'Julgamento do Raio'],
-  wind: ['Palma do Vendaval', 'Esferas de Vácuo', 'Tornado Cortante', 'Estrela Espiral'],
+  wind: ['Rajada Aberta', 'Balas de Vento', 'Tornado Cortante', 'Disco do Furacão'],
 };
 
 export const ACADEMY_JUTSUS = ['teleport', 'substitution'] as const;
@@ -145,23 +146,23 @@ const FIRE_V2: Readonly<Record<string, Pick<JutsuDef, 'name' | 'tier' | 'form' |
   fire_hibashiri: { name: 'Linha de Fogo Rasante', tier: 1, form: 'linha_fogo',
     numbers: { base: 22, damage: dmgOf(22, 1), cost: 15, cooldownMs: 2000, range: 5, burn: 0, radius: 0 } },
   // Hōsenka no Jutsu: leque de 3 bolas (4 no nível 2); cada alvo leva no máximo 2
-  fire_2: { name: 'Chamas da Fênix', tier: 2, form: 'leque',
+  fire_2: { name: 'Revoada de Brasas', tier: 2, form: 'leque',
     numbers: { base: 10, damage: dmgOf(10, 2), cost: 27, cooldownMs: 2300, range: 7, shots: 3, speed: 14, radius: 0, burn: 0, castMs: 200 } },
   // Ryūka no Jutsu: raio de fogo instantâneo em linha 8
-  fire_ryuka: { name: 'Chamas do Dragão Guiado', tier: 2, form: 'linha_fogo',
+  fire_ryuka: { name: 'Lança de Fogo', tier: 2, form: 'linha_fogo',
     numbers: { base: 26, damage: dmgOf(26, 2), cost: 27, cooldownMs: 3000, range: 8, burn: 0, radius: 0, castMs: 300 } },
   // Haisekishō: cinzas em volta de quem lança; detonam depois de 1 s (o aviso já é o tempo de reação: sem selos)
-  fire_haiseki: { name: 'Nuvem de Cinzas Ardentes', tier: 2, form: 'aviso_em_volta',
+  fire_haiseki: { name: 'Cinzas Detonantes', tier: 2, form: 'aviso_em_volta',
     numbers: { base: 24, damage: dmgOf(24, 2), cost: 30, cooldownMs: 7000, radius: 2, durationMs: 1000, burn: 0, range: 0 } },
   // Katon: Lâmina de Fogo: o buff de Básico (um por vez, +15%, 5 s)
   fire_lamina: { name: 'Lâmina de Fogo', tier: 2, form: 'buff_basico',
     numbers: { cost: 20, cooldownMs: 15_000, durationMs: 5000, basicBuff: 0.15, damage: 0, burn: 0, range: 0, radius: 0 } },
   // Gōka Messhitsu: onda frontal larga. Custo 30 (o tier dava 34), ajustado pelo simulador: no duelo sem chakra
   // voltando, com 34 o Dano de Armas passava a vencer todas as builds (pvpSim, critério "ninguém vence todas").
-  fire_3: { name: 'Destruição Magnífica', tier: 3, form: 'cone_fogo',
+  fire_3: { name: 'Varredura Flamejante', tier: 3, form: 'cone_fogo',
     numbers: { base: 28, damage: dmgOf(28, 3), cost: 30, cooldownMs: 6000, range: 5, coneDeg: 120, burn: 0, radius: undefined, speed: undefined, castMs: 600 } },
   // Karyū Hōtan: projétil grande e lento que explode
-  fire_hotan: { name: 'Míssil Dragão de Fogo', tier: 3, form: 'linha_explode',
+  fire_hotan: { name: 'Projétil Dracônico', tier: 3, form: 'linha_explode',
     numbers: { base: 30, damage: dmgOf(30, 3), cost: 34, cooldownMs: 6000, range: 9, radius: 2, speed: 8, burn: 0, castMs: 600 } },
   // Tenrai Gōen: 5 meteoros com aviso de 0,8 s; o dano do tier (30 de base) dividido entre os 5. Selos parado.
   fire_4: { name: 'Chuva de Meteoros', tier: 4, form: 'meteoros',
@@ -244,6 +245,60 @@ export const substitutionCooldownMs = (level: number) => (35 - 5 * Math.max(1, M
 /** Jutsu de classe: +10% de efeito (dano, cura) por nível acima do 1. */
 export const jutsuPower = (level: number) => 1 + 0.1 * (Math.max(1, Math.min(4, level)) - 1);
 
+/**
+ * Maestria (design final, Fase 0): cada nível de uso acima do 1 melhora o que faz sentido para AQUELE jutsu, não
+ * necessariamente tudo:
+ *  - dano: +10% de dano por nível (o jutsu de dano puro);
+ *  - efeito: +10% na duração do que ele causa (atordoa, prende, silencia, queima, deixa lento...) por nível;
+ *  - cura: +10% de cura por nível;
+ *  - alcance: +5% de alcance por nível;
+ *  - recarga: -5% de recarga por nível (o jutsu de recarga longa).
+ * No nível 4: +30% de dano/efeito/cura, +15% de alcance, -15% de recarga. O controle continua dentro do orçamento
+ * (pvpBalance CC_BUDGET), então a duração maior nunca passa do teto.
+ * Os jutsus fora desta tabela seguem a regra antiga (dano e cura) até serem ajustados, aos poucos (README).
+ */
+export type MasteryGain = 'dano' | 'efeito' | 'cura' | 'alcance' | 'recarga';
+export const MASTERY_STEP: Readonly<Record<MasteryGain, number>> = { dano: 0.1, efeito: 0.1, cura: 0.1, alcance: 0.05, recarga: 0.05 };
+const MASTERY_DEFAULT: readonly MasteryGain[] = ['dano', 'cura'];
+/** O Fogo (entrega 2) já com a regra nova. */
+export const MASTERY: Readonly<Record<string, readonly MasteryGain[]>> = {
+  fire: ['dano', 'efeito'],               // Fogo: projétil que queima; a queimadura dura mais
+  fire_endan: ['dano', 'efeito'],         // Sopro Incinerador: cone curto que queima
+  fire_hibashiri: ['dano', 'alcance'],    // Linha de Fogo Rasante: a linha vai mais longe
+  fire_kasumi: ['dano', 'recarga'],       // Névoa Inflamável: recarga de 8 s
+  fire_2: ['dano'],                       // Revoada de Brasas: dano puro
+  fire_ryuka: ['dano'],                   // Lança de Fogo: dano puro
+  fire_haiseki: ['dano', 'recarga'],      // Cinzas Detonantes: recarga de 7 s
+  fire_lamina: ['recarga'],               // Lâmina de Fogo (buff): sem dano próprio, volta mais rápido
+  fire_3: ['dano'],                       // Varredura Flamejante: dano puro
+  fire_hotan: ['dano'],                   // Projétil Dracônico: dano puro
+  fire_4: ['dano', 'recarga'],            // Chuva de Meteoros: recarga de 12 s
+};
+/** O que o jutsu ganha com a maestria. */
+export const masteryOf = (code: string): readonly MasteryGain[] => MASTERY[code] ?? MASTERY_DEFAULT;
+/** Bônus da maestria (0 no nível 1; 0,3 no nível 4 para dano/efeito/cura). */
+export function masteryBonus(code: string, gain: MasteryGain, level: number): number {
+  return masteryOf(code).includes(gain) ? MASTERY_STEP[gain] * (Math.max(1, Math.min(4, level)) - 1) : 0;
+}
+/** O nível de uso que conta no dano (ou na cura) do PvP: 1 quando a maestria do jutsu não melhora isso. */
+export const masteryUseLevel = (code: string, gain: 'dano' | 'cura', level: number) => (masteryOf(code).includes(gain) ? level : 1);
+
+/** Durações de efeito que a maestria "efeito" alonga. */
+const EFFECT_KEYS = ['stunMs', 'rootMs', 'silenceMs', 'paralysisMs', 'burnMs', 'slowMs', 'darkMs', 'invertMs', 'woundMs', 'dotMs', 'firstStunMs'] as const;
+
+/** Os números do jutsu no nível de uso `level`, com a maestria de efeito, alcance e recarga (dano e cura: no golpe). */
+export function withMastery<T extends SkillConfig>(cfg: T, code: string, level: number): T {
+  if (!MASTERY[code] || level <= 1) return cfg;
+  const out: T = { ...cfg };
+  const effect = 1 + masteryBonus(code, 'efeito', level);
+  if (effect !== 1) for (const k of EFFECT_KEYS) if (typeof out[k] === 'number') out[k] = Math.round(out[k]! * effect);
+  const cd = 1 - masteryBonus(code, 'recarga', level);
+  if (cd !== 1) out.cooldownMs = Math.round(out.cooldownMs * cd);
+  const reach = 1 + masteryBonus(code, 'alcance', level);
+  if (reach !== 1 && out.range !== undefined) out.range = Math.round(out.range * reach * 100) / 100;
+  return out;
+}
+
 // ------------------------------------------------------------------ números de combate
 
 /** Tier 1 de cada mecânica (os 7 antigos com os MESMOS números de antes). */
@@ -269,7 +324,7 @@ export const BASE_SKILLS: Readonly<Record<Mechanic, SkillConfig>> = {
   // Relâmpago: linha instantânea de 4,5 casas; o primeiro alvo leva dano alto, um choque rápido e fica paralisado 2 s
   // (anda a 70% e leva um choque de 0,25 s por segundo; mais tempo nos tiers altos).
   lightning: { cost: 20, cooldownMs: 2000, damage: 30, range: 4.5, stunMs: 600, paralysisMs: 2000 },   // v30: atordoa 0,6 s (era 0,4)
-  // v30, Vento: Palma do Vendaval: cone curto de 2 casas (60°) que empurra 2 casas.
+  // v30, Vento: Rajada Aberta: cone curto de 2 casas (60°) que empurra 2 casas.
   wind: { cost: 15, cooldownMs: 4000, damage: 18, range: 2, coneDeg: 60, push: 2 },
   // Academia: o alcance e a recarga reais vêm do NÍVEL do jutsu (teleportRange, substitutionCooldownMs).
   teleport: { cost: 10, cooldownMs: 1500, range: 3 },
@@ -336,22 +391,32 @@ export function buildSkills(): Record<JutsuCode, SkillConfig & { mechanic: Mecha
 
 // ------------------------------------------------------------------ Extração (gacha)
 
-/** Nível de Extração 1 a 4: pergaminhos gastos e chance de sucesso (o BANCO usa a mesma tabela). */
-export const EXTRACTION = [
-  { level: 1, scrolls: 1, chance: 0.8 },
-  { level: 2, scrolls: 2, chance: 0.6 },
-  { level: 3, scrolls: 4, chance: 0.4 },
-  { level: 4, scrolls: 8, chance: 0.2 },
-] as const;
+/**
+ * Nível de Extração 1 a 4: pergaminhos gastos e chance de sucesso (o BANCO usa a mesma tabela, v20).
+ * v31 (design final): 1, 2, 3 e 4 pergaminhos; 90%, 80%, 60% e 40%. No tier 1, as 2 primeiras Extrações de cada classe
+ * são garantidas (`guaranteed`: enquanto o jogador sabe menos de 2 jutsus de tier 1 da classe, a chance é 100%).
+ */
+export const EXTRACTION: readonly { level: number; scrolls: number; chance: number; guaranteed?: number }[] = [
+  { level: 1, scrolls: 1, chance: 0.9, guaranteed: 2 },
+  { level: 2, scrolls: 2, chance: 0.8 },
+  { level: 3, scrolls: 3, chance: 0.6 },
+  { level: 4, scrolls: 4, chance: 0.4 },
+];
 
 /**
  * Proteção contra azar (v10, design 7.3): cada falha seguida na mesma classe e no mesmo tier soma isto à
- * chance da próxima; acertou, zera. A MESMA conta está em game.extract_jutsu (db/schema_v10_design.sql).
+ * chance da próxima; acertou, zera. A MESMA conta está em game.extract_jutsu (db/schema_v20_extracao.sql).
+ * O limite é 100%: no tier 4 (40%), a 7ª tentativa seguida é certa.
  */
 export const EXTRACTION_PITY_STEP = 0.1;
 
-/** Chance da próxima Extração do tier `level` depois de `failures` falhas seguidas (0 a 1). */
-export function extractionChance(level: number, failures: number): number {
-  const base = EXTRACTION.find((e) => e.level === level)?.chance ?? 0;
-  return Math.min(1, base + EXTRACTION_PITY_STEP * Math.max(0, failures));
+/**
+ * Chance da próxima Extração do tier `level` depois de `failures` falhas seguidas (0 a 1). `learned` = quantos jutsus
+ * daquele tier e daquela classe o jogador já sabe (o tier 1 garante as 2 primeiras).
+ */
+export function extractionChance(level: number, failures: number, learned = Infinity): number {
+  const rule = EXTRACTION.find((e) => e.level === level);
+  if (!rule) return 0;
+  if (rule.guaranteed !== undefined && learned < rule.guaranteed) return 1;
+  return Math.min(1, rule.chance + EXTRACTION_PITY_STEP * Math.max(0, failures));
 }

@@ -19,6 +19,8 @@ const noDatabase = process.env.TEST_DATABASE_URL
   : 'TEST_DATABASE_URL não definida: integração com PostgreSQL pulada';
 const V8 = readFileSync(new URL('../db/schema_v8_admin_chat.sql', import.meta.url), 'utf8');
 const V12 = readFileSync(new URL('../db/schema_v12_sapatos.sql', import.meta.url), 'utf8');
+/** As colunas que o findPlayer lê hoje: o acessório (v14) e a linhagem (v19). */
+const V14_V19 = ['schema_v14_acessorio.sql', 'schema_v19_clas.sql'].map((f) => readFileSync(new URL(`../db/${f}`, import.meta.url), 'utf8')).join('\n');
 const rule = (name: string) => (e: { constraint?: string }) => e.constraint === name;
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -198,8 +200,8 @@ describe('v8 no banco: atributos, redefinição, chat, missões e equipamento', 
     await store.addItem(id, 'scroll_fire', 1);
     assert.deepEqual(await store.equip(id, 'scroll_fire', 'scroll'), { ok: true, equipped: 'scroll_fire' });
     assert.equal((await makeFindPlayer(t.db)(id))!.equippedScroll, 'scroll_fire');
-    const r = await store.extract(id, 'fire', 1, 0.99, 0);                      // falha, mas gasta o único pergaminho
-    assert.ok(r.ok && r.outcome === 'failed' && r.equippedScroll === null);
+    const r = await store.extract(id, 'fire', 1, 0.99, 0);                      // gasta o único pergaminho (v20: a 1ª é garantida)
+    assert.ok(r.ok && r.outcome === 'success' && r.equippedScroll === null);
     assert.equal((await one('SELECT equipped_scroll FROM game.players WHERE id = $1', [id])).equipped_scroll, null);
     await t.pool.query('UPDATE game.players SET ryo = 5000 WHERE id = $1', [id]);
     assert.ok((await store.buy(id, 'katana', 1)).ok);
@@ -219,6 +221,7 @@ describe('v8 no banco: migração sobre quem já jogava (Chakra Máximo + Regen 
     await t.pool.query(V8);
     await t.pool.query(V8);
     await t.pool.query(V12);                                              // findPlayer lê a coluna do sapato (v12)
+    await t.pool.query(V14_V19);
     const found = await makeFindPlayer(t.db)(id);
     assert.equal(found!.attributes!.chakra, 5);
     assert.equal(found!.statPoints, 2);

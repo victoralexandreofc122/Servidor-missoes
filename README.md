@@ -220,10 +220,59 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Relatório completo** (versão final, progresso, pendências e como continuar): `docs/relatorio-final-e-progresso-2026-11.md`
   e o PDF `docs/relatorio-final-e-progresso-2026-11.pdf`.
 - **Versão publicada:** v29 (`main`). **Pronto para publicar (aguarda o Victor), no branch:** correção do rankeado,
-  Jutsus v2 entrega 2 (Fogo) com a v16, Fase 1 dos nomes (Herança do Fogo) com a v17 e as outras 8 classes com a v18.
-  Ordem no Neon: v16, v17, v18, v19; depois o código na `main` (DEPLOY.md, passos 31 a 34).
-- **Antes de qualquer commit:** `npm run verify` (619 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
-- **Visão do endgame (referência):** `docs/endgame-visao.md`.
+  Jutsus v2 entrega 2 (Fogo) com a v16, Fase 1 dos nomes (Herança do Fogo) com a v17, as outras 8 classes com a v18,
+  os clãs com a v19 e a Fase 0 (Extração nova e maestria por jutsu) com a v20.
+  Ordem no Neon: v16, v17, v18, v19, v20; depois o código na `main` (DEPLOY.md, passos 31 a 35).
+- **Antes de qualquer commit:** `npm run verify` (633 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
+- **Visão do endgame (documento canônico):** `docs/endgame-visao.md`.
+
+## Roadmap (documento canônico, `docs/endgame-visao.md` seção 13)
+
+- **Fase 0 (feita no branch):** Jutsus v2 entrega 2 + conjuração no Fogo + v16; Extração do design final e maestria por
+  jutsu (v20).
+- **Fase 1 (antes de monetizar):** renomeação. Já feito: Herança do Fogo na UI e nos docs, as 4 aldeias e o Vale dos
+  Guardiões (v17); Os Cinzas, Arena das Quatro Heranças e 38 jutsus renomeados (v21). Os clãs já são Rubro e Umbra e o Soco Tsunade já é
+  Punho Sísmico. Falta confirmar a ordem das aldeias Nuvem/Areia (`docs/fase1-renomeacao.md`).
+- **Fase 2 (endgame sobre a base):** Torneio da Temporada, ANBU, torneios de campeão, Terra Sem Lei e Caçada, guerras
+  20v20 e final, balanceamento populacional, infiltração, mentoria.
+- **Fase 2.5: 74 jutsus novos** para fechar 4 jutsus por classe por tier (4/4/4/4 nas 10 classes = 160). É a maior frente
+  de conteúdo; **não começar sem o Victor pedir**. Hoje a distribuição varia (a Cura tem 5 no tier 1; o Fogo, 4/4/2/1).
+- **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
+  aldeia), mapa-múndi contínuo.
+
+### v32: Fase 1, os nomes originais (migração v21, `db/schema_v21_nomes_jutsus.sql`)
+
+- **Só trocou nomes** (nenhuma mecânica nova). Auditoria e as 3 opções de cada nome: `docs/fase1-renomeacao.md`; aprovado: a opção recomendada.
+- **A organização vilanesca** passou a se chamar **Os Cinzas** na tela (aba, convite, avisos, erros, painel do admin); o **Manto da Akatsuki**
+  virou **Manto Cinza** (ícone 🌑 e brasas laranja no lugar das nuvens vermelhas). Os **10 poderes** têm nomes novos (Gravidade Invertida,
+  Lâmina Faminta, Pacto de Sangue, Escultura Detonante, Fios do Titereiro, Revoada Sombria, Vidas Costuradas, Passo Radicular,
+  Tempestade de Páginas, Forma Fantasma). Os IDs e o nome interno (`akatsuki`) não mudam.
+- **38 jutsus** (tradução direta de golpes da série) com nome original, por exemplo Chamas Negras → Brasa Sem Luz, Lua Ilusória → Mundo Espelhado,
+  Dragão d’Água → Serpente d’Água, Estrela Espiral → Disco do Furacão. Os códigos não mudam (ninguém perde jutsu, uso, nível ou kit).
+- **Arena das Quatro Heranças** (era Vale dos Guardiões; o ID `vale_estatuas` fica). Clã Rubro, Linhagem Umbra e Punho Sísmico ficam.
+- **Teste `test/nomes.test.ts`:** trava nomes da série em jutsus, itens, poderes, mapas e NPCs, e nomes de jutsu repetidos.
+- **Migração v21:** um UPDATE por jutsu em `game.jutsus.name` e o nome do manto em `game.items`. Rodar a v16, v18, v19 ou v20 de novo devolve
+  nomes antigos: se rodar, rode a v21 outra vez.
+- **Ainda não:** a ordem das aldeias Nuvem/Areia (esperando o Victor), os selos dos jutsus de tier 1 (ficam para a Fase 2) e a limpeza dos
+  documentos internos de design.
+
+### v31: Fase 0, a Extração do design final e a maestria por jutsu (migração v20, `db/schema_v20_extracao.sql`)
+
+- **Extração:** tier 1 = 1 pergaminho, as 2 primeiras de cada classe garantidas e depois 90%; tier 2 = 2 pergaminhos, 80%;
+  tier 3 = 3, 60%; tier 4 = 4, 40% (antes 1/2/4/8 e 80/60/40/20%). A proteção contra azar continua: +10 pontos por falha
+  seguida, até 100% (no tier 4, a 7ª tentativa seguida é certa). "Garantida" = o jogador sabe menos de 2 jutsus de
+  tier 1 daquela classe. A Casa dos Pergaminhos mostra "garantida: N de 2 ainda".
+- **Maestria por jutsu:** os 4 níveis de uso (0/100/500/2000) melhoram o que faz sentido para cada jutsu: dano (+10% por
+  nível), efeito (+10% na duração de atordoar, prender, silenciar, queimar...), cura (+10%), alcance (+5%) ou recarga
+  (-5%). **Feito no Fogo (os 11 jutsus)**, tabela `MASTERY` em `src/realtime/jutsus.ts`: Fogo e Sopro Incinerador =
+  dano + efeito (queimadura); Linha de Fogo Rasante = dano + alcance; Névoa Inflamável, Nuvem de Cinzas e Chuva de
+  Meteoros = dano + recarga; Lâmina de Fogo = recarga; os demais = dano. **Os outros 85 jutsus continuam com a regra
+  antiga (dano e cura) e serão ajustados aos poucos**, classe por classe. A aba Jutsus mostra o bônus de cada um, e o
+  servidor manda a recarga de verdade em cada jutsu (o cliente não adivinha).
+- **A v20 também põe no banco o que faltou na v19:** a Lua Ilusória e o Guardião Espectral Completo (Clã Rubro, nível
+  60) em `game.jutsus`, e `game.valid_kit` com os 96 códigos.
+- Testes de banco consertados: rodar a v11 ou a v12 de novo depois da v14 quebrava a regra dos tipos de item (faltava o
+  acessório).
 
 ### v29: Jutsus v2, entrega 2 (o Fogo novo) e a conjuração (migração v16, `db/schema_v16_jutsus_fogo.sql`)
 
@@ -263,9 +312,10 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   Umbra: a árvore das sombras e +10% de alcance; Andarilho: Substituição 15% mais rápida). Migração v19.
 - **Controle mais forte:** 2,5 s por golpe e 5 s a cada 15 s (eram 1,5 e 2,5); todo controle dos jutsus x1,6; o choque
   da paralisia pesa metade.
-- **Ainda não:** monstros atraídos pela invocação, a escolha da linhagem no Criador, a missão de despertar com objetivo, o
-  olho do Clã Rubro que muda de visual, a conversão da classe Sombra em Clã Umbra, Lua Ilusória e Guardião Espectral
-  Completo (poderes de evento). Cura, Ilusão e Possessão da Sombra (tier 1) continuam sem selos.
+- **Depois, no mesmo branch:** monstros atraídos pelas invocações; Lua Ilusória e Guardião Espectral Completo (Clã Rubro,
+  nível 60). **Ainda não:** a escolha da linhagem no Criador, a missão de despertar com objetivo, o olho do Clã Rubro
+  que muda de visual, a conversão da classe Sombra em Clã Umbra. Cura, Ilusão e Possessão da Sombra (tier 1) continuam
+  sem selos.
 - **Equilíbrio:** jutsu com números próprios paga o próprio custo no PvP (o x4 era do Golpe Avançado); as Armas novas
   pagam o x2,5 e usam as bases da adaptação x0,72 (o atributo e a arma somam por cima). O simulador escolhe pelo dano
   por tempo gasto (toque + selos). Todos os critérios do `pvpSim` passam.

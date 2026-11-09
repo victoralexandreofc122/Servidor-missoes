@@ -78,7 +78,7 @@ function golpear(g: Golpe): { dano: number; queimadura: number } {
  * monstro, sem clima e sem passiva de vila. Os jutsus de Armas usam a Kunai de Treino (+10 de dano base).
  */
 const ESPERADO: Record<string, string[]> = {
-  // v30: os tier 4 das outras classes viraram os da adaptação: Prisão do Vórtice (2 pulsos), Dragão do Trovão (aviso),
+  // v30: os tier 4 das outras classes viraram os da adaptação: Prisão do Vórtice (2 pulsos), Julgamento do Trovão (aviso),
   // Punho do Céu (5 socos no monstro), Dança dos Mil Cortes (8 cortes); o "+" soma os golpes depois do primeiro.
   // v29 (Jutsus v2): o tier 4 do Fogo virou a Chuva de Meteoros: o 1º meteoro + os outros 2 que caem no ponto mirado
   // (antes, o Inferno Escarlate: 28+9 / 36+12 / 67+24 / 87+30).

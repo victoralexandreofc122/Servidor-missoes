@@ -12,7 +12,7 @@ const TABS = [
 ];
 const WEATHERS = [['normal', '☁️ Normal'], ['quente', '☀️ Quente'], ['chuva', '🌧️ Chuva'], ['neblina', '🌫️ Neblina']];
 const PHASES = [['amanhecer', '🌅 Amanhecer'], ['dia', '🌞 Dia'], ['entardecer', '🌇 Entardecer'], ['noite', '🌙 Noite']];
-const MODULES = [['vilas', 'Vilas e Kage'], ['pvp', 'Zona de Conflito'], ['renegados', 'Renegados'], ['akatsuki', 'Akatsuki']];
+const MODULES = [['vilas', 'Vilas e Kage'], ['pvp', 'Zona de Conflito'], ['renegados', 'Renegados'], ['akatsuki', 'Cinzas']];
 const KIND_NAME = { weapon: 'Arma', scroll: 'Pergaminho', cape: 'Capa', shoes: 'Sapato', accessory: 'Acessório' };
 const CLASS_ORDER = ['fire', 'water', 'lightning', 'stone', 'taijutsu', 'illusion', 'shadow', 'heal', 'weapons', 'wind'];
 const CONFIRM_MS = 3000;
@@ -109,7 +109,7 @@ export function mountAdminUI(api) {
         row('Vila', vil, btn('Mudar vila', forWho((n) => `vila ${n} ${vil.value}`))),
         row('Kage', kage, btn('Pôr como Kage', forWho((n) => `kage ${kage.value} ${n}`))),
         row('Renegado', danger('Tornar renegado', forWho((n) => `renegado ${n} sim`)), btn('Desfazer', forWho((n) => `renegado ${n} nao`))),
-        row('Akatsuki', btn('Tornar líder', forWho((n) => `akatsuki lider ${n}`)), danger('Remover', forWho((n) => `akatsuki remover ${n}`)))),
+        row('Cinzas', btn('Tornar líder', forWho((n) => `akatsuki lider ${n}`)), danger('Remover', forWho((n) => `akatsuki remover ${n}`)))),
     ];
   }
 

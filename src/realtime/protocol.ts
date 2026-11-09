@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
 import { CLANS, type Clan } from './jutsusClasses.js';
-import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type JutsuForm, type Mechanic } from './jutsus.js';
+import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type JutsuForm, type MasteryGain, type Mechanic } from './jutsus.js';
 import { ITEM_CODES, type Gear, type ItemDef } from './items.js';
 import { IncomingAppearanceSchema, VILLAGES, type Appearance, type Village } from './appearance.js';
 import type { EndgameModule } from './endgame.js';
@@ -207,7 +207,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   // cima, baixo, esquerda ou direita); o ALCANCE é sempre do servidor.
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: targetId.optional(), dir: z.tuple([axis, axis]).optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
-  // v29: modo rankeado: entrar no Vale dos Guardiões, sair dele, entrar na fila do Desafio e sair da fila.
+  // v29: modo rankeado: entrar no Arena das Quatro Heranças, sair dele, entrar na fila do Desafio e sair da fila.
   z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board', 'sit', 'stand']) }),
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z][a-z_]{0,23}$/) }),
@@ -445,6 +445,8 @@ export interface SkillInfo {
   coneDeg?: number;
   /** v29: buff de Básico: quanto tempo dura (para o brilho na arma). */
   durationMs?: number;
+  /** v31: o que a maestria melhora (só nos jutsus já com a regra nova; sem ele: dano e cura). */
+  mastery?: MasteryGain[];
 }
 
 /** Missão de sensei como o jogador vê (Sala de Missões). */
@@ -566,7 +568,7 @@ export type ServerMessage =
   | { type: 'mission_board'; npcId: string; offers: MissionOffer[]; mission: MissionView | null }
   | { type: 'stats'; hp: number; maxHp: number; chakra: number; maxChakra: number; shield: boolean; speed: number; running: boolean }
   | { type: 'player_hp'; playerId: string; hp: number; maxHp: number }
-  | { type: 'cast'; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number; tx?: number; ty?: number }
+  | { type: 'cast'; playerId: string; skill: Skill; x: number; y: number; fx: number; fy: number; tx?: number; ty?: number; cd?: number }
   | { type: 'projectile'; id: number; playerId: string; skill?: Skill; weapon?: string; power?: PowerKind; x: number; y: number; fx: number; fy: number; speed: number; range: number }
   | { type: 'impact'; id: number; skill?: Skill; weapon?: string; power?: PowerKind; x: number; y: number; r: number }
   | { type: 'dash'; playerId: string; fromX: number; fromY: number; x: number; y: number; a: number }

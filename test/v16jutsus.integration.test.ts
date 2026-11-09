@@ -15,6 +15,7 @@ import { MIGRATIONS, createTestDatabase } from './support/testDb.js';
 const noDatabase = process.env.TEST_DATABASE_URL
   ? false
   : 'TEST_DATABASE_URL não definida: integração com PostgreSQL pulada';
+const V21 = readFileSync(new URL('../db/schema_v21_nomes_jutsus.sql', import.meta.url), 'utf8');
 const V16 = readFileSync(new URL('../db/schema_v16_jutsus_fogo.sql', import.meta.url), 'utf8');
 
 /** Genin de Fogo com `scrolls` pergaminhos de Fogo. */
@@ -39,6 +40,8 @@ describe('v16 no banco: o Fogo novo (Jutsus v2, entrega 2)', { skip: noDatabase 
     assert.deepEqual(await read(), want);
     await t.pool.query(V16);
     await t.pool.query(V16);
+    await t.pool.query(V21);                  // a v16 devolve os nomes antigos de fire_2 a fire_4; a v21 os põe de novo (DEPLOY.md avisa)
+    await t.pool.query(V21);
     assert.deepEqual(await read(), want);
     const tiers = (await t.pool.query(`SELECT tier, count(*)::int AS n FROM game.jutsus WHERE class_code = 'fire' GROUP BY tier ORDER BY tier`)).rows;
     assert.deepEqual(tiers, [{ tier: 1, n: 4 }, { tier: 2, n: 4 }, { tier: 3, n: 2 }, { tier: 4, n: 1 }]);
@@ -55,7 +58,7 @@ describe('v16 no banco: o Fogo novo (Jutsus v2, entrega 2)', { skip: noDatabase 
     await t.pool.query(`UPDATE game.players SET kit_a = ARRAY['fire_endan', 'fire_lamina', 'fire_3', 'fire_4'] WHERE id = $1`, [id]);
   });
 
-  it('a Extração do tier 3 do Fogo dá um dos 2 (Destruição Magnífica ou Míssil Dragão) e depois o outro', async () => {
+  it('a Extração do tier 3 do Fogo dá um dos 2 (Varredura Flamejante ou Míssil Dragão) e depois o outro', async () => {
     const { id, store } = await genin(t, 'pirofilo', 8);
     const got: string[] = [];
     for (const pick of [0.99, 0]) {

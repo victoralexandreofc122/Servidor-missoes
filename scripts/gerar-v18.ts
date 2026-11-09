@@ -1,6 +1,6 @@
 /*
  * Gera db/schema_v18_jutsus_classes.sql a partir do catálogo do servidor (src/realtime/jutsus.ts), e atualiza a lista
- * de game.valid_kit da v16 (as duas têm a lista completa: rodar uma de novo não encolhe a regra dos kits).
+ * de game.valid_kit da v16 e da v20 (as três têm a lista completa: rodar uma de novo não encolhe a regra dos kits).
  * Uso: npx tsx scripts/gerar-v18.ts
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -48,11 +48,13 @@ ${lines.join('\n')}
 COMMIT;
 
 -- Conferência (opcional):
--- SELECT count(*) FROM game.jutsus;                                                               -- ${JUTSUS.length}
+-- SELECT count(*) FROM game.jutsus;                                                               -- ${JUTSUS.filter((j) => !j.clan).length}
 -- SELECT class_code, count(*) FROM game.jutsus GROUP BY class_code ORDER BY class_code;
 -- SELECT game.valid_kit(ARRAY['water_dragao', 'stone_pilares', 'heal_aura', 'shadow_4']);         -- true`);
 writeFileSync(new URL('../db/schema_v18_jutsus_classes.sql', import.meta.url), sql + '\n');
-const v16url = new URL('../db/schema_v16_jutsus_fogo.sql', import.meta.url);
-const v16 = readFileSync(v16url, 'utf8').replace(/AND kit <@ ARRAY\[\n[\s\S]*?\n   \]::text\[\]/, `AND kit <@ ARRAY[\n${lines.join('\n')}\n   ]::text[]`);
-writeFileSync(v16url, v16);
-console.log(`v18: ${rows.length} jutsus; valid_kit: ${codes.length} códigos (v16 e v18)`);
+for (const file of ['schema_v16_jutsus_fogo.sql', 'schema_v20_extracao.sql']) {
+  const url = new URL(`../db/${file}`, import.meta.url);
+  const text = readFileSync(url, 'utf8').replace(/AND kit <@ ARRAY\[\n[\s\S]*?\n   \]::text\[\]/, `AND kit <@ ARRAY[\n${lines.join('\n')}\n   ]::text[]`);
+  writeFileSync(url, text);
+}
+console.log(`v18: ${rows.length} jutsus; valid_kit: ${codes.length} códigos (v16, v18 e v20)`);

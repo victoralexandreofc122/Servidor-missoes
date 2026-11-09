@@ -193,8 +193,8 @@ describe('Rei Lodo (chefe da Caverna do Lodo)', () => {
   });
 });
 
-describe('Ilusão tier 4 (v30: Laço do Destino): prende e silencia', () => {
-  it('Laço do Destino: o alvo fica preso e sem jutsu', () => {
+describe('Ilusão tier 4 (v30: Ciclo Sem Fim): prende e silencia', () => {
+  it('Ciclo Sem Fim: o alvo fica preso e sem jutsu', () => {
     assert.deepEqual(['illusion', 'illusion_2', 'illusion_3', 'illusion_4'].map((k) => SK[k as 'illusion']!.silenceMs), [undefined, undefined, undefined, 2500]);   // v30: controle x1,6 (até 2,5 s)
     const w = setupWorld(config(true));
     const a = w.connect('kaito');

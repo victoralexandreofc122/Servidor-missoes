@@ -716,7 +716,7 @@ function handleMessage(msg) {
         && !vfx.play('explosion', z.x, z.y, { start: now, scale: z.r / 2 })) {
         state.effects.push({ skill: 'fire', x: z.x, y: z.y, fx: 0, fy: 0, r: z.r, start: now });
       } else if (z?.kind === 'aviso' && z.skill && mechanicOf(z.skill) !== 'fire') {
-        // v30: o golpe avisado das outras classes (Dragão do Trovão, Kunai Explosiva, Dragões Gêmeos) cai: anel na cor
+        // v30: o golpe avisado das outras classes (Julgamento do Trovão, Kunai Explosiva, Ascensão Dupla) cai: anel na cor
         state.effects.push({ skill: 'jutsu_ring', x: z.x, y: z.y, fx: 0, fy: 0, r: z.r, color: CAST_COLOR[mechanicOf(z.skill)] || '#fff27a', start: now });
       }
       break;
@@ -1100,13 +1100,13 @@ function handleMessage(msg) {
       }
       if (msg.playerId === state.meId) {
         console.log(`[habilidade] ${msg.skill}`);
-        startCooldown(msg.skill);
+        startCooldown(msg.skill, msg.cd);   // v31: o servidor manda a recarga (maestria, PvP, linhagem)
       }
       break;
     }
     case 'projectile': {
       // Fogo / Kunai / Shuriken Gigante saiu voando: a tela anda com ele; quem decide onde bate é o servidor (`impact`).
-      // Poderes da Akatsuki: a Argila Viva voa como a bola de fogo; a Chuva de Papel, como kunais.
+      // Poderes da Akatsuki: a Escultura Detonante voa como a bola de fogo; a Tempestade de Páginas, como kunais.
       const sheet = msg.power ? (msg.power === 'blast' ? 'fireball' : 'kunai') : msg.weapon ? 'fuma' : mechanicOf(msg.skill) === 'fire' ? 'fireball' : 'kunai';
       vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now);
       const thrower = msg.weapon ? state.players.get(msg.playerId) : null;
@@ -1976,13 +1976,13 @@ const SKILLS = {
   log: { color: '#8b5a2b', ms: 1400 },         // tronco que levou o golpe da Substituição
   attack: { color: '#fff3c4', ms: 260 },   // Ataque Básico: corte rápido na direção do golpe
   slam: { color: '#7a5a3a', ms: 520 },     // golpe marcado caiu: anel de impacto no chão (fx = raio)
-  fire_cone: { color: '#ff7a2e', ms: 560 },   // v29: Sopro Incinerador e Destruição Magnífica (leque de chamas)
-  fire_line: { color: '#ff9a3c', ms: 520 },   // v29: Linha de Fogo Rasante e Chamas do Dragão Guiado
+  fire_cone: { color: '#ff7a2e', ms: 560 },   // v29: Sopro Incinerador e Varredura Flamejante (leque de chamas)
+  fire_line: { color: '#ff9a3c', ms: 520 },   // v29: Linha de Fogo Rasante e Lança de Fogo
   // v30: as formas das outras classes, na cor do elemento (fx.color)
   jutsu_cone: { color: '#f2b13a', ms: 420 },  // cone de golpe (Rasteira, Cem Golpes, Punho do Céu)
-  jutsu_line: { color: '#fff27a', ms: 460 },  // linha (Estaca, Prisão de Água, Lança Saltadora, Agarre)
-  jutsu_ring: { color: '#3ca6ff', ms: 520 },  // anel (Onda de Choque, Chute Ciclone, Fluxo Elétrico) e o golpe avisado caindo
-  jutsu_burst: { color: '#a072ff', ms: 600 }, // no alvo (Prisão de Pilares, Árvore Prendedora, Laço do Destino)
+  jutsu_line: { color: '#fff27a', ms: 460 },  // linha (Estaca, Cárcere Líquido, Lança Saltadora, Agarre)
+  jutsu_ring: { color: '#3ca6ff', ms: 520 },  // anel (Onda de Choque, Chute Ciclone, Descarga Envolvente) e o golpe avisado caindo
+  jutsu_burst: { color: '#a072ff', ms: 600 }, // no alvo (Prisão de Pilares, Raízes do Pesadelo, Ciclo Sem Fim)
 };
 const GROUND_FX = new Set(['shadow', 'water', 'log', 'slam', 'fire_cone', 'fire_line', 'jutsu_cone', 'jutsu_line', 'jutsu_ring', 'jutsu_burst']);
 /** v29 (Jutsus v2): a forma do jutsu (o welcome só manda quando não é a da mecânica). */
@@ -2079,7 +2079,7 @@ function duelFighting() {
   return !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
 }
 
-/** No Vale dos Guardiões: o outro lado da partida, só durante a rodada (o servidor confere de novo). */
+/** No Arena das Quatro Heranças: o outro lado da partida, só durante a rodada (o servidor confere de novo). */
 function duelFoe(id) {
   const d = state.duel;
   if (!d || d.phase !== 'round' || !d.a || !d.b) return false;
@@ -2703,8 +2703,15 @@ function renderExtraction() {
   } else if (rule) {
     // Proteção contra azar: cada falha seguida nesta classe e neste tier soma pontos na chance (o servidor conta).
     const fails = extractChoice.cls ? state.extractFailures?.[extractChoice.cls]?.[rule.level] || 0 : 0;
-    const chance = Math.min(1, rule.chance + (state.world.extractionPityStep || 0) * fails);
-    const luck = fails > 0 ? ` (${Math.round(rule.chance * 100)}% + ${Math.round((chance - rule.chance) * 100)}% de sorte acumulada)` : '';
+    // v31: no tier 1, as 2 primeiras de cada classe são garantidas (o servidor conta os jutsus que você já sabe)
+    const learned = Object.keys(state.ninja.jutsus || {}).filter((code) => {
+      const sk = state.world.skills?.[code];
+      return sk && sk.tier === rule.level && (sk.class !== undefined ? sk.class : sk.mechanic) === extractChoice.cls;
+    }).length;
+    const sure = rule.guaranteed !== undefined && learned < rule.guaranteed;
+    const chance = sure ? 1 : Math.min(1, rule.chance + (state.world.extractionPityStep || 0) * fails);
+    const luck = sure ? ` (garantida: ${rule.guaranteed - learned} de ${rule.guaranteed} ainda)`
+      : fails > 0 ? ` (${Math.round(rule.chance * 100)}% + ${Math.round((chance - rule.chance) * 100)}% de sorte acumulada)` : '';
     ui.extractInfo.textContent = `Custa ${rule.scrolls} ${rule.scrolls === 1 ? 'pergaminho' : 'pergaminhos'} · chance de ${Math.round(chance * 100)}%${luck} · jutsu do Tier ${rule.level}. Você tem ${have}.`;
   }
   ui.extractGo.disabled = !owned.length || !rule || have < rule.scrolls;
@@ -2772,7 +2779,7 @@ const CAPE_ICONS = {
   capa_viagem: { base: '#8a6a44', light: '#a8865a', dark: '#5e4628', edge: '#2e2012', lining: '#3e2c18', trim: '#c9a46a' },
   capa_vila: { base: '#2f6a3a', light: '#3f8a4c', dark: '#1f4a28', edge: '#0e2414', lining: '#16321c', trim: '#d9b25a', motif: 'leaf' },
   manto_kage: { base: '#ece6da', light: '#ffffff', dark: '#c9c0b0', edge: '#5a5048', lining: '#a8302a', trim: '#c8261e', motif: 'flames' },
-  manto_akatsuki: { base: '#1a1a24', light: '#2c2c3a', dark: '#0c0c12', edge: '#000000', lining: '#5a1414', trim: '#c8261e', motif: 'clouds' },
+  manto_akatsuki: { base: '#3a393f', light: '#55545c', dark: '#222126', edge: '#111114', lining: '#5a3a1a', trim: '#d9772b', motif: 'embers' },
   manto_campeao: { base: '#4a2a7a', light: '#6a42a0', dark: '#2e1850', edge: '#140a24', lining: '#d9b25a', trim: '#f2d58c', motif: 'laurel' },
 };
 const capeIconCache = new Map();
@@ -2805,10 +2812,10 @@ function capeIcon(code) {
     for (const [x, y] of [[11, 12], [12, 11], [12, 12], [12, 13], [13, 12], [13, 13], [14, 14]]) px(x, y, P.trim);
   } else if (P.motif === 'flames') {                    // chamas vermelhas na barra
     for (let x = 6; x < 26; x += 3) for (let k = 0; k < 4; k++) px(x + (k % 2), 26 - k, P.trim);
-  } else if (P.motif === 'clouds') {                    // nuvens vermelhas com borda branca
+  } else if (P.motif === 'embers') {                    // brasas (losangos laranja com miolo claro) no manto cinza
     for (const [cx, cy] of [[11, 14], [20, 20], [10, 23]]) {
-      for (const [dx, dy] of [[-1, 0], [0, -1], [1, -1], [2, 0], [1, 0], [0, 0]]) px(cx + dx, cy + dy, P.trim);
-      for (const [dx, dy] of [[-2, 0], [-1, -1], [0, -2], [1, -2], [2, -1], [3, 0]]) px(cx + dx, cy + dy, '#f4ecd8');
+      for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0], [0, 1], [0, 0]]) px(cx + dx, cy + dy, P.trim);
+      px(cx, cy, '#f4ecd8');
     }
   } else if (P.motif === 'laurel') {                    // o louro dourado e a barra dourada
     for (let y = 10; y < 26; y += 2) { px(9 + Math.round((y - 10) * -0.1), y, P.trim); px(22, y, P.trim); }
@@ -3755,6 +3762,15 @@ function renderDraftKits() {
   ui.kitCount.textContent = `Kit A: ${draftKits.A.length}/4 · Kit B: ${draftKits.B.length}/4`;
 }
 
+/** v31: maestria (o mesmo passo do servidor, jutsus.ts MASTERY_STEP): o bônus que o nível de uso já deu. */
+const MASTERY_TEXT = {
+  dano: (n) => `dano +${10 * n}%`,
+  efeito: (n) => `efeito +${10 * n}%`,
+  cura: (n) => `cura +${10 * n}%`,
+  alcance: (n) => `alcance +${5 * n}%`,
+  recarga: (n) => `recarga −${5 * n}%`,
+};
+
 /** Aba Jutsus: nível pelo USO e a barra até o próximo nível (números do servidor). */
 function renderJutsus() {
   if (ui.statusPanel.hidden) return;
@@ -3776,6 +3792,15 @@ function renderJutsus() {
     const small = document.createElement('small');
     small.textContent = cls ? `${state.world.classes?.find((c) => c.code === cls)?.name || cls} · Tier ${info?.tier ?? 1}` : 'Academia';
     name.append(small);
+    // v31: maestria: o que este jutsu ganha a cada nível de uso (sem a lista: só dano)
+    const gains = sinfo?.tier > 0 ? (sinfo.mastery || ['dano']) : [];
+    if (gains.length) {
+      const m = document.createElement('small');
+      m.className = 'mastery';
+      const now = Math.max(0, level - 1);
+      m.textContent = 'Maestria: ' + gains.map((g) => MASTERY_TEXT[g](now)).join(' · ');
+      name.append(m);
+    }
     const lvl = document.createElement('b');
     lvl.className = 'lvl';
     lvl.textContent = `Nv ${level}`;
@@ -4828,7 +4853,7 @@ function stoneTile(seed) {
 
 /** Calçamento de cada vila (v16): a mesma planta da Folha com a pedra da terra dela. [base, bloco, bloco 2, brilho, pontos]. */
 /**
- * v29 (revisão EGM): o chão do Vale dos Guardiões. Lajes grandes de pedra cinza-oliva (2 por casa, de tamanhos
+ * v29 (revisão EGM): o chão do Arena das Quatro Heranças. Lajes grandes de pedra cinza-oliva (2 por casa, de tamanhos
  * diferentes), juntas escuras com musgo e uma laje rachada de vez em quando. Escuro o bastante para não estourar no sol.
  */
 function valeSlabTile(seed, cracked = false) {
@@ -5035,7 +5060,7 @@ function tileAt(x, y) {
     case 'burnt': return TILES.burnt[h % 3];                       // Acampamento e Clareira Queimada
     case 'pebbles': return TILES.pebbles[h & 1];                   // leito seco da cachoeira
     case 'lodo': return TILES.lodo[0];
-    case 'slab': return TILES.slab[h % 31 === 0 ? 8 : (h >>> 3) % 8];   // Vale dos Guardiões: lajes com musgo
+    case 'slab': return TILES.slab[h % 31 === 0 ? 8 : (h >>> 3) % 8];   // Arena das Quatro Heranças: lajes com musgo
     case 'path': return TILES.path[h & 1];                         // estradas de terra
     case 'sand': return TILES.sand[h & 1];                         // campo de treino
     case 'arena':                                                  // arena da vila: lajes, losango a cada 4 (na Areia, terra batida)
@@ -5210,7 +5235,7 @@ function update(dt) {
   if (me && predWorld) {
     // Próprio jogador: predição (anda já) + envio das entradas em lote + correção suave.
     const canMove = state.connected && !state.me.dead;
-    // v30: controles invertidos (Distúrbio Nervoso): anda ao contrário enquanto durar
+    // v30: controles invertidos (Descontrole Muscular): anda ao contrário enquanto durar
     const inv = me.fx?.invertido > now ? -1 : 1;
     const dx = quantize(dir.x) * inv, dy = quantize(dir.y) * inv;
     const s = speed * debugSpeedFactor;
@@ -5549,7 +5574,7 @@ function draw(now) {
   }
 
   for (const fx of state.effects) if (!GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
-  drawDarkness(me, toScreenX, toScreenY, T, now);     // v30: escuridão (Ocultação na Névoa, Noite Eterna)
+  drawDarkness(me, toScreenX, toScreenY, T, now);     // v30: escuridão (Véu de Bruma, Noite Eterna)
   vfx.draw(ctx, 'top', toScreenX, toScreenY, T, dpr, now);
 
   // Por cima de todos: o telhado do portão (quem passa por baixo fica escondido por ele).
@@ -6731,7 +6756,7 @@ function drawCrown(g, sx, top, r) {
   g.restore();
 }
 
-/** v30: invocações dos jutsus: o Golem de Terra (pedra) e o Clone de Água (um ninja d'água translúcido). */
+/** v30: invocações dos jutsus: o Golem de Terra (pedra) e o Duplo de Água (um ninja d'água translúcido). */
 function drawSummon(m, sx, sy, T, now) {
   const golem = m.type === 'golem';
   const s = golem ? 1.5 : 1;

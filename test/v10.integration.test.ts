@@ -7,6 +7,7 @@ import { makeProgression } from '../src/realtime/progression.js';
 import { levelStart } from '../src/realtime/stats.js';
 import { MIGRATIONS, createTestDatabase } from './support/testDb.js';
 
+const V20 = readFileSync(new URL('../db/schema_v20_extracao.sql', import.meta.url), 'utf8');
 const noDatabase = process.env.TEST_DATABASE_URL
   ? false
   : 'TEST_DATABASE_URL não definida: integração com PostgreSQL pulada';
@@ -29,37 +30,40 @@ describe('v10 no banco: proteção contra azar na Extração (PostgreSQL real)',
   after(async () => { await t?.drop(); });
 
   it('cada falha soma +10 pontos na próxima do mesmo tier e da mesma classe; acertou, zera', async () => {
-    const { id, store } = await genin(t, 'azarado', 8 * 4 + 1);
-    // tier 4 (20%): 0,25 falha com 20%, mas passa com 30% (uma falha antes)
-    const first = await store.extract(id, 'water', 4, 0.25, 0);
+    const { id, store } = await genin(t, 'azarado', 4 * 2 + 3);
+    // tier 4 (40%, v20): 0,45 falha com 40%, mas passa com 50% (uma falha antes)
+    const first = await store.extract(id, 'water', 4, 0.45, 0);
     assert.ok(first.ok && first.outcome === 'failed');
     assert.deepEqual(await store.extractionFailures(id), { water: { 4: 1 } });
-    assert.equal(extractionChance(4, 1), 0.2 + 0.1);
-    const second = await store.extract(id, 'water', 4, 0.25, 0);
-    assert.ok(second.ok && second.outcome === 'success', 'com a sorte acumulada, 0,25 < 30%');
+    assert.equal(extractionChance(4, 1), 0.4 + 0.1);
+    const second = await store.extract(id, 'water', 4, 0.45, 0);
+    assert.ok(second.ok && second.outcome === 'success', 'com a sorte acumulada, 0,45 < 50%');
     assert.deepEqual(await store.extractionFailures(id), {}, 'acertou: zerou');
-    // o tier 1 tem a conta dele: falhar no 4 não ajuda no 1
-    const t1 = await store.extract(id, 'water', 1, 0.85, 0);
-    assert.ok(t1.ok && t1.outcome === 'failed', '0,85 >= 80%: o tier 1 não herdou nada');
-    assert.deepEqual(await store.extractionFailures(id), { water: { 1: 1 } });
+    // o tier 3 tem a conta dele: falhar no 4 não ajuda no 3
+    const t3 = await store.extract(id, 'water', 3, 0.65, 0);
+    assert.ok(t3.ok && t3.outcome === 'failed', '0,65 >= 60%: o tier 3 não herdou nada');
+    assert.deepEqual(await store.extractionFailures(id), { water: { 3: 1 } });
   });
 
-  it('no tier 4, no máximo 9 tentativas: a 9ª tem 100% (até com o pior sorteio)', async () => {
-    const { id, store } = await genin(t, 'teimoso', 8 * 9);
+  it('no tier 4, no máximo 7 tentativas: a 7ª tem 100% (até com o pior sorteio)', async () => {
+    const { id, store } = await genin(t, 'teimoso', 4 * 7);
     const outcomes: string[] = [];
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < 7; i++) {
       const r = await store.extract(id, 'water', 4, 0.999999, 0);
       assert.ok(r.ok);
       outcomes.push(r.outcome);
       if (r.outcome === 'success') break;
     }
-    assert.deepEqual(outcomes, [...Array(8).fill('failed'), 'success']);
-    assert.equal(extractionChance(4, 8), 1);
-    assert.equal(EXTRACTION.find((e) => e.level === 4)!.chance, 0.2);
+    assert.deepEqual(outcomes, [...Array(6).fill('failed'), 'success']);
+    assert.equal(extractionChance(4, 6), 1);
+    assert.equal(EXTRACTION.find((e) => e.level === 4)!.chance, 0.4);
   });
 
   it('pode rodar de novo (idempotente) e o boot reconhece a v10; sem ela, as falhas vêm vazias', async () => {
     await t.pool.query(V10);
+    await t.pool.query(V20);                                             // a v10 de novo voltaria à tabela antiga: a v20 repõe
+    await t.pool.query(V20);
+    assert.equal((await t.pool.query(`SELECT position('WHEN 3 THEN 3' IN prosrc) > 0 AS ok FROM pg_proc WHERE proname = 'extract_jutsu'`)).rows[0].ok, true);
     assert.equal((await t.pool.query(NINJA_SQL.bootCheckV10)).rows[0].ok, true);
     const old = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v10_design.sql'));
     try {

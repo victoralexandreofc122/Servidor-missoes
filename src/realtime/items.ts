@@ -106,7 +106,7 @@ export const ITEMS: readonly ItemDef[] = [
   { code: 'capa_viagem', name: 'Capa de Viagem', kind: 'cape', icon: '🧥', price: 400, shop: 'clothes', hold: 'back' },
   { code: 'capa_vila', name: 'Capa da Vila', kind: 'cape', icon: '🧣', price: 900, shop: 'clothes', hold: 'back' },
   { code: 'manto_kage', name: 'Manto do Kage', kind: 'cape', icon: '👘', price: null, shop: null, hold: 'back' },
-  { code: 'manto_akatsuki', name: 'Manto da Akatsuki', kind: 'cape', icon: '☁️', price: null, shop: null, hold: 'back' },
+  { code: 'manto_akatsuki', name: 'Manto Cinza', kind: 'cape', icon: '🌑', price: null, shop: null, hold: 'back' },
   { code: 'manto_campeao', name: 'Manto do Campeão', kind: 'cape', icon: '🏆', price: null, shop: null, hold: 'back' },
   {
     code: 'sandalia_ninja', name: 'Sandália Ninja', kind: 'shoes', icon: '🩴', price: 80, shop: 'clothes', hold: 'feet',
