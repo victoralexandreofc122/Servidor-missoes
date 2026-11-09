@@ -5,6 +5,11 @@ import { z } from 'zod';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
 import { CLANS, type Clan } from './jutsusClasses.js';
+import { MANUAL_CHAPTERS, type ManualChapter } from './manual.js';
+import type { FeedbackRow } from './admin.js';
+
+/** v38: as categorias do Feedback (Menu > Enviar Feedback). */
+export const FEEDBACK_CATEGORIES = ['bug', 'sugestao', 'balanceamento', 'outro'] as const;
 import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type JutsuForm, type MasteryGain, type Mechanic } from './jutsus.js';
 import { ITEM_CODES, type Gear, type ItemDef } from './items.js';
 import { IncomingAppearanceSchema, VILLAGES, type Appearance, type Village } from './appearance.js';
@@ -258,6 +263,13 @@ export const ClientMessage = z.discriminatedUnion('type', [
   // Painel do admin (v19): o comando sem o "/admin" na frente ("ryo Kaito 500") e o catálogo (online, monstros, mapas).
   z.object({ type: z.literal('admin'), command: z.string().min(1).max(200) }),
   z.object({ type: z.literal('admin_catalog') }),
+  // v38: Pergaminho do Mestre (fechou um capítulo), Feedback do jogador e a aba Feedback do admin
+  z.object({ type: z.literal('manual_read'), chapter: z.enum(MANUAL_CHAPTERS) }),
+  z.object({
+    type: z.literal('feedback'), category: z.enum(FEEDBACK_CATEGORIES), content: z.string().max(1500),
+    screen: z.record(z.string().max(24), z.union([z.string().max(60), z.number().finite()])).refine((o) => Object.keys(o).length <= 10).optional(),
+  }),
+  z.object({ type: z.literal('admin_feedback'), action: z.enum(['list', 'resolve']), id: z.number().int().positive().optional() }),
   // Erro no navegador (v20): vira "bug" no painel do admin do site. Texto curto; o servidor tira segredos antes de mandar.
   z.object({
     type: z.literal('client_error'), message: z.string().min(1).max(300), source: z.string().max(200).optional(),
@@ -400,6 +412,8 @@ export interface NinjaView {
   /** v35: linhagem marcada no Criador (antes do Rito) e o andamento do Rito do Despertar. */
   clanMark?: Clan | null;
   riteProgress?: number | null;
+  /** v38: Pergaminho do Mestre (capítulos abertos e lidos). */
+  manual?: { unlocked: ManualChapter[]; read: ManualChapter[] };
   /** Passo do tutorial da Academia: 0 a 3 = na sala 1 a 4; 4 = concluído (pode sair). */
   tutorialStep: number;
   ryo: number;
@@ -568,6 +582,9 @@ export interface WorldInfo {
   /** Usos para cada nível do jutsu (índice = nível - 1). */
   jutsuLevelUses: number[];
   maxLevel: number;
+  /** v38: a versão do jogo (nota do Pré-Alpha) e o prêmio de cada capítulo novo do Pergaminho do Mestre. */
+  version: string;
+  manualReward: { ryo: number; xp: number };
 }
 
 export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'NOT_YOUR_CLASS' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED' | 'SILENCED' | 'ASLEEP' | 'CASTING';
@@ -591,6 +608,9 @@ export type ServerMessage =
   | { type: 'sync'; id: number; rtt: number }
   | { type: 'admin_catalog'; players: { username: string; map: string; level: number }[]; monsters: { code: string; name: string }[]; maps: { id: string; name: string }[]; villages: { code: string; name: string }[] }
   | { type: 'admin_pvp'; report: PvpReport; db: { days: number; rows: PvpClassRow[] } | null }
+  | { type: 'manual'; unlocked: ManualChapter[]; read: ManualChapter[]; fresh?: ManualChapter[] }
+  | { type: 'feedback_sent'; id: number }
+  | { type: 'admin_feedback'; items: FeedbackRow[]; error?: string }
   | { type: 'monster_aggro'; id: string; targetId: string | null }
   /** O monstro bateu em alguém (v19): o cliente toca a animação de ataque virada para o alvo. */
   | { type: 'monster_attack'; id: string; targetId: string }

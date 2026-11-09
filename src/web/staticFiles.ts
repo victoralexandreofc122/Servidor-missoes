@@ -64,6 +64,7 @@ const FILES = [
   { route: '/politics.js', file: 'politics.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/endgame.js', file: 'endgame.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/adminPanel.js', file: 'adminPanel.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/manual.js', file: 'manual.js', contentType: 'text/javascript; charset=utf-8' },   // v38: Pergaminho do Mestre e Feedback
   { route: '/prediction.js', file: 'prediction.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/styles.css', file: 'styles.css', contentType: 'text/css; charset=utf-8' },
   { route: '/hud.css', file: 'hud.css', contentType: 'text/css; charset=utf-8' },

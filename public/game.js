@@ -19,6 +19,7 @@ import {
 import { dirFrom, drawBackItem, drawCharacter, drawHandItem } from './character.js';
 import { DEFAULT_APPEARANCE, DEFAULT_SHOES, OPTIONS, drawShoeIcon, fallbackColors, normalizeLook, spriteScale, swatchOf } from './sprites.js';
 import { drawFigure, figureCanvas } from './figure.js';
+import { mountManualUI } from './manual.js';
 import { pickAnim } from './rig.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
@@ -567,6 +568,7 @@ function handleMessage(msg) {
   const now = performance.now();
   if (eg.handle(msg)) return;            // painéis do fim de jogo (endgame.js)
   if (adminUI.handle(msg)) return;       // painel do admin (adminPanel.js)
+  if (manualUI.handle(msg)) return;      // v38: Pergaminho do Mestre e Feedback (manual.js)
   switch (msg.type) {
     case 'sky': {
       // O céu mudou (para todos): a fase do dia e/ou o clima. Avisa na tela o que mudou nos jutsus.
@@ -608,6 +610,7 @@ function handleMessage(msg) {
       if (msg.progress) state.progress = msg.progress;
       if (msg.kit) state.kit = msg.kit;
       if (msg.ninja) state.ninja = msg.ninja;
+      manualUI.refreshBadge();                       // v38: capítulo do Pergaminho do Mestre ainda não lido: o ☰ pisca
       renderDisplayBoxes();
       pred.gates.tutorial = state.ninja.tutorialStep;   // portas da Academia: o MESMO passo do servidor
       // Sala compartilhada (loja, Academia): para onde a porta de saída leva (a vila de onde ele entrou).
@@ -973,9 +976,11 @@ function handleMessage(msg) {
       const p = state.players.get(msg.playerId);
       if (p) p.look = normalizeLook(msg.appearance);
       if (msg.playerId === state.meId) {
+        const wasFirst = creatorFirst;
         state.me.appearanceSet = true;
         state.me.look = normalizeLook(msg.appearance);
         closeCreator();
+        if (wasFirst) manualUI.firstArrival();      // v38: nota do Pré-Alpha e o Pergaminho do Mestre na primeira chegada
       }
       break;
     }
@@ -1932,6 +1937,7 @@ function keyDirection() {
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
   if (hud.editing || !ui.creator.hidden) return;   // editando o layout ou criando o personagem: sem combate
+  if (manualUI.open) return;                         // v38: lendo o Pergaminho ou escrevendo o Feedback: sem combate
   if (KEYMAP[e.code]) { keys.add(e.code); keyDirection(); e.preventDefault(); }
   if (e.key >= '1' && e.key <= '4' && !e.repeat) {
     // Em linha: segurar a tecla mira (a direção segue o mouse); soltar lança. Toque rápido: o servidor mira no foco.
@@ -3106,6 +3112,21 @@ const adminUI = mountAdminUI({
   myName: () => state.players.get(state.meId)?.username || '',
   drawItemIcon,
   closeOthers: () => { closeSettings(); closeStatus(); closeMissions(); closeShop(); closePlayerMenu(); closeBoard(); closeHistory(); closeInventory(); eg.close?.(); },
+});
+
+// v38: Pergaminho do Mestre, Manual do Ninja, nota do Pré-Alpha e Feedback (manual.js).
+const manualUI = mountManualUI({
+  send,
+  ninja: () => state.ninja,
+  world: () => state.world,
+  toast: (text) => showToast(text, 5000),
+  closeOthers: () => { closeSettings(); closeStatus(); closeMissions(); closeShop(); closePlayerMenu(); closeBoard(); closeHistory(); closeInventory(); adminUI.close(); eg.close?.(); },
+  // O que estava na tela (vai junto com o Feedback): painéis abertos, aparelho e tamanho da tela.
+  screen: () => ({
+    panels: [...document.querySelectorAll('section[role="dialog"]:not([hidden]), aside:not([hidden])')].map((e) => e.id).filter(Boolean).join(',').slice(0, 60) || 'jogo',
+    device: matchMedia('(pointer: coarse)').matches ? 'celular' : 'computador',
+    w: innerWidth, h: innerHeight,
+  }),
 });
 
 // ⚙️ O que os outros veem no boneco (capa, arma, pergaminho): só PEDE; o servidor manda o boneco novo a todos.

@@ -65,6 +65,11 @@ export interface NinjaStore {
   /** v35 (migração v25): a linhagem marcada no Criador e o andamento do Rito do Despertar. */
   setClanMark?(playerId: string, clan: string): Promise<void>;
   setRite?(playerId: string, progress: number | null): Promise<void>;
+  /** v38 (migração v26): capítulos do Pergaminho do Mestre desbloqueados e lidos (true = acabou de ler: paga o prêmio). */
+  unlockChapters?(playerId: string, chapters: string[]): Promise<void>;
+  readChapter?(playerId: string, chapter: string): Promise<boolean>;
+  /** v38 (migração v26): o relato do jogador (Menu > Feedback) com o contexto capturado. Devolve o número do relato. */
+  submitFeedback?(playerId: string, category: string, content: string, context: Record<string, unknown>): Promise<number>;
   /** Rank atual (depois do Exame Chunin aprovado). */
   rankOf(playerId: string): Promise<{ rank: RankView; canBeSensei: boolean } | undefined>;
 }
@@ -82,6 +87,10 @@ export const NINJA_SQL = {
   chooseClan: `UPDATE game.players SET clan = $2 WHERE id = $1 AND clan IS NULL`,
   setClanMark: `UPDATE game.players SET clan_mark = $2 WHERE id = $1 AND clan IS NULL`,
   setRite: `UPDATE game.players SET rite_progress = $2 WHERE id = $1`,
+  // v38 (migração v26): Pergaminho do Mestre e Feedback
+  unlockChapters: `INSERT INTO game.player_tutorial (player_id, chapter) SELECT $1, c FROM unnest($2::text[]) AS c ON CONFLICT DO NOTHING`,
+  readChapter: `UPDATE game.player_tutorial SET read_at = now() WHERE player_id = $1 AND chapter = $2 AND read_at IS NULL RETURNING chapter`,
+  submitFeedback: `INSERT INTO game.feedback (player_id, category, content, context) VALUES ($1, $2, $3, $4::jsonb) RETURNING id`,
   learnJutsus: `INSERT INTO game.player_jutsus (player_id, jutsu_code) SELECT $1, c FROM unnest($2::text[]) AS c ON CONFLICT DO NOTHING`,
   afterTutorial: `SELECT tutorial_step, total_xp, level, stat_points, ryo, ${INVENTORY} AS items FROM game.players WHERE id = $1`,
   becomeGenin: `SELECT game.become_genin($1, $2)`,
@@ -247,6 +256,15 @@ export function makeNinjaStore(db: Db): NinjaStore {
     },
     async setRite(playerId, progress) {
       await db.query(NINJA_SQL.setRite, [playerId, progress]);
+    },
+    async unlockChapters(playerId, chapters) {
+      if (chapters.length) await db.query(NINJA_SQL.unlockChapters, [playerId, chapters]);
+    },
+    async readChapter(playerId, chapter) {
+      return (await db.query(NINJA_SQL.readChapter, [playerId, chapter])).rows.length > 0;
+    },
+    async submitFeedback(playerId, category, content, context) {
+      return Number((await db.query<{ id: string }>(NINJA_SQL.submitFeedback, [playerId, category, content, JSON.stringify(context)])).rows[0]!.id);
     },
     async learnJutsus(playerId, codes) {
       if (codes.length) await db.query(NINJA_SQL.learnJutsus, [playerId, codes]);

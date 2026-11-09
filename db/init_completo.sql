@@ -1,5 +1,5 @@
 -- =====================================================================================================================
--- Herança do Fogo: banco completo (base até a v24), na ordem. Gerado por scripts/gerar-init.sh.
+-- Herança do Fogo: banco completo (base até a v26), na ordem. Gerado por scripts/gerar-init.sh.
 -- SÓ PARA UM BANCO NOVO E VAZIO. Num banco que já roda, NÃO rode isto: a base (schema_ranks_missoes_sensei) e a v8 dão erro
 -- se repetidas ("already exists"); rode só as migrações que faltam (DEPLOY.md). As de v9 em diante podem ser repetidas.
 -- Cada arquivo tem o seu BEGIN/COMMIT.
@@ -3725,7 +3725,7 @@ RETURN kit IS NOT NULL
     'shadow_agarre', 'water_nevoa', 'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma',
     'weapons_gigante', 'water_muro', 'stone_muralha', 'water_clone', 'stone_golem', 'wind_shuriken', 'wind_veu',
     'wind_salto', 'wind_arco', 'rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao', 'rubro_lua',
-    'rubro_completo'
+    'rubro_completo', 'umbra_deslize', 'umbra_faminta', 'umbra_noite', 'umbra_forma'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
@@ -3786,7 +3786,7 @@ COMMIT;
 --  1. 68 jutsus em game.jutsus: os 45 novos (códigos novos) e os nomes novos dos tiers 2 a 4 de Água, Relâmpago,
 --     Terra, Médico, Armas, Ilusão, Taijutsu e Sombra (os códigos ficam: quem já tem continua com eles, com o uso e o
 --     nível). A Extração (game.extract_jutsu, v10) passa a sortear entre eles.
---  2. game.valid_kit aceita os 96 códigos do jogo. A lista só cresce: todo kit de hoje continua valendo.
+--  2. game.valid_kit aceita os 100 códigos do jogo. A lista só cresce: todo kit de hoje continua valendo.
 --
 -- Nenhum código é renomeado nem apagado.
 -- =====================================================================================================================
@@ -3803,17 +3803,17 @@ ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, class_code = EXCLUDED.cla
 INSERT INTO game.jutsus (code, name, class_code, tier) VALUES
   ('heal_2', 'Punho Sísmico', 'heal', 2),
   ('heal_3', 'Regeneração de Área', 'heal', 3),
-  ('heal_4', 'Regeneração Mitótica', 'heal', 4),
-  ('shadow_2', 'Costura de Sombra', 'shadow', 2),
-  ('shadow_3', 'Shuriken de Sombra', 'shadow', 3),
+  ('heal_4', 'Renovação Celular', 'heal', 4),
+  ('shadow_2', 'Agulhas de Sombra', 'shadow', 2),
+  ('shadow_3', 'Lâmina Umbral', 'shadow', 3),
   ('shadow_4', 'Domínio das Sombras', 'shadow', 4),
   ('illusion_2', 'Visão do Abismo', 'illusion', 2),
-  ('illusion_3', 'Árvore Prendedora', 'illusion', 3),
-  ('illusion_4', 'Laço do Destino', 'illusion', 4),
-  ('stone_2', 'Pântano do Submundo', 'stone', 2),
+  ('illusion_3', 'Raízes do Pesadelo', 'illusion', 3),
+  ('illusion_4', 'Ciclo Sem Fim', 'illusion', 4),
+  ('stone_2', 'Lamaçal Profundo', 'stone', 2),
   ('stone_3', 'Esmagamento de Paredes', 'stone', 3),
-  ('water_2', 'Onda de Choque Aquática', 'water', 2),
-  ('water_3', 'Prisão de Água', 'water', 3),
+  ('water_2', 'Estouro de Maré', 'water', 2),
+  ('water_3', 'Cárcere Líquido', 'water', 3),
   ('water_4', 'Prisão do Vórtice', 'water', 4),
   ('taijutsu_2', 'Chute Ciclone', 'taijutsu', 2),
   ('taijutsu_3', 'Cem Golpes', 'taijutsu', 3),
@@ -3821,49 +3821,49 @@ INSERT INTO game.jutsus (code, name, class_code, tier) VALUES
   ('weapons_2', 'Lâminas Flutuantes', 'weapons', 2),
   ('weapons_3', 'Corte Relâmpago', 'weapons', 3),
   ('weapons_4', 'Dança dos Mil Cortes', 'weapons', 4),
-  ('lightning_2', 'Agulhas de Trovão', 'lightning', 2),
+  ('lightning_2', 'Farpas de Trovão', 'lightning', 2),
   ('lightning_3', 'Investida Elétrica', 'lightning', 3),
-  ('lightning_4', 'Dragão do Trovão', 'lightning', 4),
-  ('wind', 'Palma do Vendaval', 'wind', 1),
-  ('wind_2', 'Esferas de Vácuo', 'wind', 2),
+  ('lightning_4', 'Julgamento do Trovão', 'lightning', 4),
+  ('wind', 'Rajada Aberta', 'wind', 1),
+  ('wind_2', 'Balas de Vento', 'wind', 2),
   ('wind_3', 'Tornado Cortante', 'wind', 3),
-  ('wind_4', 'Estrela Espiral', 'wind', 4),
-  ('water_dragao', 'Dragão d’Água', 'water', 1),
-  ('water_xarope', 'Xarope Pegajoso', 'water', 2),
+  ('wind_4', 'Disco do Furacão', 'wind', 4),
+  ('water_dragao', 'Serpente d’Água', 'water', 1),
+  ('water_xarope', 'Poça Viscosa', 'water', 2),
   ('lightning_corrente', 'Corrente Rasteira', 'lightning', 1),
   ('lightning_shuriken', 'Shuriken do Trovão', 'lightning', 1),
   ('lightning_impulso', 'Impulso Estático', 'lightning', 1),
   ('lightning_raio', 'Lança Saltadora', 'lightning', 2),
-  ('lightning_fluxo', 'Fluxo Elétrico', 'lightning', 2),
+  ('lightning_fluxo', 'Descarga Envolvente', 'lightning', 2),
   ('stone_pilares', 'Prisão de Pilares', 'stone', 1),
   ('stone_rocha', 'Projétil de Rocha', 'stone', 1),
-  ('stone_toupeira', 'Toupeira Oculta', 'stone', 1),
+  ('stone_toupeira', 'Escavação Furtiva', 'stone', 1),
   ('stone_punho', 'Punho de Rocha', 'stone', 2),
   ('heal_desintox', 'Desintoxicação Celular', 'heal', 1),
-  ('heal_bisturi', 'Bisturi de Chakra', 'heal', 1),
+  ('heal_bisturi', 'Corte Cirúrgico', 'heal', 1),
   ('heal_aura', 'Aura de Regeneração', 'heal', 1),
-  ('weapons_multi', 'Shuriken Multiplicada', 'weapons', 1),
+  ('weapons_multi', 'Shuriken Espelhada', 'weapons', 1),
   ('weapons_kunai', 'Kunai Explosiva', 'weapons', 3),
-  ('weapons_dragoes', 'Dragões Gêmeos', 'weapons', 4),
+  ('weapons_dragoes', 'Ascensão Dupla', 'weapons', 4),
   ('illusion_kai', 'Dissipação', 'illusion', 1),
   ('illusion_estaca', 'Estaca da Ilusão', 'illusion', 2),
-  ('illusion_templo', 'Templo do Nirvana', 'illusion', 4),
+  ('illusion_templo', 'Santuário das Penas', 'illusion', 4),
   ('taijutsu_rasteira', 'Rasteira Baixa', 'taijutsu', 1),
   ('taijutsu_ascendente', 'Chute Ascendente', 'taijutsu', 2),
   ('taijutsu_lotus', 'Mergulho Esmagador', 'taijutsu', 3),
   ('taijutsu_portoes', 'Despertar do Corpo', 'taijutsu', 4),
   ('shadow_recuo', 'Reflexo Tático', 'shadow', 1),
-  ('shadow_estrangular', 'Estrangulamento da Sombra', 'shadow', 3),
-  ('shadow_agarre', 'Agarre Múltiplo', 'shadow', 4),
-  ('water_nevoa', 'Ocultação na Névoa', 'water', 1),
+  ('shadow_estrangular', 'Garrote de Sombra', 'shadow', 3),
+  ('shadow_agarre', 'Rede de Sombra', 'shadow', 4),
+  ('water_nevoa', 'Véu de Bruma', 'water', 1),
   ('illusion_noite', 'Noite Eterna', 'illusion', 3),
-  ('heal_disturbio', 'Distúrbio Nervoso', 'heal', 2),
+  ('heal_disturbio', 'Descontrole Muscular', 'heal', 2),
   ('shadow_armadilha', 'Sombra Oculta', 'shadow', 2),
-  ('heal_palma', 'Palma Mística', 'heal', 1),
-  ('weapons_gigante', 'Shuriken Gigante de Chakra', 'weapons', 2),
+  ('heal_palma', 'Palma Curadora', 'heal', 1),
+  ('weapons_gigante', 'Shuriken Colossal', 'weapons', 2),
   ('water_muro', 'Muro de Água', 'water', 1),
   ('stone_muralha', 'Muralha de Terra', 'stone', 1),
-  ('water_clone', 'Clone de Água', 'water', 2),
+  ('water_clone', 'Duplo de Água', 'water', 2),
   ('stone_golem', 'Golem de Terra Titânico', 'stone', 4),
   ('wind_shuriken', 'Shuriken do Vento', 'wind', 1),
   ('wind_veu', 'Véu de Vento', 'wind', 1),
@@ -3889,7 +3889,7 @@ RETURN kit IS NOT NULL
     'shadow_agarre', 'water_nevoa', 'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma',
     'weapons_gigante', 'water_muro', 'stone_muralha', 'water_clone', 'stone_golem', 'wind_shuriken', 'wind_veu',
     'wind_salto', 'wind_arco', 'rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao', 'rubro_lua',
-    'rubro_completo'
+    'rubro_completo', 'umbra_deslize', 'umbra_faminta', 'umbra_noite', 'umbra_forma'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
@@ -4046,7 +4046,7 @@ RETURN kit IS NOT NULL
     'shadow_agarre', 'water_nevoa', 'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma',
     'weapons_gigante', 'water_muro', 'stone_muralha', 'water_clone', 'stone_golem', 'wind_shuriken', 'wind_veu',
     'wind_salto', 'wind_arco', 'rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao', 'rubro_lua',
-    'rubro_completo'
+    'rubro_completo', 'umbra_deslize', 'umbra_faminta', 'umbra_noite', 'umbra_forma'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
@@ -4528,4 +4528,140 @@ COMMIT;
 -- Conferência (opcional):
 -- SELECT code, name, shop FROM game.items WHERE kind = 'scroll' ORDER BY code;         -- scroll_liso na loja; os antigos sem loja
 -- SELECT count(*) FROM game.player_items WHERE item_code LIKE 'scroll_%' AND item_code <> 'scroll_liso';   -- 0
+
+
+-- ################################################################################################
+-- ## schema_v25_linhagem.sql
+-- ################################################################################################
+-- =====================================================================================================================
+-- v25 (#11): a linhagem marcada no Criador, o Rito do Despertar e os 4 jutsus do Clã Umbra. Rode no SQL Editor do Neon, no
+-- branch `production`, DEPOIS da v24. Pode rodar de novo sem erro. Nada é apagado.
+--
+--  1. game.players.clan_mark: a linhagem que o jogador marcou no Criador de Personagem (rubro, umbra ou andarilho). Só marca:
+--     a árvore abre no Rito. Quem já despertou fica com a marca igual à linhagem.
+--  2. game.players.rite_progress: o Rito do Despertar (NULL = não começou; 0 a 10 = Lodos Escuros derrotados).
+--  3. Os 4 jutsus do Clã Umbra (escolhidos pelo Victor): Deslize Noturno, Sombra Faminta, Noite Fechada e Forma Umbral. Sem
+--     classe (são do clã), tiers 1 a 4, chegam pelo nível (11, 20, 40, 60) depois do Rito. A regra dos kits aceita os códigos.
+--     O Clã Umbra deixa de usar os jutsus da classe Sombra (que continua uma das 10 classes).
+--  4. O reset de classes do admin também zera o Rito (a marca fica).
+-- =====================================================================================================================
+BEGIN;
+
+ALTER TABLE game.players ADD COLUMN IF NOT EXISTS clan_mark text;
+ALTER TABLE game.players DROP CONSTRAINT IF EXISTS ck_players_clan_mark;
+ALTER TABLE game.players ADD CONSTRAINT ck_players_clan_mark CHECK (clan_mark IS NULL OR clan_mark IN ('rubro', 'umbra', 'andarilho'));
+ALTER TABLE game.players ADD COLUMN IF NOT EXISTS rite_progress smallint;
+ALTER TABLE game.players DROP CONSTRAINT IF EXISTS ck_players_rite_progress;
+ALTER TABLE game.players ADD CONSTRAINT ck_players_rite_progress CHECK (rite_progress IS NULL OR rite_progress BETWEEN 0 AND 100);
+UPDATE game.players SET clan_mark = clan WHERE clan IS NOT NULL AND clan_mark IS DISTINCT FROM clan;
+
+INSERT INTO game.jutsus (code, name, class_code, clan_code, tier) VALUES
+  ('umbra_deslize', 'Deslize Noturno', NULL, 'umbra', 1),
+  ('umbra_faminta', 'Sombra Faminta',  NULL, 'umbra', 2),
+  ('umbra_noite',   'Noite Fechada',   NULL, 'umbra', 3),
+  ('umbra_forma',   'Forma Umbral',    NULL, 'umbra', 4)
+ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, class_code = EXCLUDED.class_code, clan_code = EXCLUDED.clan_code, tier = EXCLUDED.tier;
+
+CREATE OR REPLACE FUNCTION game.valid_kit(kit text[]) RETURNS boolean
+LANGUAGE sql IMMUTABLE
+RETURN kit IS NOT NULL
+   AND cardinality(kit) <= 4
+   AND kit <@ ARRAY[
+    'teleport', 'substitution', 'heal', 'heal_2', 'heal_3', 'heal_4', 'shadow', 'shadow_2', 'shadow_3', 'shadow_4',
+    'illusion', 'illusion_2', 'illusion_3', 'illusion_4', 'stone', 'stone_2', 'stone_3', 'stone_4', 'fire', 'fire_2',
+    'fire_3', 'fire_4', 'water', 'water_2', 'water_3', 'water_4', 'taijutsu', 'taijutsu_2', 'taijutsu_3',
+    'taijutsu_4', 'weapons', 'weapons_2', 'weapons_3', 'weapons_4', 'lightning', 'lightning_2', 'lightning_3',
+    'lightning_4', 'wind', 'wind_2', 'wind_3', 'wind_4', 'fire_endan', 'fire_kasumi', 'fire_hibashiri', 'fire_ryuka',
+    'fire_haiseki', 'fire_lamina', 'fire_hotan', 'water_dragao', 'water_xarope', 'lightning_corrente',
+    'lightning_shuriken', 'lightning_impulso', 'lightning_raio', 'lightning_fluxo', 'stone_pilares', 'stone_rocha',
+    'stone_toupeira', 'stone_punho', 'heal_desintox', 'heal_bisturi', 'heal_aura', 'weapons_multi', 'weapons_kunai',
+    'weapons_dragoes', 'illusion_kai', 'illusion_estaca', 'illusion_templo', 'taijutsu_rasteira',
+    'taijutsu_ascendente', 'taijutsu_lotus', 'taijutsu_portoes', 'shadow_recuo', 'shadow_estrangular',
+    'shadow_agarre', 'water_nevoa', 'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma',
+    'weapons_gigante', 'water_muro', 'stone_muralha', 'water_clone', 'stone_golem', 'wind_shuriken', 'wind_veu',
+    'wind_salto', 'wind_arco', 'rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao', 'rubro_lua',
+    'rubro_completo', 'umbra_deslize', 'umbra_faminta', 'umbra_noite', 'umbra_forma'
+   ]::text[]
+   AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
+
+CREATE OR REPLACE FUNCTION game.admin_reset_classes(p_admin uuid, p_target uuid) RETURNS integer
+LANGUAGE plpgsql SET search_path = game AS $$
+DECLARE
+  v_removed integer;
+BEGIN
+  PERFORM assert_admin(p_admin);
+  PERFORM 1 FROM players WHERE id = p_target AND is_admin FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'O reset de classes é só para conta de admin' USING ERRCODE = 'check_violation', CONSTRAINT = 'rule_admin_reset_target';
+  END IF;
+  DELETE FROM player_classes WHERE player_id = p_target;
+  DELETE FROM player_jutsus pj USING jutsus j
+   WHERE j.code = pj.jutsu_code AND pj.player_id = p_target AND (j.class_code IS NOT NULL OR j.clan_code IS NOT NULL);
+  GET DIAGNOSTICS v_removed = ROW_COUNT;
+  DELETE FROM player_extraction_pity WHERE player_id = p_target;
+  UPDATE players
+     SET clan = NULL, rite_progress = NULL,
+         current_rank_id = (SELECT id FROM ranks WHERE code = 'ACADEMY'),
+         kit_a = ARRAY(SELECT k FROM unnest(kit_a) AS k WHERE k IN ('teleport', 'substitution')),
+         kit_b = ARRAY(SELECT k FROM unnest(kit_b) AS k WHERE k IN ('teleport', 'substitution'))
+   WHERE id = p_target;
+  PERFORM admin_log(p_admin, 'resetclasses', p_target, jsonb_build_object('removed', v_removed), true, NULL);
+  RETURN v_removed;
+END $$;
+
+COMMIT;
+
+-- Conferência (opcional):
+-- SELECT code, name, tier FROM game.jutsus WHERE clan_code = 'umbra' ORDER BY tier;   -- 4 linhas
+-- SELECT count(*) FROM game.jutsus;                                                   -- 100
+
+
+-- ################################################################################################
+-- ## schema_v26_tutorial_feedback.sql
+-- ################################################################################################
+-- =====================================================================================================================
+-- v26: Pergaminho do Mestre (tutorial paginado) e Feedback dentro do jogo. Rode no SQL Editor do Neon, no branch
+-- `production`, DEPOIS da v25. Pode rodar de novo sem erro. Nada é apagado.
+--
+--  1. game.player_tutorial: os capítulos do Pergaminho do Mestre que o jogador desbloqueou e os que já leu. O prêmio
+--     (50 ryō e 100 XP) sai uma vez só por capítulo: o servidor só paga quando read_at passa de NULL para a data.
+--  2. game.feedback: o relato do jogador (Menu > Feedback), com a categoria, o estado (novo ou resolvido) e o contexto
+--     capturado na hora (nome, nível, classe, linhagem, mapa, posição, tela aberta, aparelho). O admin vê na aba Feedback.
+-- =====================================================================================================================
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS game.player_tutorial (
+  player_id   uuid        NOT NULL REFERENCES game.players(id) ON DELETE CASCADE,
+  chapter     text        NOT NULL,
+  unlocked_at timestamptz NOT NULL DEFAULT now(),
+  read_at     timestamptz,
+  PRIMARY KEY (player_id, chapter)
+);
+ALTER TABLE game.player_tutorial DROP CONSTRAINT IF EXISTS ck_player_tutorial_chapter;
+ALTER TABLE game.player_tutorial ADD CONSTRAINT ck_player_tutorial_chapter CHECK (chapter ~ '^[a-z_]{2,32}$');
+
+CREATE TABLE IF NOT EXISTS game.feedback (
+  id          bigserial   PRIMARY KEY,
+  player_id   uuid        REFERENCES game.players(id) ON DELETE SET NULL,
+  content     text        NOT NULL,
+  category    text        NOT NULL DEFAULT 'outro',
+  status      text        NOT NULL DEFAULT 'novo',
+  context     jsonb       NOT NULL DEFAULT '{}'::jsonb,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  resolved_at timestamptz,
+  resolved_by uuid        REFERENCES game.players(id) ON DELETE SET NULL
+);
+ALTER TABLE game.feedback DROP CONSTRAINT IF EXISTS ck_feedback_content;
+ALTER TABLE game.feedback ADD CONSTRAINT ck_feedback_content CHECK (char_length(content) BETWEEN 3 AND 1500);
+ALTER TABLE game.feedback DROP CONSTRAINT IF EXISTS ck_feedback_category;
+ALTER TABLE game.feedback ADD CONSTRAINT ck_feedback_category CHECK (category IN ('bug', 'sugestao', 'balanceamento', 'outro'));
+ALTER TABLE game.feedback DROP CONSTRAINT IF EXISTS ck_feedback_status;
+ALTER TABLE game.feedback ADD CONSTRAINT ck_feedback_status CHECK (status IN ('novo', 'resolvido'));
+CREATE INDEX IF NOT EXISTS ix_feedback_status_created ON game.feedback (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_feedback_player ON game.feedback (player_id);
+
+COMMIT;
+
+-- Conferência (opcional):
+-- SELECT to_regclass('game.player_tutorial') IS NOT NULL AS tutorial, to_regclass('game.feedback') IS NOT NULL AS feedback;   -- t, t
 

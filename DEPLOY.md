@@ -1202,3 +1202,10 @@ Para conferir: `SELECT count(*) FROM game.player_items WHERE item_code LIKE 'scr
 Rode `db/schema_v25_linhagem.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v24**, e só então mescle o código.
 Ela cria `players.clan_mark` e `players.rite_progress`, cadastra os 4 jutsus do Clã Umbra e atualiza `valid_kit` e `admin_reset_classes`.
 Pode rodar de novo sem erro. Conferência: `SELECT count(*) FROM game.jutsus;` deve dar 100.
+
+## Passo 41 — Pergaminho do Mestre e Feedback (SQL v26)
+
+Rode `db/schema_v26_tutorial_feedback.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v25**, e só então
+mescle o código. Ela cria `game.player_tutorial` (capítulos e prêmio, uma vez só) e `game.feedback` (relatos do Menu > Feedback).
+Pode rodar de novo sem erro. Conferência: `SELECT to_regclass('game.player_tutorial') IS NOT NULL, to_regclass('game.feedback') IS NOT NULL;` (t, t).
+Se o código chegar antes da v26, o jogo não quebra: o Pergaminho abre, mas sem gravar capítulos nem pagar prêmio, e o Feedback avisa que está fora do ar.

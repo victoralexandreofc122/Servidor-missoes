@@ -211,13 +211,13 @@ describe('cliente do painel', () => {
     assert.ok(served.has('/adminPanel.js'));
   });
 
-  it('o botão começa escondido (só o admin vê); o painel só PEDE (admin, admin_catalog) e confirma o que não volta atrás', () => {
+  it('o botão começa escondido (só o admin vê); o painel só PEDE (admin, admin_catalog, admin_feedback) e confirma o que não volta atrás', () => {
     const html = pub('index.html');
     assert.match(html, /<button id="admin-toggle"[^>]* hidden/);
     assert.match(html, /id="admin-panel"[^>]* hidden/);
     const js = pub('adminPanel.js');
     const types = [...js.matchAll(/send\(\{ type: '([a-z_]+)'/g)].map((m) => m[1]);
-    assert.deepEqual([...new Set(types)].sort(), ['admin', 'admin_catalog']);
+    assert.deepEqual([...new Set(types)].sort(), ['admin', 'admin_catalog', 'admin_feedback']);   // v38: aba Feedback
     for (const cmd of ['zerarpontos', 'renegado ${n} sim', 'eleicao', 'temporada fechar', 'akatsuki remover']) {
       const at = js.indexOf(cmd);
       assert.ok(at > 0, cmd);

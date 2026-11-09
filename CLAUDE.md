@@ -19,7 +19,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   do Victor (chibi, contorno escuro, sombreado em 2-3 tons). Toda mudança de arte é comparada lado a lado com a
   referência e conferida dentro do jogo antes de fechar.
 - **Versão atual:** v29 (modo rankeado no Vale dos Guardiões, migração v15), publicada na `main`. Pronto e esperando o
-  Victor (branch, migrações v16 a v25 nessa ordem; o admin muda a patente com `/admin patente` (v23) e reseta as próprias classes com `/admin resetarclasses` (v24); pergaminho único e jutsu só da própria classe (v24); linhagem no Criador, Rito do Despertar e Clã Umbra (v25)): Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o
+  Victor (branch, migrações v16 a v26 nessa ordem; o admin muda a patente com `/admin patente` (v23) e reseta as próprias classes com `/admin resetarclasses` (v24); pergaminho único e jutsu só da própria classe (v24); linhagem no Criador, Rito do Despertar e Clã Umbra (v25); Pergaminho do Mestre, nota do Pré-Alpha e Feedback no jogo (v26)): Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o
   Clã Rubro), conjuração, sistemas próprios (muros, invocações, escuridão...), clãs por linhagem, controle mais forte, a
   Fase 1 dos nomes (Herança do Fogo, 4 aldeias), a correção da rodada 2 do rankeado e a Fase 0 (Extração do design
   final e maestria por jutsu, feita no Fogo) e a Fase 1 dos nomes originais (Os Cinzas, Arena das Quatro Heranças, 38 jutsus, v21;

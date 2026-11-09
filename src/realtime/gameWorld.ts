@@ -66,6 +66,7 @@ import {
 } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
 import type { WorldWatch } from './watch.js';
+import { GAME_VERSION, MANUAL_REWARD, chaptersOpen, manualFrom, manualView, type ManualChapter, type ManualState } from './manual.js';
 
 /*
  * Estado do jogo em memória e regras do tempo real. Não sabe nada de rede: recebe
@@ -202,6 +203,8 @@ export interface JoiningPlayer {
   /** v35: a linhagem marcada no Criador (ainda não despertada) e o andamento do Rito do Despertar (null = não começou). */
   clanMark?: Clan | null;
   riteProgress?: number | null;
+  /** v38 (migração v26): capítulos do Pergaminho do Mestre desbloqueados e lidos. */
+  manual?: { unlocked: string[]; read: string[] };
   /** Jutsu -> usos já gravados no banco. */
   jutsus?: Record<string, number>;
   kageCandidate?: boolean;
@@ -336,6 +339,11 @@ interface Session {
   /** v35: linhagem marcada no Criador e o Rito do Despertar (null = não começou). */
   clanMark: Clan | null;
   riteProgress: number | null;
+  /** v38: Pergaminho do Mestre (capítulos abertos e lidos) e o último Feedback enviado (ritmo). */
+  manual: ManualState;
+  /** O banco tem a tabela do Pergaminho (migração v26): só então grava capítulos e paga prêmios. */
+  manualDb: boolean;
+  feedbackAt: number;
   /** Substituição armada até este instante (anula o próximo golpe). */
   substituteUntil: number;
   substituteLevel: number;
@@ -896,6 +904,8 @@ export class GameWorld {
       openVillages: this.on('vilas') ? [...VILLAGES] : [...OPEN_VILLAGES],
       jutsuLevelUses: [...JUTSU_LEVEL_USES],
       maxLevel: MAX_LEVEL,
+      version: GAME_VERSION,                   // v38: a nota do Pré-Alpha mostra a versão
+      manualReward: { ...MANUAL_REWARD },
     };
   }
 
@@ -903,6 +913,7 @@ export class GameWorld {
     return {
       tutorialStep: s.tutorial, ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll,
       equippedShoes: s.equippedShoes, equippedAccessory: s.equippedAccessory, classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin, clan: s.clan, clanMark: s.clanMark, riteProgress: s.riteProgress,
+      manual: manualView(s.manual),
       villageSwitches: s.villageSwitches, cape: s.cape, display: { ...s.display },
     };
   }
@@ -1010,6 +1021,9 @@ export class GameWorld {
       clan: player.clan !== undefined ? player.clan : previous?.clan ?? null,
       clanMark: player.clanMark !== undefined ? player.clanMark : previous?.clanMark ?? null,
       riteProgress: player.riteProgress !== undefined ? player.riteProgress : previous?.riteProgress ?? null,
+      manual: player.manual ? manualFrom(player.manual) : previous?.manual ?? manualFrom(undefined),
+      manualDb: player.manual !== undefined || (previous?.manualDb ?? false),
+      feedbackAt: previous?.feedbackAt ?? 0,
       substituteUntil: previous?.substituteUntil ?? 0,
       stunnedUntil: 0,
       rootedUntil: 0,
@@ -1076,6 +1090,7 @@ export class GameWorld {
 
     // v34: com banco, só fica no kit jutsu da Academia, das suas classes (Primária e Secundária) ou da sua linhagem
     if (this.store) session.kits = this.usableKits(session);
+    this.checkManual(session, true);           // v38: Pergaminho do Mestre (vai no welcome; o de boas-vindas abre para todos)
     this.sendTo(session, {
       type: 'welcome', you: this.selfView(session), players: this.othersIn(session), monsters: this.monstersIn(session.map), world: this.worldInfo(session),
       progress: this.progressView(session), kit: this.kitView(session), ninja: this.ninjaView(session),
@@ -1086,7 +1101,7 @@ export class GameWorld {
     else if (session.rank.code !== 'ACADEMY' && session.level >= CLAN_TIER_LEVEL[0]) {
       this.sendTo(session, { type: 'notice', text: session.clanMark
         ? `Sua linhagem (${CLAN_NAMES[session.clanMark]}) pode despertar: fale com o Diretor da Academia sobre o Rito do Despertar.`
-        : 'Sua linhagem pode despertar: marque o sangue no Criador de Personagem (☰ → Aparência) e fale com o Diretor sobre o Rito do Despertar.', tone: 'info' });
+        : 'Sua linhagem pode despertar: marque o sangue no Criador de Personagem (☰ → Config. → Mudar visual do personagem) e fale com o Diretor sobre o Rito do Despertar.', tone: 'info' });
     }
     this.syncMission(session.id);
     if (session.canBeSensei) this.syncSensei(session.id);
@@ -1175,6 +1190,9 @@ export class GameWorld {
     else if (parsed.type === 'chat') this.chatMessage(session, parsed.message, t);
     else if (parsed.type === 'admin') this.adminPanel(session, parsed.command, t);
     else if (parsed.type === 'admin_catalog') this.adminCatalog(session);
+    else if (parsed.type === 'manual_read') this.readManual(session, parsed.chapter);
+    else if (parsed.type === 'feedback') this.feedback(session, parsed, t);
+    else if (parsed.type === 'admin_feedback') this.adminFeedback(session, parsed.action, parsed.id);
     else if (parsed.type === 'power') this.power(session, t, parsed.targetId, parsed.dir);
     else if (parsed.type === 'set_display') this.setDisplay(session, { cape: parsed.cape, weapon: parsed.weapon, scroll: parsed.scroll });
     else if (parsed.type === 'travel') this.travel(session, parsed.to, t);
@@ -1297,6 +1315,7 @@ export class GameWorld {
    */
   private transfer(s: Session, to: MapId, x: number, y: number, reason: MapChangeReason): void {
     const from = s.map;
+    if (this.config.maps[to]?.conflict || this.config.maps[to]?.ranked) this.markPvp(s);   // v38: capítulo do PvP
     this.standUp(s);
     s.x = x;
     s.y = y;
@@ -3534,6 +3553,92 @@ export class GameWorld {
       type: 'inventory', ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll,
       equippedShoes: s.equippedShoes, equippedAccessory: s.equippedAccessory, cape: s.cape,
     });
+    this.checkManual(s);                       // v38: o primeiro pergaminho abre o capítulo dele
+  }
+
+  // ---------------------------------------------------------------- v38: Pergaminho do Mestre e Feedback
+
+  /** Abre os capítulos que a ficha já alcançou (nível, pergaminho, PvP) e avisa o cliente (o ícone pisca). */
+  private checkManual(s: Session, silent = false): void {
+    const learnedClassJutsu = [...s.jutsus.keys()].some((c) => (JUTSU_BY_CODE.get(c)?.tier ?? 0) > 0);
+    const fresh = chaptersOpen({ level: s.level, items: s.items, learnedClassJutsu, classes: s.classes, pvpSeen: s.manual.pvpSeen })
+      .filter((c) => !s.manual.unlocked.has(c));
+    if (fresh.length === 0) return;
+    for (const c of fresh) s.manual.unlocked.add(c);
+    if (!silent) this.sendTo(s, { type: 'manual', ...manualView(s.manual), fresh });
+    const { id } = s;
+    if (this.store?.unlockChapters && s.manualDb) this.storeTask(s, (store) => store.unlockChapters!(id, fresh), true);
+  }
+
+  /** Entrou em PvP (Zona de Conflito, Arena ou golpe de outro jogador): abre o capítulo do PvP. */
+  private markPvp(s: Session): void {
+    if (s.manual.pvpSeen) return;
+    s.manual.pvpSeen = true;
+    this.checkManual(s);
+  }
+
+  /** Fechou um capítulo: na primeira vez, o prêmio (50 ryō e 100 XP), pago uma vez só (o banco confere). */
+  private readManual(s: Session, chapter: ManualChapter): void {
+    if (!s.manual.unlocked.has(chapter) || s.manual.read.has(chapter)) return;
+    s.manual.read.add(chapter);
+    this.sendTo(s, { type: 'manual', ...manualView(s.manual) });
+    const { id } = s;
+    const pay = () => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      this.awardXp(current, MANUAL_REWARD.xp, MANUAL_REWARD.ryo);
+      this.sendTo(current, { type: 'notice', text: `Capítulo lido! +${MANUAL_REWARD.ryo} ryō e +${MANUAL_REWARD.xp} XP.`, tone: 'good' });
+    };
+    if (!this.store) return pay();                        // sem banco (testes): paga direto
+    if (!this.store.readChapter || !s.manualDb) return;   // banco antes da v26: lê, mas sem prêmio
+    this.storeTask(s, (store) => store.readChapter!(id, chapter).then((first) => { if (first) pay(); }), true);
+  }
+
+  /** Feedback (Menu > Enviar Feedback): grava o relato com o que o servidor sabe do jogador e o que o cliente viu. */
+  private feedback(s: Session, msg: { category: string; content: string; screen?: Record<string, string | number> }, t: number): void {
+    const say = (text: string, tone: 'good' | 'bad') => this.sendTo(s, { type: 'notice', text, tone });
+    if (t < s.feedbackAt + FEEDBACK_EVERY_MS) return say('Calma: espere alguns segundos antes de mandar outro feedback.', 'bad');
+    const content = msg.content.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim();
+    if (content.length < 3) return say('Escreva um pouco mais sobre o que aconteceu.', 'bad');
+    if (!this.store?.submitFeedback) return say('O feedback está fora do ar agora. Tente de novo mais tarde.', 'bad');
+    s.feedbackAt = t;
+    const context = {
+      username: s.username, level: s.level, rank: s.rank.name, classes: { ...s.classes }, lineage: s.clan, lineageMark: s.clanMark,
+      map: s.map, mapName: this.config.maps[s.map]?.name ?? s.map, x: round2(s.x), y: round2(s.y), version: GAME_VERSION,
+      ...(msg.screen ? { screen: msg.screen } : {}),
+    };
+    const { id } = s;
+    this.storeTask(s, (store) => store.submitFeedback!(id, msg.category, content, context).then((n) => {
+      const current = this.sessions.get(id);
+      if (current) {
+        this.sendTo(current, { type: 'feedback_sent', id: n });
+        this.sendTo(current, { type: 'notice', text: 'Obrigado! Seu feedback foi enviado para a equipe.', tone: 'good' });
+      }
+      this.log.info({ playerId: id, feedbackId: n, category: msg.category }, 'feedback recebido');
+    }), true);
+  }
+
+  /** Painel do admin, aba Feedback: lista os relatos e marca como lido/resolvido (o banco confere se é admin). */
+  private adminFeedback(s: Session, action: 'list' | 'resolve', id?: number): void {
+    if (!s.isAdmin) {
+      this.log.warn({ playerId: s.id }, 'feedback do admin recusado: jogador não é administrador');
+      return;
+    }
+    const store = this.admin;
+    if (!store?.listFeedback) return this.sendTo(s, { type: 'admin_feedback', items: [], error: 'Sem banco: o Feedback precisa da migração v26.' });
+    const adminId = s.id;
+    const list = () => store.listFeedback!(adminId, 100).then((items) => {
+      const current = this.sessions.get(adminId);
+      if (current) this.sendTo(current, { type: 'admin_feedback', items });
+    });
+    const run = action === 'resolve' && id !== undefined
+      ? store.resolveFeedback!(adminId, id).then((ok) => { this.audit(adminId, 'feedback_resolver', null, { id }, ok, ok ? null : 'já resolvido ou não existe'); return list(); })
+      : list();
+    run.catch((err: unknown) => {
+      this.log.warn({ adminId, err }, 'falha ao ler o feedback');
+      const current = this.sessions.get(adminId);
+      if (current) this.sendTo(current, { type: 'admin_feedback', items: [], error: 'Não consegui ler o Feedback (a migração v26 já rodou?).' });
+    });
   }
 
   // ---------------------------------------------------------------- tutorial da Academia
@@ -3694,7 +3799,7 @@ export class GameWorld {
   private riteTalk(s: Session, say: (text: string) => void): boolean {
     if (s.clan || s.rank.code === 'ACADEMY' || s.level < CLAN_TIER_LEVEL[0]) return false;
     if (!s.clanMark) {
-      say('Seu sangue ainda não foi marcado. Abra o Criador de Personagem (☰ → Aparência), escolha a linhagem e volte para o Rito do Despertar.');
+      say('Seu sangue ainda não foi marcado. Abra o Criador de Personagem (☰ → Config. → Mudar visual do personagem), escolha a linhagem e volte para o Rito do Despertar.');
       return true;
     }
     const name = CLAN_NAMES[s.clanMark];
@@ -4232,6 +4337,7 @@ export class GameWorld {
       if (levelsGained > 0 || result.promoted) {
         this.broadcastMap(session.map, this.rankMsg(session), playerId);
       }
+      if (levelsGained > 0) this.checkManual(session);   // v38: capítulos por nível (10, 11, 40)
     }
     if (result.promoted) {
       this.broadcast({ type: 'announce', message: `${username} subiu para ${result.rank.name}!` });
@@ -4248,6 +4354,7 @@ export class GameWorld {
     // v35: Noite Fechada: dentro da própria zona, o Umbra leva menos dano
     const cutZone = amount > 0 ? this.zones.find((z) => z.cut && z.ownerId === session.id && z.map === session.map && t < z.until && Math.hypot(session.x - z.x, session.y - z.y) <= z.r) : undefined;
     if (cutZone) amount = Math.round(amount * (1 - cutZone.cut!));
+    if (by && by !== session) { this.markPvp(session); this.markPvp(by); }   // v38: capítulo do PvP
     // v29 (bug da rodada 2): no Arena das Quatro Heranças só se apanha durante a rodada, e só quem está na partida. Uma
     // queimadura que sobrava da rodada 1 batia no intervalo, com a vida já em 0, e matava de verdade o perdedor.
     if (this.layout(session.map).ranked) {
@@ -6222,6 +6329,8 @@ export function behind(layout: MapLayout, from: Point, anchor: Point): Point | u
 /** O que voa (para o cliente escolher o desenho): o jutsu, a arma lançada ou o poder da Akatsuki. */
 /** Painel do admin: até 5 comandos seguidos e depois 3 por segundo; no catálogo, até 200 ninjas online. */
 const ADMIN_PANEL = { burst: 5, perSecond: 3, maxPlayers: 200 } as const;
+/** v38: no máximo um Feedback a cada 20 s por jogador. */
+const FEEDBACK_EVERY_MS = 20_000;
 
 /** Nome do monstro no painel do admin. */
 const MONSTER_NAMES: Readonly<Record<string, string>> = {
