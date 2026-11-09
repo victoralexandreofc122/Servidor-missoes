@@ -1196,3 +1196,9 @@ Para conferir: `SELECT count(*) FROM game.player_items WHERE item_code LIKE 'scr
 1. Casa dos Pergaminhos: a loja mostra só "Pergaminho"; a Extração diz "Você tem N" (o mesmo para todas as suas classes).
 2. ☰ → Perfil → Kits: só aparecem jutsus da Academia, das suas classes e da sua linhagem.
 3. Conta admin: `/admin resetarclasses eu` → Academia, sem classe; fale com o Diretor e escolha a classe de novo.
+
+## Passo 40 — Linhagem e Rito do Despertar (SQL v25)
+
+Rode `db/schema_v25_linhagem.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v24**, e só então mescle o código.
+Ela cria `players.clan_mark` e `players.rite_progress`, cadastra os 4 jutsus do Clã Umbra e atualiza `valid_kit` e `admin_reset_classes`.
+Pode rodar de novo sem erro. Conferência: `SELECT count(*) FROM game.jutsus;` deve dar 100.

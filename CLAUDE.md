@@ -19,7 +19,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   do Victor (chibi, contorno escuro, sombreado em 2-3 tons). Toda mudança de arte é comparada lado a lado com a
   referência e conferida dentro do jogo antes de fechar.
 - **Versão atual:** v29 (modo rankeado no Vale dos Guardiões, migração v15), publicada na `main`. Pronto e esperando o
-  Victor (branch, migrações v16 a v24 nessa ordem; o admin muda a patente com `/admin patente` (v23) e reseta as próprias classes com `/admin resetarclasses` (v24); pergaminho único e jutsu só da própria classe (v24)): Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o
+  Victor (branch, migrações v16 a v25 nessa ordem; o admin muda a patente com `/admin patente` (v23) e reseta as próprias classes com `/admin resetarclasses` (v24); pergaminho único e jutsu só da própria classe (v24); linhagem no Criador, Rito do Despertar e Clã Umbra (v25)): Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o
   Clã Rubro), conjuração, sistemas próprios (muros, invocações, escuridão...), clãs por linhagem, controle mais forte, a
   Fase 1 dos nomes (Herança do Fogo, 4 aldeias), a correção da rodada 2 do rankeado e a Fase 0 (Extração do design
   final e maestria por jutsu, feita no Fogo) e a Fase 1 dos nomes originais (Os Cinzas, Arena das Quatro Heranças, 38 jutsus, v21;
@@ -56,6 +56,14 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 - **Renomeações (regra do Victor, 09/11/2026):** nunca aplicar nome novo sem aprovação. O processo é sempre: **auditar, propor 3 opções por item,
   o Victor escolhe, só então aplicar** (código, banco, testes e docs). "Continuar a partir da sua recomendação" não é escolha: se o Victor
   não disse qual opção, perguntar. Vale para jutsus, clãs, locais, itens, NPCs, títulos e organizações, nesta e nas próximas fases.
+
+- **Troca de classe no nível 60 (decisão do Victor, 09/11/2026; implementar na Fase 2):** custo alto em ryō, só no nível 60. Os jutsus
+  e a maestria da classe antiga **ficam guardados no perfil**, só **bloqueados no kit** (a trava de classe da v34, `canUse` no
+  `gameWorld.ts`, já faz isso); se ele voltar para aquela classe, voltam a valer sem perder nada. A proteção contra azar da Extração
+  da classe antiga também fica guardada.
+- **#11, linhagem (decisões do Victor, 09/11/2026):** a linhagem (Rubro, Umbra, Andarilho) é **marcada no Criador de Personagem** e
+  **despertada no "Rito do Despertar"** (missão no rank Genin, nível 11); a árvore só abre depois do Rito. A classe Sombra continua uma
+  das 10 classes; o **Clã Umbra ganha 4 jutsus próprios** (nomes e mecânicas: 3 opções por jutsu, o Victor escolhe antes de codar).
 
 - `npm run verify` (typecheck, testes e build) tem que passar antes de qualquer commit.
 - Mudança visual: conferir no jogo com o navegador automático (Playwright) e mostrar imagens ao Victor.

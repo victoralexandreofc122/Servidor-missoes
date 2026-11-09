@@ -10,7 +10,7 @@ import {
 import {
   CLOSE, ClientMessage, DIRECTED_SKILLS, LINE_MECHANICS, REALTIME_ERRORS, SKILLS, sanitizeChat,
   type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
-  type DuelSideView, type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
+  type DuelSideView, type LineageView, type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
   type Skill, type WorldInfo, type Appearance, type Dir, type MonsterStatus,
   type EndgameView, type FactionView, type PowerFailReason, type TravelOption, type SkyView, type GroundKind,
 } from './protocol.js';
@@ -26,6 +26,12 @@ import {
   BASE_SKILLS, FORM_OF_MECHANIC, type JutsuForm, jutsuLevel, MASTERY, type MasteryGain, masteryBonus, masteryUseLevel, withMastery, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
 import { CLAN_TIER_LEVEL, clanJutsusFor, type Clan } from './jutsusClasses.js';
+
+/**
+ * v35 (#11): o Rito do Despertar. Genin de nível 11 com a linhagem marcada no Criador fala com o Diretor, derrota estes
+ * monstros (Lodo Escuro, na Floresta) e volta: a linhagem desperta e a árvore do clã abre.
+ */
+export const RITE = { monster: 'lodo_escuro', count: 10, monsterName: 'Lodos Escuros' } as const;
 
 /** v30: nomes e o que cada linhagem dá. */
 const CLAN_NAMES: Readonly<Record<Clan, string>> = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' };
@@ -193,6 +199,9 @@ export interface JoiningPlayer {
   classes?: Classes;
   /** v30 (migração v19): linhagem (null = ainda não despertou). */
   clan?: Clan | null;
+  /** v35: a linhagem marcada no Criador (ainda não despertada) e o andamento do Rito do Despertar (null = não começou). */
+  clanMark?: Clan | null;
+  riteProgress?: number | null;
   /** Jutsu -> usos já gravados no banco. */
   jutsus?: Record<string, number>;
   kageCandidate?: boolean;
@@ -324,6 +333,9 @@ interface Session {
   kageCandidate: boolean;
   /** v30: linhagem (Clã Rubro, Clã Umbra ou Andarilho); null = ainda não despertou. */
   clan: Clan | null;
+  /** v35: linhagem marcada no Criador e o Rito do Despertar (null = não começou). */
+  clanMark: Clan | null;
+  riteProgress: number | null;
   /** Substituição armada até este instante (anula o próximo golpe). */
   substituteUntil: number;
   substituteLevel: number;
@@ -380,6 +392,11 @@ interface Session {
   hearts: number;
   heartsCut: number;
   intangibleUntil: number;
+  /** v35 (Clã Umbra): Deslize Noturno (sem ser alvo único até lá; o próximo golpe dói mais), Sombra Faminta (a marca) e Forma Umbral. */
+  umbraHideUntil: number;
+  umbraNext: { bonus: number; until: number } | null;
+  umbraMark: { targetId: string; until: number; bonus: number; slowMs: number } | null;
+  umbraForm: { until: number; damage: number; slowMs: number; hit: HitInfo; done: Set<string> } | null;
   hasteUntil: number;
   haste: number;
   /** Último pedido de painel (vila, ranking, viagem): toque repetido não vira enxurrada no banco. */
@@ -463,6 +480,8 @@ interface GroundZone {
   endDamage?: number; endStunMs?: number; hit?: HitInfo; endHit?: HitInfo;
   /** v30: escurece quem está dentro; armadilha (dispara no 1º que pisar e some). */
   dark?: boolean; trap?: boolean;
+  /** v35: quem lançou leva esta fração a menos de dano enquanto está dentro (Noite Fechada). */
+  cut?: number;
 }
 /** Golpe avisado: o círculo aparece no chão e o dano cai em `at` (dá tempo de sair). */
 interface GroundStrike { id: number; map: MapId; x: number; y: number; r: number; ownerId: string; at: number; damage: number; label: string; stunMs: number; hit?: HitInfo; slowMs?: number }
@@ -730,12 +749,24 @@ export class GameWorld {
     };
   }
 
+  /** v35: a linhagem como todos veem: o clã e o tier despertado (1 a 4, pelo nível) para o visual (olho, névoa, faixa). */
+  private lineageOf(s: Session): LineageView | undefined {
+    return s.clan ? { clan: s.clan, tier: Math.max(1, CLAN_TIER_LEVEL.filter((l) => s.level >= l).length) } : undefined;
+  }
+
+  /** Patente e nível sobre o boneco (e a linhagem, que muda de visual pelo nível). */
+  private rankMsg(s: Session): ServerMessage {
+    const lineage = this.lineageOf(s);
+    return { type: 'player_rank', playerId: s.id, rank: s.rank, level: s.level, ...(lineage ? { lineage } : {}) };
+  }
+
   private view(s: Session): PlayerView {
     return {
       id: s.id, username: s.username, x: round3(s.x), y: round3(s.y), hp: shownHp(s.hp), maxHp: s.stats.maxHp,
       dead: s.dead, meditating: s.meditating, ...(s.sitting ? { sitting: true } : {}), rank: s.rank, level: s.level,
       appearance: { ...(s.appearance ?? DEFAULT_APPEARANCE) }, dir: dirOf(s.fx, s.fy), gear: this.gear(s),
       ...(this.on('vilas') ? { faction: this.factionView(s) } : {}),
+      ...(s.clan ? { lineage: this.lineageOf(s)! } : {}),
       ...fxView(s.effects, this.now()),
     };
   }
@@ -870,7 +901,7 @@ export class GameWorld {
   private ninjaView(s: Session): NinjaView {
     return {
       tutorialStep: s.tutorial, ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll,
-      equippedShoes: s.equippedShoes, equippedAccessory: s.equippedAccessory, classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin, clan: s.clan,
+      equippedShoes: s.equippedShoes, equippedAccessory: s.equippedAccessory, classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin, clan: s.clan, clanMark: s.clanMark, riteProgress: s.riteProgress,
       villageSwitches: s.villageSwitches, cape: s.cape, display: { ...s.display },
     };
   }
@@ -976,6 +1007,8 @@ export class GameWorld {
       lastUsageFlush: t,
       kageCandidate: player.kageCandidate ?? previous?.kageCandidate ?? false,
       clan: player.clan !== undefined ? player.clan : previous?.clan ?? null,
+      clanMark: player.clanMark !== undefined ? player.clanMark : previous?.clanMark ?? null,
+      riteProgress: player.riteProgress !== undefined ? player.riteProgress : previous?.riteProgress ?? null,
       substituteUntil: previous?.substituteUntil ?? 0,
       stunnedUntil: 0,
       rootedUntil: 0,
@@ -1011,6 +1044,7 @@ export class GameWorld {
       hearts: previous?.hearts ?? 0,
       heartsCut: previous?.heartsCut ?? 0,
       intangibleUntil: previous?.intangibleUntil ?? 0,
+      umbraHideUntil: 0, umbraNext: null, umbraMark: null, umbraForm: null,
       hasteUntil: previous?.hasteUntil ?? 0,
       haste: previous?.haste ?? 0,
       lastPanelAt: 0,
@@ -1049,7 +1083,9 @@ export class GameWorld {
     this.duelRejoin(session);                  // v29: caiu no meio da partida do rankeado e voltou a tempo
     if (session.clan) this.grantClanJutsus(session);   // v30: um tier do clã que o nível alcançou longe do jogo
     else if (session.rank.code !== 'ACADEMY' && session.level >= CLAN_TIER_LEVEL[0]) {
-      this.sendTo(session, { type: 'notice', text: 'Sua linhagem pode despertar (uma vez só): digite /linhagem rubro, /linhagem umbra ou /linhagem andarilho no chat.', tone: 'info' });
+      this.sendTo(session, { type: 'notice', text: session.clanMark
+        ? `Sua linhagem (${CLAN_NAMES[session.clanMark]}) pode despertar: fale com o Diretor da Academia sobre o Rito do Despertar.`
+        : 'Sua linhagem pode despertar: marque o sangue no Criador de Personagem (☰ → Aparência) e fale com o Diretor sobre o Rito do Despertar.', tone: 'info' });
     }
     this.syncMission(session.id);
     if (session.canBeSensei) this.syncSensei(session.id);
@@ -1125,7 +1161,7 @@ export class GameWorld {
     else if (parsed.type === 'deliver_mission') this.deliverPlayerMission(session, parsed.senseiId, t);
     else if (parsed.type === 'evaluate_mission') this.evaluatePlayerMission(session, parsed.missionId, parsed.approved, parsed.score, t);
     else if (parsed.type === 'choose_class') this.chooseClass(session, parsed.class);
-    else if (parsed.type === 'clan') this.chooseClan(session, parsed.clan);
+    else if (parsed.type === 'clan') this.markClan(session, parsed.clan);   // v35: no Criador só se MARCA; desperta no Rito
     else if (parsed.type === 'extract') this.extract(session, parsed.class, parsed.level);
     else if (parsed.type === 'buy') this.buy(session, parsed.item, parsed.qty);
     else if (parsed.type === 'equip') parsed.slot === 'cape' ? this.equipCape(session, parsed.item) : this.equip(session, parsed.item, parsed.slot ?? 'weapon');
@@ -1641,7 +1677,7 @@ export class GameWorld {
           this.sendTo(s, { type: 'jutsus', jutsus: Object.fromEntries(s.jutsus) });
           this.sendTo(s, { type: 'kit', ...this.kitView(s) });
           this.sendTo(s, { type: 'progress', ...this.progressView(s) });
-          this.broadcastMap(s.map, { type: 'player_rank', playerId: s.id, rank: s.rank, level: s.level });
+          this.broadcastMap(s.map, this.rankMsg(s));
         }
         say(`Admin: ${target.username} voltou à Academia sem classe e sem linhagem (${r.removed} jutsus de classe e de clã removidos). Fale com o Diretor para escolher de novo.`, 'good');
         break;
@@ -1654,7 +1690,7 @@ export class GameWorld {
           s.rank = r.rank;
           s.canBeSensei = r.canBeSensei;
           this.sendTo(s, { type: 'progress', ...this.progressView(s) });
-          this.broadcastMap(s.map, { type: 'player_rank', playerId: s.id, rank: s.rank, level: s.level });
+          this.broadcastMap(s.map, this.rankMsg(s));
           if (s.id !== adminId) this.sendTo(s, { type: 'notice', text: `O administrador mudou a sua patente: agora você é ${r.rank.name}.`, tone: 'info' });
         }
         say(`Admin: ${target.username} agora é ${r.rank.name}.`, 'good');
@@ -1720,7 +1756,7 @@ export class GameWorld {
     s.xp = state.totalXp;
     s.level = state.level;
     this.applyAttributes(s, state.statPoints, state.attributes);
-    if (s.level !== levelBefore) this.broadcastMap(s.map, { type: 'player_rank', playerId, rank: s.rank, level: s.level });
+    if (s.level !== levelBefore) this.broadcastMap(s.map, this.rankMsg(s));
     if (s.level !== levelBefore && s.clan) this.grantClanJutsus(s);   // v30: o tier do clã chega pelo nível
   }
 
@@ -2186,7 +2222,7 @@ export class GameWorld {
   spawnZone(owner: Session, z: {
     x: number; y: number; r: number; kind: GroundZone['kind']; ms: number; tickMs?: number; damage?: number; slowMs?: number; heal?: number; label?: string;
     follow?: boolean; pull?: number; firstRootMs?: number; endDamage?: number; endStunMs?: number; hit?: HitInfo; endHit?: HitInfo;
-    dark?: boolean; trap?: boolean;
+    dark?: boolean; trap?: boolean; cut?: number;
   }, t: number = this.now()): number {
     const id = ++this.groundSeq;
     const tickMs = z.tickMs ?? 1000;
@@ -2196,7 +2232,7 @@ export class GameWorld {
       ...(z.follow ? { follow: true } : {}), ...(z.pull ? { pull: z.pull } : {}), ...(z.firstRootMs ? { firstRootMs: z.firstRootMs } : {}),
       ...(z.endDamage ? { endDamage: z.endDamage } : {}), ...(z.endStunMs ? { endStunMs: z.endStunMs } : {}),
       ...(z.hit ? { hit: z.hit } : {}), ...(z.endHit ? { endHit: z.endHit } : {}),
-      ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}),
+      ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(z.cut ? { cut: z.cut } : {}),
     });
     this.broadcastMap(owner.map, { type: 'ground', id, kind: z.kind, x: round2(z.x), y: round2(z.y), r: z.r, ms: z.ms, ...(z.label ? { skill: z.label } : {}), ...(z.follow ? { follow: owner.id } : {}) });
     return id;
@@ -2208,6 +2244,21 @@ export class GameWorld {
     this.strikes.push({ id, map: owner.map, x: w.x, y: w.y, r: w.r, ownerId: owner.id, at: t + w.delayMs, damage: w.damage, label: w.label ?? 'aviso', stunMs: w.stunMs ?? 0, ...(w.hit ? { hit: w.hit } : {}), ...(w.slowMs ? { slowMs: w.slowMs } : {}) });
     this.broadcastMap(owner.map, { type: 'ground', id, kind: 'aviso', x: round2(w.x), y: round2(w.y), r: w.r, ms: w.delayMs, ...(w.label ? { skill: w.label } : {}) });
     return id;
+  }
+
+  /** v35: Forma Umbral: quem o Umbra atravessa leva dano e fica lento (uma vez cada por forma). */
+  private umbraFormTick(t: number): void {
+    for (const s of this.sessions.values()) {
+      const f = s.umbraForm;
+      if (!f) continue;
+      if (t >= f.until || s.dead || s.closed) { s.umbraForm = null; continue; }
+      for (const x of this.targetsFor(s)) {
+        if (f.done.has(x.id) || Math.hypot(x.x - s.x, x.y - s.y) > 0.9) continue;
+        f.done.add(x.id);
+        if (f.damage > 0) this.hitTarget(x, f.damage, s, t, 'skill', 'umbra_forma', f.hit);
+        if (f.slowMs > 0 && this.stillThere(x)) this.applyEffect(x, 'lentidao', t, f.slowMs, undefined, s);
+      }
+    }
   }
 
   private stepGround(t: number): void {
@@ -2292,6 +2343,17 @@ export class GameWorld {
       amount = pvpHitDamage(hit, attacker.stats, this.config.combat.damageScale);
       if (hit.wet) amount = Math.round(amount * WET_LIGHTNING_BONUS);
     }
+    // v35 (Clã Umbra): o golpe depois do Deslize Noturno e o golpe no alvo marcado pela Sombra Faminta doem mais
+    let markSlow = 0;
+    if (attacker.umbraNext) {
+      if (t < attacker.umbraNext.until) amount = Math.round(amount * (1 + attacker.umbraNext.bonus));
+      attacker.umbraNext = null;
+    }
+    const mark = attacker.umbraMark;
+    if (mark && mark.targetId === target.id) {
+      if (t < mark.until) { amount = Math.round(amount * (1 + mark.bonus)); markSlow = mark.slowMs; }
+      attacker.umbraMark = null;
+    }
     if (target.kind === 'monster') {
       if (target.monster.hp > 0 && this.monsters.has(target.id)) {
         this.damageMonster(target.monster, amount, attacker, t, source);
@@ -2301,6 +2363,7 @@ export class GameWorld {
       this.damagePlayer(target.session, amount, t, attacker, attacker, label);
       hurt = true;
     }
+    if (hurt && markSlow > 0 && this.stillThere(target)) this.applyEffect(target, 'lentidao', t, markSlow, undefined, attacker);
     // Akatsuki (Lâmina Faminta / Pacto de Sangue): o Ataque Básico drena chakra do ninja atingido ou cura o dono.
     const buff = attacker.powerBuff;
     if (hurt && source === 'attack' && buff && t < buff.until && !attacker.dead) {
@@ -2442,7 +2505,8 @@ export class GameWorld {
         return { hits: on.slice(0, Math.max(1, cfg.targets ?? 1)), to: end };
       }
       case 'alvo': {
-        const inRange = (x: Target) => distance(o, x) <= reach && (!cfg.needsRooted || this.isRooted(x, t));
+        const inRange = (x: Target) => distance(o, x) <= reach && (!cfg.needsRooted || this.isRooted(x, t))
+          && !(x.kind === 'player' && t < x.session.umbraHideUntil);   // v35: no Deslize Noturno ninguém mira nele
         const focused = targetId !== undefined ? targets.find((x) => x.id === targetId && inRange(x)) : undefined;
         const pick = focused ?? targets.filter(inRange).sort((a, b) => distance(o, a) - distance(o, b))[0];
         if (!pick) return { hits: [], fail: cfg.needsRooted ? 'NO_TARGET' : 'NO_TARGET' };
@@ -2467,6 +2531,16 @@ export class GameWorld {
           : targets.filter((x) => isInCircle(to, r, x));
         return { hits, to, dashTo };
       }
+      case 'marca': {
+        // v35: Sombra Faminta: o alvo focado (ou o mais perto) no alcance
+        const ok = (x: Target) => distance(o, x) <= reach && !(x.kind === 'player' && t < x.session.umbraHideUntil);
+        const pick = (targetId !== undefined ? targets.find((x) => x.id === targetId && ok(x)) : undefined) ?? targets.filter(ok).sort((a, b) => distance(o, a) - distance(o, b))[0];
+        if (!pick) return { hits: [], fail: 'NO_TARGET' };
+        this.faceTo(s, pick);
+        return { hits: [pick], to: { x: pick.x, y: pick.y } };
+      }
+      case 'forma_sombra':
+        return { hits: [] };
       case 'recuo': {
         const d = cfg.dash ?? 3;
         const sign = d < 0 ? -1 : 1;
@@ -2561,7 +2635,24 @@ export class GameWorld {
         break;
       case 'recuo':
         if (dashTo) this.dash(s, dashTo, t);
+        // v35: Deslize Noturno
+        if (cfg.stealthMs) s.umbraHideUntil = t + cfg.stealthMs;
+        if (cfg.nextHitBonus) s.umbraNext = { bonus: cfg.nextHitBonus, until: t + (cfg.nextHitMs ?? 4000) };
         break;
+      case 'marca':
+        for (const x of hits) {
+          s.umbraMark = { targetId: x.id, until: t + (cfg.markMs ?? 6000), bonus: cfg.markBonus ?? 0.25, slowMs: cfg.markSlowMs ?? 1000 };
+          this.sendTo(s, { type: 'notice', text: 'Sombra Faminta: o próximo golpe nele dói mais e deixa lento.', tone: 'good' });
+        }
+        break;
+      case 'forma_sombra': {
+        // v35: Forma Umbral: ignora projéteis, mais rápido; quem ele atravessa leva dano e fica lento (uma vez cada)
+        const ms = cfg.durationMs ?? 5000;
+        s.umbraForm = { until: t + ms, damage: dmg, slowMs: cfg.slowMs ?? 500, hit, done: new Set() };
+        if (cfg.speedBuff) { s.haste = cfg.speedBuff; s.hasteUntil = t + ms; }
+        this.sendTo(s, { type: 'notice', text: `Forma Umbral por ${Math.round(ms / 1000)} s: projéteis atravessam você.`, tone: 'good' });
+        break;
+      }
       case 'projetil': {
         const n = Math.max(1, cfg.shots ?? 1);
         for (let i = 0; i < n; i++) {
@@ -2583,7 +2674,7 @@ export class GameWorld {
           ...(z.heal ? { heal: Math.max(1, Math.round(z.heal * (pvp ? 0.5 : 1))) } : {}),
           ...(z.follow ? { follow: true } : {}), ...(z.pull ? { pull: z.pull } : {}), ...(z.firstRootMs ? { firstRootMs: z.firstRootMs } : {}),
           ...((z.endHit || z.trap) && dmg > 0 ? { endDamage: dmg, endHit: hit } : {}), ...(z.endStunMs ? { endStunMs: z.endStunMs } : {}),
-          ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}),
+          ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(cfg.zoneDamageCut ? { cut: cfg.zoneDamageCut } : {}),
         }, t);
         break;
       }
@@ -2907,7 +2998,8 @@ export class GameWorld {
     const from = { x: p.x, y: p.y };
     const end = rayEnd(this.layout(p.map), p.x, p.y, p.ux, p.uy, step);
     const wall = distance(from, end) < step - 0.06;
-    const fresh = this.targetsFor(p.owner).filter((x) => !p.volley.has(x.id));
+    // v35: na Forma Umbral, projétil atravessa o Umbra
+    const fresh = this.targetsFor(p.owner).filter((x) => !p.volley.has(x.id) && !(x.kind === 'player' && x.session.umbraForm && t < x.session.umbraForm.until));
     p.x = end.x;
     p.y = end.y;
     p.left -= step;
@@ -3330,6 +3422,7 @@ export class GameWorld {
       const ryo = pay.min + Math.floor(this.random() * (pay.max - pay.min + 1));
       this.awardXp(who, type.xp, ryo);
       this.trackKill(who, m.type);
+      this.riteKill(who, m.type);   // v35: o Rito do Despertar
       this.maybeDropScroll(who);
     }
   }
@@ -3540,10 +3633,56 @@ export class GameWorld {
       say(`Linhagem desperta: ${CLAN_NAMES[clan]}! ${CLAN_HINT[clan]}`, 'good');
       this.sendTo(current, { type: 'clan', clan });
       this.grantClanJutsus(current);
+      this.broadcastMap(current.map, this.rankMsg(current));   // v35: os outros veem a linhagem (olho, névoa, faixa)
     };
     if (this.store?.chooseClan) {
       this.storeTask(s, (store) => store.chooseClan!(id, clan).then(done));
     } else done();
+  }
+
+  /** v35: marca a linhagem no Criador (antes do Rito; depois de despertar, não muda mais). */
+  private markClan(s: Session, clan: Clan): void {
+    if (s.clan) return this.sendTo(s, { type: 'notice', text: `Sua linhagem já despertou: ${CLAN_NAMES[s.clan]}.`, tone: 'info' });
+    s.clanMark = clan;
+    this.sendTo(s, { type: 'clan_mark', clan });
+    if (this.store?.setClanMark) this.storeTask(s, (store) => store.setClanMark!(s.id, clan));
+  }
+
+  /** v35: o Rito do Despertar com o Diretor (começar, ver o andamento, despertar). true = o Diretor falou do Rito. */
+  private riteTalk(s: Session, say: (text: string) => void): boolean {
+    if (s.clan || s.rank.code === 'ACADEMY' || s.level < CLAN_TIER_LEVEL[0]) return false;
+    if (!s.clanMark) {
+      say('Seu sangue ainda não foi marcado. Abra o Criador de Personagem (☰ → Aparência), escolha a linhagem e volte para o Rito do Despertar.');
+      return true;
+    }
+    const name = CLAN_NAMES[s.clanMark];
+    if (s.riteProgress === null) {
+      this.setRite(s, 0);
+      say(`Rito do Despertar (${name}): derrote ${RITE.count} ${RITE.monsterName} na Floresta e volte aqui. O sangue desperta na luta.`);
+      return true;
+    }
+    if (s.riteProgress < RITE.count) {
+      say(`Rito do Despertar: ${s.riteProgress}/${RITE.count} ${RITE.monsterName}. Continue na Floresta.`);
+      return true;
+    }
+    say(`O Rito está completo. Desperte, ${name}.`);
+    this.setRite(s, null);
+    this.chooseClan(s, s.clanMark);
+    return true;
+  }
+
+  private setRite(s: Session, progress: number | null): void {
+    s.riteProgress = progress;
+    this.sendTo(s, { type: 'rite', progress, count: RITE.count });
+    if (this.store?.setRite) this.storeTask(s, (store) => store.setRite!(s.id, progress));
+  }
+
+  /** v35: cada Lodo Escuro derrotado conta para o Rito de quem o começou. */
+  private riteKill(s: Session, type: string): void {
+    if (s.riteProgress === null || s.clan || type !== RITE.monster || s.riteProgress >= RITE.count) return;
+    this.setRite(s, s.riteProgress + 1);
+    this.sendTo(s, { type: 'notice', tone: 'good', text: s.riteProgress! >= RITE.count
+      ? `Rito do Despertar: ${RITE.count}/${RITE.count}! Volte ao Diretor da Academia.` : `Rito do Despertar: ${s.riteProgress}/${RITE.count}.` });
   }
 
   /** v30: ensina os jutsus do clã que o nível já alcançou (no despertar, ao entrar e ao subir de nível). */
@@ -3586,7 +3725,7 @@ export class GameWorld {
       current.items = result.items;
       this.sendTo(current, { type: 'classes', ...current.classes });
       this.sendInventory(current);
-      this.broadcastMap(current.map, { type: 'player_rank', playerId: id, rank: current.rank, level: current.level });
+      this.broadcastMap(current.map, this.rankMsg(current));
       this.broadcast({ type: 'announce', message: `${username} passou na Missão de Genin (classe ${CLASS_INFO[cls].name})!` });
       this.sendTo(current, { type: 'notice', text: `Você é Genin! Classe Primária: ${CLASS_INFO[cls].name}. Ganhou 1 pergaminho dela: use na Extração.`, tone: 'good' });
       this.log.info({ playerId: id, cls }, 'jogador virou Genin');
@@ -3796,6 +3935,7 @@ export class GameWorld {
       say('Chegou a hora da Missão de Genin. Escolha sua classe: ela decide quais jutsus você pode aprender.');
       return this.sendTo(s, { type: 'class_choice', kind: 'primary', classes: [...CLASSES] });
     }
+    if (this.riteTalk(s, say)) return;   // v35: o Rito do Despertar vem antes do resto
     if (s.level >= lv.kage && !s.kageCandidate) {
       return say('Poucos chegam tão longe. Se quiser, registre aqui a sua candidatura a Kage.');
     }
@@ -3949,7 +4089,7 @@ export class GameWorld {
       if (trainee && outcome.traineeRank.code !== trainee.rank.code) {
         trainee.rank = { code: outcome.traineeRank.code, name: outcome.traineeRank.name };
         trainee.canBeSensei = outcome.traineeRank.canBeSensei;
-        this.broadcastMap(trainee.map, { type: 'player_rank', playerId: trainee.id, rank: trainee.rank, level: trainee.level });
+        this.broadcastMap(trainee.map, this.rankMsg(trainee));
         this.broadcast({ type: 'announce', message: `${trainee.username} passou no Exame Chunin e virou ${trainee.rank.name}!` });
         if (trainee.canBeSensei) this.syncSensei(trainee.id);
       }
@@ -4047,7 +4187,7 @@ export class GameWorld {
         this.sendTo(session, { type: 'notice', text: `Nível ${session.level}! +${levelsGained} ${levelsGained === 1 ? 'ponto' : 'pontos'} de atributo.`, tone: 'good' });
       }
       if (levelsGained > 0 || result.promoted) {
-        this.broadcastMap(session.map, { type: 'player_rank', playerId, rank: session.rank, level: session.level }, playerId);
+        this.broadcastMap(session.map, this.rankMsg(session), playerId);
       }
     }
     if (result.promoted) {
@@ -4062,6 +4202,9 @@ export class GameWorld {
    */
   private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session, label?: string): void {
     if (t < session.intangibleUntil) return;                    // Forma Fantasma (Akatsuki)
+    // v35: Noite Fechada: dentro da própria zona, o Umbra leva menos dano
+    const cutZone = amount > 0 ? this.zones.find((z) => z.cut && z.ownerId === session.id && z.map === session.map && t < z.until && Math.hypot(session.x - z.x, session.y - z.y) <= z.r) : undefined;
+    if (cutZone) amount = Math.round(amount * (1 - cutZone.cut!));
     // v29 (bug da rodada 2): no Arena das Quatro Heranças só se apanha durante a rodada, e só quem está na partida. Uma
     // queimadura que sobrava da rodada 1 batia no intervalo, com a vida já em 0, e matava de verdade o perdedor.
     if (this.layout(session.map).ranked) {
@@ -4985,6 +5128,7 @@ export class GameWorld {
 
     // 1c2. Zonas no chão e golpes avisados (Jutsus v2).
     this.stepGround(t);
+    this.umbraFormTick(t);
 
     // 1d. Efeitos com tempo: pulsos (queimadura, regeneração) e o fim de cada um.
     this.tickEffects(t);

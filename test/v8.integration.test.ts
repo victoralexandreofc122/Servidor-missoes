@@ -20,7 +20,8 @@ const noDatabase = process.env.TEST_DATABASE_URL
 const V8 = readFileSync(new URL('../db/schema_v8_admin_chat.sql', import.meta.url), 'utf8');
 const V12 = readFileSync(new URL('../db/schema_v12_sapatos.sql', import.meta.url), 'utf8');
 /** As colunas que o findPlayer lê hoje: o acessório (v14) e a linhagem (v19). */
-const V14_V19 = ['schema_v14_acessorio.sql', 'schema_v19_clas.sql'].map((f) => readFileSync(new URL(`../db/${f}`, import.meta.url), 'utf8')).join('\n');
+const V14_V19 = ['schema_v14_acessorio.sql', 'schema_v19_clas.sql'].map((f) => readFileSync(new URL(`../db/${f}`, import.meta.url), 'utf8')).join('\n')
+  + '\nALTER TABLE game.players ADD COLUMN IF NOT EXISTS clan_mark text, ADD COLUMN IF NOT EXISTS rite_progress smallint;';   // v35 (v25)
 const rule = (name: string) => (e: { constraint?: string }) => e.constraint === name;
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 

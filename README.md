@@ -240,6 +240,14 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v35: linhagem no Criador, Rito do Despertar e os 4 jutsus do Clã Umbra (migração v25, `db/schema_v25_linhagem.sql`)
+
+- A linhagem (Clã Rubro, Clã Umbra, Andarilho) é **marcada no Criador de Personagem** e **desperta no Rito do Despertar**: no rank
+  Genin (nível 11), fale com o Diretor da Academia, derrote 10 Lodos Escuros na Floresta e volte. A árvore do clã só abre depois.
+- Clã Umbra com 4 jutsus próprios: Deslize Noturno (T1), Sombra Faminta (T2), Noite Fechada (T3) e Forma Umbral (T4).
+- Visual: olho Rubro com íris vermelha que brilha mais a cada tier; névoa escura nos pés do Umbra; faixa no braço esquerdo do Andarilho.
+- Catálogo com 100 jutsus. Quem já tinha linhagem fica com ela (a marca é preenchida pela própria v25).
+
 ### v34: pergaminho único, jutsu só da sua classe e reset de classes do admin (migração v24, `db/schema_v24_pergaminho_unico.sql`)
 
 - **Um pergaminho só ("Pergaminho", `scroll_liso`):** serve para a Extração de qualquer classe sua (Primária ou Secundária). A loja vende só

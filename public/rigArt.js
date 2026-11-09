@@ -93,6 +93,7 @@ export function materialsFor(look, opts = {}) {
     gola: cloth('creme'),
     calca: cloth(look.pantsColor),
     faixa: cloth('creme'),
+    faixaAndarilho: cloth('marrom'),
     colete: cloth(vila.conjunto[0]),
     terno: cloth(vila.conjunto[1]),
     faixa_vila: cloth(vila.conjunto[2]),
@@ -426,7 +427,9 @@ function shirtLayer(c) {
     const sh = J[`shoulder${key}`], el = J[`elbow${key}`], wr = J[`wrist${key}`];
     const gs = (g[`sleeve${key}`] = G());
     ell('camisa', g.shirt, top, sh, R.chest, [3.8, 3.7, 3.7]);
-    tube('camisa', gs, top, sh, el, c.rArm.up[0] + 0.6, c.rArm.up[1] + 0.55, LIMB);
+    // v35: a faixa do Andarilho no braço esquerdo (por cima da manga)
+    const band = key === 'L' && c.look.lineage && c.look.lineage.clan === 'andarilho';
+    tube('camisa', gs, top, sh, el, c.rArm.up[0] + 0.6, c.rArm.up[1] + 0.55, band ? { ...LIMB, paint: (k) => (k > 0.42 && k < 0.64 ? [mats.faixaAndarilho, 1] : null) } : LIMB);
     tube('camisa', gs, top, el, mix(el, wr, 0.82), c.rArm.fore[0] + 0.55, c.rArm.fore[1] + 0.6,
       { ...LIMB, paint: (k) => (k > 0.86 ? [vest ? mats.terno : mats.gola, 1] : null) });
   }
@@ -490,7 +493,8 @@ function coatLayer(c) {
     const sh = J[`shoulder${key}`], el = J[`elbow${key}`], wr = J[`wrist${key}`];
     const gs = (g[`coatArm${key}`] = G());
     ell('casaco', g.coat, mats.casaco, sh, R.chest, [4.4, 4.3, 4.4]);
-    tube('casaco', gs, mats.casaco, sh, el, c.rArm.up[0] + 1.2 + over * 0.5, c.rArm.up[1] + 1.25 + over * 0.5, LIMB);
+    const bandC = key === 'L' && c.look.lineage && c.look.lineage.clan === 'andarilho';
+    tube('casaco', gs, mats.casaco, sh, el, c.rArm.up[0] + 1.2 + over * 0.5, c.rArm.up[1] + 1.25 + over * 0.5, bandC ? { ...LIMB, paint: (k) => (k > 0.42 && k < 0.64 ? [mats.faixaAndarilho, 1] : null) } : LIMB);
     // A manga alarga no punho e o punho é dobrado (um tom de sombra).
     tube('casaco', gs, mats.casaco, el, mix(el, wr, 0.96), c.rArm.fore[0] + 1.25, c.rArm.fore[1] + 1.6, { ...LIMB, paint: (k) => (k > 0.8 ? [null, 1] : null) });
   }
@@ -1211,16 +1215,28 @@ function stamp(buf, scene, col, st, S, look, pose, mats) {
 }
 
 /** Olhos, sobrancelhas e boca no lugar certo da cabeça (de frente, de lado ou nada, se estiver de costas). */
+/**
+ * v35: o olho do Clã Rubro (opção B do Victor): íris vermelha com brilho que cresce a cada tier despertado (1 a 4). Só visual.
+ * [pupila, íris escura, íris, íris clara] como a paleta dos olhos.
+ */
+const RUBRO_EYES = [
+  ['#2a0608', '#6e1414', '#9a1e1e', '#b83030'],
+  ['#300608', '#861616', '#b82020', '#d84040'],
+  ['#38060a', '#a01818', '#d82424', '#f45a48'],
+  ['#42060a', '#b81818', '#f02a2a', '#ff8a6e'],
+];
+
 function face(buf, scene, col, S, look, pose, part) {
   const { head, hx, hy, hz } = scene;
   const R = S.R.head, C = S.J.head;
   const fwd = apply(R, [0, 0, 1]);
   if (dot(fwd, VIEW) < -0.1) return;                                   // de costas
   const side = Math.abs(fwd[0]) > 0.62;                                 // de perfil
-  const eyePal = PAL.olho[look.eyeColor] || PAL.olho.azul;
+  const rubroTier = look.lineage && look.lineage.clan === 'rubro' ? Math.max(1, Math.min(4, look.lineage.tier || 1)) : 0;
+  const eyePal = rubroTier ? RUBRO_EYES[rubroTier - 1] : PAL.olho[look.eyeColor] || PAL.olho.azul;
   const skin = PAL.pele[look.skin] || PAL.pele.claro;
   const colors = {
-    K: pack(rgbOf(OUTLINE)), W: 0xf4f6fa, H: 0xffffff, P: pack(rgbOf(eyePal[0])), 1: pack(rgbOf(eyePal[1])), 2: pack(rgbOf(eyePal[2])), 3: pack(rgbOf(eyePal[3])),
+    K: pack(rgbOf(OUTLINE)), W: 0xf4f6fa, H: rubroTier >= 3 ? pack(rgbOf('#ffd2c2')) : 0xffffff, P: pack(rgbOf(eyePal[0])), 1: pack(rgbOf(eyePal[1])), 2: pack(rgbOf(eyePal[2])), 3: pack(rgbOf(eyePal[3])),
     a: pack(rgbOf(skin[8])), b: pack(rgbOf(skin[9])), t: pack(rgbOf(skin[7])), s: pack(rgbOf(skin[3])),
   };
   const style = EYES[look.eyeStyle] || EYES.masculino;

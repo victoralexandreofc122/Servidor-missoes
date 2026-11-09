@@ -62,6 +62,9 @@ export interface NinjaStore {
   /** v30 (migração v19): grava a linhagem (só se ainda não tinha) e ensina jutsus (os do clã, pelo nível). */
   chooseClan?(playerId: string, clan: string): Promise<void>;
   learnJutsus?(playerId: string, codes: string[]): Promise<void>;
+  /** v35 (migração v25): a linhagem marcada no Criador e o andamento do Rito do Despertar. */
+  setClanMark?(playerId: string, clan: string): Promise<void>;
+  setRite?(playerId: string, progress: number | null): Promise<void>;
   /** Rank atual (depois do Exame Chunin aprovado). */
   rankOf(playerId: string): Promise<{ rank: RankView; canBeSensei: boolean } | undefined>;
 }
@@ -77,6 +80,8 @@ export const NINJA_SQL = {
   advanceTutorial: `SELECT game.advance_tutorial($1, $2) AS advanced`,
   // v30 (migração v19): a linhagem (uma vez só) e os jutsus do clã pelo nível
   chooseClan: `UPDATE game.players SET clan = $2 WHERE id = $1 AND clan IS NULL`,
+  setClanMark: `UPDATE game.players SET clan_mark = $2 WHERE id = $1 AND clan IS NULL`,
+  setRite: `UPDATE game.players SET rite_progress = $2 WHERE id = $1`,
   learnJutsus: `INSERT INTO game.player_jutsus (player_id, jutsu_code) SELECT $1, c FROM unnest($2::text[]) AS c ON CONFLICT DO NOTHING`,
   afterTutorial: `SELECT tutorial_step, total_xp, level, stat_points, ryo, ${INVENTORY} AS items FROM game.players WHERE id = $1`,
   becomeGenin: `SELECT game.become_genin($1, $2)`,
@@ -237,6 +242,12 @@ export function makeNinjaStore(db: Db): NinjaStore {
       await db.query(NINJA_SQL.chooseClan, [playerId, clan]);
     },
 
+    async setClanMark(playerId, clan) {
+      await db.query(NINJA_SQL.setClanMark, [playerId, clan]);
+    },
+    async setRite(playerId, progress) {
+      await db.query(NINJA_SQL.setRite, [playerId, progress]);
+    },
     async learnJutsus(playerId, codes) {
       if (codes.length) await db.query(NINJA_SQL.learnJutsus, [playerId, codes]);
     },
