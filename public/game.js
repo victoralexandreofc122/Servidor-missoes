@@ -457,7 +457,7 @@ function upsertPlayer(p, snap) {
     if (snap) { existing.x = p.x; existing.y = p.y; existing.snaps = [{ t: performance.now(), x: p.x, y: p.y }]; }
     else pushSnapshot(existing.snaps, performance.now(), p.x, p.y, state.world.tickMs || 50);
     if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; existing.sitting = !!p.sitting; }
-    if (p.rank) { existing.rank = p.rank; existing.level = p.level; }
+    if (p.rank) { existing.rank = p.rank; existing.level = p.level; existing.lineage = p.lineage || null; }   // v36: a linhagem vem com a ficha
     if (p.appearance) existing.look = normalizeLook(p.appearance);
     if (p.dir !== undefined) existing.dir = p.dir;
     if (p.gear) existing.gear = safeGear(p.gear);
@@ -472,6 +472,8 @@ function upsertPlayer(p, snap) {
     snaps: [{ t: performance.now(), x: p.x, y: p.y }],
     hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating, sitting: !!p.sitting,
     rank: p.rank || null, level: p.level || 1,
+    // v36: linhagem (olho do Rubro, névoa do Umbra, faixa do Andarilho) já ao entrar, não só quando a patente muda
+    lineage: p.lineage || null,
     // Visual (sprites: nomes de paleta, do servidor), direção (0 baixo, 1 esq, 2 dir, 3 cima), fase da caminhada,
     // ação em curso (soco/chute/selo) e atraso do "parado" (para os bonecos não respirarem juntos).
     look: normalizeLook(p.appearance), dir: p.dir ?? 0, walk: 0, moving: false, running: false, act: null,
@@ -7249,13 +7251,19 @@ function drawFloaters(toScreenX, toScreenY, T, now) {
  */
 /** v35: a marca do Clã Umbra (opção C do Victor): névoa escura nos pés, mais densa a cada tier despertado. */
 function drawUmbraMist(g, x, y, T, tier, now) {
-  const n = 3 + 2 * Math.max(1, Math.min(4, tier || 1));
+  // v36: mais densa e maior (no jogo a de antes sumia no chão); cresce com o tier: mais fiapos, mais escura, mais larga.
+  const k = Math.max(1, Math.min(4, tier || 1));
+  const n = 4 + 2 * k;
   g.save();
+  g.fillStyle = `rgba(20, 8, 36, ${0.22 + 0.06 * k})`;          // a mancha de baixo
+  g.beginPath();
+  g.ellipse(x, y, T * (0.36 + 0.04 * k), T * (0.13 + 0.01 * k), 0, 0, Math.PI * 2);
+  g.fill();
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + now / 900;
-    const r = T * (0.28 + 0.06 * Math.sin(now / 500 + i));
+    const r = T * (0.3 + 0.03 * k + 0.06 * Math.sin(now / 500 + i));
     const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r * 0.35;
-    g.fillStyle = `rgba(28, 14, 48, ${0.16 + 0.05 * Math.max(1, Math.min(4, tier || 1))})`;
+    g.fillStyle = `rgba(48, 22, 78, ${0.24 + 0.07 * k})`;
     g.beginPath();
     g.ellipse(px, py, T * 0.2, T * 0.08, 0, 0, Math.PI * 2);
     g.fill();

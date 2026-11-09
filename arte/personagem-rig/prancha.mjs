@@ -37,6 +37,10 @@ function cells() {
     // v35: sem linhagem, Clã Rubro tier 1 a 4 (íris vermelha com brilho crescente) e Andarilho (faixa no braço esquerdo).
     const rows = [undefined, ...[1, 2, 3, 4].map((tier) => ({ clan: 'rubro', tier })), { clan: 'andarilho', tier: 1 }];
     for (const lineage of rows) list.push(DIRS.map((d) => ({ look: { ...REF, lineage }, anim: 'parado', t: 0.1, yaw: YAW_OF_DIR[d] })));
+    // A faixa do Andarilho também na camisa e no colete (sem casaco).
+    for (const outfit of ['basica', 'vila']) {
+      list.push(DIRS.map((d) => ({ look: { ...BASE, outfit, lineage: { clan: 'andarilho', tier: 1 } }, anim: 'parado', t: 0.1, yaw: YAW_OF_DIR[d] })));
+    }
   } else if (set === 'anim') {
     for (const anim of Object.keys(ANIMS)) {
       for (const d of [0, 1]) {

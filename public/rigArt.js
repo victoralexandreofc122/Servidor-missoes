@@ -93,7 +93,7 @@ export function materialsFor(look, opts = {}) {
     gola: cloth('creme'),
     calca: cloth(look.pantsColor),
     faixa: cloth('creme'),
-    faixaAndarilho: cloth('marrom'),
+    faixaAndarilho: cloth('creme'),   // v36: claro, contrasta com qualquer manga (o marrom sumia no jogo)
     colete: cloth(vila.conjunto[0]),
     terno: cloth(vila.conjunto[1]),
     faixa_vila: cloth(vila.conjunto[2]),
@@ -429,7 +429,7 @@ function shirtLayer(c) {
     ell('camisa', g.shirt, top, sh, R.chest, [3.8, 3.7, 3.7]);
     // v35: a faixa do Andarilho no braço esquerdo (por cima da manga)
     const band = key === 'L' && c.look.lineage && c.look.lineage.clan === 'andarilho';
-    tube('camisa', gs, top, sh, el, c.rArm.up[0] + 0.6, c.rArm.up[1] + 0.55, band ? { ...LIMB, paint: (k) => (k > 0.42 && k < 0.64 ? [mats.faixaAndarilho, 1] : null) } : LIMB);
+    tube('camisa', gs, top, sh, el, c.rArm.up[0] + 0.6, c.rArm.up[1] + 0.55, band ? { ...LIMB, paint: (k) => (k > 0.34 && k < 0.68 ? [mats.faixaAndarilho, 1] : null) } : LIMB);
     tube('camisa', gs, top, el, mix(el, wr, 0.82), c.rArm.fore[0] + 0.55, c.rArm.fore[1] + 0.6,
       { ...LIMB, paint: (k) => (k > 0.86 ? [vest ? mats.terno : mats.gola, 1] : null) });
   }
@@ -494,7 +494,7 @@ function coatLayer(c) {
     const gs = (g[`coatArm${key}`] = G());
     ell('casaco', g.coat, mats.casaco, sh, R.chest, [4.4, 4.3, 4.4]);
     const bandC = key === 'L' && c.look.lineage && c.look.lineage.clan === 'andarilho';
-    tube('casaco', gs, mats.casaco, sh, el, c.rArm.up[0] + 1.2 + over * 0.5, c.rArm.up[1] + 1.25 + over * 0.5, bandC ? { ...LIMB, paint: (k) => (k > 0.42 && k < 0.64 ? [mats.faixaAndarilho, 1] : null) } : LIMB);
+    tube('casaco', gs, mats.casaco, sh, el, c.rArm.up[0] + 1.2 + over * 0.5, c.rArm.up[1] + 1.25 + over * 0.5, bandC ? { ...LIMB, paint: (k) => (k > 0.34 && k < 0.68 ? [mats.faixaAndarilho, 1] : null) } : LIMB);
     // A manga alarga no punho e o punho é dobrado (um tom de sombra).
     tube('casaco', gs, mats.casaco, el, mix(el, wr, 0.96), c.rArm.fore[0] + 1.25, c.rArm.fore[1] + 1.6, { ...LIMB, paint: (k) => (k > 0.8 ? [null, 1] : null) });
   }

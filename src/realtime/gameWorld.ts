@@ -3338,14 +3338,15 @@ export class GameWorld {
   }
 
   /** Mesma fila para a progressão v7 (loja, Extração, classe, arma, tutorial): uma gravação por vez. */
-  private storeTask(session: Session, run: (store: NinjaStore) => Promise<void>): void {
+  /** `essential` (v36): gravação que não pode se perder (Rito, linhagem): entra na fila mesmo cheia. */
+  private storeTask(session: Session, run: (store: NinjaStore) => Promise<void>, essential = false): void {
     const store = this.store;
     if (!store) return this.sendError(session, 'PROFILE_UNAVAILABLE');
-    this.queueTask(session, () => run(store));
+    this.queueTask(session, () => run(store), essential);
   }
 
-  private queueTask(session: Session, run: () => Promise<void>): void {
-    if (session.profileQueue.length >= 5) return this.sendError(session, 'PROFILE_BUSY');
+  private queueTask(session: Session, run: () => Promise<void>, essential = false): void {
+    if (!essential && session.profileQueue.length >= 5) return this.sendError(session, 'PROFILE_BUSY');
     session.profileQueue.push(run);
     this.pumpProfile(session);
   }
@@ -3633,10 +3634,17 @@ export class GameWorld {
       say(`Linhagem desperta: ${CLAN_NAMES[clan]}! ${CLAN_HINT[clan]}`, 'good');
       this.sendTo(current, { type: 'clan', clan });
       this.grantClanJutsus(current);
+      if (current.riteProgress !== null) this.setRite(current, null);   // v36: o Rito só se apaga depois do despertar gravado
       this.broadcastMap(current.map, this.rankMsg(current));   // v35: os outros veem a linhagem (olho, névoa, faixa)
     };
     if (this.store?.chooseClan) {
-      this.storeTask(s, (store) => store.chooseClan!(id, clan).then(done));
+      // v36: só desperta de vez quando o banco confirma; se falhar, volta a "não desperto" e o Rito completo fica guardado
+      // (basta falar com o Diretor de novo, sem refazer a caça).
+      this.storeTask(s, (store) => store.chooseClan!(id, clan).then(done, (err: unknown) => {
+        const current = this.sessions.get(id);
+        if (current && current.clan === clan) current.clan = null;
+        throw err;
+      }), true);
     } else done();
   }
 
@@ -3645,7 +3653,7 @@ export class GameWorld {
     if (s.clan) return this.sendTo(s, { type: 'notice', text: `Sua linhagem já despertou: ${CLAN_NAMES[s.clan]}.`, tone: 'info' });
     s.clanMark = clan;
     this.sendTo(s, { type: 'clan_mark', clan });
-    if (this.store?.setClanMark) this.storeTask(s, (store) => store.setClanMark!(s.id, clan));
+    if (this.store?.setClanMark) this.storeTask(s, (store) => store.setClanMark!(s.id, clan), true);
   }
 
   /** v35: o Rito do Despertar com o Diretor (começar, ver o andamento, despertar). true = o Diretor falou do Rito. */
@@ -3666,15 +3674,14 @@ export class GameWorld {
       return true;
     }
     say(`O Rito está completo. Desperte, ${name}.`);
-    this.setRite(s, null);
-    this.chooseClan(s, s.clanMark);
+    this.chooseClan(s, s.clanMark);                     // v36: o Rito se apaga quando o despertar for gravado
     return true;
   }
 
   private setRite(s: Session, progress: number | null): void {
     s.riteProgress = progress;
     this.sendTo(s, { type: 'rite', progress, count: RITE.count });
-    if (this.store?.setRite) this.storeTask(s, (store) => store.setRite!(s.id, progress));
+    if (this.store?.setRite) this.storeTask(s, (store) => store.setRite!(s.id, progress), true);
   }
 
   /** v35: cada Lodo Escuro derrotado conta para o Rito de quem o começou. */
@@ -3690,7 +3697,7 @@ export class GameWorld {
     const missing = clanJutsusFor(s.clan, s.level).filter((c) => !s.jutsus.has(c));
     if (missing.length === 0) return;
     for (const c of missing) s.jutsus.set(c, 0);
-    if (this.store?.learnJutsus) this.storeTask(s, (store) => store.learnJutsus!(s.id, missing));
+    if (this.store?.learnJutsus) this.storeTask(s, (store) => store.learnJutsus!(s.id, missing), true);   // v36: essencial
     this.sendTo(s, { type: 'jutsus', jutsus: Object.fromEntries(s.jutsus) });
     this.sendTo(s, { type: 'notice', text: `Novo jutsu da linhagem: ${missing.map((c) => JUTSU_BY_CODE.get(c as Skill)?.name ?? c).join(', ')}.`, tone: 'good' });
   }
