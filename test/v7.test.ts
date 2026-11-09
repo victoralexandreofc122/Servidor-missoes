@@ -435,6 +435,34 @@ describe('v7: Armas, loja, Extração e classe (servidor)', () => {
     }
   });
 
+  it('v34: com banco, só entra no kit (e só sai) jutsu da Academia, das suas classes ou da sua linhagem; o resto fica guardado', async () => {
+    const fake = fakeNinjaStore({ level: 40, classes: { primary: 'fire', secondary: null } });
+    const { join, sess } = setup({ store: fake.store });
+    // conta de antes da v7: os 7 jutsus de todas as classes aprendidos e no kit; Primária Fogo, linhagem Rubro
+    const p = join('veterano', {
+      level: 40, classes: { primary: 'fire', secondary: null }, clan: 'rubro',
+      jutsus: { teleport: 0, substitution: 0, fire: 0, water: 0, taijutsu: 0, heal: 0, illusion: 0, shadow: 0, stone: 0, rubro_olho: 0 },
+      kits: { A: ['fire', 'water', 'taijutsu', 'heal'], B: ['illusion', 'shadow', 'substitution', 'rubro_olho'] },
+    });
+    const s = sess(p.id);
+    assert.deepEqual(p.conn.last('welcome').kit.kits, { A: ['fire'], B: ['substitution', 'rubro_olho'] }, 'ao entrar, o kit perde o que é de outra classe');
+    assert.ok(s.jutsus.has('water'), 'o jutsu continua aprendido (nada se apaga)');
+    p.send({ type: 'set_loadout', kitA: ['fire', 'water'], kitB: [] });
+    assert.equal(p.conn.last('error').code, 'NOT_YOUR_CLASS');
+    s.kits.A = ['water'];                                     // mesmo se o kit tivesse ficado com ele: não sai
+    Object.assign(s, { tutorial: 4, chakra: 100, cooldowns: {} });
+    s.map = 'map_2';
+    p.send({ type: 'cast', skill: 'water' });
+    assert.equal(p.conn.last('cast_failed').reason, 'NOT_YOUR_CLASS');
+    // a classe Secundária (nível 40) libera os jutsus dela
+    s.classes.secondary = 'water';
+    const errors = p.conn.of('error').length;
+    p.send({ type: 'set_loadout', kitA: ['fire', 'water'], kitB: ['rubro_olho'] });
+    await flush(); await flush();
+    // passou da regra da classe (aqui, sem perfil gravável, o teste só confere que o motivo não é mais a classe)
+    assert.ok(p.conn.of('error').slice(errors).every((e: { code: string }) => e.code !== 'NOT_YOUR_CLASS'), 'com a Água como Secundária, o kit passa da regra da classe');
+  });
+
   it('compra: só perto do lojista que VENDE o item; preço do banco', async () => {
     const fake = fakeNinjaStore({ ryo: 500 });
     const { join, sess } = setup({ store: fake.store });

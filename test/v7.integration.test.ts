@@ -85,7 +85,7 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     await toLevel(id, 11);
     const r = await store.becomeGenin(id, 'fire');
     assert.ok(r.ok);
-    assert.deepEqual([r.rank, r.classes, r.items], [{ code: 'GENIN', name: 'Genin' }, { primary: 'fire', secondary: null }, { kunai_training: 1, sandalia_ninja: 1, scroll_fire: 1 }]);
+    assert.deepEqual([r.rank, r.classes, r.items], [{ code: 'GENIN', name: 'Genin' }, { primary: 'fire', secondary: null }, { kunai_training: 1, sandalia_ninja: 1, scroll_liso: 1 }]);
     assert.equal((await store.becomeGenin(id, 'water')).ok, false, 'uma vez só');
     const found = await makeFindPlayer(t.db)(id);
     assert.deepEqual(found!.classes, { primary: 'fire', secondary: null });
@@ -102,20 +102,20 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     assert.equal((await store.extract(id, 'water', 2, 0, 0) as { outcome: string }).outcome, 'no_scrolls', '2 pergaminhos para o nível 2');
     await assert.rejects(t.pool.query('SELECT * FROM game.extract_jutsu($1, $2, 5, 0, 0)', [id, 'water']), rule('rule_extraction_input'));
     await assert.rejects(t.pool.query('SELECT * FROM game.extract_jutsu($1, $2, 1, 1.5, 0)', [id, 'water']), rule('rule_extraction_input'));
-    await store.addItem(id, 'scroll_water', 1);
+    await store.addItem(id, 'scroll_liso', 1);
     const failed = await store.extract(id, 'water', 2, 0.8, 0);         // 0,8 >= 80%: falha
     assert.ok(failed.ok && failed.outcome === 'failed' && failed.consumed === 2 && failed.scrollsLeft === 0);
-    await store.addItem(id, 'scroll_water', 3);
+    await store.addItem(id, 'scroll_liso', 3);
     const ok = await store.extract(id, 'water', 2, 0.79, 0);              // < 80% (+10 da falha): sucesso
     assert.ok(ok.ok && ok.outcome === 'success' && ok.jutsu === 'water_2' && ok.scrollsLeft === 1);
     // v30: o tier 2 da Água tem vários jutsus: cada Extração dá um que falta, até acabarem
     const tier2: string[] = JUTSUS.filter((j) => j.class === 'water' && j.tier === 2).map((j) => j.code).sort();
     for (let i = 1; i < tier2.length; i++) {
-      await store.addItem(id, 'scroll_water', 2);
+      await store.addItem(id, 'scroll_liso', 2);
       const next = await store.extract(id, 'water', 2, 0, 0);
       assert.ok(next.ok && next.outcome === 'success' && tier2.includes(next.jutsu!));
     }
-    await store.addItem(id, 'scroll_water', 2);
+    await store.addItem(id, 'scroll_liso', 2);
     assert.equal((await store.extract(id, 'water', 2, 0, 0) as { outcome: string }).outcome, 'all_learned');
     // tier 1: as 2 primeiras são garantidas (até com o pior sorteio); a 3ª volta para 90%
     const g1 = await store.extract(id, 'water', 1, 0.999999, 0);
@@ -125,7 +125,7 @@ describe('v7 no banco: progressão (PostgreSQL real)', { skip: noDatabase }, () 
     const third = await store.extract(id, 'water', 1, 0.95, 0);
     assert.ok(third.ok && third.outcome === 'failed' && third.scrollsLeft === 0, '0,95 >= 90%: a 3ª pode falhar');
     assert.deepEqual(Object.keys((await makeFindPlayer(t.db)(id))!.jutsus!).sort(), ['substitution', 'teleport', 'water', 'water_dragao', ...tier2].sort());
-    await store.addItem(id, 'scroll_water', 2);
+    await store.addItem(id, 'scroll_liso', 2);
     assert.equal((await store.extract(id, 'water', 3, 0, 0) as { outcome: string }).outcome, 'no_scrolls', '3 pergaminhos para o nível 3');
   });
 

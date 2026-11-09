@@ -123,6 +123,12 @@ function fakeAdmin(players: Record<string, { id: string; admin?: boolean }>) {
       audit.push({ adminId, command: 'resetstats', targetId, ok: true });
       return { ok: true, totalXp: s.totalXp, level: s.level, statPoints: s.statPoints, attributes: { ...s.attributes } };
     },
+    async resetClasses(adminId, targetId) {
+      if (!isAdmin(adminId)) return refuse(adminId, 'resetclasses', targetId);
+      if (!isAdmin(targetId)) { audit.push({ adminId, command: 'resetclasses', targetId, ok: false }); return { ok: false, text: 'O reset de classes é só para conta de admin (para testar builds).' }; }
+      audit.push({ adminId, command: 'resetclasses', targetId, ok: true });
+      return { ok: true, removed: 3 };
+    },
     async setRank(adminId, targetId, rank) {
       if (!isAdmin(adminId)) return refuse(adminId, 'rank', targetId);
       const names: Record<string, string> = { ACADEMY: 'Academia', GENIN: 'Genin', CHUNIN: 'Chunin', JONIN: 'Jonin', ANBU: 'ANBU', HOKAGE: 'Kage' };
@@ -312,6 +318,27 @@ describe('v8: Modo Administrador', () => {
     assert.deepEqual(sess('v1').rank, { code: 'HOKAGE', name: 'Kage' });
     assert.match(v.conn.last('notice').text, /Victor agora é Kage/);
     assert.deepEqual(admin.audit.map((a) => [a.command, a.targetId, a.ok]), [['rank', 'k1', true], ['rank', 'k1', true], ['rank', 'v1', true], ['rank', 'v1', true]]);
+  });
+
+  it('admin: /admin resetarclasses (só em conta de admin) volta à Academia sem classe, linhagem nem jutsus de classe; "eu" vale', async () => {
+    const admin = fakeAdmin({ Victor: { id: 'v1', admin: true }, kaito: { id: 'k1' } });
+    const { join, sess, run } = setup({ admin: admin.store });
+    const v = join('Victor', { id: 'v1', isAdmin: true, classes: { primary: 'fire', secondary: 'water' }, clan: 'rubro',
+      jutsus: { teleport: 0, substitution: 0, fire: 10, water_2: 5, rubro_olho: 0 }, kits: { A: ['fire', 'teleport'], B: ['water_2', 'rubro_olho'] } });
+    join('kaito', { id: 'k1' });
+    assert.deepEqual(parseAdminCommand('/admin resetarclasses eu', []), { ok: true, command: { cmd: 'resetclasses', username: 'eu' } });
+    v.send({ type: 'chat', message: '/admin resetarclasses kaito' });
+    run(1200); await flush(); await flush();
+    assert.match(v.conn.last('notice').text, /só para conta de admin/, 'conta comum não é resetada');
+    v.send({ type: 'chat', message: '/admin resetarclasses eu' });
+    run(1200); await flush(); await flush();
+    const s = sess('v1');
+    assert.deepEqual([s.classes, s.clan, s.rank.code], [{ primary: null, secondary: null }, null, 'ACADEMY']);
+    assert.deepEqual([...s.jutsus.keys()].sort(), ['substitution', 'teleport']);
+    assert.deepEqual(v.conn.last('kit').kits, { A: ['teleport'], B: [] });
+    assert.deepEqual(v.conn.last('classes'), { type: 'classes', primary: null, secondary: null });
+    assert.match(v.conn.last('notice').text, /Victor voltou à Academia sem classe/);
+    assert.deepEqual(admin.audit.map((a) => [a.command, a.targetId, a.ok]), [['resetclasses', 'k1', false], ['resetclasses', 'v1', true]]);
   });
 
   it('quem NÃO é admin: "/admin ..." vira só "Comando desconhecido" (nunca chat, nunca banco) e fica no log', async () => {

@@ -141,12 +141,11 @@ describe('v8 no banco: Modo Administrador (PostgreSQL real)', { skip: noDatabase
     assert.ok((await admin.setRank(adm, adm, 'ACADEMY')).ok);
     const second = await store.becomeGenin(adm, 'water');
     assert.ok(second.ok && second.classes.primary === 'water' && second.classes.secondary === null && second.rank.code === 'GENIN');
-    assert.equal(second.items.scroll_water, 1);
-    assert.equal(second.items.scroll_fire, 1, 'os pergaminhos de antes ficam');
+    assert.equal(second.items.scroll_liso, 2, 'v24: um pergaminho só; o da primeira vez fica e soma o novo');
     // e de novo com a mesma classe: ganha mais um pergaminho
     assert.ok((await admin.setRank(adm, adm, 'ACADEMY')).ok);
     const third = await store.becomeGenin(adm, 'water');
-    assert.ok(third.ok && third.items.scroll_water === 2);
+    assert.ok(third.ok && third.items.scroll_liso === 3);
     // quem NÃO é admin: uma vez só (nada mudou)
     const comum = await t.createPlayer('comum_genin');
     for (let s = 1; s <= 4; s++) await t.pool.query('SELECT game.advance_tutorial($1, $2)', [comum, s]);
@@ -256,11 +255,11 @@ describe('v8 no banco: atributos, redefinição, chat, missões e equipamento', 
   it('equipamento: espadas na Armaria; pergaminho nas costas só se tiver; gastou o último na Extração, sai das costas', async () => {
     const store = makeNinjaStore(t.db);
     const id = await t.createPlayer('mochileiro');
-    assert.deepEqual(await store.equip(id, 'scroll_fire', 'scroll'), { ok: false, text: 'Só dá para levar nas costas um pergaminho do seu inventário.' });
+    assert.deepEqual(await store.equip(id, 'scroll_liso', 'scroll'), { ok: false, text: 'Só dá para levar nas costas um pergaminho do seu inventário.' });
     await t.pool.query(`INSERT INTO game.player_classes (player_id, primary_class) VALUES ($1, 'fire')`, [id]);
-    await store.addItem(id, 'scroll_fire', 1);
-    assert.deepEqual(await store.equip(id, 'scroll_fire', 'scroll'), { ok: true, equipped: 'scroll_fire' });
-    assert.equal((await makeFindPlayer(t.db)(id))!.equippedScroll, 'scroll_fire');
+    await store.addItem(id, 'scroll_liso', 1);
+    assert.deepEqual(await store.equip(id, 'scroll_liso', 'scroll'), { ok: true, equipped: 'scroll_liso' });
+    assert.equal((await makeFindPlayer(t.db)(id))!.equippedScroll, 'scroll_liso');
     const r = await store.extract(id, 'fire', 1, 0.99, 0);                      // gasta o único pergaminho (v20: a 1ª é garantida)
     assert.ok(r.ok && r.outcome === 'success' && r.equippedScroll === null);
     assert.equal((await one('SELECT equipped_scroll FROM game.players WHERE id = $1', [id])).equipped_scroll, null);

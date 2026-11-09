@@ -223,7 +223,7 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   Jutsus v2 entrega 2 (Fogo) com a v16, Fase 1 dos nomes (Herança do Fogo) com a v17, as outras 8 classes com a v18,
   os clãs com a v19 e a Fase 0 (Extração nova e maestria por jutsu) com a v20.
   Ordem no Neon: v16, v17, v18, v19, v20; depois o código na `main` (DEPLOY.md, passos 31 a 35).
-- **Antes de qualquer commit:** `npm run verify` (633 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
+- **Antes de qualquer commit:** `npm run verify` (639 testes hoje). Migrações: sem `DO $$`, em `BEGIN; ... COMMIT;`.
 - **Visão do endgame (documento canônico):** `docs/endgame-visao.md`.
 
 ## Roadmap (documento canônico, `docs/endgame-visao.md` seção 13)
@@ -239,6 +239,21 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   de conteúdo; **não começar sem o Victor pedir**. Hoje a distribuição varia (a Cura tem 5 no tier 1; o Fogo, 4/4/2/1).
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
+
+### v34: pergaminho único, jutsu só da sua classe e reset de classes do admin (migração v24, `db/schema_v24_pergaminho_unico.sql`)
+
+- **Um pergaminho só ("Pergaminho", `scroll_liso`):** serve para a Extração de qualquer classe sua (Primária ou Secundária). A loja vende só
+  ele; a Missão de Genin, o drop dos monstros e o prêmio do PvP dão ele. A v24 soma os pergaminhos de classe de cada jogador no novo (nada
+  se perde) e troca o das costas. Os de classe ficam no catálogo como "(antigo)", sem venda e sem dono.
+- **Conferido (pedido do Victor):** jogador comum que entrou depois da v7 só aprende jutsu da própria classe (a Extração confere no banco).
+  Mas havia duas brechas: **contas de antes da v7** ganharam os 7 jutsus de todas as classes, e **admin** (darjutsu, Missão de Genin
+  repetida) também ficava com jutsus de outras classes. As duas permitiam montar o kit com vários elementos.
+- **Corrigido no servidor:** só entra no kit, e só sai em combate, jutsu da Academia, da classe Primária, da Secundária ou da linhagem (o Clã
+  Rubro e a árvore de sombra da Umbra). Vale para todo mundo, admin incluso. O jutsu de outra classe continua aprendido (nada se apaga), mas
+  sai do kit ao entrar e não volta (`NOT_YOUR_CLASS`). A aba Kits mostra só os que podem ir para o kit.
+- **`/admin resetarclasses <nome|eu>` (só em conta de admin):** volta à Academia sem classe, sem linhagem e sem os jutsus de classe e de clã
+  (os da Academia ficam), para testar a escolha de classes e as builds do zero. Nível, itens e ryō ficam. Conta comum é recusada. Também no
+  Painel do Admin (Jogador → Patente → Resetar classes).
 
 ### v33: o admin muda a patente de qualquer um, ele mesmo incluso (migração v23, `db/schema_v23_admin_patente.sql`)
 

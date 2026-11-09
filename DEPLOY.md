@@ -1180,3 +1180,19 @@ Para conferir: `SELECT code, name, tier FROM game.ranks ORDER BY tier;` mostra A
 2. `/admin patente <outro jogador> academia` → ele recebe o aviso e vê "ACADEMIA". `/admin patente eu kage` volta o seu.
 3. Missão de Genin repetida: `/admin patente eu academia`, fale com o Diretor, escolha uma classe → vira Genin de novo (classe trocada, +1 pergaminho).
 4. 🛡️ Painel do Admin → Jogador → Patente → escolha e "Mudar patente" (o campo "eu" vale).
+
+## Passo 39 — Pergaminho único e reset de classes do admin (SQL v24)
+
+Rode `db/schema_v24_pergaminho_unico.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v23**. Ela cria o pergaminho
+único, soma nele os pergaminhos de classe de todo mundo (nada se perde), troca o das costas, tira os de classe da loja, troca a Extração, a
+Missão de Genin e o prêmio do PvP para o pergaminho novo e cria o reset de classes do admin. Pode rodar de novo.
+**Rode a v24 antes de mesclar o código**: o código novo vende e usa só o pergaminho único.
+Se o editor mostrar "In transaction" no fim, rode `COMMIT;` sozinho.
+
+Para conferir: `SELECT count(*) FROM game.player_items WHERE item_code LIKE 'scroll_%' AND item_code <> 'scroll_liso';` dá 0.
+
+### Testar no celular
+
+1. Casa dos Pergaminhos: a loja mostra só "Pergaminho"; a Extração diz "Você tem N" (o mesmo para todas as suas classes).
+2. ☰ → Perfil → Kits: só aparecem jutsus da Academia, das suas classes e da sua linhagem.
+3. Conta admin: `/admin resetarclasses eu` → Academia, sem classe; fale com o Diretor e escolha a classe de novo.

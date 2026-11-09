@@ -20,7 +20,7 @@ async function genin(t: Awaited<ReturnType<typeof createTestDatabase>>, name: st
   await makeProgression(t.db).grantXp(id, levelStart(11));
   const store = makeNinjaStore(t.db);
   await store.becomeGenin(id, 'water');
-  await store.addItem(id, 'scroll_water', scrolls);
+  await store.addItem(id, 'scroll_liso', scrolls);
   return { id, store };
 }
 

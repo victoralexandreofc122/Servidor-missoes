@@ -2603,7 +2603,7 @@ const ACADEMY_LOOK = {
 const NPC_GEAR = {
   tutor_weapons: { hand: 'kunai', back: null, scroll: null },
   shop_weapons: { hand: null, back: 'katana', scroll: null },
-  shop_scrolls: { hand: null, back: null, scroll: 'scroll_fire' },
+  shop_scrolls: { hand: null, back: null, scroll: 'scroll_liso' },
 };
 const ryoText = (n) => `${Number(n || 0).toLocaleString('pt-BR')} ryō`;
 const itemDef = (code) => (state.world.items || []).find((i) => i.code === code);
@@ -2682,7 +2682,7 @@ function renderExtraction() {
     chip.className = `chip${extractChoice.cls === code ? ' on' : ''}`;
     chip.setAttribute('role', 'radio');
     chip.setAttribute('aria-checked', extractChoice.cls === code ? 'true' : 'false');
-    chip.textContent = `${c?.icon || ''} ${c?.name || code} (${state.ninja.items?.[`scroll_${code}`] || 0} 📜)`;
+    chip.textContent = `${c?.icon || ''} ${c?.name || code}`;   // v34: um pergaminho só, para qualquer classe sua
     chip.addEventListener('click', () => { extractChoice.cls = code; renderExtraction(); });
     return chip;
   }));
@@ -2697,7 +2697,7 @@ function renderExtraction() {
     return chip;
   }));
   const rule = (state.world.extraction || []).find((e) => e.level === extractChoice.level);
-  const have = extractChoice.cls ? state.ninja.items?.[`scroll_${extractChoice.cls}`] || 0 : 0;
+  const have = state.ninja.items?.scroll_liso || 0;   // v34: o pergaminho único (serve para a Primária e a Secundária)
   if (!owned.length) {
     ui.extractInfo.textContent = 'Você ainda não tem classe. Faça a Missão de Genin com o Diretor da Academia (nível 11).';
   } else if (rule) {
@@ -3710,10 +3710,28 @@ function learnedJutsus() {
   return Object.keys(state.world.skills || {}).filter((code) => code in known);
 }
 
-/** Aba Kits: uma linha por jutsu APRENDIDO, com os botões A e B. Montada com createElement (nada vira HTML). */
+/** Árvore do Clã Umbra (os jutsus de sombra; jutsusClasses.ts CLAN_TREE). */
+const UMBRA_TREE = ['shadow', 'shadow_2', 'shadow_estrangular', 'shadow_4'];
+/**
+ * v34: o que pode ir para o kit (a MESMA regra do servidor, que confere de novo): jutsu da Academia, da classe Primária ou
+ * Secundária, ou da linhagem. Jutsu de outra classe fica aprendido (aba Jutsus), mas não aparece aqui.
+ */
+function usableJutsu(code) {
+  const sk = state.world.skills?.[code];
+  if (!sk) return false;
+  if (sk.tier === 0) return true;
+  const cls = sk.class !== undefined ? sk.class : sk.mechanic;
+  const clan = state.ninja.clan;
+  if (cls === null) return clan === 'rubro';
+  if (clan === 'umbra' && UMBRA_TREE.includes(code)) return true;
+  const own = state.ninja.classes || {};
+  return cls === own.primary || cls === own.secondary;
+}
+
+/** Aba Kits: uma linha por jutsu APRENDIDO e da sua classe, com os botões A e B. Montada com createElement (nada vira HTML). */
 let kitListKey = '';
 function renderKitList() {
-  const list = learnedJutsus();
+  const list = learnedJutsus().filter(usableJutsu);
   const key = list.join(',');
   if (key === kitListKey) return;
   kitListKey = key;

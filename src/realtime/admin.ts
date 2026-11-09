@@ -29,6 +29,8 @@ import { PVP_CLASS_SQL } from './pvpStats.js';
  *                                                Zona de Conflito no banco (últimos N dias, padrão 7; pvpStats.ts)
  *   /admin patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage>   muda a patente (sobe ou desce) de qualquer jogador, o próprio admin
  *                                                incluso ("eu"). É só o título: não mexe em nível, classe nem no cargo de Kage (/admin kage)
+ *   /admin resetarclasses <nome|eu>              SÓ em conta de admin (v34, migração v24): volta à Academia sem classe, sem linhagem e
+ *                                                sem os jutsus de classe e de clã, para testar a escolha de classes do zero
  *   /admin ir <mapa> [x y]                       leva o próprio admin a um mapa (inclusive os lacrados), para testar
  *   /admin clima <normal|quente|chuva|neblina> [minutos]   muda o clima agora (para todos; padrão: 10 min)
  *   /admin hora <amanhecer|dia|entardecer|noite>           pula o ciclo para o começo dessa fase (para todos)
@@ -64,6 +66,7 @@ export type AdminCommand =
   | { cmd: 'giveryo'; username: string; amount: number }
   | { cmd: 'resetstats'; username: string }
   | { cmd: 'rank'; username: string; rank: AdminRank }
+  | { cmd: 'resetclasses'; username: string }
   | { cmd: 'help' }
   | { cmd: 'ir'; map: string; x?: number; y?: number }
   | { cmd: 'clima'; weather: Weather; minutes: number }
@@ -97,20 +100,20 @@ const RANK_WORDS: Readonly<Record<string, AdminRank>> = {
 export type ParsedAdmin = { ok: true; command: AdminCommand } | { ok: false; command: string; text: string };
 
 export const ADMIN_HELP = 'Admin (ou o painel 🛡️): /admin nivel <nome> <nível> · invocar <monstro> [qtd] · darjutsu <nome> <jutsu> [nível] · daritem <nome> <item> [qtd] · ryo <nome> <qtd>'
-  + ' · zerarpontos <nome> · patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage> · pvp [dias] · ir <mapa> [x y] · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite> · efeito <nome> <efeito|limpar> [seg]'
+  + ' · zerarpontos <nome> · patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage> · resetarclasses <admin|eu> · pvp [dias] · ir <mapa> [x y] · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite> · efeito <nome> <efeito|limpar> [seg]'
   + ' · fimdejogo <módulo> <ligar|desligar|auto> · vila <nome> <vila> · kage <vila> <nome> · eleicao <vila> · evento <guerra|tregua> <vila|todas> [vila] <horas>'
   + ' · renegado <nome> <sim|nao> · akatsuki <lider|remover> <nome> · temporada fechar';
 
 /** Os nomes antigos (em inglês) e as variações que também valem: apontam para o nome em português. */
 export const ADMIN_ALIASES: Readonly<Record<string, string>> = {
   help: 'ajuda', level: 'nivel', spawn: 'invocar', givejutsu: 'darjutsu', giveitem: 'daritem', giveryo: 'ryo', darryo: 'ryo',
-  resetstats: 'zerarpontos', endgame: 'fimdejogo', rank: 'patente', patentes: 'patente',
+  resetstats: 'zerarpontos', endgame: 'fimdejogo', rank: 'patente', patentes: 'patente', resetclasses: 'resetarclasses', resetarclasse: 'resetarclasses',
 };
 
 /** Nome na auditoria (game.admin_audit_log) de cada comando em português. */
 const AUDIT_NAMES: Readonly<Record<string, string>> = {
   ajuda: 'help', nivel: 'level', invocar: 'spawn', darjutsu: 'givejutsu', daritem: 'giveitem', ryo: 'giveryo', zerarpontos: 'resetstats',
-  fimdejogo: 'endgame', patente: 'rank',
+  fimdejogo: 'endgame', patente: 'rank', resetarclasses: 'resetclasses',
 };
 
 /** Ligar ou desligar (fimdejogo, renegado): aceita o português e o on/off de antes. */
@@ -227,6 +230,12 @@ export function parseAdminCommand(text: string, monsterTypes: readonly string[],
       if (args.length !== 2 || !username || !rank) return bad('patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage>');
       return { ok: true, command: { cmd: 'rank', username, rank } };
     }
+    case 'resetarclasses': {
+      const who = plain(args[0] ?? '');
+      const username = who === 'eu' || who === 'me' ? 'eu' : user(args[0]);
+      if (args.length !== 1 || !username) return bad('resetarclasses <nome de uma conta de admin|eu>');
+      return { ok: true, command: { cmd: 'resetclasses', username } };
+    }
     case 'fimdejogo': {
       const module = plain(args[0] ?? '') as EndgameModule;
       const mode = SWITCH[plain(args[1] ?? '')];
@@ -304,6 +313,8 @@ export interface AdminStore {
   giveRyo(adminId: string, targetId: string, amount: number): Promise<AdminOutcome<{ ryo: number }>>;
   resetStats(adminId: string, targetId: string): Promise<AdminOutcome<AdminPlayerState>>;
   /** Muda a patente (v23). Devolve a patente nova e se ela pode ser sensei. */
+  /** Reset de classes (v24), só em conta de admin. Devolve quantos jutsus de classe e de clã saíram. */
+  resetClasses(adminId: string, targetId: string): Promise<AdminOutcome<{ removed: number }>>;
   setRank(adminId: string, targetId: string, rank: AdminRank): Promise<AdminOutcome<{ rank: { code: string; name: string }; canBeSensei: boolean }>>;
   /** Auditoria de um comando que não passa por função do banco (spawn) ou que foi recusado. */
   log(adminId: string, command: string, targetId: string | null, args: Record<string, unknown>, ok: boolean, detail: string | null): Promise<void>;
@@ -338,6 +349,7 @@ export const ADMIN_SQL = {
   akatsukiRemove: `SELECT game.admin_akatsuki_remove($1, $2)::text AS result`,
   closeSeason: `SELECT game.admin_close_season($1)::text AS result`,
   setRank: `SELECT code, name, can_be_sensei FROM game.admin_set_rank($1, $2, $3)`,
+  resetClasses: `SELECT game.admin_reset_classes($1, $2) AS removed`,
 } as const;
 
 interface StateRow {
@@ -374,7 +386,7 @@ export function makeAdminStore(db: Db): AdminStore {
       const e = (typeof err === 'object' && err !== null ? err : {}) as { constraint?: string; code?: string };
       const known = (e.constraint ? CONSTRAINT_ERRORS[e.constraint]?.message : undefined)
         ?? (e.code === '23503' ? 'Jogador, jutsu ou item inexistente.' : undefined)
-        ?? (e.code === '42883' ? (command === 'rank' ? 'Rode a migração v23 (patentes do admin) no Neon primeiro.' : 'Rode a migração v11 (fim de jogo) no Neon primeiro.') : undefined);
+        ?? (e.code === '42883' ? (command === 'resetclasses' ? 'Rode a migração v24 (pergaminho único e reset de classes) no Neon primeiro.' : command === 'rank' ? 'Rode a migração v23 (patentes do admin) no Neon primeiro.' : 'Rode a migração v11 (fim de jogo) no Neon primeiro.') : undefined);
       if (!known) throw err;
       // A transação voltou atrás; a recusa fica na auditoria (inclusive admin revogado depois do login).
       await log(adminId, command, targetId, args, false, known).catch(() => undefined);
@@ -419,6 +431,11 @@ export function makeAdminStore(db: Db): AdminStore {
         const r = (await tx.query<{ code: string; name: string; can_be_sensei: boolean }>(ADMIN_SQL.setRank, [adminId, targetId, rank])).rows[0]!;
         return { rank: { code: r.code, name: r.name }, canBeSensei: r.can_be_sensei };
       });
+    },
+    resetClasses(adminId, targetId) {
+      return run(adminId, 'resetclasses', targetId, {}, async (tx) => ({
+        removed: (await tx.query<{ removed: number }>(ADMIN_SQL.resetClasses, [adminId, targetId])).rows[0]!.removed,
+      }));
     },
     log,
     async pvpByClass(days) {

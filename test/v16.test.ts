@@ -510,7 +510,7 @@ describe('v16: comandos de admin do fim de jogo', () => {
       findPlayer: async (name) => (name === 'alvo' ? { id: alvoId, username: 'alvo' } : undefined),
       setLevel: async () => ({ ok: false, text: '' }), giveJutsu: async () => ({ ok: false, text: '' }),
       giveItem: async () => ({ ok: false, text: '' }), giveRyo: async () => ({ ok: false, text: '' }), resetStats: async () => ({ ok: false, text: '' }),
-      setRank: async () => ({ ok: false, text: '' }),
+      setRank: async () => ({ ok: false, text: '' }), resetClasses: async () => ({ ok: false, text: '' }),
       log: async () => undefined,
       endgame: async (adminId, c, target) => (used.push([adminId, c.cmd, target]), { ok: true, result: null }),
     };
