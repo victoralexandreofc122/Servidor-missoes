@@ -1,7 +1,7 @@
 # Fase 1: auditoria de nomes e propostas de renomeação
 
-* **Status:** proposta **aprovada pela recomendação** (08/11/2026) e aplicada na v21, **exceto** a ordem das aldeias (seção 0, achado 3: espera a resposta
-  do Victor) e os selos (ficam para a Fase 2). Mantidos: Clã Rubro, Linhagem Umbra, Punho Sísmico. Escolhidos: Os Cinzas, Arena das Quatro Heranças e a
+* **Status:** proposta **aprovada pela recomendação** (08/11/2026) e aplicada na v21, e a ordem das aldeias, que o Victor decidiu em 09/11/2026: vale o documento canônico
+  (Nuvem = Vento Cortante, Areia = Rocha Antiga), corrigida na v22. Os selos ficam para a Fase 2. Mantidos: Clã Rubro, Linhagem Umbra, Punho Sísmico. Escolhidos: Os Cinzas, Arena das Quatro Heranças e a
   coluna "Recomendo" de cada tabela.
 * **Data:** 08/11/2026. **Base:** branch `ccr-2afc1981-eq01zm` (Fase 0 + v20). Fonte dos números: busca no código, nos SQL e na UI.
 * Os IDs internos (`fire_endan`, `rubro_chamas`, `akatsuki_*`, `vale_estatuas`...) **não mudam**: só o texto que o jogador vê.
@@ -262,7 +262,7 @@ Tsukuyomi, Izanami, Chidori, Rasengan/Rasenshuriken, Kirin, Byakugō, Kage Mane,
 
 ## 5. Ordem sugerida de aplicação (para destravar a monetização)
 
-1. **Confirmar a ordem das aldeias** (achado 3): decisão sua, esforço mínimo, mas muda tudo que vem depois.
+1. ~~Confirmar a ordem das aldeias~~ (achado 3): decidido em 09/11/2026 e aplicado na v22 (Nuvem = Vento Cortante, Areia = Rocha Antiga).
 2. **Akatsuki** (nome, Manto, ícone, 10 poderes): é o que tem mais reconhecimento e está em toda a UI. Em seguida a coerência com "Os Cinzas" no lore.
 3. **Os 4 jutsus do Clã Rubro** (Chamas Negras, Lua Ilusória, Guardião Espectral, Guardião Espectral Completo) + Olho da Percepção: o clã inteiro lembra a série.
 4. **Jutsus de risco ALTO** (tradução direta): numa única migração v21.

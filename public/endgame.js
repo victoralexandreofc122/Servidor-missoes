@@ -11,7 +11,7 @@ export const VILLAGE_CODES = ['vila_1', 'vila_3', 'vila_4', 'vila_5'];
 /** Cor de cada vila (a mesma da bandana no Criador): capa da vila, chips do painel. */
 export const VILLAGE_COLORS = { vila_1: '#3f7d3a', vila_3: '#4f9cc4', vila_4: '#7a2a3a', vila_5: '#c9822e' };
 /** Nome de cada vila (o mesmo de villages.ts): o Criador mostra antes de o servidor mandar o fim de jogo. */
-export const VILLAGE_NAMES = { vila_1: 'Chama Eterna', vila_3: 'Maré Oculta', vila_4: 'Rocha Antiga', vila_5: 'Vento Cortante' };
+export const VILLAGE_NAMES = { vila_1: 'Chama Eterna', vila_3: 'Maré Oculta', vila_4: 'Vento Cortante', vila_5: 'Rocha Antiga' };
 const RELATION_TEXT = { guerra: 'Guerra', alianca: 'Aliança', neutro: 'Neutro', tregua: 'Trégua', mesma: 'Sua vila' };
 
 /** O módulo está ligado? (`view` = a mensagem `endgame` do servidor) */
@@ -19,7 +19,9 @@ export const egOn = (view, module) => !!view && view.modules.includes(module);
 
 const diplomacy = (view) => ({ relations: view?.relations || [], events: view?.events || [] });
 
-/** Nome curto da vila ("Névoa"). */
+/** "Aldeia da Chama Eterna", mas "Aldeia do Vento Cortante" (o mesmo artigo do servidor: villages.ts). */
+export const aldeia = (view, code) => `Aldeia ${code === 'vila_4' ? 'do' : 'da'} ${villageName(view, code)}`;
+/** Nome curto da vila ("Maré Oculta"). */
 export function villageName(view, code) {
   return view?.villages?.find((v) => v.code === code)?.name || code;
 }
@@ -160,7 +162,7 @@ export function mountEndgameUI(api) {
     if (ui.panel.hidden) return;
     const v = view();
     const f = mine();
-    ui.title.textContent = f?.village ? `🏯 Aldeia da ${villageName(v, f.village)}` : '🏯 Renegado';
+    ui.title.textContent = f?.village ? `🏯 ${aldeia(v, f.village)}` : '🏯 Renegado';
     const body = { vila: villageTab, kage: kageTab, ranking: rankingTab, akatsuki: akatsukiTab }[s.tab] || villageTab;
     ui.body.replaceChildren(...body(v, f));
   }
@@ -170,7 +172,7 @@ export function mountEndgameUI(api) {
     if (!f) return [el('p', { class: 'mission-empty', textContent: 'Carregando…' })];
     if (!f.village) {
       return [
-        el('p', { class: 'mission-status', textContent: `Você é renegado${f.renegadeFrom ? ` (saiu da Aldeia da ${villageName(v, f.renegadeFrom)})` : ''}. Sem vila e sem passiva: sua casa é o Refúgio dos Renegados, e na Zona de Conflito todo ninja de vila é seu inimigo.` }),
+        el('p', { class: 'mission-status', textContent: `Você é renegado${f.renegadeFrom ? ` (saiu da ${aldeia(v, f.renegadeFrom)})` : ''}. Sem vila e sem passiva: sua casa é o Refúgio dos Renegados, e na Zona de Conflito todo ninja de vila é seu inimigo.` }),
         f.bounty ? el('p', { class: 'points-line', textContent: `💰 Recompensa pela sua cabeça: ${f.bounty} ryō` }) : null,
       ];
     }
@@ -208,7 +210,7 @@ export function mountEndgameUI(api) {
     if (panel?.log?.length) {
       out.push(el('h3', { textContent: 'Últimas decisões' }));
       out.push(el('ul', { class: 'eg-log' }, panel.log.map((l) => el('li', { textContent:
-        `${when(l.at)} · ${l.kage || 'Kage'} ${ACTION_TEXT[l.action] || l.action} ${l.target || (l.targetVillage ? `Aldeia da ${villageName(v, l.targetVillage)}` : '')}${l.reason ? ` (${l.reason})` : ''}` }))));
+        `${when(l.at)} · ${l.kage || 'Kage'} ${ACTION_TEXT[l.action] || l.action} ${l.target || (l.targetVillage ? aldeia(v, l.targetVillage) : '')}${l.reason ? ` (${l.reason})` : ''}` }))));
     }
     return out;
   }
@@ -256,7 +258,7 @@ export function mountEndgameUI(api) {
         btn('Aceitar', () => api.send({ type: 'kage_answer', proposal: p.id, accept: true })),
         btn('Recusar', () => api.send({ type: 'kage_answer', proposal: p.id, accept: false }))));
     }
-    for (const p of outgoing) out.push(el('p', { class: 'kits-help', textContent: `Aguardando a ${villageName(v, p.to)}: ${p.kind === 'alianca' ? 'aliança' : 'paz'} (até ${when(p.expiresAt)})` }));
+    for (const p of outgoing) out.push(el('p', { class: 'kits-help', textContent: `Aguardando ${villageName(v, p.to)}: ${p.kind === 'alianca' ? 'aliança' : 'paz'} (até ${when(p.expiresAt)})` }));
     if (egOn(v, 'renegados')) {
       out.push(el('h3', { textContent: 'Denúncias' }));
       if (!panel?.reports?.length) out.push(el('p', { class: 'mission-empty', textContent: 'Nenhuma denúncia aberta.' }));

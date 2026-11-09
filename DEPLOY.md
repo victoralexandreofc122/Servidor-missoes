@@ -1086,7 +1086,7 @@ Para conferir: `SELECT tier, count(*) FROM game.jutsus WHERE class_code = 'fire'
 ## Passo 32 — Fase 1: Herança do Fogo e as aldeias (SQL v17)
 
 Rode `db/schema_v17_nomes.sql` inteiro no SQL Editor do Neon (branch `production`). Só troca os nomes das vilas em
-`game.villages` (Chama Eterna, Maré Oculta, Rocha Antiga, Vento Cortante); ninguém muda de vila. Pode rodar de novo.
+`game.villages` (Chama Eterna, Maré Oculta, Vento Cortante, Rocha Antiga; a ordem Nuvem/Areia foi corrigida na v22); ninguém muda de vila. Pode rodar de novo.
 Para conferir: `SELECT code, name FROM game.villages ORDER BY sort_order;`
 
 ## Passo 33 — As outras 8 classes (SQL v18)
@@ -1151,3 +1151,17 @@ Para conferir: `SELECT name FROM game.items WHERE code = 'manto_akatsuki';` most
 1. ☰ → Perfil → Jutsus: nomes novos (por exemplo "Revoada de Brasas", "Disco do Furacão").
 2. Botão do Rankeado: o lugar se chama Arena das Quatro Heranças.
 3. Com o módulo ligado: o painel da vila tem a aba **Cinzas** e o convite diz "Convite dos Cinzas".
+
+## Passo 37 — Aldeias Nuvem e Areia corrigidas (SQL v22)
+
+Rode `db/schema_v22_aldeias.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v21**. Ela corrige os nomes de duas aldeias
+(a v17 tinha trocado): `vila_4` (Nuvem) vira **Vento Cortante** e `vila_5` (Areia) vira **Rocha Antiga**. Ninguém muda de vila. Pode rodar
+de novo. Sem a v11 (o fim de jogo) ela não faz nada, e o jogo funciona do mesmo jeito (os nomes vêm do código).
+
+Para conferir (só com a v11): `SELECT code, name FROM game.villages ORDER BY sort_order;` mostra Chama Eterna, Maré Oculta, Vento Cortante, Rocha Antiga.
+
+### Testar no celular
+
+1. Na aldeia das nuvens (a que tem as bandeiras com nuvem branca): o nome é **Aldeia do Vento Cortante**.
+2. Na aldeia do deserto: **Aldeia da Rocha Antiga**.
+3. `/admin vila <nome> vento` leva para a aldeia das nuvens; `rocha` para a do deserto.

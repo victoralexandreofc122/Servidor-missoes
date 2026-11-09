@@ -2071,7 +2071,7 @@ function showDuelBanner(won, score, points, voided = false) {
   bannerTimer = setTimeout(() => { ui.duelBanner.hidden = true; }, 6000);
 }
 
-const VILLAGE_SHORT = { vila_1: 'Chama Eterna', vila_3: 'Maré Oculta', vila_4: 'Rocha Antiga', vila_5: 'Vento Cortante' };
+const VILLAGE_SHORT = { vila_1: 'Chama Eterna', vila_3: 'Maré Oculta', vila_4: 'Vento Cortante', vila_5: 'Rocha Antiga' };
 
 /** Este jogador está numa partida do rankeado agora? */
 function duelFighting() {
@@ -4704,7 +4704,7 @@ function lightStoneTile(seed) {
   });
 }
 
-/** Areia do deserto (os gramados da Aldeia do Vento Cortante): grão fino e ondinhas de vento. */
+/** Areia do deserto (os gramados da Aldeia da Rocha Antiga): grão fino e ondinhas de vento. */
 function desertTile(seed) {
   return makeTile((g) => {
     const r = rng(seed);

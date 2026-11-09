@@ -235,7 +235,7 @@ O Maior Vilão escolhe os 10 a 60 vilões da temporada.
   ajustar a maestria. **Feita no branch** (Extração e maestria com a migração v20).
 - **Fase 1 (antes de monetizar):** renomeação: Herança do Fogo na UI e nos docs, as 4 aldeias, clãs, Vale das Estátuas,
   Soco Tsunade e os jutsus com nomes originais. Feito: nome do jogo e aldeias (v17), Os Cinzas, Arena das Quatro Heranças e 38 jutsus (v21).
-  Falta: confirmar a ordem das aldeias Nuvem/Areia e limpar os docs internos.
+  Ordem Nuvem = Vento Cortante e Areia = Rocha Antiga corrigida na v22. Falta: limpar os docs internos.
 - **Fase 2 (endgame sobre a base):** Torneio da Temporada (modo separado), ANBU, Torneios dos Heróis e dos Vilões,
   Torneio dos Renegados, Terra Sem Lei, Sistema de Caçada, guerra semanal, guerra final (servidor isolado e espectador),
   balanceamento populacional, infiltração e mentoria.

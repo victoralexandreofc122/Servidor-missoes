@@ -232,13 +232,24 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   jutsu (v20).
 - **Fase 1 (antes de monetizar):** renomeação. Já feito: Herança do Fogo na UI e nos docs, as 4 aldeias e o Vale dos
   Guardiões (v17); Os Cinzas, Arena das Quatro Heranças e 38 jutsus renomeados (v21). Os clãs já são Rubro e Umbra e o Soco Tsunade já é
-  Punho Sísmico. Falta confirmar a ordem das aldeias Nuvem/Areia (`docs/fase1-renomeacao.md`).
+  Punho Sísmico. A ordem Nuvem/Areia foi corrigida na v22 (`docs/fase1-renomeacao.md`).
 - **Fase 2 (endgame sobre a base):** Torneio da Temporada, ANBU, torneios de campeão, Terra Sem Lei e Caçada, guerras
   20v20 e final, balanceamento populacional, infiltração, mentoria.
 - **Fase 2.5: 74 jutsus novos** para fechar 4 jutsus por classe por tier (4/4/4/4 nas 10 classes = 160). É a maior frente
   de conteúdo; **não começar sem o Victor pedir**. Hoje a distribuição varia (a Cura tem 5 no tier 1; o Fogo, 4/4/2/1).
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
+
+### v32b: aldeias Nuvem e Areia corrigidas (migração v22, `db/schema_v22_aldeias.sql`)
+
+- Decisão do Victor: vale o documento canônico. **Nuvem (`vila_4`) = Aldeia do Vento Cortante** e **Areia (`vila_5`) = Aldeia da Rocha Antiga**
+  (a v17 tinha trocado as duas). Mudou: `VILLAGE_INFO` (nome e atalho do `/admin vila`: `vento` é a Nuvem, `rocha` é a Areia), nomes dos
+  mapas, textos do cliente, testes e a tabela `game.villages` (v11 e v17 também ficaram certas para banco novo).
+- **O que NÃO mudou:** os códigos das vilas, a arte (a vila de nuvens é Vento Cortante, o deserto é Rocha Antiga) e as passivas de teste
+  (+10% de dano de jutsu na `vila_4`, +10% de dano de armas na `vila_5`: continuam presas ao código; as passivas finais do documento
+  canônico são da Fase 2). Ninguém muda de vila, de Kage ou de diplomacia.
+- **Migração v22:** o nome da vila é único no banco, então a troca passa por nomes temporários (dentro da mesma transação). Não faz nada
+  num banco sem a v11. Pode rodar de novo.
 
 ### v32: Fase 1, os nomes originais (migração v21, `db/schema_v21_nomes_jutsus.sql`)
 
@@ -253,7 +264,7 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Teste `test/nomes.test.ts`:** trava nomes da série em jutsus, itens, poderes, mapas e NPCs, e nomes de jutsu repetidos.
 - **Migração v21:** um UPDATE por jutsu em `game.jutsus.name` e o nome do manto em `game.items`. Rodar a v16, v18, v19 ou v20 de novo devolve
   nomes antigos: se rodar, rode a v21 outra vez.
-- **Ainda não:** a ordem das aldeias Nuvem/Areia (esperando o Victor), os selos dos jutsus de tier 1 (ficam para a Fase 2) e a limpeza dos
+- **Ainda não:** os selos dos jutsus de tier 1 (ficam para a Fase 2) e a limpeza dos
   documentos internos de design.
 
 ### v31: Fase 0, a Extração do design final e a maestria por jutsu (migração v20, `db/schema_v20_extracao.sql`)
@@ -296,8 +307,8 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 
 ### v30: Fase 1 (nomes) e as outras 8 classes (migrações v17 e v18)
 
-- **Herança do Fogo** (antes Vontade do Fogo). Aldeias: Chama Eterna (era Folha), Maré Oculta (Névoa), Rocha Antiga
-  (Nuvem), Vento Cortante (Areia); Vale dos Guardiões (era Vale das Estátuas). Os códigos das vilas não mudam.
+- **Herança do Fogo** (antes Vontade do Fogo). Aldeias: Chama Eterna (era Folha), Maré Oculta (Névoa), Vento Cortante
+  (Nuvem), Rocha Antiga (Areia) (a v17 trocou Nuvem e Areia; corrigido na v22); Vale dos Guardiões (era Vale das Estátuas). Os códigos das vilas não mudam.
   `/admin vila` e `/admin kage` aceitam chama|mare|rocha|vento (os nomes antigos ainda valem). Migração v17.
 - **72 jutsus** (antes 45): Água, Relâmpago, Terra, Médico, Armas, Ilusão, Taijutsu e Sombra ganharam os jutsus da
   adaptação (27 códigos novos; os tiers 2 a 4 de cada classe viraram os da adaptação, com o mesmo código). Catálogo em

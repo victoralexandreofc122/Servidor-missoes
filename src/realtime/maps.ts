@@ -97,7 +97,7 @@ export interface Deco extends Box {
     | 'stream' | 'drybed' | 'trail'
     // o que sobrou no Acampamento Queimado: caixote quebrado, panela no tripé, esteira e um pergaminho caído
     | 'crate' | 'pot' | 'bedroll' | 'scroll_drop'
-    // vila: lanterna de pedra (tōrō, acende de noite) e vaso de flores; bandeira da Aldeia da Rocha Antiga
+    // vila: lanterna de pedra (tōrō, acende de noite) e vaso de flores; bandeira da Aldeia do Vento Cortante
     | 'toro' | 'planter' | 'flag'
     // v29: a arquibancada do Vale (só desenho: a plateia anda e fica em cima)
     | 'stands';
@@ -414,8 +414,8 @@ interface VillageMapDef { id: MapId; name: string; village: Village; theme: MapT
 export const VILLAGE_MAPS: readonly VillageMapDef[] = [
   { id: 'map_1', name: 'Aldeia da Chama Eterna', village: 'vila_1', theme: 'folha', gate: true },
   { id: 'vila_nevoa', name: 'Aldeia da Maré Oculta', village: 'vila_3', theme: 'nevoa', gate: false },
-  { id: 'vila_nuvem', name: 'Aldeia da Rocha Antiga', village: 'vila_4', theme: 'nuvem', gate: false },
-  { id: 'vila_areia', name: 'Aldeia do Vento Cortante', village: 'vila_5', theme: 'areia', gate: false },
+  { id: 'vila_nuvem', name: 'Aldeia do Vento Cortante', village: 'vila_4', theme: 'nuvem', gate: false },
+  { id: 'vila_areia', name: 'Aldeia da Rocha Antiga', village: 'vila_5', theme: 'areia', gate: false },
 ];
 
 /** Posto de Viagem de cada vila: dentro da praça, perto do portão. */
@@ -588,7 +588,7 @@ const NEVOA_ART = retrace(FOLHA_ART, 'nevoa', { sx: 0.9875, ox: 1.49, sy: 0.994,
     bamboo(21.1, 48.6, 3.1, 5.4), bamboo(28.5, 49.6, 7.5, 5), bamboo(43.9, 48.8, 8.7, 5.6), bamboo(55.8, 48.8, 3, 5),  // pé da praça
   ]);
 
-/** Aldeia da Rocha Antiga (arte/vilas/referencia_nuvem.jpg, ampliada): a planta da Folha no mesmo lugar, com os mastros das bandeiras da praça. */
+/** Aldeia do Vento Cortante (arte/vilas/referencia_nuvem.jpg, ampliada): a planta da Folha no mesmo lugar, com os mastros das bandeiras da praça. */
 const NUVEM_ART = retrace(FOLHA_ART, 'nuvem', { sx: 1, ox: 0, sy: 1, oy: 0 }, { w: 78, h: 60 }, () => false, [
   wall('furniture', 24.75, 38.6, 0.5, 0.9), wall('furniture', 32.8, 39.1, 0.5, 0.9), wall('furniture', 44.55, 38.6, 0.5, 0.9), wall('furniture', 52.7, 38.8, 0.5, 0.9),
   wall('furniture', 24.75, 49.9, 0.5, 0.9), wall('furniture', 32.8, 49.9, 0.5, 0.9), wall('furniture', 44.55, 49.9, 0.5, 0.9), wall('furniture', 52.7, 50.1, 0.5, 0.9),

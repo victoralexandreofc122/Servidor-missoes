@@ -98,7 +98,7 @@ describe('v20 no banco: API do site do jogo', { skip: noDatabase }, () => {
   it('visão geral: módulos, vilas com membros e Kage, temporada e quantos estão online', async () => {
     const o = (await get('/site/overview')).json();
     assert.deepEqual(o.modules.map((m: any) => [m.code, m.on]), [['vilas', true], ['pvp', true], ['renegados', true], ['akatsuki', true]]);
-    assert.deepEqual(o.villages.map((v: any) => v.name), ['Chama Eterna', 'Maré Oculta', 'Rocha Antiga', 'Vento Cortante']);
+    assert.deepEqual(o.villages.map((v: any) => v.name), ['Chama Eterna', 'Maré Oculta', 'Vento Cortante', 'Rocha Antiga']);
     assert.equal(o.villages.find((v: any) => v.code === 'vila_3').members, 5);
     assert.equal(o.villages.find((v: any) => v.code === 'vila_1').members, 1, 'o admin não conta');
     assert.equal(o.villages[0].passive, '+10% de cura');

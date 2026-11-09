@@ -49,7 +49,7 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
 
   it('migração: roda de novo sem erro; vilas, módulos em auto; jogador novo é da Folha; o Kage substitui o Hokage', async () => {
     await t.pool.query(V11);
-    assert.deepEqual((await t.pool.query('SELECT code, name FROM game.villages ORDER BY sort_order')).rows.map((r) => r.name), ['Chama Eterna', 'Maré Oculta', 'Rocha Antiga', 'Vento Cortante']);
+    assert.deepEqual((await t.pool.query('SELECT code, name FROM game.villages ORDER BY sort_order')).rows.map((r) => r.name), ['Chama Eterna', 'Maré Oculta', 'Vento Cortante', 'Rocha Antiga']);
     assert.deepEqual((await t.pool.query(`SELECT code, mode, activated_at FROM game.endgame_modules ORDER BY code`)).rows.map((r) => r.mode), ['auto', 'auto', 'auto', 'auto']);
     const id = await t.createPlayer('novato');
     assert.equal((await one('SELECT village FROM game.players WHERE id = $1', [id])).village, 'vila_1');

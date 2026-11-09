@@ -35,7 +35,7 @@ import { PVP_CLASS_SQL } from './pvpStats.js';
  *
  * Fim de jogo (v16, migração v11; docs/endgame.md, seção 6):
  *   /admin fimdejogo <vilas|pvp|renegados|akatsuki> <ligar|desligar|auto>   liga, desliga ou devolve ao automático
- *   /admin vila <nome> <chama|mare|rocha|vento>             muda a vila de alguém
+ *   /admin vila <nome> <chama|mare|vento|rocha>             muda a vila de alguém
  *   /admin kage <vila> <nome>                                     põe alguém como Kage (mandato de 28 dias)
  *   /admin eleicao <vila>                                         fecha a eleição da vila agora
  *   /admin evento <guerra|tregua> <vila|todas> [vila] <horas>     evento global (guerra ou trégua forçada)
