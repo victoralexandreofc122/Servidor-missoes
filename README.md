@@ -254,6 +254,10 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - Correção: refazer a Missão de Genin com outra classe (admin) deixava os jutsus da classe antiga no kit, escondidos da
   aba Kits e ocupando os 4 espaços. Agora saem do kit na hora (continuam aprendidos no perfil) e o kit limpo é gravado; a
   aba Kits também mostra, com cadeado, qualquer jutsu fora da classe que ainda esteja no kit, para poder tirar.
+- Mira em todas as classes: segurar e arrastar o botão agora vale pela FORMA do jutsu, não só no Fogo, Sombra, Raio,
+  Armas e Vento. Linha, projétil, leque, avanço, salto e muro mostram o caminho; cone mostra o leque; zona e aviso
+  lançados mostram o círculo onde caem (no primeiro inimigo da direção ou no fim do alcance). Escudo, buff, cura, zona
+  em volta de si e jutsu travado no alvo continuam de toque (não têm direção). `aimShapeOf` em `protocol.ts`.
 - A névoa do Umbra ficou mais densa (no chão do jogo a de antes sumia); a faixa do Andarilho ficou clara e mais larga.
 
 ### v36: Fase 1.5, maestria em todos os jutsus (sem migração)

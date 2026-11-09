@@ -8,7 +8,7 @@ import {
   REALTIME, type SkillConfig, type MonsterAiConfig, type MonsterBoss, type MonsterCrush, type MonsterSlam, type MonsterType, type RealtimeConfig,
 } from './config.js';
 import {
-  CLOSE, ClientMessage, DIRECTED_SKILLS, LINE_MECHANICS, REALTIME_ERRORS, SKILLS, sanitizeChat,
+  CLOSE, ClientMessage, DIRECTED_SKILLS, LINE_MECHANICS, aimShapeOf, REALTIME_ERRORS, SKILLS, sanitizeChat,
   type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
   type DuelSideView, type LineageView, type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
   type Skill, type WorldInfo, type Appearance, type Dir, type MonsterStatus,
@@ -859,7 +859,8 @@ export class GameWorld {
         const v = combat.skills[j.code];
         const range = v.range ?? v.radius;
         return [j.code, {
-          name: j.name, ...(j.class !== v.mechanic ? { class: j.class } : {}), ...(j.clan ? { clan: j.clan } : {}), tier: j.tier, mechanic: v.mechanic, cost: v.cost, cooldownMs: v.cooldownMs,   // v30: sem a classe repetida (= mecânica)
+          name: j.name, ...(j.class !== v.mechanic ? { class: j.class } : {}), ...(j.clan ? { clan: j.clan } : {}), tier: j.tier,
+          ...(aimShapeOf(j.form, v) ? { aim: aimShapeOf(j.form, v)! } : {}), ...(j.form === 'recuo' && v.dash ? { dash: v.dash } : {}), mechanic: v.mechanic, cost: v.cost, cooldownMs: v.cooldownMs,   // v30: sem a classe repetida (= mecânica)
           ...(range !== undefined ? { range } : {}),
           ...(v.radius !== undefined ? { radius: v.radius } : {}),
           ...(LINE_MECHANICS.has(v.mechanic) ? { line: true } : {}),
@@ -1865,9 +1866,18 @@ export class GameWorld {
     //    arrastou o botão), vale a dele; senão, a que passa mais perto do alvo (focado ou o mais perto); sem ninguém,
     //    para onde ele olha (arredondado para a cardinal).
     const line = LINE_MECHANICS.has(mechanic);
+    // v37: a mira vale pela forma do jutsu (qualquer classe). Mirou: a direção dele manda, sem procurar alvo sozinho.
+    const shape = aimShapeOf(form, cfg);
+    const aimedDir = shape && dir && Math.hypot(dir[0], dir[1]) > 0.1 ? cardinal(dir[0], dir[1]) : undefined;
     let aim: Target | undefined = targetId !== undefined && DIRECTED_SKILLS.has(skill) ? targets.find((x) => x.id === targetId) : undefined;
     if (!aim && (mechanic === 'taijutsu' || line)) aim = nearest(session, targets, reach);
-    if (line) {
+    if (aimedDir) {
+      const back = form === 'recuo' && (cfg.dash ?? 0) < 0;          // o recuo anda de costas: mira para onde vai
+      session.fx = back ? -aimedDir[0] : aimedDir[0];
+      session.fy = back ? -aimedDir[1] : aimedDir[1];
+      aim = undefined;
+      targetId = undefined;
+    } else if (line) {
       const chosen = dir && Math.hypot(dir[0], dir[1]) > 0.1 ? dir : undefined;
       const [cx, cy] = chosen ? cardinal(chosen[0], chosen[1]) : aim ? cardinal(aim.x - session.x, aim.y - session.y) : cardinal(session.fx, session.fy);
       session.fx = cx;
@@ -1963,7 +1973,7 @@ export class GameWorld {
       }
       default: {
         // v30: as formas das outras classes (jutsusClasses.ts)
-        const v = this.v2Hitbox(session, form, cfg, o, fx, fy, aim, targets, targetId, reach, t);
+        const v = this.v2Hitbox(session, form, cfg, o, fx, fy, aim, targets, targetId, reach, t, !!aimedDir);
         if (v.fail) return fail(v.fail);
         hits = v.hits;
         to = v.to;
@@ -2484,7 +2494,7 @@ export class GameWorld {
 
   /** Onde e em quem o jutsu acerta (antes de cobrar). `fail` = não sai e não gasta (alvo único sem ninguém no alcance). */
   private v2Hitbox(s: Session, form: JutsuForm, cfg: SkillConfig, o: Point, fx: number, fy: number, aim: Target | undefined,
-    targets: Target[], targetId: string | undefined, reach: number, t: number): { hits: Target[]; to?: Point; dashTo?: Point; fail?: CastFailReason } {
+    targets: Target[], targetId: string | undefined, reach: number, t: number, aimed = false): { hits: Target[]; to?: Point; dashTo?: Point; fail?: CastFailReason } {
     const layout = this.layout(s.map);
     const lineFrom = () => { const end = rayEnd(layout, o.x, o.y, fx, fy, reach); return { end, first: firstOnLine(o, end, targets) }; };
     switch (form) {
@@ -2558,7 +2568,7 @@ export class GameWorld {
       }
       case 'muro': case 'invocacao': {
         // vira para o inimigo mais perto (até 8 casas) e põe à frente: o muro atravessado, a invocação ao lado
-        const tgt = aim ?? nearest(s, targets, 8);
+        const tgt = aimed ? undefined : aim ?? nearest(s, targets, 8);   // v37: mirou: põe na direção escolhida
         if (tgt) this.faceTo(s, tgt);
         const c = ahead(o, s.fx, s.fy, form === 'muro' ? Math.max(1.5, reach || 2.5) : 1.5);
         return { hits: [], to: c };
@@ -2574,6 +2584,12 @@ export class GameWorld {
       case 'zona': case 'aviso': {
         // sem foco, procura o inimigo mais perto no alcance (Água, Terra e Ilusão não miram em linha); ninguém: à frente
         const z = cfg.zone;
+        if (aimed && !z?.self) {
+          // v37: mirou: cai no primeiro inimigo na direção escolhida; ninguém: no fim do alcance (para na parede)
+          const end = rayEnd(layout, o.x, o.y, fx, fy, reach || 3);
+          const first = firstOnLine(o, end, targets);
+          return { hits: [], to: first ? { x: first.target.x, y: first.target.y } : end };
+        }
         const focus = targetId !== undefined ? targets.find((x) => x.id === targetId && distance(o, x) <= reach) : undefined;
         const tgt = focus ?? (aim && distance(o, aim) <= reach ? aim : nearest(s, targets, reach));
         if (tgt && !z?.self) this.faceTo(s, tgt);

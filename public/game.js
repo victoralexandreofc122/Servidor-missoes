@@ -3455,7 +3455,8 @@ window.addEventListener('pointermove', (e) => {
   mouse.seen = true;
 });
 
-const isLineSkill = (skill) => !!state.world.skills?.[skill]?.line;
+// v37: mira pela forma do jutsu (o servidor manda `aim`: linha, cone ou área), em todas as classes
+const isLineSkill = (skill) => !!state.world.skills?.[skill]?.aim;
 
 function bindSkillButton(button, i) {
   button.addEventListener('pointerdown', (e) => {
@@ -3590,8 +3591,25 @@ function drawAimPreview(view, toScreenX, toScreenY, T, now) {
     ctx.lineTo(x1 - uy * h - ux * h * 0.4, y1 + ux * h - uy * h * 0.4);
     ctx.lineTo(x1 + uy * h - ux * h * 0.4, y1 - ux * h - uy * h * 0.4);
     ctx.closePath(); ctx.fill();
-    // Fogo: a explosão no fim (ou no primeiro alvo).
-    if (view.mechanic === 'fire' && view.info.radius) {
+    // v37: área lançada (zona, aviso, impacto): o círculo onde cai. Fogo: a explosão no fim (ou no primeiro alvo).
+    if (main && view.info.aim === 'area') {
+      const r = (view.info.radius || 1.5) * T;
+      const hx = p.hit ? toScreenX(p.hit.x) : x1, hy = p.hit ? toScreenY(p.hit.y) : y1;
+      ctx.fillStyle = CY(0.1);
+      ctx.strokeStyle = CY(0.6);
+      ctx.lineWidth = 2;
+      ctx.setLineDash([T / 5, T / 8]);
+      ctx.beginPath(); ctx.arc(hx, hy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (main && view.info.aim === 'cone') {
+      // o leque do cone, aberto na direção escolhida
+      const half = ((view.info.coneDeg || 90) / 2) * (Math.PI / 180);
+      const a0 = Math.atan2(uy, ux), R = (view.info.range || 2) * T;
+      ctx.fillStyle = CY(0.1);
+      ctx.strokeStyle = CY(0.6);
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.arc(x0, y0, R, a0 - half, a0 + half); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (view.mechanic === 'fire' && view.info.radius) {
       ctx.fillStyle = CY(0.06);
       ctx.strokeStyle = CY(0.35);
       ctx.lineWidth = 1.5;
