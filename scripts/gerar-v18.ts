@@ -52,7 +52,7 @@ COMMIT;
 -- SELECT class_code, count(*) FROM game.jutsus GROUP BY class_code ORDER BY class_code;
 -- SELECT game.valid_kit(ARRAY['water_dragao', 'stone_pilares', 'heal_aura', 'shadow_4']);         -- true`);
 writeFileSync(new URL('../db/schema_v18_jutsus_classes.sql', import.meta.url), sql + '\n');
-for (const file of ['schema_v16_jutsus_fogo.sql', 'schema_v20_extracao.sql']) {
+for (const file of ['schema_v16_jutsus_fogo.sql', 'schema_v20_extracao.sql', 'schema_v25_linhagem.sql']) {
   const url = new URL(`../db/${file}`, import.meta.url);
   const text = readFileSync(url, 'utf8').replace(/AND kit <@ ARRAY\[\n[\s\S]*?\n   \]::text\[\]/, `AND kit <@ ARRAY[\n${lines.join('\n')}\n   ]::text[]`);
   writeFileSync(url, text);

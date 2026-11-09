@@ -289,7 +289,12 @@ export interface PlayerView {
   faction?: FactionView;
   /** Efeitos valendo (effects.ts): código -> ms que faltam. */
   fx?: Partial<Record<EffectCode, number>>;
+  /** v35: linhagem despertada e o tier (o visual: olho do Rubro, névoa do Umbra, faixa do Andarilho). */
+  lineage?: LineageView;
 }
+
+/** v35: a linhagem como todos veem. */
+export interface LineageView { clan: Clan; tier: number }
 
 /** O lado de um ninja na política, como todos veem (o banco é a autoridade; o servidor manda). */
 export interface FactionView {
@@ -372,6 +377,9 @@ export interface NpcView {
 export interface NinjaView {
   /** v30: linhagem (null = ainda não despertou). */
   clan?: Clan | null;
+  /** v35: linhagem marcada no Criador (antes do Rito) e o andamento do Rito do Despertar. */
+  clanMark?: Clan | null;
+  riteProgress?: number | null;
   /** Passo do tutorial da Academia: 0 a 3 = na sala 1 a 4; 4 = concluído (pode sair). */
   tutorialStep: number;
   ryo: number;
@@ -620,7 +628,7 @@ export type ServerMessage =
   /** r e arc: alcance e abertura do golpe com a arma (o corte é desenhado desse tamanho); throw: arma lançada. */
   | { type: 'attack'; playerId: string; x: number; y: number; fx: number; fy: number; cd: number; throw?: string; r?: number; arc?: number }
   | { type: 'attack_failed'; reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED' | 'ASLEEP' }
-  | { type: 'player_rank'; playerId: string; rank: RankView; level: number }
+  | { type: 'player_rank'; playerId: string; rank: RankView; level: number; lineage?: LineageView }
   | { type: 'evaluation_request'; missionId: string; trainee: { id: string; username: string }; mission: MissionView }
   | { type: 'sensei_options'; difficulties: SenseiDifficulty[]; quantities: number[] }
   | { type: 'notice'; text: string; tone: 'info' | 'good' | 'bad' }
@@ -631,6 +639,8 @@ export type ServerMessage =
   | { type: 'classes'; primary: ClassCode | null; secondary: ClassCode | null }
   // v30: a linhagem despertou
   | { type: 'clan'; clan: Clan }
+  | { type: 'clan_mark'; clan: Clan }
+  | { type: 'rite'; progress: number | null; count: number }
   | { type: 'jutsus'; jutsus: Record<string, number> }
   | { type: 'jutsu_level'; skill: Skill; level: number }
   | { type: 'class_choice'; kind: 'primary' | 'secondary'; classes: ClassCode[] }

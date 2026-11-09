@@ -10,7 +10,7 @@ const isClass = (c: unknown): c is ClassCode => typeof c === 'string' && (CLASSE
 export const FIND_PLAYER_SQL = `
   SELECT p.id, p.username, p.total_xp, r.code AS rank_code, r.name AS rank_name, r.can_be_sensei,
          p.level, p.stat_points, p.attr_vitality, p.attr_chakra, p.is_admin,
-         p.attr_agility, p.attr_taijutsu, p.attr_ninjutsu, p.attr_weapons, p.kit_a, p.kit_b, p.appearance, p.clan,
+         p.attr_agility, p.attr_taijutsu, p.attr_ninjutsu, p.attr_weapons, p.kit_a, p.kit_b, p.appearance, p.clan, p.clan_mark, p.rite_progress,
          p.tutorial_step, p.ryo, p.equipped_weapon, p.equipped_scroll, p.equipped_shoes, p.equipped_accessory, c.primary_class, c.secondary_class,
          COALESCE((SELECT json_object_agg(j.jutsu_code, j.usage_count) FROM game.player_jutsus j WHERE j.player_id = p.id), '{}'::json) AS jutsus,
          COALESCE((SELECT json_object_agg(i.item_code, i.quantity) FROM game.player_items i WHERE i.player_id = p.id), '{}'::json) AS items,
@@ -37,6 +37,8 @@ interface Row {
   attr_ninjutsu: number;
   attr_weapons: number;
   clan?: string | null;
+  clan_mark?: string | null;
+  rite_progress?: number | null;
   kit_a: string[];
   kit_b: string[];
   appearance: unknown;
@@ -95,6 +97,8 @@ export function makeFindPlayer(db: Queryable) {
       kageCandidate: row.kage_candidate,
       // v30 (migração v19): a linhagem (null = ainda não despertou)
       clan: (CLANS as readonly string[]).includes(row.clan ?? '') ? (row.clan as Clan) : null,
+      clanMark: (CLANS as readonly string[]).includes(row.clan_mark ?? '') ? (row.clan_mark as Clan) : null,
+      riteProgress: typeof row.rite_progress === 'number' ? row.rite_progress : null,
     };
   };
 }

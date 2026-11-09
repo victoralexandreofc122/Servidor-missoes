@@ -730,6 +730,14 @@ function handleMessage(msg) {
     case 'summon_punch':
       state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: msg.r, color: '#c9a678', start: now });
       break;
+    case 'clan_mark':
+      // v35: a linhagem marcada no Criador (desperta no Rito do Despertar, com o Diretor)
+      state.ninja.clanMark = msg.clan;
+      addSystemLine(`🩸 Sangue marcado: ${LINEAGE_NAMES[msg.clan] || msg.clan}. Desperta no Rito do Despertar (Genin, nível 11, com o Diretor).`);
+      break;
+    case 'rite':
+      state.ninja.riteProgress = msg.progress;
+      break;
     case 'clan':
       // v30: a linhagem despertou (o aviso com o que ela dá vem em seguida)
       state.ninja.clan = msg.clan;
@@ -1045,7 +1053,7 @@ function handleMessage(msg) {
     }
     case 'player_rank': {
       const p = state.players.get(msg.playerId);
-      if (p) { p.rank = msg.rank; p.level = msg.level; }
+      if (p) { p.rank = msg.rank; p.level = msg.level; p.lineage = msg.lineage || null; }   // v35: a linhagem muda o visual
       if (msg.playerId === state.meId) {          // Genin (Missão de Genin) / Chunin (Exame): a barra de baixo também
         state.me.rank = msg.rank;
         renderVitals();
@@ -4005,6 +4013,7 @@ const villageOpen = (v) => (state.world.openVillages || ['vila_1']).includes(v) 
 function openCreator(first = false) {
   creatorFirst = first;
   creatorLook = { ...(state.me.look || DEFAULT_APPEARANCE) };
+  creatorLineage = null;   // v35
   if (!villageOpen(creatorLook.village)) creatorLook.village = (state.world.openVillages || ['vila_1'])[0];
   creatorDir = 0;
   renderCreatorOptions();
@@ -4048,8 +4057,46 @@ function setCreator(field, value) {
   }
   renderCreatorOptions();
 }
+/** v35: nomes e frase de cada linhagem (o Criador marca; o Rito do Despertar desperta). */
+const LINEAGE_NAMES = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' };
+const LINEAGE_HINT = {
+  rubro: 'Olhos que leem o golpe e chamas que não se apagam.',
+  umbra: 'Some nas sombras, marca a presa e vira noite.',
+  andarilho: 'Sem sangue antigo: a Substituição volta mais rápido.',
+};
+let creatorLineage = null;
+
+/** v35: a linha "Linhagem" no Criador (só marca o sangue; quem já despertou vê a dele, travada). */
+function lineageRow() {
+  const row = document.createElement('div');
+  row.className = 'opt-row lineage-row';
+  const name = document.createElement('span');
+  name.className = 'opt-title';
+  name.textContent = 'Linhagem';
+  const box = document.createElement('div');
+  box.className = 'seg';
+  const awakened = state.ninja.clan;
+  const picked = awakened || creatorLineage || state.ninja.clanMark || null;
+  for (const value of ['rubro', 'umbra', 'andarilho']) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'seg-btn';
+    b.textContent = LINEAGE_NAMES[value];
+    b.title = LINEAGE_HINT[value];
+    b.setAttribute('aria-pressed', String(picked === value));
+    if (awakened) b.disabled = awakened !== value;
+    b.addEventListener('click', () => { if (!awakened) { creatorLineage = value; renderCreatorOptions(); } });
+    box.append(b);
+  }
+  const hint = document.createElement('small');
+  hint.className = 'lineage-hint';
+  hint.textContent = awakened ? `${LINEAGE_NAMES[awakened]}: já despertou.` : picked ? `${LINEAGE_HINT[picked]} Desperta no Rito do Despertar (Genin, nível 11).` : 'Marque o seu sangue. Ele desperta no Rito do Despertar (Genin, nível 11).';
+  row.append(name, box, hint);
+  return row;
+}
+
 function renderCreatorOptions() {
-  ui.creatorOptions.replaceChildren(...CREATOR_FIELDS.map(([field, title, kind]) => {
+  ui.creatorOptions.replaceChildren(lineageRow(), ...CREATOR_FIELDS.map(([field, title, kind]) => {
     const row = document.createElement('div');
     row.className = 'opt-row';
     // Camisa e calça só valem com "Camisa e calça" (o conjunto da vila tem as cores da vila).
@@ -4106,6 +4153,8 @@ ui.creatorSave.addEventListener('click', () => {
   if (!state.connected) { ui.creatorError.textContent = 'Sem conexão. Tentando reconectar…'; return; }
   // Só PEDE: o visual só muda quando o servidor grava e avisa todos ("player_appearance").
   send({ type: 'set_appearance', appearance: { ...creatorLook } });
+  // v35: a linhagem marcada (só antes de despertar; o servidor confere)
+  if (creatorLineage && !state.ninja.clan && creatorLineage !== state.ninja.clanMark) send({ type: 'clan', clan: creatorLineage });
 });
 
 // ------------------------------------------------------------------ HUD: configurações e modo "Editar layout"
@@ -4341,9 +4390,9 @@ ui.chat.addEventListener('submit', (e) => {
   if (!message) return closeChat();
   if (!state.connected) return addSystemLine('Sem conexão. Tentando reconectar…');
   // v30: o despertar da linhagem (a partir de Genin): /linhagem rubro | umbra | andarilho
-  const lin = /^\/linhagem\s+(rubro|umbra|andarilho)$/i.exec(message);
-  if (lin) {
-    send({ type: 'clan', clan: lin[1].toLowerCase() });
+  // v35: agora a linhagem se marca no Criador de Personagem e desperta no Rito do Despertar (com o Diretor)
+  if (/^\/linhagem\b/i.test(message)) {
+    addSystemLine('A linhagem agora se marca no Criador de Personagem (☰ → Aparência) e desperta no Rito do Despertar, com o Diretor da Academia.');
     ui.chatInput.value = '';
     return;
   }
@@ -7195,6 +7244,22 @@ function drawFloaters(toScreenX, toScreenY, T, now) {
  * atrás; o punho fecha por cima do cabo). A capa e a bandana riscada do renegado são camadas do próprio boneco.
  * Devolve o topo da cabeça (tela).
  */
+/** v35: a marca do Clã Umbra (opção C do Victor): névoa escura nos pés, mais densa a cada tier despertado. */
+function drawUmbraMist(g, x, y, T, tier, now) {
+  const n = 3 + 2 * Math.max(1, Math.min(4, tier || 1));
+  g.save();
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + now / 900;
+    const r = T * (0.28 + 0.06 * Math.sin(now / 500 + i));
+    const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r * 0.35;
+    g.fillStyle = `rgba(28, 14, 48, ${0.16 + 0.05 * Math.max(1, Math.min(4, tier || 1))})`;
+    g.beginPath();
+    g.ellipse(px, py, T * 0.2, T * 0.08, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.restore();
+}
+
 function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
   const s = spriteScale(T, dpr);
   const left = Math.round((sx - 32 * s) * dpr) / dpr;
@@ -7206,7 +7271,9 @@ function drawSpriteCharacter(g, p, sx, sy, T, look, dir, now, gear) {
     cape: p.faction?.cape || null,
     capeVillage: p.faction ? (p.faction.village ?? p.faction.renegadeFrom) : look.village,
     renegade: !!(p.faction && p.faction.village === null),
+    lineage: p.lineage || null,   // v35: olho do Rubro e faixa do Andarilho
   };
+  if (p.lineage && p.lineage.clan === 'umbra') drawUmbraMist(g, sx, sy + T * 0.42, T, p.lineage.tier, now);   // v35: a névoa do Umbra nos pés
   if (gear && (gear.hand || gear.back || gear.scroll)) {
     // No golpe com arma, a espada / Shuriken Gigante sai das costas para a mão (a bainha vazia fica nas costas).
     // No selo do jutsu, a arma da mão some.

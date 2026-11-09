@@ -3,7 +3,7 @@
 //   node arte/personagem-rig/prancha.mjs saida.png [conjunto]
 //
 // Conjuntos: visuais (vários visuais, parado, 4 direções), anim (todas as animações), giro (virando em 16 passos),
-// capas, camadas (cada camada sozinha). Escala 3 (cada pixel do boneco vira 3 x 3).
+// capas, camadas (cada camada sozinha), linhagem (v35). Escala 3 (cada pixel do boneco vira 3 x 3).
 
 import { writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
@@ -33,6 +33,10 @@ function cells() {
       { ...BASE, skin: 'ebano', hairColor: 'branco', eyeColor: 'vermelho', outfit: 'vila', village: 'vila_5', shoes: 'botas_viagem' },
     ];
     for (const look of looks) list.push(DIRS.map((d) => ({ look, anim: 'parado', t: 0.1, yaw: YAW_OF_DIR[d] })));
+  } else if (set === 'linhagem') {
+    // v35: sem linhagem, Clã Rubro tier 1 a 4 (íris vermelha com brilho crescente) e Andarilho (faixa no braço esquerdo).
+    const rows = [undefined, ...[1, 2, 3, 4].map((tier) => ({ clan: 'rubro', tier })), { clan: 'andarilho', tier: 1 }];
+    for (const lineage of rows) list.push(DIRS.map((d) => ({ look: { ...REF, lineage }, anim: 'parado', t: 0.1, yaw: YAW_OF_DIR[d] })));
   } else if (set === 'anim') {
     for (const anim of Object.keys(ANIMS)) {
       for (const d of [0, 1]) {

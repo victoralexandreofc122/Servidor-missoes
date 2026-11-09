@@ -60,7 +60,7 @@ export const flowOf = (anim) => (anim === 'correr' ? 1 : anim === 'andar' ? 0.35
 export function lookKey(look, opts = {}) {
   return [look.gender, look.skin, look.hairStyle, look.hairColor, look.eyeStyle, look.eyeColor, look.outfit, look.shirtColor,
     look.pantsColor, look.bandana ? 1 : 0, look.village, look.shoes || '-', look.accessory || '-', opts.cape || '-', opts.cape ? opts.capeVillage || '-' : '-',
-    opts.renegade ? 1 : 0].join('|');
+    opts.renegade ? 1 : 0, opts.lineage ? `${opts.lineage.clan}${opts.lineage.tier}` : '-'].join('|');
 }
 
 // ------------------------------------------------------------------ navegador: cache de quadros e desenho
@@ -103,7 +103,8 @@ function sliceCanvas(fig, lo, hi) {
 
 /** Quadro pronto: as fatias (de trás para a frente) e a ordem dos itens entre elas. */
 function buildFrame(look, pose, yaw, opts, cuts, flow, phase) {
-  const fig = renderFigure(look, pose, yaw, { cape: opts.cape, capeVillage: opts.capeVillage, renegade: opts.renegade, flow, phase });
+  // v35: a linhagem (olho do Rubro, faixa do Andarilho) vai no visual
+  const fig = renderFigure(opts.lineage ? { ...look, lineage: opts.lineage } : look, pose, yaw, { cape: opts.cape, capeVillage: opts.capeVillage, renegade: opts.renegade, flow, phase });
   const depthOf = { hand: fig.anchors.hand[2], back: fig.anchors.back[2] };
   const order = cuts.filter((k) => depthOf[k] !== undefined).sort((a, b) => depthOf[a] - depthOf[b]);
   const bounds = [-Infinity, ...order.map((k) => depthOf[k]), Infinity];

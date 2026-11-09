@@ -57,8 +57,8 @@ function scene(skill: string, monsters: [number, number][] = [[2, 0]], pvp = fal
 }
 
 describe('Jutsus v2, entrega 5: as outras classes', () => {
-  it('catálogo: 96 jutsus; 41 códigos novos (+6 do Clã Rubro); toda classe tem os 4 tiers e o tier 1 de sempre', () => {
-    assert.equal(JUTSUS.length, 96);
+  it('catálogo: 100 jutsus; 41 códigos novos (+6 do Clã Rubro, +4 do Clã Umbra); toda classe tem os 4 tiers e o tier 1 de sempre', () => {
+    assert.equal(JUTSUS.length, 100);
     assert.equal(CLASS_V2_CODES.length, 41);
     for (const c of CLASSES) {
       const tiers = new Set(JUTSUS.filter((j) => j.class === c).map((j) => j.tier));
@@ -446,21 +446,51 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
 
   // ---------------------------------------------------------------- os clãs (v30)
 
-  it('linhagem: só a partir de Genin no nível 11; uma vez só; o tier 1 do clã chega no despertar e os outros pelo nível', () => {
+  it('linhagem (v35): marca no Criador, desperta no Rito (10 Lodos Escuros); uma vez só; tier 1 no despertar, os outros pelo nível', () => {
     const { s, a, world } = scene('fire', []);
+    const say = () => {};
     Object.assign(s, { rank: { code: 'ACADEMY', name: 'Academia' }, level: 9 });
     a.send({ type: 'clan', clan: 'rubro' });
-    assert.equal(s.clan, null, 'na Academia não desperta');
+    assert.equal(s.clan, null, 'marcar não desperta');
+    assert.equal(s.clanMark, 'rubro');
+    assert.equal(a.conn.last('clan_mark').clan, 'rubro');
+    assert.equal(world.riteTalk(s, say), false, 'na Academia o Diretor não fala do Rito');
     Object.assign(s, { rank: { code: 'GENIN', name: 'Genin' }, level: 11 });
-    a.send({ type: 'clan', clan: 'rubro' });
+    assert.equal(world.riteTalk(s, say), true);
+    assert.equal(s.riteProgress, 0);
+    for (let i = 0; i < 9; i += 1) world.riteKill(s, 'lodo_escuro');
+    world.riteKill(s, 'lodo_verde');
+    assert.equal(s.riteProgress, 9, 'só o Lodo Escuro conta');
+    world.riteTalk(s, say);
+    assert.equal(s.clan, null);
+    world.riteKill(s, 'lodo_escuro');
+    world.riteTalk(s, say);
     assert.equal(s.clan, 'rubro');
+    assert.equal(s.riteProgress, null);
     assert.equal(a.conn.last('clan').clan, 'rubro');
     assert.ok(s.jutsus.has('rubro_olho') && !s.jutsus.has('rubro_transe'));
     a.send({ type: 'clan', clan: 'umbra' });
     assert.equal(s.clan, 'rubro', 'uma vez só');
+    assert.equal(world.lineageOf(s).tier, 1);
     s.level = 40;
     world.grantClanJutsus(s);
     assert.ok(s.jutsus.has('rubro_transe') && s.jutsus.has('rubro_chamas') && !s.jutsus.has('rubro_guardiao'));
+    assert.equal(world.lineageOf(s).tier, 3);
+  });
+
+  it('Clã Umbra (v35): 4 jutsus próprios, sem classe, tiers 1 a 4', () => {
+    const umbra = JUTSUS.filter((j) => j.clan === 'umbra');
+    assert.deepEqual(umbra.map((j) => [j.code, j.tier, j.class]), [
+      ['umbra_deslize', 1, null], ['umbra_faminta', 2, null], ['umbra_noite', 3, null], ['umbra_forma', 4, null]]);
+    assert.deepEqual(umbra.map((j) => j.name), ['Deslize Noturno', 'Sombra Faminta', 'Noite Fechada', 'Forma Umbral']);
+  });
+
+  it('Sombra Faminta: marca o alvo; o próximo dano nele é 25% maior', () => {
+    const { s, m, cast, dealt } = scene('umbra_faminta', [[3, 0]]);
+    s.clan = 'umbra';
+    cast();
+    assert.ok(s.umbraMark, 'marcou');
+    assert.equal(dealt(m), 0, 'a marca sozinha não dá dano');
   });
 
   it('jutsu de clã não sai na Extração (não tem classe) e entra no kit como qualquer outro', () => {

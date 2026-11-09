@@ -98,6 +98,18 @@ export interface SkillConfig {
   invertMs?: number;
   /** v30: qualquer dano nos selos faz o jutsu falhar (Mundo Espelhado); volta metade da recarga. */
   breakOnDamage?: boolean;
+  /** v35 (Clã Umbra): sem poder ser alvo de jutsu de alvo único por este tempo depois do avanço (Deslize Noturno). */
+  stealthMs?: number;
+  /** v35: o próximo golpe de quem lançou dói mais (fração), até `nextHitMs` (Deslize Noturno). */
+  nextHitBonus?: number;
+  nextHitMs?: number;
+  /** v35: marca (Sombra Faminta): dura `markMs`; o próximo golpe de quem marcou dói `markBonus` a mais e deixa lento `markSlowMs`. */
+  markMs?: number;
+  markBonus?: number;
+  markSlowMs?: number;
+  /** v35: quem lançou a zona recebe esta fração a menos de dano enquanto está dentro dela (Noite Fechada). */
+  zoneDamageCut?: number;
+  /** v35: Forma Umbral: dano de quem ele atravessa (o `damage`) e lentidão (`slowMs`); `speedBuff` e `durationMs`. */
   /** v30: dano ao longo do tempo (queimadura) ao acertar: por pulso e duração (Brasa Sem Luz). */
   dotAmount?: number;
   dotMs?: number;

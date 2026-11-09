@@ -229,9 +229,10 @@ export type Clan = (typeof CLANS)[number];
 export const CLAN_TIER_LEVEL = [11, 20, 40, 60] as const;
 
 /** Jutsus próprios do Clã Rubro (o Clã Umbra usa a árvore das sombras que já existe). */
-export const CLAN_CODES = ['rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao', 'rubro_lua', 'rubro_completo'] as const;
+export const CLAN_CODES = ['rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao', 'rubro_lua', 'rubro_completo',
+  'umbra_deslize', 'umbra_faminta', 'umbra_noite', 'umbra_forma'] as const;
 
-export const CLAN_JUTSUS: Readonly<Record<string, ClassJutsu & { clan: 'rubro' }>> = {
+export const CLAN_JUTSUS: Readonly<Record<string, ClassJutsu & { clan: 'rubro' | 'umbra' }>> = {
   // Olho Rubro: o próximo golpe recebido dói metade (a pele de rocha da Terra, no olho)
   rubro_olho: { name: 'Olhar Rubro', class: 'fire', clan: 'rubro', tier: 1, form: 'escudo',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 12_000, range: 0, radius: undefined, reduction: 0.5 } },
@@ -248,12 +249,26 @@ export const CLAN_JUTSUS: Readonly<Record<string, ClassJutsu & { clan: 'rubro' }
   // Colosso Espectral: 5 s transformado (escudo de 25%, Básico +15%) e, no fim, a onda à frente que levanta
   rubro_completo: { name: 'Colosso Espectral', class: 'fire', clan: 'rubro', tier: 4, form: 'transformacao',
     numbers: { ...CLEAN, base: 30, damage: dmg(30, 4), cost: 44, cooldownMs: 30_000, range: 2.5, radius: 2.5, shieldShare: 0.25, basicBuff: 0.15, durationMs: 5000, liftMs: 800, castMs: 500, castSlow: 0 } },
+  // v35: Clã Umbra (nomes escolhidos pelo Victor em 09/11/2026). A cor e o custo vêm da mecânica Sombra.
+  // Deslize Noturno: avanço de 4 casas; 1,5 s sem poder ser alvo de jutsu de alvo único; o próximo golpe (em 4 s) +15%
+  umbra_deslize: { name: 'Deslize Noturno', class: 'shadow', clan: 'umbra', tier: 1, form: 'recuo',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 9000, range: 4, dash: 4, radius: undefined, stealthMs: 1500, nextHitBonus: 0.15, nextHitMs: 4000 } },
+  // Sombra Faminta: marca um alvo a até 6 casas por 6 s; o próximo golpe do Umbra nele +25% e 1 s de lentidão
+  umbra_faminta: { name: 'Sombra Faminta', class: 'shadow', clan: 'umbra', tier: 2, form: 'marca',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 10_000, range: 6, radius: undefined, markMs: 6000, markBonus: 0.25, markSlowMs: 1000 } },
+  // Noite Fechada: zona de raio 3 em volta, 4 s; escuridão nos inimigos dentro; o Umbra dentro leva 15% menos dano
+  umbra_noite: { name: 'Noite Fechada', class: 'shadow', clan: 'umbra', tier: 3, form: 'zona',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 34, cooldownMs: 16_000, range: 0, radius: 3, zoneDamageCut: 0.15,
+      zone: { ms: 4000, tickMs: 500, kind: 'sombra', dark: true, self: true } } },
+  // Forma Umbral: 0,8 s de selos; 5 s como sombra: ignora projéteis, +20% de velocidade, quem ele atravessa leva dano e 0,5 s lento
+  umbra_forma: { name: 'Forma Umbral', class: 'shadow', clan: 'umbra', tier: 4, form: 'forma_sombra',
+    numbers: { ...CLEAN, base: 18, damage: dmg(18, 4), cost: 44, cooldownMs: 30_000, range: 0, radius: 0.9, speedBuff: 0.2, durationMs: 5000, slowMs: 500, castMs: 800, castSlow: 0 } },
 };
 
 /** Os jutsus de cada linhagem, do tier 1 ao 4 (Andarilho não tem árvore: tem a Substituição 15% mais rápida). */
 export const CLAN_TREE: Readonly<Record<Clan, readonly string[]>> = {
   rubro: ['rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao'],
-  umbra: ['shadow', 'shadow_2', 'shadow_estrangular', 'shadow_4'],
+  umbra: ['umbra_deslize', 'umbra_faminta', 'umbra_noite', 'umbra_forma'],   // v35: os 4 próprios (a classe Sombra é outra coisa)
   andarilho: [],
 };
 

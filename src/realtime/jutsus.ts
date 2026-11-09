@@ -77,6 +77,8 @@ export type JutsuForm =
   | 'escudo_vida'     // escudo com vida (absorve dano), um por vez, até 25% da vida (Véu de Vento)
   | 'transformacao'   // escudo + buff de Básico por um tempo e um golpe no fim (Colosso Espectral)
   | 'invocacao'       // invocação aliada à frente (Duplo de Água, Golem de Terra)
+  | 'marca'           // v35: marca um alvo; o próximo golpe de quem marcou dói mais e deixa lento (Sombra Faminta)
+  | 'forma_sombra'    // v35: vira sombra: ignora projéteis, mais rápido, quem ele atravessa leva dano e fica lento (Forma Umbral)
   | 'muro';           // muro à frente: bloqueia passagem e projéteis, tem vida (Muralha de Terra, Muro de Água)
 
 export const FORM_OF_MECHANIC: Readonly<Record<Mechanic, JutsuForm>> = {
@@ -96,7 +98,7 @@ export interface JutsuDef {
   /** Como ele sai (v29). Os de hoje seguem a forma da mecânica. */
   form: JutsuForm;
   /** v30: jutsu de clã (linhagem): não sai na Extração, chega pelo nível depois do despertar. */
-  clan?: 'rubro';
+  clan?: 'rubro' | 'umbra';
   /**
    * Números próprios deste jutsu (v29). Sem eles, o tier 2 a 4 é o tier 1 da classe mais forte (`skillConfig`).
    * Com eles, valem estes (os jutsus novos do docs/jutsus-v2.md).
