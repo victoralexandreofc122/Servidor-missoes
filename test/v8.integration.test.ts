@@ -125,6 +125,38 @@ describe('v8 no banco: Modo Administrador (PostgreSQL real)', { skip: noDatabase
     assert.deepEqual(audit[1].args, { rank: 'ANBU' });
   });
 
+  it('Missão de Genin (v23): o admin que voltou à Academia refaz quantas vezes quiser (troca a classe, ganha o pergaminho); quem não é admin, uma vez só', async () => {
+    const admin = makeAdminStore(t.db);
+    const store = makeNinjaStore(t.db);
+    const adm = await t.createPlayer('adm_genin');
+    await t.pool.query('UPDATE game.players SET is_admin = true WHERE id = $1', [adm]);
+    for (let s = 1; s <= 4; s++) await t.pool.query('SELECT game.advance_tutorial($1, $2)', [adm, s]);
+    await makeProgression(t.db).grantXp(adm, levelStart(11));
+    const first = await store.becomeGenin(adm, 'fire');
+    assert.ok(first.ok && first.classes.primary === 'fire' && first.rank.code === 'GENIN');
+    // ainda Genin: não repete (só a Academia faz a missão)
+    assert.equal((await store.becomeGenin(adm, 'water')).ok, false);
+    // volta à Academia pelo /admin patente: pode de novo, com outra classe; a Secundária é limpa
+    await t.pool.query(`UPDATE game.player_classes SET secondary_class = 'water', secondary_at = now() WHERE player_id = $1`, [adm]);
+    assert.ok((await admin.setRank(adm, adm, 'ACADEMY')).ok);
+    const second = await store.becomeGenin(adm, 'water');
+    assert.ok(second.ok && second.classes.primary === 'water' && second.classes.secondary === null && second.rank.code === 'GENIN');
+    assert.equal(second.items.scroll_water, 1);
+    assert.equal(second.items.scroll_fire, 1, 'os pergaminhos de antes ficam');
+    // e de novo com a mesma classe: ganha mais um pergaminho
+    assert.ok((await admin.setRank(adm, adm, 'ACADEMY')).ok);
+    const third = await store.becomeGenin(adm, 'water');
+    assert.ok(third.ok && third.items.scroll_water === 2);
+    // quem NÃO é admin: uma vez só (nada mudou)
+    const comum = await t.createPlayer('comum_genin');
+    for (let s = 1; s <= 4; s++) await t.pool.query('SELECT game.advance_tutorial($1, $2)', [comum, s]);
+    await makeProgression(t.db).grantXp(comum, levelStart(11));
+    assert.ok((await store.becomeGenin(comum, 'fire')).ok);
+    await t.pool.query(`UPDATE game.players SET current_rank_id = (SELECT id FROM game.ranks WHERE code = 'ACADEMY') WHERE id = $1`, [comum]);
+    assert.equal((await store.becomeGenin(comum, 'water')).ok, false, 'a classe Primária só se escolhe uma vez');
+    assert.equal((await one('SELECT primary_class FROM game.player_classes WHERE player_id = $1', [comum])).primary_class, 'fire');
+  });
+
   it('de ponta a ponta: o admin digita "/admin giveitem" no chat e o item chega ao banco e ao alvo online', async () => {
     const adm = await t.createPlayer('adm_e2e');
     await t.pool.query('UPDATE game.players SET is_admin = true WHERE id = $1', [adm]);

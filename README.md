@@ -249,10 +249,11 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   "Kage" aqui é a patente `HOKAGE` (que aparece como Kage na tela).
 - **ANBU entrou como patente** (tier 55, entre o Jonin e o Kage; pode ser sensei). As regras do ANBU (indicação do Kage, armas, máscaras,
   missões) são da Fase 2. O nome que a tela mostra do `JONIN` continua "Jonin" (o `docs/endgame-visao.md` chama de Jounin: renomear é decisão do Victor).
-- **Cuidado com Academia:** rebaixar quem já tem classe para Academia deixa o Diretor oferecer a Missão de Genin de novo, e o banco recusa (a
-  classe Primária só se escolhe uma vez). Serve para testar a tela, não para refazer a classe.
-- **Migração v23:** a patente ANBU em `game.ranks` e a função `game.admin_set_rank` (confere `is_admin`, grava a auditoria e o histórico de
-  patentes). Sem a v23, o comando avisa "Rode a migração v23". Pode rodar de novo.
+- **Missão de Genin repetível para o admin (testes):** o admin que voltou à Academia (`/admin patente eu academia`) faz a Missão de Genin com o
+  Diretor quantas vezes quiser. Cada vez a classe Primária é trocada pela escolhida, a Secundária é limpa (não pode ser igual à Primária) e ele
+  ganha de novo 1 pergaminho da classe. Jutsus, itens, nível e linhagem ficam. **Quem não é admin continua com uma vez só.**
+- **Migração v23:** a patente ANBU em `game.ranks`, a função `game.admin_set_rank` (confere `is_admin`, grava a auditoria e o histórico de
+  patentes) e a `game.become_genin` com o ramo do admin. Sem a v23, o comando avisa "Rode a migração v23". Pode rodar de novo.
 
 ### v32b: aldeias Nuvem e Areia corrigidas (migração v22, `db/schema_v22_aldeias.sql`)
 

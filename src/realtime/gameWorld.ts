@@ -3516,7 +3516,9 @@ export class GameWorld {
     if (!this.near(session, 'director')) return this.sendError(session, 'DIRECTOR_TOO_FAR');
     const { id, username } = session;
     const refuse = (current: Session, text: string) => this.sendTo(current, { type: 'notice', text, tone: 'bad' });
-    if (session.classes.primary !== null) {
+    // Admin de volta à Academia (/admin patente) refaz a Missão de Genin para testar (v23); os outros, uma vez só.
+    const redoGenin = session.isAdmin && session.rank.code === 'ACADEMY';
+    if (session.classes.primary !== null && !redoGenin) {
       // Já tem a Primária: é a Secundária (Chunin nível 40; o banco confere).
       this.storeTask(session, (store) => store.chooseSecondary(id, cls).then((result) => {
         const current = this.sessions.get(id);

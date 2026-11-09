@@ -411,6 +411,30 @@ describe('v7: Armas, loja, Extração e classe (servidor)', () => {
     assert.equal(p.conn.last('inventory').items.scroll_lightning, 1);
   });
 
+  it('Missão de Genin (v23): admin que voltou à Academia refaz com outra classe; quem não é admin cai na Secundária (uma vez só)', async () => {
+    for (const admin of [true, false]) {
+      const fake = fakeNinjaStore({ level: 11, classes: { primary: 'fire', secondary: null } });
+      const { join, sess } = setup({ store: fake.store });
+      const p = join('kaito', { level: 11, isAdmin: admin, classes: { primary: 'fire', secondary: null } });
+      const s = sess(p.id);
+      s.map = 'academy_interior';
+      Object.assign(s, { x: ACADEMY.director.x, y: ACADEMY.director.y + 2 });
+      s.rank = { code: 'ACADEMY', name: 'Academia' };          // o admin voltou à Academia pelo /admin patente
+      p.send({ type: 'talk', npcId: 'director' });
+      assert.equal(p.conn.last('class_choice').kind, 'primary', 'a Academia sempre oferece a Missão de Genin');
+      p.send({ type: 'choose_class', class: 'water' });
+      await flush(); await flush();
+      if (admin) {
+        assert.deepEqual(fake.calls.filter((c) => c[0] === 'becomeGenin' || c[0] === 'chooseSecondary').at(-1), ['becomeGenin', p.id, 'water']);
+        assert.deepEqual(s.rank, { code: 'GENIN', name: 'Genin' });
+        assert.deepEqual(p.conn.last('classes'), { type: 'classes', primary: 'water', secondary: null });
+      } else {
+        assert.deepEqual(fake.calls.filter((c) => c[0] === 'becomeGenin' || c[0] === 'chooseSecondary').at(-1), ['chooseSecondary', p.id, 'water']);
+        assert.equal(s.rank.code, 'ACADEMY');
+      }
+    }
+  });
+
   it('compra: só perto do lojista que VENDE o item; preço do banco', async () => {
     const fake = fakeNinjaStore({ ryo: 500 });
     const { join, sess } = setup({ store: fake.store });
