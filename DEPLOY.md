@@ -1165,3 +1165,17 @@ Para conferir (só com a v11): `SELECT code, name FROM game.villages ORDER BY so
 1. Na aldeia das nuvens (a que tem as bandeiras com nuvem branca): o nome é **Aldeia do Vento Cortante**.
 2. Na aldeia do deserto: **Aldeia da Rocha Antiga**.
 3. `/admin vila <nome> vento` leva para a aldeia das nuvens; `rocha` para a do deserto.
+
+## Passo 38 — O admin muda a patente (SQL v23)
+
+Rode `db/schema_v23_admin_patente.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v22**. Ela cria a patente ANBU
+(`game.ranks`) e a função `game.admin_set_rank`. Pode rodar de novo. Sem ela o jogo funciona, mas `/admin patente` avisa "Rode a migração v23".
+Se o editor mostrar "In transaction" no fim, rode `COMMIT;` sozinho (aconteceu na v10 a v22).
+
+Para conferir: `SELECT code, name, tier FROM game.ranks ORDER BY tier;` mostra Academia, Genin, Chunin, Jonin, Specialized Jonin, **ANBU**, Kage.
+
+### Testar no celular
+
+1. Conta admin: `/admin patente eu anbu` → a barra de baixo mostra "ANBU · NV ...".
+2. `/admin patente <outro jogador> academia` → ele recebe o aviso e vê "ACADEMIA". `/admin patente eu kage` volta o seu.
+3. 🛡️ Painel do Admin → Jogador → Patente → escolha e "Mudar patente" (o campo "eu" vale).

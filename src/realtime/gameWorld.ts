@@ -1613,12 +1613,28 @@ export class GameWorld {
   /** Comandos de admin no banco. O alvo online vê a ficha nova na hora (sem anúncio, sem XP de abate). */
   private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | { cmd: 'clima' } | { cmd: 'hora' } | { cmd: 'pvp' } | EndgameAdminCommand>): Promise<void> {
     const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
-    const target = await store.findPlayer(c.username);
+    // "eu" (só na patente): o próprio admin
+    const username = c.cmd === 'rank' && c.username === 'eu' ? (this.sessions.get(adminId)?.username ?? c.username) : c.username;
+    const target = await store.findPlayer(username);
     if (!target) {
-      await store.log(adminId, c.cmd, null, { username: c.username }, false, 'jogador não encontrado');
-      return say(`Admin: jogador "${c.username}" não encontrado.`, 'bad');
+      await store.log(adminId, c.cmd, null, { username }, false, 'jogador não encontrado');
+      return say(`Admin: jogador "${username}" não encontrado.`, 'bad');
     }
     switch (c.cmd) {
+      case 'rank': {
+        const r = await store.setRank(adminId, target.id, c.rank);
+        if (!r.ok) return say(`Admin: ${r.text}`, 'bad');
+        const s = this.sessions.get(target.id);
+        if (s) {
+          s.rank = r.rank;
+          s.canBeSensei = r.canBeSensei;
+          this.sendTo(s, { type: 'progress', ...this.progressView(s) });
+          this.broadcastMap(s.map, { type: 'player_rank', playerId: s.id, rank: s.rank, level: s.level });
+          if (s.id !== adminId) this.sendTo(s, { type: 'notice', text: `O administrador mudou a sua patente: agora você é ${r.rank.name}.`, tone: 'info' });
+        }
+        say(`Admin: ${target.username} agora é ${r.rank.name}.`, 'good');
+        break;
+      }
       case 'level': {
         const r = await store.setLevel(adminId, target.id, c.level);
         if (!r.ok) return say(`Admin: ${r.text}`, 'bad');

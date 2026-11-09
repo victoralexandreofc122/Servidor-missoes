@@ -240,6 +240,20 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v33: o admin muda a patente de qualquer um, ele mesmo incluso (migração v23, `db/schema_v23_admin_patente.sql`)
+
+- **`/admin patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage>`** (e o Painel do Admin, aba Jogador, seção Patente). Sobe **ou desce**,
+  em qualquer jogador e em si mesmo (`eu`). O alvo online vê a patente nova na hora (barra de XP, convite de sensei, os outros no mapa) e
+  recebe um aviso; sem anúncio global e sem XP. Auditado como `rank`. O nome antigo `/admin rank` também vale.
+- **É só o título:** não mexe em nível, classe, jutsus, vila nem no cargo de Kage da aldeia (esse continua sendo o `/admin kage <vila> <nome>`).
+  "Kage" aqui é a patente `HOKAGE` (que aparece como Kage na tela).
+- **ANBU entrou como patente** (tier 55, entre o Jonin e o Kage; pode ser sensei). As regras do ANBU (indicação do Kage, armas, máscaras,
+  missões) são da Fase 2. O nome que a tela mostra do `JONIN` continua "Jonin" (o `docs/endgame-visao.md` chama de Jounin: renomear é decisão do Victor).
+- **Cuidado com Academia:** rebaixar quem já tem classe para Academia deixa o Diretor oferecer a Missão de Genin de novo, e o banco recusa (a
+  classe Primária só se escolhe uma vez). Serve para testar a tela, não para refazer a classe.
+- **Migração v23:** a patente ANBU em `game.ranks` e a função `game.admin_set_rank` (confere `is_admin`, grava a auditoria e o histórico de
+  patentes). Sem a v23, o comando avisa "Rode a migração v23". Pode rodar de novo.
+
 ### v32b: aldeias Nuvem e Areia corrigidas (migração v22, `db/schema_v22_aldeias.sql`)
 
 - Decisão do Victor: vale o documento canônico. **Nuvem (`vila_4`) = Aldeia do Vento Cortante** e **Areia (`vila_5`) = Aldeia da Rocha Antiga**
@@ -735,6 +749,7 @@ Rodar no Neon depois da v7 (pode rodar de novo). Sem ela o servidor não sobe e 
 | `/admin daritem <nome> <item> [qtd]` | 1 a 999 itens no inventário |
 | `/admin ryo <nome> <qtd>` | dá de 1 a 1.000.000 ryō (v18, migração v12) |
 | `/admin zerarpontos <nome>` | devolve os pontos de atributo, sem custo |
+| `/admin patente <nome\|eu> <academia\|genin\|chunin\|jounin\|anbu\|kage>` | muda a patente (sobe ou desce) de qualquer jogador, o admin incluso (v33, migração v23). Só o título |
 | `/admin pvp [dias]` | números do PvP por classe e por golpe (v19) |
 
 Desde a v19 os comandos são em português, e o mesmo vale pelo **Painel do Admin** (🛡️). Os nomes antigos (`level`,

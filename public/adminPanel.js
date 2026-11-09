@@ -4,7 +4,7 @@
 // igual ao "/admin ..." e confere tudo de novo (quem não é admin recebe "Comando desconhecido"). O rodapé mostra o
 // comando que saiu (para aprender o atalho do chat) e a resposta do servidor.
 //
-// Abas: Jogador (ryō, nível, pontos, efeito, vila, renegado, Akatsuki, Kage) · Itens · Jutsus · Monstros · Mundo (ir,
+// Abas: Jogador (ryō, nível, pontos, patente, efeito, vila, renegado, Akatsuki, Kage) · Itens · Jutsus · Monstros · Mundo (ir,
 // clima, hora) · Fim de jogo (módulos, eleição, evento, temporada) · PvP (números por classe e por golpe).
 
 const TABS = [
@@ -96,6 +96,7 @@ export function mountAdminUI(api) {
     const lvl = num(10, 1, 60, 'Nível');
     const fx = pick([...Object.entries(api.world().effects || {}).map(([code, e]) => [code, `${e.icon} ${e.name}`]), ['limpar', '🧽 Tirar todos']], 'Efeito', 'molhado');
     const fxSec = num(10, 0, 120, 'Segundos (0 = padrão)');
+    const patente = pick([['academia', 'Academia'], ['genin', 'Genin'], ['chunin', 'Chunin'], ['jounin', 'Jonin'], ['anbu', 'ANBU'], ['kage', 'Kage']], 'Patente', 'genin');
     const vil = pick(villageOpts(), 'Vila', villages()[0]?.code);
     const kage = pick(villageOpts(), 'Vila do Kage', villages()[0]?.code);
     return [
@@ -103,6 +104,8 @@ export function mountAdminUI(api) {
         row('Dar ryō', ryo, btn('Dar ryō', forWho((n) => `ryo ${n} ${ryo.value}`))),
         row('Nível', lvl, btn('Definir nível', forWho((n) => `nivel ${n} ${lvl.value}`))),
         row('Atributos', danger('Zerar pontos', forWho((n) => `zerarpontos ${n}`)))),
+      section('Patente (só o título; sobe ou desce, e vale para "eu")',
+        row('Patente', patente, btn('Mudar patente', forWho((n) => `patente ${n} ${patente.value}`)))),
       section('Efeito (para testar; só até reiniciar)',
         row('Efeito', fx, fxSec, btn('Aplicar', forWho((n) => `efeito ${n} ${fx.value}${fxSec.value > 0 ? ` ${fxSec.value}` : ''}`)))),
       section('Fim de jogo',

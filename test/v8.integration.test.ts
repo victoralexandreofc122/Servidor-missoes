@@ -96,6 +96,35 @@ describe('v8 no banco: Modo Administrador (PostgreSQL real)', { skip: noDatabase
     assert.equal(n, 6);
   });
 
+  it('patente (v23): o admin sobe e desce qualquer um, ele mesmo incluso; ANBU existe; histórico e auditoria; quem não é admin é recusado', async () => {
+    const admin = makeAdminStore(t.db);
+    const adm = await t.createPlayer('adm_rank');
+    await t.pool.query('UPDATE game.players SET is_admin = true WHERE id = $1', [adm]);
+    const alvo = await t.createPlayer('alvo_rank');
+    const rank = async (id: string) => (await one('SELECT r.code, r.name FROM game.players p JOIN game.ranks r ON r.id = p.current_rank_id WHERE p.id = $1', [id]));
+    assert.deepEqual((await t.pool.query(`SELECT code, name, tier FROM game.ranks WHERE code = 'ANBU'`)).rows, [{ code: 'ANBU', name: 'ANBU', tier: 55 }], 'ANBU: entre o Jonin e o Kage');
+    for (const [code, name] of [['JONIN', 'Jonin'], ['ANBU', 'ANBU'], ['HOKAGE', 'Kage'], ['CHUNIN', 'Chunin'], ['GENIN', 'Genin'], ['ACADEMY', 'Academia']] as const) {
+      const r = await admin.setRank(adm, alvo, code);
+      assert.ok(r.ok && r.rank.code === code && r.rank.name === name, code);
+      assert.deepEqual(await rank(alvo), { code, name });
+    }
+    const self = await admin.setRank(adm, adm, 'HOKAGE');
+    assert.ok(self.ok && self.canBeSensei === true, 'o admin muda a própria patente');
+    assert.equal((await rank(adm)).code, 'HOKAGE');
+    assert.equal((await one('SELECT count(*)::int AS n FROM game.player_rank_changes WHERE player_id = $1', [alvo])).n >= 6, true, 'o histórico de patentes foi gravado');
+    // só as seis patentes; nível, classe e cargo de Kage não mudam
+    await assert.rejects(t.pool.query(`SELECT * FROM game.admin_set_rank($1, $2, 'S_JONIN')`, [adm, alvo]), rule('rule_admin_rank'));
+    assert.equal((await one('SELECT level FROM game.players WHERE id = $1', [alvo])).level, 1, 'o nível não mexe');
+    assert.equal((await one('SELECT count(*)::int AS n FROM game.village_kages WHERE player_id = $1', [adm])).n, 0, 'patente Kage não vira o cargo de Kage da aldeia');
+    // quem não é admin é recusado (e nada muda)
+    const comum = await t.createPlayer('comum_rank');
+    assert.deepEqual(await admin.setRank(comum, alvo, 'ANBU'), { ok: false, text: 'Comando restrito ao administrador.' });
+    assert.equal((await rank(alvo)).code, 'ACADEMY');
+    const audit = (await t.pool.query(`SELECT command, ok, args FROM game.admin_audit_log WHERE admin_id = $1 AND command = 'rank' ORDER BY id`, [adm])).rows;
+    assert.equal(audit.length, 7);
+    assert.deepEqual(audit[1].args, { rank: 'ANBU' });
+  });
+
   it('de ponta a ponta: o admin digita "/admin giveitem" no chat e o item chega ao banco e ao alvo online', async () => {
     const adm = await t.createPlayer('adm_e2e');
     await t.pool.query('UPDATE game.players SET is_admin = true WHERE id = $1', [adm]);

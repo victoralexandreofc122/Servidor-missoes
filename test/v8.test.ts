@@ -123,6 +123,12 @@ function fakeAdmin(players: Record<string, { id: string; admin?: boolean }>) {
       audit.push({ adminId, command: 'resetstats', targetId, ok: true });
       return { ok: true, totalXp: s.totalXp, level: s.level, statPoints: s.statPoints, attributes: { ...s.attributes } };
     },
+    async setRank(adminId, targetId, rank) {
+      if (!isAdmin(adminId)) return refuse(adminId, 'rank', targetId);
+      const names: Record<string, string> = { ACADEMY: 'Academia', GENIN: 'Genin', CHUNIN: 'Chunin', JONIN: 'Jonin', ANBU: 'ANBU', HOKAGE: 'Kage' };
+      audit.push({ adminId, command: 'rank', targetId, ok: true });
+      return { ok: true, rank: { code: rank, name: names[rank]! }, canBeSensei: rank !== 'ACADEMY' && rank !== 'GENIN' };
+    },
     async log(adminId, command, targetId, _args, ok) {
       audit.push({ adminId, command, targetId, ok });
     },
@@ -261,6 +267,51 @@ describe('v8: Modo Administrador', () => {
       assert.match((r as { text: string }).text, /^Uso: \/admin/, bad);
     }
     assert.deepEqual(parseAdminCommand('/admin explodir tudo', types), { ok: false, command: 'unknown', text: ADMIN_HELP });
+  });
+
+  it('parseAdminCommand: patente (academia, genin, chunin, jounin, anbu, kage; "eu"; sem acento e com os nomes em inglês de antes)', () => {
+    const types: string[] = [];
+    for (const [word, code] of [['academia', 'ACADEMY'], ['genin', 'GENIN'], ['chunin', 'CHUNIN'], ['jounin', 'JONIN'], ['Jonin', 'JONIN'], ['ANBU', 'ANBU'], ['kage', 'HOKAGE']] as const) {
+      assert.deepEqual(parseAdminCommand(`/admin patente kaito ${word}`, types), { ok: true, command: { cmd: 'rank', username: 'kaito', rank: code } }, word);
+    }
+    assert.deepEqual(parseAdminCommand('/admin patente eu kage', types), { ok: true, command: { cmd: 'rank', username: 'eu', rank: 'HOKAGE' } });
+    assert.deepEqual(parseAdminCommand('/admin rank kaito genin', types), { ok: true, command: { cmd: 'rank', username: 'kaito', rank: 'GENIN' } }, 'o nome em inglês também vale');
+    for (const bad of ['/admin patente', '/admin patente kaito', '/admin patente kaito hokage', '/admin patente kaito s_jonin', '/admin patente kaito kage extra', "/admin patente kaito' genin", '/admin patente ka genin']) {
+      const r = parseAdminCommand(bad, types);
+      assert.equal(r.ok, false, bad);
+      assert.match((r as { text: string }).text, /^Uso: \/admin patente/, bad);
+    }
+    assert.equal((parseAdminCommand('/admin patente kaito hokage', types) as { command: string }).command, 'rank', 'a recusa fica na auditoria como "rank"');
+  });
+
+  it('admin: /admin patente muda a patente do alvo online (e a dele mesmo, com "eu"), sem XP nem anúncio; os outros veem; tudo auditado', async () => {
+    const admin = fakeAdmin({ Victor: { id: 'v1', admin: true }, kaito: { id: 'k1' } });
+    const { join, sess, run } = setup({ admin: admin.store });
+    const v = join('Victor', { id: 'v1', isAdmin: true });
+    const k = join('kaito', { id: 'k1' });
+    const other = join('mei');
+    v.send({ type: 'chat', message: '/admin patente kaito jounin' });
+    run(1200); await flush(); await flush();
+    assert.deepEqual(sess('k1').rank, { code: 'JONIN', name: 'Jonin' });
+    assert.equal(sess('k1').canBeSensei, true);
+    assert.deepEqual(other.conn.last('player_rank'), { type: 'player_rank', playerId: 'k1', rank: { code: 'JONIN', name: 'Jonin' }, level: 1 });
+    assert.match(k.conn.last('notice').text, /mudou a sua patente: agora você é Jonin/);
+    assert.equal(k.conn.of('xp').length, 0, 'sem "+XP"');
+    assert.equal(other.conn.of('announce').length, 0, 'sem anúncio');
+    assert.match(v.conn.last('notice').text, /kaito agora é Jonin/);
+    // rebaixar: Academia; e o admin em si mesmo ("eu"): ANBU, depois Kage
+    v.send({ type: 'chat', message: '/admin patente kaito academia' });
+    run(1200); await flush(); await flush();
+    assert.equal(sess('k1').rank.code, 'ACADEMY');
+    assert.equal(sess('k1').canBeSensei, false);
+    v.send({ type: 'chat', message: '/admin patente eu anbu' });
+    run(1200); await flush(); await flush();
+    assert.deepEqual(sess('v1').rank, { code: 'ANBU', name: 'ANBU' });
+    v.send({ type: 'chat', message: '/admin patente Victor kage' });
+    run(1200); await flush(); await flush();
+    assert.deepEqual(sess('v1').rank, { code: 'HOKAGE', name: 'Kage' });
+    assert.match(v.conn.last('notice').text, /Victor agora é Kage/);
+    assert.deepEqual(admin.audit.map((a) => [a.command, a.targetId, a.ok]), [['rank', 'k1', true], ['rank', 'k1', true], ['rank', 'v1', true], ['rank', 'v1', true]]);
   });
 
   it('quem NÃO é admin: "/admin ..." vira só "Comando desconhecido" (nunca chat, nunca banco) e fica no log', async () => {
