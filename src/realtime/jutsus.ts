@@ -248,22 +248,24 @@ export const substitutionCooldownMs = (level: number) => (35 - 5 * Math.max(1, M
 export const jutsuPower = (level: number) => 1 + 0.1 * (Math.max(1, Math.min(4, level)) - 1);
 
 /**
- * Maestria (design final, Fase 0): cada nível de uso acima do 1 melhora o que faz sentido para AQUELE jutsu, não
- * necessariamente tudo:
- *  - dano: +10% de dano por nível (o jutsu de dano puro);
- *  - efeito: +10% na duração do que ele causa (atordoa, prende, silencia, queima, deixa lento...) por nível;
- *  - cura: +10% de cura por nível;
- *  - alcance: +5% de alcance por nível;
- *  - recarga: -5% de recarga por nível (o jutsu de recarga longa).
- * No nível 4: +30% de dano/efeito/cura, +15% de alcance, -15% de recarga. O controle continua dentro do orçamento
- * (pvpBalance CC_BUDGET), então a duração maior nunca passa do teto.
- * Os jutsus fora desta tabela seguem a regra antiga (dano e cura) até serem ajustados, aos poucos (README).
+ * Maestria (design final; Fase 0 no Fogo, Fase 1.5 em todos): cada nível de uso acima do 1 melhora o que faz sentido
+ * para AQUELE jutsu, não necessariamente tudo (no máximo 2 coisas por jutsu):
+ *  - dano: +10% de dano por nível;
+ *  - efeito: +10% na duração do que ele causa (atordoa, prende, silencia, queima, arremessa, marca, deixa lento...);
+ *  - cura: +10% de cura por nível (cura direta, em área, contínua e da zona);
+ *  - alcance: +5% de alcance (e do avanço ou recuo) por nível;
+ *  - recarga: -5% de recarga por nível (o jutsu de recarga longa);
+ *  - duracao: +10% na duração do buff, da zona de suporte ou da invocação (Fase 1.5);
+ *  - protecao: +10% no escudo, no muro ou na vida da invocação (Fase 1.5).
+ * No nível 4: +30% de dano/efeito/cura/duração/proteção, +15% de alcance, -15% de recarga. O controle continua dentro do
+ * orçamento (pvpBalance CC_BUDGET), então a duração maior nunca passa do teto; o escudo continua com o teto de 25% da vida.
+ * Teleporte e Substituição (Academia) evoluem do jeito deles (teleportRange, substitutionCooldownMs).
  */
-export type MasteryGain = 'dano' | 'efeito' | 'cura' | 'alcance' | 'recarga';
-export const MASTERY_STEP: Readonly<Record<MasteryGain, number>> = { dano: 0.1, efeito: 0.1, cura: 0.1, alcance: 0.05, recarga: 0.05 };
+export type MasteryGain = 'dano' | 'efeito' | 'cura' | 'alcance' | 'recarga' | 'duracao' | 'protecao';
+export const MASTERY_STEP: Readonly<Record<MasteryGain, number>> = { dano: 0.1, efeito: 0.1, cura: 0.1, alcance: 0.05, recarga: 0.05, duracao: 0.1, protecao: 0.1 };
 const MASTERY_DEFAULT: readonly MasteryGain[] = ['dano', 'cura'];
-/** O Fogo (entrega 2) já com a regra nova. */
 export const MASTERY: Readonly<Record<string, readonly MasteryGain[]>> = {
+  // Fogo (Fase 0)
   fire: ['dano', 'efeito'],               // Fogo: projétil que queima; a queimadura dura mais
   fire_endan: ['dano', 'efeito'],         // Sopro Incinerador: cone curto que queima
   fire_hibashiri: ['dano', 'alcance'],    // Linha de Fogo Rasante: a linha vai mais longe
@@ -275,29 +277,151 @@ export const MASTERY: Readonly<Record<string, readonly MasteryGain[]>> = {
   fire_3: ['dano'],                       // Varredura Flamejante: dano puro
   fire_hotan: ['dano'],                   // Projétil Dracônico: dano puro
   fire_4: ['dano', 'recarga'],            // Chuva de Meteoros: recarga de 12 s
+  // Cura (Fase 1.5)
+  heal: ['cura'],                         // Cura: cura em área
+  heal_2: ['dano', 'efeito'],             // Punho Sísmico: arremessa por mais tempo
+  heal_3: ['cura', 'recarga'],            // Regeneração de Área: recarga de 27 s
+  heal_4: ['cura', 'recarga'],            // Renovação Celular: recarga de 54 s
+  heal_desintox: ['cura', 'recarga'],     // Desintoxicação Celular: limpa e cura; recarga de 12 s
+  heal_bisturi: ['duracao', 'recarga'],   // Corte Cirúrgico (buff do básico)
+  heal_aura: ['cura'],                    // Aura de Regeneração: cura contínua
+  heal_disturbio: ['dano', 'efeito'],     // Descontrole Muscular: o controle invertido dura mais
+  heal_palma: ['cura'],                   // Palma Curadora
+  // Ilusão
+  illusion: ['efeito'],                   // Ilusão: atordoa em volta
+  illusion_2: ['efeito'],                 // Visão do Abismo: atordoa na linha
+  illusion_3: ['dano', 'efeito'],         // Raízes do Pesadelo
+  illusion_4: ['efeito', 'recarga'],      // Ciclo Sem Fim: só controle, recarga de 13,5 s
+  illusion_kai: ['recarga'],              // Dissipação: limpeza
+  illusion_estaca: ['dano', 'efeito'],    // Estaca da Ilusão
+  illusion_templo: ['dano', 'efeito'],    // Santuário das Penas: o atordoamento do fim dura mais
+  illusion_noite: ['efeito'],             // Noite Eterna: a escuridão dura mais
+  // Sombra
+  shadow: ['efeito'],                     // Sombra: prende
+  shadow_2: ['dano', 'efeito'],           // Agulhas de Sombra
+  shadow_3: ['dano', 'efeito'],           // Lâmina Umbral
+  shadow_4: ['dano', 'efeito'],           // Domínio das Sombras
+  shadow_recuo: ['alcance', 'recarga'],   // Reflexo Tático: recua mais longe
+  shadow_estrangular: ['dano'],           // Garrote de Sombra
+  shadow_agarre: ['dano', 'efeito'],      // Rede de Sombra
+  shadow_armadilha: ['dano', 'efeito'],   // Sombra Oculta: a armadilha prende por mais tempo
+  // Terra
+  stone: ['recarga'],                     // Pedra: escudo (a redução fica igual)
+  stone_2: ['dano', 'recarga'],           // Lamaçal Profundo: recarga de 14,4 s
+  stone_3: ['dano', 'efeito'],            // Esmagamento de Paredes
+  stone_4: ['recarga'],                   // Coração de Montanha: escudo (a redução fica igual)
+  stone_pilares: ['dano', 'efeito'],      // Prisão de Pilares
+  stone_rocha: ['dano', 'efeito'],        // Projétil de Rocha: a lentidão dura mais
+  stone_toupeira: ['dano', 'efeito'],     // Escavação Furtiva: arremessa por mais tempo
+  stone_punho: ['duracao', 'recarga'],    // Punho de Rocha (buff do básico)
+  stone_muralha: ['protecao', 'recarga'], // Muralha de Terra: muro mais forte
+  stone_golem: ['dano', 'recarga'],       // Golem de Terra Titânico: recarga de 40,5 s
+  // Água
+  water: ['dano', 'alcance'],             // Água: o cone vai mais longe
+  water_2: ['dano'],                      // Estouro de Maré
+  water_3: ['dano', 'efeito'],            // Cárcere Líquido: o alvo fica preso mais tempo (você não)
+  water_4: ['dano', 'recarga'],           // Prisão do Vórtice: recarga de 12,6 s
+  water_dragao: ['dano'],                 // Serpente d’Água
+  water_xarope: ['duracao'],              // Poça Viscosa: a poça dura mais
+  water_nevoa: ['duracao', 'recarga'],    // Véu de Bruma
+  water_muro: ['protecao', 'recarga'],    // Muro de Água
+  water_clone: ['duracao', 'protecao'],   // Duplo de Água: dura mais e aguenta mais
+  // Taijutsu
+  taijutsu: ['dano'],
+  taijutsu_2: ['dano'],                   // Chute Ciclone
+  taijutsu_3: ['dano'],                   // Cem Golpes
+  taijutsu_4: ['dano', 'recarga'],        // Punho do Céu: recarga de 10,8 s
+  taijutsu_rasteira: ['dano', 'efeito'],  // Rasteira Baixa: a lentidão dura mais
+  taijutsu_ascendente: ['dano', 'efeito'],// Chute Ascendente: arremessa por mais tempo
+  taijutsu_lotus: ['dano', 'efeito'],     // Mergulho Esmagador
+  taijutsu_portoes: ['duracao', 'recarga'], // Despertar do Corpo (buff)
+  // Armas
+  weapons: ['dano'],                      // Chuva de Kunais
+  weapons_2: ['dano'],                    // Lâminas Flutuantes
+  weapons_3: ['dano'],                    // Corte Relâmpago
+  weapons_4: ['dano', 'recarga'],         // Dança dos Mil Cortes: recarga de 10,8 s
+  weapons_multi: ['dano'],                // Shuriken Espelhada
+  weapons_kunai: ['dano', 'efeito'],      // Kunai Explosiva
+  weapons_dragoes: ['dano'],              // Ascensão Dupla
+  weapons_gigante: ['dano'],              // Shuriken Colossal
+  // Raio
+  lightning: ['dano', 'efeito'],          // Faísca Rasante
+  lightning_2: ['dano'],                  // Farpas de Trovão
+  lightning_3: ['dano', 'efeito'],        // Investida Elétrica
+  lightning_4: ['dano', 'recarga'],       // Julgamento do Trovão: recarga de 27 s
+  lightning_corrente: ['dano'],           // Corrente Rasteira
+  lightning_shuriken: ['dano'],           // Shuriken do Trovão
+  lightning_impulso: ['alcance', 'recarga'], // Impulso Estático: recua mais longe
+  lightning_raio: ['dano'],               // Lança Saltadora
+  lightning_fluxo: ['dano', 'efeito'],    // Descarga Envolvente: a paralisia dura mais
+  // Vento
+  wind: ['dano'],                         // Rajada Aberta
+  wind_2: ['dano'],                       // Balas de Vento
+  wind_3: ['dano', 'efeito'],             // Tornado Cortante
+  wind_4: ['dano', 'recarga'],            // Disco do Furacão: recarga de 27 s
+  wind_shuriken: ['dano'],                // Shuriken do Vento
+  wind_veu: ['protecao', 'recarga'],      // Véu de Vento: escudo maior
+  wind_salto: ['alcance', 'recarga'],     // Passo Aéreo: salta mais longe
+  wind_arco: ['dano'],                    // Lâmina em Arco
+  // Clã Rubro
+  rubro_olho: ['recarga'],                // Olhar Rubro: escudo (a redução fica igual)
+  rubro_transe: ['dano', 'efeito'],       // Transe Ocular
+  rubro_chamas: ['dano', 'efeito'],       // Brasa Sem Luz: a queimadura dura mais
+  rubro_guardiao: ['dano', 'protecao'],   // Sentinela Espectral: escudo maior (teto de 25%)
+  rubro_lua: ['dano', 'recarga'],         // Mundo Espelhado: recarga de 27 s
+  rubro_completo: ['dano', 'recarga'],    // Colosso Espectral: recarga de 27 s
+  // Clã Umbra
+  umbra_deslize: ['efeito', 'recarga'],   // Deslize Noturno: some e fortalece o golpe por mais tempo
+  umbra_faminta: ['efeito'],              // Sombra Faminta: a marca dura mais
+  umbra_noite: ['duracao', 'recarga'],    // Noite Fechada
+  umbra_forma: ['dano', 'duracao'],       // Forma Umbral: a forma dura mais
 };
 /** O que o jutsu ganha com a maestria. */
 export const masteryOf = (code: string): readonly MasteryGain[] => MASTERY[code] ?? MASTERY_DEFAULT;
-/** Bônus da maestria (0 no nível 1; 0,3 no nível 4 para dano/efeito/cura). */
+/** Bônus da maestria (0 no nível 1; 0,3 no nível 4 para dano/efeito/cura/duração/proteção). */
 export function masteryBonus(code: string, gain: MasteryGain, level: number): number {
   return masteryOf(code).includes(gain) ? MASTERY_STEP[gain] * (Math.max(1, Math.min(4, level)) - 1) : 0;
 }
 /** O nível de uso que conta no dano (ou na cura) do PvP: 1 quando a maestria do jutsu não melhora isso. */
 export const masteryUseLevel = (code: string, gain: 'dano' | 'cura', level: number) => (masteryOf(code).includes(gain) ? level : 1);
 
-/** Durações de efeito que a maestria "efeito" alonga. */
-const EFFECT_KEYS = ['stunMs', 'rootMs', 'silenceMs', 'paralysisMs', 'burnMs', 'slowMs', 'darkMs', 'invertMs', 'woundMs', 'dotMs', 'firstStunMs'] as const;
+/** Durações de efeito (no alvo) que a maestria "efeito" alonga. */
+const EFFECT_KEYS = ['stunMs', 'rootMs', 'silenceMs', 'paralysisMs', 'burnMs', 'slowMs', 'darkMs', 'invertMs', 'woundMs', 'dotMs', 'firstStunMs',
+  'liftMs', 'markMs', 'markSlowMs', 'stealthMs', 'nextHitMs'] as const;
+const ZONE_EFFECT_KEYS = ['firstRootMs', 'endStunMs'] as const;
+const PROTECTION_KEYS = ['shieldShare', 'wallHp', 'wallHpShare', 'summonHp'] as const;
 
-/** Os números do jutsu no nível de uso `level`, com a maestria de efeito, alcance e recarga (dano e cura: no golpe). */
+/** Os números do jutsu no nível de uso `level`, com a maestria de efeito, cura, alcance, recarga, duração e proteção (dano: no golpe). */
 export function withMastery<T extends SkillConfig>(cfg: T, code: string, level: number): T {
   if (!MASTERY[code] || level <= 1) return cfg;
   const out: T = { ...cfg };
+  const zone = cfg.zone ? { ...cfg.zone } : undefined;
+  if (zone) out.zone = zone;
   const effect = 1 + masteryBonus(code, 'efeito', level);
-  if (effect !== 1) for (const k of EFFECT_KEYS) if (typeof out[k] === 'number') out[k] = Math.round(out[k]! * effect);
+  if (effect !== 1) {
+    for (const k of EFFECT_KEYS) if (typeof out[k] === 'number') out[k] = Math.round(out[k]! * effect);
+    if (zone) for (const k of ZONE_EFFECT_KEYS) if (typeof zone[k] === 'number') zone[k] = Math.round(zone[k]! * effect);
+  }
+  const heal = 1 + masteryBonus(code, 'cura', level);
+  if (heal !== 1) {
+    if (typeof out.heal === 'number') out.heal = Math.round(out.heal * heal * 100) / 100;
+    if (typeof out.hot === 'number') out.hot = Math.round(out.hot * heal * 10_000) / 10_000;
+    if (zone && typeof zone.heal === 'number') zone.heal = Math.round(zone.heal * heal * 100) / 100;
+  }
   const cd = 1 - masteryBonus(code, 'recarga', level);
   if (cd !== 1) out.cooldownMs = Math.round(out.cooldownMs * cd);
   const reach = 1 + masteryBonus(code, 'alcance', level);
-  if (reach !== 1 && out.range !== undefined) out.range = Math.round(out.range * reach * 100) / 100;
+  if (reach !== 1) {
+    if (out.range !== undefined) out.range = Math.round(out.range * reach * 100) / 100;
+    if (out.dash !== undefined) out.dash = Math.round(out.dash * reach * 100) / 100;
+  }
+  const lasts = 1 + masteryBonus(code, 'duracao', level);
+  if (lasts !== 1) {
+    if (typeof out.durationMs === 'number') out.durationMs = Math.round(out.durationMs * lasts);
+    if (zone) zone.ms = Math.round(zone.ms * lasts);
+  }
+  const guard = 1 + masteryBonus(code, 'protecao', level);
+  if (guard !== 1) for (const k of PROTECTION_KEYS) if (typeof out[k] === 'number') out[k] = Math.round(out[k]! * guard * 10_000) / 10_000;
   return out;
 }
 
