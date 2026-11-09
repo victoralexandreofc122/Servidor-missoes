@@ -35,7 +35,7 @@ const CLAN_HINT: Readonly<Record<Clan, string>> = {
   andarilho: 'Sem clã, a Substituição volta 15% mais rápido.',
 };
 import { CC_BUDGET, CC_WEIGHT, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
-import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, scrollOf, type Gear } from './items.js';
+import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, SCROLL, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
 import type { RankedStore } from './rankedStore.js';
@@ -1039,6 +1039,8 @@ export class GameWorld {
       this.log.info({ playerId: player.id, online: this.sessions.size }, 'jogador entrou');
     }
 
+    // v34: com banco, só fica no kit jutsu da Academia, das suas classes (Primária e Secundária) ou da sua linhagem
+    if (this.store) session.kits = this.usableKits(session);
     this.sendTo(session, {
       type: 'welcome', you: this.selfView(session), players: this.othersIn(session), monsters: this.monstersIn(session.map), world: this.worldInfo(session),
       progress: this.progressView(session), kit: this.kitView(session), ninja: this.ninjaView(session),
@@ -1613,12 +1615,51 @@ export class GameWorld {
   /** Comandos de admin no banco. O alvo online vê a ficha nova na hora (sem anúncio, sem XP de abate). */
   private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | { cmd: 'clima' } | { cmd: 'hora' } | { cmd: 'pvp' } | EndgameAdminCommand>): Promise<void> {
     const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
-    const target = await store.findPlayer(c.username);
+    // "eu" (só na patente): o próprio admin
+    const username = (c.cmd === 'rank' || c.cmd === 'resetclasses') && c.username === 'eu' ? (this.sessions.get(adminId)?.username ?? c.username) : c.username;
+    const target = await store.findPlayer(username);
     if (!target) {
-      await store.log(adminId, c.cmd, null, { username: c.username }, false, 'jogador não encontrado');
-      return say(`Admin: jogador "${c.username}" não encontrado.`, 'bad');
+      await store.log(adminId, c.cmd, null, { username }, false, 'jogador não encontrado');
+      return say(`Admin: jogador "${username}" não encontrado.`, 'bad');
     }
     switch (c.cmd) {
+      case 'resetclasses': {
+        const r = await store.resetClasses(adminId, target.id);
+        if (!r.ok) return say(`Admin: ${r.text}`, 'bad');
+        const s = this.sessions.get(target.id);
+        if (s) {
+          s.classes = { primary: null, secondary: null };
+          s.clan = null;
+          s.rank = { code: 'ACADEMY', name: 'Academia' };
+          s.canBeSensei = false;
+          for (const code of [...s.jutsus.keys()]) {
+            const j = JUTSU_BY_CODE.get(code);
+            if (j && (j.class !== null || j.clan)) s.jutsus.delete(code);
+          }
+          s.kits = { A: s.kits.A.filter((k) => s.jutsus.has(k)), B: s.kits.B.filter((k) => s.jutsus.has(k)) };
+          this.sendTo(s, { type: 'classes', ...s.classes });
+          this.sendTo(s, { type: 'jutsus', jutsus: Object.fromEntries(s.jutsus) });
+          this.sendTo(s, { type: 'kit', ...this.kitView(s) });
+          this.sendTo(s, { type: 'progress', ...this.progressView(s) });
+          this.broadcastMap(s.map, { type: 'player_rank', playerId: s.id, rank: s.rank, level: s.level });
+        }
+        say(`Admin: ${target.username} voltou à Academia sem classe e sem linhagem (${r.removed} jutsus de classe e de clã removidos). Fale com o Diretor para escolher de novo.`, 'good');
+        break;
+      }
+      case 'rank': {
+        const r = await store.setRank(adminId, target.id, c.rank);
+        if (!r.ok) return say(`Admin: ${r.text}`, 'bad');
+        const s = this.sessions.get(target.id);
+        if (s) {
+          s.rank = r.rank;
+          s.canBeSensei = r.canBeSensei;
+          this.sendTo(s, { type: 'progress', ...this.progressView(s) });
+          this.broadcastMap(s.map, { type: 'player_rank', playerId: s.id, rank: s.rank, level: s.level });
+          if (s.id !== adminId) this.sendTo(s, { type: 'notice', text: `O administrador mudou a sua patente: agora você é ${r.rank.name}.`, tone: 'info' });
+        }
+        say(`Admin: ${target.username} agora é ${r.rank.name}.`, 'good');
+        break;
+      }
       case 'level': {
         const r = await store.setLevel(adminId, target.id, c.level);
         if (!r.ok) return say(`Admin: ${r.text}`, 'bad');
@@ -1719,6 +1760,7 @@ export class GameWorld {
     if (this.inSafeZone(session)) return fail('SAFE_ZONE');
     // Só jutsu APRENDIDO (Academia, os de antes ou os da Extração) e no kit ATIVO.
     if (!session.jutsus.has(skill)) return fail('NOT_LEARNED');
+    if (!this.canUse(session, skill)) return fail('NOT_YOUR_CLASS');   // v34: jutsu de outra classe não sai
     if (!session.kits[session.activeKit].includes(skill)) return fail('NOT_EQUIPPED');
     if ((session.cooldowns[skill] ?? 0) > t) return fail('COOLDOWN');
     // v28: nas áreas de PvP, Taijutsu e Armas custam e recarregam mais (pvpBalance.ts).
@@ -3074,9 +3116,29 @@ export class GameWorld {
     this.sendTo(session, { type: 'kit', ...this.kitView(session) });
   }
 
-  /** Salvar kits (até 4 por kit, sem repetir: o Zod e o banco conferem; só jutsu APRENDIDO). Grava no banco. */
+  /**
+   * v34: o ninja só USA (kit e jutsu) o que é da Academia, da sua classe Primária ou Secundária, ou da sua linhagem (clã). Jutsu
+   * aprendido de outra classe (os 7 jutsus que contas de antes da v7 ganharam, presente do admin, classe trocada) fica guardado,
+   * mas não entra no kit nem sai. Vale com banco (o servidor de verdade); sem banco (testes), tudo o que foi aprendido vale.
+   */
+  private canUse(s: Session, code: string): boolean {
+    if (!this.store) return true;
+    const j = JUTSU_BY_CODE.get(code as Skill);
+    if (!j) return false;
+    if (j.class === null && !j.clan) return true;                                       // Academia
+    if (s.clan && clanJutsusFor(s.clan, MAX_LEVEL).includes(code)) return true;          // linhagem (Rubro; Umbra usa os de sombra)
+    return j.class !== null && (j.class === s.classes.primary || j.class === s.classes.secondary);
+  }
+
+  /** Os kits só com o que ele pode usar (v34). */
+  private usableKits(s: Session): Kits {
+    return { A: s.kits.A.filter((k) => this.canUse(s, k)), B: s.kits.B.filter((k) => this.canUse(s, k)) };
+  }
+
+  /** Salvar kits (até 4 por kit, sem repetir: o Zod e o banco conferem; só jutsu APRENDIDO e da sua classe). Grava no banco. */
   private setLoadout(session: Session, kits: Kits): void {
     if (![...kits.A, ...kits.B].every((j) => session.jutsus.has(j))) return this.sendError(session, 'NOT_LEARNED');
+    if (![...kits.A, ...kits.B].every((j) => this.canUse(session, j))) return this.sendError(session, 'NOT_YOUR_CLASS');
     const { id } = session;
     this.profileTask(session, (profile) => profile.saveLoadout(id, kits.A, kits.B).then(() => {
       const current = this.sessions.get(id);
@@ -3325,19 +3387,17 @@ export class GameWorld {
     }
   }
 
-  /** Genin ou acima: às vezes o monstro deixa 1 pergaminho de uma classe do jogador. */
+  /** Genin ou acima (com classe): às vezes o monstro deixa 1 Pergaminho (v34: o pergaminho único, serve para qualquer classe sua). */
   private maybeDropScroll(killer: Session): void {
     const store = this.store;
-    const owned = [killer.classes.primary, killer.classes.secondary].filter((c): c is ClassCode => c !== null);
-    if (!store || owned.length === 0 || this.secureRandom() >= SCROLL_DROP_CHANCE) return;
-    const cls = owned[Math.floor(this.secureRandom() * owned.length)]!;
+    if (!store || killer.classes.primary === null || this.secureRandom() >= SCROLL_DROP_CHANCE) return;
     const { id } = killer;
-    store.addItem(id, scrollOf(cls), 1).then((items) => {
+    store.addItem(id, SCROLL, 1).then((items) => {
       const s = this.sessions.get(id);
       if (!s) return;
       s.items = items;
       this.sendInventory(s);
-      this.sendTo(s, { type: 'notice', text: `O monstro deixou um Pergaminho de ${CLASS_INFO[cls].name}!`, tone: 'good' });
+      this.sendTo(s, { type: 'notice', text: 'O monstro deixou um Pergaminho!', tone: 'good' });
     }).catch((err: unknown) => this.log.warn({ playerId: id, err }, 'falha ao gravar o pergaminho do drop'));
   }
 
@@ -3500,7 +3560,9 @@ export class GameWorld {
     if (!this.near(session, 'director')) return this.sendError(session, 'DIRECTOR_TOO_FAR');
     const { id, username } = session;
     const refuse = (current: Session, text: string) => this.sendTo(current, { type: 'notice', text, tone: 'bad' });
-    if (session.classes.primary !== null) {
+    // Admin de volta à Academia (/admin patente) refaz a Missão de Genin para testar (v23); os outros, uma vez só.
+    const redoGenin = session.isAdmin && session.rank.code === 'ACADEMY';
+    if (session.classes.primary !== null && !redoGenin) {
       // Já tem a Primária: é a Secundária (Chunin nível 40; o banco confere).
       this.storeTask(session, (store) => store.chooseSecondary(id, cls).then((result) => {
         const current = this.sessions.get(id);

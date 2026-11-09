@@ -105,6 +105,8 @@ export const CONSTRAINT_ERRORS: Readonly<Record<string, PublicError>> = {
   rule_admin_season: { status: 409, code: 'NO_SEASON', message: 'Não há temporada aberta.' },
   ck_world_events_pair: { status: 422, code: 'INVALID_INPUT', message: 'Evento inválido: guerra é entre duas vilas; trégua, entre duas ou entre todas.' },
   rule_admin_level: { status: 422, code: 'INVALID_INPUT', message: 'O nível vai de 1 a 60.' },
+  rule_admin_reset_target: { status: 422, code: 'INVALID_INPUT', message: 'O reset de classes é só para conta de admin (para testar builds).' },
+  rule_admin_rank: { status: 422, code: 'INVALID_INPUT', message: 'Patente desconhecida (academia, genin, chunin, jounin, anbu ou kage).' },
   rule_admin_jutsu_level: { status: 422, code: 'INVALID_INPUT', message: 'O nível do jutsu vai de 1 a 4.' },
   rule_admin_quantity: { status: 422, code: 'INVALID_INPUT', message: 'A quantidade vai de 1 a 999.' },
 

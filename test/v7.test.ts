@@ -411,6 +411,58 @@ describe('v7: Armas, loja, Extração e classe (servidor)', () => {
     assert.equal(p.conn.last('inventory').items.scroll_lightning, 1);
   });
 
+  it('Missão de Genin (v23): admin que voltou à Academia refaz com outra classe; quem não é admin cai na Secundária (uma vez só)', async () => {
+    for (const admin of [true, false]) {
+      const fake = fakeNinjaStore({ level: 11, classes: { primary: 'fire', secondary: null } });
+      const { join, sess } = setup({ store: fake.store });
+      const p = join('kaito', { level: 11, isAdmin: admin, classes: { primary: 'fire', secondary: null } });
+      const s = sess(p.id);
+      s.map = 'academy_interior';
+      Object.assign(s, { x: ACADEMY.director.x, y: ACADEMY.director.y + 2 });
+      s.rank = { code: 'ACADEMY', name: 'Academia' };          // o admin voltou à Academia pelo /admin patente
+      p.send({ type: 'talk', npcId: 'director' });
+      assert.equal(p.conn.last('class_choice').kind, 'primary', 'a Academia sempre oferece a Missão de Genin');
+      p.send({ type: 'choose_class', class: 'water' });
+      await flush(); await flush();
+      if (admin) {
+        assert.deepEqual(fake.calls.filter((c) => c[0] === 'becomeGenin' || c[0] === 'chooseSecondary').at(-1), ['becomeGenin', p.id, 'water']);
+        assert.deepEqual(s.rank, { code: 'GENIN', name: 'Genin' });
+        assert.deepEqual(p.conn.last('classes'), { type: 'classes', primary: 'water', secondary: null });
+      } else {
+        assert.deepEqual(fake.calls.filter((c) => c[0] === 'becomeGenin' || c[0] === 'chooseSecondary').at(-1), ['chooseSecondary', p.id, 'water']);
+        assert.equal(s.rank.code, 'ACADEMY');
+      }
+    }
+  });
+
+  it('v34: com banco, só entra no kit (e só sai) jutsu da Academia, das suas classes ou da sua linhagem; o resto fica guardado', async () => {
+    const fake = fakeNinjaStore({ level: 40, classes: { primary: 'fire', secondary: null } });
+    const { join, sess } = setup({ store: fake.store });
+    // conta de antes da v7: os 7 jutsus de todas as classes aprendidos e no kit; Primária Fogo, linhagem Rubro
+    const p = join('veterano', {
+      level: 40, classes: { primary: 'fire', secondary: null }, clan: 'rubro',
+      jutsus: { teleport: 0, substitution: 0, fire: 0, water: 0, taijutsu: 0, heal: 0, illusion: 0, shadow: 0, stone: 0, rubro_olho: 0 },
+      kits: { A: ['fire', 'water', 'taijutsu', 'heal'], B: ['illusion', 'shadow', 'substitution', 'rubro_olho'] },
+    });
+    const s = sess(p.id);
+    assert.deepEqual(p.conn.last('welcome').kit.kits, { A: ['fire'], B: ['substitution', 'rubro_olho'] }, 'ao entrar, o kit perde o que é de outra classe');
+    assert.ok(s.jutsus.has('water'), 'o jutsu continua aprendido (nada se apaga)');
+    p.send({ type: 'set_loadout', kitA: ['fire', 'water'], kitB: [] });
+    assert.equal(p.conn.last('error').code, 'NOT_YOUR_CLASS');
+    s.kits.A = ['water'];                                     // mesmo se o kit tivesse ficado com ele: não sai
+    Object.assign(s, { tutorial: 4, chakra: 100, cooldowns: {} });
+    s.map = 'map_2';
+    p.send({ type: 'cast', skill: 'water' });
+    assert.equal(p.conn.last('cast_failed').reason, 'NOT_YOUR_CLASS');
+    // a classe Secundária (nível 40) libera os jutsus dela
+    s.classes.secondary = 'water';
+    const errors = p.conn.of('error').length;
+    p.send({ type: 'set_loadout', kitA: ['fire', 'water'], kitB: ['rubro_olho'] });
+    await flush(); await flush();
+    // passou da regra da classe (aqui, sem perfil gravável, o teste só confere que o motivo não é mais a classe)
+    assert.ok(p.conn.of('error').slice(errors).every((e: { code: string }) => e.code !== 'NOT_YOUR_CLASS'), 'com a Água como Secundária, o kit passa da regra da classe');
+  });
+
   it('compra: só perto do lojista que VENDE o item; preço do banco', async () => {
     const fake = fakeNinjaStore({ ryo: 500 });
     const { join, sess } = setup({ store: fake.store });

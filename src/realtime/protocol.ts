@@ -536,7 +536,7 @@ export interface WorldInfo {
   maxLevel: number;
 }
 
-export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED' | 'SILENCED' | 'ASLEEP' | 'CASTING';
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'NOT_YOUR_CLASS' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED' | 'SILENCED' | 'ASLEEP' | 'CASTING';
 /** Por que a meditação acabou. */
 export type MeditationEnd = 'manual' | 'moved' | 'cast' | 'damaged' | 'died';
 export type MonsterStatus = 'stunned' | 'rooted';
@@ -738,6 +738,7 @@ export const REALTIME_ERRORS = {
   NOT_A_CAPE: 'Isso não é uma capa.',
   NOT_SHOES: 'Só sapatos vão nos pés.',
   NOT_ACCESSORY: 'Esse item não é um acessório.',
+  NOT_YOUR_CLASS: 'Esse jutsu é de outra classe: só entram no kit os da sua classe Primária, Secundária, da Academia ou da sua linhagem.',
 } as const;
 export type RealtimeErrorCode = keyof typeof REALTIME_ERRORS;
 

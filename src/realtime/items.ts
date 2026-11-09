@@ -100,8 +100,11 @@ export const ITEMS: readonly ItemDef[] = [
     code: 'katana', name: 'Espada Longa', kind: 'weapon', icon: '⚔️', damage: 28, price: 2000, shop: 'weapons', hold: 'back', twoHanded: true,
     swing: { cooldownFactor: 1.15, arcDeg: 140, range: 2 },
   },
+  // v34 (migração v24): um pergaminho só, que serve para a Extração de qualquer classe sua. Os de classe ficam no catálogo, sem venda
+  // (a v24 somou todos no pergaminho novo).
+  { code: 'scroll_liso', name: 'Pergaminho', kind: 'scroll', icon: '📜', price: 150, shop: 'scrolls', hold: 'back' },
   ...CLASSES.map((c): ItemDef => ({
-    code: `scroll_${c}`, name: `Pergaminho de ${CLASS_INFO[c].name}`, kind: 'scroll', icon: '📜', class: c, price: 150, shop: 'scrolls', hold: 'back',
+    code: `scroll_${c}`, name: `Pergaminho de ${CLASS_INFO[c].name} (antigo)`, kind: 'scroll', icon: '📜', class: c, price: null, shop: null, hold: 'back',
   })),
   { code: 'capa_viagem', name: 'Capa de Viagem', kind: 'cape', icon: '🧥', price: 400, shop: 'clothes', hold: 'back' },
   { code: 'capa_vila', name: 'Capa da Vila', kind: 'cape', icon: '🧣', price: 900, shop: 'clothes', hold: 'back' },
@@ -139,7 +142,8 @@ export const ROLE_CAPES: Readonly<Record<string, 'kage' | 'akatsuki'>> = { manto
 
 export const ITEM_BY_CODE: ReadonlyMap<string, ItemDef> = new Map(ITEMS.map((i) => [i.code, i]));
 export const ITEM_CODES = ITEMS.map((i) => i.code) as unknown as readonly [string, ...string[]];
-export const scrollOf = (c: ClassCode) => `scroll_${c}`;
+/** v34: o pergaminho único da Extração (qualquer classe). */
+export const SCROLL = 'scroll_liso';
 
 /** Ryō que cada monstro deixa (o servidor sorteia entre min e max). */
 export const KILL_RYO = { min: 5, max: 15 } as const;
