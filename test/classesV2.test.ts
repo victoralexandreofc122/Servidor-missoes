@@ -617,7 +617,7 @@ describe('v37: mira pela forma do jutsu (todas as classes)', () => {
   });
 
   it('projétil da Água e linha da Ilusão: mirar para cima acerta o de cima, não o mais perto', () => {
-    for (const [skill, cls] of [['water_dragao', 'water'], ['illusion_estaca', 'illusion'], ['stone_rocha', 'stone']]) {
+    for (const [skill, cls] of [['water_dragao', 'water'], ['illusion_estaca', 'illusion'], ['stone_rocha', 'stone']] as const) {
       const r = aimed(skill, cls);
       assert.ok(r.up > 0, `${skill}: acertou o de cima`);
       assert.equal(r.right, 0, `${skill}: não foi no mais perto`);
@@ -631,7 +631,7 @@ describe('v37: mira pela forma do jutsu (todas as classes)', () => {
   });
 
   it('salto (Passo Aéreo) vai para onde mirou; o recuo de costas também (Reflexo Tático)', () => {
-    for (const [skill, cls] of [['wind_salto', 'wind'], ['shadow_recuo', 'shadow']]) {
+    for (const [skill, cls] of [['wind_salto', 'wind'], ['shadow_recuo', 'shadow']] as const) {
       const sc = scene(skill, []);
       sc.s.classes = { primary: cls, secondary: null };
       const y0 = sc.s.y;
