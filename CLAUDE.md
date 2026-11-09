@@ -57,6 +57,14 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   o Victor escolhe, só então aplicar** (código, banco, testes e docs). "Continuar a partir da sua recomendação" não é escolha: se o Victor
   não disse qual opção, perguntar. Vale para jutsus, clãs, locais, itens, NPCs, títulos e organizações, nesta e nas próximas fases.
 
+- **Troca de classe no nível 60 (decisão do Victor, 09/11/2026; implementar na Fase 2):** custo alto em ryō, só no nível 60. Os jutsus
+  e a maestria da classe antiga **ficam guardados no perfil**, só **bloqueados no kit** (a trava de classe da v34, `canUse` no
+  `gameWorld.ts`, já faz isso); se ele voltar para aquela classe, voltam a valer sem perder nada. A proteção contra azar da Extração
+  da classe antiga também fica guardada.
+- **#11, linhagem (decisões do Victor, 09/11/2026):** a linhagem (Rubro, Umbra, Andarilho) é **marcada no Criador de Personagem** e
+  **despertada no "Rito do Despertar"** (missão no rank Genin, nível 11); a árvore só abre depois do Rito. A classe Sombra continua uma
+  das 10 classes; o **Clã Umbra ganha 4 jutsus próprios** (nomes e mecânicas: 3 opções por jutsu, o Victor escolhe antes de codar).
+
 - `npm run verify` (typecheck, testes e build) tem que passar antes de qualquer commit.
 - Mudança visual: conferir no jogo com o navegador automático (Playwright) e mostrar imagens ao Victor.
 - Commit e push só com o código verificado; mudança que precisa de migração vai num branch até o Victor rodar a
