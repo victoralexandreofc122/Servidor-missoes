@@ -234,6 +234,21 @@ describe('Rito do Despertar de ponta a ponta (banco)', { skip: noDatabase }, () 
     w.close();
   });
 
+  it('deploy no meio do Rito: o desligamento espera a fila de gravação e o progresso não se perde', async () => {
+    const id = await genin('rito_deploy', 11);
+    const { w, run } = world();
+    const p = await enter(w, id);
+    p.send({ type: 'clan', clan: 'rubro' });
+    await settle();
+    toDirector(w, id);
+    p.send({ type: 'talk', npcId: 'director' });
+    await settle();
+    hunt(w, run, p, 3);                                 // 3 gravações na fila, uma a cada 250 ms
+    await w.flushAll();                                 // o que o servidor faz ao receber SIGTERM
+    assert.equal((await one('SELECT rite_progress FROM game.players WHERE id = $1', [id])).rite_progress, 3);
+    w.close();
+  });
+
   it('a Caverna do Lodo também conta (o Lodo Escuro nasce lá) e o Lodo Sombrio não', async () => {
     const id = await genin('rito_caverna', 11);
     const { w, run } = world();

@@ -249,6 +249,8 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   se o banco falhar, o jogador continua com o Rito completo e só fala com o Diretor de novo.
 - Correção: o olho do Rubro, a névoa do Umbra e a faixa do Andarilho só apareciam depois de alguém subir de nível; agora
   aparecem ao entrar no jogo e no mapa.
+- Correção: no desligamento (cada deploy no Render), o servidor espera as gravações pendentes de cada jogador (até 5 s)
+  antes de sair; antes, o que estava na fila no último segundo podia se perder.
 - A névoa do Umbra ficou mais densa (no chão do jogo a de antes sumia); a faixa do Andarilho ficou clara e mais larga.
 
 ### v36: Fase 1.5, maestria em todos os jutsus (sem migração)

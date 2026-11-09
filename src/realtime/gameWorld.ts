@@ -3097,8 +3097,13 @@ export class GameWorld {
   }
 
   /** Grava o uso de TODO mundo (desligando o servidor). */
-  async flushAll(): Promise<void> {
+  async flushAll(maxWaitMs = 5000): Promise<void> {
     await Promise.all([...this.sessions.values()].map((s) => this.flushUsage(s)));
+    // v37: no desligamento (deploy), espera também as gravações na fila de cada jogador (Rito, compras, linhagem...).
+    const until = Date.now() + maxWaitMs;
+    while (Date.now() < until && [...this.sessions.values()].some((s) => s.profileBusy || s.profileQueue.length > 0)) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
   }
 
   /** Começar ou parar de meditar. Morto não medita; meditar para o jogador na hora. */
