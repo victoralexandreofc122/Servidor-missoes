@@ -15,6 +15,7 @@ const CLASS_PT = { fire: 'Fogo', water: 'Água', lightning: 'Raio', stone: 'Terr
 const CLAN_PT = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' };
 const WEATHERS = [['normal', '☁️ Normal'], ['quente', '☀️ Quente'], ['chuva', '🌧️ Chuva'], ['neblina', '🌫️ Neblina']];
 const PHASES = [['amanhecer', '🌅 Amanhecer'], ['dia', '🌞 Dia'], ['entardecer', '🌇 Entardecer'], ['noite', '🌙 Noite']];
+const XP_VILLAGES = [['chama', 'Chama Eterna'], ['mare', 'Maré Oculta'], ['vento', 'Vento Cortante'], ['rocha', 'Rocha Antiga']];
 const MODULES = [['vilas', 'Vilas e Kage'], ['pvp', 'Zona de Conflito'], ['renegados', 'Renegados'], ['akatsuki', 'Cinzas']];
 const KIND_NAME = { weapon: 'Arma', scroll: 'Pergaminho', cape: 'Capa', shoes: 'Sapato', accessory: 'Acessório' };
 const CLASS_ORDER = ['fire', 'water', 'lightning', 'stone', 'taijutsu', 'illusion', 'shadow', 'heal', 'weapons', 'wind'];
@@ -26,7 +27,7 @@ export function mountAdminUI(api) {
     toggle: $('admin-toggle'), panel: $('admin-panel'), close: $('admin-close'), tabs: $('admin-tabs'), body: $('admin-body'),
     target: $('admin-target'), players: $('admin-players'), me: $('admin-me'), sent: $('admin-sent'), reply: $('admin-reply'),
   };
-  const s = { tab: 'jogador', catalog: null, pvp: null, feedback: null, feedbackError: '', feedbackOnlyNew: true, itemFilter: '', jutsuLevel: '4', qty: { item: '1', monster: '1' } };
+  const s = { tab: 'jogador', catalog: null, pvp: null, feedback: null, feedbackError: '', feedbackOnlyNew: true, itemFilter: '', jutsuLevel: '4', xpScope: 'global', xpTarget: '', xpPercent: '50', xpMinutes: '60', qty: { item: '1', monster: '1' } };
 
   // ---------------------------------------------------------------- pequenos construtores de tela
 
@@ -186,7 +187,30 @@ export function mountAdminUI(api) {
     x.placeholder = 'x';
     y.placeholder = 'y';
     const minutes = num(10, 1, 120, 'Minutos');
+    // v44: bônus de XP (o XP de derrotar monstros), com alvo, porcentagem e duração
+    const monsters = s.catalog?.monsters ?? [];
+    const scope = pick([['global', 'Todo o jogo'], ['mapa', 'Um mapa'], ['monstro', 'Um tipo de monstro'], ['vila', 'Uma aldeia']], 'Onde vale', s.xpScope);
+    const targets = { mapa: maps.map((m) => [m.id, m.name]), monstro: monsters.map((m) => [m.code, m.name]), vila: XP_VILLAGES };
+    const target = pick(targets[s.xpScope] ?? [], 'Alvo', s.xpTarget);
+    target.hidden = s.xpScope === 'global';
+    scope.addEventListener('change', () => { s.xpScope = scope.value; s.xpTarget = ''; render(); });
+    target.addEventListener('change', () => (s.xpTarget = target.value));
+    const percent = num(s.xpPercent, 1, 500, 'Porcentagem');
+    const xpMin = num(s.xpMinutes, 1, 10080, 'Minutos do bônus');
+    percent.addEventListener('input', () => (s.xpPercent = percent.value));
+    xpMin.addEventListener('input', () => (s.xpMinutes = xpMin.value));
+    const xpTarget = () => (scope.value === 'global' ? 'global' : `${scope.value} ${target.value}`);
     return [
+      section('Bônus de XP',
+        row('Onde vale', scope, target),
+        row('Bônus (%)', percent),
+        row('Duração (min)', xpMin, ...[['1 h', 60], ['3 h', 180], ['1 dia', 1440]].map(([text, m]) => btn(text, () => { s.xpMinutes = String(m); xpMin.value = m; }, 'chip'))),
+        el('div', { class: 'adm-bar' },
+          btn('Ligar bônus', () => run(`bonusxp ${xpTarget()} ${percent.value} ${xpMin.value}`)),
+          btn('Remover este', () => run(`bonusxp remover ${xpTarget()}`)),
+          btn('Ver ativos', () => run('bonusxp')),
+          danger('Remover todos', () => run('bonusxp remover tudo'))),
+        hint('Vale para o XP de derrotar monstros. De 1% a 500%, até 7 dias. Bônus de alvos diferentes somam; ligar de novo o mesmo alvo troca o valor. Todos são avisados no chat.')),
       section('Ir para',
         row('Mapa', map, x, y, btn('Ir', () => run(`ir ${map.value}${x.value !== '' && y.value !== '' ? ` ${x.value} ${y.value}` : ''}`))),
         hint('Sem x e y: o meio do mapa. Leva só você.')),

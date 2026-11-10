@@ -240,6 +240,18 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v44: bônus de XP do admin (migração v29, `db/schema_v29_bonus_xp.sql`)
+
+- O admin liga um bônus no XP de derrotar monstros: **em todo o jogo**, **num mapa**, **num tipo de monstro** ou para os
+  ninjas de **uma aldeia** (valem em qualquer lugar). De 1% a 500%, de 1 minuto a 7 dias.
+- Comandos: `/admin bonusxp global 50 60` · `bonusxp mapa map_2 100 180` · `bonusxp monstro lodo_escuro 30` (sem minutos:
+  60) · `bonusxp vila mare 20 1440` · `bonusxp remover <alvo>` · `bonusxp remover tudo` · `bonusxp` (lista os ativos).
+- No Painel do Admin: aba **Mundo**, seção **Bônus de XP** (alvo, %, duração, Ligar, Remover este, Ver ativos, Remover todos).
+- Bônus de alvos diferentes **somam**; ligar de novo o mesmo alvo **troca** o valor e o prazo. Todos são avisados no chat
+  quando um bônus começa e acaba, e quem entra vê os que valem para ele.
+- Fica gravado no banco (`game.xp_bonuses`, com histórico e auditoria): continua valendo depois de um deploy. Sem a v29 o
+  comando funciona, mas só até o servidor reiniciar. Contas em `src/realtime/xpBonus.ts`.
+
 ### v43: Fase 2, passo 4: a Fase Final do Torneio da Temporada (migração v28, `db/schema_v28_fase_final.sql`)
 
 - **Trava de vila:** do começo do Torneio até o encerramento ninguém troca de uma vila para outra (banco e servidor).
