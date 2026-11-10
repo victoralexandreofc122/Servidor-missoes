@@ -1113,6 +1113,7 @@ export class GameWorld {
     });
     this.joinEndgame(session, !eg);
     this.duelRejoin(session);                  // v29: caiu no meio da partida do rankeado e voltou a tempo
+    if (session.map === 'vale_estatuas') { this.sendDuelState(session); this.sendJouninState(session); }   // v43: reconectou já na Arena: o placar, as filas e o Torneio
     if (session.clan) this.grantClanJutsus(session);   // v30: um tier do clã que o nível alcançou longe do jogo
     else if (session.rank.code !== 'ACADEMY' && session.level >= CLAN_TIER_LEVEL[0]) {
       this.sendTo(session, { type: 'notice', text: session.clanMark

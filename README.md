@@ -240,6 +240,22 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v43: Fase 2, passo 4: a Fase Final do Torneio da Temporada (migração v28, `db/schema_v28_fase_final.sql`)
+
+- **Trava de vila:** do começo do Torneio até o encerramento ninguém troca de uma vila para outra (banco e servidor).
+- **Grupos:** `/admin torneio fechar` fecha os pontos e põe os finalistas (2x as vagas) em grupos de até 5, com os cabeças
+  de chave espalhados em cobrinha. Todos contra todos, melhor de 3 rodadas; passam os 2 primeiros.
+- **Eliminatória:** `/admin torneio chaves` fecha os grupos (jogo que faltou = derrota dos dois) e monta a chave (16, 8, 4,
+  2), com folga para os melhores quando a conta não fecha e sem repetir o colega de grupo na 1ª rodada.
+- **Jogos:** fila da Fase Final na Arena: a luta sai quando dois finalistas com jogo pendente entre si estão na fila; têm a
+  vez sobre o rankeado. `/admin torneio wo <nome>` dá W.O. a quem não apareceu.
+- **Encerramento:** `/admin torneio encerrar` grava os Jounin da era (quem entrou na chave e, sobrando vaga, os melhores
+  terceiros), dá a patente, paga 200 ryō e o título "Serei o próximo Jounin" a quem ficou fora da Fase Final e fecha o Torneio.
+- **Tela:** o botão da Arena vira "Fase Final: Grupos", "Fase Final: Chaves" e "Jounin da Era"; o painel mostra os seus
+  jogos pendentes, o seu grupo e os outros, a chave e, no fim, o campeão e os Jounin da era.
+- Regras em `src/realtime/tournament.ts`. Arenas simultâneas e calendário automático ficam para depois (hoje é uma arena e
+  as etapas avançam por comando de admin).
+
 ### v42: Fase 2, passo 3: a tela do Torneio da Temporada (sem migração)
 
 - Na Arena, botão **Torneio da Temporada** (fechado: "🔒 Torneio Fechado"). O painel mostra "Partidas jogadas: X/15", "Seus
