@@ -126,7 +126,7 @@ export type DuelPhase = 'prep' | 'round' | 'interval' | 'done';
 export type Side = 'a' | 'b';
 
 /** 'ranked' = o rankeado de sempre (MMR); 'jounin' = Torneio da Temporada (pontos da era, v41). */
-export type DuelMode = 'ranked' | 'jounin';
+export type DuelMode = 'ranked' | 'jounin' | 'final';   // 'final' = jogo de grupo ou de chave da Fase Final (v43)
 
 export interface DuelMatch {
   id: number;

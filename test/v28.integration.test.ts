@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
+import { makeAdminStore } from '../src/realtime/admin.js';
+import { REALTIME } from '../src/realtime/config.js';
+import { DUEL } from '../src/realtime/duel.js';
 import { makeEndgameStore } from '../src/realtime/endgameStore.js';
+import { makeFindPlayer } from '../src/realtime/findPlayer.js';
+import { GameWorld } from '../src/realtime/gameWorld.js';
+import { FakeConn, seededRandom } from './support/world.js';
 import { makeProgression } from '../src/realtime/progression.js';
 import { makeSeasonStore } from '../src/realtime/seasonStore.js';
 import { levelStart } from '../src/realtime/stats.js';
@@ -147,5 +153,108 @@ describe('v28 no banco: fase final do Torneio da Temporada', { skip: noDatabase 
     await assert.rejects(store.finish(jounin, jounin.map((_, i) => i + 1), now()), (e: any) => e.constraint === 'rule_tournament_stage');
     // encerrado: a troca de vila volta a ser possível
     await t.pool.query(`UPDATE game.players SET village = 'vila_3' WHERE id = $1`, [ids[21]]);
+  });
+});
+
+describe('v43 no banco: a Fase Final pelo jogo (fila, Arena e comandos de admin)', { skip: noDatabase }, () => {
+  let t: Awaited<ReturnType<typeof createTestDatabase>>;
+  before(async () => { t = await createTestDatabase(); });
+  after(async () => { await t?.drop(); });
+  const one = async (sql: string, p: unknown[] = []) => (await t.pool.query(sql, p)).rows[0];
+  const wait = async (ok: () => boolean) => { for (let i = 0; i < 150 && !ok(); i++) await new Promise((r) => setTimeout(r, 20)); assert.ok(ok(), 'esperei demais'); };
+
+  it('fechar monta os grupos; dois finalistas lutam o jogo do grupo; W.O. do resto; chaves; encerrar promove os Jounin', async () => {
+    const store = makeSeasonStore(t.db);
+    const ids: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      const id = await t.createPlayer(`nin${i + 1}`, 'CHUNIN');
+      await makeProgression(t.db).grantXp(id, levelStart(40));
+      await t.pool.query('UPDATE game.players SET last_seen_at = now(), tutorial_step = 4 WHERE id = $1', [id]);
+      ids.push(id);
+    }
+    const adm = await t.createPlayer('chefe', 'CHUNIN');
+    await t.pool.query('UPDATE game.players SET is_admin = true, tutorial_step = 4 WHERE id = $1', [adm]);
+    const era = (await store.current())!;
+    await store.openJounin(new Date(era.startsAt.getTime() + 1), new Date(Date.now() + 5 * 86_400_000));
+    for (let i = 0; i < 6; i++) await t.pool.query(`INSERT INTO game.jounin_points (season_id, player_id, village, points, wins, losses) VALUES (1, $1, 'vila_1', $2, 15, 1)`, [ids[i], 600 - i * 10]);
+
+    const cfg = { ...REALTIME, combat: { ...REALTIME.combat, monsters: { ...REALTIME.combat.monsters, count: 0, stepMs: 1e12, attackDamage: 0 } } };
+    let now = Date.now() + 1000;
+    const w = new GameWorld(cfg, () => now, undefined, { random: seededRandom(), season: store, admin: makeAdminStore(t.db) });
+    await w.seasonMaintenance();
+    const enter = async (id: string) => {
+      const conn = new FakeConn();
+      const h = w.join((await makeFindPlayer(t.db)(id))!, conn);
+      const send = (m: unknown) => h.receive(JSON.stringify(m));
+      send({ type: 'ranked', action: 'enter' });
+      return { id, conn, send };
+    };
+    const run = (ms: number) => { for (let x = 0; x < ms; x += cfg.tickMs) { now += cfg.tickMs; w.tick(); } };
+    const s = (id: string) => (w as any).sessions.get(id);
+    const boss = await enter(adm);
+    const admin = async (cmd: string, done: RegExp) => {
+      boss.conn.clear();
+      run(1000);
+      boss.send({ type: 'chat', message: `/admin torneio ${cmd}` });
+      await wait(() => boss.conn.of('notice').some((n: any) => done.test(n.text)));
+      return boss.conn.of('notice').map((n: any) => n.text).join(' | ');
+    };
+
+    // 6 finalistas: 2 grupos de 3 (cobrinha: [1,4,5] e [2,3,6])
+    assert.match(await admin('fechar', /grupos montados/), /6 finalistas em 2 grupos/);
+    assert.match(await admin('encerrar', /pendente|eliminatória/), /jogo\(s\) pendente/);
+    const a = await enter(ids[0]!), b = await enter(ids[3]!), c = await enter(ids[1]!);
+    await wait(() => a.conn.last('jounin_state')?.stage === 'grupos');
+    assert.equal(a.conn.last('jounin_state').finalist, true);
+    // nin1 e nin2 são de grupos diferentes: não há jogo entre eles; nin1 e nin4 são do mesmo grupo
+    for (const p of [a, c]) p.send({ type: 'ranked', action: 'final_queue' });
+    run(cfg.tickMs * 3);
+    assert.equal((w as any).duel, null);
+    b.send({ type: 'ranked', action: 'final_queue' });
+    run(cfg.tickMs + DUEL.prepMs);
+    const st = a.conn.last('duel_state');
+    assert.deepEqual([st.mode, st.a.name, st.b.name], ['final', 'nin1', 'nin4']);
+    for (let r = 0; r < 2; r++) {
+      s(b.id).hp = 0.5;
+      (w as any).damagePlayer(s(b.id), 5, now, undefined, s(a.id), 'attack');
+      run(DUEL.intervalMs + cfg.tickMs);
+    }
+    await wait(() => !!a.conn.last('duel_rating'));
+    assert.deepEqual(a.conn.last('duel_rating'), { type: 'duel_rating', mode: 'final', counted: true, delta: 0, mmr: 0, won: true, ryo: 0 });
+    assert.deepEqual(await one('SELECT winner_id, a_rounds + b_rounds AS r FROM game.tournament_group_matches WHERE winner_id IS NOT NULL'), { winner_id: ids[0], r: 2 });
+    run(DUEL.endMs + cfg.tickMs);
+    // o placar do grupo para o jogador
+    run(1000);
+    a.send({ type: 'ranked', action: 'final_board' });
+    await wait(() => !!a.conn.last('final_board'));
+    const board = a.conn.last('final_board');
+    assert.deepEqual([board.stage, board.groups.length, board.finalist, board.pending], ['grupos', 2, true, ['nin5']]);
+    assert.deepEqual(board.groups[0].rows[0], { position: 1, username: 'nin1', wins: 1, losses: 0, roundsFor: 2, roundsAgainst: 0, pending: 1, advanced: true, me: true });
+
+    // W.O. num jogo, fecha os grupos (o que faltou vira derrota dos dois) e monta a chave de 4
+    assert.match(await admin('wo nin5', /W\.O\. aplicado/), /nin5 perdeu/);
+    assert.match(await admin('chaves', /eliminatória montada/), /chave de 4/);
+    assert.equal((await store.current())!.stage, 'chaves');
+    // a chave inteira por W.O. do pior cabeça de chave de cada jogo, até sair o campeão
+    for (let i = 0; i < 3; i++) {
+      const { pending } = await store.finalState(1);
+      if (!pending.length) break;
+      const seed = new Map((await store.groupTable(1, 'vila_1')).map((r) => [r.playerId, r] as const));
+      for (const m of pending) {
+        const loser = seed.get(m.a)!.seed > seed.get(m.b)!.seed ? seed.get(m.a)! : seed.get(m.b)!;
+        await admin(`wo ${loser.username}`, /W\.O\. aplicado/);
+      }
+    }
+    const text = await admin('encerrar', /Torneio encerrado/);
+    assert.match(text, /6 Jounin registrados, 0 prêmios de consolação.*campeão: nin1/);
+    assert.deepEqual(s(a.id).rank, { code: 'JONIN', name: 'Jonin' });
+    assert.match(a.conn.of('notice').map((n: any) => n.text).join(' | '), /Você é Jounin da Era 1/);
+    assert.equal((await one('SELECT count(*)::int AS n FROM game.jounin_era')).n, 6);
+    run(1000);
+    a.send({ type: 'ranked', action: 'final_board' });
+    await wait(() => a.conn.last('final_board')?.stage === 'encerrado');
+    const end = a.conn.last('final_board');
+    assert.deepEqual([end.champion, end.era[0]], ['nin1', { position: 1, username: 'nin1', me: true }]);
+    w.close();
   });
 });
