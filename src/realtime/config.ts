@@ -394,7 +394,7 @@ export const REALTIME: Readonly<RealtimeConfig> = {
   chatMaxLength: 200,
 
   /** Tamanho máximo de uma mensagem recebida (bytes). Maior que isso: conexão fechada (1009). */
-  maxPayloadBytes: 1024,
+  maxPayloadBytes: 4096,   // v38: cabe um Feedback de 1.500 letras com acento
   /** Cliente que não consome o que enviamos (fila > 1 MiB) é desconectado. */
   maxBufferedBytes: 1024 * 1024,
   /** Jogadores online ao mesmo tempo nesta instância. */

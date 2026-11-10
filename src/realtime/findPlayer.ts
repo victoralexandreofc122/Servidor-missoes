@@ -20,6 +20,8 @@ export const FIND_PLAYER_SQL = `
     LEFT JOIN game.player_classes c ON c.player_id = p.id
    WHERE p.id = $1`;
 
+export const MANUAL_SQL = `SELECT chapter, read_at IS NOT NULL AS read FROM game.player_tutorial WHERE player_id = $1`;
+
 interface Row {
   id: string;
   username: string;
@@ -60,7 +62,12 @@ export function makeFindPlayer(db: Queryable) {
     const { rows } = await db.query<Row>(FIND_PLAYER_SQL, [playerId]);
     const row = rows[0];
     if (!row) return undefined;
+    // v38 (migração v26): o Pergaminho do Mestre. Sem a tabela ainda (banco antes da v26): tudo fechado, o jogo segue.
+    const manual = await db.query<{ chapter: string; read: boolean }>(MANUAL_SQL, [playerId])
+      .then((r) => ({ unlocked: r.rows.map((x) => x.chapter), read: r.rows.filter((x) => x.read).map((x) => x.chapter) }))
+      .catch((err: { code?: string }) => { if (err?.code === '42P01') return undefined; throw err; });
     return {
+      ...(manual ? { manual } : {}),
       id: row.id,
       username: row.username,
       xp: Number(row.total_xp),

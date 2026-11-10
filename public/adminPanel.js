@@ -5,11 +5,14 @@
 // comando que saiu (para aprender o atalho do chat) e a resposta do servidor.
 //
 // Abas: Jogador (ryō, nível, pontos, patente, efeito, vila, renegado, Akatsuki, Kage) · Itens · Jutsus · Monstros · Mundo (ir,
-// clima, hora) · Fim de jogo (módulos, eleição, evento, temporada) · PvP (números por classe e por golpe).
+// clima, hora) · Fim de jogo (módulos, eleição, evento, temporada) · PvP (números por classe e por golpe) · Feedback (v38).
 
 const TABS = [
-  ['jogador', 'Jogador'], ['itens', 'Itens'], ['jutsus', 'Jutsus'], ['monstros', 'Monstros'], ['mundo', 'Mundo'], ['fim', 'Fim de jogo'], ['pvp', 'PvP'],
+  ['jogador', 'Jogador'], ['itens', 'Itens'], ['jutsus', 'Jutsus'], ['monstros', 'Monstros'], ['mundo', 'Mundo'], ['fim', 'Fim de jogo'], ['pvp', 'PvP'], ['feedback', 'Feedback'],
 ];
+const FEEDBACK_CAT = { bug: '🐞 Bug', sugestao: '💡 Sugestão', balanceamento: '⚖️ Balanceamento', outro: '💬 Outro' };
+const CLASS_PT = { fire: 'Fogo', water: 'Água', lightning: 'Raio', stone: 'Terra', taijutsu: 'Taijutsu', illusion: 'Ilusão', shadow: 'Sombra', heal: 'Cura', weapons: 'Armas', wind: 'Vento' };
+const CLAN_PT = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' };
 const WEATHERS = [['normal', '☁️ Normal'], ['quente', '☀️ Quente'], ['chuva', '🌧️ Chuva'], ['neblina', '🌫️ Neblina']];
 const PHASES = [['amanhecer', '🌅 Amanhecer'], ['dia', '🌞 Dia'], ['entardecer', '🌇 Entardecer'], ['noite', '🌙 Noite']];
 const MODULES = [['vilas', 'Vilas e Kage'], ['pvp', 'Zona de Conflito'], ['renegados', 'Renegados'], ['akatsuki', 'Cinzas']];
@@ -23,7 +26,7 @@ export function mountAdminUI(api) {
     toggle: $('admin-toggle'), panel: $('admin-panel'), close: $('admin-close'), tabs: $('admin-tabs'), body: $('admin-body'),
     target: $('admin-target'), players: $('admin-players'), me: $('admin-me'), sent: $('admin-sent'), reply: $('admin-reply'),
   };
-  const s = { tab: 'jogador', catalog: null, pvp: null, itemFilter: '', jutsuLevel: '4', qty: { item: '1', monster: '1' } };
+  const s = { tab: 'jogador', catalog: null, pvp: null, feedback: null, feedbackError: '', feedbackOnlyNew: true, itemFilter: '', jutsuLevel: '4', qty: { item: '1', monster: '1' } };
 
   // ---------------------------------------------------------------- pequenos construtores de tela
 
@@ -247,7 +250,38 @@ export function mountAdminUI(api) {
     return out;
   }
 
-  const RENDER = { jogador: tabJogador, itens: tabItens, jutsus: tabJutsus, monstros: tabMonstros, mundo: tabMundo, fim: tabFim, pvp: tabPvp };
+  /** v38: os relatos do Feedback (Menu > Enviar Feedback), com o que o servidor capturou na hora. */
+  function tabFeedback() {
+    const all = s.feedback || [];
+    const fresh = all.filter((f) => f.status === 'novo').length;
+    const list = s.feedbackOnlyNew ? all.filter((f) => f.status === 'novo') : all;
+    const out = [
+      el('div', { class: 'adm-row' },
+        btn('Atualizar', () => api.send({ type: 'admin_feedback', action: 'list' })),
+        btn(s.feedbackOnlyNew ? 'Ver todos' : 'Só os novos', () => { s.feedbackOnlyNew = !s.feedbackOnlyNew; render(); })),
+      el('p', { class: 'adm-hint strong', textContent: s.feedback ? `${fresh} novo(s) · ${all.length} no total (os 100 mais recentes)` : 'Carregando…' }),
+    ];
+    if (s.feedbackError) out.push(el('p', { class: 'adm-hint', textContent: s.feedbackError }));
+    if (s.feedback && list.length === 0) out.push(el('p', { class: 'adm-hint', textContent: s.feedbackOnlyNew ? 'Nenhum feedback novo.' : 'Nenhum feedback ainda.' }));
+    for (const f of list) {
+      const c = f.context || {};
+      const cls = [c.classes?.primary, c.classes?.secondary].filter(Boolean).map((k) => CLASS_PT[k] || k).join(' + ') || 'sem classe';
+      const who = `${f.username || c.username || '?'} · nível ${c.level ?? '?'} · ${c.rank || ''} · ${cls} · ${c.lineage ? CLAN_PT[c.lineage] : (c.lineageMark ? `${CLAN_PT[c.lineageMark]} (não desperta)` : 'sem linhagem')}`;
+      const where = `${c.mapName || c.map || '?'} (${c.x ?? '?'}, ${c.y ?? '?'})${c.screen ? ` · ${c.screen.device || ''} ${c.screen.w || ''}x${c.screen.h || ''} · tela: ${c.screen.panels || 'jogo'}` : ''} · ${c.version || ''}`;
+      const when = new Date(f.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+      out.push(el('article', { class: `adm-feedback${f.status === 'novo' ? ' new' : ''}` },
+        el('header', {}, el('b', { textContent: `#${f.id} · ${FEEDBACK_CAT[f.category] || f.category}` }), el('span', { textContent: when })),
+        el('p', { class: 'adm-feedback-text', textContent: f.content }),
+        el('p', { class: 'adm-hint', textContent: who }),
+        el('p', { class: 'adm-hint', textContent: where }),
+        f.status === 'novo'
+          ? btn('Marcar como lido/resolvido', () => api.send({ type: 'admin_feedback', action: 'resolve', id: f.id }))
+          : el('p', { class: 'adm-hint', textContent: `✔ Resolvido${f.resolvedAt ? ` em ${new Date(f.resolvedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}` })));
+    }
+    return out;
+  }
+
+  const RENDER = { jogador: tabJogador, itens: tabItens, jutsus: tabJutsus, monstros: tabMonstros, mundo: tabMundo, fim: tabFim, pvp: tabPvp, feedback: tabFeedback };
 
   function render() {
     for (const b of ui.tabs.children) {
@@ -262,7 +296,7 @@ export function mountAdminUI(api) {
 
   ui.tabs.replaceChildren(...TABS.map(([code, name]) => el('button', {
     type: 'button', class: 'tab', role: 'tab', textContent: name, 'data-tab': code,
-    on: { click: () => { s.tab = code; render(); } },
+    on: { click: () => { s.tab = code; if (code === 'feedback') api.send({ type: 'admin_feedback', action: 'list' }); render(); } },
   })));
   function open() {
     api.closeOthers();
@@ -294,6 +328,12 @@ export function mountAdminUI(api) {
         s.catalog = msg;
         ui.players.replaceChildren(...msg.players.map((p) => el('option', { value: p.username, label: `nível ${p.level} · ${p.map}` })));
         if (!ui.panel.hidden && s.tab !== 'itens' && s.tab !== 'jutsus') render();
+        return true;
+      }
+      if (msg.type === 'admin_feedback') {
+        s.feedback = msg.items;
+        s.feedbackError = msg.error || '';
+        if (!ui.panel.hidden && s.tab === 'feedback') render();
         return true;
       }
       if (msg.type === 'admin_pvp') {

@@ -325,7 +325,33 @@ export interface AdminStore {
   endgame?(adminId: string, c: EndgameAdminCommand, targetId: string | null): Promise<AdminOutcome<{ result: string | null }>>;
   /** Zona de Conflito: vitórias e derrotas por classe Primária nos últimos `days` dias (só leitura; pvpStats.ts). */
   pvpByClass?(days: number): Promise<{ code: string; wins: number; losses: number }[]>;
+  /** v38 (migração v26): os relatos do Feedback (os novos primeiro) e marcar como lido/resolvido. Só admin (o banco confere). */
+  listFeedback?(adminId: string, limit: number): Promise<FeedbackRow[]>;
+  resolveFeedback?(adminId: string, id: number): Promise<boolean>;
 }
+
+/** Um relato do Feedback como o painel do admin mostra. */
+export interface FeedbackRow {
+  id: number;
+  username: string | null;
+  category: string;
+  status: string;
+  content: string;
+  context: Record<string, unknown>;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+const IS_ADMIN = `EXISTS (SELECT 1 FROM game.players a WHERE a.id = $1 AND a.is_admin)`;
+export const FEEDBACK_SQL = {
+  list: `SELECT f.id, p.username, f.category, f.status, f.content, f.context, f.created_at, f.resolved_at
+           FROM game.feedback f LEFT JOIN game.players p ON p.id = f.player_id
+          WHERE ${IS_ADMIN}
+          ORDER BY (f.status = 'novo') DESC, f.created_at DESC
+          LIMIT $2`,
+  resolve: `UPDATE game.feedback SET status = 'resolvido', resolved_at = now(), resolved_by = $1
+             WHERE id = $2 AND status = 'novo' AND ${IS_ADMIN} RETURNING id`,
+};
 
 const STATE = `total_xp, level, stat_points, attr_vitality, attr_chakra, attr_agility, attr_taijutsu, attr_ninjutsu, attr_weapons`;
 
@@ -438,6 +464,15 @@ export function makeAdminStore(db: Db): AdminStore {
       }));
     },
     log,
+    async listFeedback(adminId, limit) {
+      const { rows } = await db.query<{ id: string; username: string | null; category: string; status: string; content: string;
+        context: Record<string, unknown>; created_at: Date; resolved_at: Date | null }>(FEEDBACK_SQL.list, [adminId, limit]);
+      return rows.map((r) => ({ id: Number(r.id), username: r.username, category: r.category, status: r.status, content: r.content,
+        context: r.context ?? {}, createdAt: new Date(r.created_at).toISOString(), resolvedAt: r.resolved_at ? new Date(r.resolved_at).toISOString() : null }));
+    },
+    async resolveFeedback(adminId, id) {
+      return (await db.query(FEEDBACK_SQL.resolve, [adminId, id])).rows.length > 0;
+    },
     async pvpByClass(days) {
       return (await db.query<{ code: string; wins: number; losses: number }>(PVP_CLASS_SQL, [days])).rows;
     },

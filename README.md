@@ -240,6 +240,23 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v38: Pergaminho do Mestre, nota do Pré-Alpha e Feedback no jogo (migração v26, `db/schema_v26_tutorial_feedback.sql`)
+
+- **Pergaminho do Mestre:** tutorial paginado em estilo pergaminho (tela escurecida, "Página anterior", "Próxima página" e
+  "Fechar (já entendi)"; não fecha sozinho). Abre na primeira chegada, logo depois do Criador e da nota do Pré-Alpha.
+- **Capítulos:** Boas-vindas (sempre), Missão de Genin (nível 10), Rito do Despertar (11), Pergaminhos e Extração (primeiro
+  pergaminho), Lutar contra ninjas (primeira luta PvP) e Classe Secundária (40). O servidor decide quando abrem; capítulo
+  novo faz o ☰ e o botão Manual piscarem, sem pop-up.
+- **Manual do Ninja** (Menu ☰ → Manual): relê os capítulos abertos; os fechados mostram quando abrem.
+- **Prêmio:** fechar um capítulo pela primeira vez dá 50 ryō e 100 XP, uma vez só (gravado em `game.player_tutorial`).
+- **Nota do Pré-Alpha:** a versão (`GAME_VERSION` em `src/realtime/manual.ts`), o que está em teste, como testar e onde
+  mandar bugs.
+- **Feedback** (Menu ☰ → Feedback): categoria (Bug, Sugestão, Balanceamento, Outro) e texto até 1.500 letras; o servidor
+  junta nome, nível, patente, classes, linhagem, mapa, posição e versão, e o cliente a tela aberta, o aparelho e o tamanho
+  da tela. Um a cada 20 s por jogador. Grava em `game.feedback`.
+- **Painel do Admin, aba Feedback:** lista os relatos (novos primeiro) com os dados capturados e "Marcar como lido/resolvido".
+- Correção: os avisos do Rito apontavam "☰ → Aparência", que não existe; agora "☰ → Config. → Mudar visual do personagem".
+
 **Teste Alpha:** o checklist para os jogadores está em [`docs/checklist-teste-alpha.md`](docs/checklist-teste-alpha.md).
 
 ### v37: Rito do Despertar à prova de travar e o visual das linhagens no jogo (sem migração)
