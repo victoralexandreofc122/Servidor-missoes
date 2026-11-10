@@ -41,7 +41,7 @@ começa com o OK do Victor, tem migração própria, regras conferidas no servid
 | Passo | O que entra | Migração |
 |---|---|---|
 | 1 (feito) | Eras, vagas, pontos, histórico, classificação | v27 |
-| 2 | **Fila do Torneio no servidor:** modo novo do duelo (`mode: 'jounin'`), só na janela da fase de pontos, só elegíveis; ao fim da partida chama `jounin_result`; comando `/admin torneio abrir|fechar` | nenhuma |
+| 2 (feito, v41) | **Fila do Torneio no servidor:** modo novo do duelo (`mode: 'jounin'`), só na janela da fase de pontos, só elegíveis; ao fim da partida chama `jounin_result`; comando `/admin torneio abrir|fechar` | nenhuma |
 | 3 | **Cliente da fase de pontos:** botão na Arena, placar da vila (posição, pontos, partidas até 15, linha de corte dos finalistas), vagas da vila | nenhuma |
 | 4 | **Fase final, grupos:** fecha a fase de pontos, sorteia os finalistas (2x as vagas) em grupos, agenda as partidas, tabela dos grupos | v28 |
 | 5 | **Fase final, eliminatória:** chaves, uma luta por vez com público, W.O. por ausência | v28 |
@@ -57,7 +57,15 @@ começa com o OK do Victor, tem migração própria, regras conferidas no servid
 | 4 | Renegados: Torneio dos Renegados, Maior Vilão, lei da Terra Sem Lei, Caçada | renegados e recompensa da v11 | v31 |
 | 5 | Guerra 20v20 semanal e guerra final (servidor isolado, espectador) | nada | v32 em diante |
 
-## 6. Decisões que preciso do Victor (o documento canônico deixa em aberto)
+## 6. Decisões do Victor (10/11/2026)
+
+1. Fase de pontos: adversários **só da mesma vila**. 2. Piso 0 nos pontos. 3. Mesmo par: 3 partidas contadas em 24 h.
+4. Quem é ou já foi Jounin (ou ANBU, Kage) nunca mais disputa o Torneio da Temporada (tem o Torneio dos Heróis).
+5. Ativos: entrou nos últimos 7 dias e saiu da Academia. 6. Fase de pontos: 10 dias; fase final: 4 dias (14 no total).
+7. Fase final: grupos de 5, passam os 2 melhores; eles formam a chave da eliminatória (20 vagas = 40 finalistas =
+8 grupos = chave de 16). 8. Título "Serei o próximo Jounin" aprovado.
+
+## 7. Perguntas originais (respondidas acima)
 
 1. **Adversários na fase de pontos:** só da mesma vila, ou de qualquer vila? (v27 aceita qualquer vila; a classificação
    é por vila.)

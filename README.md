@@ -240,6 +240,16 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v41: Fase 2, passo 2: a fila do Torneio da Temporada no servidor (sem migração)
+
+- Modo novo do duelo (`mode: 'jounin'`) na Arena, só na janela da fase de pontos. Fila própria, e a partida só une ninjas
+  **da mesma vila** (`takeVillageMatch` em `duel.ts`). A arena é uma só: entre o rankeado e o Torneio, luta primeiro quem
+  espera há mais tempo. Uma fila por vez.
+- Quem entra: nível 40+, com vila, sem patente de Jounin, ANBU ou Kage, e que nunca foi Jounin (o banco confere).
+- Fim da partida: `game.jounin_result` grava (+30, -10 com piso 0; ryō +100 e +30); o MMR do rankeado não muda.
+- Admin: `/admin torneio abrir [dias]` (padrão 10), `/admin torneio fechar`, `/admin torneio` (status e vagas por vila).
+- Pendente para a v28 (com a fase final): a conferência de "mesma vila" também dentro do banco. Hoje ela é do servidor.
+
 ### v40: Fase 2, entrega 1: eras e a fase de pontos do Torneio da Temporada (migração v27, `db/schema_v27_temporadas.sql`)
 
 - `game.seasons` (a era de 60 dias), vagas de Jounin por vila (1 a cada 50 ativos, mínimo 10, máximo 60), pontos do Torneio

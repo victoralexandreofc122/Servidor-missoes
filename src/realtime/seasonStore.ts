@@ -64,7 +64,11 @@ export interface SeasonStore {
   current(): Promise<SeasonView | undefined>;
   /** Abre a fase de pontos na era aberta e congela as vagas de cada vila. */
   openJounin(startsAt: Date, endsAt: Date): Promise<number>;
+  /** Fecha a fase de pontos agora (admin). Devolve a era, ou null se não havia Torneio aberto. */
+  closeJounin(now: Date): Promise<number | null>;
   eligible(playerId: string): Promise<boolean>;
+  /** Os pontos de um jogador na era (sem linha ainda: zeros). */
+  mine(seasonId: number, playerId: string): Promise<{ points: number; wins: number; losses: number }>;
   /** Registra uma partida do Torneio. Fora da janela ou jogador inelegível: recusado, nada gravado. */
   result(winnerId: string, loserId: string, reason: string, durationMs: number, now?: Date): Promise<JouninOutcome>;
   slots(seasonId: number): Promise<Record<string, { active: number; slots: number }>>;
@@ -75,7 +79,9 @@ export const SEASON_SQL = {
   available: `SELECT to_regclass('game.jounin_matches') IS NOT NULL AS ok`,
   current: `SELECT id, starts_at, ends_at, jounin_starts_at, jounin_ends_at FROM game.seasons WHERE closed_at IS NULL`,
   open: `SELECT game.jounin_open($1, $2) AS id`,
+  close: `UPDATE game.seasons SET jounin_ends_at = $1 WHERE closed_at IS NULL AND jounin_starts_at < $1 AND jounin_ends_at > $1 RETURNING id`,
   eligible: `SELECT game.jounin_eligible($1) AS ok`,
+  mine: `SELECT points, wins, losses FROM game.jounin_points WHERE season_id = $1 AND player_id = $2`,
   result: `SELECT counted, winner_delta, loser_delta, winner_points, loser_points, winner_ryo, loser_ryo, season_id FROM game.jounin_result($1, $2, $3, $4, $5)`,
   slots: `SELECT village, active_players, slots FROM game.jounin_slots WHERE season_id = $1`,
   standings: `SELECT "position", player_id, username, points, wins, losses, qualified, finalist FROM game.jounin_standings($1, $2)`,
@@ -95,6 +101,12 @@ export function makeSeasonStore(db: Queryable): SeasonStore {
     },
     async openJounin(startsAt, endsAt) {
       return (await db.query<{ id: number }>(SEASON_SQL.open, [startsAt, endsAt])).rows[0]!.id;
+    },
+    async closeJounin(now) {
+      return (await db.query<{ id: number }>(SEASON_SQL.close, [now])).rows[0]?.id ?? null;
+    },
+    async mine(seasonId, playerId) {
+      return (await db.query<{ points: number; wins: number; losses: number }>(SEASON_SQL.mine, [seasonId, playerId])).rows[0] ?? { points: 0, wins: 0, losses: 0 };
     },
     async eligible(playerId) {
       return (await db.query<{ ok: boolean }>(SEASON_SQL.eligible, [playerId])).rows[0]?.ok === true;

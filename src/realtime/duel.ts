@@ -69,7 +69,7 @@ export interface MatchPick {
 }
 
 /** Tira da fila a próxima dupla. Sem 2 pessoas, `null`. Não muda a fila recebida. */
-export function takeMatch(queue: readonly QueueEntry[], rules: Pick<typeof DUEL, 'window' | 'maxSkips' | 'levelGap'> = DUEL): MatchPick | null {
+export function takeMatch(queue: readonly QueueEntry[], rules: { window: number; maxSkips: number; levelGap: number } = DUEL): MatchPick | null {
   if (queue.length < 2) return null;
   const head = queue[0]!;
   const full = queue.slice(1, 1 + rules.window);
@@ -92,6 +92,28 @@ export function takeMatch(queue: readonly QueueEntry[], rules: Pick<typeof DUEL,
   return { a: head.id, b: b.id, rest };
 }
 
+/** v41 (Torneio da Temporada): fila por vila. A partida só une dois ninjas da MESMA vila. */
+export interface VillageEntry extends QueueEntry { village: string }
+
+/**
+ * Tira da fila do Torneio a próxima dupla da mesma vila: entre as vilas com 2 ou mais na fila, a de quem espera há mais
+ * tempo. Dentro da vila vale a regra de sempre (evita repetir a dupla, não deixa ninguém ser pulado para sempre); a
+ * diferença de nível não importa (todos são nível 40+). Sem dupla possível, `null`. Não muda a fila recebida.
+ */
+export function takeVillageMatch(queue: readonly VillageEntry[]): (MatchPick & { rest: VillageEntry[]; village: string }) | null {
+  const byVillage = new Map<string, VillageEntry[]>();
+  for (const e of queue) byVillage.set(e.village, [...(byVillage.get(e.village) ?? []), e]);
+  let best: VillageEntry[] | null = null;
+  for (const list of byVillage.values()) {
+    if (list.length >= 2 && (!best || list[0]!.joinedAt < best[0]!.joinedAt)) best = list;
+  }
+  if (!best) return null;
+  const pick = takeMatch(best, { window: DUEL.window, maxSkips: DUEL.maxSkips, levelGap: Infinity })!;
+  const skips = new Map(pick.rest.map((e) => [e.id, e.skips]));
+  const rest = queue.filter((e) => e.id !== pick.a && e.id !== pick.b).map((e) => ({ ...e, skips: skips.get(e.id) ?? e.skips }));
+  return { a: pick.a, b: pick.b, rest, village: best[0]!.village };
+}
+
 /** Posição de cada um na fila (1 = o próximo a lutar). */
 export function queuePosition(queue: readonly QueueEntry[], id: string): number {
   const i = queue.findIndex((e) => e.id === id);
@@ -103,8 +125,12 @@ export function queuePosition(queue: readonly QueueEntry[], id: string): number 
 export type DuelPhase = 'prep' | 'round' | 'interval' | 'done';
 export type Side = 'a' | 'b';
 
+/** 'ranked' = o rankeado de sempre (MMR); 'jounin' = Torneio da Temporada (pontos da era, v41). */
+export type DuelMode = 'ranked' | 'jounin';
+
 export interface DuelMatch {
   id: number;
+  mode: DuelMode;
   a: string;
   b: string;
   phase: DuelPhase;
@@ -130,9 +156,9 @@ export interface DuelMatch {
   reason?: 'rounds' | 'forfeit';
 }
 
-export function newMatch(id: number, a: string, b: string, now: number): DuelMatch {
+export function newMatch(id: number, a: string, b: string, now: number, mode: DuelMode = 'ranked'): DuelMatch {
   return {
-    id, a, b, phase: 'prep', until: now + DUEL.prepMs, round: 1, wins: { a: 0, b: 0 },
+    id, mode, a, b, phase: 'prep', until: now + DUEL.prepMs, round: 1, wins: { a: 0, b: 0 },
     roundDamage: { a: 0, b: 0 }, matchDamage: { a: 0, b: 0 }, replay: false, history: [],
     startedAt: now, roundStartedAt: now, rounds: [],
   };

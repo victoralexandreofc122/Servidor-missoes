@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
+import { REALTIME } from '../src/realtime/config.js';
+import { DUEL } from '../src/realtime/duel.js';
+import { makeFindPlayer } from '../src/realtime/findPlayer.js';
+import { GameWorld } from '../src/realtime/gameWorld.js';
 import { makeProgression } from '../src/realtime/progression.js';
+import { FakeConn, seededRandom } from './support/world.js';
 import { JOUNIN_RULES, jouninSlots, makeSeasonStore } from '../src/realtime/seasonStore.js';
 import { levelStart } from '../src/realtime/stats.js';
 import { createTestDatabase } from './support/testDb.js';
@@ -116,6 +121,38 @@ describe('v27 no banco: eras e Torneio da Temporada (fase de pontos)', { skip: n
     assert.equal(rows.filter((r) => r.finalist).length, 2 * JOUNIN_RULES.minSlots);
     assert.equal(rows.find((r) => r.playerId === many[19])!.finalist, false, 'o 22º fica de fora');
     assert.equal(rows.length, 23, 'admin não aparece');
+  });
+
+  it('v41, de ponta a ponta: fila do Torneio no servidor, partida na Arena e os pontos no banco', async () => {
+    const a = await ninja(42), b = await ninja(41);
+    const cfg = { ...REALTIME, combat: { ...REALTIME.combat, monsters: { ...REALTIME.combat.monsters, count: 0, stepMs: 1e12, attackDamage: 0 } } };
+    let now = Date.now();
+    const w = new GameWorld(cfg, () => now, undefined, { random: seededRandom(), season: store });
+    await w.seasonMaintenance();
+    const enter = async (id: string) => {
+      const conn = new FakeConn();
+      const h = w.join((await makeFindPlayer(t.db)(id))!, conn);
+      const send = (m: unknown) => h.receive(JSON.stringify(m));
+      send({ type: 'ranked', action: 'enter' });
+      send({ type: 'ranked', action: 'jounin_queue' });
+      return { conn, send };
+    };
+    const pa = await enter(a), pb = await enter(b);
+    for (let i = 0; i < 20 && (w as any).jouninQueue.length < 2; i++) await new Promise((r) => setTimeout(r, 20));
+    const run = (ms: number) => { for (let x = 0; x < ms; x += cfg.tickMs) { now += cfg.tickMs; w.tick(); } };
+    run(cfg.tickMs + DUEL.prepMs);
+    assert.equal(pa.conn.last('duel_state').mode, 'jounin');
+    const s = (id: string) => (w as any).sessions.get(id);
+    for (let r = 0; r < 2; r++) {
+      s(b).hp = 0.5;
+      (w as any).damagePlayer(s(b), 5, now, undefined, s(a), 'attack');
+      run(DUEL.intervalMs + cfg.tickMs);
+    }
+    for (let i = 0; i < 50 && !pa.conn.last('duel_rating'); i++) await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual(pa.conn.last('duel_rating'), { type: 'duel_rating', mode: 'jounin', counted: true, delta: 30, mmr: 30, won: true, ryo: 100 });
+    assert.deepEqual(await one('SELECT points, wins, losses FROM game.jounin_points WHERE player_id = $1', [a]), { points: 30, wins: 1, losses: 0 });
+    assert.deepEqual(await one('SELECT points, wins, losses FROM game.jounin_points WHERE player_id = $1', [b]), { points: 0, wins: 0, losses: 1 });
+    w.close();
   });
 
   it('depois que a janela fecha: recusado', async () => {

@@ -1,4 +1,5 @@
 import type { RankedStore } from './rankedStore.js';
+import type { SeasonStore } from './seasonStore.js';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -51,6 +52,7 @@ export interface GatewayDeps {
   endgame?: EndgameStore;
   /** v29: pontos e temporadas do rankeado (migração v15, opcional). */
   ranked?: RankedStore;
+  season?: SeasonStore;
   /** Quem vigia o servidor (site do jogo: saúde, bugs e comportamento suspeito). */
   watch?: WorldWatch;
   /** Sorteio dos monstros (testes). */
@@ -105,6 +107,7 @@ export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
     ...(deps.admin ? { admin: deps.admin } : {}),
     ...(deps.endgame ? { endgame: deps.endgame } : {}),
     ...(deps.ranked ? { ranked: deps.ranked } : {}),
+    ...(deps.season ? { season: deps.season } : {}),
     ...(deps.watch ? { watch: deps.watch } : {}),
   });
   const wss = new WebSocketServer({
