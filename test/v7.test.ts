@@ -411,6 +411,24 @@ describe('v7: Armas, loja, Extração e classe (servidor)', () => {
     assert.equal(p.conn.last('inventory').items.scroll_lightning, 1);
   });
 
+  it('v37: admin refaz a Missão de Genin com outra classe: os jutsus da classe antiga saem do kit (antes travavam os 4 espaços)', async () => {
+    const fake = fakeNinjaStore({ level: 11, classes: { primary: 'fire', secondary: null } });
+    const { join, sess } = setup({ store: fake.store });
+    const p = join('kaito', { level: 11, isAdmin: true, classes: { primary: 'fire', secondary: null },
+      jutsus: { teleport: 0, substitution: 0, fire: 10, fire_endan: 3, fire_2: 0 }, kits: { A: ['teleport', 'fire', 'fire_endan', 'fire_2'], B: ['substitution', 'fire'] } });
+    const s = sess(p.id);
+    s.map = 'academy_interior';
+    Object.assign(s, { x: ACADEMY.director.x, y: ACADEMY.director.y + 2 });
+    s.rank = { code: 'ACADEMY', name: 'Academia' };
+    p.send({ type: 'talk', npcId: 'director' });
+    p.send({ type: 'choose_class', class: 'water' });
+    await flush(); await flush();
+    assert.deepEqual(s.classes, { primary: 'water', secondary: null });
+    assert.deepEqual(s.kits, { A: ['teleport'], B: ['substitution'] });
+    assert.deepEqual(p.conn.last('kit').kits, { A: ['teleport'], B: ['substitution'] });
+    assert.ok(s.jutsus.has('fire'), 'os jutsus antigos ficam guardados no perfil (só saem do kit)');
+  });
+
   it('Missão de Genin (v23): admin que voltou à Academia refaz com outra classe; quem não é admin cai na Secundária (uma vez só)', async () => {
     for (const admin of [true, false]) {
       const fake = fakeNinjaStore({ level: 11, classes: { primary: 'fire', secondary: null } });

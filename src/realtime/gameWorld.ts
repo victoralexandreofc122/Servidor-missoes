@@ -8,7 +8,7 @@ import {
   REALTIME, type SkillConfig, type MonsterAiConfig, type MonsterBoss, type MonsterCrush, type MonsterSlam, type MonsterType, type RealtimeConfig,
 } from './config.js';
 import {
-  CLOSE, ClientMessage, DIRECTED_SKILLS, LINE_MECHANICS, REALTIME_ERRORS, SKILLS, sanitizeChat,
+  CLOSE, ClientMessage, DIRECTED_SKILLS, LINE_MECHANICS, aimShapeOf, REALTIME_ERRORS, SKILLS, sanitizeChat,
   type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
   type DuelSideView, type LineageView, type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
   type Skill, type WorldInfo, type Appearance, type Dir, type MonsterStatus,
@@ -859,7 +859,8 @@ export class GameWorld {
         const v = combat.skills[j.code];
         const range = v.range ?? v.radius;
         return [j.code, {
-          name: j.name, ...(j.class !== v.mechanic ? { class: j.class } : {}), ...(j.clan ? { clan: j.clan } : {}), tier: j.tier, mechanic: v.mechanic, cost: v.cost, cooldownMs: v.cooldownMs,   // v30: sem a classe repetida (= mecânica)
+          name: j.name, ...(j.class !== v.mechanic ? { class: j.class } : {}), ...(j.clan ? { clan: j.clan } : {}), tier: j.tier,
+          ...(aimShapeOf(j.form, v) ? { aim: aimShapeOf(j.form, v)! } : {}), ...(j.form === 'recuo' && v.dash ? { dash: v.dash } : {}), mechanic: v.mechanic, cost: v.cost, cooldownMs: v.cooldownMs,   // v30: sem a classe repetida (= mecânica)
           ...(range !== undefined ? { range } : {}),
           ...(v.radius !== undefined ? { radius: v.radius } : {}),
           ...(LINE_MECHANICS.has(v.mechanic) ? { line: true } : {}),
@@ -1865,9 +1866,18 @@ export class GameWorld {
     //    arrastou o botão), vale a dele; senão, a que passa mais perto do alvo (focado ou o mais perto); sem ninguém,
     //    para onde ele olha (arredondado para a cardinal).
     const line = LINE_MECHANICS.has(mechanic);
+    // v37: a mira vale pela forma do jutsu (qualquer classe). Mirou: a direção dele manda, sem procurar alvo sozinho.
+    const shape = aimShapeOf(form, cfg);
+    const aimedDir = shape && dir && Math.hypot(dir[0], dir[1]) > 0.1 ? cardinal(dir[0], dir[1]) : undefined;
     let aim: Target | undefined = targetId !== undefined && DIRECTED_SKILLS.has(skill) ? targets.find((x) => x.id === targetId) : undefined;
     if (!aim && (mechanic === 'taijutsu' || line)) aim = nearest(session, targets, reach);
-    if (line) {
+    if (aimedDir) {
+      const back = form === 'recuo' && (cfg.dash ?? 0) < 0;          // o recuo anda de costas: mira para onde vai
+      session.fx = back ? -aimedDir[0] : aimedDir[0];
+      session.fy = back ? -aimedDir[1] : aimedDir[1];
+      aim = undefined;
+      targetId = undefined;
+    } else if (line) {
       const chosen = dir && Math.hypot(dir[0], dir[1]) > 0.1 ? dir : undefined;
       const [cx, cy] = chosen ? cardinal(chosen[0], chosen[1]) : aim ? cardinal(aim.x - session.x, aim.y - session.y) : cardinal(session.fx, session.fy);
       session.fx = cx;
@@ -1963,7 +1973,7 @@ export class GameWorld {
       }
       default: {
         // v30: as formas das outras classes (jutsusClasses.ts)
-        const v = this.v2Hitbox(session, form, cfg, o, fx, fy, aim, targets, targetId, reach, t);
+        const v = this.v2Hitbox(session, form, cfg, o, fx, fy, aim, targets, targetId, reach, t, !!aimedDir);
         if (v.fail) return fail(v.fail);
         hits = v.hits;
         to = v.to;
@@ -2484,7 +2494,7 @@ export class GameWorld {
 
   /** Onde e em quem o jutsu acerta (antes de cobrar). `fail` = não sai e não gasta (alvo único sem ninguém no alcance). */
   private v2Hitbox(s: Session, form: JutsuForm, cfg: SkillConfig, o: Point, fx: number, fy: number, aim: Target | undefined,
-    targets: Target[], targetId: string | undefined, reach: number, t: number): { hits: Target[]; to?: Point; dashTo?: Point; fail?: CastFailReason } {
+    targets: Target[], targetId: string | undefined, reach: number, t: number, aimed = false): { hits: Target[]; to?: Point; dashTo?: Point; fail?: CastFailReason } {
     const layout = this.layout(s.map);
     const lineFrom = () => { const end = rayEnd(layout, o.x, o.y, fx, fy, reach); return { end, first: firstOnLine(o, end, targets) }; };
     switch (form) {
@@ -2558,7 +2568,7 @@ export class GameWorld {
       }
       case 'muro': case 'invocacao': {
         // vira para o inimigo mais perto (até 8 casas) e põe à frente: o muro atravessado, a invocação ao lado
-        const tgt = aim ?? nearest(s, targets, 8);
+        const tgt = aimed ? undefined : aim ?? nearest(s, targets, 8);   // v37: mirou: põe na direção escolhida
         if (tgt) this.faceTo(s, tgt);
         const c = ahead(o, s.fx, s.fy, form === 'muro' ? Math.max(1.5, reach || 2.5) : 1.5);
         return { hits: [], to: c };
@@ -2574,6 +2584,12 @@ export class GameWorld {
       case 'zona': case 'aviso': {
         // sem foco, procura o inimigo mais perto no alcance (Água, Terra e Ilusão não miram em linha); ninguém: à frente
         const z = cfg.zone;
+        if (aimed && !z?.self) {
+          // v37: mirou: cai no primeiro inimigo na direção escolhida; ninguém: no fim do alcance (para na parede)
+          const end = rayEnd(layout, o.x, o.y, fx, fy, reach || 3);
+          const first = firstOnLine(o, end, targets);
+          return { hits: [], to: first ? { x: first.target.x, y: first.target.y } : end };
+        }
         const focus = targetId !== undefined ? targets.find((x) => x.id === targetId && distance(o, x) <= reach) : undefined;
         const tgt = focus ?? (aim && distance(o, aim) <= reach ? aim : nearest(s, targets, reach));
         if (tgt && !z?.self) this.faceTo(s, tgt);
@@ -3097,8 +3113,13 @@ export class GameWorld {
   }
 
   /** Grava o uso de TODO mundo (desligando o servidor). */
-  async flushAll(): Promise<void> {
+  async flushAll(maxWaitMs = 5000): Promise<void> {
     await Promise.all([...this.sessions.values()].map((s) => this.flushUsage(s)));
+    // v37: no desligamento (deploy), espera também as gravações na fila de cada jogador (Rito, compras, linhagem...).
+    const until = Date.now() + maxWaitMs;
+    while (Date.now() < until && [...this.sessions.values()].some((s) => s.profileBusy || s.profileQueue.length > 0)) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
   }
 
   /** Começar ou parar de meditar. Morto não medita; meditar para o jogador na hora. */
@@ -3227,6 +3248,19 @@ export class GameWorld {
     return { A: s.kits.A.filter((k) => this.canUse(s, k)), B: s.kits.B.filter((k) => this.canUse(s, k)) };
   }
 
+  /**
+   * v37: a classe mudou no meio da sessão (Missão de Genin refeita, Secundária): tira do kit o que a classe nova não usa,
+   * avisa o cliente e grava. Sem isso, os jutsus antigos ficavam no kit, escondidos da aba Kits, e travavam os 4 espaços.
+   */
+  private pruneKits(s: Session): void {
+    const kits = this.usableKits(s);
+    if (kits.A.length === s.kits.A.length && kits.B.length === s.kits.B.length) return;
+    s.kits = kits;
+    this.sendTo(s, { type: 'kit', ...this.kitView(s) });
+    const { id } = s;
+    if (this.profile) this.profileTask(s, (profile) => profile.saveLoadout(id, kits.A, kits.B).then(() => undefined));
+  }
+
   /** Salvar kits (até 4 por kit, sem repetir: o Zod e o banco conferem; só jutsu APRENDIDO e da sua classe). Grava no banco. */
   private setLoadout(session: Session, kits: Kits): void {
     if (![...kits.A, ...kits.B].every((j) => session.jutsus.has(j))) return this.sendError(session, 'NOT_LEARNED');
@@ -3338,14 +3372,15 @@ export class GameWorld {
   }
 
   /** Mesma fila para a progressão v7 (loja, Extração, classe, arma, tutorial): uma gravação por vez. */
-  private storeTask(session: Session, run: (store: NinjaStore) => Promise<void>): void {
+  /** `essential` (v36): gravação que não pode se perder (Rito, linhagem): entra na fila mesmo cheia. */
+  private storeTask(session: Session, run: (store: NinjaStore) => Promise<void>, essential = false): void {
     const store = this.store;
     if (!store) return this.sendError(session, 'PROFILE_UNAVAILABLE');
-    this.queueTask(session, () => run(store));
+    this.queueTask(session, () => run(store), essential);
   }
 
-  private queueTask(session: Session, run: () => Promise<void>): void {
-    if (session.profileQueue.length >= 5) return this.sendError(session, 'PROFILE_BUSY');
+  private queueTask(session: Session, run: () => Promise<void>, essential = false): void {
+    if (!essential && session.profileQueue.length >= 5) return this.sendError(session, 'PROFILE_BUSY');
     session.profileQueue.push(run);
     this.pumpProfile(session);
   }
@@ -3633,10 +3668,17 @@ export class GameWorld {
       say(`Linhagem desperta: ${CLAN_NAMES[clan]}! ${CLAN_HINT[clan]}`, 'good');
       this.sendTo(current, { type: 'clan', clan });
       this.grantClanJutsus(current);
+      if (current.riteProgress !== null) this.setRite(current, null);   // v36: o Rito só se apaga depois do despertar gravado
       this.broadcastMap(current.map, this.rankMsg(current));   // v35: os outros veem a linhagem (olho, névoa, faixa)
     };
     if (this.store?.chooseClan) {
-      this.storeTask(s, (store) => store.chooseClan!(id, clan).then(done));
+      // v36: só desperta de vez quando o banco confirma; se falhar, volta a "não desperto" e o Rito completo fica guardado
+      // (basta falar com o Diretor de novo, sem refazer a caça).
+      this.storeTask(s, (store) => store.chooseClan!(id, clan).then(done, (err: unknown) => {
+        const current = this.sessions.get(id);
+        if (current && current.clan === clan) current.clan = null;
+        throw err;
+      }), true);
     } else done();
   }
 
@@ -3645,7 +3687,7 @@ export class GameWorld {
     if (s.clan) return this.sendTo(s, { type: 'notice', text: `Sua linhagem já despertou: ${CLAN_NAMES[s.clan]}.`, tone: 'info' });
     s.clanMark = clan;
     this.sendTo(s, { type: 'clan_mark', clan });
-    if (this.store?.setClanMark) this.storeTask(s, (store) => store.setClanMark!(s.id, clan));
+    if (this.store?.setClanMark) this.storeTask(s, (store) => store.setClanMark!(s.id, clan), true);
   }
 
   /** v35: o Rito do Despertar com o Diretor (começar, ver o andamento, despertar). true = o Diretor falou do Rito. */
@@ -3666,15 +3708,14 @@ export class GameWorld {
       return true;
     }
     say(`O Rito está completo. Desperte, ${name}.`);
-    this.setRite(s, null);
-    this.chooseClan(s, s.clanMark);
+    this.chooseClan(s, s.clanMark);                     // v36: o Rito se apaga quando o despertar for gravado
     return true;
   }
 
   private setRite(s: Session, progress: number | null): void {
     s.riteProgress = progress;
     this.sendTo(s, { type: 'rite', progress, count: RITE.count });
-    if (this.store?.setRite) this.storeTask(s, (store) => store.setRite!(s.id, progress));
+    if (this.store?.setRite) this.storeTask(s, (store) => store.setRite!(s.id, progress), true);
   }
 
   /** v35: cada Lodo Escuro derrotado conta para o Rito de quem o começou. */
@@ -3690,7 +3731,7 @@ export class GameWorld {
     const missing = clanJutsusFor(s.clan, s.level).filter((c) => !s.jutsus.has(c));
     if (missing.length === 0) return;
     for (const c of missing) s.jutsus.set(c, 0);
-    if (this.store?.learnJutsus) this.storeTask(s, (store) => store.learnJutsus!(s.id, missing));
+    if (this.store?.learnJutsus) this.storeTask(s, (store) => store.learnJutsus!(s.id, missing), true);   // v36: essencial
     this.sendTo(s, { type: 'jutsus', jutsus: Object.fromEntries(s.jutsus) });
     this.sendTo(s, { type: 'notice', text: `Novo jutsu da linhagem: ${missing.map((c) => JUTSU_BY_CODE.get(c as Skill)?.name ?? c).join(', ')}.`, tone: 'good' });
   }
@@ -3709,6 +3750,7 @@ export class GameWorld {
         if (!result.ok) return refuse(current, result.text);
         current.classes = { ...result.classes };
         this.sendTo(current, { type: 'classes', ...current.classes });
+        this.pruneKits(current);
         this.sendTo(current, { type: 'notice', text: `Classe Secundária: ${CLASS_INFO[cls].name}.`, tone: 'good' });
         return undefined;
       }));
@@ -3724,6 +3766,7 @@ export class GameWorld {
       current.canBeSensei = result.canBeSensei;
       current.items = result.items;
       this.sendTo(current, { type: 'classes', ...current.classes });
+      this.pruneKits(current);                                 // v37: refez a Missão com outra classe: o kit antigo sai
       this.sendInventory(current);
       this.broadcastMap(current.map, this.rankMsg(current));
       this.broadcast({ type: 'announce', message: `${username} passou na Missão de Genin (classe ${CLASS_INFO[cls].name})!` });

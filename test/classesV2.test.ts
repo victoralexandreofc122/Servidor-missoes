@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { REALTIME, type RealtimeConfig } from '../src/realtime/config.js';
 import { CLASSES, JUTSUS } from '../src/realtime/jutsus.js';
+import { aimShapeOf } from '../src/realtime/protocol.js';
 import { CLASS_V2_CODES } from '../src/realtime/jutsusClasses.js';
 import { blocked } from '../src/realtime/movement.js';
 import { pvpCostCooldown } from '../src/realtime/pvpBalance.js';
@@ -590,3 +591,53 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
   });
 });
 
+
+describe('v37: mira pela forma do jutsu (todas as classes)', () => {
+  /** Dois alvos: um à direita (mais perto) e um acima. Mirar para cima tem que pegar o de cima. */
+  function aimed(skill: string, cls: string) {
+    const sc = scene(skill, [[1.5, 0], [0, -2]]);
+    sc.s.classes = { primary: cls, secondary: null };
+    sc.a.send({ type: 'cast', skill, dir: [0, -1] });
+    sc.run((SK[skill as 'fire']?.castMs ?? 0) + 900);
+    return { right: sc.dealt(sc.ms[0]), up: sc.dealt(sc.ms[1]), s: sc.s, sc };
+  }
+
+  it('o servidor manda a forma da mira: linha, cone ou área; o que sai em si ou trava no alvo não mira', () => {
+    const shapes = Object.fromEntries(JUTSUS.map((j) => [j.code, aimShapeOf(j.form, SK[j.code as 'fire'])]));
+    assert.equal(shapes.water_dragao, 'line');       // Água: projétil
+    assert.equal(shapes.stone_rocha, 'line');        // Terra: projétil
+    assert.equal(shapes.illusion_estaca, 'line');    // Ilusão: linha
+    assert.equal(shapes.water, 'cone');              // Água: cone
+    assert.equal(shapes.stone_2, 'area');            // Terra: lamaçal lançado
+    assert.equal(shapes.wind_salto, 'line');         // Vento: salto
+    assert.equal(shapes.heal, undefined);            // cura em volta de si
+    assert.equal(shapes.shadow_4, undefined);        // zona em volta de si
+    assert.equal(shapes.stone_3, undefined);         // "alvo": trava no inimigo
+    assert.equal(shapes.wind_veu, undefined);        // escudo
+  });
+
+  it('projétil da Água e linha da Ilusão: mirar para cima acerta o de cima, não o mais perto', () => {
+    for (const [skill, cls] of [['water_dragao', 'water'], ['illusion_estaca', 'illusion'], ['stone_rocha', 'stone']] as const) {
+      const r = aimed(skill, cls);
+      assert.ok(r.up > 0, `${skill}: acertou o de cima`);
+      assert.equal(r.right, 0, `${skill}: não foi no mais perto`);
+    }
+  });
+
+  it('área lançada (Lamaçal Profundo, Terra): cai no inimigo da direção mirada, não no mais perto', () => {
+    const r = aimed('stone_2', 'stone');
+    const cast = r.sc.a.conn.last('cast');
+    assert.deepEqual([cast.tx, cast.ty], [r.sc.ms[1].x, r.sc.ms[1].y].map((n: number) => Math.round(n * 100) / 100));
+  });
+
+  it('salto (Passo Aéreo) vai para onde mirou; o recuo de costas também (Reflexo Tático)', () => {
+    for (const [skill, cls] of [['wind_salto', 'wind'], ['shadow_recuo', 'shadow']] as const) {
+      const sc = scene(skill, []);
+      sc.s.classes = { primary: cls, secondary: null };
+      const y0 = sc.s.y;
+      sc.a.send({ type: 'cast', skill, dir: [0, 1] });
+      sc.run(400);
+      assert.ok(sc.s.y > y0 + 1, `${skill}: desceu (${y0} -> ${sc.s.y})`);
+    }
+  });
+});

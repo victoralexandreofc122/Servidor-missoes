@@ -457,7 +457,7 @@ function upsertPlayer(p, snap) {
     if (snap) { existing.x = p.x; existing.y = p.y; existing.snaps = [{ t: performance.now(), x: p.x, y: p.y }]; }
     else pushSnapshot(existing.snaps, performance.now(), p.x, p.y, state.world.tickMs || 50);
     if (p.hp !== undefined) { existing.hp = p.hp; existing.maxHp = p.maxHp; existing.dead = p.dead; existing.meditating = !!p.meditating; existing.sitting = !!p.sitting; }
-    if (p.rank) { existing.rank = p.rank; existing.level = p.level; }
+    if (p.rank) { existing.rank = p.rank; existing.level = p.level; existing.lineage = p.lineage || null; }   // v36: a linhagem vem com a ficha
     if (p.appearance) existing.look = normalizeLook(p.appearance);
     if (p.dir !== undefined) existing.dir = p.dir;
     if (p.gear) existing.gear = safeGear(p.gear);
@@ -472,6 +472,8 @@ function upsertPlayer(p, snap) {
     snaps: [{ t: performance.now(), x: p.x, y: p.y }],
     hp: p.hp ?? 100, maxHp: p.maxHp ?? 100, dead: !!p.dead, meditating: !!p.meditating, sitting: !!p.sitting,
     rank: p.rank || null, level: p.level || 1,
+    // v36: linhagem (olho do Rubro, névoa do Umbra, faixa do Andarilho) já ao entrar, não só quando a patente muda
+    lineage: p.lineage || null,
     // Visual (sprites: nomes de paleta, do servidor), direção (0 baixo, 1 esq, 2 dir, 3 cima), fase da caminhada,
     // ação em curso (soco/chute/selo) e atraso do "parado" (para os bonecos não respirarem juntos).
     look: normalizeLook(p.appearance), dir: p.dir ?? 0, walk: 0, moving: false, running: false, act: null,
@@ -3453,7 +3455,8 @@ window.addEventListener('pointermove', (e) => {
   mouse.seen = true;
 });
 
-const isLineSkill = (skill) => !!state.world.skills?.[skill]?.line;
+// v37: mira pela forma do jutsu (o servidor manda `aim`: linha, cone ou área), em todas as classes
+const isLineSkill = (skill) => !!state.world.skills?.[skill]?.aim;
 
 function bindSkillButton(button, i) {
   button.addEventListener('pointerdown', (e) => {
@@ -3588,8 +3591,25 @@ function drawAimPreview(view, toScreenX, toScreenY, T, now) {
     ctx.lineTo(x1 - uy * h - ux * h * 0.4, y1 + ux * h - uy * h * 0.4);
     ctx.lineTo(x1 + uy * h - ux * h * 0.4, y1 - ux * h - uy * h * 0.4);
     ctx.closePath(); ctx.fill();
-    // Fogo: a explosão no fim (ou no primeiro alvo).
-    if (view.mechanic === 'fire' && view.info.radius) {
+    // v37: área lançada (zona, aviso, impacto): o círculo onde cai. Fogo: a explosão no fim (ou no primeiro alvo).
+    if (main && view.info.aim === 'area') {
+      const r = (view.info.radius || 1.5) * T;
+      const hx = p.hit ? toScreenX(p.hit.x) : x1, hy = p.hit ? toScreenY(p.hit.y) : y1;
+      ctx.fillStyle = CY(0.1);
+      ctx.strokeStyle = CY(0.6);
+      ctx.lineWidth = 2;
+      ctx.setLineDash([T / 5, T / 8]);
+      ctx.beginPath(); ctx.arc(hx, hy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (main && view.info.aim === 'cone') {
+      // o leque do cone, aberto na direção escolhida
+      const half = ((view.info.coneDeg || 90) / 2) * (Math.PI / 180);
+      const a0 = Math.atan2(uy, ux), R = (view.info.range || 2) * T;
+      ctx.fillStyle = CY(0.1);
+      ctx.strokeStyle = CY(0.6);
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.arc(x0, y0, R, a0 - half, a0 + half); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (view.mechanic === 'fire' && view.info.radius) {
       ctx.fillStyle = CY(0.06);
       ctx.strokeStyle = CY(0.35);
       ctx.lineWidth = 1.5;
@@ -3739,7 +3759,11 @@ function usableJutsu(code) {
 /** Aba Kits: uma linha por jutsu APRENDIDO e da sua classe, com os botões A e B. Montada com createElement (nada vira HTML). */
 let kitListKey = '';
 function renderKitList() {
-  const list = learnedJutsus().filter(usableJutsu);
+  // v37: o que ainda está no kit mas não é da sua classe aparece também (com cadeado), para poder tirar; antes ficava
+  // escondido e travava os 4 espaços.
+  const inKit = new Set([...(draftKits?.A || []), ...(draftKits?.B || [])]);
+  const list = learnedJutsus().filter((code) => usableJutsu(code) || inKit.has(code));
+  for (const code of inKit) if (!list.includes(code) && state.world.skills?.[code]) list.push(code);
   const key = list.join(',');
   if (key === kitListKey) return;
   kitListKey = key;
@@ -3754,6 +3778,14 @@ function renderKitList() {
       small.textContent = `T${info.tier}`;
       label.append(small);
     }
+    const locked = !usableJutsu(skill);
+    if (locked) {
+      li.classList.add('locked');
+      const lock = document.createElement('small');
+      lock.className = 'lock';
+      lock.textContent = '🔒 fora da sua classe: toque para tirar';
+      label.append(lock);
+    }
     li.append(label);
     for (const kit of ['A', 'B']) {
       const chip = document.createElement('button');
@@ -3765,7 +3797,7 @@ function renderKitList() {
         const kitSkills = draftKits[kit];
         const i = kitSkills.indexOf(skill);
         if (i >= 0) kitSkills.splice(i, 1);
-        else if (kitSkills.length < 4) kitSkills.push(skill);
+        else if (kitSkills.length < 4 && usableJutsu(skill)) kitSkills.push(skill);   // v37: o bloqueado só sai
         renderDraftKits();
       });
       li.append(chip);
@@ -7249,13 +7281,19 @@ function drawFloaters(toScreenX, toScreenY, T, now) {
  */
 /** v35: a marca do Clã Umbra (opção C do Victor): névoa escura nos pés, mais densa a cada tier despertado. */
 function drawUmbraMist(g, x, y, T, tier, now) {
-  const n = 3 + 2 * Math.max(1, Math.min(4, tier || 1));
+  // v36: mais densa e maior (no jogo a de antes sumia no chão); cresce com o tier: mais fiapos, mais escura, mais larga.
+  const k = Math.max(1, Math.min(4, tier || 1));
+  const n = 4 + 2 * k;
   g.save();
+  g.fillStyle = `rgba(20, 8, 36, ${0.22 + 0.06 * k})`;          // a mancha de baixo
+  g.beginPath();
+  g.ellipse(x, y, T * (0.36 + 0.04 * k), T * (0.13 + 0.01 * k), 0, 0, Math.PI * 2);
+  g.fill();
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + now / 900;
-    const r = T * (0.28 + 0.06 * Math.sin(now / 500 + i));
+    const r = T * (0.3 + 0.03 * k + 0.06 * Math.sin(now / 500 + i));
     const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r * 0.35;
-    g.fillStyle = `rgba(28, 14, 48, ${0.16 + 0.05 * Math.max(1, Math.min(4, tier || 1))})`;
+    g.fillStyle = `rgba(48, 22, 78, ${0.24 + 0.07 * k})`;
     g.beginPath();
     g.ellipse(px, py, T * 0.2, T * 0.08, 0, 0, Math.PI * 2);
     g.fill();

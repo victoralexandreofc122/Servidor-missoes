@@ -240,6 +240,28 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+**Teste Alpha:** o checklist para os jogadores está em [`docs/checklist-teste-alpha.md`](docs/checklist-teste-alpha.md).
+
+### v37: Rito do Despertar à prova de travar e o visual das linhagens no jogo (sem migração)
+
+- Teste de ponta a ponta do Rito com o banco de verdade (`test/rito.integration.test.ts`): marcar, Diretor, 10 Lodos
+  Escuros em combate, sair e voltar no meio, despertar; quem passou do 11 sem fazer o Rito; Caverna do Lodo conta.
+- Correção (podia travar o jogador): as gravações do Rito e da linhagem não são mais descartadas quando a fila de
+  gravação do jogador está cheia (combate intenso). O progresso do Rito só se apaga depois que o despertar foi gravado;
+  se o banco falhar, o jogador continua com o Rito completo e só fala com o Diretor de novo.
+- Correção: o olho do Rubro, a névoa do Umbra e a faixa do Andarilho só apareciam depois de alguém subir de nível; agora
+  aparecem ao entrar no jogo e no mapa.
+- Correção: no desligamento (cada deploy no Render), o servidor espera as gravações pendentes de cada jogador (até 5 s)
+  antes de sair; antes, o que estava na fila no último segundo podia se perder.
+- Correção: refazer a Missão de Genin com outra classe (admin) deixava os jutsus da classe antiga no kit, escondidos da
+  aba Kits e ocupando os 4 espaços. Agora saem do kit na hora (continuam aprendidos no perfil) e o kit limpo é gravado; a
+  aba Kits também mostra, com cadeado, qualquer jutsu fora da classe que ainda esteja no kit, para poder tirar.
+- Mira em todas as classes: segurar e arrastar o botão agora vale pela FORMA do jutsu, não só no Fogo, Sombra, Raio,
+  Armas e Vento. Linha, projétil, leque, avanço, salto e muro mostram o caminho; cone mostra o leque; zona e aviso
+  lançados mostram o círculo onde caem (no primeiro inimigo da direção ou no fim do alcance). Escudo, buff, cura, zona
+  em volta de si e jutsu travado no alvo continuam de toque (não têm direção). `aimShapeOf` em `protocol.ts`.
+- A névoa do Umbra ficou mais densa (no chão do jogo a de antes sumia); a faixa do Andarilho ficou clara e mais larga.
+
 ### v36: Fase 1.5, maestria em todos os jutsus (sem migração)
 
 - Os 98 jutsus de classe e de clã agora evoluem pela maestria do design final (antes só os 11 do Fogo). Cada jutsu ganha no

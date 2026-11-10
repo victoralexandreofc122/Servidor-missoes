@@ -171,6 +171,26 @@ export const DIRECTED_SKILLS: ReadonlySet<Skill> = new Set<Skill>(JUTSUS.filter(
  */
 export const LINE_MECHANICS: ReadonlySet<Mechanic> = new Set<Mechanic>(['fire', 'shadow', 'lightning', 'weapons', 'wind']);
 
+/**
+ * v37: a mira (segurar e arrastar o botão) vale pela FORMA do jutsu, não pela classe:
+ *  - 'line': sai numa direção (linha, projétil, leque, avanço, salto, muro...); a prévia é o caminho;
+ *  - 'cone': o cone na frente; a prévia é o leque;
+ *  - 'area': uma área lançada a distância (zona, aviso, impacto); cai no primeiro inimigo na direção ou no fim do alcance.
+ * Sem mira: o que sai em volta de si, no próprio corpo ou travado num alvo (escudo, buff, cura, zona em si, "alvo", "marca").
+ */
+export type AimShape = 'line' | 'cone' | 'area';
+const AIM_BY_FORM: Partial<Record<JutsuForm, AimShape>> = {
+  linha: 'line', linha_prende: 'line', linha_raio: 'line', linha_explode: 'line', projetil: 'line', trilhas: 'line', leque: 'line',
+  ricochete: 'line', agarre: 'line', faixa: 'line', investida: 'line', avanco: 'line', bumerangue: 'line', muro: 'line', recuo: 'line',
+  cone: 'cone', cone_golpe: 'cone',
+  impacto: 'area', zona: 'area', aviso: 'area',
+};
+export function aimShapeOf(form: JutsuForm, cfg: { zone?: { self?: boolean } | undefined; range?: number | undefined }): AimShape | undefined {
+  const shape = AIM_BY_FORM[form];
+  if (shape === 'area' && form === 'zona' && (cfg.zone?.self || !(cfg.range && cfg.range > 0))) return undefined;   // zona em volta de si
+  return shape;
+}
+
 /** Id de monstro como o servidor cria ("m" + número). */
 const monsterId = z.string().regex(/^m\d{1,9}$/);
 const uuid = z.string().uuid();
@@ -433,6 +453,10 @@ export interface SkillInfo {
   name: string;
   /** v30: só vem quando não é a mecânica (Academia: null); sem ele, a classe é a mecânica. */
   class?: ClassCode | null;
+  /** v37: como se mira (segurar e arrastar): linha, cone ou área. Sem o campo: não mira (sai em si ou no alvo). */
+  aim?: AimShape;
+  /** v37: salto ou recuo (casas; negativo = para trás). A mira escolhe para onde ele vai. */
+  dash?: number;
   /** v36: jutsu de clã (Rubro, Umbra): o nome do clã na aba Jutsus. */
   clan?: Clan;
   tier: number;
