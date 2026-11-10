@@ -984,3 +984,16 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
   overflow: hidden;
 }
 .cast-bar .fill { height: 100%; width: 0; background: #ff7a2e; box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.3); }
+
+/* v42: Torneio da Temporada (botão na Arena e painel) */
+.duel-btn.jounin-btn { background: linear-gradient(180deg, rgba(120, 84, 20, 0.85), rgba(70, 46, 10, 0.85)); border-color: #ffd76a; color: #ffe9a8; font-size: 14px; }
+.duel-btn.jounin-btn.closed { background: rgba(30, 30, 30, 0.5); border-color: rgba(255, 255, 255, 0.25); color: rgba(255, 255, 255, 0.55); font-weight: 600; }
+.jounin-panel .jounin-me { display: flex; gap: 18px; margin: 4px 12px; }
+.jounin-panel .jounin-me p { margin: 0; font-size: 15px; font-weight: 700; color: #ffd76a; }
+.jounin-cut { margin: 6px 12px; padding: 6px 10px; border-radius: 8px; font-size: 13px; background: rgba(255, 255, 255, 0.06); border-left: 3px solid #ff9d5c; }
+.jounin-cut.in { border-left-color: #8fe07a; }
+.jounin-cut:empty { display: none; }
+.ranked-table tr.cut-line td { color: #ff9d5c; font-weight: 700; border-top: 2px dashed #ff9d5c; border-bottom: none; padding-top: 5px; }
+.jounin-queue { display: block; width: calc(100% - 24px); margin: 8px 12px 4px; min-height: 44px; }
+.jounin-queue:disabled { opacity: 0.45; }
+.jounin-queue.queued { background: rgba(30, 30, 30, 0.6); color: #fff; }

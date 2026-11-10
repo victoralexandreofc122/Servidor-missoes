@@ -123,6 +123,7 @@
     </div>
     <div id="duel-bar" class="duel-bar" hidden>
       <button id="duel-btn" class="duel-btn" type="button">⚔️ Desafio</button>
+      <button id="jounin-btn" class="duel-btn jounin-btn" type="button" aria-controls="jounin-panel">🔒 Torneio Fechado</button>
       <button id="duel-watch-btn" class="duel-btn duel-board-btn" type="button">👁 Assistir</button>
       <button id="duel-board-btn" class="duel-btn duel-board-btn" type="button" aria-controls="ranked-panel" aria-label="Ranking" title="Ranking">🏆</button>
     </div>
@@ -141,6 +142,28 @@
         <tbody id="ranked-list"></tbody>
       </table>
       <p class="ranked-note">Fim da temporada: 1º lugar ganha título de Campeão, 5.000 ryō e o Manto do Campeão; do 2º ao 10º, título de Elite, 2.000 ryō e o manto; do 11º ao 50º, título de Veterano e 500 ryō. Só entra quem fez 10 partidas.</p>
+    </section>
+
+    <!-- v42 (migração v27): Torneio da Temporada, fase de pontos. O servidor decide tudo; aqui só se mostra e se pede. -->
+    <section id="jounin-panel" class="mission-panel ranked-panel jounin-panel" hidden role="dialog" aria-labelledby="jounin-title">
+      <header class="mission-head">
+        <h2 id="jounin-title"><span aria-hidden="true">🏆</span> Torneio da Temporada</h2>
+        <button id="jounin-close" class="icon-btn small" type="button" aria-label="Fechar o Torneio"><span aria-hidden="true">✕</span></button>
+      </header>
+      <p id="jounin-status" class="ranked-season"></p>
+      <div class="jounin-me">
+        <p id="jounin-matches"></p>
+        <p id="jounin-points"></p>
+      </div>
+      <div class="ranked-progress"><i id="jounin-matches-bar"></i><span id="jounin-matches-text"></span></div>
+      <p id="jounin-cut" class="jounin-cut"></p>
+      <table class="ranked-table">
+        <thead><tr><th>#</th><th>Ninja</th><th>Pontos</th><th>V/D</th></tr></thead>
+        <tbody id="jounin-list"></tbody>
+      </table>
+      <button id="jounin-queue" type="button" class="primary jounin-queue">Entrar na Fila do Torneio</button>
+      <p id="jounin-why" class="ranked-note"></p>
+      <p class="ranked-note">Vitória +30 pontos e 100 ryō; derrota -10 pontos (nunca abaixo de 0) e 30 ryō. Só contra ninjas da sua vila. Com 15 partidas você entra na classificação; os melhores vão para a Fase Final e disputam o título de Jounin.</p>
     </section>
 
     <!-- Tutorial da Academia: o que fazer na sala atual (o SERVIDOR confere e abre a porta). -->

@@ -42,7 +42,7 @@ começa com o OK do Victor, tem migração própria, regras conferidas no servid
 |---|---|---|
 | 1 (feito) | Eras, vagas, pontos, histórico, classificação | v27 |
 | 2 (feito, v41) | **Fila do Torneio no servidor:** modo novo do duelo (`mode: 'jounin'`), só na janela da fase de pontos, só elegíveis; ao fim da partida chama `jounin_result`; comando `/admin torneio abrir|fechar` | nenhuma |
-| 3 | **Cliente da fase de pontos:** botão na Arena, placar da vila (posição, pontos, partidas até 15, linha de corte dos finalistas), vagas da vila | nenhuma |
+| 3 (feito, v42) | **Cliente da fase de pontos:** botão na Arena, placar da vila (posição, pontos, partidas até 15, linha de corte dos finalistas), vagas da vila | nenhuma |
 | 4 | **Fase final, grupos:** fecha a fase de pontos, sorteia os finalistas (2x as vagas) em grupos, agenda as partidas, tabela dos grupos | v28 |
 | 5 | **Fase final, eliminatória:** chaves, uma luta por vez com público, W.O. por ausência | v28 |
 | 6 | **Encerramento:** grava `jounin_era`, promove a `JONIN`, paga 200 ryō e o título de consolação aos não classificados, anuncia | v28 |

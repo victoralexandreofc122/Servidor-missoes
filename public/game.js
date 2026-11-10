@@ -44,6 +44,9 @@ const ui = {
   rankedToggle: $('ranked-toggle'), rankedLabel: $('ranked-label'), duelBtn: $('duel-btn'), duelHud: $('duel-hud'),
   duelBar: $('duel-bar'), duelBoardBtn: $('duel-board-btn'), rankedPanel: $('ranked-panel'), rankedClose: $('ranked-close'),
   rankedSeason: $('ranked-season'), rankedMe: $('ranked-me'), rankedList: $('ranked-list'),
+  jouninBtn: $('jounin-btn'), jouninPanel: $('jounin-panel'), jouninClose: $('jounin-close'), jouninStatus: $('jounin-status'),
+  jouninMatches: $('jounin-matches'), jouninPoints: $('jounin-points'), jouninMatchesBar: $('jounin-matches-bar'), jouninMatchesText: $('jounin-matches-text'),
+  jouninCut: $('jounin-cut'), jouninList: $('jounin-list'), jouninQueue: $('jounin-queue'), jouninWhy: $('jounin-why'),
   duelAgain: $('duel-again'), duelWatchBtn: $('duel-watch-btn'), duelAHp: $('duel-a-hp'), duelBHp: $('duel-b-hp'),
   rankedProgress: $('ranked-progress'), rankedProgressBar: $('ranked-progress-bar'), rankedProgressText: $('ranked-progress-text'),
   duelBanner: $('duel-banner'), duelBannerTitle: $('duel-banner-title'), duelBannerScore: $('duel-banner-score'), duelBannerPoints: $('duel-banner-points'),
@@ -307,6 +310,20 @@ ui.duelBoardBtn.addEventListener('click', () => {
   send({ type: 'ranked', action: 'board' });
 });
 ui.rankedClose.addEventListener('click', () => { ui.rankedPanel.hidden = true; renderDuel(); });
+// v42: Torneio da Temporada (o servidor confere quem pode e quando)
+ui.jouninBtn.addEventListener('click', () => {
+  if (!state.jounin?.open) return showToast('O Torneio da Temporada está fechado.', 3000);
+  ui.rankedPanel.hidden = true;
+  ui.jouninPanel.hidden = false;
+  ui.jouninStatus.textContent = 'Carregando…';
+  send({ type: 'ranked', action: 'jounin_board' });
+  renderDuel();
+});
+ui.jouninClose.addEventListener('click', () => { ui.jouninPanel.hidden = true; renderDuel(); });
+ui.jouninQueue.addEventListener('click', () => {
+  if (ui.jouninQueue.disabled) return;
+  send({ type: 'ranked', action: (state.duelQueue?.jounin?.position || 0) > 0 ? 'jounin_unqueue' : 'jounin_queue' });
+});
 ui.duelAgain.addEventListener('click', () => {
   ui.duelBanner.hidden = true;
   send({ type: 'ranked', action: 'queue' });
@@ -786,7 +803,25 @@ function handleMessage(msg) {
       duelAnnounce(msg);
       renderDuel();
       break;
+    case 'jounin_state':
+      state.jounin = msg;
+      renderDuel();
+      break;
+    case 'jounin_board':
+      state.jouninBoard = msg;
+      renderJouninBoard();
+      break;
     case 'duel_rating':
+      if (msg.mode === 'jounin') {
+        // v42: partida do Torneio da Temporada: pontos da era, não o MMR
+        const sign = msg.delta >= 0 ? '+' : '';
+        const text = msg.counted ? `${sign}${msg.delta} Pontos de Torneio${msg.ryo ? ` · +${msg.ryo} ryō` : ''}` : 'Não contou pontos (mesma dupla 3 vezes hoje ou conta de admin)';
+        if (!ui.duelBanner.hidden) ui.duelBannerPoints.textContent = msg.counted ? `${text} · total ${msg.mmr}` : text;
+        else showToast(`${msg.won ? 'Vitória' : 'Derrota'} · ${text}`, 4500);
+        addSystemLine(msg.counted ? `🏆 Torneio da Temporada: ${sign}${msg.delta} pontos. Agora você tem ${msg.mmr}.` : '🏆 Torneio da Temporada: esta partida não contou pontos.');
+        if (!ui.jouninPanel.hidden) send({ type: 'ranked', action: 'jounin_board' });
+        break;
+      }
       if (msg.counted) {
         const sign = msg.delta >= 0 ? '+' : '';
         if (!ui.duelBanner.hidden) {
@@ -812,6 +847,7 @@ function handleMessage(msg) {
     case 'duel_queue':
       state.duelQueue = msg;
       renderDuel();
+      if (!ui.jouninPanel.hidden) renderJouninBoard();
       break;
     case 'arena_result': {
       // Luta de treino na arena: todo mundo no mapa vê no chat; quem lutou vê o placar.
@@ -1283,6 +1319,7 @@ function handleMessage(msg) {
     }
     case 'announce':
       addSystemLine(msg.message);
+      if (/Torneio da Temporada/.test(msg.message)) showToast(msg.message, 7000);   // v42: aviso na tela, além do chat
       break;
 
     // ---- missões (o servidor conta os abates e decide a conclusão; aqui só se mostra)
@@ -2074,6 +2111,72 @@ function tierBadge(mmr) {
   return b;
 }
 
+/** v42: o painel do Torneio da Temporada: partidas até 15, pontos, top 10 da vila e a linha de corte. */
+function renderJouninBoard() {
+  const b = state.jouninBoard;
+  if (!b || ui.jouninPanel.hidden) return;
+  const cell = (tr, text, cls) => { const td = document.createElement('td'); td.textContent = text; if (cls) td.className = cls; tr.appendChild(td); return td; };
+  ui.jouninList.textContent = '';
+  ui.jouninWhy.textContent = '';
+  if (!b.available || !b.endsAt) {
+    ui.jouninStatus.textContent = b.available ? 'O Torneio da Temporada ainda não abriu nesta era.' : 'O Torneio da Temporada ainda não está ligado no servidor.';
+    ui.jouninMatches.textContent = ui.jouninPoints.textContent = ui.jouninCut.textContent = ui.jouninMatchesText.textContent = '';
+    ui.jouninMatchesBar.style.width = '0%';
+    ui.jouninQueue.disabled = true;
+    return;
+  }
+  const left = b.endsAt - Date.now();
+  const days = Math.floor(left / 86_400_000), hours = Math.max(0, Math.ceil((left % 86_400_000) / 3_600_000));
+  const vila = VILLAGE_SHORT[b.village] || 'sua vila';
+  ui.jouninStatus.textContent = !b.open ? 'Fase de pontos encerrada. Aguarde a Fase Final.'
+    : `Fase de pontos · acaba em ${days > 0 ? `${days} dia${days === 1 ? '' : 's'}` : `${hours} h`}${b.slots ? ` · ${vila}: ${b.slots} vagas de Jounin, ${b.cut} vão à Fase Final` : ''}`;
+  const me = b.me || { position: null, points: 0, wins: 0, losses: 0, finalist: false };
+  const played = me.wins + me.losses, need = b.minMatches || 15;
+  ui.jouninMatches.textContent = `Partidas jogadas: ${Math.min(played, need)}/${need}${played > need ? ` (${played} no total)` : ''}`;
+  ui.jouninPoints.textContent = `Seus Pontos: ${me.points}`;
+  ui.jouninMatchesBar.style.width = `${Math.min(1, played / need) * 100}%`;
+  ui.jouninMatchesText.textContent = played >= need ? 'Classificação liberada' : `Faltam ${need - played} partida${need - played === 1 ? '' : 's'} para entrar na classificação`;
+  // A linha de corte: os primeiros `cut` (2x as vagas) entre quem tem as 15 partidas.
+  let cutText = '';
+  if (b.cut) {
+    if (played < need) cutText = `Zona de classificação: os ${b.cut} primeiros da vila. Complete as ${need} partidas para aparecer no placar.`;
+    else if (me.position === null) cutText = `Zona de classificação: os ${b.cut} primeiros da vila. A sua posição aparece depois da próxima partida.`;
+    else if (me.finalist) cutText = `Você está na zona de classificação para a Fase Final (${me.position}º de ${b.cut}).`;
+    else if (b.cutPoints !== null && b.cutPoints !== undefined) cutText = `Faltam ${Math.max(1, b.cutPoints - me.points + 1)} pontos para você entrar na zona de classificação para a Fase Final (você é o ${me.position}º; o corte é o ${b.cut}º, com ${b.cutPoints} pontos).`;
+    else cutText = `Você está na zona de classificação para a Fase Final (${me.position}º de ${b.cut}).`;
+  }
+  ui.jouninCut.textContent = cutText;
+  ui.jouninCut.classList.toggle('in', !!me.finalist);
+  const row = (r, cls) => {
+    const tr = document.createElement('tr');
+    if (cls) tr.className = cls;
+    cell(tr, r.position === null ? '–' : `${r.position}º`);
+    cell(tr, r.username);
+    cell(tr, String(r.points));
+    cell(tr, `${r.wins}/${r.losses}`);
+    ui.jouninList.appendChild(tr);
+  };
+  const myName = state.players.get(state.meId)?.username;
+  for (const r of b.top || []) row(r, r.username === myName ? 'me' : r.position === 1 ? 'top1' : '');
+  if (!(b.top || []).length) {
+    const tr = document.createElement('tr');
+    cell(tr, `Ninguém da vila completou ${need} partidas ainda. Seja o primeiro!`).colSpan = 4;
+    ui.jouninList.appendChild(tr);
+  }
+  if (b.cut) {
+    const tr = document.createElement('tr');
+    tr.className = 'cut-line';
+    cell(tr, b.cutPoints !== null && b.cutPoints !== undefined ? `✂ Linha de corte: ${b.cut}º lugar, com ${b.cutPoints} pontos` : `✂ Linha de corte: ${b.cut}º lugar · ${b.qualified || 0} de ${b.cut} lugares ocupados`).colSpan = 4;
+    ui.jouninList.appendChild(tr);
+  }
+  if (me.position !== null && !(b.top || []).some((r) => r.username === myName)) row({ ...me, username: myName || 'Você' }, 'me');
+  const jq = state.duelQueue?.jounin?.position || 0;
+  ui.jouninQueue.disabled = !b.open || !b.eligible;
+  ui.jouninQueue.textContent = jq > 0 ? `Na fila: ${jq}º de ${state.duelQueue.jounin.size} · Cancelar` : 'Entrar na Fila do Torneio';
+  ui.jouninQueue.classList.toggle('queued', jq > 0);
+  ui.jouninWhy.textContent = !b.open ? '' : b.eligible ? '' : (b.reason || 'Você não pode disputar o Torneio da Temporada.');
+}
+
 /** A faixa grande no meio da tela no fim da partida (só para quem lutou). Os pontos chegam depois (duel_rating). */
 let bannerTimer = 0;
 function showDuelBanner(won, score, points, voided = false) {
@@ -2111,8 +2214,17 @@ function renderDuel() {
   const d = state.duel;
   const fighting = !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
   const q = state.duelQueue;
-  ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden;
+  ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden || !ui.jouninPanel.hidden;
   ui.duelBtn.hidden = fighting;
+  // v42: Torneio da Temporada: aberto = botão dourado (ou a posição na fila); fechado = cadeado
+  const jq = q?.jounin?.position || 0;
+  const jOpen = !!state.jounin?.open;
+  ui.jouninBtn.hidden = fighting;
+  ui.jouninBtn.classList.toggle('closed', !jOpen);
+  ui.jouninBtn.classList.toggle('queued', jq > 0);
+  ui.jouninBtn.textContent = !jOpen ? '🔒 Torneio Fechado' : jq > 0 ? `🏆 Torneio: ${jq}º na fila` : '🏆 Torneio da Temporada';
+  ui.jouninBtn.setAttribute('aria-disabled', jOpen ? 'false' : 'true');
+  if (!inVale || fighting) ui.jouninPanel.hidden = true;
   ui.duelBoardBtn.hidden = fighting;                     // revisão EGM: na luta, nada em cima dos jutsus
   // Sentar só em cima da arquibancada; sentado: Assistir / Parar de assistir
   const stands = !fighting && (state.sitting || onStands());
@@ -2241,12 +2353,12 @@ function duelAnnounce(msg) {
   const mine = msg.a.id === state.meId ? 'a' : msg.b.id === state.meId ? 'b' : null;
   if (msg.phase === 'prep' && prev?.phase !== 'prep') {
     if (mine) showToast(`Seu adversário: ${mine === 'a' ? msg.b.name : msg.a.name} (Nv ${mine === 'a' ? msg.b.level : msg.a.level})`, 4000);
-    addSystemLine(`⚔️ Rankeado: ${msg.a.name} x ${msg.b.name}.`);
+    addSystemLine(`⚔️ ${msg.mode === 'jounin' ? 'Torneio da Temporada' : 'Rankeado'}: ${msg.a.name} x ${msg.b.name}.`);
   } else if (msg.phase === 'round' && prev?.phase !== 'round' && mine) showToast(`Rodada ${msg.round}: lute!`, 1800);
   else if (msg.phase === 'done' && prev?.phase !== 'done') {
     const w = msg.winner ? msg[msg.winner] : null;
     if (msg.voided) addSystemLine(`⚖️ Rankeado: partida anulada (ninguém causou dano).`);
-    else if (w) addSystemLine(msg.reason === 'forfeit' ? `🏆 Rankeado: ${w.name} venceu (o outro saiu).` : `🏆 Rankeado: ${w.name} venceu por ${Math.max(msg.wins.a, msg.wins.b)} a ${Math.min(msg.wins.a, msg.wins.b)}.`);
+    else if (w) addSystemLine(msg.reason === 'forfeit' ? `🏆 ${msg.mode === 'jounin' ? 'Torneio da Temporada' : 'Rankeado'}: ${w.name} venceu (o outro saiu).` : `🏆 ${msg.mode === 'jounin' ? 'Torneio da Temporada' : 'Rankeado'}: ${w.name} venceu por ${Math.max(msg.wins.a, msg.wins.b)} a ${Math.min(msg.wins.a, msg.wins.b)}.`);
     if (mine && w) {
       const won = msg.winner === mine;
       if (msg.voided) showDuelBanner(won, 'Ninguém causou dano: não conta pontos', '', true);

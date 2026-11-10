@@ -240,6 +240,16 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v42: Fase 2, passo 3: a tela do Torneio da Temporada (sem migração)
+
+- Na Arena, botão **Torneio da Temporada** (fechado: "🔒 Torneio Fechado"). O painel mostra "Partidas jogadas: X/15", "Seus
+  Pontos", o top 10 da vila, a linha de corte (2x as vagas) e quanto falta para entrar na zona de classificação, e o botão
+  "Entrar na Fila do Torneio" (desligado, com o motivo, para quem não pode disputar).
+- Fim da partida: "+30 Pontos de Torneio" ou "-10 Pontos de Torneio", com o ryō. O chat chama a partida de Torneio da Temporada.
+- `/admin torneio abrir` avisa todos no chat e na tela.
+- Servidor: mensagem `jounin_board` (o placar nunca manda o id dos outros jogadores).
+- A decidir na v28: o que acontece com os pontos de quem troca de vila no meio do Torneio (hoje ficam na vila antiga).
+
 ### v41: Fase 2, passo 2: a fila do Torneio da Temporada no servidor (sem migração)
 
 - Modo novo do duelo (`mode: 'jounin'`) na Arena, só na janela da fase de pontos. Fila própria, e a partida só une ninjas

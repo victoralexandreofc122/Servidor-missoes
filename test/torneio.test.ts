@@ -43,7 +43,7 @@ describe('v41: /admin torneio', () => {
 /** Banco de mentira com as mesmas regras de pontos (o de verdade é testado em v27.integration.test.ts). */
 function fakeSeason() {
   const calls: { winner: string; loser: string; reason: string }[] = [];
-  const state = { window: null as { startsAt: Date; endsAt: Date } | null, banned: new Set<string>(), points: new Map<string, number>() };
+  const state = { rows: [] as Awaited<ReturnType<SeasonStore['standings']>>, window: null as { startsAt: Date; endsAt: Date } | null, banned: new Set<string>(), points: new Map<string, number>() };
   const store: SeasonStore = {
     async available() { return true; },
     async current() { return { id: 1, startsAt: new Date(0), endsAt: new Date(9e12), jounin: state.window }; },
@@ -58,7 +58,7 @@ function fakeSeason() {
       return { ok: true, result: { counted: true, winnerDelta: 30, loserDelta: lp - before, winnerPoints: wp, loserPoints: lp, winnerRyo: 100, loserRyo: 30, seasonId: 1 } };
     },
     async slots() { return { vila_1: { active: 120, slots: 10 } }; },
-    async standings() { return []; },
+    async standings() { return state.rows; },
   };
   return { store, calls, state };
 }
@@ -160,6 +160,26 @@ describe('v41: Torneio da Temporada no servidor (fila, partida e pontos)', () =>
     await play(b, a);
     assert.deepEqual([a.conn.last('duel_rating').delta, a.conn.last('duel_rating').mmr], [-10, 20]);
     assert.equal(a.conn.last('jounin_state').points, 20);
+  });
+
+  it('v42, placar: top 10 da vila, linha de corte (2x as vagas) e a linha de quem pediu; fechado: sem placar', async () => {
+    const { join, open, season } = setup();
+    const adm = join('chefe', { admin: true }), a = join('kaito');
+    a.send({ type: 'ranked', action: 'jounin_board' });
+    assert.deepEqual([a.conn.last('jounin_board').available, a.conn.last('jounin_board').open], [false, false]);
+    await open(adm);
+    season.state.rows = Array.from({ length: 25 }, (_, i) => ({ position: i + 1, playerId: i === 21 ? a.id : `p${i}`, username: i === 21 ? 'kaito' : `n${i}`,
+      points: 500 - i * 10, wins: 20, losses: 5, qualified: true, finalist: i < 20 }));
+    a.send({ type: 'ranked', action: 'jounin_board' });
+    await flush();
+    const b = a.conn.last('jounin_board');
+    assert.deepEqual([b.open, b.village, b.slots, b.cut, b.cutPoints, b.qualified, b.top.length, b.eligible], [true, 'vila_1', 10, 20, 310, 25, 10, true]);
+    assert.deepEqual(b.me, { position: 22, username: 'kaito', points: 290, wins: 20, losses: 5, finalist: false });
+    assert.equal(b.top[0].playerId, undefined, 'o id dos outros não vai para o cliente');
+    const low = join('novato', { level: 30 });
+    low.send({ type: 'ranked', action: 'jounin_board' });
+    await flush();
+    assert.deepEqual([low.conn.last('jounin_board').eligible, /nível 40/.test(low.conn.last('jounin_board').reason)], [false, true]);
   });
 
   it('uma fila por vez; o admin fecha e a fila do Torneio esvazia', async () => {

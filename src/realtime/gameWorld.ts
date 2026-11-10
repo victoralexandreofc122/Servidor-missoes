@@ -4451,7 +4451,8 @@ export class GameWorld {
   // ---------------------------------------------------------------- modo rankeado (v29, duel.ts)
 
   /** Botões do modo rankeado: entrar no Vale, sair dele, entrar e sair da fila do Desafio. */
-  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand' | 'jounin_queue' | 'jounin_unqueue', t: number): void {
+  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand' | 'jounin_queue' | 'jounin_unqueue' | 'jounin_board', t: number): void {
+    if (action === 'jounin_board') return this.jouninBoard(s, t);
     if (action === 'board') return this.rankedBoard(s, t);
     if (action === 'stand') return this.standUp(s);
     if (action === 'sit') {
@@ -4891,6 +4892,36 @@ export class GameWorld {
       tell(winnerId, true);
       tell(loserId, false);
     }).catch((err: unknown) => this.log.warn({ err, match: d.id }, 'torneio: falha ao gravar a partida'));
+  }
+
+  /** v42: o painel do Torneio: top 10 da vila, vagas, linha de corte e a linha de quem pediu. Um pedido por vez, com ritmo. */
+  private jouninBoard(s: Session, t: number): void {
+    const store = this.seasonReady ? this.seasonStore : undefined;
+    const j = this.jounin;
+    if (!store || !j) return this.sendTo(s, { type: 'jounin_board', available: !!store, open: false, minMatches: JOUNIN_RULES.minMatches });
+    if (t - s.lastPanelAt < this.config.missionRequestEveryMs) return;
+    s.lastPanelAt = t;
+    const id = s.id, village = s.village;
+    const reason = this.jouninFit(s);
+    const base = { type: 'jounin_board' as const, available: true, open: this.jouninOpen(t), endsAt: j.endsAt, minMatches: JOUNIN_RULES.minMatches };
+    if (!village) return this.sendTo(s, { ...base, eligible: false, reason: reason ?? '' });
+    Promise.all([store.standings(j.seasonId, village), store.slots(j.seasonId), store.eligible(id), store.mine(j.seasonId, id)]).then(([rows, slots, ok, mine]) => {
+      const cur = this.sessions.get(id);
+      if (!cur) return;
+      const n = slots[village]?.slots ?? JOUNIN_RULES.minSlots;
+      const cut = n * JOUNIN_RULES.finalistsPerSlot;
+      const ranked = rows.filter((r) => r.position !== null);
+      const view = (r: (typeof rows)[number]) => ({ position: r.position, username: r.username, points: r.points, wins: r.wins, losses: r.losses, finalist: r.finalist });
+      const own = rows.find((r) => r.playerId === id);
+      this.sendTo(cur, {
+        ...base, village, slots: n, cut, qualified: ranked.length,
+        cutPoints: ranked.length >= cut ? ranked[cut - 1]!.points : null,
+        top: ranked.slice(0, 10).map(view),
+        me: own ? view(own) : { position: null, username: cur.username, points: mine.points, wins: mine.wins, losses: mine.losses, finalist: false },
+        eligible: ok && !reason,
+        ...(reason ? { reason } : !ok ? { reason: 'Quem já foi Jounin não disputa o Torneio da Temporada de novo.' } : {}),
+      });
+    }).catch((err: unknown) => this.log.warn({ err, playerId: id }, 'torneio: falha ao ler o placar'));
   }
 
   /** O Torneio para um ninja: aberto, até quando, se ele pode jogar e os pontos dele (pedido ao banco, fora do loop). */
