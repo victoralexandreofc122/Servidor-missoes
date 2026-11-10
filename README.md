@@ -240,6 +240,34 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v42: Fase 2, passo 3: a tela do Torneio da Temporada (sem migração)
+
+- Na Arena, botão **Torneio da Temporada** (fechado: "🔒 Torneio Fechado"). O painel mostra "Partidas jogadas: X/15", "Seus
+  Pontos", o top 10 da vila, a linha de corte (2x as vagas) e quanto falta para entrar na zona de classificação, e o botão
+  "Entrar na Fila do Torneio" (desligado, com o motivo, para quem não pode disputar).
+- Fim da partida: "+30 Pontos de Torneio" ou "-10 Pontos de Torneio", com o ryō. O chat chama a partida de Torneio da Temporada.
+- `/admin torneio abrir` avisa todos no chat e na tela.
+- Servidor: mensagem `jounin_board` (o placar nunca manda o id dos outros jogadores).
+- A decidir na v28: o que acontece com os pontos de quem troca de vila no meio do Torneio (hoje ficam na vila antiga).
+
+### v41: Fase 2, passo 2: a fila do Torneio da Temporada no servidor (sem migração)
+
+- Modo novo do duelo (`mode: 'jounin'`) na Arena, só na janela da fase de pontos. Fila própria, e a partida só une ninjas
+  **da mesma vila** (`takeVillageMatch` em `duel.ts`). A arena é uma só: entre o rankeado e o Torneio, luta primeiro quem
+  espera há mais tempo. Uma fila por vez.
+- Quem entra: nível 40+, com vila, sem patente de Jounin, ANBU ou Kage, e que nunca foi Jounin (o banco confere).
+- Fim da partida: `game.jounin_result` grava (+30, -10 com piso 0; ryō +100 e +30); o MMR do rankeado não muda.
+- Admin: `/admin torneio abrir [dias]` (padrão 10), `/admin torneio fechar`, `/admin torneio` (status e vagas por vila).
+- Pendente para a v28 (com a fase final): a conferência de "mesma vila" também dentro do banco. Hoje ela é do servidor.
+
+### v40: Fase 2, entrega 1: eras e a fase de pontos do Torneio da Temporada (migração v27, `db/schema_v27_temporadas.sql`)
+
+- `game.seasons` (a era de 60 dias), vagas de Jounin por vila (1 a cada 50 ativos, mínimo 10, máximo 60), pontos do Torneio
+  (+30 vitória, -10 derrota, nunca abaixo de 0; ryō +100 e +30), histórico de partidas, classificação por vila (15 partidas
+  mínimas; finalistas = 2x as vagas) e o registro permanente `game.jounin_era`.
+- Modo separado do rankeado: não mexe no MMR. **Ainda não ligado ao jogo**: é a base de banco e de servidor
+  (`src/realtime/seasonStore.ts`). Plano completo da Fase 2 em `docs/fase2-plano.md`.
+
 ### v39: faixa do Andarilho nova (sem migração)
 
 - A faixa cobre o braço esquerdo do ombro ao cotovelo, na cor da capa da aldeia (verde, azul, vinho ou areia), com um nó

@@ -45,6 +45,7 @@ import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, 
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
 import type { RankedStore } from './rankedStore.js';
+import { JOUNIN_RULES, type SeasonStore } from './seasonStore.js';
 import { SHOW_ALL, type Display, type EndgamePlayer, type EndgameStore, type KageAction, type Politics, type PvpKill, type TickEvent } from './endgameStore.js';
 import { VILLAGE_INFO, alliesOf, villageFullName, conflictHostile, mapAllowed, type Diplomacy, type Faction, type MapAccess, type PassiveKind } from './villages.js';
 import { POWERS, POWER_BY_SLOT, type PowerDef, type PowerKind } from './akatsuki.js';
@@ -59,7 +60,7 @@ import {
   type EffectBag, type EffectCode,
 } from './effects.js';
 import { NO_CLASS, PvpStats, reportText, toClassRows } from './pvpStats.js';
-import { DUEL, leavePenalty, addDamage, advance, endRound, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, timeoutWinner, type DuelMatch, type QueueEntry, type Side } from './duel.js';
+import { DUEL, leavePenalty, addDamage, advance, endRound, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, takeVillageMatch, type VillageEntry, timeoutWinner, type DuelMatch, type QueueEntry, type Side } from './duel.js';
 import {
   VALE, ACADEMY, REFUGE, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
   type MapLayout, type Wall,
@@ -176,6 +177,8 @@ export interface WorldOptions {
   endgame?: EndgameStore;
   /** v29: pontos e temporadas do rankeado (migração v15). Sem isto, ou sem a v15: as partidas não contam pontos. */
   ranked?: RankedStore;
+  /** v41 (migração v27): eras e Torneio da Temporada. */
+  season?: SeasonStore;
   /** Quem vigia o servidor (site do jogo: saúde, bugs e comportamento suspeito). */
   watch?: WorldWatch;
 }
@@ -627,6 +630,12 @@ export class GameWorld {
   private readonly arenaRecord = new Map<string, { wins: number; losses: number }>();
   /** v29: modo rankeado. A fila do Desafio, a partida da arena do Vale e para onde cada um volta ao sair do Vale. */
   private rankedQueue: QueueEntry[] = [];
+  /** v41: fila do Torneio da Temporada (a partida só une ninjas da mesma vila) e a janela da fase de pontos. */
+  private jouninQueue: VillageEntry[] = [];
+  private readonly seasonStore: SeasonStore | undefined;
+  private jounin: { seasonId: number; startsAt: number; endsAt: number } | null = null;
+  private seasonReady = false;
+  private seasonBusy = false;
   /** v30: muros dos jutsus (Muralha de Terra, Muro de Água): a caixa está nas paredes do mapa enquanto o muro existe. */
   private barriers: { id: number; map: MapId; box: Wall; hp: number; kind: 'rocha' | 'agua'; until: number }[] = [];
   private duel: DuelMatch | null = null;
@@ -640,6 +649,7 @@ export class GameWorld {
   private readonly rankedStore: RankedStore | undefined;
   private rankedReady = false;
   private rankedTimer: NodeJS.Timeout | undefined;
+  private seasonTimer: NodeJS.Timeout | undefined;
   private rankedBusy = false;
   /** Números do PvP desde que o servidor ligou (por classe e por golpe), para o painel do admin. */
   private readonly pvpStats: PvpStats;
@@ -673,6 +683,7 @@ export class GameWorld {
     this.admin = options.admin;
     this.endgame = options.endgame;
     this.rankedStore = options.ranked;
+    this.seasonStore = options.season;
     this.watch = options.watch ?? {};
     for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
     this.lastTick = now();
@@ -1431,6 +1442,7 @@ export class GameWorld {
     if (c.cmd === 'clima' || c.cmd === 'hora') return this.adminSky(session, c, t);
     if (c.cmd === 'efeito') return this.adminEffect(session, c, t);
     if (c.cmd === 'pvp') return this.adminPvp(session, c.days, t);
+    if (c.cmd === 'torneio') return this.adminJounin(session, c.action, c.days);
     const store = this.admin;
     if (!store) return this.sendTo(session, { type: 'notice', text: 'Modo Administrador sem banco: aqui só o /admin invocar funciona.', tone: 'bad' });
     if (isEndgameAdmin(c)) {
@@ -1669,7 +1681,7 @@ export class GameWorld {
   }
 
   /** Comandos de admin no banco. O alvo online vê a ficha nova na hora (sem anúncio, sem XP de abate). */
-  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | { cmd: 'clima' } | { cmd: 'hora' } | { cmd: 'pvp' } | EndgameAdminCommand>): Promise<void> {
+  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | { cmd: 'clima' } | { cmd: 'hora' } | { cmd: 'pvp' } | { cmd: 'torneio' } | EndgameAdminCommand>): Promise<void> {
     const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
     // "eu" (só na patente): o próprio admin
     const username = (c.cmd === 'rank' || c.cmd === 'resetclasses') && c.username === 'eu' ? (this.sessions.get(adminId)?.username ?? c.username) : c.username;
@@ -4439,7 +4451,8 @@ export class GameWorld {
   // ---------------------------------------------------------------- modo rankeado (v29, duel.ts)
 
   /** Botões do modo rankeado: entrar no Vale, sair dele, entrar e sair da fila do Desafio. */
-  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand', t: number): void {
+  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand' | 'jounin_queue' | 'jounin_unqueue' | 'jounin_board', t: number): void {
+    if (action === 'jounin_board') return this.jouninBoard(s, t);
     if (action === 'board') return this.rankedBoard(s, t);
     if (action === 'stand') return this.standUp(s);
     if (action === 'sit') {
@@ -4463,15 +4476,23 @@ export class GameWorld {
       const at = this.valeArrival();
       this.transfer(s, 'vale_estatuas', at.x, at.y, 'travel');
       this.sendDuelState(s);
+      this.sendJouninState(s);
       return;
     }
     if (!inVale) return;
+    if (action === 'jounin_queue') return this.jouninEnqueue(s, t);
+    if (action === 'jounin_unqueue') {
+      this.jouninQueue = this.jouninQueue.filter((e) => e.id !== s.id);
+      this.sendQueues();
+      return;
+    }
     if (action === 'queue') {
       if (this.duel && sideOf(this.duel, s.id)) return;
       if (s.level < DUEL.minLevel) return this.notice(s.id, `O rankeado abre no nível ${DUEL.minLevel}.`, 'bad');
       const pen = this.rankedLeaves.get(s.id);
       if (pen && t < pen.until) return this.notice(s.id, `Você saiu de uma partida: espere ${Math.ceil((pen.until - t) / 1000)} s para entrar na fila de novo.`, 'bad');
       const last = this.rankedLast.get(s.id);
+      this.jouninQueue = this.jouninQueue.filter((e) => e.id !== s.id);   // uma fila por vez
       if (!this.rankedQueue.some((e) => e.id === s.id)) this.rankedQueue.push({ id: s.id, level: s.level, joinedAt: t, skips: 0, ...(last ? { last } : {}) });
       this.sendQueues();
       return;
@@ -4503,8 +4524,9 @@ export class GameWorld {
 
   /** Saiu do Vale (botão, desconexão): sai da fila; se estava lutando, perde a partida. */
   private rankedGone(s: Session, disconnected = false): void {
-    const before = this.rankedQueue.length;
+    const before = this.rankedQueue.length + this.jouninQueue.length;
     this.rankedQueue = this.rankedQueue.filter((e) => e.id !== s.id);
+    this.jouninQueue = this.jouninQueue.filter((e) => e.id !== s.id);
     const d = this.duel;
     const side = d ? sideOf(d, s.id) : null;
     if (d && side && d.phase !== 'done') {
@@ -4514,7 +4536,7 @@ export class GameWorld {
         this.broadcastDuel();
       } else this.duelAbandon(s.id, side);
     }
-    if (before !== this.rankedQueue.length) this.sendQueues();
+    if (before !== this.rankedQueue.length + this.jouninQueue.length) this.sendQueues();
   }
 
   /** Abandonou a partida de vez (o tempo para reconectar acabou): castigo, e cancela (preparação) ou dá W.O. */
@@ -4533,7 +4555,8 @@ export class GameWorld {
       this.duelClose(d);
       this.notice(otherId, 'O adversário saiu antes da luta: partida cancelada, sem pontos. Você volta para a fila.', 'info');
       const o = this.duelSession(otherId);
-      if (o) this.rankedQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0 });
+      if (o && d.mode === 'jounin' && o.village && this.jouninOpen(t)) this.jouninQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0, village: o.village });
+      else if (o && d.mode !== 'jounin') this.rankedQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0 });
       this.sendQueues();
     } else {
       forfeit(d, side, t);
@@ -4578,6 +4601,11 @@ export class GameWorld {
       const valid = this.rankedQueue.filter((e) => this.duelSession(e.id));
       if (valid.length !== this.rankedQueue.length) { this.rankedQueue = valid; this.sendQueues(); }
     }
+    if (this.jouninQueue.length > 0) {
+      // fila do Torneio: sai quem saiu do Vale; a janela fechou: a fila esvazia
+      const valid = this.jouninOpen(t) ? this.jouninQueue.filter((e) => this.duelSession(e.id)) : [];
+      if (valid.length !== this.jouninQueue.length) { this.jouninQueue = valid; this.sendQueues(); }
+    }
     for (const [id, until] of this.duelAway) {
       const side = this.duel ? sideOf(this.duel, id) : null;
       if (!side) this.duelAway.delete(id);
@@ -4585,17 +4613,23 @@ export class GameWorld {
     }
     const d = this.duel;
     if (!d) {
-      const pick = takeMatch(this.rankedQueue);
-      if (!pick) return;
-      this.rankedQueue = pick.rest;
-      const m = newMatch(++this.duelSeq, pick.a, pick.b, t);
+      // A arena é uma só: entre o rankeado e o Torneio, luta primeiro a dupla de quem espera há mais tempo.
+      const ranked = takeMatch(this.rankedQueue);
+      const tourney = takeVillageMatch(this.jouninQueue);
+      if (!ranked && !tourney) return;
+      const waited = (q: readonly QueueEntry[], id: string) => q.find((e) => e.id === id)?.joinedAt ?? Infinity;
+      const useTourney = !!tourney && (!ranked || waited(this.jouninQueue, tourney.a) <= waited(this.rankedQueue, ranked.a));
+      const pick = useTourney ? tourney! : ranked!;
+      if (useTourney) this.jouninQueue = tourney!.rest;
+      else this.rankedQueue = ranked!.rest;
+      const m = newMatch(++this.duelSeq, pick.a, pick.b, t, useTourney ? 'jounin' : 'ranked');
       this.rankedLast.set(pick.a, pick.b);
       this.rankedLast.set(pick.b, pick.a);
       this.duel = m;
       this.duelPlace(m, t);
       this.sendQueues();
       this.broadcastDuel();
-      this.log.info({ match: m.id, a: m.a, b: m.b }, 'rankeado: partida começou');
+      this.log.info({ match: m.id, a: m.a, b: m.b, mode: m.mode }, 'rankeado: partida começou');
       return;
     }
     if (d.phase === 'done') {
@@ -4667,7 +4701,8 @@ export class GameWorld {
     this.broadcastDuel();
     if (!d.winner) return;
     const winnerId = d[d.winner], loserId = d[other(d.winner)];
-    this.log.info({ match: d.id, winner: winnerId, loser: loserId, reason: d.reason, wins: d.wins }, 'rankeado: partida acabou');
+    this.log.info({ match: d.id, winner: winnerId, loser: loserId, reason: d.reason, wins: d.wins, mode: d.mode }, 'rankeado: partida acabou');
+    if (d.mode === 'jounin') return this.jouninFinished(d, winnerId, loserId);
     const store = this.rankedReady ? this.rankedStore : undefined;
     if (!store) return;
     if (d.matchDamage.a + d.matchDamage.b === 0) {
@@ -4751,11 +4786,12 @@ export class GameWorld {
 
   private duelStateMessage(): ServerMessage {
     const d = this.duel;
-    if (!d) return { type: 'duel_state', phase: 'idle', ms: 0, round: 0, wins: { a: 0, b: 0 }, history: [], queue: this.rankedQueue.length };
+    if (!d) return { type: 'duel_state', phase: 'idle', ms: 0, round: 0, wins: { a: 0, b: 0 }, history: [], queue: this.rankedQueue.length + this.jouninQueue.length };
     const a = this.duelSideView(d.a), b = this.duelSideView(d.b);
     return {
       type: 'duel_state', phase: d.phase, ms: Math.max(0, d.until - this.now()), round: d.round, wins: { ...d.wins },
-      ...(a ? { a } : {}), ...(b ? { b } : {}), history: [...d.history], queue: this.rankedQueue.length,
+      ...(a ? { a } : {}), ...(b ? { b } : {}), history: [...d.history], queue: this.rankedQueue.length + this.jouninQueue.length,
+      ...(d.mode === 'jounin' ? { mode: 'jounin' as const } : {}),
       ...(d.winner ? { winner: d.winner } : {}), ...(d.reason ? { reason: d.reason } : {}),
       ...(d.phase === 'done' && d.matchDamage.a + d.matchDamage.b === 0 ? { voided: true } : {}),
       ...this.awayView(d),
@@ -4777,16 +4813,195 @@ export class GameWorld {
 
   private sendDuelState(s: Session): void {
     this.sendTo(s, this.duelStateMessage());
+    this.sendQueueTo(s);
+  }
+
+  /** A posição do ninja nas duas filas. A do Torneio conta só a vila dele (é com ela que ele pode lutar). */
+  private sendQueueTo(s: Session): void {
     const pos = queuePosition(this.rankedQueue, s.id);
-    this.sendTo(s, { type: 'duel_queue', queued: pos > 0, position: pos, size: this.rankedQueue.length });
+    const mine = this.jouninQueue.filter((e) => e.village === s.village);
+    this.sendTo(s, {
+      type: 'duel_queue', queued: pos > 0, position: pos, size: this.rankedQueue.length,
+      ...(this.jounin ? { jounin: { position: queuePosition(mine, s.id), size: mine.length } } : {}),
+    });
+  }
+
+  // ---------------------------------------------------------------- v41: Torneio da Temporada (fase de pontos)
+
+  /** A fase de pontos está aberta agora? (A janela vem do banco; o banco confere de novo ao gravar.) */
+  private jouninOpen(t: number): boolean {
+    return !!this.jounin && t >= this.jounin.startsAt && t < this.jounin.endsAt;
+  }
+
+  /** O que dá para saber sem o banco: nível 40+, com vila e sem patente de Jounin, ANBU ou Kage. */
+  private jouninFit(s: Session): string | null {
+    if (s.level < JOUNIN_RULES.minLevel) return `O Torneio da Temporada é para o nível ${JOUNIN_RULES.minLevel} ou mais.`;
+    if (!s.village) return 'Renegados não disputam o Torneio da Temporada.';
+    if (['JONIN', 'ANBU', 'HOKAGE'].includes(s.rank.code)) return 'Você já é Jounin: o Torneio da Temporada é para quem ainda busca o título.';
+    return null;
+  }
+
+  /** Entrar na fila do Torneio: janela aberta, elegível (o banco confere quem já foi Jounin em outra era) e fora de castigo. */
+  private jouninEnqueue(s: Session, t: number): void {
+    const say = (text: string) => this.notice(s.id, text, 'bad');
+    if (this.duel && sideOf(this.duel, s.id)) return;
+    const store = this.seasonReady ? this.seasonStore : undefined;
+    if (!store || !this.jouninOpen(t)) return say('O Torneio da Temporada não está na fase de pontos.');
+    const unfit = this.jouninFit(s);
+    if (unfit) return say(unfit);
+    const pen = this.rankedLeaves.get(s.id);
+    if (pen && t < pen.until) return say(`Você saiu de uma partida: espere ${Math.ceil((pen.until - t) / 1000)} s para entrar na fila de novo.`);
+    if (this.jouninQueue.some((e) => e.id === s.id)) return;
+    const id = s.id;
+    store.eligible(id).then((ok) => {
+      const cur = this.sessions.get(id);
+      const now = this.now();
+      if (!cur || cur.closed || cur.map !== 'vale_estatuas' || !cur.village || !this.jouninOpen(now)) return;
+      if (!ok || this.jouninFit(cur)) return this.notice(id, 'Você não pode disputar o Torneio da Temporada (quem já foi Jounin não disputa de novo).', 'bad');
+      if ((this.duel && sideOf(this.duel, id)) || this.jouninQueue.some((e) => e.id === id)) return;
+      this.rankedQueue = this.rankedQueue.filter((e) => e.id !== id);   // uma fila por vez
+      const last = this.rankedLast.get(id);
+      this.jouninQueue.push({ id, level: cur.level, joinedAt: now, skips: 0, village: cur.village, ...(last ? { last } : {}) });
+      this.sendQueues();
+    }).catch((err: unknown) => {
+      this.log.warn({ err, playerId: id }, 'torneio: falha ao conferir quem pode jogar');
+      this.notice(id, 'Não consegui conferir a sua inscrição agora. Tente de novo.', 'bad');
+    });
+  }
+
+  /** Partida do Torneio acabou: o banco confere tudo de novo, soma os pontos (+30, -10, piso 0) e paga o ryō. */
+  private jouninFinished(d: DuelMatch, winnerId: string, loserId: string): void {
+    const store = this.seasonReady ? this.seasonStore : undefined;
+    if (!store) return;
+    if (d.matchDamage.a + d.matchDamage.b === 0) return;   // ninguém causou dano: não conta (evita combinar resultado)
+    store.result(winnerId, loserId, d.reason ?? 'rounds', this.now() - d.startedAt, new Date(this.now())).then((r) => {
+      if (!r.ok) {
+        // a janela fechou no meio da luta, ou alguém deixou de ser elegível: a partida não vale
+        for (const id of [winnerId, loserId]) this.notice(id, 'Esta partida não valeu pontos: o Torneio da Temporada fechou ou um dos dois não pode mais disputar.', 'info');
+        return;
+      }
+      const tell = (id: string, won: boolean) => {
+        const s = this.sessions.get(id);
+        if (!s) return;
+        const ryo = won ? r.result.winnerRyo : r.result.loserRyo;
+        this.sendTo(s, { type: 'duel_rating', mode: 'jounin', counted: r.result.counted, delta: won ? r.result.winnerDelta : r.result.loserDelta,
+          mmr: won ? r.result.winnerPoints : r.result.loserPoints, won, ryo });
+        if (ryo > 0) { s.ryo += ryo; this.sendInventory(s); }
+        this.sendJouninState(s);
+      };
+      tell(winnerId, true);
+      tell(loserId, false);
+    }).catch((err: unknown) => this.log.warn({ err, match: d.id }, 'torneio: falha ao gravar a partida'));
+  }
+
+  /** v42: o painel do Torneio: top 10 da vila, vagas, linha de corte e a linha de quem pediu. Um pedido por vez, com ritmo. */
+  private jouninBoard(s: Session, t: number): void {
+    const store = this.seasonReady ? this.seasonStore : undefined;
+    const j = this.jounin;
+    if (!store || !j) return this.sendTo(s, { type: 'jounin_board', available: !!store, open: false, minMatches: JOUNIN_RULES.minMatches });
+    if (t - s.lastPanelAt < this.config.missionRequestEveryMs) return;
+    s.lastPanelAt = t;
+    const id = s.id, village = s.village;
+    const reason = this.jouninFit(s);
+    const base = { type: 'jounin_board' as const, available: true, open: this.jouninOpen(t), endsAt: j.endsAt, minMatches: JOUNIN_RULES.minMatches };
+    if (!village) return this.sendTo(s, { ...base, eligible: false, reason: reason ?? '' });
+    Promise.all([store.standings(j.seasonId, village), store.slots(j.seasonId), store.eligible(id), store.mine(j.seasonId, id)]).then(([rows, slots, ok, mine]) => {
+      const cur = this.sessions.get(id);
+      if (!cur) return;
+      const n = slots[village]?.slots ?? JOUNIN_RULES.minSlots;
+      const cut = n * JOUNIN_RULES.finalistsPerSlot;
+      const ranked = rows.filter((r) => r.position !== null);
+      const view = (r: (typeof rows)[number]) => ({ position: r.position, username: r.username, points: r.points, wins: r.wins, losses: r.losses, finalist: r.finalist });
+      const own = rows.find((r) => r.playerId === id);
+      this.sendTo(cur, {
+        ...base, village, slots: n, cut, qualified: ranked.length,
+        cutPoints: ranked.length >= cut ? ranked[cut - 1]!.points : null,
+        top: ranked.slice(0, 10).map(view),
+        me: own ? view(own) : { position: null, username: cur.username, points: mine.points, wins: mine.wins, losses: mine.losses, finalist: false },
+        eligible: ok && !reason,
+        ...(reason ? { reason } : !ok ? { reason: 'Quem já foi Jounin não disputa o Torneio da Temporada de novo.' } : {}),
+      });
+    }).catch((err: unknown) => this.log.warn({ err, playerId: id }, 'torneio: falha ao ler o placar'));
+  }
+
+  /** O Torneio para um ninja: aberto, até quando, se ele pode jogar e os pontos dele (pedido ao banco, fora do loop). */
+  private sendJouninState(s: Session): void {
+    const t = this.now();
+    const open = this.jouninOpen(t);
+    const base = { type: 'jounin_state' as const, open, minMatches: JOUNIN_RULES.minMatches, ...(this.jounin ? { endsAt: this.jounin.endsAt } : {}) };
+    const store = this.seasonReady ? this.seasonStore : undefined;
+    if (!store || !this.jounin) return this.sendTo(s, base);
+    const id = s.id, seasonId = this.jounin.seasonId;
+    Promise.all([store.eligible(id), store.mine(seasonId, id)]).then(([eligible, me]) => {
+      const cur = this.sessions.get(id);
+      if (cur) this.sendTo(cur, { ...base, eligible, ...me });
+    }).catch((err: unknown) => this.log.warn({ err, playerId: id }, 'torneio: falha ao ler os pontos'));
+  }
+
+  /** A cada minuto: procura a v27 (aplicar no Neon não precisa reiniciar) e lê a janela da fase de pontos. */
+  async seasonMaintenance(): Promise<void> {
+    const store = this.seasonStore;
+    if (!store || this.seasonBusy) return;
+    this.seasonBusy = true;
+    try {
+      if (!this.seasonReady) {
+        if (!(await store.available())) return;
+        this.seasonReady = true;
+        this.log.info({}, 'torneio: migração v27 encontrada');
+      }
+      const era = await store.current();
+      const was = this.jouninOpen(this.now());
+      this.jounin = era?.jounin ? { seasonId: era.id, startsAt: era.jounin.startsAt.getTime(), endsAt: era.jounin.endsAt.getTime() } : null;
+      if (was !== this.jouninOpen(this.now())) for (const s of this.mapPlayers.get('vale_estatuas') ?? []) this.sendJouninState(s);
+    } catch (err) {
+      this.log.warn({ err }, 'torneio: falha na manutenção');
+    } finally {
+      this.seasonBusy = false;
+    }
+  }
+
+  /** /admin torneio <abrir [dias]|fechar|status>: abre a fase de pontos por N dias (até o fim da era), fecha agora, ou mostra. */
+  private adminJounin(session: Session, action: 'abrir' | 'fechar' | 'status', days: number): void {
+    const adminId = session.id;
+    const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
+    const store = this.seasonStore;
+    if (!store) return say('Admin: o Torneio da Temporada precisa do banco (migração v27).', 'bad');
+    const when = (ms: number) => new Date(ms).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
+    const run = async () => {
+      if (!(await store.available())) return say('Admin: a migração v27 ainda não rodou no banco.', 'bad');
+      this.seasonReady = true;
+      const now = this.now();
+      if (action === 'abrir') {
+        const era = await store.current();
+        if (!era) return say('Admin: nenhuma era aberta.', 'bad');
+        const start = Math.max(now, era.startsAt.getTime() + 1);
+        const end = Math.min(now + days * 86_400_000, era.endsAt.getTime());
+        if (end <= start) return say('Admin: a era já acabou; não dá para abrir o Torneio.', 'bad');
+        await store.openJounin(new Date(start), new Date(end));
+        this.audit(adminId, 'torneio', null, { action, days }, true, null);
+      } else if (action === 'fechar') {
+        const closed = await store.closeJounin(new Date(now));
+        this.audit(adminId, 'torneio', null, { action }, closed !== null, closed === null ? 'não estava aberto' : null);
+        if (closed === null) return say('Admin: o Torneio da Temporada não estava aberto.', 'bad');
+      }
+      await this.seasonMaintenance();
+      const j = this.jounin;
+      const open = this.jouninOpen(this.now());
+      if (action === 'abrir' && open) this.broadcast({ type: 'announce', message: `🏆 O Torneio da Temporada começou! Fase de pontos até ${when(j!.endsAt)}. Nível 40 ou mais: entre na fila na Arena.` });
+      if (action === 'fechar') this.broadcast({ type: 'announce', message: '🏆 A fase de pontos do Torneio da Temporada acabou.' });
+      const slots = j ? await store.slots(j.seasonId) : {};
+      const vagas = Object.entries(slots).map(([v, x]) => `${villageName(v as Village)}: ${x.slots} vagas (${x.active} ativos)`).join(' · ');
+      say(`Admin: Torneio da Temporada ${open ? `ABERTO até ${when(j!.endsAt)}` : j ? `fechado (a janela foi de ${when(j.startsAt)} a ${when(j.endsAt)})` : 'ainda não aberto nesta era'}.${vagas ? ` ${vagas}.` : ''}`, 'good');
+    };
+    run().catch((err: unknown) => {
+      this.log.warn({ adminId, err }, 'torneio: falha no comando de admin');
+      say('Admin: não consegui mexer no Torneio (veja o log do servidor).', 'bad');
+    });
   }
 
   /** A posição de cada um na fila (e o tamanho dela para quem assiste). */
   private sendQueues(): void {
-    for (const s of this.mapPlayers.get('vale_estatuas') ?? []) {
-      const pos = queuePosition(this.rankedQueue, s.id);
-      this.sendTo(s, { type: 'duel_queue', queued: pos > 0, position: pos, size: this.rankedQueue.length });
-    }
+    for (const s of this.mapPlayers.get('vale_estatuas') ?? []) this.sendQueueTo(s);
   }
 
   /** Luta de arena acabou: placar (em memória) e aviso para todos no mapa. Sem XP nem ryō: é treino. */
@@ -5378,6 +5593,11 @@ export class GameWorld {
     }, CHAT_HISTORY.purgeEveryMs);
     this.purgeTimer.unref();
     // Fim de jogo: confere a v11, a população e roda a manutenção (eleições, temporadas) a cada minuto.
+    if (this.seasonStore) {
+      void this.seasonMaintenance();
+      this.seasonTimer = setInterval(() => void this.seasonMaintenance(), this.config.endgame.tickMs);
+      this.seasonTimer.unref();
+    }
     if (this.rankedStore) {
       void this.rankedMaintenance();
       this.rankedTimer = setInterval(() => void this.rankedMaintenance(), this.config.endgame.tickMs);
@@ -5396,6 +5616,7 @@ export class GameWorld {
     if (this.purgeTimer) clearInterval(this.purgeTimer);
     if (this.endgameTimer) clearInterval(this.endgameTimer);
     if (this.rankedTimer) clearInterval(this.rankedTimer);
+    if (this.seasonTimer) clearInterval(this.seasonTimer);
     this.timer = undefined;
     this.purgeTimer = undefined;
     this.endgameTimer = undefined;

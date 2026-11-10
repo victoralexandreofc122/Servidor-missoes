@@ -8,6 +8,9 @@ import { CLANS, type Clan } from './jutsusClasses.js';
 import { MANUAL_CHAPTERS, type ManualChapter } from './manual.js';
 import type { FeedbackRow } from './admin.js';
 
+/** v42: uma linha do placar do Torneio da Temporada (position null = ainda não fez as 15 partidas). */
+export interface JouninRowView { position: number | null; username: string; points: number; wins: number; losses: number; finalist: boolean }
+
 /** v38: as categorias do Feedback (Menu > Enviar Feedback). */
 export const FEEDBACK_CATEGORIES = ['bug', 'sugestao', 'balanceamento', 'outro'] as const;
 import { CLASSES, JUTSUS, JUTSU_CODES, type ClassCode, type JutsuCode, type JutsuForm, type MasteryGain, type Mechanic } from './jutsus.js';
@@ -233,7 +236,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: targetId.optional(), dir: z.tuple([axis, axis]).optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
   // v29: modo rankeado: entrar no Arena das Quatro Heranças, sair dele, entrar na fila do Desafio e sair da fila.
-  z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board', 'sit', 'stand']) }),
+  z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board', 'sit', 'stand', 'jounin_queue', 'jounin_unqueue', 'jounin_board']) }),
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z][a-z_]{0,23}$/) }),
   z.object({ type: z.literal('missions') }),
@@ -639,7 +642,14 @@ export type ServerMessage =
   /** arena: perdeu uma luta de treino (renasce na entrada da arena, mais rápido). */
   | { type: 'player_died'; playerId: string; respawnInMs: number; arena?: boolean }
   // v29: modo rankeado. A fila (só para quem está nela) e o estado da partida da arena (para todos no Vale).
-  | { type: 'duel_queue'; queued: boolean; position: number; size: number }
+  | { type: 'duel_queue'; queued: boolean; position: number; size: number;
+      /** v41: fila do Torneio da Temporada (só a da vila de quem recebe): posição (0 = fora) e tamanho. */ jounin?: { position: number; size: number } }
+  /** v41: o Torneio da Temporada para quem recebe: aberto agora, até quando, se ele pode jogar e os pontos dele na era. */
+  /** v42: o painel do Torneio: os 10 primeiros da vila, a linha de corte (2x as vagas) e a linha de quem pediu. */
+  | { type: 'jounin_board'; available: boolean; open?: boolean; endsAt?: number; village?: string; slots?: number; cut?: number;
+      /** Pontos de quem está na última posição da zona de classificação (null = ainda sobra lugar). */ cutPoints?: number | null;
+      qualified?: number; top?: JouninRowView[]; me?: JouninRowView | null; eligible?: boolean; reason?: string; minMatches?: number }
+  | { type: 'jounin_state'; open: boolean; endsAt?: number; eligible?: boolean; points?: number; wins?: number; losses?: number; minMatches: number }
   // v29 (Jutsus v2, entrega 1): zona no chão (fogo, lama, cura...) e aviso de golpe que cai depois de `ms`.
   | { type: 'ground'; id: number; kind: GroundKind; x: number; y: number; r: number; ms: number; skill?: string; follow?: string }
   | { type: 'ground_end'; id: number }
@@ -655,11 +665,13 @@ export type ServerMessage =
   // v29: sentou ou levantou da arquibancada do Vale (todos no mapa veem)
   | { type: 'sit'; playerId: string; active: boolean }
   // v29 (migração v15): os pontos de quem lutou depois da partida, e o painel do ranking.
-  | { type: 'duel_rating'; counted: boolean; delta: number; mmr: number; won: boolean; ryo: number }
+  | { type: 'duel_rating'; counted: boolean; delta: number; mmr: number; won: boolean; ryo: number;
+      /** v41: 'jounin' = partida do Torneio da Temporada (`mmr` leva os pontos da era). */ mode?: 'ranked' | 'jounin' }
   | { type: 'ranked_board'; available: boolean; season?: { id: number; endsAt: number } | null; top?: RankedRowView[]; me?: RankedRowView | null;
       overall?: { mmr: number; best: number; wins: number; losses: number } | null }
   | { type: 'duel_state'; phase: 'idle' | 'prep' | 'round' | 'interval' | 'done'; ms: number; round: number; wins: { a: number; b: number };
       a?: DuelSideView; b?: DuelSideView; history: ('a' | 'b')[]; winner?: 'a' | 'b'; reason?: 'rounds' | 'forfeit'; queue: number;
+      /** v41: partida do Torneio da Temporada. */ mode?: 'ranked' | 'jounin';
       /** v29: a partida acabou sem nenhum dano (não conta pontos). */ voided?: boolean;
       /** v29: um lado caiu e tem até `ms` para reconectar. */ away?: { side: 'a' | 'b'; ms: number } }
   | { type: 'arena_result'; winnerId: string; winner: string; loserId: string; loser: string; winnerRecord: ArenaRecord; loserRecord: ArenaRecord }
