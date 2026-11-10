@@ -41,6 +41,11 @@ function cells() {
     for (const outfit of ['basica', 'vila']) {
       list.push(DIRS.map((d) => ({ look: { ...BASE, outfit, lineage: { clan: 'andarilho', tier: 1 } }, anim: 'parado', t: 0.1, yaw: YAW_OF_DIR[d] })));
     }
+  } else if (set === 'faixa') {
+    // v39: a faixa do Andarilho andando e correndo (as pontas balançam), de frente e de lado, e nas 4 aldeias
+    const look = { ...REF, lineage: { clan: 'andarilho', tier: 1 } };
+    for (const anim of ['andar', 'correr']) for (const d of [0, 1]) list.push(Array.from({ length: 6 }, (_, k) => ({ look, anim, t: k / 6, yaw: YAW_OF_DIR[d] })));
+    list.push(['vila_1', 'vila_3', 'vila_4', 'vila_5'].map((village) => ({ look: { ...BASE, village, lineage: { clan: 'andarilho', tier: 1 } }, anim: 'parado', t: 0.1, yaw: YAW_OF_DIR[0] })));
   } else if (set === 'anim') {
     for (const anim of Object.keys(ANIMS)) {
       for (const d of [0, 1]) {
