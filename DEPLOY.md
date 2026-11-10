@@ -1209,3 +1209,9 @@ Rode `db/schema_v26_tutorial_feedback.sql` inteiro no SQL Editor do Neon (branch
 mescle o código. Ela cria `game.player_tutorial` (capítulos e prêmio, uma vez só) e `game.feedback` (relatos do Menu > Feedback).
 Pode rodar de novo sem erro. Conferência: `SELECT to_regclass('game.player_tutorial') IS NOT NULL, to_regclass('game.feedback') IS NOT NULL;` (t, t).
 Se o código chegar antes da v26, o jogo não quebra: o Pergaminho abre, mas sem gravar capítulos nem pagar prêmio, e o Feedback avisa que está fora do ar.
+
+## Passo 42 — Eras e Torneio da Temporada, fase de pontos (SQL v27)
+
+Rode `db/schema_v27_temporadas.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v26** (ela usa as vilas da v11). Ela só cria tabelas e
+funções novas (`game.seasons`, `game.jounin_*`); nada muda para os jogadores até o Torneio ser ligado numa próxima versão.
+Pode rodar de novo sem erro. Conferência: `SELECT game.jounin_slots_for(0), game.jounin_slots_for(1000), game.jounin_slots_for(9999);` deve dar 10, 20, 60.

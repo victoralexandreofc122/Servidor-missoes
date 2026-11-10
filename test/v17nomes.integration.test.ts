@@ -25,7 +25,7 @@ describe('v17 no banco: os nomes das aldeias', { skip: noDatabase }, () => {
   });
 
   it('banco sem a v11 (sem game.villages, o caso do Neon do Victor): roda sem erro e não faz nada', async () => {
-    const semV11 = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v11_endgame.sql' && f !== 'schema_v13_sem_pedra.sql' && f !== 'schema_v17_nomes.sql'));
+    const semV11 = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v11_endgame.sql' && f !== 'schema_v27_temporadas.sql' && f !== 'schema_v13_sem_pedra.sql' && f !== 'schema_v17_nomes.sql'));
     try {
       assert.equal((await semV11.pool.query(`SELECT to_regclass('game.villages') AS t`)).rows[0].t, null);
       await semV11.pool.query(V17);

@@ -240,6 +240,14 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v40: Fase 2, entrega 1: eras e a fase de pontos do Torneio da Temporada (migração v27, `db/schema_v27_temporadas.sql`)
+
+- `game.seasons` (a era de 60 dias), vagas de Jounin por vila (1 a cada 50 ativos, mínimo 10, máximo 60), pontos do Torneio
+  (+30 vitória, -10 derrota, nunca abaixo de 0; ryō +100 e +30), histórico de partidas, classificação por vila (15 partidas
+  mínimas; finalistas = 2x as vagas) e o registro permanente `game.jounin_era`.
+- Modo separado do rankeado: não mexe no MMR. **Ainda não ligado ao jogo**: é a base de banco e de servidor
+  (`src/realtime/seasonStore.ts`). Plano completo da Fase 2 em `docs/fase2-plano.md`.
+
 ### v39: faixa do Andarilho nova (sem migração)
 
 - A faixa cobre o braço esquerdo do ombro ao cotovelo, na cor da capa da aldeia (verde, azul, vinho ou areia), com um nó
