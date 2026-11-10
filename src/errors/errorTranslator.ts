@@ -65,6 +65,7 @@ export const CONSTRAINT_ERRORS: Readonly<Record<string, PublicError>> = {
   rule_module_off: { status: 409, code: 'MODULE_OFF', message: 'Isso ainda não está disponível neste servidor.' },
   rule_village_unknown: { status: 422, code: 'VILLAGE_UNKNOWN', message: 'Vila inválida.' },
   rule_village_switch_used: { status: 409, code: 'VILLAGE_SWITCH_USED', message: 'Você já usou a sua troca de vila.' },
+  rule_village_locked: { status: 409, code: 'VILLAGE_LOCKED', message: 'Durante o Torneio da Temporada ninguém troca de vila. Tente depois do encerramento.' },
   rule_village_switch_blocked: { status: 409, code: 'VILLAGE_SWITCH_BLOCKED', message: 'Kage, candidato a Kage e membro dos Cinzas não trocam de vila.' },
   rule_renegade_no_village: { status: 409, code: 'RENEGADE', message: 'Renegado não tem vila.' },
   rule_renegade_final: { status: 409, code: 'RENEGADE_FINAL', message: 'Renegado não volta para a vila.' },
