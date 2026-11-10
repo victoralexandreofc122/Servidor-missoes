@@ -166,6 +166,21 @@
       <p class="ranked-note">Vitória +30 pontos e 100 ryō; derrota -10 pontos (nunca abaixo de 0) e 30 ryō. Só contra ninjas da sua vila. Com 15 partidas você entra na classificação; os melhores vão para a Fase Final e disputam o título de Jounin.</p>
     </section>
 
+    <!-- v43 (migração v28): Fase Final do Torneio da Temporada: grupos, chave e os Jounin da era. -->
+    <section id="final-panel" class="mission-panel ranked-panel final-panel" hidden role="dialog" aria-labelledby="final-title">
+      <header class="mission-head">
+        <h2 id="final-title"><span aria-hidden="true">🏆</span> Fase Final</h2>
+        <button id="final-close" class="icon-btn small" type="button" aria-label="Fechar a Fase Final"><span aria-hidden="true">✕</span></button>
+      </header>
+      <p id="final-status" class="ranked-season"></p>
+      <p id="final-mine" class="jounin-cut"></p>
+      <button id="final-queue" type="button" class="primary jounin-queue">Entrar na Fila da Fase Final</button>
+      <div id="final-era" class="final-era"></div>
+      <div id="final-bracket" class="final-bracket"></div>
+      <div id="final-groups" class="final-groups"></div>
+      <p class="ranked-note">Grupos de até 5: todos contra todos, melhor de 3 rodadas; passam os 2 primeiros. Na chave, quem perde sai. Entre na fila quando o seu adversário estiver na Arena: a luta começa assim que os dois estiverem na fila.</p>
+    </section>
+
     <!-- Tutorial da Academia: o que fazer na sala atual (o SERVIDOR confere e abre a porta). -->
     <div id="tutorial-card" class="tutorial-card" hidden role="status" aria-live="polite">
       <b id="tutorial-title">Academia · Sala 1</b>

@@ -46,7 +46,7 @@ function fakeSeason() {
   const state = { rows: [] as Awaited<ReturnType<SeasonStore['standings']>>, window: null as { startsAt: Date; endsAt: Date } | null, banned: new Set<string>(), points: new Map<string, number>() };
   const store: SeasonStore = {
     async available() { return true; },
-    async current() { return { id: 1, startsAt: new Date(0), endsAt: new Date(9e12), jounin: state.window }; },
+    async current() { return { id: 1, startsAt: new Date(0), endsAt: new Date(9e12), jounin: state.window, stage: 'pontos' as const, finalReady: false }; },
     async openJounin(startsAt, endsAt) { state.window = { startsAt, endsAt }; return 1; },
     async closeJounin(now) { if (!state.window || state.window.endsAt <= now) return null; state.window = { ...state.window, endsAt: now }; return 1; },
     async eligible(id) { return !state.banned.has(id); },
@@ -59,6 +59,9 @@ function fakeSeason() {
     },
     async slots() { return { vila_1: { active: 120, slots: 10 } }; },
     async standings() { return state.rows; },
+    async startGroups() { return 1; }, async groupTable() { return []; }, async closeGroups() { return 1; }, async bracket() { return []; },
+    async saveBracket() {}, async finalState() { return { pending: [], finalists: new Map() }; }, async finalResult() { return false; },
+    async finish() { return { jounin: 0, consoled: 0 }; }, async era() { return []; }, async fresh() { return []; },
   };
   return { store, calls, state };
 }

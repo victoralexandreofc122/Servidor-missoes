@@ -362,7 +362,7 @@ describe('v11 no banco: fim de jogo (PostgreSQL real)', { skip: noDatabase }, ()
 
   it('sem a v11, o servidor sabe (available = false)', async () => {
     // Sem a v11 e sem a v13 (que limpa tabelas da v11).
-    const old = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v11_endgame.sql' && f !== 'schema_v27_temporadas.sql' && f !== 'schema_v13_sem_pedra.sql' && f !== 'schema_v17_nomes.sql'));
+    const old = await createTestDatabase(MIGRATIONS.filter((f) => f !== 'schema_v11_endgame.sql' && f !== 'schema_v27_temporadas.sql' && f !== 'schema_v28_fase_final.sql' && f !== 'schema_v13_sem_pedra.sql' && f !== 'schema_v17_nomes.sql'));
     try {
       assert.equal(await makeEndgameStore(old.db).available(), false);
     } finally {

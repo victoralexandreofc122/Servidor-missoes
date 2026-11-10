@@ -36,7 +36,7 @@ describe('v22 no banco: as aldeias Nuvem e Areia', { skip: noDatabase }, () => {
   });
 
   it('banco sem a v11 (o caso do Neon do Victor): roda sem erro e não faz nada', async () => {
-    const semV11 = await createTestDatabase(MIGRATIONS.filter((f) => !['schema_v11_endgame.sql', 'schema_v27_temporadas.sql', 'schema_v13_sem_pedra.sql', 'schema_v17_nomes.sql', 'schema_v22_aldeias.sql'].includes(f)));
+    const semV11 = await createTestDatabase(MIGRATIONS.filter((f) => !['schema_v11_endgame.sql', 'schema_v27_temporadas.sql', 'schema_v28_fase_final.sql', 'schema_v13_sem_pedra.sql', 'schema_v17_nomes.sql', 'schema_v22_aldeias.sql'].includes(f)));
     try {
       assert.equal((await semV11.pool.query(`SELECT to_regclass('game.villages') AS t`)).rows[0].t, null);
       await semV11.pool.query(V22);

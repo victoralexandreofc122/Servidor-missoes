@@ -47,6 +47,8 @@ const ui = {
   jouninBtn: $('jounin-btn'), jouninPanel: $('jounin-panel'), jouninClose: $('jounin-close'), jouninStatus: $('jounin-status'),
   jouninMatches: $('jounin-matches'), jouninPoints: $('jounin-points'), jouninMatchesBar: $('jounin-matches-bar'), jouninMatchesText: $('jounin-matches-text'),
   jouninCut: $('jounin-cut'), jouninList: $('jounin-list'), jouninQueue: $('jounin-queue'), jouninWhy: $('jounin-why'),
+  finalPanel: $('final-panel'), finalClose: $('final-close'), finalStatus: $('final-status'), finalMine: $('final-mine'), finalQueue: $('final-queue'),
+  finalEra: $('final-era'), finalBracket: $('final-bracket'), finalGroups: $('final-groups'),
   duelAgain: $('duel-again'), duelWatchBtn: $('duel-watch-btn'), duelAHp: $('duel-a-hp'), duelBHp: $('duel-b-hp'),
   rankedProgress: $('ranked-progress'), rankedProgressBar: $('ranked-progress-bar'), rankedProgressText: $('ranked-progress-text'),
   duelBanner: $('duel-banner'), duelBannerTitle: $('duel-banner-title'), duelBannerScore: $('duel-banner-score'), duelBannerPoints: $('duel-banner-points'),
@@ -312,6 +314,14 @@ ui.duelBoardBtn.addEventListener('click', () => {
 ui.rankedClose.addEventListener('click', () => { ui.rankedPanel.hidden = true; renderDuel(); });
 // v42: Torneio da Temporada (o servidor confere quem pode e quando)
 ui.jouninBtn.addEventListener('click', () => {
+  // v43: na Fase Final (ou depois dela) o botão abre os grupos, a chave e os Jounin da era
+  if (state.jounin?.stage && state.jounin.stage !== 'pontos') {
+    ui.rankedPanel.hidden = true;
+    ui.finalPanel.hidden = false;
+    ui.finalStatus.textContent = 'Carregando…';
+    send({ type: 'ranked', action: 'final_board' });
+    return renderDuel();
+  }
   if (!state.jounin?.open) return showToast('O Torneio da Temporada está fechado.', 3000);
   ui.rankedPanel.hidden = true;
   ui.jouninPanel.hidden = false;
@@ -320,6 +330,11 @@ ui.jouninBtn.addEventListener('click', () => {
   renderDuel();
 });
 ui.jouninClose.addEventListener('click', () => { ui.jouninPanel.hidden = true; renderDuel(); });
+ui.finalClose.addEventListener('click', () => { ui.finalPanel.hidden = true; renderDuel(); });
+ui.finalQueue.addEventListener('click', () => {
+  if (ui.finalQueue.disabled) return;
+  send({ type: 'ranked', action: (state.duelQueue?.final?.position || 0) > 0 ? 'final_unqueue' : 'final_queue' });
+});
 ui.jouninQueue.addEventListener('click', () => {
   if (ui.jouninQueue.disabled) return;
   send({ type: 'ranked', action: (state.duelQueue?.jounin?.position || 0) > 0 ? 'jounin_unqueue' : 'jounin_queue' });
@@ -811,7 +826,19 @@ function handleMessage(msg) {
       state.jouninBoard = msg;
       renderJouninBoard();
       break;
+    case 'final_board':
+      state.finalBoard = msg;
+      renderFinalBoard();
+      break;
     case 'duel_rating':
+      if (msg.mode === 'final') {
+        // v43: jogo da Fase Final: não há pontos; o resultado vai para o grupo ou para a chave
+        const text = msg.counted ? (msg.won ? 'Vitória na Fase Final!' : 'Derrota na Fase Final.') : 'Este jogo não valeu (sem nenhum golpe): vocês jogam de novo.';
+        if (!ui.duelBanner.hidden) ui.duelBannerPoints.textContent = text;
+        else showToast(text, 4500);
+        if (!ui.finalPanel.hidden) send({ type: 'ranked', action: 'final_board' });
+        break;
+      }
       if (msg.mode === 'jounin') {
         // v42: partida do Torneio da Temporada: pontos da era, não o MMR
         const sign = msg.delta >= 0 ? '+' : '';
@@ -848,6 +875,7 @@ function handleMessage(msg) {
       state.duelQueue = msg;
       renderDuel();
       if (!ui.jouninPanel.hidden) renderJouninBoard();
+      if (!ui.finalPanel.hidden) renderFinalBoard();
       break;
     case 'arena_result': {
       // Luta de treino na arena: todo mundo no mapa vê no chat; quem lutou vê o placar.
@@ -2111,6 +2139,95 @@ function tierBadge(mmr) {
   return b;
 }
 
+/** v43: o painel da Fase Final: os seus jogos, a chave, os grupos e, no fim, os Jounin da era. Tudo com createElement. */
+function renderFinalBoard() {
+  const b = state.finalBoard;
+  if (!b || ui.finalPanel.hidden) return;
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+  ui.finalEra.textContent = ui.finalBracket.textContent = ui.finalGroups.textContent = '';
+  const vila = VILLAGE_SHORT[b.village] || 'sua vila';
+  if (b.stage === 'pontos') {
+    ui.finalStatus.textContent = 'A Fase Final ainda não começou.';
+    ui.finalMine.textContent = '';
+    ui.finalQueue.hidden = true;
+    return;
+  }
+  ui.finalStatus.textContent = b.stage === 'grupos' ? `Fase de grupos · ${vila} · passam os 2 primeiros de cada grupo`
+    : b.stage === 'chaves' ? `Eliminatória · ${vila} · quem perde sai` : `Torneio encerrado · ${vila}`;
+  // Os seus jogos e a fila
+  const fq = state.duelQueue?.final?.position || 0;
+  const playing = b.stage === 'grupos' || b.stage === 'chaves';
+  const pending = b.pending || [];
+  ui.finalMine.classList.toggle('in', b.finalist && pending.length > 0);
+  ui.finalMine.textContent = !playing ? (b.champion ? `Campeão da ${vila}: ${b.champion}` : '')
+    : !b.finalist ? 'Você não está na Fase Final desta era. Assista da arquibancada!'
+    : pending.length ? `Seus jogos pendentes: ${pending.join(', ')}.`
+    : b.stage === 'grupos' ? 'Você já fez todos os seus jogos do grupo. Aguarde a eliminatória.' : 'Você não tem jogo na chave agora.';
+  ui.finalQueue.hidden = !playing || !b.finalist;
+  ui.finalQueue.disabled = pending.length === 0;
+  ui.finalQueue.textContent = fq > 0 ? `Na fila: ${fq}º · Cancelar` : 'Entrar na Fila da Fase Final';
+  ui.finalQueue.classList.toggle('queued', fq > 0);
+  // Jounin da era (depois do encerramento)
+  if (b.stage === 'encerrado' && (b.era || []).length) {
+    ui.finalEra.append(el('h3', 'final-h', `Jounin da Era · ${vila}`));
+    const ol = el('ol', 'final-era-list');
+    for (const e of b.era) {
+      const li = el('li', e.me ? 'me' : e.position === 1 ? 'top1' : '', `${e.position}º ${e.username}${e.position === 1 ? ' · campeão' : ''}`);
+      ol.append(li);
+    }
+    ui.finalEra.append(ol);
+  }
+  // A chave: uma coluna por rodada
+  if ((b.bracket || []).length) {
+    ui.finalBracket.append(el('h3', 'final-h', 'Chave da eliminatória'));
+    const wrap = el('div', 'bracket');
+    const NAMES = ['Final', 'Semifinal', 'Quartas', 'Oitavas'];
+    for (let r = 1; r <= b.rounds; r++) {
+      const col = el('div', 'bracket-col');
+      col.append(el('b', 'bracket-title', NAMES[b.rounds - r] || `Rodada ${r}`));
+      const games = b.bracket.filter((m) => m.round === r);
+      for (let slot = 1; slot <= 2 ** (b.rounds - r); slot++) {
+        const m = games.find((x) => x.slot === slot) || { a: null, b: null, winner: null, aRounds: 0, bRounds: 0 };
+        const card = el('div', `bracket-game${m.mine ? ' mine' : ''}${m.bye ? ' bye' : ''}`);
+        for (const side of ['a', 'b']) {
+          const name = m[side];
+          const line = el('div', `bracket-side${m.winner === side ? ' win' : m.winner ? ' lose' : ''}`);
+          line.append(el('span', '', name || (m.bye ? '(folga)' : 'a definir')));
+          if (m.winner && !m.bye) line.append(el('i', '', String(side === 'a' ? m.aRounds : m.bRounds)));
+          card.append(line);
+        }
+        col.append(card);
+      }
+      wrap.append(col);
+    }
+    ui.finalBracket.append(wrap);
+  }
+  // Os grupos (o seu primeiro)
+  const groups = [...(b.groups || [])].sort((x, y) => Number(y.rows.some((r) => r.me)) - Number(x.rows.some((r) => r.me)) || x.no - y.no);
+  for (const g of groups) {
+    const mine = g.rows.some((r) => r.me);
+    ui.finalGroups.append(el('h3', 'final-h', `Grupo ${g.no}${mine ? ' · o seu grupo' : ''}`));
+    const table = el('table', 'ranked-table');
+    const head = el('tr');
+    for (const h of ['#', 'Ninja', 'V', 'D', 'Rodadas', 'Faltam']) head.append(el('th', '', h));
+    table.append(head);
+    for (const r of g.rows) {
+      const tr = el('tr', `${r.me ? 'me' : ''}${r.advanced ? ' adv' : ''}`);
+      for (const c of [`${r.position}º`, r.username, r.wins, r.losses, `${r.roundsFor}-${r.roundsAgainst}`, r.pending || '–']) tr.append(el('td', '', String(c)));
+      table.append(tr);
+      if (r.position === 2 && g.rows.length > 2) {
+        const cut = el('tr', 'cut-line');
+        const td = el('td', '', '✂ passam os 2 de cima');
+        td.colSpan = 6;
+        cut.append(td);
+        table.append(cut);
+      }
+    }
+    ui.finalGroups.append(table);
+  }
+  if (!groups.length && playing) ui.finalGroups.append(el('p', 'ranked-note', 'Nenhum ninja desta vila chegou à Fase Final nesta era.'));
+}
+
 /** v42: o painel do Torneio da Temporada: partidas até 15, pontos, top 10 da vila e a linha de corte. */
 function renderJouninBoard() {
   const b = state.jouninBoard;
@@ -2214,7 +2331,7 @@ function renderDuel() {
   const d = state.duel;
   const fighting = !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
   const q = state.duelQueue;
-  ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden || !ui.jouninPanel.hidden;
+  ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden || !ui.jouninPanel.hidden || !ui.finalPanel.hidden;
   ui.duelBtn.hidden = fighting;
   // v42: Torneio da Temporada: aberto = botão dourado (ou a posição na fila); fechado = cadeado
   const jq = q?.jounin?.position || 0;
@@ -2224,7 +2341,17 @@ function renderDuel() {
   ui.jouninBtn.classList.toggle('queued', jq > 0);
   ui.jouninBtn.textContent = !jOpen ? '🔒 Torneio Fechado' : jq > 0 ? `🏆 Torneio: ${jq}º na fila` : '🏆 Torneio da Temporada';
   ui.jouninBtn.setAttribute('aria-disabled', jOpen ? 'false' : 'true');
-  if (!inVale || fighting) ui.jouninPanel.hidden = true;
+  // v43: Fase Final (grupos, chaves) e depois dela (os Jounin da era): o botão continua aceso
+  const stage = state.jounin?.stage;
+  if (stage && stage !== 'pontos') {
+    const fq = q?.final?.position || 0;
+    ui.jouninBtn.classList.remove('closed');
+    ui.jouninBtn.classList.toggle('queued', fq > 0);
+    ui.jouninBtn.setAttribute('aria-disabled', 'false');
+    ui.jouninBtn.textContent = fq > 0 ? `🏆 Fase Final: ${fq}º na fila` : stage === 'grupos' ? '🏆 Fase Final: Grupos' : stage === 'chaves' ? '🏆 Fase Final: Chaves' : '🏆 Jounin da Era';
+    ui.jouninPanel.hidden = true;
+  }
+  if (!inVale || fighting) { ui.jouninPanel.hidden = true; ui.finalPanel.hidden = true; }
   ui.duelBoardBtn.hidden = fighting;                     // revisão EGM: na luta, nada em cima dos jutsus
   // Sentar só em cima da arquibancada; sentado: Assistir / Parar de assistir
   const stands = !fighting && (state.sitting || onStands());

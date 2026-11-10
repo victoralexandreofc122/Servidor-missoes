@@ -1215,3 +1215,9 @@ Se o código chegar antes da v26, o jogo não quebra: o Pergaminho abre, mas sem
 Rode `db/schema_v27_temporadas.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v26** (ela usa as vilas da v11). Ela só cria tabelas e
 funções novas (`game.seasons`, `game.jounin_*`); nada muda para os jogadores até o Torneio ser ligado numa próxima versão.
 Pode rodar de novo sem erro. Conferência: `SELECT game.jounin_slots_for(0), game.jounin_slots_for(1000), game.jounin_slots_for(9999);` deve dar 10, 20, 60.
+
+## Passo 43 — Fase Final do Torneio da Temporada (SQL v28)
+
+Rode `db/schema_v28_fase_final.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v27**, e só então mescle o código.
+Ela cria a etapa do Torneio na era, a trava de troca de vila, os grupos, a chave e o encerramento. Pode rodar de novo sem erro.
+Conferência: `SELECT jounin_stage FROM game.seasons WHERE closed_at IS NULL;` deve dar `pontos`.

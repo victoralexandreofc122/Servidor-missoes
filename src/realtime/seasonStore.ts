@@ -5,6 +5,7 @@
  * as MESMAS contas, para o servidor decidir antes de montar a partida e para os testes das regras.
  */
 import type { Queryable } from '../db.js';
+import type { BracketMatch, GroupRow, PendingMatch } from './tournament.js';
 
 /** Regras do Torneio da Temporada (docs/endgame-visao.md, seção 5). */
 export const JOUNIN_RULES = {
@@ -55,7 +56,15 @@ export interface JouninResult {
 }
 export type JouninOutcome = { ok: true; result: JouninResult } | { ok: false; code: 'closed' | 'not_eligible' };
 
-export interface SeasonView { id: number; startsAt: Date; endsAt: Date; jounin: { startsAt: Date; endsAt: Date } | null }
+export type JouninStage = 'pontos' | 'grupos' | 'chaves' | 'encerrado';
+export interface SeasonView {
+  id: number; startsAt: Date; endsAt: Date; jounin: { startsAt: Date; endsAt: Date } | null;
+  /** v43 (migração v28): a etapa do Torneio. Sem a v28 no banco: sempre 'pontos' e `finalReady` falso. */
+  stage: JouninStage; finalReady: boolean;
+}
+export interface GroupTableRow extends GroupRow { username: string; pending: number; advanced: boolean }
+export interface BracketRow extends BracketMatch { aName: string | null; bName: string | null; aRounds: number; bRounds: number; reason: string | null }
+export interface EraRow { position: number; playerId: string; username: string; village: string }
 export interface JouninRow { position: number | null; playerId: string; username: string; points: number; wins: number; losses: number; qualified: boolean; finalist: boolean }
 
 export interface SeasonStore {
@@ -73,11 +82,51 @@ export interface SeasonStore {
   result(winnerId: string, loserId: string, reason: string, durationMs: number, now?: Date): Promise<JouninOutcome>;
   slots(seasonId: number): Promise<Record<string, { active: number; slots: number }>>;
   standings(seasonId: number, village: string): Promise<JouninRow[]>;
+
+  // ---- v43 (migração v28): fase final
+  /** Fecha a fase de pontos e monta os grupos (cabeças de chave em cobrinha). */
+  startGroups(now: Date): Promise<number>;
+  groupTable(seasonId: number, village: string): Promise<GroupTableRow[]>;
+  /** Fecha os grupos (jogo que não aconteceu = derrota dos dois) e passa a etapa para as chaves. */
+  closeGroups(now: Date): Promise<number>;
+  bracket(seasonId: number, village: string): Promise<BracketRow[]>;
+  /** Grava a chave inicial de uma vila (não regrava o que já existe). */
+  saveBracket(seasonId: number, village: string, matches: readonly BracketMatch[]): Promise<void>;
+  /** Jogos que ainda podem acontecer na etapa atual (grupo sem resultado; chave com os dois definidos) e os finalistas. */
+  finalState(seasonId: number): Promise<{ pending: PendingMatch[]; finalists: Map<string, string> }>;
+  /** Resultado de um jogo da fase final. false = não havia jogo pendente entre os dois nessa etapa (nada gravado). */
+  finalResult(stage: 'grupos' | 'chaves', winnerId: string, loserId: string, winnerRounds: number, loserRounds: number, reason: string, now: Date): Promise<boolean>;
+  /** Encerra o Torneio: registro da era, patente Jounin e prêmio de consolação. */
+  finish(players: readonly string[], positions: readonly number[], now: Date): Promise<{ jounin: number; consoled: number }>;
+  era(seasonId: number): Promise<EraRow[]>;
+  /** Ryō e patente de agora (depois do encerramento, para atualizar quem está online). */
+  fresh(ids: readonly string[]): Promise<{ id: string; ryo: number; rank: { code: string; name: string }; canBeSensei: boolean }[]>;
 }
 
 export const SEASON_SQL = {
   available: `SELECT to_regclass('game.jounin_matches') IS NOT NULL AS ok`,
-  current: `SELECT id, starts_at, ends_at, jounin_starts_at, jounin_ends_at FROM game.seasons WHERE closed_at IS NULL`,
+  // to_jsonb: a coluna jounin_stage só existe depois da v28; sem ela, a etapa é 'pontos'
+  current: `SELECT s.id, s.starts_at, s.ends_at, s.jounin_starts_at, s.jounin_ends_at, COALESCE(to_jsonb(s) ->> 'jounin_stage', 'pontos') AS stage,
+                   to_regclass('game.tournament_brackets') IS NOT NULL AS final_ready
+              FROM game.seasons s WHERE s.closed_at IS NULL`,
+  startGroups: `SELECT game.tournament_start_groups($1) AS id`,
+  groupTable: `SELECT group_no, "position", player_id, username, seed, wins, losses, rounds_for, rounds_against, pending, advanced FROM game.tournament_group_table($1, $2)`,
+  closeGroups: `SELECT game.tournament_close_groups($1) AS id`,
+  bracket: `SELECT b.round, b.slot, b.rounds, b.a_id, b.b_id, b.winner_id, b.a_rounds, b.b_rounds, b.reason, pa.username AS a_name, pb.username AS b_name
+              FROM game.tournament_brackets b LEFT JOIN game.players pa ON pa.id = b.a_id LEFT JOIN game.players pb ON pb.id = b.b_id
+             WHERE b.season_id = $1 AND b.village = $2 ORDER BY b.round, b.slot`,
+  saveBracket: `INSERT INTO game.tournament_brackets (season_id, village, round, slot, rounds, a_id, b_id, winner_id, reason, played_at)
+                SELECT $1, $2, x.round, x.slot, x.rounds, x.a, x.b, x.w, CASE WHEN x.w IS NOT NULL THEN 'bye' END, CASE WHEN x.w IS NOT NULL THEN now() END
+                  FROM unnest($3::int[], $4::int[], $5::int[], $6::uuid[], $7::uuid[], $8::uuid[]) AS x(round, slot, rounds, a, b, w)
+                ON CONFLICT (season_id, village, round, slot) DO NOTHING`,
+  pendingGroups: `SELECT a_id AS a, b_id AS b FROM game.tournament_group_matches WHERE season_id = $1 AND played_at IS NULL`,
+  pendingBracket: `SELECT a_id AS a, b_id AS b FROM game.tournament_brackets WHERE season_id = $1 AND winner_id IS NULL AND a_id IS NOT NULL AND b_id IS NOT NULL`,
+  finalists: `SELECT player_id, village FROM game.tournament_groups WHERE season_id = $1`,
+  groupResult: `SELECT game.tournament_group_result($1, $2, $3, $4, $5, $6)`,
+  bracketResult: `SELECT game.tournament_bracket_result($1, $2, $3, $4, $5, $6)`,
+  finish: `SELECT jounin, consoled FROM game.jounin_finish($1::uuid[], $2::int[], $3)`,
+  era: `SELECT e.position, e.player_id, p.username, e.village FROM game.jounin_era e JOIN game.players p ON p.id = e.player_id WHERE e.season_id = $1 ORDER BY e.village, e.position`,
+  fresh: `SELECT p.id, p.ryo, r.code, r.name, r.can_be_sensei FROM game.players p JOIN game.ranks r ON r.id = p.current_rank_id WHERE p.id = ANY($1::uuid[])`,
   open: `SELECT game.jounin_open($1, $2) AS id`,
   close: `UPDATE game.seasons SET jounin_ends_at = $1 WHERE closed_at IS NULL AND jounin_starts_at < $1 AND jounin_ends_at > $1 RETURNING id`,
   eligible: `SELECT game.jounin_eligible($1) AS ok`,
@@ -95,9 +144,10 @@ export function makeSeasonStore(db: Queryable): SeasonStore {
       return (await db.query<{ ok: boolean }>(SEASON_SQL.available)).rows[0]?.ok === true;
     },
     async current() {
-      const r = (await db.query<{ id: number; starts_at: Date; ends_at: Date; jounin_starts_at: Date | null; jounin_ends_at: Date | null }>(SEASON_SQL.current)).rows[0];
+      const r = (await db.query<{ id: number; starts_at: Date; ends_at: Date; jounin_starts_at: Date | null; jounin_ends_at: Date | null; stage: JouninStage; final_ready: boolean }>(SEASON_SQL.current)).rows[0];
       if (!r) return undefined;
-      return { id: r.id, startsAt: r.starts_at, endsAt: r.ends_at, jounin: r.jounin_starts_at && r.jounin_ends_at ? { startsAt: r.jounin_starts_at, endsAt: r.jounin_ends_at } : null };
+      return { id: r.id, startsAt: r.starts_at, endsAt: r.ends_at, jounin: r.jounin_starts_at && r.jounin_ends_at ? { startsAt: r.jounin_starts_at, endsAt: r.jounin_ends_at } : null,
+        stage: r.stage, finalReady: r.final_ready };
     },
     async openJounin(startsAt, endsAt) {
       return (await db.query<{ id: number }>(SEASON_SQL.open, [startsAt, endsAt])).rows[0]!.id;
@@ -122,6 +172,58 @@ export function makeSeasonStore(db: Queryable): SeasonStore {
         if (code) return { ok: false, code };
         throw err;
       }
+    },
+    async startGroups(now) {
+      return (await db.query<{ id: number }>(SEASON_SQL.startGroups, [now])).rows[0]!.id;
+    },
+    async groupTable(seasonId, village) {
+      const { rows } = await db.query<{ group_no: number; position: number; player_id: string; username: string; seed: number; wins: number; losses: number;
+        rounds_for: number; rounds_against: number; pending: number; advanced: boolean }>(SEASON_SQL.groupTable, [seasonId, village]);
+      return rows.map((r) => ({ groupNo: r.group_no, position: r.position, playerId: r.player_id, username: r.username, seed: r.seed, wins: r.wins, losses: r.losses,
+        roundsFor: r.rounds_for, roundsAgainst: r.rounds_against, pending: r.pending, advanced: r.advanced }));
+    },
+    async closeGroups(now) {
+      return (await db.query<{ id: number }>(SEASON_SQL.closeGroups, [now])).rows[0]!.id;
+    },
+    async bracket(seasonId, village) {
+      const { rows } = await db.query<{ round: number; slot: number; rounds: number; a_id: string | null; b_id: string | null; winner_id: string | null;
+        a_rounds: number; b_rounds: number; reason: string | null; a_name: string | null; b_name: string | null }>(SEASON_SQL.bracket, [seasonId, village]);
+      return rows.map((r) => ({ round: r.round, slot: r.slot, rounds: r.rounds, a: r.a_id, b: r.b_id, winner: r.winner_id, aName: r.a_name, bName: r.b_name,
+        aRounds: r.a_rounds, bRounds: r.b_rounds, reason: r.reason, ...(r.reason === 'bye' ? { bye: true } : {}) }));
+    },
+    async saveBracket(seasonId, village, matches) {
+      if (matches.length === 0) return;
+      await db.query(SEASON_SQL.saveBracket, [seasonId, village, matches.map((m) => m.round), matches.map((m) => m.slot), matches.map((m) => m.rounds),
+        matches.map((m) => m.a), matches.map((m) => m.b), matches.map((m) => m.winner)]);
+    },
+    async finalState(seasonId) {
+      const [g, b, f] = await Promise.all([
+        db.query<PendingMatch>(SEASON_SQL.pendingGroups, [seasonId]), db.query<PendingMatch>(SEASON_SQL.pendingBracket, [seasonId]),
+        db.query<{ player_id: string; village: string }>(SEASON_SQL.finalists, [seasonId]),
+      ]);
+      return { pending: [...g.rows, ...b.rows], finalists: new Map(f.rows.map((r) => [r.player_id, r.village])) };
+    },
+    async finalResult(stage, winnerId, loserId, winnerRounds, loserRounds, reason, now) {
+      try {
+        await db.query(stage === 'grupos' ? SEASON_SQL.groupResult : SEASON_SQL.bracketResult, [winnerId, loserId, winnerRounds, loserRounds, reason, now]);
+        return true;
+      } catch (err) {
+        if (['rule_tournament_no_match', 'rule_tournament_stage'].includes((err as { constraint?: string })?.constraint ?? '')) return false;
+        throw err;
+      }
+    },
+    async finish(players, positions, now) {
+      const r = (await db.query<{ jounin: number; consoled: number }>(SEASON_SQL.finish, [players, positions, now])).rows[0]!;
+      return { jounin: r.jounin, consoled: r.consoled };
+    },
+    async era(seasonId) {
+      const { rows } = await db.query<{ position: number; player_id: string; username: string; village: string }>(SEASON_SQL.era, [seasonId]);
+      return rows.map((r) => ({ position: r.position, playerId: r.player_id, username: r.username, village: r.village }));
+    },
+    async fresh(ids) {
+      if (ids.length === 0) return [];
+      const { rows } = await db.query<{ id: string; ryo: string; code: string; name: string; can_be_sensei: boolean }>(SEASON_SQL.fresh, [ids]);
+      return rows.map((r) => ({ id: r.id, ryo: Number(r.ryo), rank: { code: r.code, name: r.name }, canBeSensei: r.can_be_sensei }));
     },
     async slots(seasonId) {
       const { rows } = await db.query<{ village: string; active_players: number; slots: number }>(SEASON_SQL.slots, [seasonId]);

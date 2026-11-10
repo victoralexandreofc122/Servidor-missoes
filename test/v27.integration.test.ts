@@ -27,7 +27,12 @@ describe('v27 no banco: eras e Torneio da Temporada (fase de pontos)', { skip: n
     await makeProgression(t.db).grantXp(id, levelStart(level));
     await t.pool.query('UPDATE game.players SET last_seen_at = now(), tutorial_step = 4, is_admin = $2 WHERE id = $1', [id, !!opts.admin]);
     if (opts.village === null) await t.pool.query('UPDATE game.players SET village = NULL, renegade_at = now() WHERE id = $1', [id]);
-    else if (opts.village) await t.pool.query('UPDATE game.players SET village = $2 WHERE id = $1', [id, opts.village]);
+    else if (opts.village) {
+      // v28: a troca de vila fica travada com o Torneio aberto (conta de admin não é travada): troca como admin e desfaz
+      await t.pool.query('UPDATE game.players SET is_admin = true WHERE id = $1', [id]);
+      await t.pool.query('UPDATE game.players SET village = $2 WHERE id = $1', [id, opts.village]);
+      await t.pool.query('UPDATE game.players SET is_admin = $2 WHERE id = $1', [id, !!opts.admin]);
+    }
     return id;
   }
 

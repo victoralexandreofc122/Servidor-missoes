@@ -73,7 +73,7 @@ export type AdminCommand =
   | { cmd: 'hora'; phase: DayPhase }
   | { cmd: 'efeito'; username: string; effect: EffectCode | 'limpar'; seconds: number }
   | { cmd: 'pvp'; days: number }
-  | { cmd: 'torneio'; action: 'abrir' | 'fechar' | 'status'; days: number }
+  | { cmd: 'torneio'; action: 'abrir' | 'fechar' | 'chaves' | 'encerrar' | 'wo' | 'status'; days: number; username?: string }
   | EndgameAdminCommand;
 
 /** Comandos do fim de jogo (v11). */
@@ -101,7 +101,7 @@ const RANK_WORDS: Readonly<Record<string, AdminRank>> = {
 export type ParsedAdmin = { ok: true; command: AdminCommand } | { ok: false; command: string; text: string };
 
 export const ADMIN_HELP = 'Admin (ou o painel 🛡️): /admin nivel <nome> <nível> · invocar <monstro> [qtd] · darjutsu <nome> <jutsu> [nível] · daritem <nome> <item> [qtd] · ryo <nome> <qtd>'
-  + ' · zerarpontos <nome> · patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage> · resetarclasses <admin|eu> · pvp [dias] · torneio <abrir [dias]|fechar|status> · ir <mapa> [x y] · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite> · efeito <nome> <efeito|limpar> [seg]'
+  + ' · zerarpontos <nome> · patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage> · resetarclasses <admin|eu> · pvp [dias] · torneio <abrir [dias]|fechar|chaves|wo <nome>|encerrar|status> · ir <mapa> [x y] · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite> · efeito <nome> <efeito|limpar> [seg]'
   + ' · fimdejogo <módulo> <ligar|desligar|auto> · vila <nome> <vila> · kage <vila> <nome> · eleicao <vila> · evento <guerra|tregua> <vila|todas> [vila] <horas>'
   + ' · renegado <nome> <sim|nao> · akatsuki <lider|remover> <nome> · temporada fechar';
 
@@ -162,12 +162,16 @@ export function parseAdminCommand(text: string, monsterTypes: readonly string[],
     }
     case 'torneio': {
       // v41: Torneio da Temporada (fase de pontos): abrir [dias, padrão 10], fechar, status
+      // v43: fechar monta os grupos; chaves fecha os grupos e monta a eliminatória; wo <nome> dá W.O.; encerrar premia
       const action = (args[0] ?? 'status').toLowerCase();
-      const days = int(args[1] ?? '10', 1, 60);
-      if (!['abrir', 'fechar', 'status'].includes(action) || args.length > 2 || days === undefined || (action !== 'abrir' && args.length > 1)) {
-        return bad('torneio <abrir [dias 1 a 60]|fechar|status>');
+      const usage = 'torneio <abrir [dias 1 a 60]|fechar|chaves|wo <nome>|encerrar|status>';
+      if (action === 'wo') {
+        if (args.length !== 2 || !args[1]) return bad(usage);
+        return { ok: true, command: { cmd, action, days: 10, username: args[1] } };
       }
-      return { ok: true, command: { cmd, action: action as 'abrir' | 'fechar' | 'status', days } };
+      const days = int(args[1] ?? '10', 1, 60);
+      if (!['abrir', 'fechar', 'chaves', 'encerrar', 'status'].includes(action) || args.length > 2 || days === undefined || (action !== 'abrir' && args.length > 1)) return bad(usage);
+      return { ok: true, command: { cmd, action: action as 'abrir' | 'fechar' | 'chaves' | 'encerrar' | 'status', days } };
     }
     case 'pvp': {
       const days = int(args[0] ?? String(PVP_DAYS.default), 1, PVP_DAYS.max);
