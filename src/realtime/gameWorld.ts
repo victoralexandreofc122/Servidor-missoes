@@ -40,12 +40,13 @@ const CLAN_HINT: Readonly<Record<Clan, string>> = {
   umbra: 'A Possessão da Sombra já é sua; os outros chegam nos níveis 20, 40 e 60, e os jutsus de sombra alcançam 10% mais longe.',
   andarilho: 'Sem clã, a Substituição volta 15% mais rápido.',
 };
-import { CC_BUDGET, CC_WEIGHT, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
+import { CC_BUDGET, CC_WEIGHT, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, pvpHitRaw, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, SCROLL, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
 import type { RankedStore } from './rankedStore.js';
 import { JOUNIN_RULES, type JouninStage, type SeasonStore } from './seasonStore.js';
+import { bonusesFor, xpWithBonus, type XpBonus, type XpBonusScope, type XpBonusStore } from './xpBonus.js';
 import { bracketChampion, bracketEntrants, jouninOfEra, makeBracket, takePending, type PendingMatch } from './tournament.js';
 import { SHOW_ALL, type Display, type EndgamePlayer, type EndgameStore, type KageAction, type Politics, type PvpKill, type TickEvent } from './endgameStore.js';
 import { VILLAGE_INFO, alliesOf, villageFullName, conflictHostile, mapAllowed, type Diplomacy, type Faction, type MapAccess, type PassiveKind } from './villages.js';
@@ -180,6 +181,8 @@ export interface WorldOptions {
   ranked?: RankedStore;
   /** v41 (migração v27): eras e Torneio da Temporada. */
   season?: SeasonStore;
+  /** v44 (migração v29): bônus de XP do admin guardados no banco. Sem isto: valem só enquanto o servidor está ligado. */
+  xpBonus?: XpBonusStore;
   /** Quem vigia o servidor (site do jogo: saúde, bugs e comportamento suspeito). */
   watch?: WorldWatch;
 }
@@ -642,7 +645,7 @@ export class GameWorld {
   private seasonReady = false;
   private seasonBusy = false;
   /** v30: muros dos jutsus (Muralha de Terra, Muro de Água): a caixa está nas paredes do mapa enquanto o muro existe. */
-  private barriers: { id: number; map: MapId; box: Wall; hp: number; kind: 'rocha' | 'agua'; until: number }[] = [];
+  private barriers: { id: number; map: MapId; box: Wall; hp: number; kind: 'rocha' | 'agua'; until: number; ownerId?: string }[] = [];
   private duel: DuelMatch | null = null;
   private duelSeq = 0;
   private readonly rankedReturn = new Map<string, { map: MapId; x: number; y: number }>();
@@ -655,6 +658,11 @@ export class GameWorld {
   private rankedReady = false;
   private rankedTimer: NodeJS.Timeout | undefined;
   private seasonTimer: NodeJS.Timeout | undefined;
+  /** v44: bônus de XP ativos (do banco quando a v29 existe; senão, só em memória). */
+  private xpBonuses: XpBonus[] = [];
+  private readonly xpBonusStore: XpBonusStore | undefined;
+  private xpBonusDb = false;
+  private xpBonusTimer: NodeJS.Timeout | undefined;
   private rankedBusy = false;
   /** Números do PvP desde que o servidor ligou (por classe e por golpe), para o painel do admin. */
   private readonly pvpStats: PvpStats;
@@ -689,6 +697,7 @@ export class GameWorld {
     this.endgame = options.endgame;
     this.rankedStore = options.ranked;
     this.seasonStore = options.season;
+    this.xpBonusStore = options.xpBonus;
     this.watch = options.watch ?? {};
     for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
     this.lastTick = now();
@@ -1123,6 +1132,7 @@ export class GameWorld {
     this.syncMission(session.id);
     if (session.canBeSensei) this.syncSensei(session.id);
     this.sendChatHistory(session, t);          // ao abrir o jogo: as mensagens anteriores
+    this.tellXpBonuses(session);               // v44: bônus de XP do admin que vale para ele
     this.flushKicks();
 
     return {
@@ -1449,6 +1459,7 @@ export class GameWorld {
     if (c.cmd === 'efeito') return this.adminEffect(session, c, t);
     if (c.cmd === 'pvp') return this.adminPvp(session, c.days, t);
     if (c.cmd === 'torneio') return this.adminJounin(session, c.action, c.days, c.username);
+    if (c.cmd === 'bonusxp') return this.adminXpBonus(session, c);
     const store = this.admin;
     if (!store) return this.sendTo(session, { type: 'notice', text: 'Modo Administrador sem banco: aqui só o /admin invocar funciona.', tone: 'bad' });
     if (isEndgameAdmin(c)) {
@@ -1687,7 +1698,7 @@ export class GameWorld {
   }
 
   /** Comandos de admin no banco. O alvo online vê a ficha nova na hora (sem anúncio, sem XP de abate). */
-  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | { cmd: 'clima' } | { cmd: 'hora' } | { cmd: 'pvp' } | { cmd: 'torneio' } | EndgameAdminCommand>): Promise<void> {
+  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | { cmd: 'clima' } | { cmd: 'hora' } | { cmd: 'pvp' } | { cmd: 'torneio' } | { cmd: 'bonusxp' } | EndgameAdminCommand>): Promise<void> {
     const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
     // "eu" (só na patente): o próprio admin
     const username = (c.cmd === 'rank' || c.cmd === 'resetclasses') && c.username === 'eu' ? (this.sessions.get(adminId)?.username ?? c.username) : c.username;
@@ -1892,6 +1903,7 @@ export class GameWorld {
       passive: this.passive(session, 'jutsu'), sky: sky?.damage[mechanic] ?? 1,
       ...(burnBase ? { burn: { base: burnBase, ms: cfg.burnMs ?? 3000 } } : {}),
     };
+    (hit as HitInfo & { carry?: Map<string, number> }).carry = new Map();   // v45: a sobra do arredondamento, por alvo, deste lançamento
     // v30: Clã Umbra: os jutsus de sombra alcançam 10% mais longe
     const reach = (cfg.range ?? cfg.radius ?? 0) * (session.clan === 'umbra' && mechanic === 'shadow' ? 1.1 : 1);
     const targets = this.targetsFor(session, true);
@@ -1906,8 +1918,13 @@ export class GameWorld {
     // v37: a mira vale pela forma do jutsu (qualquer classe). Mirou: a direção dele manda, sem procurar alvo sozinho.
     const shape = aimShapeOf(form, cfg);
     const aimedDir = shape && dir && Math.hypot(dir[0], dir[1]) > 0.1 ? cardinal(dir[0], dir[1]) : undefined;
-    let aim: Target | undefined = targetId !== undefined && DIRECTED_SKILLS.has(skill) ? targets.find((x) => x.id === targetId) : undefined;
-    if (!aim && (mechanic === 'taijutsu' || line)) aim = nearest(session, targets, reach);
+    // v45: as formas estreitas (linha, projétil, investida, leque...) miram no focado ou no mais perto em QUALQUER classe.
+    // Antes só as classes "em linha" miravam: a Estaca da Ilusão, a Visão do Abismo, o Projétil de Rocha e a Escavação
+    // Furtiva saíam para onde o boneco olhava (e a Escavação passava direto pelo alvo).
+    const narrow = (shape === 'line' && form !== 'muro' && form !== 'recuo') || form === 'impacto';   // o soco colado (Punho Sísmico) também vira para o alvo
+    // (o Taijutsu continua indo sempre no mais perto, mesmo com outro alvo focado)
+    let aim: Target | undefined = targetId !== undefined && (DIRECTED_SKILLS.has(skill) || (narrow && mechanic !== 'taijutsu')) ? targets.find((x) => x.id === targetId) : undefined;
+    if (!aim && (mechanic === 'taijutsu' || line || narrow)) aim = nearest(session, targets, reach);
     if (aimedDir) {
       const back = form === 'recuo' && (cfg.dash ?? 0) < 0;          // o recuo anda de costas: mira para onde vai
       session.fx = back ? -aimedDir[0] : aimedDir[0];
@@ -2383,12 +2400,26 @@ export class GameWorld {
   }
 
   /** Dano de uma hitbox: no monstro (XP para quem matou) ou no jogador (PvP). Quem já morreu no meio do golpe não apanha de novo. */
-  private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill', label: string = source, hit?: HitInfo & { wet?: boolean }): void {
+  private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill', label: string = source, hit?: HitInfo & { wet?: boolean; carry?: Map<string, number>; part?: number }): void {
     let hurt = false;
     // v28: jogador acertando jogador numa área de PvP: o dano sai da tabela de equilíbrio (pvpBalance.ts).
     if (hit && target.kind === 'player' && this.inPvpArea(attacker)) {
-      amount = pvpHitDamage(hit, attacker.stats, this.config.combat.damageScale);
-      if (hit.wet) amount = Math.round(amount * WET_LIGHTNING_BONUS);
+      if (hit.carry) {
+        // v45: jutsu de vários golpes pequenos (zona, ondas, leque): o que o arredondamento de um golpe corta vai para o
+        // próximo no mesmo alvo. Sem isso a maestria de dano (+5% a +15%) sumia (4,3 e 4,9 viravam 4 e 5 ou 4 e 4).
+        const total = pvpHitRaw(hit, attacker.stats, this.config.combat.damageScale) * (hit.wet ? WET_LIGHTNING_BONUS : 1) + (hit.carry.get(target.id) ?? 0);
+        amount = Math.max(0, Math.round(total));
+        hit.carry.set(target.id, total - amount);
+      } else {
+        amount = pvpHitDamage(hit, attacker.stats, this.config.combat.damageScale);
+        if (hit.wet) amount = Math.round(amount * WET_LIGHTNING_BONUS);
+      }
+    } else if (hit?.carry && hit.part !== undefined) {
+      // v45: fora da tabela do PvP (monstros), o golpe dividido em pulsos soma as sobras do mesmo jeito
+      const total = hit.part + (hit.carry.get(target.id) ?? 0);
+      amount = Math.max(0, Math.round(total));
+      hit.carry.set(target.id, total - amount);
+      if (amount <= 0) return;
     }
     // v35 (Clã Umbra): o golpe depois do Deslize Noturno e o golpe no alvo marcado pela Sombra Faminta doem mais
     let markSlow = 0;
@@ -2641,7 +2672,8 @@ export class GameWorld {
   /** Aplica o jutsu (depois de cobrar e de avisar todos). */
   private v2Apply(s: Session, skill: Skill, cfg: SkillConfig, form: JutsuForm, hits: Target[], to: Point | undefined, dashTo: Point | undefined,
     dmg: number, hit: HitInfo, o: Point, fx: number, fy: number, t: number, pvp: boolean): void {
-    const scaled = (k: number): [number, HitInfo] => [Math.max(1, Math.round(dmg * k)), { ...hit, base: hit.base * k, weapon: hit.weapon * k }];   // a arma também se divide
+    // a arma também se divide; `part` = o pedaço sem arredondar (as sobras somam no alvo: hitTarget)
+    const scaled = (k: number): [number, HitInfo] => [Math.max(1, Math.round(dmg * k)), { ...hit, base: hit.base * k, weapon: hit.weapon * k, ...(k !== 1 ? { part: dmg * k } : {}) } as HitInfo];
     const strike = (x: Target, k = 1) => {
       if (dmg <= 0) return;
       const [d, h] = scaled(k);
@@ -2781,7 +2813,7 @@ export class GameWorld {
         const vertical = Math.abs(s.fx) >= Math.abs(s.fy);
         const w = vertical ? thick : width, h = vertical ? width : thick;
         const hp = cfg.wallHpShare ? Math.round(s.stats.maxHp * cfg.wallHpShare) : cfg.wallHp ?? 60;
-        this.raiseBarrier(s.map, { k: 'iwall', x: q3(to.x - w / 2), y: q3(to.y - h / 2), w, h }, hp, cfg.wallKind ?? 'rocha', cfg.durationMs ?? 5000, t);
+        this.raiseBarrier(s.map, { k: 'iwall', x: q3(to.x - w / 2), y: q3(to.y - h / 2), w, h }, hp, cfg.wallKind ?? 'rocha', cfg.durationMs ?? 5000, t, s.id);
         break;
       }
       case 'palma': {
@@ -2877,9 +2909,9 @@ export class GameWorld {
   }
 
   /** v30: ergue um muro (entra nas paredes do mapa: bloqueia passagem, linhas e projéteis) e avisa o mapa. */
-  private raiseBarrier(map: MapId, box: Wall, hp: number, kind: 'rocha' | 'agua', ms: number, t: number): number {
+  private raiseBarrier(map: MapId, box: Wall, hp: number, kind: 'rocha' | 'agua', ms: number, t: number, ownerId?: string): number {
     const id = ++this.groundSeq;
-    this.barriers.push({ id, map, box, hp, kind, until: t + ms });
+    this.barriers.push({ id, map, box, hp, kind, until: t + ms, ...(ownerId ? { ownerId } : {}) });
     this.layout(map).walls.push(box);
     this.broadcastMap(map, { type: 'barrier', id, kind, x: box.x, y: box.y, w: box.w, h: box.h, hp, ms });
     return id;
@@ -3492,7 +3524,7 @@ export class GameWorld {
     }
     for (const who of winners) {
       const ryo = pay.min + Math.floor(this.random() * (pay.max - pay.min + 1));
-      this.awardXp(who, type.xp, ryo);
+      this.awardXp(who, xpWithBonus(type.xp, this.xpBonuses, { map: m.map, monster: m.type, village: who.village }, t), ryo);   // v44: bônus de XP do admin
       this.trackKill(who, m.type);
       this.riteKill(who, m.type);   // v35: o Rito do Despertar
       this.maybeDropScroll(who);
@@ -4692,9 +4724,54 @@ export class GameWorld {
     }
   }
 
-  /** Vida e chakra cheios, sem efeitos, sem escudo, sem controle, parado. Devolve se estava morto (o cliente precisa saber). */
+  /**
+   * v45: tira do campo tudo o que o ninja deixou (zonas, armadilhas, golpes avisados, projéteis, muros e invocações) e
+   * os estados que ficam nele (formas, marcas, pressa, Substituição armada). Entre as rodadas do duelo: sem isso, a
+   * armadilha (10 s), o Golem (12 s) e a onda do Colosso (5 s) da rodada anterior acertavam na rodada seguinte, e dava
+   * para deixar uma armadilha no lugar do adversário durante a preparação.
+   */
+  private clearFight(s: Session, t: number): void {
+    for (let i = this.zones.length - 1; i >= 0; i--) {
+      const z = this.zones[i]!;
+      if (z.ownerId !== s.id) continue;
+      this.zones.splice(i, 1);
+      this.broadcastMap(z.map, { type: 'ground_end', id: z.id });
+    }
+    for (let i = this.strikes.length - 1; i >= 0; i--) {
+      const k = this.strikes[i]!;
+      if (k.ownerId !== s.id) continue;
+      this.strikes.splice(i, 1);
+      this.broadcastMap(k.map, { type: 'ground_end', id: k.id });
+    }
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i]!;
+      if (p.owner !== s) continue;
+      this.projectiles.splice(i, 1);
+      this.broadcastMap(p.map, { type: 'impact', id: p.id, ...projectileKind(p), x: round2(p.x), y: round2(p.y), r: 0 });
+    }
+    for (const b of [...this.barriers]) if (b.ownerId === s.id) this.dropBarrier(b.id);
+    for (const m of [...this.monsters.values()]) {
+      if (m.ownerId !== s.id) continue;
+      this.monsters.delete(m.id);
+      this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: s.id });
+    }
+    s.umbraForm = null;
+    s.umbraMark = null;
+    s.umbraNext = null;
+    s.umbraHideUntil = 0;
+    s.substituteUntil = 0;
+    if (s.hasteUntil > 0) { s.hasteUntil = 0; s.haste = 0; }
+    s.ccLog = [];
+    void t;
+  }
+
+  /** Vida e chakra cheios, sem efeitos, sem escudo, sem controle, sem recarga, parado. Devolve se estava morto (o cliente precisa saber). */
   private duelRefresh(s: Session, t: number): boolean {
     const wasDead = s.dead;
+    this.clearFight(s, t);
+    // v45: cada rodada começa com as recargas zeradas (docs/brainstorm-pvp-invocacoes.md, 1.2); o cliente limpa os botões
+    s.cooldowns = {};
+    this.sendTo(s, { type: 'cooldowns_reset' });
     s.dead = false;
     s.stunnedUntil = 0;
     s.rootedUntil = 0;
@@ -4722,6 +4799,7 @@ export class GameWorld {
     for (const id of [d.a, d.b]) {
       const s = this.duelSession(id);
       if (s) for (const code of [...s.effects.keys()]) this.dropEffect({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }, code, t);
+      if (s) this.clearFight(s, t);   // v45: o campo fica limpo já no intervalo
     }
     const over = endRound(d, winner, t);
     this.broadcastDuel();
@@ -5240,6 +5318,80 @@ export class GameWorld {
     });
   }
 
+  // ---------------------------------------------------------------- v44: bônus de XP do admin
+
+  /** "+50% de XP na Floresta" (para avisos e para a lista). */
+  private xpBonusText(b: { scope: XpBonusScope; target: string; percent: number }): string {
+    const where = b.scope === 'global' ? 'em todo o jogo' : b.scope === 'mapa' ? `em ${this.config.maps[b.target as MapId]?.name ?? b.target}`
+      : b.scope === 'monstro' ? `ao derrotar ${monsterName(b.target)}` : `para os ninjas da ${villageName(b.target as Village)}`;
+    return `+${b.percent}% de XP ${where}`;
+  }
+
+  private xpBonusLeft(b: XpBonus, now: number): string {
+    const min = Math.max(1, Math.ceil((b.endsAt - now) / 60_000));
+    return min >= 120 ? `${Math.round(min / 60)} h` : `${min} min`;
+  }
+
+  /** A cada minuto: lê os bônus do banco (outro processo ou um deploy pode ter mudado) e tira os vencidos. */
+  async xpBonusMaintenance(): Promise<void> {
+    const now = this.now();
+    const ended = this.xpBonuses.filter((b) => b.endsAt <= now);   // antes de reler: o banco já não devolve os vencidos
+    try {
+      const store = this.xpBonusStore;
+      if (store && (this.xpBonusDb || (this.xpBonusDb = await store.available()))) this.xpBonuses = await store.active();
+    } catch (err) {
+      this.log.warn({ err }, 'bônus de XP: falha ao ler do banco');
+    }
+    this.xpBonuses = this.xpBonuses.filter((b) => b.endsAt > now);
+    for (const b of ended) this.broadcast({ type: 'announce', message: `✨ O bônus de XP acabou: ${this.xpBonusText(b)}.` });
+  }
+
+  /** Quem entra fica sabendo dos bônus que valem para ele (os de mapa e de monstro aparecem para todos). */
+  private tellXpBonuses(s: Session): void {
+    const now = this.now();
+    const mine = this.xpBonuses.filter((b) => b.endsAt > now && (b.scope !== 'vila' || b.target === s.village));
+    if (mine.length) this.sendTo(s, { type: 'notice', tone: 'good', text: `✨ Bônus de XP ativo: ${mine.map((b) => `${this.xpBonusText(b)} (mais ${this.xpBonusLeft(b, now)})`).join(' · ')}.` });
+  }
+
+  /** /admin bonusxp: liga, remove ou lista. O alvo é conferido aqui (mapa e monstro que existem). */
+  private adminXpBonus(session: Session, c: { action: 'set' | 'remove' | 'list'; scope: XpBonusScope | 'tudo'; target: string; percent: number; minutes: number }): void {
+    const adminId = session.id;
+    const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
+    if (c.scope === 'mapa' && !this.config.maps[c.target as MapId]) return say(`Admin: mapa "${c.target}" não existe. Mapas: ${Object.keys(this.config.maps).join(', ')}.`, 'bad');
+    if (c.scope === 'monstro' && !this.monsterTypeNames().includes(c.target)) return say(`Admin: monstro "${c.target}" não existe. Tipos: ${this.monsterTypeNames().join(', ')}.`, 'bad');
+    const run = async () => {
+      const store = this.xpBonusStore;
+      const db = !!store && (this.xpBonusDb || (this.xpBonusDb = await store.available()));
+      const now = this.now();
+      if (db) this.xpBonuses = await store!.active();
+      this.xpBonuses = this.xpBonuses.filter((b) => b.endsAt > now);
+      if (c.action === 'list') {
+        return say(this.xpBonuses.length ? `Admin: bônus de XP ativos: ${this.xpBonuses.map((b) => `${this.xpBonusText(b)} (mais ${this.xpBonusLeft(b, now)})`).join(' · ')}.` : 'Admin: nenhum bônus de XP ativo.', 'info');
+      }
+      const same = (b: XpBonus) => c.scope === 'tudo' || (b.scope === c.scope && b.target === c.target);
+      if (c.action === 'remove') {
+        const gone = this.xpBonuses.filter(same);
+        if (db) await store!.remove(adminId, c.scope, c.target);
+        else this.audit(adminId, 'bonusxp', null, { action: 'remover', scope: c.scope, target: c.target }, true, null);
+        this.xpBonuses = this.xpBonuses.filter((b) => !same(b));
+        if (gone.length === 0) return say('Admin: não havia bônus de XP nesse alvo.', 'info');
+        for (const b of gone) this.broadcast({ type: 'announce', message: `✨ O bônus de XP acabou: ${this.xpBonusText(b)}.` });
+        return say(`Admin: ${gone.length} bônus de XP removido(s).`, 'good');
+      }
+      const scope = c.scope as XpBonusScope;
+      if (db) await store!.set(adminId, scope, c.target, c.percent, c.minutes);
+      else this.audit(adminId, 'bonusxp', null, { scope, target: c.target, percent: c.percent, minutes: c.minutes }, true, null);
+      const bonus: XpBonus = { scope, target: c.target, percent: c.percent, endsAt: now + c.minutes * 60_000 };
+      this.xpBonuses = [...this.xpBonuses.filter((b) => !same(b)), bonus];
+      this.broadcast({ type: 'announce', message: `✨ Bônus de XP: ${this.xpBonusText(bonus)} por ${this.xpBonusLeft(bonus, now)}!` });
+      say(`Admin: bônus ligado: ${this.xpBonusText(bonus)} por ${this.xpBonusLeft(bonus, now)}${db ? '' : ' (sem a migração v29: vale só até o servidor reiniciar)'}.`, 'good');
+    };
+    run().catch((err: unknown) => {
+      this.log.warn({ adminId, err }, 'bônus de XP: falha no comando de admin');
+      say('Admin: não consegui mexer no bônus de XP (veja o log do servidor).', 'bad');
+    });
+  }
+
   /** A posição de cada um na fila (e o tamanho dela para quem assiste). */
   private sendQueues(): void {
     for (const s of this.mapPlayers.get('vale_estatuas') ?? []) this.sendQueueTo(s);
@@ -5310,6 +5462,7 @@ export class GameWorld {
     session.stunnedUntil = 0;
     session.rootedUntil = 0;
     session.cooldowns = {};
+    this.sendTo(session, { type: 'cooldowns_reset' });   // v45: o cliente limpa os botões (antes ficavam "em recarga" à toa)
     session.dx = 0;
     session.dy = 0;
     this.dropInputs(session);             // teleporte para a praça: o cliente recomeça daqui
@@ -5834,6 +5987,10 @@ export class GameWorld {
     }, CHAT_HISTORY.purgeEveryMs);
     this.purgeTimer.unref();
     // Fim de jogo: confere a v11, a população e roda a manutenção (eleições, temporadas) a cada minuto.
+    void this.xpBonusMaintenance();
+    void this.xpBonusMaintenance();   // os bônus gravados voltam logo que o servidor sobe
+    this.xpBonusTimer = setInterval(() => void this.xpBonusMaintenance(), 60_000);
+    this.xpBonusTimer.unref();
     if (this.seasonStore) {
       void this.seasonMaintenance();
       this.seasonTimer = setInterval(() => void this.seasonMaintenance(), this.config.endgame.tickMs);
@@ -5858,6 +6015,7 @@ export class GameWorld {
     if (this.endgameTimer) clearInterval(this.endgameTimer);
     if (this.rankedTimer) clearInterval(this.rankedTimer);
     if (this.seasonTimer) clearInterval(this.seasonTimer);
+    if (this.xpBonusTimer) clearInterval(this.xpBonusTimer);
     this.timer = undefined;
     this.purgeTimer = undefined;
     this.endgameTimer = undefined;

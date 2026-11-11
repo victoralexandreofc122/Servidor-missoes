@@ -240,6 +240,43 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v45: auditoria dos 100 jutsus para o Teste Alpha de PvP (sem migração)
+
+Varredura automática (`test/auditoriaJutsus.test.ts`): cada um dos 100 jutsus é lançado de verdade, na arena (tabela do
+PvP) e contra monstro, nos níveis de uso 1 e 4, e o mundo roda 20 s. O que ela achou e foi corrigido:
+
+- **Mira:** as formas estreitas (linha, projétil, investida) de Ilusão e Pedra saíam para onde o boneco olhava, sem mirar
+  no alvo: Estaca da Ilusão, Visão do Abismo, Projétil de Rocha e Escavação Furtiva (esta passava direto pelo alvo e nunca
+  acertava). O Punho Sísmico também não virava para o alvo. Agora miram no focado ou no mais perto, como as outras classes.
+- **Travados no alvo:** o cliente só mandava o alvo focado nas classes "em linha"; Prisão de Pilares, Raízes do Pesadelo,
+  Ciclo Sem Fim, Noite Eterna, Esmagamento de Paredes e Descontrole Muscular pegavam o mais perto, não o focado.
+- **Maestria de dano:** nos jutsus de vários golpes pequenos (Lamaçal Profundo, Dança dos Mil Cortes, Ascensão Dupla, Farpas
+  de Trovão, Shuriken Colossal) o arredondamento de cada golpe engolia o bônus no PvP (nível 4 = nível 1). As sobras agora
+  somam no alvo; contra monstros, os pulsos somam o dano exato do jutsu.
+- **Duelo (rankeado e Torneio):** armadilha, Golem, muro, aviso e projétil de uma rodada continuavam no campo e acertavam na
+  rodada seguinte; dava para deixar uma armadilha no lugar do adversário durante a preparação. O campo agora é limpo no fim
+  de cada rodada e no começo da seguinte, e as recargas voltam a zero a cada rodada (como o design do duelo pedia).
+- **Cliente:** Muro de Água e Duplo de Água mostravam o cone do Jato d'Água; Sombra Faminta e Forma Umbral, a linha que
+  prende; Olhar Rubro, Sentinela e Colosso Espectral não mostravam nada. Cada forma tem o seu desenho. A Lâmina em Arco
+  aparece com a largura que acerta e a investida mostra onde o golpe caiu.
+- **Prévia da mira:** o leque abre em ângulo (antes: trilhas paralelas), a faixa tem a largura real, o que atravessa vai até
+  o fim, e o alcance conta a maestria e o Clã Umbra. Os botões deixam de ficar "em recarga" depois de renascer.
+- **Conferido sem achar erro:** catálogo (100 no servidor e no banco, toda classe com os 4 tiers), duração de cada efeito,
+  teto de controle (2,5 s por golpe, 5 s em 15 s), rede de segurança (50% da vida em 2 s), nenhum jutsu prende quem lança
+  nem deixa sobra no campo, e a maestria (recarga, efeito, cura, alcance, duração, proteção) nos 98 jutsus de classe e clã.
+
+### v44: bônus de XP do admin (migração v29, `db/schema_v29_bonus_xp.sql`)
+
+- O admin liga um bônus no XP de derrotar monstros: **em todo o jogo**, **num mapa**, **num tipo de monstro** ou para os
+  ninjas de **uma aldeia** (valem em qualquer lugar). De 1% a 500%, de 1 minuto a 7 dias.
+- Comandos: `/admin bonusxp global 50 60` · `bonusxp mapa map_2 100 180` · `bonusxp monstro lodo_escuro 30` (sem minutos:
+  60) · `bonusxp vila mare 20 1440` · `bonusxp remover <alvo>` · `bonusxp remover tudo` · `bonusxp` (lista os ativos).
+- No Painel do Admin: aba **Mundo**, seção **Bônus de XP** (alvo, %, duração, Ligar, Remover este, Ver ativos, Remover todos).
+- Bônus de alvos diferentes **somam**; ligar de novo o mesmo alvo **troca** o valor e o prazo. Todos são avisados no chat
+  quando um bônus começa e acaba, e quem entra vê os que valem para ele.
+- Fica gravado no banco (`game.xp_bonuses`, com histórico e auditoria): continua valendo depois de um deploy. Sem a v29 o
+  comando funciona, mas só até o servidor reiniciar. Contas em `src/realtime/xpBonus.ts`.
+
 ### v43: Fase 2, passo 4: a Fase Final do Torneio da Temporada (migração v28, `db/schema_v28_fase_final.sql`)
 
 - **Trava de vila:** do começo do Torneio até o encerramento ninguém troca de uma vila para outra (banco e servidor).

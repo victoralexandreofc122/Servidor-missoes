@@ -1221,3 +1221,14 @@ Pode rodar de novo sem erro. Conferência: `SELECT game.jounin_slots_for(0), gam
 Rode `db/schema_v28_fase_final.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v27**, e só então mescle o código.
 Ela cria a etapa do Torneio na era, a trava de troca de vila, os grupos, a chave e o encerramento. Pode rodar de novo sem erro.
 Conferência: `SELECT jounin_stage FROM game.seasons WHERE closed_at IS NULL;` deve dar `pontos`.
+
+## Passo 44 — Bônus de XP do admin (SQL v29)
+
+Rode `db/schema_v29_bonus_xp.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v28**, e só então mescle o código.
+Cria a tabela `game.xp_bonuses` e as funções `game.admin_xp_bonus` e `game.admin_xp_bonus_remove`. Pode rodar de novo sem erro.
+
+### Testar no celular
+
+1. Painel do Admin, aba **Mundo**, seção **Bônus de XP**: ligue "Todo o jogo", 50%, 60 min. O chat avisa "Bônus de XP: +50%...".
+2. Derrote um monstro na Floresta: o XP vem 50% maior.
+3. "Ver ativos" lista o bônus; "Remover este" tira e o chat avisa que acabou.

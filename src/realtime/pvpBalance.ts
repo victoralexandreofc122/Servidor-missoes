@@ -61,9 +61,13 @@ function attributeMult(stats: Pick<DerivedStats, 'physicalMultiplier' | 'jutsuMu
  * O combo do molhado (x1,3) entra depois, por alvo, em quem chama.
  */
 export function pvpHitDamage(hit: HitInfo, attacker: Pick<DerivedStats, 'physicalMultiplier' | 'jutsuMultiplier' | 'weaponMultiplier'>, scale: DamageScale): number {
-  const raw = (hit.base * PVP_TIER_POWER[idx(hit.tier, 4)]! * scale.jutsu + hit.weapon * scale.basic)
+  return Math.round(pvpHitRaw(hit, attacker, scale));
+}
+
+/** O mesmo dano, sem arredondar (os jutsus de vários golpes somam as sobras: gameWorld `hitTarget`). */
+export function pvpHitRaw(hit: HitInfo, attacker: Pick<DerivedStats, 'physicalMultiplier' | 'jutsuMultiplier' | 'weaponMultiplier'>, scale: DamageScale): number {
+  return (hit.base * PVP_TIER_POWER[idx(hit.tier, 4)]! * scale.jutsu + hit.weapon * scale.basic)
     * attributeMult(attacker, hit.scaling) * (1 + PVP_USE_BONUS[idx(hit.useLevel, 4)]!) * hit.passive * hit.sky;
-  return Math.round(raw);
 }
 
 /** Queimadura por pulso no PvP: a queimadura do tier 1 com os mesmos multiplicadores do golpe (cai junto com o dano). */

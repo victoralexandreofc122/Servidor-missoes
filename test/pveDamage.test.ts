@@ -83,10 +83,11 @@ const ESPERADO: Record<string, string[]> = {
   // v29 (Jutsus v2): o tier 4 do Fogo virou a Chuva de Meteoros: o 1º meteoro + os outros 2 que caem no ponto mirado
   // (antes, o Inferno Escarlate: 28+9 / 36+12 / 67+24 / 87+30).
   fire: ['0 T1 U1 10+3', '0 T1 U4 13+6', '0 T4 U1 7+14', '0 T4 U4 9+18', '59 T1 U1 24+9', '59 T1 U4 31+12', '59 T4 U1 17+34', '59 T4 U4 22+44'],
-  water: ['0 T1 U1 8+0', '0 T1 U4 10+0', '0 T4 U1 17+17', '0 T4 U4 22+22', '59 T1 U1 19+0', '59 T1 U4 25+0', '59 T4 U1 40+40', '59 T4 U4 53+53'],
+  // v45: os pulsos de um jutsu dividido somam o dano exato do jutsu (antes cada pulso arredondava por conta própria)
+  water: ['0 T1 U1 8+0', '0 T1 U4 10+0', '0 T4 U1 17+17', '0 T4 U4 22+22', '59 T1 U1 19+0', '59 T1 U4 25+0', '59 T4 U1 40+40', '59 T4 U4 53+52'],
   lightning: ['0 T1 U1 12+0', '0 T1 U4 16+0', '0 T4 U1 37+0', '0 T4 U4 48+0', '59 T1 U1 29+0', '59 T1 U4 37+0', '59 T4 U1 88+0', '59 T4 U4 114+0'],
   taijutsu: ['0 T1 U1 14+0', '0 T1 U4 18+0', '0 T4 U1 7+28', '0 T4 U4 9+36', '59 T1 U1 34+0', '59 T1 U4 44+0', '59 T4 U1 17+68', '59 T4 U4 22+88'],
-  weapons: ['0 T1 U1 12+0', '0 T1 U4 16+0', '0 T4 U1 4+28', '0 T4 U4 5+35', '59 T1 U1 29+0', '59 T1 U4 38+0', '59 T4 U1 9+63', '59 T4 U4 12+84'],
+  weapons: ['0 T1 U1 12+0', '0 T1 U4 16+0', '0 T4 U1 4+26', '0 T4 U4 5+34', '59 T1 U1 29+0', '59 T1 U4 38+0', '59 T4 U1 9+63', '59 T4 U4 12+82'],
   attack: [
     'sem arma {} 6', 'sem arma {"taijutsu":59} 14', 'sem arma {"weapons":59} 6',
     'kunai_training {} 11', 'kunai_training {"taijutsu":59} 19', 'kunai_training {"weapons":59} 14',

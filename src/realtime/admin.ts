@@ -73,6 +73,7 @@ export type AdminCommand =
   | { cmd: 'hora'; phase: DayPhase }
   | { cmd: 'efeito'; username: string; effect: EffectCode | 'limpar'; seconds: number }
   | { cmd: 'pvp'; days: number }
+  | { cmd: 'bonusxp'; action: 'set' | 'remove' | 'list'; scope: 'global' | 'mapa' | 'monstro' | 'vila' | 'tudo'; target: string; percent: number; minutes: number }
   | { cmd: 'torneio'; action: 'abrir' | 'fechar' | 'chaves' | 'encerrar' | 'wo' | 'status'; days: number; username?: string }
   | EndgameAdminCommand;
 
@@ -101,7 +102,7 @@ const RANK_WORDS: Readonly<Record<string, AdminRank>> = {
 export type ParsedAdmin = { ok: true; command: AdminCommand } | { ok: false; command: string; text: string };
 
 export const ADMIN_HELP = 'Admin (ou o painel 🛡️): /admin nivel <nome> <nível> · invocar <monstro> [qtd] · darjutsu <nome> <jutsu> [nível] · daritem <nome> <item> [qtd] · ryo <nome> <qtd>'
-  + ' · zerarpontos <nome> · patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage> · resetarclasses <admin|eu> · pvp [dias] · torneio <abrir [dias]|fechar|chaves|wo <nome>|encerrar|status> · ir <mapa> [x y] · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite> · efeito <nome> <efeito|limpar> [seg]'
+  + ' · zerarpontos <nome> · patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage> · resetarclasses <admin|eu> · pvp [dias] · torneio <abrir [dias]|fechar|chaves|wo <nome>|encerrar|status> · bonusxp <global|mapa X|monstro X|vila X> <%> [min] · bonusxp remover <alvo|tudo> · ir <mapa> [x y] · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite> · efeito <nome> <efeito|limpar> [seg]'
   + ' · fimdejogo <módulo> <ligar|desligar|auto> · vila <nome> <vila> · kage <vila> <nome> · eleicao <vila> · evento <guerra|tregua> <vila|todas> [vila] <horas>'
   + ' · renegado <nome> <sim|nao> · akatsuki <lider|remover> <nome> · temporada fechar';
 
@@ -172,6 +173,33 @@ export function parseAdminCommand(text: string, monsterTypes: readonly string[],
       const days = int(args[1] ?? '10', 1, 60);
       if (!['abrir', 'fechar', 'chaves', 'encerrar', 'status'].includes(action) || args.length > 2 || days === undefined || (action !== 'abrir' && args.length > 1)) return bad(usage);
       return { ok: true, command: { cmd, action: action as 'abrir' | 'fechar' | 'chaves' | 'encerrar' | 'status', days } };
+    }
+    case 'bonusxp': {
+      // v44: bônus de XP. bonusxp <global|mapa X|monstro X|vila X> <% 1 a 500> [minutos] · bonusxp remover <alvo|tudo> · bonusxp (lista)
+      const usage = 'bonusxp <global|mapa <mapa>|monstro <tipo>|vila <vila>> <% 1 a 500> [minutos, padrão 60] · bonusxp remover <global|mapa <mapa>|monstro <tipo>|vila <vila>|tudo> · bonusxp (lista os ativos)';
+      if (args.length === 0) return { ok: true, command: { cmd, action: 'list', scope: 'tudo', target: '', percent: 0, minutes: 0 } };
+      const removing = ['remover', 'tirar', 'off'].includes((args[0] ?? '').toLowerCase());
+      const rest = removing ? args.slice(1) : args;
+      const scope = (rest[0] ?? '').toLowerCase();
+      if (removing && scope === 'tudo' && rest.length === 1) return { ok: true, command: { cmd, action: 'remove', scope: 'tudo', target: '', percent: 0, minutes: 0 } };
+      if (!['global', 'mapa', 'monstro', 'vila'].includes(scope)) return bad(usage);
+      const hasTarget = scope !== 'global';
+      let target = hasTarget ? (rest[1] ?? '').toLowerCase() : '';
+      if (hasTarget && !/^[a-z0-9_]{2,32}$/.test(target)) return bad(usage);
+      if (scope === 'vila') {
+        const v = villageByName(target);
+        if (!v) return bad(`bonusxp vila <${VILLAGE_NAMES}> ...`);
+        target = v;
+      }
+      const tail = rest.slice(hasTarget ? 2 : 1);
+      if (removing) {
+        if (tail.length > 0) return bad(usage);
+        return { ok: true, command: { cmd, action: 'remove', scope: scope as 'global', target, percent: 0, minutes: 0 } };
+      }
+      const percent = int(tail[0], 1, 500);
+      const minutes = int(tail[1] ?? '60', 1, 7 * 24 * 60);
+      if (tail.length < 1 || tail.length > 2 || percent === undefined || minutes === undefined) return bad(usage);
+      return { ok: true, command: { cmd, action: 'set', scope: scope as 'global', target, percent, minutes } };
     }
     case 'pvp': {
       const days = int(args[0] ?? String(PVP_DAYS.default), 1, PVP_DAYS.max);

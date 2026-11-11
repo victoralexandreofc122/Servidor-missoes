@@ -19,7 +19,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   do Victor (chibi, contorno escuro, sombreado em 2-3 tons). Toda mudança de arte é comparada lado a lado com a
   referência e conferida dentro do jogo antes de fechar.
 - **Versão atual:** v29 (modo rankeado no Vale dos Guardiões, migração v15), publicada na `main`. Pronto e esperando o
-  Victor (branch, migrações v16 a v28 nessa ordem; o admin muda a patente com `/admin patente` (v23) e reseta as próprias classes com `/admin resetarclasses` (v24); pergaminho único e jutsu só da própria classe (v24); linhagem no Criador, Rito do Despertar e Clã Umbra (v25); Pergaminho do Mestre, nota do Pré-Alpha e Feedback no jogo (v26)): Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o
+  Victor (branch, migrações v16 a v29 nessa ordem; bônus de XP do admin com `/admin bonusxp` (v29); o admin muda a patente com `/admin patente` (v23) e reseta as próprias classes com `/admin resetarclasses` (v24); pergaminho único e jutsu só da própria classe (v24); linhagem no Criador, Rito do Despertar e Clã Umbra (v25); Pergaminho do Mestre, nota do Pré-Alpha e Feedback no jogo (v26)): Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o
   Clã Rubro), conjuração, sistemas próprios (muros, invocações, escuridão...), clãs por linhagem, controle mais forte, a
   Fase 1 dos nomes (Herança do Fogo, 4 aldeias), a correção da rodada 2 do rankeado e a Fase 0 (Extração do design
   final e maestria por jutsu, feita no Fogo) e a Fase 1 dos nomes originais (Os Cinzas, Arena das Quatro Heranças, 38 jutsus, v21;
@@ -66,6 +66,8 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   **despertada no "Rito do Despertar"** (missão no rank Genin, nível 11); a árvore só abre depois do Rito. A classe Sombra continua uma
   das 10 classes; o **Clã Umbra ganha 4 jutsus próprios** (nomes e mecânicas: 3 opções por jutsu, o Victor escolhe antes de codar).
 
+- **Foco (decisão do Victor, 10/11/2026):** PvP pronto para o Teste Alpha. Nada novo de endgame (Kage, ANBU, Renegados, Guerra) nem os 74
+  jutsus da Fase 2.5 até ele pedir. A auditoria dos 100 jutsus (v45) está em `test/auditoriaJutsus.test.ts`: jutsu novo ou mexido passa por ela.
 - `npm run verify` (typecheck, testes e build) tem que passar antes de qualquer commit.
 - Mudança visual: conferir no jogo com o navegador automático (Playwright) e mostrar imagens ao Victor.
 - Commit e push só com o código verificado; mudança que precisa de migração vai num branch até o Victor rodar a
