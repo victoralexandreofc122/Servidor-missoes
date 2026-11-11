@@ -1232,3 +1232,14 @@ Cria a tabela `game.xp_bonuses` e as funções `game.admin_xp_bonus` e `game.adm
 1. Painel do Admin, aba **Mundo**, seção **Bônus de XP**: ligue "Todo o jogo", 50%, 60 min. O chat avisa "Bônus de XP: +50%...".
 2. Derrote um monstro na Floresta: o XP vem 50% maior.
 3. "Ver ativos" lista o bônus; "Remover este" tira e o chat avisa que acabou.
+
+## Passo 45 — Fase 2.5: os 74 jutsus novos (SQL v30)
+
+Rode `db/schema_v30_fase25.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v29**, e só então mescle o código.
+Cadastra os 74 jutsus em `game.jutsus` e atualiza a regra dos kits (`game.valid_kit`) para os 174 códigos. Pode rodar de novo sem erro.
+As migrações v16, v18, v20 e v25 também ganharam os 74 códigos na lista dos kits (rodar uma delas de novo não tira nada).
+
+### Testar no celular
+
+1. Loja de Pergaminhos: a lista da sua classe mostra 4 jutsus em cada tier.
+2. Faça uma Extração: pode sair um dos jutsus novos; ele aparece na aba Kits com ícone e descrição.

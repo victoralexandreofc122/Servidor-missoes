@@ -32,7 +32,7 @@ export const ELEMENTS = {
 };
 
 /** Zona no chão (mensagem `ground`) -> elemento. O 'aviso' usa o elemento do jutsu que avisou. */
-export const GROUND_ELEMENT = { fogo: 'fire', lama: 'stone', cura: 'heal', agua: 'water', sombra: 'shadow', ilusao: 'illusion', armas: 'weapons' };
+export const GROUND_ELEMENT = { fogo: 'fire', lama: 'stone', cura: 'heal', agua: 'water', sombra: 'shadow', ilusao: 'illusion', armas: 'weapons', raio: 'lightning', vento: 'wind' };
 
 /** O elemento de um jutsu: a mecânica dele (clãs: Rubro = fogo, Umbra = sombra); o que não tem, neutro. */
 export function elementOf(mechanic) {

@@ -2659,6 +2659,8 @@ const GROUND_COLORS = {
   lama: ['rgba(110, 80, 40, 0.40)', 'rgba(160, 120, 70, 0.85)'],
   cura: ['rgba(90, 220, 120, 0.25)', 'rgba(150, 255, 170, 0.85)'],
   aviso: ['rgba(230, 40, 40, 0.18)', 'rgba(255, 70, 60, 0.95)'],
+  raio: ['rgba(255, 242, 122, 0.18)', 'rgba(255, 242, 122, 0.9)'],     // v49 (Fase 2.5)
+  vento: ['rgba(159, 232, 200, 0.16)', 'rgba(216, 255, 240, 0.9)'],
 };
 
 /** Zona: círculo pulsando com borda tracejada. Aviso: círculo vermelho que vai enchendo até o golpe cair. */

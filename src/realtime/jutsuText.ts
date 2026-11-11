@@ -7,6 +7,7 @@
  * `zone.x` lê dentro da zona. O teste (test/jutsuText.test.ts) confere: os 100 têm ícone único e toda chave existe.
  */
 import type { SkillConfig } from './config.js';
+import { FASE25_TEXT } from './jutsusFase25.js';
 
 export interface JutsuText { icon: string; text: string }
 
@@ -125,6 +126,7 @@ export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   umbra_deslize: { icon: '🦇', text: 'Desliza {dash} casas; por {stealthMs} ninguém trava o alvo em você, e o seu próximo golpe (em até {nextHitMs}) bate {nextHitBonus} mais.' },
   umbra_faminta: { icon: '🐺', text: 'Marca um alvo (até {range} casas) por {markMs}: o seu próximo golpe nele bate {markBonus} mais e deixa lento por {markSlowMs}.' },
   umbra_noite: { icon: '🌃', text: 'Noite em volta de você (raio {radius}) por {zone.ms}: os inimigos dentro quase não enxergam e você leva {zoneDamageCut} menos dano.' },
+  ...FASE25_TEXT,   // v49 (Fase 2.5): os 74 novos
   umbra_forma: { icon: '👤', text: 'Vira sombra por {durationMs}: projéteis atravessam você, anda {speedBuff} mais rápido, e quem você atravessa leva dano e fica lento.' },
 };
 

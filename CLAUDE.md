@@ -45,7 +45,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
    `revisao_egm/jutsus/`). Entrega 2 (Fogo novo) com migração v16; Fase 1 (nomes, v17), as classes e a Vento (v18), os
    clãs (v19), a provocação de monstros e a Fase 0 (Extração e maestria, v20) feitos; a linhagem no Criador e o Rito do
    Despertar (v25) e a maestria em todos os jutsus (Fase 1.5, v36) feitos. A Fase 2.5 (74 jutsus novos,
-   4 por classe por tier) só começa quando o Victor pedir.
+   4 por classe por tier, nomes da opção B) foi feita na v49 (migração v30, `src/realtime/jutsusFase25.ts`).
 2. Rankeado, polimento (`revisao_egm/rankeado/`): arquibancada em degraus, estátua, selo de faixa, aviso de próximo.
 3. Cabeça (rosto e cabelo) desenhada à mão em pixel art: o Victor reprovou o rosto e o cabelo gerados por formas 3D.
 4. Site no Floot (páginas, login com a conta do jogo, admin, notificações).

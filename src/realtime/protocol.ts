@@ -225,7 +225,7 @@ const reason = z.string().max(300);
 /** v29: uma linha do ranking do rankeado. */
 export interface RankedRowView { position: number; playerId: string; username: string; village: string | null; level: number; mmr: number; wins: number; losses: number }
 /** v29: tipos de zona no chão; 'aviso' = o círculo vermelho do golpe que vai cair. */
-export type GroundKind = 'fogo' | 'lama' | 'cura' | 'aviso' | 'agua' | 'sombra' | 'ilusao' | 'armas';
+export type GroundKind = 'fogo' | 'lama' | 'cura' | 'aviso' | 'agua' | 'sombra' | 'ilusao' | 'armas' | 'raio' | 'vento';
 
 export interface DuelSideView { id: string; name: string; level: number; village: string | null }
 
