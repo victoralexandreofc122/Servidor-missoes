@@ -45,6 +45,7 @@ import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, 
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
 import type { RankedStore } from './rankedStore.js';
+import { JUTSU_TEXT, jutsuDescription } from './jutsuText.js';
 import { JOUNIN_RULES, type JouninStage, type SeasonStore } from './seasonStore.js';
 import { bonusesFor, xpWithBonus, type XpBonus, type XpBonusScope, type XpBonusStore } from './xpBonus.js';
 import { bracketChampion, bracketEntrants, jouninOfEra, makeBracket, takePending, type PendingMatch } from './tournament.js';
@@ -903,6 +904,7 @@ export class GameWorld {
           ...(v.coneDeg !== undefined ? { coneDeg: v.coneDeg } : {}),
           ...(j.form === 'buff_basico' ? { durationMs: v.durationMs ?? 5000 } : {}),
           ...masteryInfo(j.code, v),   // v31: o que a maestria melhora (sem o campo: só dano)
+          ...(JUTSU_TEXT[j.code] ? { icon: JUTSU_TEXT[j.code]!.icon, desc: jutsuDescription(j.code, v) } : {}),   // v46: ícone e descrição próprios
         }];
       }),
     ) as WorldInfo['skills'];

@@ -90,7 +90,7 @@ const ui = {
   invClass: $('inv-class'), invItems: $('inv-items'), invEmpty: $('inv-empty'),
   tutorialCard: $('tutorial-card'), tutorialTitle: $('tutorial-title'), tutorialText: $('tutorial-text'),
   shopRyo: $('shop-ryo'), shopNote: $('shop-note'), extractBox: $('extract-box'), extractClass: $('extract-class'),
-  extractLevel: $('extract-level'), extractInfo: $('extract-info'), extractGo: $('extract-go'), extractResult: $('extract-result'),
+  extractLevel: $('extract-level'), extractInfo: $('extract-info'), extractGo: $('extract-go'), extractResult: $('extract-result'), extractCatalog: $('extract-catalog'), extractCatalogTitle: $('extract-catalog-title'),
   tabJutsus: $('tab-jutsus'), paneJutsus: $('pane-jutsus'), jutsuList: $('jutsu-list'), kitList: $('kit-list'),
   classPanel: $('class-panel'), classTitle: $('class-title'), classClose: $('class-close'), classGrid: $('class-grid'),
   classDesc: $('class-desc'), classConfirm: $('class-confirm'),
@@ -2984,6 +2984,7 @@ function renderExtraction() {
     ui.extractInfo.textContent = `Custa ${rule.scrolls} ${rule.scrolls === 1 ? 'pergaminho' : 'pergaminhos'} · chance de ${Math.round(chance * 100)}%${luck} · jutsu do Tier ${rule.level}. Você tem ${have}.`;
   }
   ui.extractGo.disabled = !owned.length || !rule || have < rule.scrolls;
+  renderExtractCatalog();
 }
 ui.extractGo.addEventListener('click', () => {
   if (!extractChoice.cls || !tapGuard('extract')) return;
@@ -3535,7 +3536,7 @@ function skillInfo(skill) {
   const w = state.world.skills?.[skill];
   const ui = SKILL_UI[w?.mechanic || skill];
   if (!w || !ui) return null;
-  return { ...ui, name: w.name, tier: w.tier, mark: TIER_MARK[w.tier] || '' };
+  return { ...ui, icon: w.icon || ui.icon, desc: w.desc || '', name: w.name, tier: w.tier, mark: TIER_MARK[w.tier] || '' };   // v46: ícone e descrição do próprio jutsu
 }
 
 /** Onde a arma fica e como ela ataca (Shuriken Gigante: arremesso, alcance e recarga bem lenta). */
@@ -4054,6 +4055,88 @@ function usableJutsu(code) {
   return cls === own.primary || cls === own.secondary;
 }
 
+/**
+ * v46: o cartão de um jutsu (aba Kits e Loja de Pergaminhos): o ícone dele, nome, tier, a descrição com os números do
+ * servidor e a linha de custo. Montado com createElement (nada vira HTML).
+ */
+function jutsuCard(skill, badge) {
+  const info = skillInfo(skill);
+  const w = state.world.skills?.[skill] || {};
+  const card = document.createElement('span');
+  card.className = 'jutsu-card';
+  const ico = document.createElement('span');
+  ico.className = 'jc-ico';
+  ico.textContent = info ? info.icon : '•';
+  ico.style.setProperty('--c', info ? info.color : 'transparent');
+  const body = document.createElement('span');
+  body.className = 'jc-body';
+  const name = document.createElement('b');
+  name.textContent = info ? info.name : skill;
+  body.append(name);
+  if (info && info.tier > 0) {
+    const tier = document.createElement('small');
+    tier.textContent = `T${info.tier}`;
+    body.append(tier);
+  }
+  if (badge) {
+    const b = document.createElement('small');
+    b.className = `jc-badge ${badge.cls || ''}`;
+    b.textContent = badge.text;
+    body.append(b);
+  }
+  if (info?.desc) {
+    const d = document.createElement('span');
+    d.className = 'jc-desc';
+    d.textContent = info.desc;
+    body.append(d);
+  }
+  const price = skillPrice(skill) || w;
+  if (price.cost !== undefined) {
+    const n = document.createElement('span');
+    n.className = 'jc-nums';
+    const secs = (ms) => String(Math.round(ms / 100) / 10).replace('.', ',');
+    n.textContent = [`Chakra ${price.cost}`, `Recarga ${secs(price.cooldownMs)} s`, ...(w.castMs ? [`Selos ${secs(w.castMs)} s`] : [])].join(' · ');
+    body.append(n);
+  }
+  card.append(ico, body);
+  return card;
+}
+
+/** v46: Loja de Pergaminhos: os jutsus da classe escolhida, por tier: os que você já tem e os que ainda podem sair. */
+let extractCatalogKey = '';
+function renderExtractCatalog() {
+  const cls = extractChoice.cls;
+  const classes = state.world.classes || [];
+  const cname = classes.find((c) => c.code === cls)?.name || '';
+  ui.extractCatalogTitle.hidden = ui.extractCatalog.hidden = !cls;
+  if (!cls) return;
+  const all = Object.entries(state.world.skills || {})
+    .filter(([, v]) => v.tier > 0 && !v.clan && (v.class !== undefined ? v.class : v.mechanic) === cls)
+    .sort((a, b) => a[1].tier - b[1].tier || a[1].name.localeCompare(b[1].name, 'pt-BR'));
+  const has = (code) => (state.ninja.jutsus || {})[code] !== undefined;
+  const key = `${cls}|${extractChoice.level}|${all.map(([c]) => (has(c) ? 1 : 0)).join('')}|${inPvpArea() ? 1 : 0}`;
+  if (key === extractCatalogKey) return;
+  extractCatalogKey = key;
+  ui.extractCatalogTitle.textContent = `📜 Jutsus de ${cname}: ${all.filter(([c]) => has(c)).length} de ${all.length} aprendidos`;
+  const out = [];
+  for (const tier of [1, 2, 3, 4]) {
+    const list = all.filter(([, v]) => v.tier === tier);
+    if (!list.length) continue;
+    const got = list.filter(([c]) => has(c)).length;
+    const h = document.createElement('h4');
+    h.className = `jc-tier${tier === extractChoice.level ? ' on' : ''}`;
+    h.textContent = `Tier ${tier} (Extração Nv ${tier}) · ${got} de ${list.length}${got === list.length ? ' · completo' : ''}`;
+    out.push(h);
+    for (const [code] of list) {
+      const row = document.createElement('div');
+      row.className = `jc-row${has(code) ? ' owned' : ''}${tier === extractChoice.level ? ' on' : ''}`;
+      row.append(jutsuCard(code, has(code) ? { text: '✔ aprendido', cls: 'ok' } : { text: 'pode sair na Extração' }));
+      out.push(row);
+    }
+  }
+  ui.extractCatalog.replaceChildren(...out);
+}
+
 /** Aba Kits: uma linha por jutsu APRENDIDO e da sua classe, com os botões A e B. Montada com createElement (nada vira HTML). */
 let kitListKey = '';
 function renderKitList() {
@@ -4069,20 +4152,14 @@ function renderKitList() {
     const info = skillInfo(skill);
     const li = document.createElement('li');
     li.dataset.skill = skill;
-    const label = document.createElement('span');
-    label.textContent = `${info ? info.icon : '•'} ${info ? info.name : skill}`;
-    if (info && info.tier > 0) {
-      const small = document.createElement('small');
-      small.textContent = `T${info.tier}`;
-      label.append(small);
-    }
+    const label = jutsuCard(skill);   // v46: ícone próprio, nome, tier, descrição e números
     const locked = !usableJutsu(skill);
     if (locked) {
       li.classList.add('locked');
       const lock = document.createElement('small');
       lock.className = 'lock';
       lock.textContent = '🔒 fora da sua classe: toque para tirar';
-      label.append(lock);
+      (label.querySelector('.jc-body') || label).append(lock);
     }
     li.append(label);
     for (const kit of ['A', 'B']) {

@@ -240,6 +240,18 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v46: ícone e descrição de cada jutsu, e o catálogo na Loja de Pergaminhos (sem migração)
+
+- **Ícone próprio:** cada um dos 100 jutsus tem o seu ícone (nenhum repetido). Antes todos os jutsus de uma classe usavam o
+  mesmo (o raio para todo Relâmpago), e confundia na luta. Aparece nos botões de habilidade, na aba Jutsus e na aba Kits.
+- **Descrição:** cada jutsu diz o que faz, com os números de verdade (alcance, raio, duração do efeito). O texto é um
+  modelo em `src/realtime/jutsuText.ts`: `{rootMs}` vira "1,6 s" a partir dos números do servidor, então a descrição não
+  fica diferente do jogo quando um número mudar. O teste confere que toda chave existe.
+- **Aba Kits (☰ → Perfil → Kits):** cada jutsu com ícone, nome, tier, descrição e a linha "Chakra · Recarga · Selos".
+- **Loja de Pergaminhos:** abaixo da Extração, os jutsus da classe escolhida, por tier: os que você já aprendeu
+  ("✔ aprendido") e os que ainda podem sair, com a descrição. O tier da Extração escolhida fica em destaque.
+- O welcome ficou uns 9 KB maior (o ícone e a descrição dos 100 jutsus).
+
 ### v45: auditoria dos 100 jutsus para o Teste Alpha de PvP (sem migração)
 
 Varredura automática (`test/auditoriaJutsus.test.ts`): cada um dos 100 jutsus é lançado de verdade, na arena (tabela do

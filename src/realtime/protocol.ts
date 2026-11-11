@@ -502,6 +502,9 @@ export interface SkillInfo {
   durationMs?: number;
   /** v31: o que a maestria melhora (só nos jutsus já com a regra nova; sem ele: dano e cura). */
   mastery?: MasteryGain[];
+  /** v46: o ícone próprio do jutsu e a descrição com os números de verdade (jutsuText.ts). */
+  icon?: string;
+  desc?: string;
 }
 
 /** Missão de sensei como o jogador vê (Sala de Missões). */
