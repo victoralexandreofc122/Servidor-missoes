@@ -24,6 +24,7 @@ import { pickAnim } from './rig.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
 import { GROUND_ELEMENT, Particles, elementOf } from './particles.js';
+import { STRIKE_ART, ZONE_ART, drawBolt, drawDecal, drawStatusArt, drawStrikeArt, drawWindDisc, drawZoneArt } from './jutsuArt.js';
 import { drawBackWeapon, drawHandWeapon, drawWeaponIcon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
 import { VILLAGE_NAMES, egOn, factionStyle, mapAccess, mountEndgameUI, shopFactor, zoneFoe } from './endgame.js';
 import { mountAdminUI } from './adminPanel.js';
@@ -750,6 +751,15 @@ function handleMessage(msg) {
       // v29 (Fogo novo): o aviso de um jutsu de Fogo caiu (meteoro, cinzas, névoa): explode ali
       const z = state.ground?.get(msg.id);
       state.ground?.delete(msg.id);
+      if (z?.kind === 'aviso' && particles.quality !== 'off') {
+        // v48: o meteoro deixa a cratera; o Julgamento do Trovão cai como um raio do céu e deixa a marca
+        if (z.skill === 'fire_4') decals.push({ kind: 'cratera', x: z.x, y: z.y, r: z.r * 0.8, start: now, ms: 2600, seed: seedOf(msg.id) });
+        if (z.skill === 'lightning_4') {
+          for (let i = 0; i < 3; i++) arts.push({ kind: 'bolt', x0: z.x + (i - 1) * 0.6, y0: z.y - 9, x1: z.x + (i - 1) * z.r * 0.4, y1: z.y, start: now + i * 60, ms: 420, seed: seedOf(msg.id) + i * 13, power: i === 1 ? 2.2 : 1.3 });
+          decals.push({ kind: 'queimado', x: z.x, y: z.y, r: z.r * 0.7, start: now, ms: 2200, seed: 1 });
+          hitShake(160);
+        }
+      }
       if (z?.kind === 'aviso') particles.burst(z.skill ? elementOfSkill(z.skill) : 'neutral', z.x, z.y, 2.2, z.r);   // v47: o golpe avisado caiu
       if (z?.kind === 'aviso' && z.skill && mechanicOf(z.skill) === 'fire'
         && !vfx.play('explosion', z.x, z.y, { start: now, scale: z.r / 2 })) {
@@ -768,6 +778,8 @@ function handleMessage(msg) {
     }
     case 'summon_punch':
       state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: msg.r, color: '#c9a678', start: now });
+      if (particles.quality !== 'off') decals.push({ kind: 'cratera', x: msg.x, y: msg.y, r: msg.r * 0.7, start: now, ms: 2200, seed: seedOf(msg.id) });   // v48: o soco do Golem racha o chão
+      particles.burst('stone', msg.x, msg.y, 1.8, msg.r);
       break;
     case 'clan_mark':
       // v35: a linhagem marcada no Criador (desperta no Rito do Despertar, com o Diretor)
@@ -1208,7 +1220,7 @@ function handleMessage(msg) {
       vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now);
       // v47: o rastro no elemento do jutsu
       flying.set(msg.id, { x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, speed: msg.speed, range: msg.range, start: now, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 300,
-        el: msg.skill ? elementOfSkill(msg.skill) : msg.power === 'blast' ? 'fire' : 'weapons' });
+        el: msg.skill ? elementOfSkill(msg.skill) : msg.power === 'blast' ? 'fire' : 'weapons', skill: msg.skill });
       const thrower = msg.weapon ? state.players.get(msg.playerId) : null;
       if (thrower) thrower.thrown = { id: msg.id, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 400 };   // costas vazias enquanto voa
       break;
@@ -1872,6 +1884,8 @@ function enterMap(id, announce) {
     vfx.clear();
     particles.clear();
     flying.clear();
+    arts.length = 0;
+    decals.length = 0;
     state.floaters.length = 0;
     if (state.focusId) setFocus(null);
     mapFx.at = performance.now();
@@ -2125,6 +2139,55 @@ function hitShake(ms) {
   state.shakeUntil = Math.max(state.shakeUntil || 0, performance.now() + ms);
 }
 
+/*
+ * v48: desenhos próprios (public/jutsuArt.js): relâmpagos desenhados e marcas no chão que ficam um tempo.
+ * arts: { kind: 'bolt', x0, y0, x1, y1, start, ms, seed, power }; decals: { kind, x, y, r, start, ms, seed }.
+ */
+const arts = [];
+const decals = [];
+const seedOf = (id) => { let h = 7; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) % 9973; return h; };
+
+/** Por cima dos bonecos: avisos com desenho (meteoro, trovão...), relâmpagos, o Disco do Furacão e os efeitos no alvo. */
+function drawArtTop(toScreenX, toScreenY, T, now) {
+  if (particles.quality === 'off') return;
+  for (const [id, z] of state.ground || []) {
+    if (z.kind !== 'aviso' || !STRIKE_ART[z.skill] || now > z.end) continue;
+    const k = Math.max(0, Math.min(1, (now - z.start) / Math.max(1, z.end - z.start)));
+    drawStrikeArt(ctx, z.skill, toScreenX(z.x), toScreenY(z.y), z.r * T, T, k, now, seedOf(id));
+  }
+  for (const [id, p] of flying) {
+    if (p.skill !== 'wind_4') continue;
+    const d = Math.min(p.range, (p.speed * Math.max(0, now - p.start)) / 1000);
+    drawWindDisc(ctx, toScreenX(p.x + p.fx * d), toScreenY(p.y + p.fy * d), T, now + seedOf(id));
+  }
+  let alive = 0;
+  for (const a of arts) {
+    if (now - a.start >= a.ms) continue;
+    arts[alive++] = a;
+    if (now < a.start) continue;
+    drawBolt(ctx, toScreenX(a.x0), toScreenY(a.y0), toScreenX(a.x1), toScreenY(a.y1), T, now, a.seed, 1 - (now - a.start) / a.ms, a.power);
+  }
+  arts.length = alive;
+  const status = (e, lift) => {
+    if (e.dead || e.diedAt || (e.map && e.map !== state.mapId)) return;
+    if (!(e.fx && Object.keys(e.fx).length) && now >= (e.rootedUntil || 0) && now >= (e.stunnedUntil || 0)) return;
+    drawStatusArt(ctx, e.fx, now < (e.rootedUntil || 0), now < (e.stunnedUntil || 0), toScreenX(e.x), toScreenY(e.y) - lift * T, T, now, seedOf(e.id));
+  };
+  for (const p of state.players.values()) status(p, 0.25);
+  for (const m of state.monsters.values()) status(m, 0.15);
+}
+
+/** No chão, por baixo de tudo: crateras e marcas de queimado que somem. */
+function drawDecals(toScreenX, toScreenY, T, now) {
+  let alive = 0;
+  for (const d of decals) {
+    if (now - d.start >= d.ms) continue;
+    decals[alive++] = d;
+    drawDecal(ctx, d.kind, toScreenX(d.x), toScreenY(d.y), d.r * T, T, (now - d.start) / d.ms, d.seed);
+  }
+  decals.length = alive;
+}
+
 /** O jutsu saiu: as partículas da forma dele, no elemento dele. */
 function castParticles(msg, form, info) {
   const el = elementOfSkill(msg.skill);
@@ -2132,6 +2195,10 @@ function castParticles(msg, form, info) {
   const end = { x: msg.tx ?? msg.x + msg.fx * range, y: msg.ty ?? msg.y + msg.fy * range };
   recentCasts.push({ x: msg.x, y: msg.y, tx: end.x, ty: end.y, el, at: performance.now(), mine: msg.playerId === state.meId, reach: Math.max(range, r) + 3 });
   if (recentCasts.length > 24) recentCasts.shift();
+  // v48: os raios em linha saem desenhados (relâmpago ramificado), do ninja até onde acertou
+  if (el === 'lightning' && ['linha_raio', 'linha', 'ricochete'].includes(form) && particles.quality !== 'off') {
+    arts.push({ kind: 'bolt', x0: msg.x, y0: msg.y - 0.2, x1: end.x, y1: end.y - 0.2, start: performance.now(), ms: 450, seed: (msg.x * 31 + msg.y * 17) % 97, power: 1 });
+  }
   switch (form) {
     case 'cone': case 'cone_fogo': case 'cone_golpe':
       particles.cone(el, msg.x, msg.y, msg.fx, msg.fy, range, info.coneDeg ?? 90);
@@ -2670,6 +2737,9 @@ function drawGround(toScreenX, toScreenY, T, now) {
     if (now > z.end + 300) { state.ground.delete(id); continue; }
     const owner = z.follow ? state.players.get(z.follow) : null;      // v30: zona que anda junto (Aura, Lâminas, Dança)
     const x = toScreenX(owner ? owner.x : z.x), y = toScreenY(owner ? owner.y : z.y), r = z.r * T;
+    // v48: zona com desenho próprio (poça, redemoinho, domínio de sombras, santuário, lâminas, cura...)
+    if (z.kind !== 'aviso' && ZONE_ART[z.skill] && particles.quality !== 'off'
+      && drawZoneArt(ctx, z.skill, x, y, r, T, Math.max(0, Math.min(1, (now - z.start) / Math.max(1, z.end - z.start))), now, seedOf(id))) continue;
     const [fill, edge] = GROUND_COLORS[z.kind] || GROUND_COLORS.fogo;
     ctx.save();
     ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.9, 0, 0, Math.PI * 2);
@@ -6147,6 +6217,7 @@ function draw(now) {
   let alive = 0;
   for (const fx of state.effects) if (SKILLS[fx.skill] && now - fx.start < SKILLS[fx.skill].ms) state.effects[alive++] = fx;
   state.effects.length = alive;
+  drawDecals(toScreenX, toScreenY, T, now);           // v48: crateras e marcas de queimado
   drawGround(toScreenX, toScreenY, T, now);           // v29: zonas no chão e avisos de golpe
   drawBarriers(toScreenX, toScreenY, T, now);         // v30: muros dos jutsus
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
@@ -6199,6 +6270,7 @@ function draw(now) {
   for (const fx of state.effects) if (!GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   drawDarkness(me, toScreenX, toScreenY, T, now);     // v30: escuridão (Véu de Bruma, Noite Eterna)
   vfx.draw(ctx, 'top', toScreenX, toScreenY, T, dpr, now);
+  drawArtTop(toScreenX, toScreenY, T, now);                    // v48: desenhos próprios e efeitos no alvo
   drawParticles(toScreenX, toScreenY, T, viewW, viewH, now);   // v47: partículas dos jutsus
 
   // Por cima de todos: o telhado do portão (quem passa por baixo fica escondido por ele).
