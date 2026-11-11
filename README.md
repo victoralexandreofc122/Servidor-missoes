@@ -258,6 +258,22 @@ Fecha 4 jutsus por classe por tier: 160 de classe, 174 no total. Nomes da opçã
 - **Auditoria:** os 174 passam pela varredura da v45 (saem, cobram, acertam, tetos de controle e de dano, sem sobra no campo,
   maestria nos níveis 1 e 4). O equilíbrio fino entre classes ainda não foi jogado por gente: é o que o Teste Alpha vai dizer.
 - O welcome ficou uns 25 KB maior (ícone e descrição dos 74).
+### v48: desenhos próprios dos jutsus marcantes e efeitos no alvo (só no cliente, sem migração)
+
+Opção C: desenho dedicado para os jutsus de mais identidade e para os efeitos em quem os leva; os outros jutsus seguem
+com as partículas da v47. Tudo em `public/jutsuArt.js`, desenhado por código com contorno escuro e 2 ou 3 tons.
+
+- **Chuva de Meteoros:** pedra em chamas caindo com rastro, sombra que cresce no chão e cratera rachada que fica um tempo.
+- **Raios:** relâmpago ramificado (contorno, borda azul, miolo claro) que muda a cada quadro, nas linhas de Relâmpago; o
+  Julgamento do Trovão junta nuvem escura no aviso e cai como três raios do céu, deixando a marca de queimado.
+- **Zonas:** Poça Viscosa (ondas e bolhas), Lamaçal Profundo, Prisão do Vórtice (redemoinho), Domínio das Sombras e Sombra
+  Oculta (mãos de sombra), Santuário das Penas, Lâminas Flutuantes e Dança dos Mil Cortes (lâminas girando), Regeneração de
+  Área e Aura de Regeneração (círculo de cura), Véu de Bruma e Noite Fechada (bruma).
+- **Outros:** Tornado Cortante (funil), Kunai Explosiva e Ascensão Dupla (armas caindo), Disco do Furacão (disco girando),
+  o soco do Golem (racha o chão).
+- **Efeitos no alvo, enquanto durarem:** queimadura (chamas), ferida (gotas de sangue), paralisia (faíscas), lentidão (lama
+  nos pés), silêncio (selo na cabeça), preso (correntes), atordoado e embaralhado (estrelas), molhado (gotas), sono (z).
+- Config. → Efeitos dos jutsus em "Desligados" também desliga estes desenhos (voltam os círculos de sempre).
 
 ### v47: efeitos visuais dos jutsus com partículas (só no cliente, sem migração)
 
