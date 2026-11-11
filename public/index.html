@@ -469,6 +469,14 @@
       <label class="slider">Distância da câmera <output id="cam-dist-out">100%</output>
         <input id="cam-dist" type="range" min="80" max="140" step="5" value="100">
       </label>
+      <!-- v47: partículas e tremor dos jutsus (celular fraco: reduzir ou desligar) -->
+      <label class="slider">Efeitos dos jutsus
+        <select id="vfx-quality" aria-label="Efeitos dos jutsus">
+          <option value="full">Completos</option>
+          <option value="low">Reduzidos (celular fraco)</option>
+          <option value="off">Desligados (sem partículas nem tremor)</option>
+        </select>
+      </label>
       <fieldset id="display-opts" class="display-opts">
         <legend>O que os outros veem no seu boneco</legend>
         <label><input id="show-cape" type="checkbox" checked> Capa</label>

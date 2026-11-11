@@ -23,6 +23,7 @@ import { mountManualUI } from './manual.js';
 import { pickAnim } from './rig.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
+import { GROUND_ELEMENT, Particles, elementOf } from './particles.js';
 import { drawBackWeapon, drawHandWeapon, drawWeaponIcon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
 import { VILLAGE_NAMES, egOn, factionStyle, mapAccess, mountEndgameUI, shopFactor, zoneFoe } from './endgame.js';
 import { mountAdminUI } from './adminPanel.js';
@@ -749,6 +750,7 @@ function handleMessage(msg) {
       // v29 (Fogo novo): o aviso de um jutsu de Fogo caiu (meteoro, cinzas, névoa): explode ali
       const z = state.ground?.get(msg.id);
       state.ground?.delete(msg.id);
+      if (z?.kind === 'aviso') particles.burst(z.skill ? elementOfSkill(z.skill) : 'neutral', z.x, z.y, 2.2, z.r);   // v47: o golpe avisado caiu
       if (z?.kind === 'aviso' && z.skill && mechanicOf(z.skill) === 'fire'
         && !vfx.play('explosion', z.x, z.y, { start: now, scale: z.r / 2 })) {
         state.effects.push({ skill: 'fire', x: z.x, y: z.y, fx: 0, fy: 0, r: z.r, start: now });
@@ -991,6 +993,7 @@ function handleMessage(msg) {
     case 'dash': {
       // Avanço do Taijutsu: o servidor moveu o jogador até o alvo. Poeira onde ele saiu.
       vfx.play('dust', msg.fromX, msg.fromY, { start: now, feet: true, layer: 'ground' });
+      particles.line('wind', msg.fromX, msg.fromY, msg.x, msg.y);   // v47: o risco do avanço
       jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
       break;
     }
@@ -1184,6 +1187,7 @@ function handleMessage(msg) {
       }
       // (Fogo: a explosão é no impacto, mensagem `impact`; nada em volta de quem lançou.)
       else if (fxKind !== 'teleport' && fxKind !== 'fire' && !playCastVfx(msg, fxKind, now)) state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
+      castParticles(msg, form, info);   // v47
       faceTo(msg.playerId, msg.fx, msg.fy);
       const caster = state.players.get(msg.playerId);
       if (caster) {
@@ -1202,12 +1206,23 @@ function handleMessage(msg) {
       // Poderes da Akatsuki: a Escultura Detonante voa como a bola de fogo; a Tempestade de Páginas, como kunais.
       const sheet = msg.power ? (msg.power === 'blast' ? 'fireball' : 'kunai') : msg.weapon ? 'fuma' : mechanicOf(msg.skill) === 'fire' ? 'fireball' : 'kunai';
       vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now);
+      // v47: o rastro no elemento do jutsu
+      flying.set(msg.id, { x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, speed: msg.speed, range: msg.range, start: now, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 300,
+        el: msg.skill ? elementOfSkill(msg.skill) : msg.power === 'blast' ? 'fire' : 'weapons' });
       const thrower = msg.weapon ? state.players.get(msg.playerId) : null;
       if (thrower) thrower.thrown = { id: msg.id, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 400 };   // costas vazias enquanto voa
       break;
     }
     case 'impact': {
       vfx.land(msg.id);
+      {
+        // v47: estouro no elemento do projétil; a explosão (raio > 0) treme de leve a tela de quem está perto
+        const el = flying.get(msg.id)?.el ?? (msg.skill ? elementOfSkill(msg.skill) : 'weapons');
+        flying.delete(msg.id);
+        particles.burst(el, msg.x, msg.y, msg.r > 0 ? 2.4 : 0.8, msg.r || 0);
+        const meP = state.players.get(state.meId);
+        if (msg.r > 0 && meP && Math.hypot(meP.x - msg.x, meP.y - msg.y) <= msg.r + 1.5) hitShake(140);
+      }
       if (msg.weapon) {                       // a Shuriken Gigante chegou no fim do caminho: volta para as costas
         for (const p of state.players.values()) if (p.thrown?.id === msg.id) p.thrown = null;
         break;
@@ -1246,6 +1261,8 @@ function handleMessage(msg) {
       const text = heal ? `+${msg.amount}` : `-${msg.amount}${msg.shielded ? ' 🛡' : ''}`;
       addFloater(target.x, target.y - 0.6, text, color, mine || msg.target === 'monster' ? 1.15 : 0.9);
       if (!heal) vfx.play('hit', target.x, target.y - 0.15, { start: now, scale: 0.8 });
+      if (heal) particles.burst('heal', target.x, target.y, 0.8, 0.3);   // v47
+      else hitParticles(msg, target, mine);
       // Ninja atingido: o tranco do golpe (sem cortar o próprio golpe ou jutsu no meio).
       if (!heal && msg.target === 'player' && !(target.act && target.act.kind !== 'dano' && now - target.act.start < 450)) {
         target.act = { kind: 'dano', start: now };
@@ -1853,6 +1870,8 @@ function enterMap(id, announce) {
     eg.closeTravel();
     state.effects.length = 0;
     vfx.clear();
+    particles.clear();
+    flying.clear();
     state.floaters.length = 0;
     if (state.focusId) setFocus(null);
     mapFx.at = performance.now();
@@ -2087,6 +2106,120 @@ const formOf = (skill) => state.world.skills?.[skill]?.form || FORM_OF_MECHANIC[
 const CAST_COLOR = { fire: '#ff7a2e', water: '#3ca6ff', lightning: '#fff27a', illusion: '#a072ff', shadow: '#8b7ad8', stone: '#c9a678', heal: '#5fe07a', taijutsu: '#f2b13a', weapons: '#c9d2da', wind: '#9fe8c8' };
 /** Efeitos em sprite (assets/vfx). Os de `SKILLS`/drawEffect ficam de reserva, se as folhas não carregarem. */
 const vfx = new VFXManager();
+
+/*
+ * v47: partículas dos jutsus (public/particles.js). Cada elemento tem as suas (brasas, gotas, riscos elétricos, poeira e
+ * pedras, vento e folhas, fumaça escura...) e cada forma de jutsu escolhe o emissor. Só visual: o servidor não muda.
+ */
+const particles = new Particles();
+const VFX_KEY = 'nin.vfx';
+try { particles.setQuality(localStorage.getItem(VFX_KEY) || 'full'); } catch { /* modo privado */ }
+/** Projéteis voando (id do servidor -> de onde, para onde e o elemento): o rastro sai a cada quadro. */
+const flying = new Map();
+/** Os últimos lançamentos (para a faísca do acerto saber o elemento e de onde veio o golpe). */
+const recentCasts = [];
+const elementOfSkill = (skill) => elementOf(mechanicOf(skill));
+/** Tremor leve da tela: só para quem acertou e para quem levou (e nunca com os efeitos desligados). */
+function hitShake(ms) {
+  if (particles.quality === 'off') return;
+  state.shakeUntil = Math.max(state.shakeUntil || 0, performance.now() + ms);
+}
+
+/** O jutsu saiu: as partículas da forma dele, no elemento dele. */
+function castParticles(msg, form, info) {
+  const el = elementOfSkill(msg.skill);
+  const range = info.range ?? 3, r = info.radius ?? 1.5;
+  const end = { x: msg.tx ?? msg.x + msg.fx * range, y: msg.ty ?? msg.y + msg.fy * range };
+  recentCasts.push({ x: msg.x, y: msg.y, tx: end.x, ty: end.y, el, at: performance.now(), mine: msg.playerId === state.meId, reach: Math.max(range, r) + 3 });
+  if (recentCasts.length > 24) recentCasts.shift();
+  switch (form) {
+    case 'cone': case 'cone_fogo': case 'cone_golpe':
+      particles.cone(el, msg.x, msg.y, msg.fx, msg.fy, range, info.coneDeg ?? 90);
+      break;
+    case 'linha': case 'linha_fogo': case 'linha_raio': case 'linha_prende': case 'ricochete': case 'agarre':
+      particles.line(el, msg.x, msg.y, end.x, end.y);
+      particles.burst(el, end.x, end.y, 0.8);
+      break;
+    case 'faixa':
+      particles.line(el, msg.x, msg.y, end.x, end.y, r * 2);
+      break;
+    case 'anel': case 'anel_golpe': case 'aviso_em_volta':
+      particles.ring(el, msg.x, msg.y, r);
+      break;
+    case 'impacto': case 'alvo': case 'marca':
+      particles.burst(el, end.x, end.y, 1.4, form === 'impacto' ? r : 0.4);
+      break;
+    case 'investida': case 'avanco':
+      particles.line(el, msg.x, msg.y, end.x, end.y);
+      particles.burst(el, end.x, end.y, 1.2, r * 0.6);
+      break;
+    case 'muro': case 'invocacao':
+      particles.burst(el, end.x, end.y, 1.5, 0.8);
+      break;
+    case 'cura': case 'palma':
+      particles.burst('heal', msg.tx ?? msg.x, msg.ty ?? msg.y, 1.2, 0.5);
+      break;
+    case 'escudo': case 'escudo_vida': case 'transformacao': case 'forma_sombra': case 'buff_basico': case 'limpeza': case 'cura_tempo': case 'substituicao':
+      particles.ring(el, msg.x, msg.y, 0.8);
+      if (form === 'escudo_vida' && info.coneDeg) particles.cone(el, msg.x, msg.y, msg.fx, msg.fy, range || 1.5, info.coneDeg);
+      break;
+    default:
+      particles.burst(el, msg.x, msg.y, 0.5);   // projéteis, zonas e avisos: o efeito vem depois; só o sopro de quem lançou
+  }
+}
+
+/** Alguém levou dano: faísca e clarão no alvo, no elemento do golpe que acabou de sair por perto, e o tremor leve. */
+function hitParticles(msg, target, mine) {
+  const now = performance.now();
+  let from = null;
+  for (let i = recentCasts.length - 1; i >= 0; i--) {
+    const c = recentCasts[i];
+    if (now - c.at > 2600) break;
+    if (Math.min(Math.hypot(c.tx - target.x, c.ty - target.y), Math.hypot(c.x - target.x, c.y - target.y)) <= c.reach) { from = c; break; }
+  }
+  particles.spark(from ? from.el : 'neutral', target.x, target.y - 0.15, from?.x, from?.y);
+  if ((mine || from?.mine) && msg.amount >= (msg.maxHp || 100) * 0.04) hitShake(mine ? 150 : 110);
+}
+
+/** A cada quadro: rastro dos projéteis, partículas das zonas e dos avisos, aura de quem faz os selos; depois anda e desenha. */
+let particlesAt = 0;
+function drawParticles(toScreenX, toScreenY, T, viewW, viewH, now) {
+  const dt = Math.max(0, Math.min(0.05, (now - (particlesAt || now)) / 1000));
+  particlesAt = now;
+  if (particles.quality === 'off') return;
+  for (const [id, p] of flying) {
+    if (now > p.until) { flying.delete(id); continue; }
+    const d = Math.min(p.range, (p.speed * Math.max(0, now - p.start)) / 1000);
+    particles.trail(p.el, p.x + p.fx * d, p.y + p.fy * d, p.fx, p.fy, dt, `t${id}`);
+  }
+  for (const [id, z] of state.ground || []) {
+    if (now > z.end) continue;
+    const owner = z.follow ? state.players.get(z.follow) : null;
+    const el = z.kind === 'aviso' ? (z.skill ? elementOfSkill(z.skill) : 'neutral') : GROUND_ELEMENT[z.kind] || 'neutral';
+    particles.zone(el, owner ? owner.x : z.x, owner ? owner.y : z.y, z.r, dt * (z.kind === 'aviso' ? 0.6 : 1), `z${id}`);
+  }
+  // Selos: aura na cor do elemento em volta de quem conjura (um anel pulsando no chão e partículas subindo)
+  for (const p of state.players.values()) {
+    const c = p.casting;
+    if (!c || now >= c.end || p.dead) continue;
+    const el = elementOfSkill(c.skill);
+    const color = CAST_COLOR[mechanicOf(c.skill)] || '#f4ecd8';
+    const k = Math.max(0, Math.min(1, (now - c.start) / Math.max(1, c.end - c.start)));
+    const sx = toScreenX(p.x), sy = toScreenY(p.y + 0.38), R = T * (0.55 + 0.12 * Math.sin(now / 90));
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const grad = ctx.createRadialGradient(sx, sy, R * 0.2, sx, sy, R * 1.25);
+    grad.addColorStop(0, hexA(color, 0.05 + 0.25 * k));
+    grad.addColorStop(0.75, hexA(color, 0.3 + 0.35 * k));
+    grad.addColorStop(1, hexA(color, 0));
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.ellipse(sx, sy, R * 1.25, R * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    particles.aura(el, p.x, p.y, dt * (0.6 + k), `a${p.id}`);
+  }
+  particles.step(dt);
+  particles.draw(ctx, toScreenX, toScreenY, T, viewW, viewH);
+}
 
 /**
  * Efeito em sprite de um jutsu aceito, na forma da hitbox do servidor (tx, ty = onde o efeito acontece).
@@ -4718,6 +4851,17 @@ ui.resetLayout.addEventListener('click', () => {
   resetLayout();
 });
 ui.openCreator.addEventListener('click', () => openCreator(false));
+// v47: Config. -> Efeitos dos jutsus (completos, reduzidos ou desligados); fica guardado no aparelho
+{
+  const sel = $('vfx-quality');
+  if (sel) {
+    sel.value = particles.quality;
+    sel.addEventListener('change', () => {
+      particles.setQuality(sel.value);
+      try { localStorage.setItem(VFX_KEY, particles.quality); } catch { /* modo privado */ }
+    });
+  }
+}
 for (const [key, input] of Object.entries(ui.sliders)) {
   input.addEventListener('input', () => {
     hud[key] = Number(input.value) / 100;
@@ -6053,6 +6197,7 @@ function draw(now) {
   for (const fx of state.effects) if (!GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   drawDarkness(me, toScreenX, toScreenY, T, now);     // v30: escuridão (Véu de Bruma, Noite Eterna)
   vfx.draw(ctx, 'top', toScreenX, toScreenY, T, dpr, now);
+  drawParticles(toScreenX, toScreenY, T, viewW, viewH, now);   // v47: partículas dos jutsus
 
   // Por cima de todos: o telhado do portão (quem passa por baixo fica escondido por ele).
   for (const o of state.overhead) {
