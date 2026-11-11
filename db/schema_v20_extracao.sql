@@ -102,7 +102,19 @@ RETURN kit IS NOT NULL
     'shadow_agarre', 'water_nevoa', 'illusion_noite', 'heal_disturbio', 'shadow_armadilha', 'heal_palma',
     'weapons_gigante', 'water_muro', 'stone_muralha', 'water_clone', 'stone_golem', 'wind_shuriken', 'wind_veu',
     'wind_salto', 'wind_arco', 'rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao', 'rubro_lua',
-    'rubro_completo', 'umbra_deslize', 'umbra_faminta', 'umbra_noite', 'umbra_forma'
+    'rubro_completo', 'umbra_deslize', 'umbra_faminta', 'umbra_noite', 'umbra_forma',
+    -- v30 (Fase 2.5): os 74 novos (a lista só cresce: rodar esta migração de novo não tira nada)
+    'fire_chao', 'fire_cometa', 'fire_rugido', 'fire_coroa', 'fire_coluna', 'heal_agulha', 'heal_casca',
+    'heal_septica', 'heal_banho', 'heal_onda', 'heal_milagre', 'heal_santuario', 'heal_colosso', 'illusion_olho',
+    'illusion_passo', 'illusion_veu', 'illusion_espelho', 'illusion_coro', 'illusion_colapso', 'illusion_ninar', 'illusion_reflexo',
+    'lightning_rede', 'lightning_rugido', 'lightning_maos', 'lightning_correntes', 'lightning_ceu', 'lightning_armadura', 'lightning_risco',
+    'shadow_espinho', 'shadow_veu', 'shadow_mergulho', 'shadow_ciranda', 'shadow_mancha', 'shadow_saltadora', 'shadow_punho',
+    'shadow_sentinela', 'stone_pisao', 'stone_cascalho', 'stone_lancas', 'stone_carga', 'stone_couraca', 'stone_avalanche',
+    'stone_sumidouro', 'taijutsu_esquiva', 'taijutsu_folego', 'taijutsu_bloqueio', 'taijutsu_pressao', 'taijutsu_chave', 'taijutsu_impacto',
+    'taijutsu_flecha', 'taijutsu_queda', 'water_lamina', 'water_gotas', 'water_coluna', 'water_casulo', 'water_tromba',
+    'water_onda', 'water_corpo', 'weapons_corte', 'weapons_pregos', 'weapons_serrilhada', 'weapons_polida', 'weapons_laco',
+    'weapons_arco', 'weapons_ceu', 'weapons_arsenal', 'wind_pulso', 'wind_leve', 'wind_asa', 'wind_vortice',
+    'wind_cadeia', 'wind_milcortes', 'wind_fenda', 'wind_olho'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 

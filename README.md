@@ -240,6 +240,24 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v49: Fase 2.5, os 74 jutsus novos (migração v30, `db/schema_v30_fase25.sql`)
+
+Fecha 4 jutsus por classe por tier: 160 de classe, 174 no total. Nomes da opção B, escolhidos pelo Victor
+(`docs/fase2.5-proposta.md`). Os números estão em `src/realtime/jutsusFase25.ts`.
+
+- **Por classe:** Fogo +5, Cura +8, Ilusão +8, Relâmpago +7, Sombra +8, Pedra +7, Taijutsu +8, Água +7, Armas +8, Vento +8.
+- **Sem sistema novo:** todos usam formas que já existiam (linha, zona, aviso, investida, invocação...). Por isso a mira, a
+  maestria, o ícone, a descrição, a Loja de Pergaminhos e os efeitos visuais valem para eles sem trabalho extra.
+- **Novidades de regra (pequenas):** o **sono** passou a ser aplicado por um jutsu (Canção de Ninar; acorda ao apanhar e
+  conta no teto de controle); o golpe avisado pode prender (Punho do Abismo) ou deixar ferida (Coluna Infernal); a chuva de
+  golpes procura o alvo também nas classes que não miram em linha (Avalanche); a transformação pode dar velocidade (Olho da
+  Tempestade); zonas de Relâmpago e de Vento têm a sua cor.
+- **Diferenças para a proposta:** o Chão Incandescente dá dano por segundo, sem queimadura depois; o Banho de Chakra cura na
+  hora, não aos poucos; o Tapete de Pregos prende 0,8 s em vez de deixar lento; a Queda do Meteoro é um golpe que cai na área
+  (o ninja não salta). Reflexo Vazio, Sentinela de Sombra e Arsenal Vivo usam o desenho do Duplo de Água e do Golem.
+- **Auditoria:** os 174 passam pela varredura da v45 (saem, cobram, acertam, tetos de controle e de dano, sem sobra no campo,
+  maestria nos níveis 1 e 4). O equilíbrio fino entre classes ainda não foi jogado por gente: é o que o Teste Alpha vai dizer.
+- O welcome ficou uns 25 KB maior (ícone e descrição dos 74).
 ### v48: desenhos próprios dos jutsus marcantes e efeitos no alvo (só no cliente, sem migração)
 
 Opção C: desenho dedicado para os jutsus de mais identidade e para os efeitos em quem os leva; os outros jutsus seguem

@@ -500,7 +500,7 @@ interface GroundZone {
   cut?: number;
 }
 /** Golpe avisado: o círculo aparece no chão e o dano cai em `at` (dá tempo de sair). */
-interface GroundStrike { id: number; map: MapId; x: number; y: number; r: number; ownerId: string; at: number; damage: number; label: string; stunMs: number; hit?: HitInfo; slowMs?: number }
+interface GroundStrike { id: number; map: MapId; x: number; y: number; r: number; ownerId: string; at: number; damage: number; label: string; stunMs: number; hit?: HitInfo; slowMs?: number; rootMs?: number; woundMs?: number }
 
 /** Fogo, Kunai e Shuriken Gigante voando: o tick anda com eles e decide a colisão (stepProjectile). */
 interface Projectile {
@@ -1966,7 +1966,9 @@ export class GameWorld {
       }
       case 'meteoros': {
         // a chuva cai em volta do alvo (no alcance de mira) ou à frente
-        const c = aim && distance(o, aim) <= reach ? { x: aim.x, y: aim.y } : ahead(o, fx, fy, Math.min(4, reach));
+        // v49: nas classes que não miram em linha (Pedra), a chuva procura o focado ou o mais perto no alcance
+        const near = aimedDir ? undefined : aim ?? (targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined) ?? nearest(session, targets, reach);
+        const c = near && distance(o, near) <= reach ? { x: near.x, y: near.y } : ahead(o, fx, fy, Math.min(4, reach));
         to = c;
         break;
       }
@@ -2146,7 +2148,7 @@ export class GameWorld {
         const burn = cfg.burn ? { amount: Math.max(1, Math.round(cfg.burn * (dmg / (cfg.damage ?? 1)))), ms: cfg.burnMs ?? 3000 } : undefined;
         this.launch(session, fx, fy, {
           skill, speed: cfg.speed ?? 12, range: reach, damage: dmg, radius: cfg.radius ?? 0, volley: new Set(), ...(burn ? { burn } : {}), hit,
-          ...(cfg.woundMs ? { extras: cfg } : {}),
+          ...(cfg.woundMs || cfg.wet ? { extras: cfg } : {}),   // v49: a Tromba d'Água deixa molhado
         });
         break;
       }
@@ -2305,9 +2307,9 @@ export class GameWorld {
   }
 
   /** Avisa um golpe no chão: o círculo aparece agora e o dano cai daqui a `delayMs` em quem ainda estiver dentro. */
-  warnStrike(owner: Session, w: { x: number; y: number; r: number; delayMs: number; damage: number; stunMs?: number; label?: string; hit?: HitInfo; slowMs?: number }, t: number = this.now()): number {
+  warnStrike(owner: Session, w: { x: number; y: number; r: number; delayMs: number; damage: number; stunMs?: number; label?: string; hit?: HitInfo; slowMs?: number; rootMs?: number; woundMs?: number }, t: number = this.now()): number {
     const id = ++this.groundSeq;
-    this.strikes.push({ id, map: owner.map, x: w.x, y: w.y, r: w.r, ownerId: owner.id, at: t + w.delayMs, damage: w.damage, label: w.label ?? 'aviso', stunMs: w.stunMs ?? 0, ...(w.hit ? { hit: w.hit } : {}), ...(w.slowMs ? { slowMs: w.slowMs } : {}) });
+    this.strikes.push({ id, map: owner.map, x: w.x, y: w.y, r: w.r, ownerId: owner.id, at: t + w.delayMs, damage: w.damage, label: w.label ?? 'aviso', stunMs: w.stunMs ?? 0, ...(w.hit ? { hit: w.hit } : {}), ...(w.slowMs ? { slowMs: w.slowMs } : {}), ...(w.rootMs ? { rootMs: w.rootMs } : {}), ...(w.woundMs ? { woundMs: w.woundMs } : {}) });
     this.broadcastMap(owner.map, { type: 'ground', id, kind: 'aviso', x: round2(w.x), y: round2(w.y), r: w.r, ms: w.delayMs, ...(w.label ? { skill: w.label } : {}) });
     return id;
   }
@@ -2392,6 +2394,9 @@ export class GameWorld {
         this.hitTarget(x, s.damage, owner, t, 'skill', s.label, s.hit);
         if (s.stunMs > 0 && this.stillThere(x)) this.applyStatus(x, 'stunned', s.stunMs, t, owner);
         if (s.slowMs && this.stillThere(x)) this.applyEffect(x, 'lentidao', t, s.slowMs, undefined, owner);
+        // v49 (Fase 2.5): o golpe avisado também pode prender (Punho do Abismo) ou deixar ferida (Coluna Infernal)
+        if (s.rootMs && this.stillThere(x)) this.applyStatus(x, 'rooted', s.rootMs, t, owner);
+        if (s.woundMs && this.stillThere(x)) this.applyEffect(x, 'ferida', t, s.woundMs, undefined, owner);
       }
     }
   }
@@ -2772,6 +2777,7 @@ export class GameWorld {
           this.warnStrike(s, {
             x: to.x, y: to.y, r: cfg.radius ?? 2, delayMs: (cfg.durationMs ?? 1000) + i * 250, damage: dmg, label: skill, hit,
             ...(cfg.stunMs ? { stunMs: cfg.stunMs } : {}), ...(cfg.slowMs && i === waves - 1 ? { slowMs: cfg.slowMs } : {}),
+            ...(cfg.rootMs ? { rootMs: cfg.rootMs } : {}), ...(cfg.woundMs ? { woundMs: cfg.woundMs } : {}),
           }, t);
         }
         break;
@@ -2797,9 +2803,10 @@ export class GameWorld {
         // Colosso Espectral: escudo + Básico mais forte agora; a onda à frente cai no fim
         s.absorb = { hp: Math.round(s.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.25)), until: t + (cfg.durationMs ?? 5000) };
         s.basicBuff = { until: t + (cfg.durationMs ?? 5000), bonus: cfg.basicBuff ?? 0.15 };
+        if (cfg.speedBuff) { s.haste = cfg.speedBuff; s.hasteUntil = t + (cfg.durationMs ?? 5000); }   // v49: Olho da Tempestade
         const at = ahead(o, fx, fy, cfg.range ?? 2.5);
         this.warnStrike(s, { x: at.x, y: at.y, r: cfg.radius ?? 2.5, delayMs: cfg.durationMs ?? 5000, damage: dmg, label: skill, hit, ...(cfg.liftMs ? { stunMs: cfg.liftMs } : {}) }, t);
-        this.sendTo(s, { type: 'notice', text: `Colosso Espectral: escudo de ${s.absorb.hp} e Básico +15% por ${Math.round((cfg.durationMs ?? 5000) / 1000)} s.`, tone: 'good' });
+        this.sendTo(s, { type: 'notice', text: `${JUTSU_BY_CODE.get(skill)?.name ?? 'Transformação'}: escudo de ${s.absorb.hp}${(cfg.basicBuff ?? 0.15) > 0 ? ` e Básico +${Math.round((cfg.basicBuff ?? 0.15) * 100)}%` : ''} por ${Math.round((cfg.durationMs ?? 5000) / 1000)} s.`, tone: 'good' });
         break;
       }
       case 'escudo_vida': {
@@ -2859,6 +2866,7 @@ export class GameWorld {
     if (cfg.darkMs && x.kind === 'player' && this.stillThere(x)) this.applyEffect(x, 'escuridao', t, cfg.darkMs, undefined, by);
     if (cfg.invertMs && x.kind === 'player' && this.stillThere(x)) this.applyEffect(x, 'invertido', t, cfg.invertMs, undefined, by);
     if (cfg.woundMs && this.stillThere(x)) this.applyEffect(x, 'ferida', t, cfg.woundMs, undefined, by);
+    if (cfg.sleepMs && this.stillThere(x)) this.applyEffect(x, 'sono', t, cfg.sleepMs, undefined, by);   // v49: Canção de Ninar
     if (cfg.dotAmount && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, cfg.dotMs ?? 4000, cfg.dotAmount, by);   // Brasa Sem Luz
     if (cfg.drain && x.kind === 'player') {
       const got = Math.min(cfg.drain, x.session.chakra);

@@ -12,6 +12,7 @@
  */
 import type { SkillConfig } from './config.js';
 import { CAST_OF_EXISTING, CLAN_CODES, CLAN_JUTSUS, CLASS_V2, CLASS_V2_CODES } from './jutsusClasses.js';
+import { FASE25, FASE25_CODES, FASE25_MASTERY } from './jutsusFase25.js';
 
 export const CLASSES = ['heal', 'shadow', 'illusion', 'stone', 'fire', 'water', 'taijutsu', 'weapons', 'lightning', 'wind'] as const;
 export type ClassCode = (typeof CLASSES)[number];
@@ -122,7 +123,7 @@ const NAMES: Readonly<Record<ClassCode, readonly [string, string, string, string
 
 export const ACADEMY_JUTSUS = ['teleport', 'substitution'] as const;
 /** Código de jutsu: os 2 da Academia, o tier 1 de cada classe ('fire') e os tiers 2 a 4 ('fire_2'). */
-export type JutsuCode = (typeof ACADEMY_JUTSUS)[number] | ClassCode | `${ClassCode}_${2 | 3 | 4}` | (typeof V2_CODES)[number] | (typeof CLASS_V2_CODES)[number] | (typeof CLAN_CODES)[number];
+export type JutsuCode = (typeof ACADEMY_JUTSUS)[number] | ClassCode | `${ClassCode}_${2 | 3 | 4}` | (typeof V2_CODES)[number] | (typeof CLASS_V2_CODES)[number] | (typeof CLAN_CODES)[number] | (typeof FASE25_CODES)[number];
 
 /** v29 (Jutsus v2): jutsus novos (códigos novos). Os de hoje mantêm os códigos (o banco e os kits guardam). */
 export const V2_CODES = ['fire_endan', 'fire_kasumi', 'fire_hibashiri', 'fire_ryuka', 'fire_haiseki', 'fire_lamina', 'fire_hotan'] as const;
@@ -213,6 +214,11 @@ export const JUTSUS: readonly JutsuDef[] = [
   ...CLAN_CODES.map((code): JutsuDef => {
     const v = CLAN_JUTSUS[code]!;
     return { code, name: v.name, class: null, tier: v.tier, mechanic: v.class, form: v.form, numbers: v.numbers, clan: v.clan };
+  }),
+  // v49 (Fase 2.5): os 74 que fecham 4 jutsus por classe por tier (códigos novos, no fim: o banco e os kits guardam os de antes)
+  ...FASE25_CODES.map((code): JutsuDef => {
+    const v = FASE25[code]!;
+    return { code, name: v.name, class: v.class, tier: v.tier, mechanic: v.class, form: v.form, numbers: v.numbers };
   }),
 ];
 
@@ -375,6 +381,7 @@ export const MASTERY: Readonly<Record<string, readonly MasteryGain[]>> = {
   umbra_faminta: ['efeito'],              // Sombra Faminta: a marca dura mais
   umbra_noite: ['duracao', 'recarga'],    // Noite Fechada
   umbra_forma: ['dano', 'duracao'],       // Forma Umbral: a forma dura mais
+  ...FASE25_MASTERY,                      // v49 (Fase 2.5)
 };
 /** O que o jutsu ganha com a maestria. */
 export const masteryOf = (code: string): readonly MasteryGain[] => MASTERY[code] ?? MASTERY_DEFAULT;
@@ -387,7 +394,7 @@ export const masteryUseLevel = (code: string, gain: 'dano' | 'cura', level: numb
 
 /** Durações de efeito (no alvo) que a maestria "efeito" alonga. */
 const EFFECT_KEYS = ['stunMs', 'rootMs', 'silenceMs', 'paralysisMs', 'burnMs', 'slowMs', 'darkMs', 'invertMs', 'woundMs', 'dotMs', 'firstStunMs',
-  'liftMs', 'markMs', 'markSlowMs', 'stealthMs', 'nextHitMs'] as const;
+  'liftMs', 'markMs', 'markSlowMs', 'stealthMs', 'nextHitMs', 'sleepMs'] as const;
 const ZONE_EFFECT_KEYS = ['firstRootMs', 'endStunMs'] as const;
 const PROTECTION_KEYS = ['shieldShare', 'wallHp', 'wallHpShare', 'summonHp'] as const;
 

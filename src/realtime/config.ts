@@ -117,6 +117,8 @@ export interface SkillConfig {
   shieldShare?: number;
   /** v30: ferida (cura recebida pela metade) por este tempo (Disco do Furacão). */
   woundMs?: number;
+  /** v49 (Fase 2.5): sono no alvo por este tempo (acorda ao apanhar; conta no teto de controle). */
+  sleepMs?: number;
   /** v30: invocação: tipo de monstro, vida (parte da vida máxima de quem invoca) e o soco a cada tanto (Golem). */
   summonType?: string;
   summonHp?: number;
@@ -131,7 +133,7 @@ export interface SkillConfig {
   returnBase?: number;
   /** Zona no chão: dura `ms`; `split` = em quantos pulsos o dano do jutsu se divide; `endHit` = o dano cai no fim. */
   zone?: {
-    ms: number; tickMs?: number; kind: 'fogo' | 'lama' | 'cura' | 'agua' | 'sombra' | 'ilusao' | 'armas';
+    ms: number; tickMs?: number; kind: 'fogo' | 'lama' | 'cura' | 'agua' | 'sombra' | 'ilusao' | 'armas' | 'raio' | 'vento';
     slow?: boolean; heal?: number; follow?: boolean; self?: boolean; pull?: number; split?: number;
     endHit?: boolean; endStunMs?: number; firstRootMs?: number;
     /** v30: escurece quem está dentro (Véu de Bruma); armadilha: dispara no 1º que pisar e some. */

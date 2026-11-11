@@ -23,7 +23,7 @@ describe('v47: partículas dos jutsus', () => {
     // os elementos se distinguem: fogo sobe, água e pedra caem, raio é zigue-zague, vento é risco, sombra é fumaça
     assert.ok(P.ELEMENTS.fire.g < 0 && P.ELEMENTS.water.g > 0 && P.ELEMENTS.stone.g > 0);
     assert.deepEqual([P.ELEMENTS.lightning.shape, P.ELEMENTS.wind.shape, P.ELEMENTS.shadow.shape, P.ELEMENTS.heal.shape], ['bolt', 'streak', 'smoke', 'plus']);
-    assert.deepEqual(Object.keys(P.GROUND_ELEMENT).sort(), ['agua', 'armas', 'cura', 'fogo', 'ilusao', 'lama', 'sombra']);
+    assert.deepEqual(Object.keys(P.GROUND_ELEMENT).sort(), ['agua', 'armas', 'cura', 'fogo', 'ilusao', 'lama', 'raio', 'sombra', 'vento']);
   });
 
   it('emissores: estouro, faísca com clarão, cone, linha, anel; explosão maior solta mais', () => {

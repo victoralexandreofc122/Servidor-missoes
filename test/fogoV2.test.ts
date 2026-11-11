@@ -83,7 +83,7 @@ function duel(skill: string) {
 describe('Jutsus v2, entrega 2: o Fogo novo', () => {
   it('catálogo: 11 jutsus de Fogo (2 a 3 por tier), os códigos antigos ficam, os nomes novos sem os da série', () => {
     const fire = JUTSUS.filter((j) => j.class === 'fire');
-    assert.deepEqual(fire.map((j) => j.tier).sort(), [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 4]);
+    assert.deepEqual(fire.map((j) => j.tier).sort(), [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4]);   // v49 (Fase 2.5): 4 por tier
     for (const code of ['fire', 'fire_2', 'fire_3', 'fire_4']) assert.ok(fire.some((j) => j.code === code), code);
     assert.equal(fire.find((j) => j.code === 'fire')!.name, 'Fogo', 'a Bola de Fogo de hoje não muda');
     for (const j of fire) assert.doesNotMatch(j.name, /[ōū]|Katon|Karyū|Gōka/, j.name);

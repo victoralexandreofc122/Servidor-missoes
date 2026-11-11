@@ -48,7 +48,7 @@ describe('Fase 1: nomes originais', () => {
       assert.ok(!vistos.has(j.name), `"${j.name}" repetido em ${vistos.get(j.name)} e ${j.code}`);
       vistos.set(j.name, j.code);
     }
-    assert.equal(vistos.size, 100);
+    assert.equal(vistos.size, 174);
   });
 
   it('a UI e as mensagens do jogador não dizem "Akatsuki" (o nome interno fica só em código, comentários e IDs)', () => {
