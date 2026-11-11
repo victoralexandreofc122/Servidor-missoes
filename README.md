@@ -240,6 +240,17 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v50: mecânicas inéditas, pacote 1 de 3: recursos (migração v31, só no fim dos três pacotes)
+
+Quatro jutsus com mecânica que o jogo não tinha, como o 5º jutsu do tier da classe (nomes da opção B). Em
+`src/realtime/jutsusMecanicas.ts`. Faltam os pacotes de reação e de posição; a migração v31 cresce a cada pacote.
+
+- **Beijo do Breu (Sombra, Tier 2), roubo de vida:** metade do dano que entrou volta como cura, até 10% da vida por lançamento.
+- **Fio Peçonhento (Armas, Tier 1), veneno que acumula:** cada acerto soma uma carga (até 5), 2 de dano por segundo por carga;
+  as cargas somem 6 s depois do último acerto. A Desintoxicação Celular tira o veneno.
+- **Fúria do Encurralado (Taijutsu, Tier 4), dano por vida perdida:** até 40% a mais com 25% da vida ou menos.
+- **Selo dos Meridianos (Cura, Tier 3), queima de chakra:** tira até 25 de chakra do alvo e causa 0,8 de dano por ponto tirado.
+
 ### v49: Fase 2.5, os 74 jutsus novos (migração v30, `db/schema_v30_fase25.sql`)
 
 Fecha 4 jutsus por classe por tier: 160 de classe, 174 no total. Nomes da opção B, escolhidos pelo Victor

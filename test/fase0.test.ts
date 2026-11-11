@@ -38,7 +38,7 @@ describe('Maestria por jutsu (Fogo)', () => {
   it('Fase 1.5: todo jutsu de classe e de clã tem a regra nova (no máximo 2 ganhos); a Academia evolui do jeito dela', () => {
     const all = JUTSUS.filter((j) => j.tier > 0).map((j) => j.code).sort();
     assert.deepEqual(Object.keys(MASTERY).sort(), all);
-    assert.equal(all.length, 172);   // v49 (Fase 2.5): 98 + 74
+    assert.equal(all.length, 176);   // v49 (Fase 2.5): 98 + 74
     for (const [code, gains] of Object.entries(MASTERY)) assert.ok(gains.length >= 1 && gains.length <= 2, code);
     assert.ok(!MASTERY.teleport && !MASTERY.substitution);
     assert.deepEqual(masteryOf('water_3'), ['dano', 'efeito']);
@@ -47,7 +47,7 @@ describe('Maestria por jutsu (Fogo)', () => {
 
   it('Fase 1.5: cada ganho da tabela muda um número de verdade no nível 4', () => {
     const EFFECT = ['stunMs', 'rootMs', 'silenceMs', 'paralysisMs', 'burnMs', 'slowMs', 'darkMs', 'invertMs', 'woundMs', 'dotMs', 'firstStunMs',
-      'liftMs', 'markMs', 'markSlowMs', 'stealthMs', 'nextHitMs', 'sleepMs'];
+      'liftMs', 'markMs', 'markSlowMs', 'stealthMs', 'nextHitMs', 'sleepMs', 'poisonMs'];
     for (const [code, gains] of Object.entries(MASTERY)) {
       const c: any = SKILLS[code as 'fire'];
       const m: any = withMastery(c, code, 4);

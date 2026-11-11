@@ -57,6 +57,17 @@ export interface SkillConfig {
   selfRootMs?: number;
   /** Tira chakra do alvo. */
   drain?: number;
+  /** v50 (mecânicas inéditas, pacote de recursos): parte do dano causado volta como cura para quem lançou. */
+  lifesteal?: number;
+  /** v50: veneno que acumula: dano por segundo de CADA carga, quantas cargas no máximo e quanto dura sem novo acerto. */
+  poison?: number;
+  poisonMax?: number;
+  poisonMs?: number;
+  /** v50: bate mais com a vida baixa: bônus inteiro com 25% da vida ou menos, crescendo desde a vida cheia. */
+  lowHpBonus?: number;
+  /** v50: tira até este chakra do alvo e causa `chakraBurnRatio` de dano por ponto tirado. */
+  chakraBurn?: number;
+  chakraBurnRatio?: number;
   /** Golpes no mesmo alvo (Cem Golpes, Punho do Céu); `hitsPve` = contra monstro (o teto de golpes é regra do PvP). */
   hits?: number;
   hitsPve?: number;

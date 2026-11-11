@@ -1891,9 +1891,11 @@ export class GameWorld {
     // Clima e hora (ao ar livre): Fogo no dia quente, Água e Raio na chuva... (weather.ts).
     const sky = this.skyEffectsAt(session.map);
     const scale = this.config.combat.damageScale;
-    const dmg = scaledDamage((cfg.damage ?? 0) * scale.jutsu + weaponBonus * scale.basic,
+    const dmg0 = scaledDamage((cfg.damage ?? 0) * scale.jutsu + weaponBonus * scale.basic,
       damageMultiplier(session.stats, cfg.scaling ?? 'ninjutsu') * (1 + masteryBonus(skill, 'dano', level)) * this.passive(session, 'jutsu') * (sky?.damage[mechanic] ?? 1));
     const lasting = (ms: number) => Math.round(ms * (sky?.status[mechanic] ?? 1));
+    // v50: bate mais com a vida baixa (Fúria do Encurralado): bônus inteiro com 25% da vida ou menos
+    const fury = cfg.lowHpBonus ? 1 + cfg.lowHpBonus * Math.max(0, Math.min(1, (1 - session.hp / session.stats.maxHp) / 0.75)) : 1;
     const tier = Math.max(1, JUTSU_BY_CODE.get(skill)?.tier ?? 1);
     const base1 = BASE_SKILLS[mechanic];
     // v29 (Jutsus v2): jutsu com números próprios usa a base dele (dano equivalente de tier 1) no PvP
@@ -1901,12 +1903,14 @@ export class GameWorld {
     const pvpBase = own ? (cfg.base ?? 0) : (base1.damage ?? 0);
     const burnBase = own ? (cfg.burn ?? 0) : (base1.burn ?? 0);
     const hit: HitInfo = {
-      base: pvpBase, tier, useLevel: masteryUseLevel(skill, 'dano', level), weapon: weaponBonus, scaling: cfg.scaling ?? 'ninjutsu',
+      base: pvpBase * fury, tier, useLevel: masteryUseLevel(skill, 'dano', level), weapon: weaponBonus, scaling: cfg.scaling ?? 'ninjutsu',
       passive: this.passive(session, 'jutsu'), sky: sky?.damage[mechanic] ?? 1,
       ...(burnBase ? { burn: { base: burnBase, ms: cfg.burnMs ?? 3000 } } : {}),
     };
-    (hit as HitInfo & { carry?: Map<string, number> }).carry = new Map();   // v45: a sobra do arredondamento, por alvo, deste lançamento
+    (hit as HitInfo & { carry?: Map<string, number> }).carry = new Map();
+    if (cfg.lifesteal) (hit as HitInfo & { lifesteal?: number; stolen?: number }).lifesteal = cfg.lifesteal;   // v50: roubo de vida   // v45: a sobra do arredondamento, por alvo, deste lançamento
     // v30: Clã Umbra: os jutsus de sombra alcançam 10% mais longe
+    const dmg = fury === 1 ? dmg0 : Math.round(dmg0 * fury);
     const reach = (cfg.range ?? cfg.radius ?? 0) * (session.clan === 'umbra' && mechanic === 'shadow' ? 1.1 : 1);
     const targets = this.targetsFor(session, true);
 
@@ -2407,7 +2411,7 @@ export class GameWorld {
   }
 
   /** Dano de uma hitbox: no monstro (XP para quem matou) ou no jogador (PvP). Quem já morreu no meio do golpe não apanha de novo. */
-  private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill', label: string = source, hit?: HitInfo & { wet?: boolean; carry?: Map<string, number>; part?: number }): void {
+  private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill', label: string = source, hit?: HitInfo & { wet?: boolean; carry?: Map<string, number>; part?: number; lifesteal?: number; stolen?: number }): void {
     let hurt = false;
     // v28: jogador acertando jogador numa área de PvP: o dano sai da tabela de equilíbrio (pvpBalance.ts).
     if (hit && target.kind === 'player' && this.inPvpArea(attacker)) {
@@ -2439,6 +2443,7 @@ export class GameWorld {
       if (t < mark.until) { amount = Math.round(amount * (1 + mark.bonus)); markSlow = mark.slowMs; }
       attacker.umbraMark = null;
     }
+    const hpBefore = target.kind === 'monster' ? target.monster.hp : target.session.hp;
     if (target.kind === 'monster') {
       if (target.monster.hp > 0 && this.monsters.has(target.id)) {
         this.damageMonster(target.monster, amount, attacker, t, source);
@@ -2447,6 +2452,13 @@ export class GameWorld {
     } else if (this.canHurt(attacker, target.session, t)) {
       this.damagePlayer(target.session, amount, t, attacker, attacker, label);
       hurt = true;
+    }
+    // v50: roubo de vida (Beijo do Breu): parte do dano QUE ENTROU volta como cura; no máximo 10% da vida por lançamento
+    if (hurt && hit?.lifesteal && !attacker.dead) {
+      const dealt = Math.max(0, hpBefore - Math.max(0, target.kind === 'monster' ? target.monster.hp : target.session.hp));
+      const room = Math.max(0, Math.round(attacker.stats.maxHp * 0.1) - (hit.stolen ?? 0));
+      const heal = Math.min(room, Math.round(dealt * hit.lifesteal));
+      if (heal > 0) { hit.stolen = (hit.stolen ?? 0) + heal; this.healPlayer(attacker, heal, t); }
     }
     if (hurt && markSlow > 0 && this.stillThere(target)) this.applyEffect(target, 'lentidao', t, markSlow, undefined, attacker);
     // Akatsuki (Lâmina Faminta / Pacto de Sangue): o Ataque Básico drena chakra do ninja atingido ou cura o dono.
@@ -2868,6 +2880,25 @@ export class GameWorld {
     if (cfg.woundMs && this.stillThere(x)) this.applyEffect(x, 'ferida', t, cfg.woundMs, undefined, by);
     if (cfg.sleepMs && this.stillThere(x)) this.applyEffect(x, 'sono', t, cfg.sleepMs, undefined, by);   // v49: Canção de Ninar
     if (cfg.dotAmount && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, cfg.dotMs ?? 4000, cfg.dotAmount, by);   // Brasa Sem Luz
+    if (cfg.poison && this.stillThere(x)) {
+      // v50: veneno que acumula: cada acerto soma uma carga (até `poisonMax`) e renova o tempo; o dano por segundo é o das cargas
+      const bag = this.effectsOf(x), cur = bag.get('veneno');
+      const stacks = cur && cur.until > t ? Math.min(cfg.poisonMax ?? 5, (cur.stacks ?? 1) + 1) : 1;
+      this.applyEffect(x, 'veneno', t, cfg.poisonMs ?? 6000, cfg.poison * stacks, by);
+      const e = bag.get('veneno');
+      if (e) { e.stacks = stacks; e.amount = cfg.poison * stacks; e.until = t + (cfg.poisonMs ?? 6000); }
+    }
+    if (cfg.chakraBurn && this.stillThere(x)) {
+      // v50: queima de chakra (Selo dos Meridianos): tira chakra e causa dano pelo que tirou (monstro não tem chakra: metade do máximo)
+      let got = cfg.chakraBurn * 0.5;
+      if (x.kind === 'player') {
+        got = Math.min(cfg.chakraBurn, x.session.chakra);
+        x.session.chakra -= got;
+        if (got > 0) { x.session.calmSince = t; this.sendStats(x.session, t); }
+      }
+      const extra = Math.round(got * (cfg.chakraBurnRatio ?? 0.8));
+      if (extra > 0) this.hitTarget(x, extra, by, t, 'skill', 'queima_de_chakra');
+    }
     if (cfg.drain && x.kind === 'player') {
       const got = Math.min(cfg.drain, x.session.chakra);
       x.session.chakra -= got;

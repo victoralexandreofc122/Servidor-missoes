@@ -8,10 +8,11 @@
  */
 import type { SkillConfig } from './config.js';
 import { FASE25_TEXT } from './jutsusFase25.js';
+import { MEC_TEXT } from './jutsusMecanicas.js';
 
 export interface JutsuText { icon: string; text: string }
 
-const PERCENT = new Set(['basicBuff', 'speedBuff', 'hpCost', 'shieldShare', 'hot', 'dr', 'reduction', 'markBonus', 'nextHitBonus', 'zoneDamageCut', 'summonHp', 'wallHpShare']);
+const PERCENT = new Set(['basicBuff', 'speedBuff', 'hpCost', 'shieldShare', 'hot', 'dr', 'reduction', 'markBonus', 'nextHitBonus', 'zoneDamageCut', 'summonHp', 'wallHpShare', 'lifesteal', 'lowHpBonus']);
 
 export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   // ------------------------------------------------------------------ Academia
@@ -33,7 +34,7 @@ export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   heal: { icon: '💚', text: 'Cura você ou o aliado focado (até {radius} casas).' },
   heal_aura: { icon: '🌿', text: 'Aura que anda com você por {zone.ms} (raio {radius}) e cura quem está dentro a cada segundo.' },
   heal_bisturi: { icon: '💉', text: 'Por {durationMs} o seu Ataque Básico bate {basicBuff} mais forte; o primeiro golpe faz o alvo sangrar.' },
-  heal_desintox: { icon: '🧪', text: 'Tira queimadura e ferida de você e cura um pouco.' },
+  heal_desintox: { icon: '🧪', text: 'Tira queimadura, ferida e veneno de você e cura um pouco.' },
   heal_palma: { icon: '🤲', text: 'Canaliza por {castMs}: cura bastante o aliado colado em você (em você mesmo, a metade). Vida cheia: não sai.' },
   heal_2: { icon: '💥', text: 'Soco colado: o alvo leva tudo e fica no ar por {liftMs}; quem está em volta leva a metade.' },
   heal_disturbio: { icon: '🔀', text: 'Embaralha os controles do alvo (até {range} casas) por {invertMs}: ele anda ao contrário.' },
@@ -127,6 +128,7 @@ export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   umbra_faminta: { icon: '🐺', text: 'Marca um alvo (até {range} casas) por {markMs}: o seu próximo golpe nele bate {markBonus} mais e deixa lento por {markSlowMs}.' },
   umbra_noite: { icon: '🌃', text: 'Noite em volta de você (raio {radius}) por {zone.ms}: os inimigos dentro quase não enxergam e você leva {zoneDamageCut} menos dano.' },
   ...FASE25_TEXT,   // v49 (Fase 2.5): os 74 novos
+  ...MEC_TEXT,      // v50: mecânicas inéditas
   umbra_forma: { icon: '👤', text: 'Vira sombra por {durationMs}: projéteis atravessam você, anda {speedBuff} mais rápido, e quem você atravessa leva dano e fica lento.' },
 };
 

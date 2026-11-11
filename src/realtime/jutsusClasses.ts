@@ -109,7 +109,7 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
 
   // ------------------------------------------------------------------ Médico (classe Cura)
   heal_desintox: { name: 'Desintoxicação Celular', class: 'heal', tier: 1, form: 'limpeza',
-    numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 12_000, heal: 10, cleanse: ['queimadura', 'ferida'] } },
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 12_000, heal: 10, cleanse: ['queimadura', 'ferida', 'veneno'] } },
   heal_bisturi: { name: 'Corte Cirúrgico', class: 'heal', tier: 1, form: 'buff_basico',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 15_000, durationMs: 5000, basicBuff: 0.15, firstBleed: 2 } },
   heal_aura: { name: 'Aura de Regeneração', class: 'heal', tier: 1, form: 'zona',

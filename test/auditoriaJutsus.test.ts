@@ -138,8 +138,8 @@ const NO_DIRECT_DAMAGE = new Set(['umbra_forma']);
 
 describe('v45: auditoria dos 100 jutsus (catálogo)', () => {
   it('100 jutsus; cada classe tem jutsu nos 4 tiers; as linhagens têm os 4 tiers; todos têm números e forma', () => {
-    assert.equal(JUTSUS.length, 174);   // v49 (Fase 2.5): 100 + 74
-    assert.equal(new Set(ALL).size, 174, 'nenhum código repetido');
+    assert.equal(JUTSUS.length, 178);   // v49 (Fase 2.5): 100 + 74
+    assert.equal(new Set(ALL).size, 178, 'nenhum código repetido');
     // Fase 2.5: toda classe tem pelo menos 4 jutsus em cada tier
     for (const c of CLASSES) for (const tier of [1, 2, 3, 4]) assert.ok(JUTSUS.filter((j) => j.class === c && j.tier === tier).length >= 4, `${c} tier ${tier}`);
     for (const c of CLASSES) {

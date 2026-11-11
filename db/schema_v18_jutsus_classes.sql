@@ -120,7 +120,9 @@ RETURN kit IS NOT NULL
     'taijutsu_flecha', 'taijutsu_queda', 'water_lamina', 'water_gotas', 'water_coluna', 'water_casulo', 'water_tromba',
     'water_onda', 'water_corpo', 'weapons_corte', 'weapons_pregos', 'weapons_serrilhada', 'weapons_polida', 'weapons_laco',
     'weapons_arco', 'weapons_ceu', 'weapons_arsenal', 'wind_pulso', 'wind_leve', 'wind_asa', 'wind_vortice',
-    'wind_cadeia', 'wind_milcortes', 'wind_fenda', 'wind_olho'
+    'wind_cadeia', 'wind_milcortes', 'wind_fenda', 'wind_olho',
+    -- v31 (mecânicas inéditas)
+    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
