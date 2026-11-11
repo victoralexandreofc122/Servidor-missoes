@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boneco Base 64x96 | Herança do Fogo</title>
+<style>
+  body { margin: 0; padding: 16px; background: #10151f; color: #dfe6f2; font: 14px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 22px 0 8px; color: #9fc0ff; }
+  p { margin: 0 0 10px; color: #a9b4c7; }
+  .barra { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 4px; }
+  .barra label { white-space: nowrap; }
+  .linha { display: flex; flex-wrap: wrap; gap: 12px; }
+  figure { margin: 0; text-align: center; }
+  figcaption { font-size: 12px; color: #a9b4c7; margin-top: 4px; }
+  canvas { image-rendering: pixelated; display: block; border-radius: 6px; max-width: 100%; }
+  .rolar { overflow-x: auto; }
+</style>
+</head>
+<body>
+<h1>Boneco Base 64x96</h1>
+<p>Linha dos pés em Y=92 (traço vermelho quando a grade está ligada). Cabeça 27, pescoço 3, tronco 22, pernas 25.</p>
+
+<div class="barra" id="camadas"></div>
+<div class="barra">
+  <label><input type="checkbox" id="grade"> Grade e linha dos pés</label>
+  <label><input type="checkbox" id="ancoras"> Pontos de articulação</label>
+  <label>Fundo
+    <select id="fundo">
+      <option value="xadrez">Xadrez</option>
+      <option value="#3f7d3a">Grama</option>
+      <option value="#c9b28a">Areia</option>
+      <option value="#23262e">Pedra escura</option>
+      <option value="#e9edf2">Neve</option>
+    </select>
+  </label>
+</div>
+
+<h2>Tamanho real (1x)</h2>
+<div class="rolar"><canvas id="real"></canvas></div>
+
+<h2>Masculino (4x)</h2>
+<div class="linha" id="zoom-m"></div>
+<h2>Feminino (4x)</h2>
+<div class="linha" id="zoom-f"></div>
+
+<script>/*
+ * Boneco Base (Base Mesh) do Herança do Fogo: 64x96, linha dos pés em Y=92.
+ * Gera matrizes de pixels por camada (paper doll). Funciona no navegador (window.BonecoBase)
+ * e no Node (require). Nada aqui é usado pelo jogo ainda: é a prancha de aprovação.
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.BonecoBase = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const W = 64, H = 96, FEET_Y = 92;
+
+  // Índices de cor. A pele usa exatamente 4 tons: contorno, sombra, base e luz.
+  const LINE = 1, SHADE = 2, BASE = 3, LIGHT = 4;
+  const U_LINE = 5, U_SHADE = 6, U_BASE = 7;
+  const EYE_DARK = 8, EYE_IRIS = 9, EYE_SHINE = 10, SHADOW = 11;
+
+  const PALETTE = {
+    [LINE]: '#5a2a1c', [SHADE]: '#d98a5f', [BASE]: '#f6b98c', [LIGHT]: '#ffdcb9',
+    [U_LINE]: '#5b6072', [U_SHADE]: '#b3b8c7', [U_BASE]: '#e6e8ef',
+    [EYE_DARK]: '#1d2136', [EYE_IRIS]: '#4a63b8', [EYE_SHINE]: '#ffffff',
+    [SHADOW]: 'rgba(20,12,10,0.28)',
+  };
+
+  // Ordem de desenho, de baixo para cima.
+  const LAYERS = ['sombra', 'corpo', 'intima', 'cabeca', 'rosto', 'bracos'];
+
+  // ---------- máscaras ----------
+  const key = (x, y) => y * W + x;
+  function newMask() { return new Uint8Array(W * H); }
+  function rows(mask, y0, list) {
+    list.forEach((r, i) => { if (!r) return; for (let x = r[0]; x <= r[1]; x++) mask[key(x, y0 + i)] = 1; });
+    return mask;
+  }
+  // Linhas simétricas: meia largura por linha, em volta do eixo entre x=31 e x=32.
+  function sym(mask, y0, hws) { return rows(mask, y0, hws.map((h) => (h > 0 ? [32 - h, 31 + h] : null))); }
+  function mirror(mask) {
+    const out = newMask();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (mask[key(x, y)]) out[key(W - 1 - x, y)] = 1;
+    return out;
+  }
+  function union(a, b) { const o = newMask(); for (let i = 0; i < o.length; i++) o[i] = a[i] | b[i]; return o; }
+  function inter(a, b) { const o = newMask(); for (let i = 0; i < o.length; i++) o[i] = a[i] & b[i]; return o; }
+  const has = (m, x, y) => x >= 0 && y >= 0 && x < W && y < H && m[key(x, y)] === 1;
+  function run(m, x, y, dx, dy) { let n = 0; while (has(m, x + dx * (n + 1), y + dy * (n + 1))) n++; return n; }
+
+  /*
+   * Pinta uma máscara: contorno na borda, depois as faixas de luz e sombra.
+   * `rule(c)` devolve LIGHT, SHADE ou nada (fica a cor base). c traz x, y, ax (distância do eixo),
+   * dT/dB/dL/dR (quantos pixels da peça existem acima, abaixo, à esquerda e à direita).
+   */
+  function paint(grid, mask, tones, rule) {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (!mask[key(x, y)]) continue;
+      const edge = !has(mask, x - 1, y) || !has(mask, x + 1, y) || !has(mask, x, y - 1) || !has(mask, x, y + 1);
+      if (edge) { grid[key(x, y)] = tones.line; continue; }
+      const c = {
+        x, y, ax: x < 32 ? 31 - x : x - 32,
+        dT: run(mask, x, y, 0, -1), dB: run(mask, x, y, 0, 1), dL: run(mask, x, y, -1, 0), dR: run(mask, x, y, 1, 0),
+      };
+      const t = rule ? rule(c) : null;
+      grid[key(x, y)] = t === LIGHT ? tones.light : t === SHADE ? tones.shade : tones.base;
+    }
+  }
+  const SKIN = { line: LINE, shade: SHADE, base: BASE, light: LIGHT };
+  const UNDER = { line: U_LINE, shade: U_SHADE, base: U_BASE, light: U_BASE };
+  function px(grid, list, tone) { list.forEach(([x, y]) => { grid[key(x, y)] = tone; }); }
+  // Pinta os pontos e o espelho deles (mantém a frente simétrica).
+  function pxSym(grid, list, tone) { list.forEach(([x, y]) => { grid[key(x, y)] = tone; grid[key(W - 1 - x, y)] = tone; }); }
+  function span(x0, x1, y) { const o = []; for (let x = x0; x <= x1; x++) o.push([x, y]); return o; }
+
+  function shadowLayer() {
+    const g = newMask();
+    rows(g, 91, [[24, 39], [21, 42], [21, 42], [24, 39]]);
+    for (let i = 0; i < g.length; i++) if (g[i]) g[i] = SHADOW;
+    return g;
+  }
+
+  // ---------- medidas ----------
+  // Cabeça: 27 linhas (y 16 a 42). Pescoço 3 (43 a 45). Tronco 22 (46 a 67). Pernas 25 (68 a 92).
+  const HEAD_HW = [6, 9, 10, 11, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 12, 12, 11, 10, 8, 6];
+  const SHAPE = {
+    m: {
+      torso: [8, 9, 9, 9, 9, 9, 9, 9, 8, 8, 8, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8],
+      armX: 40, armW: 4,
+      leg: [[75, 33, 39], [80, 33, 39], [84, 34, 39], [88, 34, 38], [89, 34, 39], [92, 34, 40]],
+    },
+    f: {
+      torso: [6, 7, 7, 7, 7, 7, 7, 7, 6, 6, 5, 5, 5, 5, 6, 7, 8, 8, 8, 8, 8, 8],
+      armX: 38, armW: 3,
+      leg: [[76, 33, 39], [80, 33, 38], [84, 34, 38], [88, 34, 37], [89, 34, 38], [92, 34, 39]],
+    },
+  };
+
+  function headMask() {
+    const m = sym(newMask(), 16, HEAD_HW);
+    const ear = rows(newMask(), 29, [[45, 45], [45, 46], [45, 46], [45, 46], [45, 46], [45, 46], [45, 45]]);
+    return union(m, union(ear, mirror(ear)));
+  }
+
+  function trunkMask(s) {
+    const m = sym(newMask(), 42, [3, 3, 3, 3]);
+    sym(m, 46, s.torso);
+    // Cada trecho da perna: [última linha, x de dentro, x de fora]. Até a linha 70 as pernas ficam unidas.
+    const leg = newMask();
+    for (let y = 68; y <= 92; y++) {
+      const t = s.leg.find((r) => y <= r[0]);
+      rows(leg, y, [[y <= 70 ? 32 : t[1], t[2]]]);
+    }
+    return union(m, union(leg, mirror(leg)));
+  }
+
+  function armMask(s) {
+    const a = s.armX, b = s.armX + s.armW - 1;
+    const m = newMask();
+    // Ombro, braço (até o cotovelo), antebraço um pixel para fora e a mão arredondada.
+    rows(m, 47, [[a, b - 1]]);
+    for (let y = 48; y <= 53; y++) rows(m, y, [[a, b]]);
+    for (let y = 54; y <= 62; y++) rows(m, y, [[a + 1, b + 1]]);
+    rows(m, 63, [[a + 1, b + 2], [a + 1, b + 2], [a + 1, b + 2], [a + 1, b + 2], [a + 2, b + 1]]);
+    return m;
+  }
+
+  // ---------- frente e costas ----------
+  function frontOrBack(sex, back) {
+    const s = SHAPE[sex];
+    const L = {}; LAYERS.forEach((n) => { L[n] = newMask(); });
+    L.sombra = shadowLayer();
+
+    const trunk = trunkMask(s);
+    paint(L.corpo, trunk, SKIN, (c) => {
+      if (c.y <= 45) return SHADE;                                   // sombra do queixo no pescoço
+      if (c.y <= 48 && c.dT <= 2) return LIGHT;                      // ombros
+      if (c.y >= 71 && c.y <= 72) return SHADE;                      // sombra da roupa nas coxas
+      if (c.y >= 74 && c.y <= 79 && c.ax >= 4 && c.ax <= 5 && !back) return LIGHT; // frente da coxa
+      if (c.y === 81 && c.ax >= 3 && c.ax <= 5) return SHADE;        // joelho
+      if (back && c.y >= 83 && c.y <= 85 && c.ax >= 3 && c.ax <= 5) return SHADE; // panturrilha
+      if (c.y >= 73 && (c.x >= 32 ? c.dL : c.dR) === 1) return SHADE; // lado de dentro da perna
+      if (c.y >= 90 && c.dB <= 1 && c.y === 91) return SHADE;        // sola
+      if (!back && c.y === 90 && c.ax >= 3 && c.ax <= 6) return LIGHT; // peito do pé
+      if (c.y >= 55 && c.y <= 67 && (c.dL === 1 || c.dR === 1)) return SHADE; // lateral do tronco
+      return null;
+    });
+    if (!back) {
+      if (sex === 'm') {
+        pxSym(L.corpo, span(33, 37, 53), SHADE);                     // linha do peitoral
+        pxSym(L.corpo, [[38, 52], [32, 52]], SHADE);
+        pxSym(L.corpo, [[32, 60]], SHADE);                           // umbigo
+        pxSym(L.corpo, span(33, 37, 50), LIGHT);                     // volume do peito
+      } else {
+        pxSym(L.corpo, [[32, 60]], SHADE);                           // umbigo
+        pxSym(L.corpo, span(33, 35, 49), LIGHT);                     // colo
+      }
+    } else {
+      pxSym(L.corpo, [[32, 52], [32, 53], [32, 54], [32, 55], [32, 56], [32, 57], [32, 58], [32, 59]], SHADE); // coluna
+      if (sex === 'm') pxSym(L.corpo, [[34, 51], [35, 51], [36, 52], [37, 52]], SHADE); // escápulas
+    }
+
+    // Roupa íntima neutra.
+    const briefs = inter(sym(newMask(), 63, [8, 8, 8, 8, 8, 7, 6, 4, 2]), trunk);
+    paint(L.intima, briefs, UNDER, (c) => {
+      if (c.y === 64) return null;
+      if (back) return c.ax === 0 && c.y >= 66 ? SHADE : c.dB <= 1 ? SHADE : null;
+      return c.dB <= 1 || c.dL === 1 || c.dR === 1 ? SHADE : null;
+    });
+    if (sex === 'f') {
+      const top = inter(sym(newMask(), 49, [7, 7, 7, 7, 7, 7, 6]), trunk);
+      paint(L.intima, top, UNDER, (c) => {
+        if (back) return c.dB <= 1 ? SHADE : null;
+        return c.dB <= 1 || (c.y === 53 && c.ax >= 1 && c.ax <= 4) || c.ax === 0 ? SHADE : null;
+      });
+      pxSym(L.intima, [[36, 47], [36, 48]], U_LINE);                 // alças
+    }
+
+    const head = headMask();
+    paint(L.cabeca, head, SKIN, (c) => {
+      if (c.ax >= 13) return SHADE;                                  // dentro da orelha
+      if (c.y <= 24 && c.dT >= 1 && c.dT <= 4 && c.ax <= 9) return LIGHT; // topo da cabeça
+      if (c.y >= 38 && c.dB <= 2) return SHADE;                      // queixo
+      if (back && c.y >= 36 && c.dB <= 4) return SHADE;              // nuca
+      return null;
+    });
+
+    if (!back) {
+      // Olho direito da imagem; o esquerdo é o espelho.
+      pxSym(L.rosto, span(35, 38, 28), LINE);                        // sobrancelha
+      pxSym(L.rosto, span(35, 39, 31), EYE_DARK);                    // cílio
+      for (let y = 32; y <= 35; y++) pxSym(L.rosto, span(35, 39, y), EYE_DARK);
+      pxSym(L.rosto, span(36, 38, 36), EYE_DARK);
+      pxSym(L.rosto, [[36, 34], [37, 34], [38, 34], [36, 35], [37, 35], [38, 35]], EYE_IRIS);
+      pxSym(L.rosto, [[37, 32], [37, 33]], EYE_SHINE);
+      pxSym(L.rosto, [[32, 39]], LINE);                              // boca
+    }
+
+    const arm = armMask(s);
+    const b = s.armX + s.armW - 1;
+    const arms = union(arm, mirror(arm));
+    paint(L.bracos, arms, SKIN, (c) => {
+      if (c.y <= 50) return LIGHT;                                   // ombro
+      if (c.y === 56) return SHADE;                                  // cotovelo
+      if (c.y >= 66) return SHADE;                                   // debaixo da mão
+      if (c.y >= 52 && c.y <= 62 && s.armW > 3 && (c.x >= 32 ? c.dL : c.dR) === 1) return SHADE;
+      return null;
+    });
+
+    const anchors = {
+      cabeca_topo: [32, 16], cabeca_centro: [32, 29], olhos: [32, 33], pescoco: [32, 45],
+      ombro_e: [W - b, 48], ombro_d: [b - 1, 48],
+      cotovelo_e: [W - 1 - b, 56], cotovelo_d: [b, 56],
+      mao_e: [W - 2 - b, 65], mao_d: [b + 1, 65],
+      cintura: [32, 62], quadril: [32, 67],
+      joelho_e: [27, 81], joelho_d: [36, 81], pe_e: [26, FEET_Y], pe_d: [37, FEET_Y],
+    };
+    return { layers: L, anchors };
+  }
+
+  // ---------- lado (olhando para a esquerda) ----------
+  const HEAD_SIDE = [
+    [27, 37], [24, 40], [22, 42], [21, 43], [20, 44], [20, 44], [19, 45], [19, 45], [19, 45], [19, 45], [19, 45], [19, 45],
+    [19, 45], [19, 45], [19, 45], [19, 45], [19, 45], [18, 45], [18, 45], [19, 44], [19, 44], [20, 43], [20, 42], [21, 41],
+    [22, 39], [24, 37], [26, 34],
+  ];
+  const SIDE = {
+    m: {
+      torso: [[28, 35], [27, 36], [26, 37], [26, 37], [26, 37], [26, 37], [26, 37], [26, 37], [27, 36], [27, 36], [27, 36],
+        [27, 36], [27, 36], [27, 36], [27, 36], [27, 36], [27, 37], [27, 37], [27, 37], [27, 37], [27, 37], [27, 37]],
+      leg: [[78, 27, 36], [80, 27, 35], [85, 28, 36], [88, 28, 34], [89, 26, 34], [92, 24, 35]], arm: [28, 33],
+    },
+    f: {
+      torso: [[29, 35], [28, 36], [27, 36], [26, 36], [25, 36], [25, 36], [25, 36], [26, 36], [27, 35], [28, 35], [28, 35],
+        [28, 35], [28, 35], [28, 35], [27, 36], [27, 37], [27, 38], [27, 38], [27, 38], [27, 38], [27, 38], [27, 38]],
+      leg: [[77, 27, 37], [80, 27, 35], [85, 28, 35], [88, 28, 33], [89, 26, 33], [92, 25, 34]], arm: [29, 33],
+    },
+  };
+
+  function side(sex) {
+    const s = SIDE[sex];
+    const L = {}; LAYERS.forEach((n) => { L[n] = newMask(); });
+    L.sombra = shadowLayer();
+
+    const trunk = rows(newMask(), 42, [[29, 34], [29, 34], [29, 34], [29, 34]]);
+    rows(trunk, 46, s.torso);
+    for (let y = 68; y <= 92; y++) {
+      const t = s.leg.find((r) => y <= r[0]);
+      rows(trunk, y, [[t[1], t[2]]]);
+    }
+    paint(L.corpo, trunk, SKIN, (c) => {
+      if (c.y <= 45) return SHADE;
+      if (c.y <= 48 && c.dT <= 2) return LIGHT;
+      if (c.y >= 71 && c.y <= 72) return SHADE;
+      if (c.y === 81 && c.dL >= 1 && c.dL <= 3) return SHADE;        // joelho
+      if (c.y >= 49 && c.dR <= 2) return SHADE;                      // costas e parte de trás da perna
+      if (c.y === 91) return SHADE;
+      if (c.y === 90 && c.dL >= 1 && c.dL <= 5) return LIGHT;        // peito do pé
+      if (c.y >= 74 && c.y <= 79 && c.dL >= 2 && c.dL <= 3) return LIGHT;
+      if (sex === 'm' && c.y === 53 && c.dL <= 4) return SHADE;      // debaixo do peitoral
+      return null;
+    });
+
+    const briefs = inter(rows(newMask(), 63, [[20, 44], [20, 44], [20, 44], [20, 44], [20, 44], [20, 44], [20, 44], [29, 44]]), trunk);
+    paint(L.intima, briefs, UNDER, (c) => (c.y !== 64 && (c.dB <= 1 || c.dR <= 2) ? SHADE : null));
+    if (sex === 'f') {
+      const top = inter(rows(newMask(), 49, [[20, 44], [20, 44], [20, 44], [20, 44], [20, 44], [20, 44], [20, 44]]), trunk);
+      paint(L.intima, top, UNDER, (c) => (c.dB <= 1 || c.dR <= 2 ? SHADE : null));
+    }
+
+    const head = rows(newMask(), 16, HEAD_SIDE);
+    paint(L.cabeca, head, SKIN, (c) => {
+      if (c.y <= 24 && c.dT >= 1 && c.dT <= 4 && c.x >= 22 && c.x <= 40) return LIGHT;
+      if (c.y >= 38 && c.dB <= 2) return SHADE;
+      if (c.y >= 34 && c.dR <= 3 && c.dB <= 5) return SHADE;         // nuca
+      return null;
+    });
+    // Orelha.
+    px(L.cabeca, [[34, 29], [35, 29], [33, 30], [33, 31], [33, 32], [33, 33], [33, 34], [36, 30], [36, 31], [36, 32], [36, 33], [36, 34], [34, 35], [35, 35]], LINE);
+    px(L.cabeca, [[34, 30], [35, 30], [34, 31], [34, 32], [34, 33], [34, 34], [35, 34]], SHADE);
+
+    px(L.rosto, span(20, 23, 28), LINE);
+    for (let y = 31; y <= 35; y++) px(L.rosto, span(21, 23, y), EYE_DARK);
+    px(L.rosto, [[21, 36], [22, 36]], EYE_DARK);
+    px(L.rosto, [[21, 34], [22, 34], [21, 35], [22, 35]], EYE_IRIS);
+    px(L.rosto, [[22, 32], [22, 33]], EYE_SHINE);
+    px(L.rosto, [[20, 39], [21, 39]], LINE);
+
+    const [a, b] = s.arm;
+    const arm = rows(newMask(), 47, [[a + 1, b - 1]]);
+    for (let y = 48; y <= 62; y++) rows(arm, y, [[a, b]]);
+    rows(arm, 63, [[a - 1, b], [a - 1, b], [a - 1, b], [a - 1, b], [a, b - 1]]);
+    paint(L.bracos, arm, SKIN, (c) => {
+      if (c.y <= 50) return LIGHT;
+      if (c.y === 56) return SHADE;
+      if (c.y >= 66) return SHADE;
+      if (c.y >= 52 && c.dR === 1 && b - a >= 4) return SHADE;
+      return null;
+    });
+
+    const mid = Math.round((a + b) / 2);
+    const anchors = {
+      cabeca_topo: [32, 16], cabeca_centro: [32, 29], olhos: [22, 33], pescoco: [31, 45],
+      ombro: [mid, 48], cotovelo: [mid, 56], mao: [mid - 1, 65],
+      cintura: [31, 62], quadril: [31, 67], joelho: [31, 81], pe: [30, FEET_Y],
+    };
+    return { layers: L, anchors };
+  }
+
+  const VIEWS = ['frente', 'esquerda', 'costas'];
+  const SEXES = ['m', 'f'];
+
+  function build(sex, view) {
+    const r = view === 'esquerda' ? side(sex) : frontOrBack(sex, view === 'costas');
+    return { sex, view, width: W, height: H, feetY: FEET_Y, layers: r.layers, anchors: r.anchors };
+  }
+
+  // Junta as camadas pedidas numa matriz só (a de cima cobre a de baixo).
+  function flatten(model, names) {
+    const out = newMask();
+    (names || LAYERS).forEach((n) => { const g = model.layers[n]; for (let i = 0; i < g.length; i++) if (g[i]) out[i] = g[i]; });
+    return out;
+  }
+
+  // Desenha num contexto de canvas 2D, na posição e na escala pedidas.
+  function draw(ctx, model, ox, oy, scale, names) {
+    const g = flatten(model, names);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const v = g[key(x, y)];
+      if (!v) continue;
+      ctx.fillStyle = PALETTE[v];
+      ctx.fillRect(ox + x * scale, oy + y * scale, scale, scale);
+    }
+  }
+
+  return { W, H, FEET_Y, PALETTE, LAYERS, VIEWS, SEXES, build, flatten, draw, tones: { LINE, SHADE, BASE, LIGHT } };
+});
+</script>
+<script>
+(function () {
+  const B = window.BonecoBase;
+  const NOMES = { sombra: 'Sombra', corpo: 'Corpo', intima: 'Roupa íntima', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços' };
+  const TITULO = { frente: 'Frente', esquerda: 'Lado (esquerda)', costas: 'Costas' };
+  const ligadas = {};
+  const barra = document.getElementById('camadas');
+  B.LAYERS.forEach((n) => {
+    ligadas[n] = true;
+    const l = document.createElement('label');
+    l.innerHTML = '<input type="checkbox" checked data-c="' + n + '"> ' + NOMES[n];
+    barra.appendChild(l);
+  });
+
+  function fundo(ctx, w, h, cel) {
+    const f = document.getElementById('fundo').value;
+    if (f !== 'xadrez') { ctx.fillStyle = f; ctx.fillRect(0, 0, w, h); return; }
+    for (let y = 0; y < h; y += cel) for (let x = 0; x < w; x += cel) {
+      ctx.fillStyle = ((x / cel + y / cel) % 2) ? '#2a3140' : '#343c4d';
+      ctx.fillRect(x, y, cel, cel);
+    }
+  }
+
+  function quadro(ctx, modelo, ox, oy, s) {
+    const nomes = B.LAYERS.filter((n) => ligadas[n]);
+    B.draw(ctx, modelo, ox, oy, s, nomes);
+    if (document.getElementById('grade').checked && s >= 4) {
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      for (let x = 0; x <= B.W; x += 8) ctx.fillRect(ox + x * s, oy, 1, B.H * s);
+      for (let y = 0; y <= B.H; y += 8) ctx.fillRect(ox, oy + y * s, B.W * s, 1);
+      ctx.fillStyle = 'rgba(255,70,70,0.9)';
+      ctx.fillRect(ox, oy + (B.FEET_Y + 1) * s, B.W * s, 1);
+      ctx.fillStyle = 'rgba(90,200,255,0.7)';
+      ctx.fillRect(ox + 32 * s, oy, 1, B.H * s);
+    }
+    if (document.getElementById('ancoras').checked && s >= 4) {
+      Object.values(modelo.anchors).forEach(([x, y]) => {
+        ctx.fillStyle = '#00e5ff';
+        ctx.fillRect(ox + x * s, oy + y * s, s, s);
+      });
+    }
+  }
+
+  function tudo() {
+    const real = document.getElementById('real');
+    real.width = B.W * 6 + 8 * 7; real.height = B.H + 16;
+    let c = real.getContext('2d');
+    fundo(c, real.width, real.height, 8);
+    let i = 0;
+    B.SEXES.forEach((sx) => B.VIEWS.forEach((v) => { quadro(c, B.build(sx, v), 8 + i * (B.W + 8), 8, 1); i++; }));
+
+    B.SEXES.forEach((sx) => {
+      const caixa = document.getElementById('zoom-' + sx);
+      caixa.innerHTML = '';
+      B.VIEWS.forEach((v) => {
+        const fig = document.createElement('figure');
+        const cv = document.createElement('canvas');
+        cv.width = B.W * 4; cv.height = B.H * 4;
+        const ctx = cv.getContext('2d');
+        fundo(ctx, cv.width, cv.height, 16);
+        quadro(ctx, B.build(sx, v), 0, 0, 4);
+        const cap = document.createElement('figcaption');
+        cap.textContent = TITULO[v];
+        fig.appendChild(cv); fig.appendChild(cap); caixa.appendChild(fig);
+      });
+    });
+  }
+
+  document.addEventListener('change', (e) => {
+    if (e.target.dataset && e.target.dataset.c) ligadas[e.target.dataset.c] = e.target.checked;
+    tudo();
+  });
+  tudo();
+})();
+</script>
+</body>
+</html>

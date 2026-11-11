@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boneco Base 64x96 | Herança do Fogo</title>
+<style>
+  body { margin: 0; padding: 16px; background: #10151f; color: #dfe6f2; font: 14px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 22px 0 8px; color: #9fc0ff; }
+  p { margin: 0 0 10px; color: #a9b4c7; }
+  .barra { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 4px; }
+  .barra label { white-space: nowrap; }
+  .linha { display: flex; flex-wrap: wrap; gap: 12px; }
+  figure { margin: 0; text-align: center; }
+  figcaption { font-size: 12px; color: #a9b4c7; margin-top: 4px; }
+  canvas { image-rendering: pixelated; display: block; border-radius: 6px; max-width: 100%; }
+  .rolar { overflow-x: auto; }
+</style>
+</head>
+<body>
+<h1>Boneco Base 64x96</h1>
+<p>Linha dos pés em Y=92 (traço vermelho quando a grade está ligada). Cabeça 27, pescoço 3, tronco 22, pernas 25.</p>
+
+<div class="barra" id="camadas"></div>
+<div class="barra">
+  <label><input type="checkbox" id="grade"> Grade e linha dos pés</label>
+  <label><input type="checkbox" id="ancoras"> Pontos de articulação</label>
+  <label>Fundo
+    <select id="fundo">
+      <option value="xadrez">Xadrez</option>
+      <option value="#3f7d3a">Grama</option>
+      <option value="#c9b28a">Areia</option>
+      <option value="#23262e">Pedra escura</option>
+      <option value="#e9edf2">Neve</option>
+    </select>
+  </label>
+</div>
+
+<h2>Tamanho real (1x)</h2>
+<div class="rolar"><canvas id="real"></canvas></div>
+
+<h2>Masculino (4x)</h2>
+<div class="linha" id="zoom-m"></div>
+<h2>Feminino (4x)</h2>
+<div class="linha" id="zoom-f"></div>
+
+<script>/*BONECO_BASE_JS*/</script>
+<script>
+(function () {
+  const B = window.BonecoBase;
+  const NOMES = { sombra: 'Sombra', corpo: 'Corpo', intima: 'Roupa íntima', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços' };
+  const TITULO = { frente: 'Frente', esquerda: 'Lado (esquerda)', costas: 'Costas' };
+  const ligadas = {};
+  const barra = document.getElementById('camadas');
+  B.LAYERS.forEach((n) => {
+    ligadas[n] = true;
+    const l = document.createElement('label');
+    l.innerHTML = '<input type="checkbox" checked data-c="' + n + '"> ' + NOMES[n];
+    barra.appendChild(l);
+  });
+
+  function fundo(ctx, w, h, cel) {
+    const f = document.getElementById('fundo').value;
+    if (f !== 'xadrez') { ctx.fillStyle = f; ctx.fillRect(0, 0, w, h); return; }
+    for (let y = 0; y < h; y += cel) for (let x = 0; x < w; x += cel) {
+      ctx.fillStyle = ((x / cel + y / cel) % 2) ? '#2a3140' : '#343c4d';
+      ctx.fillRect(x, y, cel, cel);
+    }
+  }
+
+  function quadro(ctx, modelo, ox, oy, s) {
+    const nomes = B.LAYERS.filter((n) => ligadas[n]);
+    B.draw(ctx, modelo, ox, oy, s, nomes);
+    if (document.getElementById('grade').checked && s >= 4) {
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      for (let x = 0; x <= B.W; x += 8) ctx.fillRect(ox + x * s, oy, 1, B.H * s);
+      for (let y = 0; y <= B.H; y += 8) ctx.fillRect(ox, oy + y * s, B.W * s, 1);
+      ctx.fillStyle = 'rgba(255,70,70,0.9)';
+      ctx.fillRect(ox, oy + (B.FEET_Y + 1) * s, B.W * s, 1);
+      ctx.fillStyle = 'rgba(90,200,255,0.7)';
+      ctx.fillRect(ox + 32 * s, oy, 1, B.H * s);
+    }
+    if (document.getElementById('ancoras').checked && s >= 4) {
+      Object.values(modelo.anchors).forEach(([x, y]) => {
+        ctx.fillStyle = '#00e5ff';
+        ctx.fillRect(ox + x * s, oy + y * s, s, s);
+      });
+    }
+  }
+
+  function tudo() {
+    const real = document.getElementById('real');
+    real.width = B.W * 6 + 8 * 7; real.height = B.H + 16;
+    let c = real.getContext('2d');
+    fundo(c, real.width, real.height, 8);
+    let i = 0;
+    B.SEXES.forEach((sx) => B.VIEWS.forEach((v) => { quadro(c, B.build(sx, v), 8 + i * (B.W + 8), 8, 1); i++; }));
+
+    B.SEXES.forEach((sx) => {
+      const caixa = document.getElementById('zoom-' + sx);
+      caixa.innerHTML = '';
+      B.VIEWS.forEach((v) => {
+        const fig = document.createElement('figure');
+        const cv = document.createElement('canvas');
+        cv.width = B.W * 4; cv.height = B.H * 4;
+        const ctx = cv.getContext('2d');
+        fundo(ctx, cv.width, cv.height, 16);
+        quadro(ctx, B.build(sx, v), 0, 0, 4);
+        const cap = document.createElement('figcaption');
+        cap.textContent = TITULO[v];
+        fig.appendChild(cv); fig.appendChild(cap); caixa.appendChild(fig);
+      });
+    });
+  }
+
+  document.addEventListener('change', (e) => {
+    if (e.target.dataset && e.target.dataset.c) ligadas[e.target.dataset.c] = e.target.checked;
+    tudo();
+  });
+  tudo();
+})();
+</script>
+</body>
+</html>
