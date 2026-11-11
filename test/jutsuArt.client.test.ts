@@ -65,7 +65,7 @@ describe('v48: desenhos próprios dos jutsus', () => {
     assert.equal(A.drawStatusArt(fakeCtx(), {}, false, false, 0, 0, 32, now, 1), 0);
     assert.equal(A.drawStatusArt(fakeCtx(), { queimadura: now - 1 }, false, false, 0, 0, 32, now, 1), 0, 'já acabou');
     assert.equal(A.drawStatusArt(fakeCtx(), { queimadura: now + 500 }, false, false, 0, 0, 32, now, 1), 1);
-    assert.equal(A.drawStatusArt(fakeCtx(), { queimadura: now + 500, ferida: now + 500, paralisia: now + 500, lentidao: now + 500, silencio: now + 500, molhado: now + 9 }, true, true, 0, 0, 32, now, 1), 8);
+    assert.equal(A.drawStatusArt(fakeCtx(), { queimadura: now + 500, ferida: now + 500, paralisia: now + 500, lentidao: now + 500, silencio: now + 500, molhado: now + 9, veneno: now + 9 }, true, true, 0, 0, 32, now, 1), 9);
   });
 
   it('o jogo usa: zona, aviso por cima dos bonecos, cratera, raio desenhado, disco e efeitos no alvo; desligado em Config. não desenha', () => {

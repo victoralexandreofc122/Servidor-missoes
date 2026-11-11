@@ -240,6 +240,40 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v52: mecânicas inéditas, pacote 3 de 3: posição (migração v31, `db/schema_v31_mecanicas.sql`)
+
+Fecha os 12 jutsus de mecânica inédita (186 no total). A v31 traz os 12 de uma vez.
+
+- **Passo Trocado (Sombra, Tier 3), troca de lugar:** você e o alvo trocam de posição (monstro que não anda não troca).
+- **Laço da Correnteza (Água, Tier 2), gancho:** fere o primeiro inimigo da linha, deixa molhado e puxa até 1 casa de você.
+- **Ida e Volta (Relâmpago, Tier 2), dois toques:** o 1º toque marca o lugar; o 2º, em até 4 s, teleporta de volta sem
+  custo. A recarga de 12 s começa na volta.
+- **Segunda Voz (Ilusão, Tier 4), clone que repete:** o clone copia, do lugar dele e na mesma direção, o seu próximo jutsu
+  em linha, com metade do dano, uma vez. As linhas instantâneas repetidas não têm desenho próprio (só o número do dano).
+
+### v51: mecânicas inéditas, pacote 2 de 3: reação (migração v31, só no fim dos três pacotes)
+
+- **Resposta da Montanha (Pedra, Tier 3), contra-ataque:** 1,5 s em guarda; o próximo golpe direto é anulado e o ninja que
+  bateu leva o troco e fica atordoado 1 s. Dano de queimadura ou veneno não gasta a guarda. Sem golpe, o jutsu se perde.
+- **Espelho de Ar (Vento, Tier 2), reflexo:** por 2 s, o primeiro projétil que bater volta para quem lançou (os que
+  atravessam, como a Shuriken Colossal, não voltam).
+- **Marca Incandescente (Fogo, Tier 2), marca que detona:** marca o alvo por 5 s; o seu próximo jutsu nele explode a marca,
+  com 60% do dano dele a mais.
+- **Empréstimo Forçado (Ilusão, Tier 3), roubo de buff:** o escudo com vida, a proteção do próximo golpe, o bônus de Básico
+  e a velocidade do alvo passam para você pelo tempo que faltava.
+- A guarda, o espelho e a marca somem entre as rodadas do duelo.
+
+### v50: mecânicas inéditas, pacote 1 de 3: recursos (migração v31, só no fim dos três pacotes)
+
+Quatro jutsus com mecânica que o jogo não tinha, como o 5º jutsu do tier da classe (nomes da opção B). Em
+`src/realtime/jutsusMecanicas.ts`. Faltam os pacotes de reação e de posição; a migração v31 cresce a cada pacote.
+
+- **Beijo do Breu (Sombra, Tier 2), roubo de vida:** metade do dano que entrou volta como cura, até 10% da vida por lançamento.
+- **Fio Peçonhento (Armas, Tier 1), veneno que acumula:** cada acerto soma uma carga (até 5), 2 de dano por segundo por carga;
+  as cargas somem 6 s depois do último acerto. A Desintoxicação Celular tira o veneno.
+- **Fúria do Encurralado (Taijutsu, Tier 4), dano por vida perdida:** até 40% a mais com 25% da vida ou menos.
+- **Selo dos Meridianos (Cura, Tier 3), queima de chakra:** tira até 25 de chakra do alvo e causa 0,8 de dano por ponto tirado.
+
 ### v49: Fase 2.5, os 74 jutsus novos (migração v30, `db/schema_v30_fase25.sql`)
 
 Fecha 4 jutsus por classe por tier: 160 de classe, 174 no total. Nomes da opção B, escolhidos pelo Victor

@@ -625,7 +625,7 @@ export type ServerMessage =
   /** O monstro bateu em alguém (v19): o cliente toca a animação de ataque virada para o alvo. */
   | { type: 'monster_attack'; id: string; targetId: string }
   | { type: 'effect'; target: 'player' | 'monster'; id: string; effect: EffectCode; ms: number }
-  | { type: 'combo'; target: 'player' | 'monster'; id: string; combo: 'eletrocutado' }
+  | { type: 'combo'; target: 'player' | 'monster'; id: string; combo: 'eletrocutado' | 'detonacao' }
   | { type: 'telegraph'; id: string; kind: 'slam' | 'crush'; x: number; y: number; r: number; ms: number }
   | { type: 'monster_slam'; id: string; kind: 'slam' | 'crush'; x: number; y: number; r: number }
   | { type: 'boss_phase'; id: string; phase: number; text: string }

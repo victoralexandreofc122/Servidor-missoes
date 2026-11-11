@@ -18,7 +18,7 @@ export const ZONE_ART = {
 /** Golpes avisados com desenho próprio enquanto o aviso corre (e o que fica quando cai). */
 export const STRIKE_ART = { fire_4: 'meteoro', lightning_4: 'trovao', wind_3: 'tornado', weapons_kunai: 'kunai', weapons_dragoes: 'armas', rubro_completo: 'onda' };
 /** Efeitos no alvo que têm desenho. */
-export const STATUS_ART = ['queimadura', 'ferida', 'paralisia', 'lentidao', 'silencio', 'molhado', 'sono', 'invertido'];
+export const STATUS_ART = ['queimadura', 'ferida', 'paralisia', 'lentidao', 'silencio', 'molhado', 'sono', 'invertido', 'veneno'];
 
 // ------------------------------------------------------------------ relâmpago desenhado
 
@@ -391,6 +391,15 @@ export function drawStatusArt(g, fx, rooted, stunned, sx, sy, T, now, seed) {
       const k = ((now / 800 + i / 3 + rnd(seed, i)) % 1);
       g.globalAlpha = k < 0.8 ? 1 : 1 - (k - 0.8) / 0.2;
       drop(g, sx + (i - 1) * T * 0.17 + T * 0.05, sy - T * 0.1 + k * T * 0.55, T * 0.055, '#c8201a', '#ff8a7a');
+    }
+    g.globalAlpha = 1;
+  }
+  if (on('veneno')) {                                     // v50: veneno: gotas verdes
+    n++;
+    for (let i = 0; i < 3; i++) {
+      const k = ((now / 700 + i / 3 + rnd(seed, i + 6)) % 1);
+      g.globalAlpha = k < 0.8 ? 1 : 1 - (k - 0.8) / 0.2;
+      drop(g, sx + (i - 1) * T * 0.18, sy - T * 0.2 + k * T * 0.5, T * 0.05, '#4fbf3a', '#c8ff9a');
     }
     g.globalAlpha = 1;
   }

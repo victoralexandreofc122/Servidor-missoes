@@ -57,6 +57,33 @@ export interface SkillConfig {
   selfRootMs?: number;
   /** Tira chakra do alvo. */
   drain?: number;
+  /** v50 (mecânicas inéditas, pacote de recursos): parte do dano causado volta como cura para quem lançou. */
+  lifesteal?: number;
+  /** v50: veneno que acumula: dano por segundo de CADA carga, quantas cargas no máximo e quanto dura sem novo acerto. */
+  poison?: number;
+  poisonMax?: number;
+  poisonMs?: number;
+  /** v50: bate mais com a vida baixa: bônus inteiro com 25% da vida ou menos, crescendo desde a vida cheia. */
+  lowHpBonus?: number;
+  /** v50: tira até este chakra do alvo e causa `chakraBurnRatio` de dano por ponto tirado. */
+  chakraBurn?: number;
+  chakraBurnRatio?: number;
+  /** v51 (pacote de reação): contra-ataque: tempo em guarda e o atordoamento de quem bateu (o dano é o `damage`). */
+  counterMs?: number;
+  counterStunMs?: number;
+  /** v51: reflexo: por este tempo, o primeiro projétil que bater volta para quem lançou. */
+  reflectMs?: number;
+  /** v51: marca que detona: dura `brandMs`; o próximo jutsu de quem marcou explode nela, com `brandBonus` do dano dele a mais. */
+  brandMs?: number;
+  brandBonus?: number;
+  /** v51: roubo de buff: o escudo e os bônus ativos do alvo passam para quem lançou, pelo tempo que faltava. */
+  stealBuff?: boolean;
+  /** v52 (pacote de posição): troca de lugar com o alvo; gancho (puxa o alvo até você); janela do retorno (dois toques);
+   *  parte do dano que o clone repete (Segunda Voz). */
+  swap?: boolean;
+  hook?: boolean;
+  returnMs?: number;
+  echo?: number;
   /** Golpes no mesmo alvo (Cem Golpes, Punho do Céu); `hitsPve` = contra monstro (o teto de golpes é regra do PvP). */
   hits?: number;
   hitsPve?: number;

@@ -44,7 +44,7 @@ describe('v16 no banco: o Fogo novo (Jutsus v2, entrega 2)', { skip: noDatabase 
     await t.pool.query(V21);
     assert.deepEqual(await read(), want);
     const tiers = (await t.pool.query(`SELECT tier, count(*)::int AS n FROM game.jutsus WHERE class_code = 'fire' GROUP BY tier ORDER BY tier`)).rows;
-    assert.deepEqual(tiers, [{ tier: 1, n: 4 }, { tier: 2, n: 4 }, { tier: 3, n: 4 }, { tier: 4, n: 4 }]   /* v49 (Fase 2.5): 4 por tier */);
+    assert.deepEqual(tiers, [{ tier: 1, n: 4 }, { tier: 2, n: 5 }, { tier: 3, n: 4 }, { tier: 4, n: 4 }]   /* v49: 4 por tier; v51: + a Marca Incandescente no tier 2 */);
   });
 
   it('valid_kit aceita todo código do catálogo (de 4 em 4) e um kit com os jutsus novos se salva', async () => {

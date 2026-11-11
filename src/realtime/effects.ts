@@ -16,7 +16,7 @@
  * de controle no PvP). Funções puras aqui; o mundo (gameWorld.ts) avisa todos e aplica dano, cura e bloqueios.
  */
 
-export const EFFECT_CODES = ['molhado', 'queimadura', 'regeneracao', 'silencio', 'sono', 'ferida', 'lentidao', 'paralisia', 'escuridao', 'invertido'] as const;
+export const EFFECT_CODES = ['molhado', 'queimadura', 'regeneracao', 'silencio', 'sono', 'ferida', 'lentidao', 'paralisia', 'escuridao', 'invertido', 'veneno'] as const;
 export type EffectCode = (typeof EFFECT_CODES)[number];
 
 export interface EffectRule {
@@ -52,6 +52,8 @@ export const EFFECTS: Readonly<Record<EffectCode, EffectRule>> = {
   // v30: escuridão (a tela escurece em volta, vê ~2 casas; sem tirar a interface) e controles invertidos (anda ao contrário)
   escuridao: { name: 'Escuridão', icon: '🌑', kind: 'debuff', defaultMs: 3000 },
   invertido: { name: 'Embaralhado', icon: '🔀', kind: 'cc', defaultMs: 1600 },
+  // v50: veneno que acumula (Fio Peçonhento): dano a cada 1 s; cada acerto soma uma carga e renova o tempo
+  veneno: { name: 'Veneno', icon: '☠️', kind: 'debuff', defaultMs: 6000, amount: 2, tick: { everyMs: 1000, kind: 'damage' } },
 };
 
 /** Combo Água + Relâmpago: o choque num alvo molhado bate 30% mais forte (e seca o alvo). */
@@ -64,6 +66,8 @@ export interface ActiveEffect {
   nextTickAt: number;
   /** Quem aplicou (o abate de um monstro que morre de queimadura vai para ele). */
   sourceId: string | null;
+  /** v50: cargas (veneno). */
+  stacks?: number;
 }
 export type EffectBag = Map<EffectCode, ActiveEffect>;
 
