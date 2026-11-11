@@ -15,7 +15,9 @@ const POWER = [1, 1.45, 2, 2.8] as const;
 const dmg = (base: number, tier: number) => Math.round(base * POWER[tier - 1]!);
 const CLEAN = { coneDeg: undefined, push: undefined, stunMs: undefined, rootMs: undefined, paralysisMs: undefined, laneGap: undefined, burn: undefined, heal: undefined, reduction: undefined } as const;
 
-export const MEC_CODES = ['shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos'] as const;
+export const MEC_CODES = ['shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos',
+  // v51: pacote de reação
+  'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo'] as const;
 
 export const MEC: Readonly<Record<string, ClassJutsu>> = {
   // Roubo de vida: linha que acerta o primeiro; metade do dano volta como cura
@@ -30,12 +32,29 @@ export const MEC: Readonly<Record<string, ClassJutsu>> = {
   // Queima de chakra: no alvo focado; tira até 25 de chakra e causa 0,8 de dano por ponto tirado
   heal_meridianos: { name: 'Selo dos Meridianos', class: 'heal', tier: 3, form: 'alvo',
     numbers: { ...CLEAN, base: 10, damage: dmg(10, 3), cost: 40, cooldownMs: 12_000, range: 5, radius: undefined, chakraBurn: 25, chakraBurnRatio: 0.8, castMs: 300 } },
+  // ------------------------------------------------------------------ v51: pacote de reação
+  // Contra-ataque: 1,5 s em guarda; o próximo golpe direto é anulado e quem bateu leva o troco e fica atordoado
+  stone_resposta: { name: 'Resposta da Montanha', class: 'stone', tier: 3, form: 'contra',
+    numbers: { ...CLEAN, base: 26, damage: dmg(26, 3), cost: 30, cooldownMs: 14_000, range: 0, counterMs: 1500, counterStunMs: 1000 } },
+  // Reflexo: por 2 s, o primeiro projétil que bater volta para quem lançou
+  wind_espelho: { name: 'Espelho de Ar', class: 'wind', tier: 2, form: 'reflexo',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 22, cooldownMs: 14_000, range: 0, reflectMs: 2000 } },
+  // Marca que detona: linha fraca que marca o alvo por 5 s; o seu próximo jutsu nele explode a marca (60% do dano dele a mais)
+  fire_marca: { name: 'Marca Incandescente', class: 'fire', tier: 2, form: 'linha',
+    numbers: { ...CLEAN, base: 12, damage: dmg(12, 2), cost: 25, cooldownMs: 9000, range: 7, radius: undefined, burnMs: undefined, speed: undefined, brandMs: 5000, brandBonus: 0.6, castMs: 200 } },
+  // Roubo de buff: no alvo focado; o escudo e os bônus ativos dele passam para você
+  illusion_emprestimo: { name: 'Empréstimo Forçado', class: 'illusion', tier: 3, form: 'alvo',
+    numbers: { ...CLEAN, base: 12, damage: dmg(12, 3), cost: 45, cooldownMs: 16_000, range: 5, radius: undefined, stealBuff: true, castMs: 300 } },
 };
 
 export const MEC_MASTERY: Readonly<Record<string, readonly MasteryGain[]>> = {
   shadow_beijo: ['dano', 'recarga'],
   weapons_peconha: ['efeito', 'recarga'],  // o veneno dura mais sem novo acerto (o dano dele é o das cargas)
   taijutsu_furia: ['dano', 'recarga'],
+  stone_resposta: ['dano', 'recarga'],
+  wind_espelho: ['recarga'],
+  fire_marca: ['dano', 'efeito'],          // a marca dura mais
+  illusion_emprestimo: ['dano', 'recarga'],
   heal_meridianos: ['recarga'],            // o dano vem do chakra tirado: só a recarga melhora
 };
 
@@ -43,5 +62,9 @@ export const MEC_TEXT: Readonly<Record<string, { icon: string; text: string }>> 
   shadow_beijo: { icon: '🧛', text: 'Sombra em linha ({range} casas): fere o primeiro inimigo e {lifesteal} do dano volta como cura para você (até 10% da sua vida).' },
   weapons_peconha: { icon: '☠️', text: 'Lâmina envenenada em linha ({range} casas): cada acerto soma uma carga de veneno (até {poisonMax}), {poison} de dano por segundo por carga. As cargas somem {poisonMs} depois do último acerto.' },
   taijutsu_furia: { icon: '😤', text: 'Avanço de até {range} casas: quanto menos vida você tem, mais bate (até {lowHpBonus} a mais com 25% da vida ou menos).' },
+  stone_resposta: { icon: '🔁', text: 'Fica em guarda por {counterMs}: o próximo golpe direto é anulado, e o ninja que bateu leva o troco e fica atordoado por {counterStunMs}. Se ninguém bater, o jutsu se perde.' },
+  wind_espelho: { icon: '🏓', text: 'Por {reflectMs}, o primeiro projétil que bater em você volta para quem lançou.' },
+  fire_marca: { icon: '🔶', text: 'Chama em linha ({range} casas) que marca o primeiro inimigo por {brandMs}: o seu próximo jutsu nele explode a marca, com {brandBonus} do dano a mais.' },
+  illusion_emprestimo: { icon: '🤏', text: 'No alvo (até {range} casas): dano leve, e o escudo e os bônus ativos dele (Básico, velocidade) passam para você pelo tempo que faltava.' },
   heal_meridianos: { icon: '🈲', text: 'Sela os pontos de chakra do alvo (até {range} casas): tira até {chakraBurn} de chakra dele e causa dano pelo que tirou.' },
 };

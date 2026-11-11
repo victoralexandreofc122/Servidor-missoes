@@ -973,7 +973,10 @@ function handleMessage(msg) {
     case 'combo': {
       // Combo de elementos: Água molhou, o Relâmpago eletrocutou (30% a mais).
       const e = msg.target === 'monster' ? state.monsters.get(msg.id) : state.players.get(msg.id);
-      if (e) addFloater(e.x, e.y - 1.5, 'Combo! ⚡💧', '#7fd8ff', 1.15);
+      if (e && msg.combo === 'detonacao') {                       // v51: a Marca Incandescente explodiu
+        addFloater(e.x, e.y - 1.5, 'Detonou! 🔶', '#ffb347', 1.15);
+        particles.burst('fire', e.x, e.y, 2.2, 0.8);
+      } else if (e) addFloater(e.x, e.y - 1.5, 'Combo! ⚡💧', '#7fd8ff', 1.15);
       break;
     }
     case 'monster_aggro': {
@@ -1186,7 +1189,7 @@ function handleMessage(msg) {
       // v45: formas que caíam no desenho da classe e enganavam (o Muro de Água mostrava o cone do Jato d'Água, a Sombra
       // Faminta a linha que prende) ou não mostravam nada (Olhar Rubro, Sentinela e Colosso Espectral)
       else if (form === 'marca' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_burst', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: 0.9, color: CAST_COLOR.shadow || color, start: now });
-      else if (form === 'escudo_vida' || form === 'transformacao' || form === 'forma_sombra' || (form === 'escudo' && fxKind !== 'stone')) {
+      else if (form === 'escudo_vida' || form === 'transformacao' || form === 'forma_sombra' || form === 'contra' || form === 'reflexo' || (form === 'escudo' && fxKind !== 'stone')) {
         state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 1.1, color, start: now });
         // Sentinela Espectral: o corte em cone na frente
         if (form === 'escudo_vida' && info.coneDeg) state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 1.5, cone: info.coneDeg, color, start: now });
@@ -2226,7 +2229,7 @@ function castParticles(msg, form, info) {
     case 'cura': case 'palma':
       particles.burst('heal', msg.tx ?? msg.x, msg.ty ?? msg.y, 1.2, 0.5);
       break;
-    case 'escudo': case 'escudo_vida': case 'transformacao': case 'forma_sombra': case 'buff_basico': case 'limpeza': case 'cura_tempo': case 'substituicao':
+    case 'escudo': case 'escudo_vida': case 'transformacao': case 'forma_sombra': case 'buff_basico': case 'limpeza': case 'cura_tempo': case 'substituicao': case 'contra': case 'reflexo':
       particles.ring(el, msg.x, msg.y, 0.8);
       if (form === 'escudo_vida' && info.coneDeg) particles.cone(el, msg.x, msg.y, msg.fx, msg.fy, range || 1.5, info.coneDeg);
       break;

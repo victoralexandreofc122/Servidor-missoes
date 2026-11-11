@@ -240,6 +240,18 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v51: mecânicas inéditas, pacote 2 de 3: reação (migração v31, só no fim dos três pacotes)
+
+- **Resposta da Montanha (Pedra, Tier 3), contra-ataque:** 1,5 s em guarda; o próximo golpe direto é anulado e o ninja que
+  bateu leva o troco e fica atordoado 1 s. Dano de queimadura ou veneno não gasta a guarda. Sem golpe, o jutsu se perde.
+- **Espelho de Ar (Vento, Tier 2), reflexo:** por 2 s, o primeiro projétil que bater volta para quem lançou (os que
+  atravessam, como a Shuriken Colossal, não voltam).
+- **Marca Incandescente (Fogo, Tier 2), marca que detona:** marca o alvo por 5 s; o seu próximo jutsu nele explode a marca,
+  com 60% do dano dele a mais.
+- **Empréstimo Forçado (Ilusão, Tier 3), roubo de buff:** o escudo com vida, a proteção do próximo golpe, o bônus de Básico
+  e a velocidade do alvo passam para você pelo tempo que faltava.
+- A guarda, o espelho e a marca somem entre as rodadas do duelo.
+
 ### v50: mecânicas inéditas, pacote 1 de 3: recursos (migração v31, só no fim dos três pacotes)
 
 Quatro jutsus com mecânica que o jogo não tinha, como o 5º jutsu do tier da classe (nomes da opção B). Em

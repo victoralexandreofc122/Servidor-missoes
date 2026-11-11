@@ -410,6 +410,10 @@ interface Session {
   intangibleUntil: number;
   /** v35 (Clã Umbra): Deslize Noturno (sem ser alvo único até lá; o próximo golpe dói mais), Sombra Faminta (a marca) e Forma Umbral. */
   umbraHideUntil: number;
+  /** v51 (reação): guarda de contra-ataque, reflexo de projétil e a marca que detona. */
+  counter: { until: number; damage: number; hit: HitInfo; stunMs: number; skill: string } | null;
+  reflectUntil: number;
+  brand: { targetId: string; until: number; bonus: number } | null;
   umbraNext: { bonus: number; until: number } | null;
   umbraMark: { targetId: string; until: number; bonus: number; slowMs: number } | null;
   umbraForm: { until: number; damage: number; slowMs: number; hit: HitInfo; done: Set<string> } | null;
@@ -1087,6 +1091,7 @@ export class GameWorld {
       heartsCut: previous?.heartsCut ?? 0,
       intangibleUntil: previous?.intangibleUntil ?? 0,
       umbraHideUntil: 0, umbraNext: null, umbraMark: null, umbraForm: null,
+      counter: null, reflectUntil: 0, brand: null,
       hasteUntil: previous?.hasteUntil ?? 0,
       haste: previous?.haste ?? 0,
       lastPanelAt: 0,
@@ -2461,6 +2466,17 @@ export class GameWorld {
       if (heal > 0) { hit.stolen = (hit.stolen ?? 0) + heal; this.healPlayer(attacker, heal, t); }
     }
     if (hurt && markSlow > 0 && this.stillThere(target)) this.applyEffect(target, 'lentidao', t, markSlow, undefined, attacker);
+    // v51: marca que detona (Marca Incandescente): o próximo JUTSU de quem marcou explode nela (parte do dano dele a mais)
+    const brand = attacker.brand;
+    if (hurt && brand && brand.targetId === target.id && source === 'skill' && label !== 'detonacao') {
+      attacker.brand = null;
+      if (t < brand.until && this.stillThere(target)) {
+        const extra = Math.max(1, Math.round(amount * brand.bonus));
+        const map = target.kind === 'monster' ? target.monster.map : target.session.map;
+        this.broadcastMap(map, { type: 'combo', target: target.kind, id: target.id, combo: 'detonacao' });
+        this.hitTarget(target, extra, attacker, t, 'skill', 'detonacao');
+      }
+    }
     // Akatsuki (Lâmina Faminta / Pacto de Sangue): o Ataque Básico drena chakra do ninja atingido ou cura o dono.
     const buff = attacker.powerBuff;
     if (hurt && source === 'attack' && buff && t < buff.until && !attacker.dead) {
@@ -2749,6 +2765,13 @@ export class GameWorld {
           this.sendTo(s, { type: 'notice', text: 'Sombra Faminta: o próximo golpe nele dói mais e deixa lento.', tone: 'good' });
         }
         break;
+      case 'contra':
+        // v51: em guarda por `counterMs`: o próximo golpe direto é anulado e devolvido (damagePlayer)
+        s.counter = { until: t + (cfg.counterMs ?? 1500), damage: dmg, hit, stunMs: cfg.counterStunMs ?? 1000, skill };
+        break;
+      case 'reflexo':
+        s.reflectUntil = t + (cfg.reflectMs ?? 2000);
+        break;
       case 'forma_sombra': {
         // v35: Forma Umbral: ignora projéteis, mais rápido; quem ele atravessa leva dano e fica lento (uma vez cada)
         const ms = cfg.durationMs ?? 5000;
@@ -2880,6 +2903,20 @@ export class GameWorld {
     if (cfg.woundMs && this.stillThere(x)) this.applyEffect(x, 'ferida', t, cfg.woundMs, undefined, by);
     if (cfg.sleepMs && this.stillThere(x)) this.applyEffect(x, 'sono', t, cfg.sleepMs, undefined, by);   // v49: Canção de Ninar
     if (cfg.dotAmount && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, cfg.dotMs ?? 4000, cfg.dotAmount, by);   // Brasa Sem Luz
+    if (cfg.brandMs && this.stillThere(x)) by.brand = { targetId: x.id, until: t + cfg.brandMs, bonus: cfg.brandBonus ?? 0.6 };   // v51
+    if (cfg.stealBuff && x.kind === 'player' && this.stillThere(x)) {
+      // v51: roubo de buff (Empréstimo Forçado): escudo com vida, redução do próximo golpe, bônus de Básico e pressa mudam de dono
+      const v = x.session;
+      const got: string[] = [];
+      if (v.absorb && t < v.absorb.until) { by.absorb = v.absorb; v.absorb = undefined; got.push('escudo'); }
+      if (v.shield > 0) { by.shield = Math.max(by.shield, v.shield); v.shield = 0; got.push('proteção'); }
+      if (v.basicBuff && t < v.basicBuff.until) { by.basicBuff = v.basicBuff; v.basicBuff = undefined; got.push('bônus de Básico'); }
+      if (v.hasteUntil > t) { by.haste = v.haste; by.hasteUntil = v.hasteUntil; v.haste = 0; v.hasteUntil = 0; got.push('velocidade'); this.sendStats(v, t); }
+      if (got.length) {
+        this.sendTo(by, { type: 'notice', text: `Você tomou: ${got.join(', ')}.`, tone: 'good' });
+        this.sendTo(v, { type: 'notice', text: `Roubaram de você: ${got.join(', ')}.`, tone: 'bad' });
+      }
+    }
     if (cfg.poison && this.stillThere(x)) {
       // v50: veneno que acumula: cada acerto soma uma carga (até `poisonMax`) e renova o tempo; o dano por segundo é o das cargas
       const bag = this.effectsOf(x), cur = bag.get('veneno');
@@ -3150,6 +3187,18 @@ export class GameWorld {
       return true;
     }
     const first = firstOnLine(from, end, fresh, p.hitRadius);
+    // v51: reflexo (Espelho de Ar): o projétil volta para quem lançou, agora do dono do espelho
+    if (first && first.target.kind === 'player' && t < first.target.session.reflectUntil) {
+      const mirror = first.target.session;
+      mirror.reflectUntil = 0;
+      this.broadcastMap(p.map, { type: 'impact', id: p.id, ...projectileKind(p), x: round2(first.at.x), y: round2(first.at.y), r: 0 });
+      this.sendTo(mirror, { type: 'notice', text: 'Projétil devolvido!', tone: 'good' });
+      this.launch(mirror, -p.ux, -p.uy, {
+        ...(p.skill ? { skill: p.skill } : {}), ...(p.weapon ? { weapon: p.weapon } : {}), speed: p.speed, range: Math.max(4, distance(p.owner, first.at) + 1.5), damage: p.damage,
+        radius: p.radius, volley: new Set(), source: p.source, from: { x: first.at.x, y: first.at.y }, ...(p.hit ? { hit: p.hit } : {}), ...(p.burn ? { burn: p.burn } : {}), ...(p.extras ? { extras: p.extras } : {}),
+      });
+      return true;
+    }
     if (first) this.impact(p, first.at, first.target, t);
     else if (wall || p.left <= 1e-9) {
       if (wall && this.barriers.length) this.hitBarrier(p.map, end, p.damage);   // v30: o muro segura e perde vida
@@ -4463,6 +4512,18 @@ export class GameWorld {
     this.stopMeditation(session, 'damaged');
     this.wakeOnDamage({ kind: 'player', id: session.id, x: session.x, y: session.y, session }, t);
     if (attacker && session.substituteUntil > t) return this.substitute(session, attacker, t);
+    // v51: contra-ataque (Resposta da Montanha): o golpe direto é anulado; se veio de um ninja, ele leva o troco e fica atordoado
+    if (attacker && amount > 0 && session.counter && t < session.counter.until && !session.dead) {
+      const c = session.counter;
+      session.counter = null;
+      this.broadcastMap(session.map, { type: 'hit', target: 'player', id: session.id, amount: 0, kind: 'damage', hp: shownHp(session.hp), maxHp: session.stats.maxHp, shielded: true });
+      this.sendTo(session, { type: 'notice', text: 'Contra-ataque!', tone: 'good' });
+      if (by && by !== session && !by.dead && this.canHurt(session, by, t)) {
+        this.hitTarget({ kind: 'player', id: by.id, x: by.x, y: by.y, session: by }, c.damage, session, t, 'skill', c.skill, c.hit);
+        if (c.stunMs > 0 && !by.dead) this.applyStatus({ kind: 'player', id: by.id, x: by.x, y: by.y, session: by }, 'stunned', c.stunMs, t, session);
+      }
+      return;
+    }
     let dmg = amount;
     let shielded = false;
     if (session.shield > 0) {
@@ -4796,6 +4857,9 @@ export class GameWorld {
       this.monsters.delete(m.id);
       this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: s.id });
     }
+    s.counter = null;
+    s.reflectUntil = 0;
+    s.brand = null;
     s.umbraForm = null;
     s.umbraMark = null;
     s.umbraNext = null;

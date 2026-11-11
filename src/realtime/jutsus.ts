@@ -81,6 +81,8 @@ export type JutsuForm =
   | 'invocacao'       // invocação aliada à frente (Duplo de Água, Golem de Terra)
   | 'marca'           // v35: marca um alvo; o próximo golpe de quem marcou dói mais e deixa lento (Sombra Faminta)
   | 'forma_sombra'    // v35: vira sombra: ignora projéteis, mais rápido, quem ele atravessa leva dano e fica lento (Forma Umbral)
+  | 'contra'          // v51: guarda de contra-ataque: anula o próximo golpe e devolve dano e atordoamento (Resposta da Montanha)
+  | 'reflexo'         // v51: devolve o primeiro projétil que bater (Espelho de Ar)
   | 'muro';           // muro à frente: bloqueia passagem e projéteis, tem vida (Muralha de Terra, Muro de Água)
 
 export const FORM_OF_MECHANIC: Readonly<Record<Mechanic, JutsuForm>> = {
@@ -401,7 +403,7 @@ export const masteryUseLevel = (code: string, gain: 'dano' | 'cura', level: numb
 
 /** Durações de efeito (no alvo) que a maestria "efeito" alonga. */
 const EFFECT_KEYS = ['stunMs', 'rootMs', 'silenceMs', 'paralysisMs', 'burnMs', 'slowMs', 'darkMs', 'invertMs', 'woundMs', 'dotMs', 'firstStunMs',
-  'liftMs', 'markMs', 'markSlowMs', 'stealthMs', 'nextHitMs', 'sleepMs', 'poisonMs'] as const;
+  'liftMs', 'markMs', 'markSlowMs', 'stealthMs', 'nextHitMs', 'sleepMs', 'poisonMs', 'brandMs'] as const;
 const ZONE_EFFECT_KEYS = ['firstRootMs', 'endStunMs'] as const;
 const PROTECTION_KEYS = ['shieldShare', 'wallHp', 'wallHpShare', 'summonHp'] as const;
 

@@ -68,6 +68,16 @@ export interface SkillConfig {
   /** v50: tira até este chakra do alvo e causa `chakraBurnRatio` de dano por ponto tirado. */
   chakraBurn?: number;
   chakraBurnRatio?: number;
+  /** v51 (pacote de reação): contra-ataque: tempo em guarda e o atordoamento de quem bateu (o dano é o `damage`). */
+  counterMs?: number;
+  counterStunMs?: number;
+  /** v51: reflexo: por este tempo, o primeiro projétil que bater volta para quem lançou. */
+  reflectMs?: number;
+  /** v51: marca que detona: dura `brandMs`; o próximo jutsu de quem marcou explode nela, com `brandBonus` do dano dele a mais. */
+  brandMs?: number;
+  brandBonus?: number;
+  /** v51: roubo de buff: o escudo e os bônus ativos do alvo passam para quem lançou, pelo tempo que faltava. */
+  stealBuff?: boolean;
   /** Golpes no mesmo alvo (Cem Golpes, Punho do Céu); `hitsPve` = contra monstro (o teto de golpes é regra do PvP). */
   hits?: number;
   hitsPve?: number;

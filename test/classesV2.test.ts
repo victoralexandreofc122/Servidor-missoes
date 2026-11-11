@@ -59,7 +59,7 @@ function scene(skill: string, monsters: [number, number][] = [[2, 0]], pvp = fal
 
 describe('Jutsus v2, entrega 5: as outras classes', () => {
   it('catálogo: 100 jutsus; 41 códigos novos (+6 do Clã Rubro, +4 do Clã Umbra); toda classe tem os 4 tiers e o tier 1 de sempre', () => {
-    assert.equal(JUTSUS.length, 178);   // v49 (Fase 2.5): + 74
+    assert.equal(JUTSUS.length, 182);   // v49 (Fase 2.5): + 74
     assert.equal(CLASS_V2_CODES.length, 41);
     for (const c of CLASSES) {
       const tiers = new Set(JUTSUS.filter((j) => j.class === c).map((j) => j.tier));

@@ -134,12 +134,12 @@ const get = (code: string, level: 1 | 4, pve = false) => {
   return cache.get(k)!;
 };
 /** Jutsus que só acertam depois (o Umbra precisa atravessar o alvo) ou que não tiram vida de ninguém. */
-const NO_DIRECT_DAMAGE = new Set(['umbra_forma']);
+const NO_DIRECT_DAMAGE = new Set(['umbra_forma', 'stone_resposta']);   // (o contra-ataque só bate quando apanha)
 
 describe('v45: auditoria dos 100 jutsus (catálogo)', () => {
   it('100 jutsus; cada classe tem jutsu nos 4 tiers; as linhagens têm os 4 tiers; todos têm números e forma', () => {
-    assert.equal(JUTSUS.length, 178);   // v49 (Fase 2.5): 100 + 74
-    assert.equal(new Set(ALL).size, 178, 'nenhum código repetido');
+    assert.equal(JUTSUS.length, 182);   // v49 (Fase 2.5): 100 + 74
+    assert.equal(new Set(ALL).size, 182, 'nenhum código repetido');
     // Fase 2.5: toda classe tem pelo menos 4 jutsus em cada tier
     for (const c of CLASSES) for (const tier of [1, 2, 3, 4]) assert.ok(JUTSUS.filter((j) => j.class === c && j.tier === tier).length >= 4, `${c} tier ${tier}`);
     for (const c of CLASSES) {
@@ -275,7 +275,7 @@ describe('v45: mira e prévia', () => {
     for (const j of JUTSUS) {
       const shape = aimShapeOf(j.form, C.skills[j.code]);
       if (j.form in AIMED && AIMED[j.form]) assert.equal(shape, AIMED[j.form], j.code);
-      if (['alvo', 'marca', 'escudo', 'cura', 'anel', 'anel_golpe', 'buff_basico', 'limpeza', 'cura_tempo', 'palma', 'escudo_vida', 'transformacao', 'invocacao', 'forma_sombra'].includes(j.form)) {
+      if (['alvo', 'marca', 'escudo', 'cura', 'anel', 'anel_golpe', 'buff_basico', 'limpeza', 'cura_tempo', 'palma', 'escudo_vida', 'transformacao', 'invocacao', 'forma_sombra', 'contra', 'reflexo'].includes(j.form)) {
         assert.equal(shape, undefined, `${j.code} não devia ter mira`);
       }
       if (j.form === 'zona') assert.equal(shape, C.skills[j.code].zone?.self || !C.skills[j.code].range ? undefined : 'area', j.code);
@@ -329,7 +329,7 @@ describe('v45: mira e prévia', () => {
     const start = js.indexOf("case 'cast': {"), end = js.indexOf("case 'projectile': {");
     const block = js.slice(start, end);
     const own = ['cone_fogo', 'linha_fogo', 'cone_golpe', 'linha', 'ricochete', 'agarre', 'faixa', 'anel_golpe', 'impacto', 'alvo', 'marca', 'escudo_vida', 'transformacao',
-      'forma_sombra', 'muro', 'invocacao', 'zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque', 'palma'];
+      'forma_sombra', 'contra', 'reflexo', 'muro', 'invocacao', 'zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque', 'palma'];
     for (const f of own) assert.ok(block.includes(`'${f}'`), `forma ${f} sem desenho no cliente`);
     // as que sobram usam o desenho da mecânica de propósito (tier 1 de cada classe) ou o chão / o projétil
     const byMechanic = new Set<JutsuForm>(['linha_explode', 'cone', 'avanco', 'anel', 'linha_prende', 'escudo', 'cura', 'trilhas', 'linha_raio', 'teleporte', 'substituicao',
