@@ -1243,3 +1243,13 @@ As migrações v16, v18, v20 e v25 também ganharam os 74 códigos na lista dos 
 
 1. Loja de Pergaminhos: a lista da sua classe mostra 4 jutsus em cada tier.
 2. Faça uma Extração: pode sair um dos jutsus novos; ele aparece na aba Kits com ícone e descrição.
+
+## Passo 46 — Os 12 jutsus de mecânica inédita (SQL v31)
+
+Rode `db/schema_v31_mecanicas.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v30**, e só então mescle o código.
+Cadastra os 12 jutsus em `game.jutsus` e atualiza `game.valid_kit` para os 186 códigos. Pode rodar de novo sem erro.
+
+### Testar no celular
+
+1. Loja de Pergaminhos: alguns tiers passam a mostrar 5 jutsus (o de mecânica inédita é o quinto).
+2. Conferência no Neon: `SELECT count(*) FROM game.jutsus;` deve dar 186.

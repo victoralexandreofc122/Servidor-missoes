@@ -3739,7 +3739,7 @@ RETURN kit IS NOT NULL
     'weapons_arco', 'weapons_ceu', 'weapons_arsenal', 'wind_pulso', 'wind_leve', 'wind_asa', 'wind_vortice',
     'wind_cadeia', 'wind_milcortes', 'wind_fenda', 'wind_olho',
     -- v31 (mecânicas inéditas)
-    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo'
+    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo', 'shadow_troca', 'water_laco', 'lightning_volta', 'illusion_voz'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
@@ -3917,7 +3917,7 @@ RETURN kit IS NOT NULL
     'weapons_arco', 'weapons_ceu', 'weapons_arsenal', 'wind_pulso', 'wind_leve', 'wind_asa', 'wind_vortice',
     'wind_cadeia', 'wind_milcortes', 'wind_fenda', 'wind_olho',
     -- v31 (mecânicas inéditas)
-    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo'
+    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo', 'shadow_troca', 'water_laco', 'lightning_volta', 'illusion_voz'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
@@ -4088,7 +4088,7 @@ RETURN kit IS NOT NULL
     'weapons_arco', 'weapons_ceu', 'weapons_arsenal', 'wind_pulso', 'wind_leve', 'wind_asa', 'wind_vortice',
     'wind_cadeia', 'wind_milcortes', 'wind_fenda', 'wind_olho',
     -- v31 (mecânicas inéditas)
-    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo'
+    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo', 'shadow_troca', 'water_laco', 'lightning_volta', 'illusion_voz'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
@@ -4636,7 +4636,7 @@ RETURN kit IS NOT NULL
     'weapons_arco', 'weapons_ceu', 'weapons_arsenal', 'wind_pulso', 'wind_leve', 'wind_asa', 'wind_vortice',
     'wind_cadeia', 'wind_milcortes', 'wind_fenda', 'wind_olho',
     -- v31 (mecânicas inéditas)
-    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo'
+    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo', 'shadow_troca', 'water_laco', 'lightning_volta', 'illusion_voz'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
@@ -5468,7 +5468,7 @@ RETURN kit IS NOT NULL
     'weapons_serrilhada', 'weapons_polida', 'weapons_laco', 'weapons_arco', 'weapons_ceu', 'weapons_arsenal', 'wind_pulso', 'wind_leve',
     'wind_asa', 'wind_vortice', 'wind_cadeia', 'wind_milcortes', 'wind_fenda', 'wind_olho',
     -- v31 (mecânicas inéditas)
-    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo'
+    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo', 'shadow_troca', 'water_laco', 'lightning_volta', 'illusion_voz'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
@@ -5483,12 +5483,11 @@ COMMIT;
 -- ## schema_v31_mecanicas.sql
 -- ################################################################################################
 -- =====================================================================================================================
--- v31: jutsus de mecânica inédita (o 5º jutsu do tier). Cresce a cada pacote: recursos (4), reação (4) e posição (4).
--- Rode no SQL Editor do Neon, no branch `production`, DEPOIS da v30, quando os três pacotes estiverem prontos.
--- Pode rodar de novo sem erro. Nada é apagado.
+-- v31: os 12 jutsus de mecânica inédita (o 5º jutsu do tier): recursos, reação e posição. 186 jutsus no total.
+-- Rode no SQL Editor do Neon, no branch `production`, DEPOIS da v30. Pode rodar de novo sem erro. Nada é apagado.
 --
---  1. game.jutsus ganha os jutsus novos (nomes da opção B, escolhidos pelo Victor).
---  2. game.valid_kit (a regra dos kits) passa a aceitar os códigos novos (a lista só cresce).
+--  1. game.jutsus ganha os 12 (nomes da opção B, escolhidos pelo Victor). Passam a sair na Extração da classe e do tier.
+--  2. game.valid_kit (a regra dos kits) passa a aceitar os 186 códigos (a lista só cresce).
 -- =====================================================================================================================
 BEGIN;
 
@@ -5500,7 +5499,11 @@ INSERT INTO game.jutsus (code, name, class_code, clan_code, tier) VALUES
   ('stone_resposta', 'Resposta da Montanha', 'stone', NULL, 3),
   ('wind_espelho', 'Espelho de Ar', 'wind', NULL, 2),
   ('fire_marca', 'Marca Incandescente', 'fire', NULL, 2),
-  ('illusion_emprestimo', 'Empréstimo Forçado', 'illusion', NULL, 3)
+  ('illusion_emprestimo', 'Empréstimo Forçado', 'illusion', NULL, 3),
+  ('shadow_troca', 'Passo Trocado', 'shadow', NULL, 3),
+  ('water_laco', 'Laço da Correnteza', 'water', NULL, 2),
+  ('lightning_volta', 'Ida e Volta', 'lightning', NULL, 2),
+  ('illusion_voz', 'Segunda Voz', 'illusion', NULL, 4)
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, class_code = EXCLUDED.class_code, clan_code = EXCLUDED.clan_code, tier = EXCLUDED.tier;
 
 CREATE OR REPLACE FUNCTION game.valid_kit(kit text[]) RETURNS boolean
@@ -5530,12 +5533,13 @@ RETURN kit IS NOT NULL
     'water_gotas', 'water_coluna', 'water_casulo', 'water_tromba', 'water_onda', 'water_corpo', 'weapons_corte', 'weapons_pregos',
     'weapons_serrilhada', 'weapons_polida', 'weapons_laco', 'weapons_arco', 'weapons_ceu', 'weapons_arsenal', 'wind_pulso', 'wind_leve',
     'wind_asa', 'wind_vortice', 'wind_cadeia', 'wind_milcortes', 'wind_fenda', 'wind_olho', 'shadow_beijo', 'weapons_peconha',
-    'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo'
+    'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo', 'shadow_troca', 'water_laco',
+    'lightning_volta', 'illusion_voz'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
 COMMIT;
 
 -- Conferência (opcional):
--- SELECT count(*) FROM game.jutsus;   -- 182
+-- SELECT count(*) FROM game.jutsus;   -- 186
 

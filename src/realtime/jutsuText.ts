@@ -12,7 +12,7 @@ import { MEC_TEXT } from './jutsusMecanicas.js';
 
 export interface JutsuText { icon: string; text: string }
 
-const PERCENT = new Set(['basicBuff', 'speedBuff', 'hpCost', 'shieldShare', 'hot', 'dr', 'reduction', 'markBonus', 'nextHitBonus', 'zoneDamageCut', 'summonHp', 'wallHpShare', 'lifesteal', 'lowHpBonus', 'brandBonus']);
+const PERCENT = new Set(['basicBuff', 'speedBuff', 'hpCost', 'shieldShare', 'hot', 'dr', 'reduction', 'markBonus', 'nextHitBonus', 'zoneDamageCut', 'summonHp', 'wallHpShare', 'lifesteal', 'lowHpBonus', 'brandBonus', 'echo']);
 
 export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   // ------------------------------------------------------------------ Academia

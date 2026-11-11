@@ -82,6 +82,7 @@ export type JutsuForm =
   | 'marca'           // v35: marca um alvo; o próximo golpe de quem marcou dói mais e deixa lento (Sombra Faminta)
   | 'forma_sombra'    // v35: vira sombra: ignora projéteis, mais rápido, quem ele atravessa leva dano e fica lento (Forma Umbral)
   | 'contra'          // v51: guarda de contra-ataque: anula o próximo golpe e devolve dano e atordoamento (Resposta da Montanha)
+  | 'retorno'         // v52: dois toques: o 1º marca o lugar; o 2º (na janela) teleporta de volta (Ida e Volta)
   | 'reflexo'         // v51: devolve o primeiro projétil que bater (Espelho de Ar)
   | 'muro';           // muro à frente: bloqueia passagem e projéteis, tem vida (Muralha de Terra, Muro de Água)
 

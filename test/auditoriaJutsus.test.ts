@@ -138,8 +138,8 @@ const NO_DIRECT_DAMAGE = new Set(['umbra_forma', 'stone_resposta']);   // (o con
 
 describe('v45: auditoria dos 100 jutsus (catálogo)', () => {
   it('100 jutsus; cada classe tem jutsu nos 4 tiers; as linhagens têm os 4 tiers; todos têm números e forma', () => {
-    assert.equal(JUTSUS.length, 182);   // v49 (Fase 2.5): 100 + 74
-    assert.equal(new Set(ALL).size, 182, 'nenhum código repetido');
+    assert.equal(JUTSUS.length, 186);   // v49 (Fase 2.5): 100 + 74
+    assert.equal(new Set(ALL).size, 186, 'nenhum código repetido');
     // Fase 2.5: toda classe tem pelo menos 4 jutsus em cada tier
     for (const c of CLASSES) for (const tier of [1, 2, 3, 4]) assert.ok(JUTSUS.filter((j) => j.class === c && j.tier === tier).length >= 4, `${c} tier ${tier}`);
     for (const c of CLASSES) {
@@ -235,7 +235,10 @@ describe('v45: auditoria dos 100 jutsus (maestria, níveis 1 e 4)', () => {
       for (const gain of masteryOf(j.code)) {
         const pvp1 = get(j.code, 1), pvp4 = get(j.code, 4), pve1 = get(j.code, 1, true), pve4 = get(j.code, 4, true);
         const tag = `${j.code}: ${gain}`;
-        if (gain === 'recarga') {
+        if (gain === 'recarga' && j.form === 'retorno') {
+          // dois toques: o 1º toque mostra só a janela de volta; a recarga de verdade (com a maestria) começa na volta
+          assert.ok(withMastery(v1, j.code, 4).cooldownMs < v1.cooldownMs, tag);
+        } else if (gain === 'recarga') {
           assert.ok(Math.abs(pvp4.cd / pvp1.cd - 0.85) < 0.005, `${tag}: recarga ${pvp1.cd} -> ${pvp4.cd}`);
         } else if (gain === 'dano' && !NO_DIRECT_DAMAGE.has(j.code)) {
           assert.ok(pve4.dmg >= pve1.dmg * 1.22 || pve4.dmg >= Math.round((pve1.dmg - 0.5) * 1.3 - 0.5), `${tag} (monstro): ${pve1.dmg} -> ${pve4.dmg}`);   // (dano pequeno: o arredondamento come 1)
@@ -275,7 +278,7 @@ describe('v45: mira e prévia', () => {
     for (const j of JUTSUS) {
       const shape = aimShapeOf(j.form, C.skills[j.code]);
       if (j.form in AIMED && AIMED[j.form]) assert.equal(shape, AIMED[j.form], j.code);
-      if (['alvo', 'marca', 'escudo', 'cura', 'anel', 'anel_golpe', 'buff_basico', 'limpeza', 'cura_tempo', 'palma', 'escudo_vida', 'transformacao', 'invocacao', 'forma_sombra', 'contra', 'reflexo'].includes(j.form)) {
+      if (['alvo', 'marca', 'escudo', 'cura', 'anel', 'anel_golpe', 'buff_basico', 'limpeza', 'cura_tempo', 'palma', 'escudo_vida', 'transformacao', 'invocacao', 'forma_sombra', 'contra', 'reflexo', 'retorno'].includes(j.form)) {
         assert.equal(shape, undefined, `${j.code} não devia ter mira`);
       }
       if (j.form === 'zona') assert.equal(shape, C.skills[j.code].zone?.self || !C.skills[j.code].range ? undefined : 'area', j.code);
@@ -329,7 +332,7 @@ describe('v45: mira e prévia', () => {
     const start = js.indexOf("case 'cast': {"), end = js.indexOf("case 'projectile': {");
     const block = js.slice(start, end);
     const own = ['cone_fogo', 'linha_fogo', 'cone_golpe', 'linha', 'ricochete', 'agarre', 'faixa', 'anel_golpe', 'impacto', 'alvo', 'marca', 'escudo_vida', 'transformacao',
-      'forma_sombra', 'contra', 'reflexo', 'muro', 'invocacao', 'zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque', 'palma'];
+      'forma_sombra', 'contra', 'reflexo', 'retorno', 'muro', 'invocacao', 'zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque', 'palma'];
     for (const f of own) assert.ok(block.includes(`'${f}'`), `forma ${f} sem desenho no cliente`);
     // as que sobram usam o desenho da mecânica de propósito (tier 1 de cada classe) ou o chão / o projétil
     const byMechanic = new Set<JutsuForm>(['linha_explode', 'cone', 'avanco', 'anel', 'linha_prende', 'escudo', 'cura', 'trilhas', 'linha_raio', 'teleporte', 'substituicao',

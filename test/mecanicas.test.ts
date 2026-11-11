@@ -214,3 +214,84 @@ describe('v51: mecânicas inéditas (reação)', () => {
     assert.deepEqual([d.a.s.counter, d.a.s.reflectUntil, d.a.s.brand], [null, 0, null]);
   });
 });
+
+describe('v52: mecânicas inéditas (posição)', () => {
+  it('troca de lugar (Passo Trocado): os dois trocam de posição e todos são avisados; o alvo leva dano', () => {
+    const d = duel('shadow_troca');
+    const a0 = { x: d.a.s.x, y: d.a.s.y }, b0 = { x: d.b.s.x, y: d.b.s.y }, hp = d.b.s.hp;
+    d.cast();
+    assert.deepEqual([d.a.s.x, d.a.s.y], [b0.x, b0.y]);
+    assert.deepEqual([d.b.s.x, d.b.s.y], [a0.x, a0.y]);
+    assert.ok(d.b.s.hp < hp);
+    const tp = d.b.conn.of('teleport').map((m: any) => m.playerId).sort();
+    assert.deepEqual(tp, [d.a.id, d.b.id].sort(), 'o cliente dos dois recebe o salto de cada um');
+  });
+
+  it('gancho (Laço da Correnteza): puxa o primeiro inimigo da linha até 1 casa de você e deixa molhado', () => {
+    const d = duel('water_laco');
+    d.b.s.x = d.a.s.x + 5;
+    const hp = d.b.s.hp;
+    d.cast();
+    assert.ok(Math.abs(d.b.s.x - (d.a.s.x + 1)) < 0.05 && d.b.s.y === d.a.s.y, `ficou em ${d.b.s.x}`);
+    assert.ok(d.b.s.hp < hp);
+    assert.ok(d.b.s.effects.has('molhado'));
+    assert.equal(d.b.conn.of('teleport').at(-1).playerId, d.b.id);
+  });
+
+  it('dois toques (Ida e Volta): o 1º marca e cobra; o 2º, na janela, teleporta de volta sem custo e aí começa a recarga', () => {
+    const d = duel('lightning_volta');
+    const home = { x: d.a.s.x, y: d.a.s.y };
+    d.a.s.chakra = 100;
+    d.a.send({ type: 'cast', skill: 'lightning_volta' });
+    assert.equal(d.a.s.chakra, 80);
+    assert.deepEqual([d.a.s.anchor.x, d.a.s.anchor.y], [home.x, home.y]);
+    d.a.send({ type: 'move', dx: -1, dy: 0 });
+    d.run(1000);
+    d.a.send({ type: 'move', dx: 0, dy: 0 });
+    assert.ok(Math.hypot(d.a.s.x - home.x, d.a.s.y - home.y) > 2, 'andou para longe');
+    d.a.conn.clear();
+    d.a.send({ type: 'cast', skill: 'lightning_volta' });
+    assert.equal(d.a.conn.last('cast_failed'), undefined);
+    assert.deepEqual([d.a.s.x, d.a.s.y], [home.x, home.y], 'voltou');
+    assert.equal(d.a.s.chakra, 80, 'a volta não custa');
+    assert.equal(d.a.s.anchor, null);
+    assert.equal(d.a.s.cooldowns.lightning_volta - d.clock.now(), 12_000, 'a recarga começa na volta');
+    d.a.send({ type: 'cast', skill: 'lightning_volta' });
+    assert.equal(d.a.conn.last('cast_failed').reason, 'COOLDOWN');
+  });
+
+  it('dois toques: fora da janela de 4 s, o toque seguinte marca um lugar novo (não volta)', () => {
+    const d = duel('lightning_volta');
+    d.a.send({ type: 'cast', skill: 'lightning_volta' });
+    d.a.send({ type: 'move', dx: -1, dy: 0 });
+    d.run(600);                                // anda um pouco (sem sair da arena)
+    d.a.send({ type: 'move', dx: 0, dy: 0 });
+    d.run(3600);                               // a janela de 4 s fecha
+    const here = { x: d.a.s.x, y: d.a.s.y };
+    d.a.s.chakra = 100;
+    d.a.send({ type: 'cast', skill: 'lightning_volta' });
+    assert.deepEqual([d.a.s.x, d.a.s.y], [here.x, here.y], 'não voltou');
+    assert.deepEqual([d.a.s.anchor.x, d.a.s.anchor.y], [here.x, here.y], 'marcou aqui');
+    assert.equal(d.a.s.chakra, 80, 'cobrou de novo');
+  });
+
+  it('clone que repete (Segunda Voz): o clone copia o próximo jutsu em linha do dono, do lugar dele, com metade do dano, uma vez só', () => {
+    const d = duel('illusion_voz');
+    d.a.s.jutsus.set('fire_ryuka', 0);
+    d.a.s.kits[d.a.s.activeKit] = ['illusion_voz', 'fire_ryuka'];
+    d.a.s.classes = { primary: 'illusion', secondary: 'fire' };
+    const lance = () => { const hp = d.b.s.hp; d.a.s.cooldowns = {}; d.a.s.chakra = d.a.s.stats.maxChakra; Object.assign(d.a.s, { fx: 1, fy: 0 }); d.a.send({ type: 'cast', skill: 'fire_ryuka', dir: [1, 0] }); d.run(700); return hp - d.b.s.hp; };
+    d.b.s.x = d.a.s.x + 4;
+    const normal = lance();
+    assert.ok(normal > 0);
+    d.cast();                                  // o clone nasce ao lado
+    const clone = [...d.world.monsters.values()].find((m: any) => m.ownerId === d.a.id);
+    assert.ok(clone && clone.echo === 0.5);
+    Object.assign(clone, { x: d.a.s.x, y: d.a.s.y + 0.4 });       // na mesma linha do alvo (um pouco ao lado do dono)
+    d.b.s.y = d.a.s.y + 0.2;
+    const doubled = lance();
+    assert.ok(doubled > normal && doubled <= normal + Math.ceil(normal * 0.5) + 1, `${normal} -> ${doubled}`);
+    assert.equal(clone.echo, undefined, 'repete uma vez');
+    assert.equal(lance(), normal, 'o jutsu seguinte sai só do dono');
+  });
+});

@@ -78,6 +78,12 @@ export interface SkillConfig {
   brandBonus?: number;
   /** v51: roubo de buff: o escudo e os bônus ativos do alvo passam para quem lançou, pelo tempo que faltava. */
   stealBuff?: boolean;
+  /** v52 (pacote de posição): troca de lugar com o alvo; gancho (puxa o alvo até você); janela do retorno (dois toques);
+   *  parte do dano que o clone repete (Segunda Voz). */
+  swap?: boolean;
+  hook?: boolean;
+  returnMs?: number;
+  echo?: number;
   /** Golpes no mesmo alvo (Cem Golpes, Punho do Céu); `hitsPve` = contra monstro (o teto de golpes é regra do PvP). */
   hits?: number;
   hitsPve?: number;

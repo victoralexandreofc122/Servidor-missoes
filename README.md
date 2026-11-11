@@ -240,6 +240,17 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v52: mecânicas inéditas, pacote 3 de 3: posição (migração v31, `db/schema_v31_mecanicas.sql`)
+
+Fecha os 12 jutsus de mecânica inédita (186 no total). A v31 traz os 12 de uma vez.
+
+- **Passo Trocado (Sombra, Tier 3), troca de lugar:** você e o alvo trocam de posição (monstro que não anda não troca).
+- **Laço da Correnteza (Água, Tier 2), gancho:** fere o primeiro inimigo da linha, deixa molhado e puxa até 1 casa de você.
+- **Ida e Volta (Relâmpago, Tier 2), dois toques:** o 1º toque marca o lugar; o 2º, em até 4 s, teleporta de volta sem
+  custo. A recarga de 12 s começa na volta.
+- **Segunda Voz (Ilusão, Tier 4), clone que repete:** o clone copia, do lugar dele e na mesma direção, o seu próximo jutsu
+  em linha, com metade do dano, uma vez. As linhas instantâneas repetidas não têm desenho próprio (só o número do dano).
+
 ### v51: mecânicas inéditas, pacote 2 de 3: reação (migração v31, só no fim dos três pacotes)
 
 - **Resposta da Montanha (Pedra, Tier 3), contra-ataque:** 1,5 s em guarda; o próximo golpe direto é anulado e o ninja que

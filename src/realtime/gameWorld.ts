@@ -413,6 +413,8 @@ interface Session {
   /** v51 (reação): guarda de contra-ataque, reflexo de projétil e a marca que detona. */
   counter: { until: number; damage: number; hit: HitInfo; stunMs: number; skill: string } | null;
   reflectUntil: number;
+  /** v52: o lugar marcado pelo 1º toque (Ida e Volta). */
+  anchor: { x: number; y: number; map: MapId; until: number; skill: string } | null;
   brand: { targetId: string; until: number; bonus: number } | null;
   umbraNext: { bonus: number; until: number } | null;
   umbraMark: { targetId: string; until: number; bonus: number; slowMs: number } | null;
@@ -438,6 +440,8 @@ interface Monster {
   /** v30: invocação de um ninja (Duplo de Água, Golem de Terra): dono, fim e o soco do Golem. */
   ownerId?: string;
   summonUntil?: number;
+  /** v52: clone que repete (Segunda Voz): a parte do dano do próximo jutsu em linha do dono que ele copia (uma vez). */
+  echo?: number;
   /** v30: provocado: persegue e bate nesta invocação (Golem, Clone) enquanto ela existir. */
   tauntId?: string;
   punch?: { damage: number; hit: HitInfo; liftMs: number; everyMs: number; nextAt: number; radius: number };
@@ -1091,7 +1095,7 @@ export class GameWorld {
       heartsCut: previous?.heartsCut ?? 0,
       intangibleUntil: previous?.intangibleUntil ?? 0,
       umbraHideUntil: 0, umbraNext: null, umbraMark: null, umbraForm: null,
-      counter: null, reflectUntil: 0, brand: null,
+      counter: null, reflectUntil: 0, brand: null, anchor: null,
       hasteUntil: previous?.hasteUntil ?? 0,
       haste: previous?.haste ?? 0,
       lastPanelAt: 0,
@@ -1854,13 +1858,17 @@ export class GameWorld {
     if (!session.jutsus.has(skill)) return fail('NOT_LEARNED');
     if (!this.canUse(session, skill)) return fail('NOT_YOUR_CLASS');   // v34: jutsu de outra classe não sai
     if (!session.kits[session.activeKit].includes(skill)) return fail('NOT_EQUIPPED');
-    if ((session.cooldowns[skill] ?? 0) > t) return fail('COOLDOWN');
+    // v52: dois toques: com o lugar marcado, o 2º toque sai mesmo "em recarga" e não custa nada
+    const anchorBack = !!session.anchor && session.anchor.skill === skill && t < session.anchor.until && session.anchor.map === session.map;
+    if ((session.cooldowns[skill] ?? 0) > t && !anchorBack) return fail('COOLDOWN');
     // v28: nas áreas de PvP, Taijutsu e Armas custam e recarregam mais (pvpBalance.ts).
     const pvp = this.inPvpArea(session);
     // v30: jutsu com números próprios paga o seu custo no PvP (o x4 do Taijutsu e o x2,5 das Armas eram para o golpe
     // barato de tier 1); só os marcados com pvpScale pagam o da mecânica.
     const scaledPrice = !JUTSU_BY_CODE.get(skill)?.numbers || cfg.pvpScale;
-    const price = pvp && scaledPrice ? pvpCostCooldown(cfg.mechanic, cfg.cost, cfg.cooldownMs) : { cost: cfg.cost, cooldownMs: cfg.cooldownMs };
+    const price0 = pvp && scaledPrice ? pvpCostCooldown(cfg.mechanic, cfg.cost, cfg.cooldownMs) : { cost: cfg.cost, cooldownMs: cfg.cooldownMs };
+    // (1º toque do retorno: a "recarga" é só a janela de volta; a de verdade começa na volta ou quando a janela fecha)
+    const price = anchorBack ? { cost: 0, cooldownMs: price0.cooldownMs } : cfg.returnMs ? { cost: price0.cost, cooldownMs: cfg.returnMs } : price0;
     if (session.chakra < price.cost) return fail('NO_CHAKRA');
     // v29 (Jutsus v2): conjuração. O jutsu sai quando os selos acabam (fim do tick); controle duro interrompe.
     // Com as mãos ocupadas nos selos, nenhum outro jutsu sai; só a fuga (Substituição, Teleporte) cancela os selos.
@@ -2210,6 +2218,7 @@ export class GameWorld {
         this.v2Apply(session, skill, cfg, form, hits, to, dashTo, dmg, hit, o, fx, fy, t, pvp);
         break;
     }
+    this.echoCast(session, skill, cfg, form, dmg, hit, fx, fy, t);   // v52: o clone da Segunda Voz repete os jutsus em linha
     this.countUse(session, skill);
     this.sendStats(session, t);
   }
@@ -2772,6 +2781,23 @@ export class GameWorld {
       case 'reflexo':
         s.reflectUntil = t + (cfg.reflectMs ?? 2000);
         break;
+      case 'retorno': {
+        // v52: dois toques (Ida e Volta): o 1º marca onde você está; o 2º, dentro da janela, teleporta de volta
+        const back = s.anchor && s.anchor.skill === skill && t < s.anchor.until && s.anchor.map === s.map ? s.anchor : null;
+        if (!back) {
+          s.anchor = { x: s.x, y: s.y, map: s.map, until: t + (cfg.returnMs ?? 4000), skill };
+          this.sendTo(s, { type: 'notice', text: `Lugar marcado: use de novo em até ${Math.round((cfg.returnMs ?? 4000) / 1000)} s para voltar.`, tone: 'good' });
+          break;
+        }
+        s.anchor = null;
+        const from = { x: s.x, y: s.y };
+        s.x = back.x;
+        s.y = back.y;
+        s.lastUpdate = t;
+        s.dirty = true;
+        this.broadcastMap(s.map, { type: 'teleport', playerId: s.id, fromX: round3(from.x), fromY: round3(from.y), x: round3(s.x), y: round3(s.y), a: s.ackSeq });
+        break;
+      }
       case 'forma_sombra': {
         // v35: Forma Umbral: ignora projéteis, mais rápido; quem ele atravessa leva dano e fica lento (uma vez cada)
         const ms = cfg.durationMs ?? 5000;
@@ -2828,6 +2854,7 @@ export class GameWorld {
         m.hp = hp;
         m.ownerId = s.id;
         m.summonUntil = t + (cfg.durationMs ?? 6000);
+        if (cfg.echo) m.echo = cfg.echo;   // v52: Segunda Voz
         if (cfg.punchEveryMs && dmg > 0) {
           m.punch = { damage: dmg, hit, liftMs: cfg.liftMs ?? 0, everyMs: cfg.punchEveryMs, nextAt: t + cfg.punchEveryMs, radius: cfg.radius ?? 1.5 };
         }
@@ -2889,6 +2916,33 @@ export class GameWorld {
     }
   }
 
+  /**
+   * v52: Segunda Voz: o clone repete, do lugar dele e na mesma direção, o próximo jutsu EM LINHA do dono, com parte do
+   * dano (`echo`), uma vez só. Projéteis saem dele; as linhas instantâneas acertam o primeiro alvo no caminho.
+   */
+  private echoCast(s: Session, skill: Skill, cfg: SkillConfig, form: JutsuForm, dmg: number, hit: HitInfo, fx: number, fy: number, t: number): void {
+    if (dmg <= 0) return;
+    const flying = form === 'projetil' || form === 'linha_explode' || form === 'trilhas' || form === 'leque' || form === 'bumerangue';
+    const instant = form === 'linha' || form === 'linha_fogo' || form === 'linha_raio' || form === 'ricochete' || form === 'agarre' || form === 'faixa';
+    if (!flying && !instant) return;
+    const m = [...this.monsters.values()].find((x) => x.ownerId === s.id && x.echo && x.hp > 0 && x.map === s.map);
+    if (!m) return;
+    const share = m.echo ?? 0.5;
+    m.echo = undefined;
+    const amount = Math.max(1, Math.round(dmg * share));
+    const h: HitInfo = { ...hit, base: hit.base * share, weapon: hit.weapon * share };
+    const from = { x: m.x, y: m.y };
+    const reach = cfg.range ?? 6;
+    if (flying) {
+      this.launch(s, fx, fy, { skill, speed: cfg.speed ?? 12, range: reach, damage: amount, radius: form === 'linha_explode' ? cfg.radius ?? 0 : 0, volley: new Set(), hit: h, from });
+      return;
+    }
+    const end = rayEnd(this.layout(s.map), from.x, from.y, fx, fy, reach);
+    const first = firstOnLine(from, end, this.targetsFor(s, true).filter((x) => x.id !== m.id));
+    this.broadcastMap(s.map, { type: 'impact', id: 0, skill, x: round2(first ? first.at.x : end.x), y: round2(first ? first.at.y : end.y), r: 0 });
+    if (first) this.hitTarget(first.target, amount, s, t, 'skill', skill, h);
+  }
+
   /** O que o golpe faz além do dano: molhado, lentidão, prender, atordoar, levantar, paralisar, silenciar, tirar chakra, empurrar. */
   private applyExtras(x: Target, by: Session, cfg: SkillConfig, t: number, from: Point): void {
     if (cfg.wet) this.applyEffect(x, 'molhado', t, undefined, undefined, by);
@@ -2903,6 +2957,30 @@ export class GameWorld {
     if (cfg.woundMs && this.stillThere(x)) this.applyEffect(x, 'ferida', t, cfg.woundMs, undefined, by);
     if (cfg.sleepMs && this.stillThere(x)) this.applyEffect(x, 'sono', t, cfg.sleepMs, undefined, by);   // v49: Canção de Ninar
     if (cfg.dotAmount && this.stillThere(x)) this.applyEffect(x, 'queimadura', t, cfg.dotMs ?? 4000, cfg.dotAmount, by);   // Brasa Sem Luz
+    // v52: gancho (Laço da Correnteza): puxa o alvo até ficar a 1 casa de quem lançou (para em parede e em vão)
+    if (cfg.hook && this.stillThere(x)) {
+      const d = distance(by, x);
+      if (d > 1.2) {
+        const before = { x: x.kind === 'monster' ? x.monster.x : x.session.x, y: x.kind === 'monster' ? x.monster.y : x.session.y };
+        this.pullToCenter(x, by, { x: by.x, y: by.y }, d - 1, t);
+        if (x.kind === 'player') this.broadcastMap(x.session.map, { type: 'teleport', playerId: x.id, fromX: round3(before.x), fromY: round3(before.y), x: round3(x.session.x), y: round3(x.session.y), a: x.session.ackSeq });
+      }
+    }
+    // v52: troca de lugar (Passo Trocado): quem lançou e o alvo trocam de posição (monstro parado no lugar não troca)
+    if (cfg.swap && this.stillThere(x) && !(x.kind === 'monster' && this.monsterType(x.monster.type).stationary)) {
+      const who = x.kind === 'monster' ? x.monster : x.session;
+      const a = { x: by.x, y: by.y }, b = { x: who.x, y: who.y };
+      by.x = b.x; by.y = b.y; by.lastUpdate = t; by.dirty = true;
+      who.x = a.x; who.y = a.y;
+      this.broadcastMap(by.map, { type: 'teleport', playerId: by.id, fromX: round3(a.x), fromY: round3(a.y), x: round3(by.x), y: round3(by.y), a: by.ackSeq });
+      if (x.kind === 'monster') this.broadcastMap(by.map, { type: 'monsters_moved', m: [[x.id, who.x, who.y]] });
+      else {
+        this.dropInputs(x.session);
+        x.session.lastUpdate = t;
+        x.session.dirty = true;
+        this.broadcastMap(by.map, { type: 'teleport', playerId: x.id, fromX: round3(b.x), fromY: round3(b.y), x: round3(a.x), y: round3(a.y), a: x.session.ackSeq });
+      }
+    }
     if (cfg.brandMs && this.stillThere(x)) by.brand = { targetId: x.id, until: t + cfg.brandMs, bonus: cfg.brandBonus ?? 0.6 };   // v51
     if (cfg.stealBuff && x.kind === 'player' && this.stillThere(x)) {
       // v51: roubo de buff (Empréstimo Forçado): escudo com vida, redução do próximo golpe, bônus de Básico e pressa mudam de dono
@@ -4858,6 +4936,7 @@ export class GameWorld {
       this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: s.id });
     }
     s.counter = null;
+    s.anchor = null;
     s.reflectUntil = 0;
     s.brand = null;
     s.umbraForm = null;

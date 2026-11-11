@@ -19,7 +19,7 @@ describe('v46: ícone e descrição de cada jutsu', () => {
       assert.equal(seen.get(t.icon), undefined, `${code} e ${seen.get(t.icon)} com o mesmo ícone ${t.icon}`);
       seen.set(t.icon, code);
     }
-    assert.equal(seen.size, 182);
+    assert.equal(seen.size, 186);
   });
 
   it('toda {chave} da descrição existe no jutsu: o texto mostra o número que o servidor usa', () => {

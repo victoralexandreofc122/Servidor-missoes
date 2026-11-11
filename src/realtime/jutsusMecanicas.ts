@@ -17,7 +17,9 @@ const CLEAN = { coneDeg: undefined, push: undefined, stunMs: undefined, rootMs: 
 
 export const MEC_CODES = ['shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos',
   // v51: pacote de reação
-  'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo'] as const;
+  'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo',
+  // v52: pacote de posição
+  'shadow_troca', 'water_laco', 'lightning_volta', 'illusion_voz'] as const;
 
 export const MEC: Readonly<Record<string, ClassJutsu>> = {
   // Roubo de vida: linha que acerta o primeiro; metade do dano volta como cura
@@ -45,6 +47,19 @@ export const MEC: Readonly<Record<string, ClassJutsu>> = {
   // Roubo de buff: no alvo focado; o escudo e os bônus ativos dele passam para você
   illusion_emprestimo: { name: 'Empréstimo Forçado', class: 'illusion', tier: 3, form: 'alvo',
     numbers: { ...CLEAN, base: 12, damage: dmg(12, 3), cost: 45, cooldownMs: 16_000, range: 5, radius: undefined, stealBuff: true, castMs: 300 } },
+  // ------------------------------------------------------------------ v52: pacote de posição
+  // Troca de lugar: você e o alvo focado (ou o mais perto) trocam de posição
+  shadow_troca: { name: 'Passo Trocado', class: 'shadow', tier: 3, form: 'alvo',
+    numbers: { ...CLEAN, base: 14, damage: dmg(14, 3), cost: 43, cooldownMs: 14_000, range: 6, swap: true, castMs: 200 } },
+  // Gancho: linha que puxa o primeiro inimigo até ficar a 1 casa de você
+  water_laco: { name: 'Laço da Correnteza', class: 'water', tier: 2, form: 'linha',
+    numbers: { ...CLEAN, base: 16, damage: dmg(16, 2), cost: 27, cooldownMs: 10_000, range: 6, hook: true, wet: true, castMs: 200 } },
+  // Dois toques: o 1º marca o lugar; o 2º, em até 4 s, teleporta de volta
+  lightning_volta: { name: 'Ida e Volta', class: 'lightning', tier: 2, form: 'retorno',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 12_000, range: 0, returnMs: 4000 } },
+  // Clone que repete: copia, do lugar dele, o seu próximo jutsu em linha, com metade do dano (uma vez)
+  illusion_voz: { name: 'Segunda Voz', class: 'illusion', tier: 4, form: 'invocacao',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 60, cooldownMs: 25_000, range: 0, radius: undefined, summonType: 'clone_agua', summonHp: 0.2, durationMs: 8000, echo: 0.5, castMs: 500 } },
 };
 
 export const MEC_MASTERY: Readonly<Record<string, readonly MasteryGain[]>> = {
@@ -55,6 +70,10 @@ export const MEC_MASTERY: Readonly<Record<string, readonly MasteryGain[]>> = {
   wind_espelho: ['recarga'],
   fire_marca: ['dano', 'efeito'],          // a marca dura mais
   illusion_emprestimo: ['dano', 'recarga'],
+  shadow_troca: ['dano', 'recarga'],
+  water_laco: ['dano', 'recarga'],
+  lightning_volta: ['recarga'],
+  illusion_voz: ['duracao', 'protecao'],
   heal_meridianos: ['recarga'],            // o dano vem do chakra tirado: só a recarga melhora
 };
 
@@ -66,5 +85,9 @@ export const MEC_TEXT: Readonly<Record<string, { icon: string; text: string }>> 
   wind_espelho: { icon: '🏓', text: 'Por {reflectMs}, o primeiro projétil que bater em você volta para quem lançou.' },
   fire_marca: { icon: '🔶', text: 'Chama em linha ({range} casas) que marca o primeiro inimigo por {brandMs}: o seu próximo jutsu nele explode a marca, com {brandBonus} do dano a mais.' },
   illusion_emprestimo: { icon: '🤏', text: 'No alvo (até {range} casas): dano leve, e o escudo e os bônus ativos dele (Básico, velocidade) passam para você pelo tempo que faltava.' },
+  shadow_troca: { icon: '🔃', text: 'Você e o alvo (focado ou o mais perto, até {range} casas) trocam de lugar, e ele leva dano leve.' },
+  water_laco: { icon: '🎣', text: 'Laço em linha ({range} casas): fere o primeiro inimigo, deixa molhado e puxa ele até você.' },
+  lightning_volta: { icon: '⏪', text: 'Dois toques: o primeiro marca o lugar onde você está; o segundo, em até {returnMs}, teleporta você de volta. A recarga começa na volta.' },
+  illusion_voz: { icon: '🗣️', text: 'Cria um clone ao seu lado por {durationMs}: ele repete, do lugar dele, o seu próximo jutsu em linha, com {echo} do dano.' },
   heal_meridianos: { icon: '🈲', text: 'Sela os pontos de chakra do alvo (até {range} casas): tira até {chakraBurn} de chakra dele e causa dano pelo que tirou.' },
 };
