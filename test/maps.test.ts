@@ -312,7 +312,7 @@ describe('mapas: servidor (salas)', () => {
     assert.deepEqual(w.world.maps.map_1.safeZones, VILA.safeZones);
     assert.deepEqual(w.players, [], 'kaito está na Floresta: não aparece na Vila');
     // a Floresta do Arco 1 é maior (trilhas e riacho em curvas) e o céu vem junto (clima)
-    assert.ok(JSON.stringify(w).length < 52_000, `welcome leve (v23: + a colisão da Folha em imagem; v30: o catálogo com 90 jutsus e 10 classes; v35: Umbra e linhagem; v37: a mira de cada jutsu) (${JSON.stringify(w).length} bytes)`);
+    assert.ok(JSON.stringify(w).length < 62_000, `welcome leve (v46: + o ícone e a descrição dos 100 jutsus, uns 9 KB; v23: + a colisão da Folha em imagem; v30: o catálogo com 90 jutsus e 10 classes; v35: Umbra e linhagem; v37: a mira de cada jutsu) (${JSON.stringify(w).length} bytes)`);
   });
 });
 
