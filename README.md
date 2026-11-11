@@ -240,6 +240,23 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v47: efeitos visuais dos jutsus com partículas (só no cliente, sem migração)
+
+Escolha de arquitetura: Opção A (partículas procedurais), por cima das folhas de efeito que já existiam. Um sistema só
+(`public/particles.js`) cobre os 100 jutsus pelo **elemento** e pela **forma**; o servidor não mudou.
+
+- **Partículas por elemento:** fogo (brasas que sobem e fumaça), água (gotas que caem e respingos), raio (riscos
+  elétricos), pedra (poeira e pedras), vento (riscos claros e folhas), sombra e ilusão (fumaça escura e roxa), cura
+  (brilhos verdes), taijutsu (faíscas e poeira) e armas (faíscas de metal).
+- **Por forma:** cone, linha, faixa, anel, estouro no alvo, investida, escudo e buff soltam as partículas no lugar que o
+  jutsu acerta; projéteis deixam rastro e estouram no impacto; zonas e avisos soltam partículas dentro do círculo.
+- **Impacto:** faísca e clarão em quem levou o golpe, no elemento do jutsu, e um tremor leve da tela só para quem acertou
+  e para quem levou (e para quem está dentro de uma explosão).
+- **Selos:** aura na cor do elemento em volta de quem conjura, que cresce até o jutsu sair.
+- **Config. → Efeitos dos jutsus:** Completos, Reduzidos (celular fraco) ou Desligados (sem partículas nem tremor).
+  Há um teto de partículas na tela (520; 180 no reduzido).
+- Jutsus da mesma forma e do mesmo elemento ficam parecidos; não é pixel art desenhada.
+
 ### v46: ícone e descrição de cada jutsu, e o catálogo na Loja de Pergaminhos (sem migração)
 
 - **Ícone próprio:** cada um dos 100 jutsus tem o seu ícone (nenhum repetido). Antes todos os jutsus de uma classe usavam o
