@@ -103,14 +103,28 @@ export function tilesOnPath(from, to) {
 export function aimPaths(me, dir, info, walls, foes, width, height) {
   const [ux, uy] = cardinal(dir[0], dir[1]);
   const range = info.range ?? 4;
-  const lanes = laneOffsets(Math.max(1, info.shots ?? 1), info.laneGap ?? 0.7);
   const out = [];
+  if (info.fan) {
+    // v45: leque (Revoada de Brasas, Farpas de Trovão...): os projéteis abrem em ângulo, como no servidor (0,22 rad)
+    const n = Math.max(1, info.shots ?? 3);
+    const order = [...Array(n).keys()].sort((a, b) => Math.abs(a - (n - 1) / 2) - Math.abs(b - (n - 1) / 2));   // o do meio primeiro
+    for (const i of order) {
+      const a = (i - (n - 1) / 2) * info.fan;
+      const dx = ux * Math.cos(a) - uy * Math.sin(a), dy = ux * Math.sin(a) + uy * Math.cos(a);
+      const from = { x: me.x, y: me.y };
+      const end = rayEnd(from.x, from.y, dx, dy, range, walls, width, height);
+      const hit = firstOnLine(from, end, foes);
+      out.push({ from, to: hit ? hit.at : end, reach: { x: from.x + dx * range, y: from.y + dy * range }, hit: hit ? hit.target : null, wall: !hit && dist(from, end) < range - 0.06 });
+    }
+    return { dir: [ux, uy], paths: out };
+  }
+  const lanes = laneOffsets(Math.max(1, info.shots ?? 1), info.laneGap ?? 0.7);
   for (const off of lanes) {
     const from = { x: me.x - uy * off, y: me.y + ux * off };
     if (off !== 0 && blocked(from.x, from.y, walls)) continue;
     const end = rayEnd(from.x, from.y, ux, uy, range, walls, width, height);
     const hit = firstOnLine(from, end, foes);
-    const to = hit ? hit.at : end;
+    const to = hit && !info.pierce ? hit.at : end;   // v45: o que atravessa (faixa, rede, bumerangue) vai até o fim
     out.push({ from, to, reach: { x: from.x + ux * range, y: from.y + uy * range }, hit: hit ? hit.target : null, wall: !hit && dist(from, end) < range - 0.06 });
   }
   return { dir: [ux, uy], paths: out };

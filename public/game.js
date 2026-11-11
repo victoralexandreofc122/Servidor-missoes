@@ -813,6 +813,10 @@ function handleMessage(msg) {
       if (msg.playerId === state.meId) startCooldown(msg.skill, 1500);   // a recarga curta da interrupção (servidor: CAST_RULES)
       break;
     }
+    case 'cooldowns_reset':
+      // v45: começo de rodada do duelo: o servidor zerou as recargas
+      for (const k of Object.keys(cooldowns)) delete cooldowns[k];
+      break;
     case 'duel_state':
       state.duel = { ...msg, until: performance.now() + msg.ms, ...(msg.away ? { awayUntil: performance.now() + msg.away.ms } : {}) };
       duelAnnounce(msg);
@@ -1160,13 +1164,23 @@ function handleMessage(msg) {
       else if (form === 'linha_fogo') state.effects.push({ skill: 'fire_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, start: now });
       // v30: as formas das outras classes
       else if (form === 'cone_golpe') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 1.5, cone: info.coneDeg ?? 90, color, start: now });
-      else if (form === 'linha' || form === 'ricochete' || form === 'agarre' || form === 'faixa') state.effects.push({ skill: 'jutsu_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, color, start: now });
+      else if (form === 'linha' || form === 'ricochete' || form === 'agarre' || form === 'faixa') state.effects.push({ skill: 'jutsu_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, color, start: now, ...(form === 'faixa' ? { wide: (info.radius ?? 1.5) * 2 } : {}) });   // v45: a Lâmina em Arco aparece com a largura que acerta
       else if (form === 'anel_golpe') state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: info.radius ?? 2, color, start: now });
       else if (form === 'impacto' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_ring', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: info.radius ?? 1.5, color, start: now });
       else if (form === 'alvo' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_burst', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: 0.9, color, start: now });
+      // v45: formas que caíam no desenho da classe e enganavam (o Muro de Água mostrava o cone do Jato d'Água, a Sombra
+      // Faminta a linha que prende) ou não mostravam nada (Olhar Rubro, Sentinela e Colosso Espectral)
+      else if (form === 'marca' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_burst', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: 0.9, color: CAST_COLOR.shadow || color, start: now });
+      else if (form === 'escudo_vida' || form === 'transformacao' || form === 'forma_sombra' || (form === 'escudo' && fxKind !== 'stone')) {
+        state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 1.1, color, start: now });
+        // Sentinela Espectral: o corte em cone na frente
+        if (form === 'escudo_vida' && info.coneDeg) state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 1.5, cone: info.coneDeg, color, start: now });
+      } else if (form === 'muro' || form === 'invocacao') state.effects.push({ skill: 'jutsu_burst', x: msg.tx ?? msg.x, y: msg.ty ?? msg.y, fx: 0, fy: 0, r: 0.9, color, start: now });
       else if (['zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque', 'palma'].includes(form) && fxKind !== 'fire' && fxKind !== 'weapons') {
         // o efeito vem da zona, do aviso, do projétil ou do avanço; só um brilho em quem lançou
         state.effects.push({ skill: 'jutsu_burst', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 0.6, color, start: now });
+        // v45: a investida mostra onde o golpe caiu (o círculo que acerta)
+        if (form === 'investida' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_ring', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: info.radius ?? 1, color, start: now });
       }
       // (Fogo: a explosão é no impacto, mensagem `impact`; nada em volta de quem lançou.)
       else if (fxKind !== 'teleport' && fxKind !== 'fire' && !playCastVfx(msg, fxKind, now)) state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
@@ -3662,7 +3676,9 @@ function castSkill(skill, aimDir) {
   // Jutsu direcionado: com alvo focado, vai o targetId (o servidor mira e confere o alcance).
   // Substituição Nível 4: aparece atrás do alvo focado (o servidor confere o nível).
   // Cura: com um aliado focado, vai nele (o servidor confere se está perto).
-  const targetId = (DIRECTED.has(mech) || mech === 'substitution' || mech === 'heal') && state.focusId ? state.focusId : undefined;
+  // v45: o foco vai em TODO jutsu (o servidor decide se usa): os "travados no alvo" de Ilusão, Pedra e Cura (Prisão de
+  // Pilares, Raízes do Pesadelo, Ciclo Sem Fim, Descontrole Muscular...) pegavam o mais perto, não o focado.
+  const targetId = state.focusId || undefined;
   send(targetId ? { type: 'cast', skill, targetId } : { type: 'cast', skill });
 }
 /** Direção do boneco (0 baixo, 1 esquerda, 2 direita, 3 cima) -> vetor. */
@@ -3782,11 +3798,32 @@ function aimFoes() {
   return out;
 }
 
+/**
+ * v45: os números da prévia como o servidor usa: o alcance com a maestria (+5% por nível) e o do Clã Umbra (+10% nas
+ * sombras), o leque aberto (não em trilhas), a 4ª brasa da Revoada no nível 2 e o Punho Sísmico caindo a 1 casa.
+ */
+function aimInfo(skill) {
+  const base = state.world.skills?.[skill];
+  if (!base) return null;
+  const info = { ...base };
+  const level = jutsuLevelOf(state.ninja.jutsus?.[skill] ?? 0);
+  let k = 1;
+  if (base.mastery?.includes('alcance')) k *= 1 + 0.05 * (level - 1);
+  if (state.ninja.clan === 'umbra' && base.mechanic === 'shadow') k *= 1.1;
+  if (info.range !== undefined) info.range = Math.round(info.range * k * 100) / 100;
+  const form = formOf(skill);
+  if (form === 'leque') { info.fan = 0.22; if (skill === 'fire_2' && level >= 2) info.shots = 4; }
+  if (form === 'impacto') info.range = 1;
+  if (form === 'faixa' || form === 'agarre' || form === 'bumerangue') info.pierce = true;
+  info.form = form;
+  return info;
+}
+
 /** A cada quadro: a direção da mira (arrastada, a do mouse segurando a tecla, ou a automática) e a prévia. */
 function updateAim(me) {
   if (!aim) return null;
   if (!me || state.me.dead || state.me.meditating) { endAim(false); return null; }
-  const info = state.world.skills?.[aim.skill];
+  const info = aimInfo(aim.skill);
   if (!info) return null;
   if (aim.key && mouse.seen && lastView) {
     // PC: segurando a tecla, a direção segue o mouse (passou da zona morta em volta do boneco).
@@ -3833,9 +3870,10 @@ function drawAimPreview(view, toScreenX, toScreenY, T, now) {
     }
     // A faixa do caminho, com a ponta em seta.
     const x0 = toScreenX(p.from.x), y0 = toScreenY(p.from.y), x1 = toScreenX(p.to.x), y1 = toScreenY(p.to.y);
-    const [ux, uy] = view.dir;
+    const L = Math.hypot(p.reach.x - p.from.x, p.reach.y - p.from.y) || 1;
+    const ux = (p.reach.x - p.from.x) / L, uy = (p.reach.y - p.from.y) / L;   // v45: a direção de cada trilha (o leque abre)
     ctx.strokeStyle = CY(main ? 0.2 : 0.15);
-    ctx.lineWidth = lane;
+    ctx.lineWidth = view.info.form === 'faixa' ? T * (view.info.radius || 1.5) * 2 : lane;   // v45: a faixa larga na largura que acerta
     ctx.lineCap = 'butt';
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
     ctx.strokeStyle = CY(0.7);
@@ -6734,7 +6772,11 @@ function drawEffect(fx, sx, sy, T, now) {
     }
     case 'jutsu_line': {                 // v30: linha na cor do elemento
       const ex = sx + (fx.tx - fx.x) * T, ey = sy + (fx.ty - fx.y) * T;
-      ctx.lineCap = 'round';
+      ctx.lineCap = fx.wide ? 'butt' : 'round';
+      if (fx.wide) {                     // v45: faixa larga (Lâmina em Arco): a largura que acerta
+        ctx.strokeStyle = hexA(fx.color, 0.28 * fade); ctx.lineWidth = T * fx.wide;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      }
       ctx.strokeStyle = hexA(fx.color, 0.45 * fade); ctx.lineWidth = T * 0.5;
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
       ctx.strokeStyle = hexA(fx.color, 0.95 * fade); ctx.lineWidth = T * 0.2;

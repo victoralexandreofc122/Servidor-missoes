@@ -116,8 +116,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     run(1050);
     assert.ok(world.effectsOf({ kind: 'monster', id: m.id, monster: m }).has('lentidao'), 'lento no 1º pulso');
     run(3200);
-    const per = Math.max(1, Math.round(SK.stone_2.damage! / 4));
-    assert.equal(dealt(m), 4 * per);
+    assert.equal(dealt(m), SK.stone_2.damage, 'v45: os 4 pulsos somam o dano do jutsu, sem perder no arredondamento');
   });
 
   it('zona sem foco vai no inimigo mais perto no alcance, mesmo atrás (Prisão do Vórtice)', () => {

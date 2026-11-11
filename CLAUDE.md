@@ -66,6 +66,8 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   **despertada no "Rito do Despertar"** (missão no rank Genin, nível 11); a árvore só abre depois do Rito. A classe Sombra continua uma
   das 10 classes; o **Clã Umbra ganha 4 jutsus próprios** (nomes e mecânicas: 3 opções por jutsu, o Victor escolhe antes de codar).
 
+- **Foco (decisão do Victor, 10/11/2026):** PvP pronto para o Teste Alpha. Nada novo de endgame (Kage, ANBU, Renegados, Guerra) nem os 74
+  jutsus da Fase 2.5 até ele pedir. A auditoria dos 100 jutsus (v45) está em `test/auditoriaJutsus.test.ts`: jutsu novo ou mexido passa por ela.
 - `npm run verify` (typecheck, testes e build) tem que passar antes de qualquer commit.
 - Mudança visual: conferir no jogo com o navegador automático (Playwright) e mostrar imagens ao Victor.
 - Commit e push só com o código verificado; mudança que precisa de migração vai num branch até o Victor rodar a

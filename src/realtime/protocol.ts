@@ -679,6 +679,8 @@ export type ServerMessage =
       /** v41: 'jounin' = partida do Torneio da Temporada (`mmr` leva os pontos da era). */ mode?: 'ranked' | 'jounin' | 'final' }
   | { type: 'ranked_board'; available: boolean; season?: { id: number; endsAt: number } | null; top?: RankedRowView[]; me?: RankedRowView | null;
       overall?: { mmr: number; best: number; wins: number; losses: number } | null }
+  /** v45: as recargas voltaram a zero (começo de cada rodada do duelo): o cliente limpa os botões. */
+  | { type: 'cooldowns_reset' }
   | { type: 'duel_state'; phase: 'idle' | 'prep' | 'round' | 'interval' | 'done'; ms: number; round: number; wins: { a: number; b: number };
       a?: DuelSideView; b?: DuelSideView; history: ('a' | 'b')[]; winner?: 'a' | 'b'; reason?: 'rounds' | 'forfeit'; queue: number;
       /** v41: partida do Torneio da Temporada ('final' = Fase Final, v43). */ mode?: 'ranked' | 'jounin' | 'final';

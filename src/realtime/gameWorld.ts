@@ -40,7 +40,7 @@ const CLAN_HINT: Readonly<Record<Clan, string>> = {
   umbra: 'A Possessão da Sombra já é sua; os outros chegam nos níveis 20, 40 e 60, e os jutsus de sombra alcançam 10% mais longe.',
   andarilho: 'Sem clã, a Substituição volta 15% mais rápido.',
 };
-import { CC_BUDGET, CC_WEIGHT, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
+import { CC_BUDGET, CC_WEIGHT, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, pvpHitRaw, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, SCROLL, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
@@ -645,7 +645,7 @@ export class GameWorld {
   private seasonReady = false;
   private seasonBusy = false;
   /** v30: muros dos jutsus (Muralha de Terra, Muro de Água): a caixa está nas paredes do mapa enquanto o muro existe. */
-  private barriers: { id: number; map: MapId; box: Wall; hp: number; kind: 'rocha' | 'agua'; until: number }[] = [];
+  private barriers: { id: number; map: MapId; box: Wall; hp: number; kind: 'rocha' | 'agua'; until: number; ownerId?: string }[] = [];
   private duel: DuelMatch | null = null;
   private duelSeq = 0;
   private readonly rankedReturn = new Map<string, { map: MapId; x: number; y: number }>();
@@ -1903,6 +1903,7 @@ export class GameWorld {
       passive: this.passive(session, 'jutsu'), sky: sky?.damage[mechanic] ?? 1,
       ...(burnBase ? { burn: { base: burnBase, ms: cfg.burnMs ?? 3000 } } : {}),
     };
+    (hit as HitInfo & { carry?: Map<string, number> }).carry = new Map();   // v45: a sobra do arredondamento, por alvo, deste lançamento
     // v30: Clã Umbra: os jutsus de sombra alcançam 10% mais longe
     const reach = (cfg.range ?? cfg.radius ?? 0) * (session.clan === 'umbra' && mechanic === 'shadow' ? 1.1 : 1);
     const targets = this.targetsFor(session, true);
@@ -1917,8 +1918,13 @@ export class GameWorld {
     // v37: a mira vale pela forma do jutsu (qualquer classe). Mirou: a direção dele manda, sem procurar alvo sozinho.
     const shape = aimShapeOf(form, cfg);
     const aimedDir = shape && dir && Math.hypot(dir[0], dir[1]) > 0.1 ? cardinal(dir[0], dir[1]) : undefined;
-    let aim: Target | undefined = targetId !== undefined && DIRECTED_SKILLS.has(skill) ? targets.find((x) => x.id === targetId) : undefined;
-    if (!aim && (mechanic === 'taijutsu' || line)) aim = nearest(session, targets, reach);
+    // v45: as formas estreitas (linha, projétil, investida, leque...) miram no focado ou no mais perto em QUALQUER classe.
+    // Antes só as classes "em linha" miravam: a Estaca da Ilusão, a Visão do Abismo, o Projétil de Rocha e a Escavação
+    // Furtiva saíam para onde o boneco olhava (e a Escavação passava direto pelo alvo).
+    const narrow = (shape === 'line' && form !== 'muro' && form !== 'recuo') || form === 'impacto';   // o soco colado (Punho Sísmico) também vira para o alvo
+    // (o Taijutsu continua indo sempre no mais perto, mesmo com outro alvo focado)
+    let aim: Target | undefined = targetId !== undefined && (DIRECTED_SKILLS.has(skill) || (narrow && mechanic !== 'taijutsu')) ? targets.find((x) => x.id === targetId) : undefined;
+    if (!aim && (mechanic === 'taijutsu' || line || narrow)) aim = nearest(session, targets, reach);
     if (aimedDir) {
       const back = form === 'recuo' && (cfg.dash ?? 0) < 0;          // o recuo anda de costas: mira para onde vai
       session.fx = back ? -aimedDir[0] : aimedDir[0];
@@ -2394,12 +2400,26 @@ export class GameWorld {
   }
 
   /** Dano de uma hitbox: no monstro (XP para quem matou) ou no jogador (PvP). Quem já morreu no meio do golpe não apanha de novo. */
-  private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill', label: string = source, hit?: HitInfo & { wet?: boolean }): void {
+  private hitTarget(target: Target, amount: number, attacker: Session, t: number, source: 'attack' | 'skill', label: string = source, hit?: HitInfo & { wet?: boolean; carry?: Map<string, number>; part?: number }): void {
     let hurt = false;
     // v28: jogador acertando jogador numa área de PvP: o dano sai da tabela de equilíbrio (pvpBalance.ts).
     if (hit && target.kind === 'player' && this.inPvpArea(attacker)) {
-      amount = pvpHitDamage(hit, attacker.stats, this.config.combat.damageScale);
-      if (hit.wet) amount = Math.round(amount * WET_LIGHTNING_BONUS);
+      if (hit.carry) {
+        // v45: jutsu de vários golpes pequenos (zona, ondas, leque): o que o arredondamento de um golpe corta vai para o
+        // próximo no mesmo alvo. Sem isso a maestria de dano (+5% a +15%) sumia (4,3 e 4,9 viravam 4 e 5 ou 4 e 4).
+        const total = pvpHitRaw(hit, attacker.stats, this.config.combat.damageScale) * (hit.wet ? WET_LIGHTNING_BONUS : 1) + (hit.carry.get(target.id) ?? 0);
+        amount = Math.max(0, Math.round(total));
+        hit.carry.set(target.id, total - amount);
+      } else {
+        amount = pvpHitDamage(hit, attacker.stats, this.config.combat.damageScale);
+        if (hit.wet) amount = Math.round(amount * WET_LIGHTNING_BONUS);
+      }
+    } else if (hit?.carry && hit.part !== undefined) {
+      // v45: fora da tabela do PvP (monstros), o golpe dividido em pulsos soma as sobras do mesmo jeito
+      const total = hit.part + (hit.carry.get(target.id) ?? 0);
+      amount = Math.max(0, Math.round(total));
+      hit.carry.set(target.id, total - amount);
+      if (amount <= 0) return;
     }
     // v35 (Clã Umbra): o golpe depois do Deslize Noturno e o golpe no alvo marcado pela Sombra Faminta doem mais
     let markSlow = 0;
@@ -2652,7 +2672,8 @@ export class GameWorld {
   /** Aplica o jutsu (depois de cobrar e de avisar todos). */
   private v2Apply(s: Session, skill: Skill, cfg: SkillConfig, form: JutsuForm, hits: Target[], to: Point | undefined, dashTo: Point | undefined,
     dmg: number, hit: HitInfo, o: Point, fx: number, fy: number, t: number, pvp: boolean): void {
-    const scaled = (k: number): [number, HitInfo] => [Math.max(1, Math.round(dmg * k)), { ...hit, base: hit.base * k, weapon: hit.weapon * k }];   // a arma também se divide
+    // a arma também se divide; `part` = o pedaço sem arredondar (as sobras somam no alvo: hitTarget)
+    const scaled = (k: number): [number, HitInfo] => [Math.max(1, Math.round(dmg * k)), { ...hit, base: hit.base * k, weapon: hit.weapon * k, ...(k !== 1 ? { part: dmg * k } : {}) } as HitInfo];
     const strike = (x: Target, k = 1) => {
       if (dmg <= 0) return;
       const [d, h] = scaled(k);
@@ -2792,7 +2813,7 @@ export class GameWorld {
         const vertical = Math.abs(s.fx) >= Math.abs(s.fy);
         const w = vertical ? thick : width, h = vertical ? width : thick;
         const hp = cfg.wallHpShare ? Math.round(s.stats.maxHp * cfg.wallHpShare) : cfg.wallHp ?? 60;
-        this.raiseBarrier(s.map, { k: 'iwall', x: q3(to.x - w / 2), y: q3(to.y - h / 2), w, h }, hp, cfg.wallKind ?? 'rocha', cfg.durationMs ?? 5000, t);
+        this.raiseBarrier(s.map, { k: 'iwall', x: q3(to.x - w / 2), y: q3(to.y - h / 2), w, h }, hp, cfg.wallKind ?? 'rocha', cfg.durationMs ?? 5000, t, s.id);
         break;
       }
       case 'palma': {
@@ -2888,9 +2909,9 @@ export class GameWorld {
   }
 
   /** v30: ergue um muro (entra nas paredes do mapa: bloqueia passagem, linhas e projéteis) e avisa o mapa. */
-  private raiseBarrier(map: MapId, box: Wall, hp: number, kind: 'rocha' | 'agua', ms: number, t: number): number {
+  private raiseBarrier(map: MapId, box: Wall, hp: number, kind: 'rocha' | 'agua', ms: number, t: number, ownerId?: string): number {
     const id = ++this.groundSeq;
-    this.barriers.push({ id, map, box, hp, kind, until: t + ms });
+    this.barriers.push({ id, map, box, hp, kind, until: t + ms, ...(ownerId ? { ownerId } : {}) });
     this.layout(map).walls.push(box);
     this.broadcastMap(map, { type: 'barrier', id, kind, x: box.x, y: box.y, w: box.w, h: box.h, hp, ms });
     return id;
@@ -4703,9 +4724,54 @@ export class GameWorld {
     }
   }
 
-  /** Vida e chakra cheios, sem efeitos, sem escudo, sem controle, parado. Devolve se estava morto (o cliente precisa saber). */
+  /**
+   * v45: tira do campo tudo o que o ninja deixou (zonas, armadilhas, golpes avisados, projéteis, muros e invocações) e
+   * os estados que ficam nele (formas, marcas, pressa, Substituição armada). Entre as rodadas do duelo: sem isso, a
+   * armadilha (10 s), o Golem (12 s) e a onda do Colosso (5 s) da rodada anterior acertavam na rodada seguinte, e dava
+   * para deixar uma armadilha no lugar do adversário durante a preparação.
+   */
+  private clearFight(s: Session, t: number): void {
+    for (let i = this.zones.length - 1; i >= 0; i--) {
+      const z = this.zones[i]!;
+      if (z.ownerId !== s.id) continue;
+      this.zones.splice(i, 1);
+      this.broadcastMap(z.map, { type: 'ground_end', id: z.id });
+    }
+    for (let i = this.strikes.length - 1; i >= 0; i--) {
+      const k = this.strikes[i]!;
+      if (k.ownerId !== s.id) continue;
+      this.strikes.splice(i, 1);
+      this.broadcastMap(k.map, { type: 'ground_end', id: k.id });
+    }
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i]!;
+      if (p.owner !== s) continue;
+      this.projectiles.splice(i, 1);
+      this.broadcastMap(p.map, { type: 'impact', id: p.id, ...projectileKind(p), x: round2(p.x), y: round2(p.y), r: 0 });
+    }
+    for (const b of [...this.barriers]) if (b.ownerId === s.id) this.dropBarrier(b.id);
+    for (const m of [...this.monsters.values()]) {
+      if (m.ownerId !== s.id) continue;
+      this.monsters.delete(m.id);
+      this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: s.id });
+    }
+    s.umbraForm = null;
+    s.umbraMark = null;
+    s.umbraNext = null;
+    s.umbraHideUntil = 0;
+    s.substituteUntil = 0;
+    if (s.hasteUntil > 0) { s.hasteUntil = 0; s.haste = 0; }
+    s.ccLog = [];
+    void t;
+  }
+
+  /** Vida e chakra cheios, sem efeitos, sem escudo, sem controle, sem recarga, parado. Devolve se estava morto (o cliente precisa saber). */
   private duelRefresh(s: Session, t: number): boolean {
     const wasDead = s.dead;
+    this.clearFight(s, t);
+    // v45: cada rodada começa com as recargas zeradas (docs/brainstorm-pvp-invocacoes.md, 1.2); o cliente limpa os botões
+    s.cooldowns = {};
+    this.sendTo(s, { type: 'cooldowns_reset' });
     s.dead = false;
     s.stunnedUntil = 0;
     s.rootedUntil = 0;
@@ -4733,6 +4799,7 @@ export class GameWorld {
     for (const id of [d.a, d.b]) {
       const s = this.duelSession(id);
       if (s) for (const code of [...s.effects.keys()]) this.dropEffect({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }, code, t);
+      if (s) this.clearFight(s, t);   // v45: o campo fica limpo já no intervalo
     }
     const over = endRound(d, winner, t);
     this.broadcastDuel();
@@ -5395,6 +5462,7 @@ export class GameWorld {
     session.stunnedUntil = 0;
     session.rootedUntil = 0;
     session.cooldowns = {};
+    this.sendTo(session, { type: 'cooldowns_reset' });   // v45: o cliente limpa os botões (antes ficavam "em recarga" à toa)
     session.dx = 0;
     session.dy = 0;
     this.dropInputs(session);             // teleporte para a praça: o cliente recomeça daqui
