@@ -39,6 +39,14 @@
   </label>
 </div>
 
+<h2>Animação (3x)</h2>
+<div class="barra">
+  <label>Animação <select id="anim"><option value="andar">Andar</option><option value="parado">Parado</option></select></label>
+  <label><input type="checkbox" id="pausa"> Pausar</label>
+  <span id="quadro"></span>
+</div>
+<div class="rolar"><canvas id="vivo"></canvas></div>
+
 <h2>Tamanho real (1x)</h2>
 <div class="rolar"><canvas id="real"></canvas></div>
 
@@ -51,7 +59,7 @@
 <script>
 (function () {
   const B = window.BonecoBase;
-  const NOMES = { sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços' };
+  const NOMES = { tras: 'Perna e braço de trás', sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços' };
   const TITULO = { frente: 'Frente', costas: 'Costas', esquerda: 'Esquerda', direita: 'Direita' };
   const ligadas = {};
   const barra = document.getElementById('camadas');
@@ -74,7 +82,7 @@
   function quadro(ctx, modelo, ox, oy, s) {
     const nomes = B.LAYERS.filter((n) => ligadas[n]);
     B.draw(ctx, modelo, ox, oy, s, nomes, document.getElementById('silhueta').checked ? '#0b0d12' : null);
-    if (document.getElementById('grade').checked && s >= 4) {
+    if (document.getElementById('grade').checked && s >= 3) {
       ctx.fillStyle = 'rgba(255,255,255,0.10)';
       for (let x = 0; x <= B.W; x += 8) ctx.fillRect(ox + x * s, oy, 1, B.H * s);
       for (let y = 0; y <= B.H; y += 8) ctx.fillRect(ox, oy + y * s, B.W * s, 1);
@@ -83,7 +91,7 @@
       ctx.fillStyle = 'rgba(90,200,255,0.7)';
       ctx.fillRect(ox + 32 * s, oy, 1, B.H * s);
     }
-    if (document.getElementById('ancoras').checked && s >= 4) {
+    if (document.getElementById('ancoras').checked && s >= 3) {
       Object.values(modelo.anchors).forEach(([x, y]) => {
         ctx.fillStyle = '#00e5ff';
         ctx.fillRect(ox + x * s, oy + y * s, s, s);
@@ -115,6 +123,26 @@
       });
     });
   }
+
+  // Animação: os dois modelos nas 4 direções, no ritmo (fps) da própria animação.
+  let quadroAtual = 0, ultimo = 0;
+  function vivo(agora) {
+    requestAnimationFrame(vivo);
+    const nome = document.getElementById('anim').value;
+    const an = B.ANIMS[nome];
+    if (agora - ultimo < 1000 / an.fps) return;
+    ultimo = agora;
+    if (!document.getElementById('pausa').checked) quadroAtual++;
+    const k = quadroAtual % an.frames.length;
+    const cv = document.getElementById('vivo');
+    const s = 3;
+    cv.width = B.W * s * 4; cv.height = B.H * s * 2;
+    const ctx = cv.getContext('2d');
+    fundo(ctx, cv.width, cv.height, 12);
+    B.SEXES.forEach((sx, r) => B.VIEWS.forEach((v, c) => quadro(ctx, B.build(sx, v, an.frames[k]), c * B.W * s, r * B.H * s, s)));
+    document.getElementById('quadro').textContent = 'quadro ' + (k + 1) + ' de ' + an.frames.length + ', ' + an.fps + ' por segundo';
+  }
+  requestAnimationFrame(vivo);
 
   document.addEventListener('change', (e) => {
     if (e.target.dataset && e.target.dataset.c) ligadas[e.target.dataset.c] = e.target.checked;

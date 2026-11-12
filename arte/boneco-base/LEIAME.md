@@ -17,3 +17,10 @@ Os braços ficam por cima da roupa do tronco; a manga é uma peça própria pres
 
 v2 (revisão anatômica): cabeça 30 de largura, tórax 22 (M) e 20 (F), braços de 5 e 4 afastados do tronco com cotovelo,
 coxa 9, joelho, panturrilha e pés de 10. Os segmentos de altura não mudaram.
+
+## Animações
+
+`build(sexo, direção, pose)` aceita uma pose (`bob`, `legA/B`, `liftA/B`, `armA/B`). `ANIMS` traz `parado` (4 quadros, 3 por
+segundo) e `andar` (6 quadros, 9 por segundo). O gerador grava `saida/boneco-m-animacoes.png` e `boneco-f-animacoes.png`
+(linha = direção, coluna = quadro), `saida/animacoes.json` e as prévias animadas `saida/previa-*.png` (APNG).
+A camada `tras` guarda a perna e o braço de trás na visão de lado.

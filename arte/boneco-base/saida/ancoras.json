@@ -4,6 +4,7 @@
   "linhaDosPes": 92,
   "camadas": [
     "sombra",
+    "tras",
     "corpo",
     "inferior",
     "superior",

@@ -1,0 +1,34 @@
+{
+  "quadro": [
+    64,
+    96
+  ],
+  "linhas": [
+    "frente",
+    "costas",
+    "esquerda",
+    "direita"
+  ],
+  "animacoes": {
+    "parado": {
+      "fps": 3,
+      "colunas": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "andar": {
+      "fps": 9,
+      "colunas": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    }
+  }
+}

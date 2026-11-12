@@ -25,7 +25,7 @@
 
   // Ordem de desenho, de baixo para cima. `corpo`, `cabeca` e `bracos` formam o corpo-base, separados
   // para a roupa do tronco passar por baixo do braço e para animar cada parte.
-  const LAYERS = ['sombra', 'corpo', 'inferior', 'superior', 'cabeca', 'rosto', 'bracos'];
+  const LAYERS = ['sombra', 'tras', 'corpo', 'inferior', 'superior', 'cabeca', 'rosto', 'bracos'];
 
   // ---------- máscaras ----------
   const key = (x, y) => y * W + x;
@@ -70,6 +70,20 @@
   // Pinta os pontos e o espelho deles (mantém a frente simétrica).
   function pxSym(grid, list, tone) { list.forEach(([x, y]) => { grid[key(x, y)] = tone; grid[key(W - 1 - x, y)] = tone; }); }
   function span(x0, x1, y) { const o = []; for (let x = x0; x <= x1; x++) o.push([x, y]); return o; }
+
+  // Pose: A é o membro do lado direito da imagem (frente e costas) ou o de perto (lado); B é o outro.
+  // bob desce o tronco e a cabeça; leg/arm são o balanço em pixels na ponta (negativo = para a frente, de lado);
+  // lift levanta o pé.
+  const NEUTRAL = { bob: 0, legA: 0, legB: 0, liftA: 0, liftB: 0, armA: 0, armB: 0 };
+  // Copia para `dst` os pixels de `src` com x entre x0 e x1 e y entre y0 e y1, deslocados em dy.
+  function blit(dst, src, x0, x1, y0, y1, dy) {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const v = src[key(x, y)];
+      if (v && y + dy >= 0 && y + dy < H) dst[key(x, y + dy)] = v;
+    }
+    return dst;
+  }
+  const moved = (src, dy) => (dy ? blit(newMask(), src, 0, W - 1, 0, H - 1, dy) : src);
 
   function shadowLayer() {
     const g = newMask();
@@ -137,7 +151,7 @@
   }
 
   // ---------- frente e costas ----------
-  function frontOrBack(sex, back) {
+  function frontOrBack(sex, back, P) {
     const s = SHAPE[sex];
     const L = {}; LAYERS.forEach((n) => { L[n] = newMask(); });
     L.sombra = shadowLayer();
@@ -230,9 +244,24 @@
     const anchors = {};
     Object.keys(A_FRONT).forEach((k) => {
       const [x, y] = A_FRONT[k];
-      anchors[k] = [x, y];
-      if (k.endsWith('_d')) anchors[k.slice(0, -1) + 'e'] = [W - 1 - x, y];
+      const yy = y <= 76 ? y + P.bob : y;
+      anchors[k] = [x, yy];
+      if (k.endsWith('_d')) anchors[k.slice(0, -1) + 'e'] = [W - 1 - x, yy];
     });
+
+    // Pose: o desenho neutro é recortado e deslocado. Pernas: da linha 80 para baixo, cada lado sobe o seu `lift`.
+    // Tronco, roupa, cabeça e rosto descem o `bob`. Cada braço sobe um pixel quando vai para a frente.
+    const body = newMask();
+    blit(body, L.corpo, 0, W - 1, 77, 79, 0);
+    blit(body, L.corpo, 32, W - 1, 80 + P.liftA, 92, -P.liftA);
+    blit(body, L.corpo, 0, 31, 80 + P.liftB, 92, -P.liftB);
+    blit(body, L.corpo, 0, W - 1, 0, 76, P.bob);
+    L.corpo = body;
+    ['inferior', 'superior', 'cabeca', 'rosto'].forEach((n) => { L[n] = moved(L[n], P.bob); });
+    const arms = newMask();
+    blit(arms, L.bracos, 32, W - 1, 0, H - 1, P.bob + (P.armA < 0 ? -1 : 0));
+    blit(arms, L.bracos, 0, 31, 0, H - 1, P.bob + (P.armB < 0 ? -1 : 0));
+    L.bracos = arms;
     return { layers: L, anchors };
   }
 
@@ -261,35 +290,46 @@
   // e volta para a frente até a mão: curva leve, separada do corpo.
   const ARM_SIDE_X = [33, 33, 33, 33, 34, 34, 34, 35, 35, 34, 34, 33, 33, 33, 33, 33, 34];
 
-  function side(sex) {
+  function side(sex, P) {
     const s = SIDE[sex];
     const L = {}; LAYERS.forEach((n) => { L[n] = newMask(); });
     L.sombra = shadowLayer();
 
-    const trunk = rows(newMask(), 57, [[29, 34], [29, 34], [29, 34]]);
-    rows(trunk, 60, s.torso);
-    for (let y = 77; y <= 92; y++) {
-      const t = s.leg.find((r) => y <= r[0]);
-      rows(trunk, y, [[t[1], t[2]]]);
+    const bob = P.bob;
+    // Perna: gira em volta do quadril (cada linha anda um pouco mais que a de cima) e encurta quando o pé sobe.
+    function legRows(mask, swing, lift) {
+      for (let y = 77; y <= 92 - lift; y++) {
+        const ys = y <= 79 ? y : y + lift;
+        const t = s.leg.find((r) => ys <= r[0]);
+        const dx = Math.round((swing * (y - 77)) / 15);
+        rows(mask, y, [[t[1] + dx, t[2] + dx]]);
+      }
+      return mask;
     }
+    const trunk = rows(newMask(), 57 + bob, [[29, 34], [29, 34], [29, 34]]);
+    rows(trunk, 60 + bob, s.torso);
+    legRows(trunk, P.legA, P.liftA);
     paint(L.corpo, trunk, SKIN, (c) => {
-      if (c.y <= 59) return SHADE;
-      if (c.y <= 62 && c.dT <= 2) return LIGHT;
-      if (c.y >= 80 && c.y <= 81) return SHADE;
-      if (c.y === 84 && c.dL >= 1 && c.dL <= 4) return SHADE;        // joelho
-      if (c.y >= 63 && c.dR <= 2) return SHADE;                      // costas e parte de trás da perna
-      if (c.y === 91) return SHADE;
-      if (c.y === 90 && c.dL >= 1 && c.dL <= 6) return LIGHT;        // peito do pé
-      if (c.y === 83 && c.dL >= 2 && c.dL <= 4) return LIGHT;
-      if (sex === 'm' && c.y === 66 && c.dL <= 5) return SHADE;      // debaixo do peitoral
+      const y = c.y <= 76 + bob ? c.y - bob : c.y >= 80 ? c.y + P.liftA : c.y;
+      if (y <= 59) return SHADE;
+      if (y <= 62 && c.dT <= 2) return LIGHT;
+      if (y >= 80 && y <= 81) return SHADE;
+      if (y === 84 && c.dL >= 1 && c.dL <= 4) return SHADE;          // joelho
+      if (y >= 63 && c.dR <= 2) return SHADE;                        // costas e parte de trás da perna
+      if (y === 91) return SHADE;
+      if (y === 90 && c.dL >= 1 && c.dL <= 6) return LIGHT;          // peito do pé
+      if (y === 83 && c.dL >= 2 && c.dL <= 4) return LIGHT;
+      if (sex === 'm' && y === 66 && c.dL <= 5) return SHADE;        // debaixo do peitoral
       return null;
     });
+    // Perna e braço de trás: mesma forma, só contorno e sombra, numa camada abaixo do corpo.
+    paint(L.tras, legRows(newMask(), P.legB, P.liftB), SKIN, () => SHADE);
 
     const wide = (n) => Array.from({ length: n }, () => [16, 48]);
-    const briefs = inter(rows(newMask(), 72, wide(8).concat([[30, 48]])), trunk);
-    paint(L.inferior, briefs, UNDER, (c) => (c.y !== 73 && (c.dB <= 1 || c.dR <= 2) ? SHADE : null));
+    const briefs = inter(rows(newMask(), 72 + bob, wide(8).concat([[30, 48]])), trunk);
+    paint(L.inferior, briefs, UNDER, (c) => (c.y !== 73 + bob && (c.dB <= 1 || c.dR <= 2) ? SHADE : null));
     if (sex === 'f') {
-      const top = inter(rows(newMask(), 63, wide(5)), trunk);
+      const top = inter(rows(newMask(), 63 + bob, wide(5)), trunk);
       paint(L.superior, top, UNDER, (c) => (c.dB <= 1 || c.dR <= 2 ? SHADE : null));
     }
 
@@ -313,26 +353,35 @@
     px(L.rosto, [[21, HY + 15], [21, HY + 16]], EYE_SHINE);
     px(L.rosto, [[19, HY + 23], [20, HY + 23]], LINE);
 
-    const arm = newMask();
-    ARM_SIDE_X.forEach((x, i) => {
-      const w = i === 0 ? s.arm - 1 : i === 16 ? s.arm - 2 : s.arm;  // ombro e ponta da mão arredondados
-      rows(arm, 61 + i, [[x, x + w - 1]]);
-    });
+    function armRows(swing) {
+      const m = newMask();
+      ARM_SIDE_X.forEach((x, i) => {
+        const w = i === 0 ? s.arm - 1 : i === 16 ? s.arm - 2 : s.arm; // ombro e ponta da mão arredondados
+        // Balançando, o braço fica reto (a curva do repouso somada ao giro vira um zigue-zague).
+        const x0 = swing ? 33 + Math.round((swing * i) / 16) : x;
+        rows(m, 61 + bob + i, [[x0, x0 + w - 1]]);
+      });
+      return m;
+    }
+    paint(L.tras, armRows(P.armB), SKIN, () => SHADE);
+    const arm = armRows(P.armA);
     paint(L.bracos, arm, SKIN, (c) => {
-      if (c.y <= 64 && c.dL >= 2) return LIGHT;
-      if (c.y >= 76) return SHADE;
+      if (c.y - bob <= 64 && c.dL >= 2) return LIGHT;
+      if (c.y - bob >= 76) return SHADE;
       return null;
     });
     // Contorno escuro só atrás e na mão. Na frente e no ombro, onde o braço encosta no tronco, a borda vira sombra:
     // o braço deixa de parecer uma peça colada por cima.
-    for (let y = 61; y <= 72; y++) for (let x = 0; x < W; x++) {
+    for (let y = 61 + bob; y <= (P.armA ? 0 : 72 + bob); y++) for (let x = 0; x < W; x++) {
       if (!arm[key(x, y)] || !trunk[key(x, y)]) continue;
       const front = !has(arm, x - 1, y) || !has(arm, x, y - 1);
       if (front && has(arm, x + 1, y)) L.bracos[key(x, y)] = SHADE;
     }
 
+    L.cabeca = moved(L.cabeca, bob);
+    L.rosto = moved(L.rosto, bob);
     const anchors = {};
-    Object.keys(A_SIDE).forEach((k) => { anchors[k] = A_SIDE[k].slice(); });
+    Object.keys(A_SIDE).forEach((k) => { const [x, y] = A_SIDE[k]; anchors[k] = [x, y <= 76 ? y + bob : y]; });
     return { layers: L, anchors };
   }
 
@@ -352,8 +401,21 @@
   const VIEWS = ['frente', 'costas', 'esquerda', 'direita'];
   const SEXES = ['m', 'f'];
 
-  function build(sex, view) {
-    const r = view === 'esquerda' ? side(sex) : view === 'direita' ? flip(side(sex)) : frontOrBack(sex, view === 'costas');
+  // Animações: lista de poses por quadro. `andar` tem 6 quadros: contato, passagem e impulso de cada perna.
+  const walk = (i) => ({
+    bob: [1, 0, 0, 1, 0, 0][i],
+    legA: [-4, -2, 2, 4, 2, -2][i], legB: [4, 2, -2, -4, -2, 2][i],
+    liftA: [0, 0, 0, 0, 2, 2][i], liftB: [0, 2, 2, 0, 0, 0][i],
+    armA: [3, 2, -2, -3, -2, 2][i], armB: [-3, -2, 2, 3, 2, -2][i],
+  });
+  const ANIMS = {
+    parado: { fps: 3, frames: [0, 0, 1, 1].map((bob) => Object.assign({}, NEUTRAL, { bob })) },
+    andar: { fps: 9, frames: [0, 1, 2, 3, 4, 5].map(walk) },
+  };
+
+  function build(sex, view, pose) {
+    const P = Object.assign({}, NEUTRAL, pose || {});
+    const r = view === 'esquerda' ? side(sex, P) : view === 'direita' ? flip(side(sex, P)) : frontOrBack(sex, view === 'costas', P);
     return { sex, view, width: W, height: H, feetY: FEET_Y, layers: r.layers, anchors: r.anchors };
   }
 
@@ -376,5 +438,5 @@
     }
   }
 
-  return { W, H, FEET_Y, PALETTE, LAYERS, VIEWS, SEXES, build, flatten, draw, tones: { LINE, SHADE, BASE, LIGHT } };
+  return { W, H, FEET_Y, PALETTE, LAYERS, VIEWS, SEXES, ANIMS, build, flatten, draw, tones: { LINE, SHADE, BASE, LIGHT } };
 });
