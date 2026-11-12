@@ -7,7 +7,8 @@ Prancha de aprovação do boneco modular (paper doll). Nada aqui é usado pelo j
   `saida/boneco-base-sheet.png` (4 direções por 2 modelos, fundo transparente) e `saida/ancoras.json`.
 - `previas/`: capturas da página.
 
-Medidas: cabeça 27 (y 16 a 42), pescoço 3, tronco 22, pernas 25, pés em Y=92. Sobram 16 linhas acima para o cabelo.
+Medidas (v3, decisão do Victor em 12/11/2026: seguir o desenho de referência): cabeça 27 (y 31 a 57), pescoço 2,
+tronco 17, pernas 16, pés em Y=92. O boneco tem 62 de altura; sobram 31 linhas acima para cabelo e chapéu.
 Pele em 4 tons (contorno, sombra, base, luz), sombreado em faixas, frente e costas simétricas.
 
 Camadas, de baixo para cima: `sombra`, `corpo` (pescoço, tronco, pernas), `inferior`, `superior`, `cabeca`, `rosto`, `bracos`.
