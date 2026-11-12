@@ -31,7 +31,7 @@
       ]
     },
     "correr": {
-      "fps": 12,
+      "fps": 14,
       "colunas": [
         10,
         11,
@@ -42,39 +42,54 @@
       ]
     },
     "selos": {
-      "fps": 6,
+      "fps": 8,
       "colunas": [
         16,
         17,
         18,
-        19
-      ]
-    },
-    "atacar": {
-      "fps": 10,
-      "colunas": [
+        19,
         20,
-        21,
-        22,
-        23
+        21
       ]
     },
-    "levar_golpe": {
-      "fps": 8,
+    "soco": {
+      "fps": 14,
       "colunas": [
+        22,
+        23,
         24,
         25,
         26
       ]
     },
-    "cair": {
-      "fps": 7,
+    "chute": {
+      "fps": 14,
       "colunas": [
         27,
         28,
         29,
         30,
         31
+      ]
+    },
+    "levar_golpe": {
+      "fps": 8,
+      "colunas": [
+        32,
+        33,
+        34
+      ]
+    },
+    "cair": {
+      "fps": 8,
+      "colunas": [
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41
       ]
     }
   }

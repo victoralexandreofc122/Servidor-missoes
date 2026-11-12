@@ -124,7 +124,7 @@
     });
   }
 
-  const ANIM_NOME = { parado: 'Parado', andar: 'Andar', correr: 'Correr', selos: 'Selos de mão', atacar: 'Atacar', levar_golpe: 'Levar golpe', cair: 'Cair' };
+  const ANIM_NOME = { parado: 'Parado', andar: 'Andar', correr: 'Correr', selos: 'Selos de mão', soco: 'Atacar: soco', chute: 'Atacar: chute', levar_golpe: 'Levar golpe', cair: 'Cair' };
   Object.keys(B.ANIMS).forEach((n) => {
     const o = document.createElement('option'); o.value = n; o.textContent = ANIM_NOME[n] || n;
     if (n === 'andar') o.selected = true;
