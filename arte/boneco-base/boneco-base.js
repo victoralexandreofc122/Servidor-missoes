@@ -319,10 +319,20 @@
     } else if (P.wf) {
       // Arma vista de frente (ou de costas): o braço A sobe até a mão, que segura a espada ou solta a shuriken.
       const [hx, hy] = P.wf.hand;
-      const R = cut(arm, Math.min(66, hy));
-      if (!back) rows(R, hy - 3, [0, 1, 2, 3, 4, 5, 6].map(() => [hx - 3, hx + 3]));
       L.bracos = newMask();
-      paint(L.bracos, union(R, mirror(arm)), SKIN, LIMB);
+      if (P.wf.two) {
+        // Duas mãos no cabo: os dois braços saem dos ombros e se encontram na empunhadura.
+        if (back) paint(L.bracos, cut(bothArms, 66), SKIN, LIMB);
+        else {
+          const two = limb(limb(newMask(), [[43, 63], [hx + 2, hy]], 4), [[20, 63], [hx - 2, hy]], 4);
+          rows(two, hy - 3, [0, 1, 2, 3, 4, 5, 6].map(() => [hx - 4, hx + 4]));
+          paint(L.bracos, two, SKIN, (c) => (c.dB === 1 || (c.x === hx && Math.abs(c.y - hy) <= 2) ? SHADE : c.dT === 1 ? LIGHT : null));
+        }
+      } else {
+        const R = cut(arm, Math.min(66, hy));
+        if (!back) rows(R, hy - 3, [0, 1, 2, 3, 4, 5, 6].map(() => [hx - 3, hx + 3]));
+        paint(L.bracos, union(R, mirror(arm)), SKIN, LIMB);
+      }
       const wl = back ? L.tras : L.arma;                             // de costas a arma fica atrás do corpo
       if (P.wf.tip) blade(wl, P.wf.hand, P.wf.tip);
       if (P.wf.star) star(wl, P.wf.star[0], P.wf.star[1], P.wf.star[2]);
@@ -647,16 +657,17 @@
       { lean: -1, liftA: 4, legPts: [[0, 0], [-6, -2], [-4, 5]], noToe: 1, armPts: [[0, 0], [-3, 5], [-6, 2]] },
       {},
     ] },
-    // Espada: ergue a lâmina para trás, corta de cima para baixo com um passo e o rastro em arco, segura e volta.
+    // Espada (duas mãos no cabo): ergue a lâmina para trás, corta de cima para baixo com um passo e o rastro em arco,
+    // segura e volta. O braço de trás acompanha o da frente até a empunhadura.
     espada: { fps: 14, frames: [
-      { lean: -1, bob: 1, armPts: [[0, 0], [3, -5], [2, -10]], armPtsB: [[0, 1], [-4, 4], [-7, 1]], weapon: [5, -13],
-        wf: { hand: [41, 58], tip: [46, 41] } },
-      { lean: 2, dx: -2, legA: -3, legB: 3, armPts: [[0, 0], [-7, -6]], armPtsB: [[0, 1], [5, 4]], weapon: [-12, -7], arc: [215, 288, 24],
-        wf: { hand: [40, 62], tip: [29, 50], arc: [[46, 42], [31, 48]] } },
-      { lean: 3, dx: -4, bob: 1, legA: -5, legB: 5, armPts: [[0, 0], [-9, 3]], armPtsB: [[0, 1], [6, 4]], weapon: [-13, 5], arc: [160, 250, 24],
-        wf: { hand: [38, 68], tip: [22, 79], arc: [[28, 50], [20, 74]] } },
-      { lean: 3, dx: -4, bob: 1, legA: -5, legB: 5, armPts: [[0, 0], [-9, 3]], armPtsB: [[0, 1], [6, 4]], weapon: [-13, 5],
-        wf: { hand: [38, 68], tip: [22, 79] } },
+      { lean: -1, bob: 1, fist: 1, armPts: [[0, 0], [3, -5], [2, -10]], armPtsB: [[0, 1], [6, -3], [3, -9]], weapon: [5, -14],
+        wf: { two: 1, hand: [37, 57], tip: [43, 39] } },
+      { lean: 2, dx: -2, legA: -3, legB: 3, fist: 1, armPts: [[0, 0], [-7, -6]], armPtsB: [[0, 1], [-2, -3], [-7, -5]], weapon: [-13, -8], arc: [215, 288, 25],
+        wf: { two: 1, hand: [34, 61], tip: [22, 49], arc: [[43, 40], [26, 46]] } },
+      { lean: 3, dx: -4, bob: 1, legA: -5, legB: 5, fist: 1, armPts: [[0, 0], [-9, 3]], armPtsB: [[0, 1], [-3, 5], [-9, 4]], weapon: [-14, 5], arc: [160, 250, 25],
+        wf: { two: 1, hand: [32, 69], tip: [18, 81], arc: [[22, 48], [15, 76]] } },
+      { lean: 3, dx: -4, bob: 1, legA: -5, legB: 5, fist: 1, armPts: [[0, 0], [-9, 3]], armPtsB: [[0, 1], [-3, 5], [-9, 4]], weapon: [-14, 5],
+        wf: { two: 1, hand: [32, 69], tip: [18, 81] } },
       {},
     ] },
     // Shuriken: leva a mão para trás, estende o braço e solta; a estrela gira e segue em frente com um rastro.
