@@ -30,3 +30,16 @@ cópia de peça: tudo aqui é desenhado do zero no gerador.
 
 - Franja caindo sobre um olho e mechas assimétricas.
 - Dobras e acentos nas roupas (pede peças de forma no corpo, ainda limitadas ao tronco).
+
+## Cabelos femininos (referência: scabichigfx, página de corpos femininos, 70 cabeças)
+
+1. Franja em fios pontudos até a sobrancelha, nunca um bloco reto.
+2. Mechas laterais longas emoldurando o rosto, até o queixo ou o peito.
+3. Penteados recorrentes: liso longo (hime), chiquinhas, coque duplo, rabo alto, chanel em camadas, franja de lado
+   cobrindo um olho, tranças.
+4. Fios desenhados: linhas finas de sombra descendo, anel de brilho no alto da cabeça, pontas mais escuras.
+5. Volume maior que o crânio; a parte de dentro (atrás do pescoço) mais escura.
+6. Enfeites: laço, presilha, orelhas de gato, pontas em degradê.
+
+Entraram: `hime`, `chiquinhas`, `coque_duplo`, `rabo_alto`, `franja_lado` e a sombra de fios (`SOMBRA_FIOS`), também no
+`longo`. Faltam: tranças, enfeites (laço, presilha) e pontas em degradê.

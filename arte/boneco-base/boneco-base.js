@@ -319,6 +319,14 @@
   };
   const SOMBRA_PADRAO = (c) => (c.dB <= 1 ? SHADE : c.dT >= 2 && c.dT <= 3 && c.y <= HY + 6 ? LIGHT : null);
   // Cabelo: sombra embaixo, faixa de luz no topo, mechas em sombra subindo da ponta e pontos de brilho entre elas.
+  // Fios: anel de brilho no alto da cabeça, fios finos de sombra descendo e pontas escuras.
+  const SOMBRA_FIOS = (c) => {
+    if (c.dB <= 1) return SHADE;
+    if (c.y >= HY + 3 && c.y <= HY + 4 && c.dT >= 2 && (c.x + c.y) % 5 !== 0) return LIGHT;
+    if (c.y > HY + 6 && (c.x + Math.floor(c.y / 7)) % 4 === 0) return SHADE;
+    if (c.y > HY + 8 && (c.x + Math.floor(c.y / 7)) % 4 === 2 && c.dT % 6 < 2) return LIGHT;
+    return null;
+  };
   const SOMBRA_CABELO = (c) => {
     if (c.dB <= 1) return SHADE;
     if (c.dT >= 2 && c.dT <= 3 && c.y <= HY + 6) return LIGHT;
@@ -363,7 +371,7 @@
       });
       return { frente: m };
     } });
-  definirPeca({ id: 'longo', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo, sombra: SOMBRA_CABELO,
+  definirPeca({ id: 'longo', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo, sombra: SOMBRA_FIOS,
     desenho(view, k) {
       const m = cabeloBase(view, k); const tras = k.nova();
       if (view === 'lado') {
@@ -376,8 +384,9 @@
       else if (view === 'costas') for (let y = HY + 23; y <= HY + 40; y++) k.simetrico(m, y, [y > HY + 37 ? 12 : 14]);
       else {
         for (let y = HY + 10; y <= HY + 40; y++) k.simetrico(tras, y, [y > HY + 37 ? 14 : 16]);    // por trás do corpo
-        for (let y = HY + 12; y <= HY + 24; y++) { k.linhas(m, y, [[46, 48]]); k.linhas(m, y, [[15, 17]]); } // mechas
+        k.mechasSim(m, [[45, HY + 10, 92, 16, 6, -4]]);                                          // mechas do rosto
       }
+      if (view === 'frente') k.mechasSim(m, [[34, HY + 6, 96, 7, 5], [39, HY + 6, 92, 6, 5], [43, HY + 6, 88, 6, 4]]); // franja em fios
       return { frente: m, tras };
     } });
   // ---- Cabelos de mechas (inspirados em estilos de anime ninja, desenho próprio). Nomes são códigos provisórios.
@@ -410,22 +419,97 @@
       return { frente: m };
     } });
   // Juba: volume revolto em cima e uma juba longa e grossa descendo pelas costas até a cintura, com pontas soltas.
+  // Juba: cabeleira enorme e revolta, em leque de pontas grossas que desce pelas costas até a cintura;
+  // em cima, pontas curtas espetadas; na frente, duas mechas grossas emoldurando o rosto até o peito.
   definirPeca({ id: 'juba', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo, sombra: SOMBRA_CABELO,
     desenho(view, k) {
       const m = cabeloBase(view, k); const tras = k.nova();
+      const topo = [[33, HY + 1, -90, 7, 7], [39, HY + 2, -62, 8, 7, 10], [44, HY + 6, -32, 8, 7, 10], [46, HY + 12, -8, 7, 6, 15]];
       if (view === 'lado') {
-        k.mechas(m, [[26, HY + 1, -100, 6, 6], [33, HY, -75, 7, 7, 10], [40, HY + 3, -45, 7, 7]]);
-        // A juba sai da nuca e desce pelas costas em mechas grossas, cada uma terminando em ponta.
-        k.mechas(m, [[44, HY + 8, 50, 14, 11, 25], [44, HY + 14, 70, 20, 11, 15], [41, HY + 18, 82, 24, 10, 8], [46, HY + 12, 30, 12, 8, 40]]);
+        k.mechas(m, [[26, HY + 1, -105, 6, 6], [33, HY, -78, 8, 7, 10], [40, HY + 2, -50, 9, 7, 10], [45, HY + 6, -22, 9, 7, 15]]);
+        // Leque de pontas saindo da nuca, da mais alta (quase na horizontal) à mais baixa (descendo pelas costas).
+        k.mechas(m, [[44, HY + 8, 10, 13, 10, 30], [44, HY + 12, 35, 18, 11, 25], [43, HY + 15, 58, 24, 12, 18],
+          [42, HY + 17, 75, 28, 12, 10], [40, HY + 19, 88, 30, 11, 4], [45, HY + 20, 65, 22, 9, 15]]);
+        k.mecha(m, 22, HY + 8, 100, 18, 6, -6);                                                  // mecha da frente
       } else if (view === 'costas') {
-        k.mechasSim(m, [[33, HY + 1, -88, 6, 6], [40, HY + 2, -55, 7, 7]]);
-        k.mechasSim(m, [[34, HY + 14, 88, 30, 13, -4], [42, HY + 12, 75, 27, 11, 10], [46, HY + 9, 50, 20, 9, 20]]);
+        k.mechasSim(m, topo);
+        k.mechasSim(m, [[33, HY + 12, 90, 32, 14, -3], [38, HY + 11, 78, 30, 13, 8], [43, HY + 10, 62, 26, 12, 15],
+          [46, HY + 9, 42, 20, 10, 25], [47, HY + 8, 20, 14, 8, 30]]);
       } else {
-        k.mechasSim(m, [[33, HY + 1, -88, 6, 6], [40, HY + 2, -55, 7, 7], [46, HY + 11, 85, 18, 6, -5]]);   // mechas ao lado do rosto
-        k.mechasSim(tras, [[38, HY + 10, 60, 24, 14, 15], [44, HY + 10, 40, 22, 11, 30]]);                  // juba atrás do corpo
+        k.mechasSim(m, topo);
+        k.mechasSim(m, [[45, HY + 9, 90, 24, 7, -6]]);                                            // mechas do rosto até o peito
+        k.mechasSim(tras, [[40, HY + 8, 55, 26, 15, 18], [45, HY + 8, 30, 22, 12, 30], [36, HY + 12, 78, 30, 14, 6]]);
       }
       return { frente: m, tras };
     } });
+  // ---- Cabelos femininos (referência de padrões: franja em fios, mechas do rosto, penteados, anel de brilho).
+  const FRANJA_FIOS = [[33, HY + 6, 94, 7, 5], [37, HY + 6, 90, 7, 5], [41, HY + 6, 86, 6, 5], [45, HY + 7, 88, 5, 4]];
+  const fem = (id, desenho) => definirPeca({ id, tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo, sombra: SOMBRA_FIOS, desenho });
+  // Hime: liso e longo, franja reta em fios, mechas do rosto até o peito e cabelo descendo pelas costas.
+  fem('hime', (view, k) => {
+    const m = cabeloBase(view, k); const tras = k.nova();
+    if (view === 'frente') {
+      k.mechasSim(m, FRANJA_FIOS); k.mechasSim(m, [[45, HY + 9, 91, 24, 7, -3]]);
+      for (let y = HY + 10; y <= HY + 42; y++) k.simetrico(tras, y, [17]);
+      k.mechasSim(tras, [[40, HY + 40, 92, 6, 8], [34, HY + 41, 90, 6, 8]]);
+    } else if (view === 'costas') {
+      for (let y = HY + 10; y <= HY + 42; y++) k.simetrico(m, y, [16]);
+      k.mechasSim(m, [[44, HY + 41, 95, 6, 7], [38, HY + 42, 92, 6, 8], [33, HY + 42, 90, 6, 7]]);
+    } else {
+      for (let y = HY + 12; y <= HY + 42; y++) k.linhas(m, y, [[38, 48]]);
+      k.mechas(m, [[43, HY + 41, 95, 6, 8], [39, HY + 41, 100, 5, 6], [21, HY + 7, 100, 8, 5]]);
+    }
+    return { frente: m, tras };
+  });
+  // Chiquinhas: franja em fios e duas caudas presas no alto, abrindo para fora e descendo até o peito.
+  fem('chiquinhas', (view, k) => {
+    const m = cabeloBase(view, k); const tras = k.nova();
+    if (view === 'lado') {
+      k.mecha(m, 21, HY + 7, 100, 8, 5);
+      k.mecha(m, 43, HY + 4, 55, 28, 10, 30);                                                    // cauda de perto
+      k.mecha(tras, 39, HY + 4, 60, 26, 9, 35);                                                  // cauda de trás
+    } else {
+      if (view === 'frente') k.mechasSim(m, FRANJA_FIOS);
+      k.mechasSim(m, [[47, HY + 6, 62, 27, 10, 22]]);                                            // as duas caudas
+      k.mechasSim(m, [[47, HY + 5, 0, 2, 6]]);                                                   // nó das caudas
+    }
+    return { frente: m, tras };
+  });
+  // Coque duplo: dois coques redondos no alto, franja em fios e pontas curtas na nuca.
+  fem('coque_duplo', (view, k) => {
+    const m = cabeloBase(view, k);
+    if (view === 'lado') { k.mecha(m, 36, HY - 1, 0, 1, 12); k.mecha(m, 21, HY + 7, 100, 8, 5); k.mechas(m, [[43, HY + 18, 80, 6, 6], [45, HY + 15, 60, 6, 5]]); }
+    else {
+      k.mechasSim(m, [[41, HY, 0, 1, 12]]);
+      if (view === 'frente') k.mechasSim(m, FRANJA_FIOS.concat([[45, HY + 10, 92, 9, 5]]));
+      else k.mechasSim(m, [[34, HY + 21, 92, 5, 6], [40, HY + 20, 88, 5, 6]]);
+    }
+    return { frente: m };
+  });
+  // Rabo alto: preso no topo de trás, sobe um pouco e cai em curva até as costas; franja em fios.
+  fem('rabo_alto', (view, k) => {
+    const m = cabeloBase(view, k); const tras = k.nova();
+    if (view === 'lado') { k.mecha(m, 43, HY + 3, -20, 27, 11, 100); k.mecha(m, 21, HY + 7, 100, 8, 5); }
+    else if (view === 'costas') { k.mecha(m, 32, HY + 3, 90, 34, 12, 0); k.mecha(m, 31, HY + 3, 90, 34, 12, 0); }
+    else { k.mechasSim(m, FRANJA_FIOS); k.mechasSim(m, [[45, HY + 10, 92, 10, 5]]); k.mecha(tras, 32, HY + 14, 90, 26, 12); }
+    return { frente: m, tras };
+  });
+  // Franja de lado: chanel até o queixo com uma franja grande varrida para o lado, cobrindo um olho.
+  fem('franja_lado', (view, k) => {
+    const m = cabeloBase(view, k);
+    if (view === 'frente') {
+      k.mecha(m, 43, HY + 5, 128, 21, 11, 18);                                                   // franja cobrindo o olho
+      k.mechasSim(m, [[46, HY + 9, 94, 15, 7, -6]]);
+    } else if (view === 'costas') {
+      for (let y = HY + 10; y <= HY + 22; y++) k.simetrico(m, y, [15]);
+      k.mechasSim(m, [[45, HY + 21, 100, 5, 6], [39, HY + 22, 92, 5, 6], [33, HY + 22, 90, 5, 6]]);
+    } else {
+      for (let y = HY + 12; y <= HY + 22; y++) k.linhas(m, y, [[38, 47]]);
+      k.mechas(m, [[44, HY + 21, 95, 5, 7], [40, HY + 21, 100, 5, 6], [24, HY + 4, 130, 12, 9, 20]]);
+    }
+    return { frente: m };
+  });
+
   // Referência Graal: volume que passa do crânio, borda feita de pontas de mecha (serrilhada), franja em mechas
   // pontudas cobrindo a testa até a sobrancelha e sombra separando as mechas.
   definirPeca({ id: 'repicado', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo, sombra: SOMBRA_CABELO,
@@ -575,8 +659,25 @@
       if (d.metal) paint(L[pc.camada], d.metal, METAL, null);
     });
   }
-  function headExtras(L, view, look) {
-    if (look) shapePieces(L, view, [look.cabelo, look.bandana ? 'bandana' : null, look.acessorio]);
+  // Balanço: o cabelo abaixo da linha da orelha entorta, mais na ponta que na raiz. `amt` em pixels na ponta
+  // (de lado, positivo = para trás; de frente, positivo = para a direita da imagem).
+  function bendHair(g, amt) {
+    if (!amt) return g;
+    const o = newMask(); const piv = HY + 9;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const v = g[key(x, y)];
+      if (!v) continue;
+      const d = y - piv;
+      const nx = x + (d > 0 ? Math.round(amt * Math.min(1, d / 26) ** 1.3) : 0);
+      if (nx >= 0 && nx < W) o[key(nx, y)] = v;
+    }
+    return o;
+  }
+  function headExtras(L, view, look, P) {
+    if (!look) return;
+    shapePieces(L, view, [look.cabelo, look.bandana ? 'bandana' : null, look.acessorio]);
+    const amt = P ? (view === 'lado' ? P.hair : P.hairX) || 0 : 0;
+    ['cabelo', 'cabelo_tras'].forEach((n) => { L[n] = bendHair(L[n], amt); });
   }
   // Peça do tronco e estampa, desenhadas para o boneco parado e deslocadas (dx, dy) junto com o tronco.
   // A estampa só fica onde há tronco vestível por baixo (parte tronco do corpo, fora do contorno).
@@ -699,7 +800,7 @@
       if (k.endsWith('_d')) anchors[k.slice(0, -1) + 'e'] = [W - 1 - x, yy];
     });
 
-    headExtras(L, back ? 'costas' : 'frente', look);
+    headExtras(L, back ? 'costas' : 'frente', look, back ? Object.assign({}, P, { hairX: -(P.hairX || 0) }) : P);
     bodyExtras(L, back ? 'costas' : 'frente', look, 0, 0);
     const cut = (m, yMax) => blit(newMask(), m, 0, W - 1, 0, yMax, 0);
     const bothArms = union(arm, mirror(arm));
@@ -967,7 +1068,7 @@
     }
 
     tag(L.bracos, custom ? () => 8 : (x, y) => (y - bob <= 67 ? 6 : y - bob <= 72 ? 7 : 8));
-    headExtras(L, 'lado', look);
+    headExtras(L, 'lado', look, P);
     bodyExtras(L, 'lado', look, -Math.round(lean * 0.6), bob);
     L.cabeca = shiftG(L.cabeca, -lean, bob);
     // Espada na mão, rastro do corte em arco em volta do ombro e shuriken no ar com rastro.
@@ -1127,6 +1228,17 @@
       { lying: 1 }, { lying: 1 }, { lying: 1 }, { lying: 1 },
     ] },
   };
+  // Balanço do cabelo por quadro. De lado: para trás quando o corpo vai para a frente, para a frente quando é empurrado.
+  // De frente e de costas: um pouco de lado a lado no ritmo do passo.
+  const HAIR_LADO = {
+    parado: [0, 0, 1, 1], andar: [1, 2, 1, 1, 2, 1], correr: [5, 6, 5, 5, 6, 5], selos: [0, 1, 0, 1, 0, 1, 0, 1],
+    levar_golpe: [-4, -2, 1], cair: [-3, 2, 4, 0, 0, 0, 0],
+  };
+  const HAIR_FRENTE = { andar: [1, 0, -1, -1, 0, 1], correr: [2, 0, -2, -2, 0, 2], levar_golpe: [2, 1, 0], cair: [2, 1, 0, 0, 0, 0, 0] };
+  Object.keys(ANIMS).forEach((n) => ANIMS[n].frames.forEach((f, i) => {
+    if (f.hair === undefined) f.hair = HAIR_LADO[n] ? HAIR_LADO[n][i] : Math.max(0, Math.round((f.lean || 0) * 1.5));
+    if (f.hairX === undefined) f.hairX = HAIR_FRENTE[n] ? HAIR_FRENTE[n][i] : 0;
+  }));
 
   // Deitado (derrotado): de bruços, com o rosto afundado no chão. A cabeça é vista por trás, com a parte de baixo
   // enterrada 4 linhas; o corpo fica estendido atrás dela, um braço dobrado com a mão no chão.
