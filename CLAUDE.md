@@ -38,6 +38,8 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 - `docs/historia/arco-1.md`: roteiro do Arco 1 (15 missões); o sistema de história ainda não existe.
 - `docs/mapas.md`, `docs/endgame.md`, `docs/habilidades.md`, `docs/clima.md`, `docs/netcode.md`.
 - `docs/relatorio-progresso-2026-11.pdf`: relatório de progresso (estado do jogo e próximas atualizações).
+- `docs/relatorio-completo-do-jogo-2026-11-12.pdf`: relatório completo do jogo (todos os sistemas e a ficha dos 186 jutsus,
+  com ícone, arte capturada no jogo, tier, classe e números).
 
 ## Próximas entregas
 
@@ -47,7 +49,9 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
    Despertar (v25) e a maestria em todos os jutsus (Fase 1.5, v36) feitos. A Fase 2.5 (74 jutsus novos,
    4 por classe por tier, nomes da opção B) foi feita na v49 (migração v30, `src/realtime/jutsusFase25.ts`).
 2. Rankeado, polimento (`revisao_egm/rankeado/`): arquibancada em degraus, estátua, selo de faixa, aviso de próximo.
-3. Cabeça (rosto e cabelo) desenhada à mão em pixel art: o Victor reprovou o rosto e o cabelo gerados por formas 3D.
+3. Arte dos personagens (decisão do Victor, 12/11/2026): **o Victor vai desenhar**. Não produzir arte de personagem,
+   cabelo, roupa ou acessório sem ele pedir; o jogo segue com a arte base atual. O boneco base de `arte/boneco-base/`
+   (PR #31) fica só como referência técnica.
 4. Site no Floot (páginas, login com a conta do jogo, admin, notificações).
 5. Salas com imagem: aguardando as imagens do Victor (Areia, Alfaiataria, Academia, Caverna, Clareira, Refúgio).
 6. Arco 1 jogável (sistema de história), depois o social (grupo, amigos, sensei).
