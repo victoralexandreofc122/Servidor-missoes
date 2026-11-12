@@ -65,11 +65,11 @@
   // Visual: uma lista por peça e por cor, montada a partir do catálogo do gerador.
   const CAMPOS = [
     ['cabelo', 'Cabelo', B.CATALOGO.cabelo, 'espetado'], ['corCabelo', 'Cor do cabelo', B.CATALOGO.cores, 'marrom'],
-    ['bandana', 'Bandana', ['nenhum'].concat(B.CATALOGO.cores), 'azul'],
+    ['bandana', 'Bandana (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'azul'],
     ['acessorio', 'Acessório', B.CATALOGO.acessorio, 'nenhum'], ['corAcessorio', 'Cor do acessório', B.CATALOGO.cores, 'preto'],
     ['superior', 'Roupa de cima', B.CATALOGO.superior, 'camiseta'], ['corSuperior', 'Cor', B.CATALOGO.cores, 'azul'],
     ['inferior', 'Roupa de baixo', B.CATALOGO.inferior, 'calca'], ['corInferior', 'Cor', B.CATALOGO.cores, 'preto'],
-    ['pes', 'Calçado', ['nenhum'].concat(B.CATALOGO.cores), 'preto'], ['maos', 'Luvas', ['nenhum'].concat(B.CATALOGO.cores), 'nenhum'],
+    ['pes', 'Calçado (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'preto'], ['maos', 'Luvas (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'nenhum'],
   ];
   CAMPOS.forEach(([id, rotulo, lista, padrao]) => {
     const l = document.createElement('label');

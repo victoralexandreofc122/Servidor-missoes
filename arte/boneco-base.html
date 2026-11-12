@@ -108,13 +108,15 @@
     laranja: ['#5a2408', '#b3520f', '#ea7d1c', '#ffab52'], amarelo: ['#5a4208', '#b38a12', '#e6bc2a', '#ffe06a'],
     roxo: ['#2a1440', '#4d2a7a', '#7646b0', '#a274dc'], marrom: ['#2e1a0e', '#5a3418', '#86522a', '#b27a46'],
   };
-  const CATALOGO = {
-    cabelo: ['nenhum', 'curto', 'espetado', 'longo'], acessorio: ['nenhum', 'mascara', 'cachecol'],
-    superior: ['nenhum', 'regata', 'camiseta', 'manga_longa'], inferior: ['nenhum', 'shorts', 'calca'],
-    cores: Object.keys(TECIDOS),
-  };
-  const SUPERIOR = { regata: [2], camiseta: [2, 6], manga_longa: [2, 6, 7] };
-  const INFERIOR = { shorts: [9, 3], calca: [9, 3, 4] };
+  // Registro de peças. Toda peça entra por `definirPeca` e segue o mesmo formato (ver arte/boneco-base/PADRAO.md).
+  const PECAS = {};
+  const TIPOS = ['cabelo', 'bandana', 'acessorio', 'superior', 'inferior', 'pes', 'maos'];
+  function definirPeca(pc) {
+    if (!pc.id || PECAS[pc.id]) throw new Error('peça sem id ou repetida: ' + pc.id);
+    if (!TIPOS.includes(pc.tipo)) throw new Error(pc.id + ': tipo inválido');
+    if (pc.modo !== 'cor' && pc.modo !== 'forma') throw new Error(pc.id + ': modo deve ser cor ou forma');
+    PECAS[pc.id] = pc;
+  }
   [[10, 'marrom'], [11, 'azul'], [12, 'preto']].forEach(([pt, cor]) => [0, 1, 2, 3].forEach((k) => { PALETTE[20 + pt * 4 + k] = TECIDOS[cor][k]; }));
   // Marca os pixels de pele (tons 1 a 4) de uma camada com a parte devolvida por fn(x, y).
   function tag(grid, fn) {
@@ -129,10 +131,11 @@
   function resolveLook(look) {
     const k = look || {}; const cores = {}; const hide = {};
     const set = (parts, cor) => { if (TECIDOS[cor]) parts.forEach((pt) => { cores[pt] = TECIDOS[cor]; }); };
-    if (SUPERIOR[k.superior]) { set(SUPERIOR[k.superior], k.corSuperior || 'azul'); hide.superior = true; }
-    if (INFERIOR[k.inferior]) { set(INFERIOR[k.inferior], k.corInferior || 'preto'); hide.inferior = true; }
-    if (k.pes) set([5], k.pes);
-    if (k.maos) set([8], k.maos);
+    const sup = PECAS[k.superior]; const inf = PECAS[k.inferior];
+    if (sup && sup.modo === 'cor') { set(sup.partes, k.corSuperior || 'azul'); hide.superior = true; }
+    if (inf && inf.modo === 'cor') { set(inf.partes, k.corInferior || 'preto'); hide.inferior = true; }
+    if (k.pes) set(PECAS.calcado.partes, k.pes);
+    if (k.maos) set(PECAS.luvas.partes, k.maos);
     set([10], k.corCabelo || 'marrom'); set([11], k.bandana || 'azul'); set([12], k.corAcessorio || 'preto');
     return { cores, hide };
   }
@@ -310,64 +313,136 @@
     return m;
   }
 
-  // ---------- cabelo, bandana e acessórios (desenhados no espaço da cabeça, por direção) ----------
-  const HAIR_RULE = (c) => (c.dB <= 1 ? SHADE : c.dT >= 2 && c.dT <= 3 && c.y <= HY + 6 ? LIGHT : null);
+  // Perfil da cabeça de lado (olhando para a esquerda): [x da frente, x de trás] por linha.
+  const HEAD_SIDE = [
+    [26, 38], [23, 41], [21, 43], [20, 44], [19, 45], [19, 45], [18, 46], [18, 46], [18, 46], [18, 46], [18, 46], [18, 46],
+    [18, 46], [18, 46], [18, 46], [18, 46], [18, 46], [17, 46], [17, 46], [18, 46], [18, 46], [18, 45], [19, 45], [19, 44],
+    [20, 42], [22, 40], [25, 36],
+  ];
+
+  // ---------- peças ----------
+  // Ferramentas que toda peça de forma recebe. As coordenadas são as do boneco parado (cabeça de y 31 a 57).
+  const KIT = {
+    HY, HEAD_HW, HEAD_SIDE, W, H,
+    nova: newMask,
+    linhas: rows,                                   // linhas(m, y0, [[x0, x1], ...]): uma faixa por linha
+    simetrico: sym,                                 // simetrico(m, y0, [meiaLargura, ...]): frente e costas
+    // Linha i da cabeça (0 a 26) com `folga` pixels a mais de cada lado; i = -1 é a linha acima do topo.
+    cabeca(m, view, i, folga) {
+      const j = Math.max(i, 0); const corte = i < 0 ? 2 : 0;
+      if (view === 'lado') rows(m, HY + i, [[HEAD_SIDE[j][0] - folga + corte, HEAD_SIDE[j][1] + folga - corte]]);
+      else sym(m, HY + i, [HEAD_HW[j] + folga - corte]);
+      return m;
+    },
+  };
+  const SOMBRA_PADRAO = (c) => (c.dB <= 1 ? SHADE : c.dT >= 2 && c.dT <= 3 && c.y <= HY + 6 ? LIGHT : null);
+
+  // Roupas coladas ao corpo (modo cor): só dizem quais partes mudam de cor.
+  definirPeca({ id: 'regata', tipo: 'superior', modo: 'cor', partes: [PART.tronco] });
+  definirPeca({ id: 'camiseta', tipo: 'superior', modo: 'cor', partes: [PART.tronco, PART.braco] });
+  definirPeca({ id: 'manga_longa', tipo: 'superior', modo: 'cor', partes: [PART.tronco, PART.braco, PART.antebraco] });
+  definirPeca({ id: 'shorts', tipo: 'inferior', modo: 'cor', partes: [PART.quadril, PART.coxa] });
+  definirPeca({ id: 'calca', tipo: 'inferior', modo: 'cor', partes: [PART.quadril, PART.coxa, PART.canela] });
+  definirPeca({ id: 'calcado', tipo: 'pes', modo: 'cor', partes: [PART.pe] });
+  definirPeca({ id: 'luvas', tipo: 'maos', modo: 'cor', partes: [PART.mao] });
+
+  // Peças com forma própria (modo forma): desenham uma máscara por direção. `desenho(view, k)` devolve
+  // { frente, tras, metal }: frente fica na camada da peça, tras atrás do corpo, metal é pintado em aço.
+  function cabeloBase(view, k) {
+    const m = k.nova();
+    for (let i = -1; i <= (view === 'costas' ? 22 : 9); i++) k.cabeca(m, view, i, 1);
+    if (view === 'lado') {
+      for (let i = 10; i <= 21; i++) k.linhas(m, HY + i, [[39, HEAD_SIDE[i][1] + 1]]);       // atrás da orelha
+      k.linhas(m, HY + 10, [[18, 19], [18, 18]]); k.linhas(m, HY + 10, [[24, 26], [25, 26], [25, 25]]); // franja
+    } else if (view === 'frente') {
+      [[2, 4], [8, 11], [14, 16]].forEach(([a, b]) => { for (let y = HY + 10; y <= HY + 11; y++) { k.linhas(m, y, [[32 + a, 31 + b + 1]]); k.linhas(m, y, [[31 - b, 31 - a]]); } }); // franja
+      for (let y = HY + 12; y <= HY + 15; y++) { k.linhas(m, y, [[46, 47]]); k.linhas(m, y, [[16, 17]]); } // costeletas
+    }
+    return m;
+  }
+  definirPeca({ id: 'curto', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo,
+    desenho: (view, k) => ({ frente: cabeloBase(view, k) }) });
+  definirPeca({ id: 'espetado', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo,
+    desenho(view, k) {
+      const m = cabeloBase(view, k); const lado = view === 'lado';
+      (lado ? [22, 29, 36, 43] : [19, 25, 32, 38, 44]).forEach((cx, n) => {
+        for (let j = 0; j <= 6; j++) k.linhas(m, HY - 7 + j, [[cx - Math.floor(j / 2) + (lado ? 1 : 0), cx + Math.floor(j / 2) + (lado ? 2 : n % 2)]]);
+      });
+      return { frente: m };
+    } });
+  definirPeca({ id: 'longo', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo,
+    desenho(view, k) {
+      const m = cabeloBase(view, k); const tras = k.nova();
+      if (view === 'lado') for (let y = HY + 22; y <= HY + 40; y++) k.linhas(m, y, [[39, y > HY + 36 ? 45 : 47]]);
+      else if (view === 'costas') for (let y = HY + 23; y <= HY + 40; y++) k.simetrico(m, y, [y > HY + 37 ? 12 : 14]);
+      else {
+        for (let y = HY + 10; y <= HY + 40; y++) k.simetrico(tras, y, [y > HY + 37 ? 14 : 16]);    // por trás do corpo
+        for (let y = HY + 12; y <= HY + 24; y++) { k.linhas(m, y, [[46, 48]]); k.linhas(m, y, [[15, 17]]); } // mechas
+      }
+      return { frente: m, tras };
+    } });
+  definirPeca({ id: 'bandana', tipo: 'bandana', modo: 'forma', camada: 'bandana', parte: PART.bandana,
+    sombra: (c) => (c.dB === 1 ? SHADE : null),
+    desenho(view, k) {
+      const m = k.nova();
+      for (let i = 6; i <= 9; i++) k.cabeca(m, view, i, 1);
+      if (view === 'costas') { k.linhas(m, HY + 8, [[30, 33], [30, 33], [30, 33]]); for (let y = HY + 11; y <= HY + 18; y++) { k.linhas(m, y, [[28, 30]]); k.linhas(m, y, [[33, 35]]); } }
+      if (view === 'lado') { k.linhas(m, HY + 7, [[47, 49], [47, 49], [47, 49]]); for (let y = HY + 10; y <= HY + 18; y++) k.linhas(m, y, [[47, 49]]); for (let y = HY + 10; y <= HY + 15; y++) k.linhas(m, y, [[44, 45]]); }
+      // Placa de metal na testa (de costas não aparece).
+      const metal = view === 'costas' ? null : k.linhas(k.nova(), HY + 6, [0, 1, 2, 3].map(() => (view === 'lado' ? [17, 23] : [26, 37])));
+      return { frente: m, metal };
+    } });
+  definirPeca({ id: 'mascara', tipo: 'acessorio', modo: 'forma', camada: 'acessorio', parte: PART.acessorio,
+    sombra: (c) => (c.dB <= 1 ? SHADE : null),
+    desenho(view, k) {
+      const m = k.nova();
+      if (view === 'lado') { for (let i = 19; i <= 26; i++) k.linhas(m, HY + i, [[HEAD_SIDE[i][0], Math.min(31, HEAD_SIDE[i][1])]]); k.linhas(m, HY + 20, [[32, 46], [32, 46]]); }
+      else for (let i = 19; i <= (view === 'costas' ? 20 : 26); i++) k.simetrico(m, HY + i, [HEAD_HW[i]]);
+      return { frente: m };
+    } });
+  definirPeca({ id: 'cachecol', tipo: 'acessorio', modo: 'forma', camada: 'acessorio', parte: PART.acessorio,
+    sombra: (c) => (c.dB <= 1 || c.y === 59 ? SHADE : null),
+    desenho(view, k) {
+      const m = k.nova();
+      if (view === 'lado') { for (let y = 56; y <= 61; y++) k.linhas(m, y, [[25, 38]]); for (let y = 62; y <= 73; y++) k.linhas(m, y, [[37, 40]]); }
+      else { for (let y = 56; y <= 61; y++) k.simetrico(m, y, [9]); for (let y = 62; y <= (view === 'costas' ? 73 : 70); y++) k.linhas(m, y, [view === 'costas' ? [25, 28] : [36, 39]]); }
+      return { frente: m };
+    } });
+
+  const CATALOGO = { cores: Object.keys(TECIDOS) };
+  TIPOS.forEach((t) => { CATALOGO[t] = ['nenhum'].concat(Object.keys(PECAS).filter((id) => PECAS[id].tipo === t)); });
+
+  // Confere todas as peças contra o padrão. Devolve a lista de problemas (vazia quando está tudo certo).
+  function validarPecas() {
+    const erros = [];
+    Object.keys(PECAS).forEach((id) => {
+      const pc = PECAS[id];
+      if (pc.modo === 'cor') {
+        if (!Array.isArray(pc.partes) || !pc.partes.length || pc.partes.some((x) => x < 1 || x > 9)) erros.push(id + ': partes devem ser do corpo (1 a 9)');
+        return;
+      }
+      if (!LAYERS.includes(pc.camada)) erros.push(id + ': camada desconhecida');
+      if (![PART.cabelo, PART.bandana, PART.acessorio].includes(pc.parte)) erros.push(id + ': parte de cor inválida');
+      ['frente', 'costas', 'lado'].forEach((view) => {
+        let d;
+        try { d = pc.desenho(view, KIT); } catch (e) { erros.push(id + ' (' + view + '): ' + e.message); return; }
+        if (!d || !d.frente || d.frente.length !== W * H || !d.frente.some((v) => v)) erros.push(id + ' (' + view + '): falta o desenho desta direção');
+      });
+    });
+    return erros;
+  }
+
+  // Desenha as peças de forma do visual nas camadas da cabeça.
   function headExtras(L, view, look) {
     if (!look) return;
-    const lado = view === 'lado'; const back = view === 'costas';
-    // Linha i da cabeça (0 a 26), um pixel maior que o crânio; i = -1 é a linha acima do topo.
-    const headRow = (m, i, grow) => {
-      const j = Math.max(i, 0);
-      if (lado) rows(m, HY + i, [[HEAD_SIDE[j][0] - grow + (i < 0 ? 2 : 0), HEAD_SIDE[j][1] + grow - (i < 0 ? 2 : 0)]]);
-      else sym(m, HY + i, [HEAD_HW[j] + grow - (i < 0 ? 2 : 0)]);
-    };
-    if (look.cabelo && look.cabelo !== 'nenhum') {
-      const m = newMask(); const tras = newMask();
-      for (let i = -1; i <= (back ? 22 : 9); i++) headRow(m, i, 1);
-      if (lado) {
-        for (let i = 10; i <= 21; i++) rows(m, HY + i, [[39, HEAD_SIDE[i][1] + 1]]);       // atrás da orelha
-        rows(m, HY + 10, [[18, 19], [18, 18]]); rows(m, HY + 10, [[24, 26], [25, 26], [25, 25]]); // franja
-      } else if (!back) {
-        [[2, 4], [8, 11], [14, 16]].forEach(([a, b]) => { for (let y = HY + 10; y <= HY + 11; y++) { rows(m, y, [[32 + a, 31 + b + 1]]); rows(m, y, [[31 - b, 31 - a]]); } }); // franja
-        for (let y = HY + 12; y <= HY + 15; y++) { rows(m, y, [[46, 47]]); rows(m, y, [[16, 17]]); } // costeletas
-      }
-      if (look.cabelo === 'espetado') {
-        const tops = lado ? [22, 29, 36, 43] : [19, 25, 32, 38, 44];
-        tops.forEach((cx, n) => { for (let k = 0; k <= 6; k++) rows(m, HY - 7 + k, [[cx - Math.floor(k / 2) + (lado ? 1 : 0), cx + Math.floor(k / 2) + (lado ? 2 : n % 2)]]); });
-      }
-      if (look.cabelo === 'longo') {
-        if (lado) for (let y = HY + 22; y <= HY + 40; y++) rows(m, y, [[39, y > HY + 36 ? 45 : 47]]);
-        else if (back) for (let y = HY + 23; y <= HY + 40; y++) sym(m, y, [y > HY + 37 ? 12 : 14]);
-        else {
-          for (let y = HY + 10; y <= HY + 40; y++) sym(tras, y, [y > HY + 37 ? 14 : 16]);    // por trás do corpo
-          for (let y = HY + 12; y <= HY + 24; y++) { rows(m, y, [[46, 48]]); rows(m, y, [[15, 17]]); } // mechas na frente
-        }
-      }
-      paint(L.cabelo, m, SKIN, HAIR_RULE); tag(L.cabelo, () => PART.cabelo);
-      paint(L.cabelo_tras, tras, SKIN, HAIR_RULE); tag(L.cabelo_tras, () => PART.cabelo);
-    }
-    if (look.bandana) {
-      const m = newMask();
-      for (let i = 6; i <= 9; i++) headRow(m, i, 1);
-      if (back) { rows(m, HY + 8, [[30, 33], [30, 33], [30, 33]]); for (let y = HY + 11; y <= HY + 18; y++) { rows(m, y, [[28, 30]]); rows(m, y, [[33, 35]]); } }
-      if (lado) { rows(m, HY + 7, [[47, 49], [47, 49], [47, 49]]); for (let y = HY + 10; y <= HY + 18; y++) rows(m, y, [[47, 49]]); for (let y = HY + 10; y <= HY + 15; y++) rows(m, y, [[44, 45]]); }
-      paint(L.bandana, m, SKIN, (c) => (c.dB === 1 ? SHADE : null)); tag(L.bandana, () => PART.bandana);
-      // Placa de metal na testa (de costas não aparece).
-      if (!back) paint(L.bandana, rows(newMask(), HY + 6, [0, 1, 2, 3].map(() => (lado ? [17, 23] : [26, 37]))), METAL, null);
-    }
-    if (look.acessorio === 'mascara') {
-      const m = newMask();
-      if (lado) { for (let i = 19; i <= 26; i++) rows(m, HY + i, [[HEAD_SIDE[i][0], Math.min(31, HEAD_SIDE[i][1])]]); rows(m, HY + 20, [[32, 46], [32, 46]]); }
-      else if (back) { for (let i = 19; i <= 20; i++) sym(m, HY + i, [HEAD_HW[i]]); }
-      else for (let i = 19; i <= 26; i++) sym(m, HY + i, [HEAD_HW[i]]);
-      paint(L.acessorio, m, SKIN, (c) => (c.dB <= 1 ? SHADE : null)); tag(L.acessorio, () => PART.acessorio);
-    }
-    if (look.acessorio === 'cachecol') {
-      const m = newMask();
-      if (lado) { for (let y = 56; y <= 61; y++) rows(m, y, [[25, 38]]); for (let y = 62; y <= 73; y++) rows(m, y, [[37, 40]]); }
-      else { for (let y = 56; y <= 61; y++) sym(m, y, [9]); for (let y = 62; y <= (back ? 73 : 70); y++) rows(m, y, [back ? [25, 28] : [36, 39]]); }
-      paint(L.acessorio, m, SKIN, (c) => (c.dB <= 1 || c.y === 59 ? SHADE : null)); tag(L.acessorio, () => PART.acessorio);
-    }
+    [look.cabelo, look.bandana ? 'bandana' : null, look.acessorio].forEach((id) => {
+      const pc = PECAS[id];
+      if (!pc || pc.modo !== 'forma') return;
+      const d = pc.desenho(view, KIT) || {};
+      if (d.frente) { paint(L[pc.camada], d.frente, SKIN, pc.sombra || SOMBRA_PADRAO); tag(L[pc.camada], () => pc.parte); }
+      if (d.tras) { paint(L.cabelo_tras, d.tras, SKIN, pc.sombra || SOMBRA_PADRAO); tag(L.cabelo_tras, () => pc.parte); }
+      if (d.metal) paint(L[pc.camada], d.metal, METAL, null);
+    });
   }
 
   // ---------- frente e costas ----------
@@ -577,11 +652,6 @@
   }
 
   // ---------- lado (olhando para a esquerda) ----------
-  const HEAD_SIDE = [
-    [26, 38], [23, 41], [21, 43], [20, 44], [19, 45], [19, 45], [18, 46], [18, 46], [18, 46], [18, 46], [18, 46], [18, 46],
-    [18, 46], [18, 46], [18, 46], [18, 46], [18, 46], [17, 46], [17, 46], [18, 46], [18, 46], [18, 45], [19, 45], [19, 44],
-    [20, 42], [22, 40], [25, 36],
-  ];
   // De lado o corpo é mais fino que de frente (magro e forte): tronco com 11 a 12 de profundidade.
   const SIDE = {
     m: {
@@ -962,7 +1032,7 @@
     }
   }
 
-  return { W, H, FEET_Y, PALETTE, LAYERS, VIEWS, SEXES, ANIMS, CATALOGO, TECIDOS, PART, colorOf, build, flatten, draw, tones: { LINE, SHADE, BASE, LIGHT } };
+  return { W, H, FEET_Y, PALETTE, LAYERS, VIEWS, SEXES, ANIMS, CATALOGO, TECIDOS, PART, PECAS, TIPOS, definirPeca, validarPecas, colorOf, build, flatten, draw, tones: { LINE, SHADE, BASE, LIGHT } };
 });
 </script>
 <script>
@@ -971,11 +1041,11 @@
   // Visual: uma lista por peça e por cor, montada a partir do catálogo do gerador.
   const CAMPOS = [
     ['cabelo', 'Cabelo', B.CATALOGO.cabelo, 'espetado'], ['corCabelo', 'Cor do cabelo', B.CATALOGO.cores, 'marrom'],
-    ['bandana', 'Bandana', ['nenhum'].concat(B.CATALOGO.cores), 'azul'],
+    ['bandana', 'Bandana (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'azul'],
     ['acessorio', 'Acessório', B.CATALOGO.acessorio, 'nenhum'], ['corAcessorio', 'Cor do acessório', B.CATALOGO.cores, 'preto'],
     ['superior', 'Roupa de cima', B.CATALOGO.superior, 'camiseta'], ['corSuperior', 'Cor', B.CATALOGO.cores, 'azul'],
     ['inferior', 'Roupa de baixo', B.CATALOGO.inferior, 'calca'], ['corInferior', 'Cor', B.CATALOGO.cores, 'preto'],
-    ['pes', 'Calçado', ['nenhum'].concat(B.CATALOGO.cores), 'preto'], ['maos', 'Luvas', ['nenhum'].concat(B.CATALOGO.cores), 'nenhum'],
+    ['pes', 'Calçado (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'preto'], ['maos', 'Luvas (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'nenhum'],
   ];
   CAMPOS.forEach(([id, rotulo, lista, padrao]) => {
     const l = document.createElement('label');

@@ -9,6 +9,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const js = readFileSync(join(here, 'boneco-base.js'), 'utf8');
 // O pacote é ESM; o arquivo é UMD (serve o navegador), então é avaliado com um `module` próprio.
 const B = new Function('module', `${js}\nreturn module.exports;`)({ exports: {} });
+// Toda peça precisa passar no padrão antes de qualquer arquivo ser gerado.
+const problemas = B.validarPecas();
+if (problemas.length) { console.error('Peças fora do padrão:\n- ' + problemas.join('\n- ')); process.exit(1); }
 const html = readFileSync(join(here, 'modelo.html'), 'utf8').replace('/*BONECO_BASE_JS*/', () => js);
 writeFileSync(join(here, '..', 'boneco-base.html'), html);
 
