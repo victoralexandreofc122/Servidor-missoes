@@ -367,9 +367,19 @@
       paint(L.bracos, cut(bothArms, 66), SKIN, LIMB);
     }
     if (P.kick && !back) {
-      // Chute visto de frente: a sola do pé vem na direção da câmera.
-      const sole = rows(newMask(), 60, [0, 1, 2, 3, 4, 5, 6, 7, 8].map(() => [34, 43]));
-      paint(L.bracos, sole, SKIN, (c) => (c.dB <= 2 ? SHADE : null));
+      // Chute visto de frente: a perna sobe do quadril em linha reta até o pé na altura do ombro, vinda na direção da câmera.
+      // Embaixo a coxa (larga), no meio o joelho e a canela, em cima o pé grande com a sola em sombra e os dedos.
+      const leg = newMask();
+      for (let y = 66; y <= 79; y++) rows(leg, y, [[y >= 74 ? 34 : 35, y >= 74 ? 43 : 42]]);   // coxa e joelho
+      for (let y = 62; y <= 65; y++) rows(leg, y, [[35, 42]]);                                  // canela e tornozelo
+      for (let y = 57; y <= 61; y++) rows(leg, y, [[33, 43]]);                                  // pé (sola)
+      paint(L.bracos, leg, SKIN, (c) => {
+        if (c.y <= 60) return SHADE;                                  // sola, em sombra
+        if (c.y === 61) return c.dL >= 2 && c.dR >= 2 ? LIGHT : null; // dedos
+        if (c.y >= 69 && c.y <= 71 && c.ax >= 4 && c.ax <= 8) return LIGHT; // joelho
+        if (c.y >= 72 && (c.x >= 41)) return SHADE;                   // lado de fora da coxa
+        return null;
+      });
     }
     if (P.eyes === 'closed' && !back) {
       for (let i = 0; i < L.rosto.length; i++) if ([EYE_DARK, EYE_IRIS, EYE_SHINE, EYE_SHADE].includes(L.rosto[i])) L.rosto[i] = 0;
@@ -381,7 +391,7 @@
     const body = newMask();
     blit(body, L.corpo, 0, W - 1, 77, 79, 0);
     // De costas, no limite do chute, a perna que chuta some atrás do corpo.
-    if (!(back && P.kick)) blit(body, L.corpo, 32, W - 1, 80 + P.liftA, 92, -P.liftA);
+    if (!P.kick) blit(body, L.corpo, 32, W - 1, 80 + P.liftA, 92, -P.liftA);
     blit(body, L.corpo, 0, 31, 80 + P.liftB, 92, -P.liftB);
     blit(body, L.corpo, 0, W - 1, 0, 76, P.bob);
     L.corpo = body;
