@@ -608,6 +608,9 @@ function masteryInfo(code: string, v: SkillConfig): { mastery?: MasteryGain[] } 
   return list.length === 1 && list[0] === 'dano' ? {} : { mastery: list };
 }
 
+/** Alcance (casas) das curas de efeito próprio da classe Cura quando há um aliado em foco. */
+const HEAL_BUDDY_REACH = 4;
+
 export class GameWorld {
   private readonly sessions = new Map<string, Session>();
   private readonly monsters = new Map<string, Monster>();
@@ -2215,7 +2218,7 @@ export class GameWorld {
         session.substituteFocus = targetId;
         break;
       default:
-        this.v2Apply(session, skill, cfg, form, hits, to, dashTo, dmg, hit, o, fx, fy, t, pvp);
+        this.v2Apply(session, skill, cfg, form, hits, to, dashTo, dmg, hit, o, fx, fy, t, pvp, targetId);
         break;
     }
     this.echoCast(session, skill, cfg, form, dmg, hit, fx, fy, t);   // v52: o clone da Segunda Voz repete os jutsus em linha
@@ -2715,7 +2718,14 @@ export class GameWorld {
 
   /** Aplica o jutsu (depois de cobrar e de avisar todos). */
   private v2Apply(s: Session, skill: Skill, cfg: SkillConfig, form: JutsuForm, hits: Target[], to: Point | undefined, dashTo: Point | undefined,
-    dmg: number, hit: HitInfo, o: Point, fx: number, fy: number, t: number, pvp: boolean): void {
+    dmg: number, hit: HitInfo, o: Point, fx: number, fy: number, t: number, pvp: boolean, targetId?: string): void {
+    // Curas de efeito próprio da classe Cura (Renovação, Desintoxicação, Banho, Casca): com um aliado em foco a até
+    // HEAL_BUDDY_REACH casas, valem para ele; sem foco (ou longe, ou inimigo), valem para quem lançou.
+    const buddy = (): Session => {
+      if (targetId === undefined || JUTSU_BY_CODE.get(skill)?.class !== 'heal') return s;
+      const p = [...(this.mapPlayers.get(s.map) ?? [])].find((x) => x.id === targetId);
+      return p && p !== s && !p.dead && !p.closed && !this.canHurt(s, p, t) && distance(s, p) <= HEAL_BUDDY_REACH ? p : s;
+    };
     // a arma também se divide; `part` = o pedaço sem arredondar (as sobras somam no alvo: hitTarget)
     const scaled = (k: number): [number, HitInfo] => [Math.max(1, Math.round(dmg * k)), { ...hit, base: hit.base * k, weapon: hit.weapon * k, ...(k !== 1 ? { part: dmg * k } : {}) } as HitInfo];
     const strike = (x: Target, k = 1) => {
@@ -2872,9 +2882,11 @@ export class GameWorld {
         break;
       }
       case 'escudo_vida': {
-        // escudo único: até 25% da vida máxima; o novo troca o anterior
-        s.absorb = { hp: Math.round(s.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.12)), until: t + (cfg.durationMs ?? 3000) };
-        this.sendTo(s, { type: 'notice', text: `Escudo: ${s.absorb.hp} de vida por ${Math.round((cfg.durationMs ?? 3000) / 1000)} s.`, tone: 'good' });
+        // escudo único: até 25% da vida máxima; o novo troca o anterior (na Casca de Chakra, vale para o aliado em foco)
+        const who = buddy();
+        who.absorb = { hp: Math.round(who.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.12)), until: t + (cfg.durationMs ?? 3000) };
+        this.sendTo(who, { type: 'notice', text: `Escudo: ${who.absorb.hp} de vida por ${Math.round((cfg.durationMs ?? 3000) / 1000)} s.`, tone: 'good' });
+        if (who !== s) this.sendTo(s, { type: 'notice', text: `Escudo em ${who.username}.`, tone: 'good' });
         for (const x of hits) strike(x);
         break;
       }
@@ -2901,14 +2913,18 @@ export class GameWorld {
         break;
       }
       case 'limpeza': {
-        const me: Target = { kind: 'player', id: s.id, x: s.x, y: s.y, session: s };
+        const who = buddy();
+        const me: Target = { kind: 'player', id: who.id, x: who.x, y: who.y, session: who };
         for (const code of cfg.cleanse ?? []) if (EFFECT_CODES.includes(code as EffectCode)) this.dropEffect(me, code as EffectCode, t);
-        if (cfg.heal) this.healPlayer(s, Math.round(cfg.heal * (pvp ? 0.5 : 1)), t);
+        if (cfg.heal) this.healPlayer(who, Math.round(cfg.heal * (pvp ? 0.5 : 1)), t);
+        if (who !== s) this.sendTo(s, { type: 'notice', text: `Cura em ${who.username}.`, tone: 'good' });
         break;
       }
       case 'cura_tempo': {
-        const per = Math.max(1, Math.round(s.stats.maxHp * (cfg.hot ?? 0.03) * (pvp ? 0.5 : 1)));
-        this.applyEffect({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }, 'regeneracao', t, cfg.durationMs ?? 10_000, per, s);
+        const who = buddy();
+        const per = Math.max(1, Math.round(who.stats.maxHp * (cfg.hot ?? 0.03) * (pvp ? 0.5 : 1)));
+        this.applyEffect({ kind: 'player', id: who.id, x: who.x, y: who.y, session: who }, 'regeneracao', t, cfg.durationMs ?? 10_000, per, s);
+        if (who !== s) this.sendTo(s, { type: 'notice', text: `Renovação em ${who.username}.`, tone: 'good' });
         break;
       }
       default:
