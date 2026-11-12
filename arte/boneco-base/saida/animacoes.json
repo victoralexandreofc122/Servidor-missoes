@@ -1,0 +1,118 @@
+{
+  "quadro": [
+    64,
+    96
+  ],
+  "linhas": [
+    "frente",
+    "costas",
+    "esquerda",
+    "direita"
+  ],
+  "animacoes": {
+    "parado": {
+      "fps": 3,
+      "colunas": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "andar": {
+      "fps": 9,
+      "colunas": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    "correr": {
+      "fps": 14,
+      "colunas": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ]
+    },
+    "selos": {
+      "fps": 14,
+      "colunas": [
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ]
+    },
+    "soco": {
+      "fps": 16,
+      "colunas": [
+        24,
+        25,
+        26,
+        27,
+        28
+      ]
+    },
+    "chute": {
+      "fps": 14,
+      "colunas": [
+        29,
+        30,
+        31,
+        32,
+        33
+      ]
+    },
+    "espada": {
+      "fps": 14,
+      "colunas": [
+        34,
+        35,
+        36,
+        37,
+        38
+      ]
+    },
+    "shuriken": {
+      "fps": 14,
+      "colunas": [
+        39,
+        40,
+        41,
+        42,
+        43
+      ]
+    },
+    "levar_golpe": {
+      "fps": 8,
+      "colunas": [
+        44,
+        45,
+        46
+      ]
+    },
+    "cair": {
+      "fps": 8,
+      "colunas": [
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53
+      ]
+    }
+  }
+}

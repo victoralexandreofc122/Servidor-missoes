@@ -97,3 +97,9 @@ As migrações são rodadas pelo Victor no **SQL Editor do Neon**, pelo celular.
 - Se ela não estiver instalada (o container da nuvem é novo a cada sessão), instale antes:
   `npx -y skills add rebelytics/one-skill-to-rule-them-all --skill task-observer -g -y`
 - As observações que ela registrar nunca podem conter os segredos acima.
+
+## Skill pxl-pixel-art
+
+- Pedido do Victor (12/11/2026): ter a skill de pixel art `pxl-pixel-art` disponível. O container da nuvem é novo a cada
+  sessão, então instale antes do primeiro trabalho de arte, se ela não estiver na lista de skills:
+  `git clone --depth 1 https://github.com/augusto-scarvalho/claude-pxl.git ~/.claude/skills/pxl-pixel-art`

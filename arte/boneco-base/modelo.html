@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boneco Base 64x96 | Herança do Fogo</title>
+<style>
+  body { margin: 0; padding: 16px; background: #10151f; color: #dfe6f2; font: 14px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 22px 0 8px; color: #9fc0ff; }
+  p { margin: 0 0 10px; color: #a9b4c7; }
+  .barra { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 4px; }
+  .barra label { white-space: nowrap; }
+  .linha { display: flex; flex-wrap: wrap; gap: 12px; }
+  figure { margin: 0; text-align: center; }
+  figcaption { font-size: 12px; color: #a9b4c7; margin-top: 4px; }
+  canvas { image-rendering: pixelated; display: block; border-radius: 6px; max-width: 100%; }
+  .rolar { overflow-x: auto; }
+</style>
+</head>
+<body>
+<h1>Boneco Base 64x96</h1>
+<p>Linha dos pés em Y=92 (traço vermelho quando a grade está ligada). O boneco ocupa Y=31 a Y=92: cabeça 27, pescoço 2, tronco 17, pernas 16. Acima ficam 31 linhas para cabelo e chapéu.</p>
+
+<div class="barra" id="camadas"></div>
+<div class="barra">
+  <label><input type="checkbox" id="grade"> Grade e linha dos pés</label>
+  <label><input type="checkbox" id="ancoras"> Pontos de articulação</label>
+  <label><input type="checkbox" id="silhueta"> Silhueta</label>
+  <label>Fundo
+    <select id="fundo">
+      <option value="xadrez">Xadrez</option>
+      <option value="#cfd6e2">Claro</option>
+      <option value="#3f7d3a">Grama</option>
+      <option value="#c9b28a">Areia</option>
+      <option value="#23262e">Pedra escura</option>
+      <option value="#e9edf2">Neve</option>
+    </select>
+  </label>
+</div>
+
+<h2>Visual</h2>
+<div class="barra" id="visual"></div>
+
+<h2>Animação (3x)</h2>
+<div class="barra">
+  <label>Animação <select id="anim"></select></label>
+  <label><input type="checkbox" id="pausa"> Pausar</label>
+  <span id="quadro"></span>
+</div>
+<div class="rolar"><canvas id="vivo"></canvas></div>
+
+<h2>Tamanho real (1x)</h2>
+<div class="rolar"><canvas id="real"></canvas></div>
+
+<h2>Masculino (4x)</h2>
+<div class="linha" id="zoom-m"></div>
+<h2>Feminino (4x)</h2>
+<div class="linha" id="zoom-f"></div>
+
+<script>/*BONECO_BASE_JS*/</script>
+<script>
+(function () {
+  const B = window.BonecoBase;
+  // Visual: uma lista por peça e por cor, montada a partir do catálogo do gerador.
+  const CAMPOS = [
+    ['cabelo', 'Cabelo', B.CATALOGO.cabelo, 'espetado'], ['corCabelo', 'Cor do cabelo', B.CATALOGO.cores, 'marrom'],
+    ['bandana', 'Bandana (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'azul'],
+    ['acessorio', 'Acessório', B.CATALOGO.acessorio, 'nenhum'], ['corAcessorio', 'Cor do acessório', B.CATALOGO.cores, 'preto'],
+    ['superior', 'Roupa de cima', B.CATALOGO.superior, 'camiseta'], ['corSuperior', 'Cor', B.CATALOGO.cores, 'azul'],
+    ['estampa', 'Estampa', B.CATALOGO.estampa, 'nenhum'], ['corEstampa', 'Cor da estampa', B.CATALOGO.cores, 'branco'],
+    ['peca', 'Peça do tronco', B.CATALOGO.tronco, 'nenhum'], ['corPeca', 'Cor da peça', B.CATALOGO.cores, 'cinza'],
+    ['inferior', 'Roupa de baixo', B.CATALOGO.inferior, 'calca'], ['corInferior', 'Cor', B.CATALOGO.cores, 'preto'],
+    ['pes', 'Calçado (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'preto'], ['maos', 'Luvas (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'nenhum'],
+  ];
+  CAMPOS.forEach(([id, rotulo, lista, padrao]) => {
+    const l = document.createElement('label');
+    l.textContent = rotulo + ' ';
+    const sel = document.createElement('select'); sel.id = 'v_' + id;
+    lista.forEach((o) => { const op = document.createElement('option'); op.value = o; op.textContent = o.replace('_', ' '); if (o === padrao) op.selected = true; sel.appendChild(op); });
+    l.appendChild(sel); document.getElementById('visual').appendChild(l);
+  });
+  function visual() {
+    const v = {};
+    CAMPOS.forEach(([id]) => { const val = document.getElementById('v_' + id).value; if (val !== 'nenhum') v[id] = val; });
+    return v;
+  }
+  const NOMES = { tras: 'Perna e braço de trás', costas_tras: 'Capa (atrás)', estampa: 'Estampa', roupa: 'Peça do tronco', cabelo_tras: 'Cabelo (atrás)', cabelo: 'Cabelo', bandana: 'Bandana', acessorio: 'Acessório', sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços', arma: 'Arma', efeito: 'Efeito' };
+  const TITULO = { frente: 'Frente', costas: 'Costas', esquerda: 'Esquerda', direita: 'Direita' };
+  const ligadas = {};
+  const barra = document.getElementById('camadas');
+  B.LAYERS.forEach((n) => {
+    ligadas[n] = true;
+    const l = document.createElement('label');
+    l.innerHTML = '<input type="checkbox" checked data-c="' + n + '"> ' + NOMES[n];
+    barra.appendChild(l);
+  });
+
+  function fundo(ctx, w, h, cel) {
+    const f = document.getElementById('fundo').value;
+    if (f !== 'xadrez') { ctx.fillStyle = f; ctx.fillRect(0, 0, w, h); return; }
+    for (let y = 0; y < h; y += cel) for (let x = 0; x < w; x += cel) {
+      ctx.fillStyle = ((x / cel + y / cel) % 2) ? '#2a3140' : '#343c4d';
+      ctx.fillRect(x, y, cel, cel);
+    }
+  }
+
+  function quadro(ctx, modelo, ox, oy, s) {
+    const nomes = B.LAYERS.filter((n) => ligadas[n]);
+    B.draw(ctx, modelo, ox, oy, s, nomes, document.getElementById('silhueta').checked ? '#0b0d12' : null);
+    if (document.getElementById('grade').checked && s >= 3) {
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      for (let x = 0; x <= B.W; x += 8) ctx.fillRect(ox + x * s, oy, 1, B.H * s);
+      for (let y = 0; y <= B.H; y += 8) ctx.fillRect(ox, oy + y * s, B.W * s, 1);
+      ctx.fillStyle = 'rgba(255,70,70,0.9)';
+      ctx.fillRect(ox, oy + (B.FEET_Y + 1) * s, B.W * s, 1);
+      ctx.fillStyle = 'rgba(90,200,255,0.7)';
+      ctx.fillRect(ox + 32 * s, oy, 1, B.H * s);
+    }
+    if (document.getElementById('ancoras').checked && s >= 3) {
+      Object.values(modelo.anchors).forEach(([x, y]) => {
+        ctx.fillStyle = '#00e5ff';
+        ctx.fillRect(ox + x * s, oy + y * s, s, s);
+      });
+    }
+  }
+
+  function tudo() {
+    const real = document.getElementById('real');
+    real.width = B.W * 8 + 8 * 9; real.height = B.H + 16;
+    let c = real.getContext('2d');
+    fundo(c, real.width, real.height, 8);
+    let i = 0;
+    B.SEXES.forEach((sx) => B.VIEWS.forEach((v) => { quadro(c, B.build(sx, v, null, visual()), 8 + i * (B.W + 8), 8, 1); i++; }));
+
+    B.SEXES.forEach((sx) => {
+      const caixa = document.getElementById('zoom-' + sx);
+      caixa.innerHTML = '';
+      B.VIEWS.forEach((v) => {
+        const fig = document.createElement('figure');
+        const cv = document.createElement('canvas');
+        cv.width = B.W * 4; cv.height = B.H * 4;
+        const ctx = cv.getContext('2d');
+        fundo(ctx, cv.width, cv.height, 16);
+        quadro(ctx, B.build(sx, v, null, visual()), 0, 0, 4);
+        const cap = document.createElement('figcaption');
+        cap.textContent = TITULO[v];
+        fig.appendChild(cv); fig.appendChild(cap); caixa.appendChild(fig);
+      });
+    });
+  }
+
+  const ANIM_NOME = { parado: 'Parado', andar: 'Andar', correr: 'Correr', selos: 'Selos de mão', soco: 'Atacar: soco', chute: 'Atacar: chute', espada: 'Atacar: espada', shuriken: 'Jogar shuriken', levar_golpe: 'Levar golpe', cair: 'Cair' };
+  Object.keys(B.ANIMS).forEach((n) => {
+    const o = document.createElement('option'); o.value = n; o.textContent = ANIM_NOME[n] || n;
+    if (n === 'andar') o.selected = true;
+    document.getElementById('anim').appendChild(o);
+  });
+  // Animação: os dois modelos nas 4 direções, no ritmo (fps) da própria animação.
+  let quadroAtual = 0, ultimo = 0;
+  function vivo(agora) {
+    requestAnimationFrame(vivo);
+    const nome = document.getElementById('anim').value;
+    const an = B.ANIMS[nome];
+    if (agora - ultimo < 1000 / an.fps) return;
+    ultimo = agora;
+    if (!document.getElementById('pausa').checked) quadroAtual++;
+    const k = quadroAtual % an.frames.length;
+    const cv = document.getElementById('vivo');
+    const s = 3;
+    cv.width = B.W * s * 4; cv.height = B.H * s * 2;
+    const ctx = cv.getContext('2d');
+    fundo(ctx, cv.width, cv.height, 12);
+    B.SEXES.forEach((sx, r) => B.VIEWS.forEach((v, c) => quadro(ctx, B.build(sx, v, an.frames[k], visual()), c * B.W * s, r * B.H * s, s)));
+    document.getElementById('quadro').textContent = 'quadro ' + (k + 1) + ' de ' + an.frames.length + ', ' + an.fps + ' por segundo';
+  }
+  requestAnimationFrame(vivo);
+
+  document.addEventListener('change', (e) => {
+    if (e.target.dataset && e.target.dataset.c) ligadas[e.target.dataset.c] = e.target.checked;
+    tudo();
+  });
+  tudo();
+})();
+</script>
+</body>
+</html>
