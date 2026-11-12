@@ -153,7 +153,7 @@
   };
   const A_SIDE = {
     cabeca_topo: [32, 31], cabeca_centro: [32, 44], olhos: [21, 48], pescoco: [31, 59],
-    ombro: [31, 62], cotovelo: [32, 68], mao: [30, 75], cintura: [31, 71], quadril: [31, 76],
+    ombro: [35, 62], cotovelo: [36, 68], mao: [35, 75], cintura: [31, 71], quadril: [31, 76],
     joelho: [31, 84], pe: [30, FEET_Y],
   };
 
@@ -291,27 +291,31 @@
     [18, 46], [18, 46], [18, 46], [18, 46], [18, 46], [17, 46], [17, 46], [18, 46], [18, 46], [18, 45], [19, 45], [19, 44],
     [20, 42], [22, 40], [25, 36],
   ];
+  // De lado o corpo é mais fino que de frente (magro e forte): tronco com 11 a 12 de profundidade.
   const SIDE = {
     m: {
-      torso: [[27, 36], [25, 38], [24, 38], [24, 38], [24, 38], [24, 38], [24, 38], [25, 38], [25, 38], [25, 38], [25, 38],
-        [25, 38], [25, 39], [25, 39], [25, 39], [25, 39], [25, 39]],
-      leg: [[81, 25, 38], [84, 26, 37], [87, 27, 37], [88, 27, 36], [89, 27, 35], [90, 25, 35], [92, 22, 36]],
-      arm: [29, 34],
+      torso: [[28, 35], [27, 36], [26, 37], [26, 37], [26, 37], [26, 37], [26, 37], [27, 37], [27, 36], [27, 36], [27, 36],
+        [27, 36], [27, 37], [27, 37], [27, 37], [27, 37], [27, 37]],
+      leg: [[81, 27, 37], [84, 28, 36], [87, 28, 36], [88, 28, 35], [89, 28, 34], [90, 26, 34], [92, 23, 35]],
+      arm: 5,
     },
     f: {
-      torso: [[28, 36], [26, 37], [24, 37], [23, 37], [23, 37], [23, 37], [24, 37], [25, 36], [26, 36], [26, 36], [26, 36],
-        [26, 37], [25, 38], [25, 40], [25, 40], [25, 40], [25, 40]],
-      leg: [[81, 25, 39], [82, 25, 38], [84, 26, 37], [87, 27, 36], [88, 27, 35], [89, 27, 34], [90, 25, 34], [92, 23, 35]],
-      arm: [29, 33],
+      torso: [[29, 35], [28, 36], [26, 36], [25, 36], [25, 36], [25, 36], [26, 36], [27, 35], [28, 35], [28, 35], [28, 35],
+        [28, 36], [27, 37], [27, 38], [27, 38], [27, 38], [27, 38]],
+      leg: [[81, 27, 38], [82, 27, 37], [84, 28, 36], [87, 28, 35], [88, 28, 34], [89, 28, 33], [90, 26, 33], [92, 24, 34]],
+      arm: 4,
     },
   };
+  // Braço de lado: x da frente por linha. Desce inclinado para trás até o cotovelo (que passa um pixel das costas)
+  // e volta para a frente até a mão: curva leve, separada do corpo.
+  const ARM_SIDE_X = [33, 33, 33, 33, 34, 34, 34, 35, 35, 34, 34, 33, 33, 33, 33, 33, 34];
 
   function side(sex) {
     const s = SIDE[sex];
     const L = {}; LAYERS.forEach((n) => { L[n] = newMask(); });
     L.sombra = shadowLayer();
 
-    const trunk = rows(newMask(), 57, [[28, 35], [28, 35], [28, 35]]);
+    const trunk = rows(newMask(), 57, [[29, 34], [29, 34], [29, 34]]);
     rows(trunk, 60, s.torso);
     for (let y = 77; y <= 92; y++) {
       const t = s.leg.find((r) => y <= r[0]);
@@ -358,14 +362,13 @@
     px(L.rosto, [[21, HY + 15], [21, HY + 16]], EYE_SHINE);
     px(L.rosto, [[19, HY + 23], [20, HY + 23]], LINE);
 
-    const [a, b] = s.arm;
-    const arm = rows(newMask(), 61, [[a + 1, b - 1]]);
-    for (let y = 62; y <= 67; y++) rows(arm, y, [[a, b]]);           // braço
-    for (let y = 68; y <= 72; y++) rows(arm, y, [[a, b - 1]]);       // antebraço afina por trás
-    rows(arm, 73, [[a - 1, b - 1], [a - 1, b - 1], [a - 1, b - 1], [a - 1, b - 1], [a, b - 2]]); // mão
+    const arm = newMask();
+    ARM_SIDE_X.forEach((x, i) => {
+      const w = i === 0 ? s.arm - 1 : i === 16 ? s.arm - 2 : s.arm;  // ombro e ponta da mão arredondados
+      rows(arm, 61 + i, [[x, x + w - 1]]);
+    });
     paint(L.bracos, arm, SKIN, (c) => {
       if (c.y <= 64 && c.dL >= 2) return LIGHT;
-      if (c.dR === 1 && c.y >= 65 && c.y <= 72) return SHADE;        // volume: sombra atrás
       if (c.y >= 76) return SHADE;
       return null;
     });
