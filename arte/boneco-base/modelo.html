@@ -41,7 +41,7 @@
 
 <h2>Animação (3x)</h2>
 <div class="barra">
-  <label>Animação <select id="anim"><option value="andar">Andar</option><option value="parado">Parado</option></select></label>
+  <label>Animação <select id="anim"></select></label>
   <label><input type="checkbox" id="pausa"> Pausar</label>
   <span id="quadro"></span>
 </div>
@@ -124,6 +124,12 @@
     });
   }
 
+  const ANIM_NOME = { parado: 'Parado', andar: 'Andar', correr: 'Correr', selos: 'Selos de mão', atacar: 'Atacar', levar_golpe: 'Levar golpe', cair: 'Cair' };
+  Object.keys(B.ANIMS).forEach((n) => {
+    const o = document.createElement('option'); o.value = n; o.textContent = ANIM_NOME[n] || n;
+    if (n === 'andar') o.selected = true;
+    document.getElementById('anim').appendChild(o);
+  });
   // Animação: os dois modelos nas 4 direções, no ritmo (fps) da própria animação.
   let quadroAtual = 0, ultimo = 0;
   function vivo(agora) {

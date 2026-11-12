@@ -81,33 +81,62 @@ B.SEXES.forEach((sx) => {
 });
 writeFileSync(join(out, 'animacoes.json'), JSON.stringify({ quadro: [B.W, B.H], linhas: B.VIEWS, animacoes: meta }, null, 2) + '\n');
 
-// Prévia animada (APNG): os dois modelos nas 4 direções, 3x, sobre grama.
-function apng(w, h, frames, fps) {
-  let seq = 0;
-  const u32 = (n) => { const b = Buffer.alloc(4); b.writeUInt32BE(n); return b; };
-  const head = Buffer.alloc(13); head.writeUInt32BE(w, 0); head.writeUInt32BE(h, 4); head[8] = 8; head[9] = 6;
-  const parts = [Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', head), chunk('acTL', Buffer.concat([u32(frames.length), u32(0)]))];
-  frames.forEach((px, i) => {
-    const fc = Buffer.alloc(26);
-    fc.writeUInt32BE(seq++, 0); fc.writeUInt32BE(w, 4); fc.writeUInt32BE(h, 8);
-    fc.writeUInt16BE(1, 20); fc.writeUInt16BE(fps, 22);
-    parts.push(chunk('fcTL', fc));
-    const raw = Buffer.alloc((w * 4 + 1) * h);
-    for (let y = 0; y < h; y++) px.copy(raw, y * (w * 4 + 1) + 1, y * w * 4, (y + 1) * w * 4);
-    const data = deflateSync(raw);
-    parts.push(i === 0 ? chunk('IDAT', data) : chunk('fdAT', Buffer.concat([u32(seq++), data])));
+// GIF animado de cada animação: os dois modelos nas 4 direções, 2x, sobre grama.
+function lzw(min, idx) {
+  const clear = 1 << min, eoi = clear + 1;
+  let size = min + 1, next = eoi + 1, dict = new Map(), cur = 0, bits = 0;
+  const outB = [];
+  const emit = (c) => { cur |= c << bits; bits += size; while (bits >= 8) { outB.push(cur & 255); cur >>>= 8; bits -= 8; } };
+  emit(clear);
+  let pfx = idx[0];
+  for (let k = 1; k < idx.length; k++) {
+    const kk = pfx * 256 + idx[k];
+    if (dict.has(kk)) { pfx = dict.get(kk); continue; }
+    emit(pfx);
+    if (next < 4096) { dict.set(kk, next++); if (next > (1 << size) && size < 12) size++; }
+    else { emit(clear); dict = new Map(); size = min + 1; next = eoi + 1; }
+    pfx = idx[k];
+  }
+  emit(pfx); emit(eoi);
+  if (bits > 0) outB.push(cur & 255);
+  return outB;
+}
+function gif(w, h, frames, fps) {
+  const colors = new Map();
+  const indexed = frames.map((px) => {
+    const idx = new Uint8Array(w * h);
+    for (let k = 0; k < w * h; k++) {
+      const c = (px[k * 4] << 16) | (px[k * 4 + 1] << 8) | px[k * 4 + 2];
+      if (!colors.has(c)) colors.set(c, colors.size);
+      idx[k] = colors.get(c);
+    }
+    return idx;
   });
-  parts.push(chunk('IEND', Buffer.alloc(0)));
+  if (colors.size > 256) throw new Error('GIF: mais de 256 cores');
+  const table = Buffer.alloc(768);
+  colors.forEach((n, c) => { table[n * 3] = c >> 16; table[n * 3 + 1] = (c >> 8) & 255; table[n * 3 + 2] = c & 255; });
+  const u16 = (n) => [n & 255, n >> 8];
+  const parts = [Buffer.from('GIF89a'), Buffer.from([...u16(w), ...u16(h), 0xf7, 0, 0]), table,
+    Buffer.from([0x21, 0xff, 11, ...Buffer.from('NETSCAPE2.0'), 3, 1, 0, 0, 0])];
+  indexed.forEach((idx) => {
+    parts.push(Buffer.from([0x21, 0xf9, 4, 4, ...u16(Math.round(100 / fps)), 0, 0]));
+    parts.push(Buffer.from([0x2c, 0, 0, 0, 0, ...u16(w), ...u16(h), 0, 8]));
+    const data = lzw(8, idx);
+    for (let k = 0; k < data.length; k += 255) { const sl = data.slice(k, k + 255); parts.push(Buffer.from([sl.length, ...sl])); }
+    parts.push(Buffer.from([0]));
+  });
+  parts.push(Buffer.from([0x3b]));
   return Buffer.concat(parts);
 }
+mkdirSync(join(out, 'gif'), { recursive: true });
 Object.keys(B.ANIMS).forEach((n) => {
-  const sc = 3, w = B.W * sc * 4, h = B.H * sc * 2;
+  const sc = 2, w = B.W * sc * 4, h = B.H * sc * 2;
   const frames = B.ANIMS[n].frames.map((pose) => {
     const buf = Buffer.alloc(w * h * 4);
-    for (let i = 0; i < w * h; i++) { buf[i * 4] = 63; buf[i * 4 + 1] = 125; buf[i * 4 + 2] = 58; buf[i * 4 + 3] = 255; }
+    for (let k = 0; k < w * h; k++) { buf[k * 4] = 63; buf[k * 4 + 1] = 125; buf[k * 4 + 2] = 58; buf[k * 4 + 3] = 255; }
     B.SEXES.forEach((sx, r) => B.VIEWS.forEach((v, c) => put(buf, w, B.build(sx, v, pose), c * B.W * sc, r * B.H * sc, sc)));
     return buf;
   });
-  writeFileSync(join(out, `previa-${n}.png`), apng(w, h, frames, B.ANIMS[n].fps));
+  writeFileSync(join(out, 'gif', `${n}.gif`), gif(w, h, frames, B.ANIMS[n].fps));
 });
 console.log('ok: arte/boneco-base.html, saida/boneco-base-sheet.png, saida/ancoras.json');

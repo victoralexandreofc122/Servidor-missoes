@@ -41,7 +41,7 @@
 
 <h2>Animação (3x)</h2>
 <div class="barra">
-  <label>Animação <select id="anim"><option value="andar">Andar</option><option value="parado">Parado</option></select></label>
+  <label>Animação <select id="anim"></select></label>
   <label><input type="checkbox" id="pausa"> Pausar</label>
   <span id="quadro"></span>
 </div>
@@ -131,7 +131,19 @@
   // Pose: A é o membro do lado direito da imagem (frente e costas) ou o de perto (lado); B é o outro.
   // bob desce o tronco e a cabeça; leg/arm são o balanço em pixels na ponta (negativo = para a frente, de lado);
   // lift levanta o pé.
-  const NEUTRAL = { bob: 0, legA: 0, legB: 0, liftA: 0, liftB: 0, armA: 0, armB: 0 };
+  // lean inclina o tronco para a frente (de lado); dx empurra o corpo todo para trás (de lado); rot deita o corpo (graus);
+  // seal põe as mãos juntas na frente do peito (1 e 2 são duas formas de mão); punch 2 estende o braço A num soco.
+  const NEUTRAL = { bob: 0, legA: 0, legB: 0, liftA: 0, liftB: 0, armA: 0, armB: 0, lean: 0, dx: 0, rot: 0, seal: 0, punch: 0 };
+  function shiftG(src, dx, dy) {
+    if (!dx && !dy) return src;
+    const o = newMask();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const v = src[key(x, y)];
+      if (v && x + dx >= 0 && x + dx < W && y + dy >= 0 && y + dy < H) o[key(x + dx, y + dy)] = v;
+    }
+    return o;
+  }
+  const LIMB = (c) => (c.dT === 1 ? LIGHT : c.dB === 1 ? SHADE : null);
   // Copia para `dst` os pixels de `src` com x entre x0 e x1 e y entre y0 e y1, deslocados em dy.
   function blit(dst, src, x0, x1, y0, y1, dy) {
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
@@ -306,6 +318,28 @@
       if (k.endsWith('_d')) anchors[k.slice(0, -1) + 'e'] = [W - 1 - x, yy];
     });
 
+    if (P.seal || P.punch === 2) {
+      const cut = (m, yMax) => blit(newMask(), m, 0, W - 1, 0, yMax, 0);
+      let R; let Lm;
+      if (P.seal) {
+        // Selo: braço até o cotovelo, antebraço dobrado para dentro e as duas mãos juntas no meio do peito.
+        R = cut(arm, 68);
+        if (!back) {
+          rows(R, 66, [0, 1, 2, 3].map(() => [35, s.arm[0] + s.arm[1]]));
+          const top = P.seal === 1 ? 62 : 64;
+          for (let y = top; y <= 69; y++) rows(R, y, [[32, 34]]);
+        }
+        Lm = mirror(R);
+      } else {
+        // Soco visto de frente: o braço vem na direção da câmera e vira um punho na frente do ombro.
+        R = cut(arm, back ? 66 : 64);
+        if (!back) rows(R, 62, [0, 1, 2, 3, 4, 5, 6].map(() => [37, 43]));
+        Lm = mirror(arm);
+      }
+      L.bracos = newMask();
+      paint(L.bracos, union(R, Lm), SKIN, LIMB);
+    }
+
     // Pose: o desenho neutro é recortado e deslocado. Pernas: da linha 80 para baixo, cada lado sobe o seu `lift`.
     // Tronco, roupa, cabeça e rosto descem o `bob`. Cada braço sobe um pixel quando vai para a frente.
     const body = newMask();
@@ -363,8 +397,9 @@
       }
       return mask;
     }
-    const trunk = rows(newMask(), 57 + bob, [[29, 34], [29, 34], [29, 34]]);
-    rows(trunk, 60 + bob, s.torso);
+    const lean = P.lean;
+    const trunk = rows(newMask(), 57 + bob, [0, 1, 2].map(() => [29 - lean, 34 - lean]));
+    rows(trunk, 60 + bob, s.torso.map(([a, b], i) => { const d = Math.round((lean * (16 - i)) / 16); return [a - d, b - d]; }));
     legRows(trunk, P.legA, P.liftA);
     paint(L.corpo, trunk, SKIN, (c) => {
       const y = c.y <= 76 + bob ? c.y - bob : c.y >= 80 ? c.y + P.liftA : c.y;
@@ -416,27 +451,45 @@
         const w = i === 0 ? s.arm - 1 : i === 16 ? s.arm - 2 : s.arm; // ombro e ponta da mão arredondados
         // Balançando, o braço fica reto (a curva do repouso somada ao giro vira um zigue-zague).
         const x0 = swing ? 33 + Math.round((swing * i) / 16) : x;
-        rows(m, 61 + bob + i, [[x0, x0 + w - 1]]);
+        rows(m, 61 + bob + i, [[x0 - lean, x0 - lean + w - 1]]);
       });
       return m;
     }
-    paint(L.tras, armRows(P.armB), SKIN, () => SHADE);
-    const arm = armRows(P.armA);
-    paint(L.bracos, arm, SKIN, (c) => {
+    const custom = P.seal || P.punch === 2;
+    let arm;
+    if (P.seal) {
+      // Selo: braço desce até o cotovelo, antebraço vai para a frente e a mão fica erguida diante do peito.
+      arm = newMask();
+      const ax = 31 - lean;
+      for (let y = 61; y <= 67; y++) rows(arm, y + bob, [[ax, ax + s.arm - 1]]);
+      for (let y = 65; y <= 68; y++) rows(arm, y + bob, [[24 - lean, ax + 1]]);
+      for (let y = (P.seal === 1 ? 62 : 64); y <= 68; y++) rows(arm, y + bob, [[21 - lean, 24 - lean]]);
+    } else if (P.punch === 2) {
+      // Soco: braço estendido na altura do ombro, punho na ponta.
+      arm = newMask();
+      for (let y = 62; y <= 66; y++) rows(arm, y + bob, [[19 - lean, 34 - lean]]);
+      for (let y = 61; y <= 67; y++) rows(arm, y + bob, [[15 - lean, 20 - lean]]);
+      paint(L.tras, armRows(4), SKIN, () => SHADE);
+    } else {
+      paint(L.tras, armRows(P.armB), SKIN, () => SHADE);
+      arm = armRows(P.armA);
+    }
+    paint(L.bracos, arm, SKIN, custom ? LIMB : (c) => {
       if (c.y - bob <= 64 && c.dL >= 2) return LIGHT;
       if (c.y - bob >= 76) return SHADE;
       return null;
     });
     // Contorno escuro só atrás e na mão. Na frente e no ombro, onde o braço encosta no tronco, a borda vira sombra:
     // o braço deixa de parecer uma peça colada por cima.
-    for (let y = 61 + bob; y <= (P.armA ? 0 : 72 + bob); y++) for (let x = 0; x < W; x++) {
+    for (let y = 61 + bob; y <= (P.armA || custom || lean ? 0 : 72 + bob); y++) for (let x = 0; x < W; x++) {
       if (!arm[key(x, y)] || !trunk[key(x, y)]) continue;
       const front = !has(arm, x - 1, y) || !has(arm, x, y - 1);
       if (front && has(arm, x + 1, y)) L.bracos[key(x, y)] = SHADE;
     }
 
-    L.cabeca = moved(L.cabeca, bob);
-    L.rosto = moved(L.rosto, bob);
+    L.cabeca = shiftG(L.cabeca, -lean, bob);
+    L.rosto = shiftG(L.rosto, -lean, bob);
+    if (P.dx) LAYERS.forEach((n) => { if (n !== 'sombra') L[n] = shiftG(L[n], P.dx, 0); });
     const anchors = {};
     Object.keys(A_SIDE).forEach((k) => { const [x, y] = A_SIDE[k]; anchors[k] = [x, y <= 76 ? y + bob : y]; });
     return { layers: L, anchors };
@@ -458,6 +511,34 @@
   const VIEWS = ['frente', 'costas', 'esquerda', 'direita'];
   const SEXES = ['m', 'f'];
 
+  // Deita o corpo: gira todas as camadas (menos a sombra) em volta do centro e encosta o resultado no chão (Y=92).
+  function rotate(r, deg) {
+    const a = (deg * Math.PI) / 180; const cos = Math.cos(a); const sin = Math.sin(a);
+    const names = LAYERS.filter((n) => n !== 'sombra');
+    let x0 = W, x1 = 0, y0 = H, y1 = 0;
+    names.forEach((n) => { for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (r.layers[n][key(x, y)]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); } });
+    const cx = (x0 + x1) / 2; const cy = (y0 + y1) / 2;
+    const pts = {}; let bx0 = 999, bx1 = -999, by1 = -999;
+    names.forEach((n) => {
+      pts[n] = [];
+      for (let y = -40; y < H + 40; y++) for (let x = -40; x < W + 40; x++) {
+        const sx = Math.round(cx + (x - cx) * cos + (y - cy) * sin);
+        const sy = Math.round(cy - (x - cx) * sin + (y - cy) * cos);
+        if (sx < 0 || sy < 0 || sx >= W || sy >= H) continue;
+        const v = r.layers[n][key(sx, sy)];
+        if (!v) continue;
+        pts[n].push([x, y, v]); bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by1 = Math.max(by1, y);
+      }
+    });
+    const dx = Math.round(31.5 - (bx0 + bx1) / 2); const dy = FEET_Y - by1;
+    names.forEach((n) => {
+      const g = newMask();
+      pts[n].forEach(([x, y, v]) => { const X = x + dx; const Y = y + dy; if (X >= 0 && X < W && Y >= 0 && Y < H) g[key(X, Y)] = v; });
+      r.layers[n] = g;
+    });
+    return r;
+  }
+
   // Animações: lista de poses por quadro. `andar` tem 6 quadros: contato, passagem e impulso de cada perna.
   const walk = (i) => ({
     bob: [1, 0, 0, 1, 0, 0][i],
@@ -468,11 +549,32 @@
   const ANIMS = {
     parado: { fps: 3, frames: [0, 0, 1, 1].map((bob) => Object.assign({}, NEUTRAL, { bob })) },
     andar: { fps: 9, frames: [0, 1, 2, 3, 4, 5].map(walk) },
+    // Correr: o mesmo ciclo com passo maior, pé mais alto e tronco inclinado.
+    correr: { fps: 12, frames: [0, 1, 2, 3, 4, 5].map((i) => {
+      const w = walk(i);
+      return Object.assign(w, { legA: w.legA * 1.5, legB: w.legB * 1.5, liftA: w.liftA ? 3 : 0, liftB: w.liftB ? 3 : 0,
+        armA: Math.round(w.armA * 1.6), armB: Math.round(w.armB * 1.6), lean: 2 });
+    }) },
+    selos: { fps: 6, frames: [{ seal: 1 }, { seal: 2, bob: 1 }, { seal: 1 }, { seal: 2, bob: 1 }] },
+    // Atacar: recua o braço, solta o soco com um passo, segura e volta.
+    atacar: { fps: 10, frames: [
+      { punch: 1, lean: -1, armA: 5, armB: -3, bob: 1 },
+      { punch: 2, lean: 2, legA: -3, legB: 3, bob: 1 },
+      { punch: 2, lean: 2, legA: -3, legB: 3, bob: 1 },
+      { lean: 1, armA: -2, armB: 2 },
+    ] },
+    levar_golpe: { fps: 8, frames: [
+      { dx: 3, lean: -2, bob: 1, armA: -3, armB: -3 }, { dx: 2, lean: -1, armA: -2, armB: -2 }, {},
+    ] },
+    cair: { fps: 7, frames: [{ dx: 2, lean: -2, bob: 1 }, { rot: 15 }, { rot: 30 }, { rot: 90 }, { rot: 90 }] },
   };
 
   function build(sex, view, pose) {
     const P = Object.assign({}, NEUTRAL, pose || {});
-    const r = view === 'esquerda' ? side(sex, P) : view === 'direita' ? flip(side(sex, P)) : frontOrBack(sex, view === 'costas', P);
+    const lado = view === 'esquerda' || view === 'direita';
+    let r = lado ? side(sex, P) : frontOrBack(sex, view === 'costas', P);
+    if (P.rot) r = rotate(r, P.rot);
+    if (view === 'direita') r = flip(r);
     return { sex, view, width: W, height: H, feetY: FEET_Y, layers: r.layers, anchors: r.anchors };
   }
 
@@ -566,6 +668,12 @@
     });
   }
 
+  const ANIM_NOME = { parado: 'Parado', andar: 'Andar', correr: 'Correr', selos: 'Selos de mão', atacar: 'Atacar', levar_golpe: 'Levar golpe', cair: 'Cair' };
+  Object.keys(B.ANIMS).forEach((n) => {
+    const o = document.createElement('option'); o.value = n; o.textContent = ANIM_NOME[n] || n;
+    if (n === 'andar') o.selected = true;
+    document.getElementById('anim').appendChild(o);
+  });
   // Animação: os dois modelos nas 4 direções, no ritmo (fps) da própria animação.
   let quadroAtual = 0, ultimo = 0;
   function vivo(agora) {
