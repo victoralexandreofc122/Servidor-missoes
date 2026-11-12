@@ -377,6 +377,20 @@
       return m;
     },
   };
+  // Desenhos feitos na pxl (arte/boneco-base/pxl/), importados por importar-pxl.mjs. Cada direção é uma grade 64 x 96
+  // de tons (0 vazio, 1 contorno, 2 sombra, 3 base, 4 luz), comprimida.
+  const PXL_ARTE = {};
+  // <pxl:juba>
+  PXL_ARTE.juba = {"costas":"1631.k62.kbk61.kbsk48.k10.k2bsk10.k36.ks3k6.2klb2s3k4.3kbk36.kb2s6k2blb2s3b4k2lbsk36.k2b4s4bl2b3s4b2l2b2sk36.k2b5s3bl2b3s3bl3b2sk38.k3l3b6l4b5l3bk35.k2.k4lb15l4bk34.ksk.k21l4bk.3k28.k3sk2bl20bs3bk2blk26.k4s32blk23.2k6s31blk22.kb6s27bs5blk21.k5sbs26b2s5blk21.k4sb3s28bs4blk20.k3s2b5s27bs3blk20.k2s3b6s19bs6bls3blk18.k2s3b9s15bs8bl2s2blk18.k2s3b12s7b3s11bl3s2blk16.k2s4b5sb5sb5s16bl4s2bk16.ks3bkl5sb5sb5s5bs5bl4bl4s2bk16.ks2bkl6sb5sb5s5bs5bl4blsk3sbk16.ks2bk6s2b5sb5s5bl5bls3bl2sk2sbk16.ksbk7s2b5sb5s4bsl5bls4bl2sksbk16.kbk7s3b5s2b4s4bsl5bls4bl2sk2sk16.kb8s3b5s2b4s4bls4bl3s3bl3sksk17.k8s3b5s2b4s4bls4bl3s3bl4sk17.k9s3b5s2b4s4bls4bl3s3bl4sk17.k9s3b5s2b4s4bls4bl3s3bl5sk15.k9s4bk3s3b4s3bsls4bl3s3bl5sk14.k6s2k2s3bkl3s4b3s3bl3s3bl4s2bl6sk12.k5s2k.k2s3bkl3s4b3s3bl3s3blk3s2b4k4sk10.k5sk3.k2s3blk3s4b3s3bl3s3blk3s2bk3.k4sk8.k3s3k4.k2s2b3k3s4b3s3bl3s2blk.k2s2bk4.2k3sk6.ks3k7.k2s2bk.k3s4b3s3bl3s2blk.k2sbk7.3ksk6.k11.ksbk2.k3s3b4s2bl4s2blk.k2sbk10.k19.ksbk3.k2s3bl3s2blk3s2blk2.ksbk30.ksbk3.k2s3bl3s2blk3s2blk2.ksbk30.ksbk3.k2s2b5s2b2k3s2bk3.ksbk30.ksbk3.k2s2bk4s2bk.k2s2bk3.ksbk30.ksk4.k2s2bk4s2bk.k2s2bk3.ksk32.k5.k2s2bk4sbk2.k2sbk5.k40.ks2bk4sbk2.k2sbk46.ks2bk4sbk2.k2sbk46.ks2bk4sbk2.k2sbk47.kb2k4sbk2.ksbk48.ks2k2sksbk3.kbk48.ks2k2sksk4.kbk48.ks2k2s2k6.k50.k.ksk61.ksk62.k1123.","lado":"1506.k62.kbk51.k8.2kbk50.kbk6.k2bsk50.kbsk5.klb2sk8.2k39.kb2sk3.kblb2sk4.4kbsk38.klb2sk.kblb3sk.3kb2lbsk39.klb3s2kblb3s2k2b2lb3sk39.klb4skl2b4sb2l2b3sk40.k3lb2k.5k2bk3lbl2bk40.kl3k8.2k.kl2b3lbk40.k15.k2b2lblbk54.k2bs4b2l3k51.k9b2lbk50.k3b2s5bl2sk48.k4b3s5b2lk48.k4b2s4bl3blk47.k4b2s4bls3bk47.k4bs6bls2bk47.k5bs5blbsbk47.k4b3s5blsbk46.ks3b2s7bl2sbk44.k2s3bs9bl2sk45.ks2bs10bl2sk46.k3s8bl2blsk45.k4s2bs5bl2blsk43.2k3s3b3s5bl2blk42.k5s2b4s5bl2blk42.k5s2b5s4bl2b2sk41.k5s3b5s3bl3bsk41.k5s4b5s3bl2bsk42.k5s4b5s2bl2bsk42.k5s4bl4s2blsbsk42.k5s4blb3s2blsbsk43.k4s4blb4s2blbsk43.k4s4blsb3s2bl2sk43.k4s3bl2sb3s2blsk45.k3s3bl2s2b2s2b2k46.k3s3bl2s2b3sbk47.k3s3bl2s3b2sbk47.k3s3bl2s3b2sbk47.k3s3bl3s2bksbk47.k3s3bl3s2bksbk48.k2s3blk2s2b2kbk48.k2s3blk2s2b2kbk48.k2s2b3k2sbk2.k50.ks2bk2.ksbk53.ks2bk2.ksbk53.ks2bk3.2k54.ks2bk59.ks2bk59.ksbk61.kbk61.kbk62.k1175."};
+  // </pxl:juba>
+  function arteDaPxl(peca, view) {
+    const s = PXL_ARTE[peca] && PXL_ARTE[peca][view];
+    if (!s) return null;
+    // Cada trecho é uma contagem (opcional) e uma letra: . vazio, k contorno, s sombra, b base, l luz.
+    const g = newMask(); let i = 0; const re = /(\d*)([.ksbl])/g; let mt;
+    while ((mt = re.exec(s))) { const t = '.ksbl'.indexOf(mt[2]); const n = mt[1] ? +mt[1] : 1; for (let k = 0; k < n; k++) g[i++] = t; }
+    return g;
+  }
   const SOMBRA_PADRAO = (c) => (c.dB <= 1 ? SHADE : c.dT >= 2 && c.dT <= 3 && c.y <= HY + 6 ? LIGHT : null);
   // Cabelo: sombra embaixo, faixa de luz no topo, mechas em sombra subindo da ponta e pontos de brilho entre elas.
   // Fios: anel de brilho no alto da cabeça, fios finos de sombra descendo e pontas escuras.
@@ -485,6 +499,9 @@
     desenho(view, k) {
       const m = cabeloBase(view, k); const tras = k.nova();
       const topo = [[33, HY + 1, -90, 7, 7], [39, HY + 2, -62, 8, 7, 10], [44, HY + 6, -32, 8, 7, 10], [46, HY + 12, -8, 7, 6, 15]];
+      // De lado e de costas a juba é o desenho feito na pxl (arte/boneco-base/pxl/juba.px.js) sobre a calota do gerador.
+      const arte = view === 'frente' ? null : arteDaPxl('juba', view);
+      if (arte) return { frente: m, pintado: arte };
       if (view === 'lado') {
         k.mechas(m, [[26, HY + 1, -105, 6, 6], [33, HY, -78, 8, 7, 10], [40, HY + 2, -50, 9, 7, 10], [45, HY + 6, -22, 9, 7, 15]]);
         // Leque de pontas saindo da nuca, da mais alta (quase na horizontal) à mais baixa (descendo pelas costas).
@@ -717,6 +734,8 @@
       if (d.frente) { paint(L[pc.camada], d.frente, SKIN, pc.sombra || SOMBRA_PADRAO); tag(L[pc.camada], () => pc.parte); }
       if (d.tras) { paint(L[back], d.tras, SKIN, pc.sombra || SOMBRA_PADRAO); tag(L[back], () => pc.parte); }
       if (d.metal) paint(L[pc.camada], d.metal, METAL, null);
+      // Desenho pronto (vindo da pxl): já tem contorno e tons; só ganha a parte, para trocar de cor.
+      if (d.pintado) { const g = L[pc.camada]; for (let i = 0; i < g.length; i++) if (d.pintado[i]) g[i] = d.pintado[i]; tag(g, () => pc.parte); }
     });
   }
   // Balanço: o cabelo abaixo da linha da orelha entorta, mais na ponta que na raiz. `amt` em pixels na ponta
