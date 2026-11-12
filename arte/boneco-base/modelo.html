@@ -68,6 +68,8 @@
     ['bandana', 'Bandana (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'azul'],
     ['acessorio', 'Acessório', B.CATALOGO.acessorio, 'nenhum'], ['corAcessorio', 'Cor do acessório', B.CATALOGO.cores, 'preto'],
     ['superior', 'Roupa de cima', B.CATALOGO.superior, 'camiseta'], ['corSuperior', 'Cor', B.CATALOGO.cores, 'azul'],
+    ['estampa', 'Estampa', B.CATALOGO.estampa, 'nenhum'], ['corEstampa', 'Cor da estampa', B.CATALOGO.cores, 'branco'],
+    ['peca', 'Peça do tronco', B.CATALOGO.tronco, 'nenhum'], ['corPeca', 'Cor da peça', B.CATALOGO.cores, 'cinza'],
     ['inferior', 'Roupa de baixo', B.CATALOGO.inferior, 'calca'], ['corInferior', 'Cor', B.CATALOGO.cores, 'preto'],
     ['pes', 'Calçado (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'preto'], ['maos', 'Luvas (cor)', ['nenhum'].concat(B.CATALOGO.cores), 'nenhum'],
   ];
@@ -83,7 +85,7 @@
     CAMPOS.forEach(([id]) => { const val = document.getElementById('v_' + id).value; if (val !== 'nenhum') v[id] = val; });
     return v;
   }
-  const NOMES = { tras: 'Perna e braço de trás', cabelo_tras: 'Cabelo (atrás)', cabelo: 'Cabelo', bandana: 'Bandana', acessorio: 'Acessório', sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços', arma: 'Arma', efeito: 'Efeito' };
+  const NOMES = { tras: 'Perna e braço de trás', costas_tras: 'Capa (atrás)', estampa: 'Estampa', roupa: 'Peça do tronco', cabelo_tras: 'Cabelo (atrás)', cabelo: 'Cabelo', bandana: 'Bandana', acessorio: 'Acessório', sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços', arma: 'Arma', efeito: 'Efeito' };
   const TITULO = { frente: 'Frente', costas: 'Costas', esquerda: 'Esquerda', direita: 'Direita' };
   const ligadas = {};
   const barra = document.getElementById('camadas');

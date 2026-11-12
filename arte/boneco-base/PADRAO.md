@@ -13,7 +13,7 @@ lista de problemas se alguma estiver fora.
 - 3 direções desenhadas: `frente`, `costas` e `lado` (olhando para a esquerda). A direita é o espelho.
 - Nome: `id` em minúsculas, sem acento, com `_`. É um código interno; nome de item do jogo segue a regra das 3 opções.
 
-## Os dois modos
+## Os três modos
 
 ### Modo `cor`: roupa colada ao corpo
 
@@ -55,10 +55,26 @@ Ferramentas (`k`):
 | `k.cabeca(m, view, i, folga)` | Linha `i` da cabeça (0 a 26; -1 fica acima do topo), com `folga` pixels a mais |
 | `k.HY`, `k.HEAD_HW`, `k.HEAD_SIDE` | Topo da cabeça e o contorno dela de frente e de lado |
 
+Uma peça de forma pode ficar presa à **cabeça** (tipos `cabelo`, `bandana`, `acessorio`) ou ao **tronco** (tipo `tronco`,
+camada `roupa`, `camadaTras: 'costas_tras'`, `parte: PART.peca`). A do tronco é desenhada para o tronco parado (y 60 a 76)
+e o gerador a desloca junto com o corpo. Exemplos no código: `colete` e `capa`.
+
+### Modo `estampa`: desenho sobre a roupa
+
+Símbolo ou faixa chapada, numa cor só, por cima da roupa de cima. O gerador só pinta onde existe tronco, então a estampa
+nunca vaza para fora do corpo. Basta ter desenho em uma direção (um símbolo nas costas, por exemplo).
+
+```js
+definirPeca({ id: 'faixa_dupla', tipo: 'estampa', modo: 'estampa',
+  desenho: (view, k) => ({ frente: k.linhas(k.nova(), 64, [[10, 54], null, [10, 54]]) }) });
+```
+
+Peito e costas vão de y 61 a 71; o meio do tronco é o eixo entre x=31 e x=32. Largura útil: 16 a 20 pixels.
+
 ## Ordem das camadas (de baixo para cima)
 
-`sombra`, `tras`, `cabelo_tras`, `corpo`, `inferior`, `superior`, `cabeca`, `rosto`, `cabelo`, `bandana`, `acessorio`,
-`bracos`, `arma`, `efeito`.
+`sombra`, `tras`, `costas_tras`, `cabelo_tras`, `corpo`, `inferior`, `superior`, `estampa`, `roupa`, `cabeca`, `rosto`,
+`cabelo`, `bandana`, `acessorio`, `bracos`, `arma`, `efeito`.
 
 ## Passo a passo de uma peça nova
 
@@ -71,5 +87,7 @@ Ferramentas (`k`):
 
 ## O que o padrão ainda não cobre
 
-Peças com forma presas ao tronco, aos braços ou às pernas (colete, capa, calça larga, saia, cinto). Hoje só a cabeça
-aceita peças de forma; o corpo aceita só o modo `cor`.
+- Peças de forma presas aos braços ou às pernas (calça larga, saia, manga bufante): braços e pernas só aceitam o modo `cor`.
+- Peças do tronco e estampas somem no quadro deitado da queda, e de lado andam com o tronco sem acompanhar a inclinação
+  linha a linha.
+- Estampa em mais de uma cor.

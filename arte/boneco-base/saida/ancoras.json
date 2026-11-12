@@ -5,10 +5,13 @@
   "camadas": [
     "sombra",
     "tras",
+    "costas_tras",
     "cabelo_tras",
     "corpo",
     "inferior",
     "superior",
+    "estampa",
+    "roupa",
     "cabeca",
     "rosto",
     "cabelo",

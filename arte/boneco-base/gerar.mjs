@@ -145,10 +145,10 @@ Object.keys(B.ANIMS).forEach((n) => {
 
 // Visuais de exemplo: prancha parada e GIFs vestidos (as peças acompanham as animações).
 const VISUAIS = [
-  { cabelo: 'espetado', corCabelo: 'amarelo', bandana: 'azul', superior: 'camiseta', corSuperior: 'laranja', inferior: 'calca', corInferior: 'laranja', pes: 'azul' },
-  { cabelo: 'longo', corCabelo: 'preto', acessorio: 'cachecol', corAcessorio: 'vermelho', superior: 'manga_longa', corSuperior: 'roxo', inferior: 'shorts', corInferior: 'preto', pes: 'preto', maos: 'preto' },
-  { cabelo: 'curto', corCabelo: 'cinza', bandana: 'preto', acessorio: 'mascara', corAcessorio: 'azul', superior: 'regata', corSuperior: 'azul', inferior: 'calca', corInferior: 'azul', pes: 'azul', maos: 'azul' },
-  { cabelo: 'curto', corCabelo: 'vermelho', superior: 'camiseta', corSuperior: 'branco', inferior: 'shorts', corInferior: 'verde', pes: 'marrom' },
+  { cabelo: 'espetado', corCabelo: 'amarelo', bandana: 'azul', superior: 'camiseta', corSuperior: 'laranja', estampa: 'espiral', corEstampa: 'vermelho', inferior: 'calca', corInferior: 'laranja', pes: 'azul' },
+  { cabelo: 'longo', corCabelo: 'preto', acessorio: 'cachecol', corAcessorio: 'vermelho', superior: 'manga_longa', corSuperior: 'roxo', estampa: 'listra', corEstampa: 'branco', inferior: 'shorts', corInferior: 'preto', pes: 'preto', maos: 'preto' },
+  { cabelo: 'curto', corCabelo: 'cinza', bandana: 'preto', acessorio: 'mascara', corAcessorio: 'azul', superior: 'manga_longa', corSuperior: 'azul', peca: 'colete', corPeca: 'verde', inferior: 'calca', corInferior: 'azul', pes: 'azul', maos: 'azul' },
+  { cabelo: 'curto', corCabelo: 'vermelho', superior: 'camiseta', corSuperior: 'preto', estampa: 'chama', corEstampa: 'laranja', peca: 'capa', corPeca: 'vermelho', inferior: 'calca', corInferior: 'preto', pes: 'marrom' },
 ];
 {
   const sc = 2, w = B.W * sc * 8, h = B.H * sc * VISUAIS.length;
@@ -157,12 +157,20 @@ const VISUAIS = [
   VISUAIS.forEach((look, r) => B.SEXES.forEach((sx, si) => B.VIEWS.forEach((v, c) => put(buf, w, B.build(sx, v, null, look), (si * 4 + c) * B.W * sc, r * B.H * sc, sc))));
   writeFileSync(join(out, 'visuais.png'), png(w, h, buf));
 }
+// As 10 cores na mesma roupa (camiseta, calça e calçado), de frente.
+{
+  const sc = 2, w = B.W * sc * 10, h = B.H * sc * 2;
+  const buf = Buffer.alloc(w * h * 4);
+  for (let k = 0; k < w * h; k++) { buf[k * 4] = 63; buf[k * 4 + 1] = 125; buf[k * 4 + 2] = 58; buf[k * 4 + 3] = 255; }
+  B.CATALOGO.cores.forEach((cor, c) => B.SEXES.forEach((sx, r) => put(buf, w, B.build(sx, 'frente', null, { cabelo: 'curto', superior: 'camiseta', corSuperior: cor, inferior: 'calca', corInferior: cor, pes: 'preto' }), c * B.W * sc, r * B.H * sc, sc)));
+  writeFileSync(join(out, 'cores.png'), png(w, h, buf));
+}
 ['andar', 'correr', 'selos', 'espada', 'cair'].forEach((n) => {
   const sc = 2, w = B.W * sc * 4, h = B.H * sc * 2;
   const frames = B.ANIMS[n].frames.map((pose) => {
     const buf = Buffer.alloc(w * h * 4);
     for (let k = 0; k < w * h; k++) { buf[k * 4] = 63; buf[k * 4 + 1] = 125; buf[k * 4 + 2] = 58; buf[k * 4 + 3] = 255; }
-    B.SEXES.forEach((sx, r) => B.VIEWS.forEach((v, c) => put(buf, w, B.build(sx, v, pose, VISUAIS[r]), c * B.W * sc, r * B.H * sc, sc)));
+    B.SEXES.forEach((sx, r) => B.VIEWS.forEach((v, c) => put(buf, w, B.build(sx, v, pose, VISUAIS[r * 2 + (n === 'correr' || n === 'cair' ? 1 : 0)]), c * B.W * sc, r * B.H * sc, sc)));
     return buf;
   });
   writeFileSync(join(out, 'gif', `vestido-${n}.gif`), gif(w, h, frames, B.ANIMS[n].fps));
