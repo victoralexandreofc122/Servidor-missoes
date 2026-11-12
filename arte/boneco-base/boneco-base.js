@@ -88,12 +88,12 @@
     m: {
       torso: [9, 11, 11, 11, 11, 11, 11, 10, 10, 9, 9, 9, 9, 10, 10, 10, 10],
       arm: [42, 5],
-      leg: [[82, 33, 41], [84, 34, 40], [87, 34, 41], [89, 34, 39], [90, 34, 41], [92, 33, 42]],
+      leg: [[82, 33, 41], [85, 34, 40], [88, 34, 40], [89, 34, 39], [90, 34, 41], [92, 33, 42]],
     },
     f: {
       torso: [8, 10, 10, 10, 10, 10, 10, 9, 8, 7, 7, 7, 8, 10, 11, 11, 11],
       arm: [41, 4],
-      leg: [[82, 33, 42], [84, 34, 40], [87, 34, 40], [89, 34, 38], [90, 34, 40], [92, 33, 41]],
+      leg: [[80, 33, 42], [83, 34, 41], [87, 34, 40], [88, 34, 39], [89, 34, 38], [90, 34, 40], [92, 33, 41]],
     },
   };
   // Âncoras iguais para os dois modelos (lado direito da imagem; o esquerdo é o espelho).
@@ -289,8 +289,10 @@
     const briefs = inter(rows(newMask(), 72, wide(8).concat([[30, 48]])), trunk);
     paint(L.inferior, briefs, UNDER, (c) => (c.y !== 73 && (c.dB <= 1 || c.dR <= 2) ? SHADE : null));
     if (sex === 'f') {
-      const top = inter(rows(newMask(), 63, wide(5)), trunk);
-      paint(L.superior, top, UNDER, (c) => (c.dB <= 1 || c.dR <= 2 ? SHADE : null));
+      // De lado a peça segue a curva do busto: começa abaixo do ombro, arredonda a frente e acompanha as costas.
+      const top = inter(rows(newMask(), 64, [[26, 48], [25, 48], [25, 48], [26, 48]]), trunk);
+      paint(L.superior, top, UNDER, (c) => (c.dB <= 1 || c.dR <= 1 ? SHADE : null));
+      L.superior[key(25, 64)] = 0; L.superior[key(25, 67)] = 0;
     }
 
     const head = rows(newMask(), HY, HEAD_SIDE);
