@@ -25,7 +25,7 @@
 
   // Ordem de desenho, de baixo para cima. `corpo`, `cabeca` e `bracos` formam o corpo-base, separados
   // para a roupa do tronco passar por baixo do braço e para animar cada parte.
-  const LAYERS = ['sombra', 'tras', 'corpo', 'inferior', 'superior', 'cabeca', 'rosto', 'bracos'];
+  const LAYERS = ['sombra', 'tras', 'corpo', 'inferior', 'superior', 'cabeca', 'rosto', 'bracos', 'efeito'];
 
   // ---------- máscaras ----------
   const key = (x, y) => y * W + x;
@@ -287,19 +287,21 @@
       L.bracos = newMask();
       paint(L.bracos, union(R, mirror(R)), SKIN, LIMB);
       if (!back) {
-        // 1: punhos fechados (sombra embaixo). 2: abrindo. 3: palma com palma (claro, com a junção no meio).
-        const top = { 1: 63, 2: 61, 3: 59 }[P.seal];
-        const hands = sym(newMask(), top, Array.from({ length: (P.seal === 3 ? 67 : 68) - top + 1 }, () => 3));
+        // Seis selos diferentes, cada um com silhueta própria: [linha, x de, x até].
+        const hands = newMask();
+        SEALS[P.seal].forEach(([y, x0, x1]) => rows(hands, y, [[x0, x1]]));
         paint(L.bracos, hands, SKIN, (c) => {
-          if (P.seal === 1) return c.y >= 66 || c.ax === 0 ? SHADE : null;
-          if (P.seal === 2) return c.ax === 0 ? SHADE : null;
-          return c.ax === 0 ? SHADE : LIGHT;
+          if (P.seal === 2 || P.seal === 3) return c.y <= 63 ? LIGHT : c.ax === 0 ? SHADE : null;
+          if (P.seal === 4) return c.ax <= 1 ? SHADE : null;
+          return c.dB === 1 || c.ax === 0 ? SHADE : c.dT === 1 ? LIGHT : null;
         });
+        if (P.fx) pxSym(L.efeito, [[39, 61], [40, 60], [39, 70], [40, 71], [41, 65]], EYE_SHINE); // risco de velocidade
       }
     } else if (P.punch === 2) {
       // Soco visto de frente: o braço vem na direção da câmera e vira um punho na frente do ombro.
       const R = cut(arm, back ? 66 : 64);
       if (!back) rows(R, 61, [0, 1, 2, 3, 4, 5, 6, 7].map(() => [36, 44]));
+      if (!back && P.fx) px(L.efeito, [[34, 59], [33, 58], [46, 59], [47, 58], [34, 70], [33, 71], [46, 70], [47, 71]], EYE_SHINE);
       L.bracos = newMask();
       paint(L.bracos, union(R, mirror(arm)), SKIN, LIMB);
     } else if (P.ninja && !back) {
@@ -309,7 +311,7 @@
     }
     if (P.kick && !back) {
       // Chute visto de frente: a sola do pé vem na direção da câmera.
-      const sole = rows(newMask(), 73, [0, 1, 2, 3, 4, 5, 6, 7, 8].map(() => [33, 42]));
+      const sole = rows(newMask(), 60, [0, 1, 2, 3, 4, 5, 6, 7, 8].map(() => [34, 43]));
       paint(L.bracos, sole, SKIN, (c) => (c.dB <= 2 ? SHADE : null));
     }
     if (P.eyes === 'closed' && !back) {
@@ -321,7 +323,8 @@
     // Tronco, roupa, cabeça e rosto descem o `bob`. Cada braço sobe um pixel quando vai para a frente.
     const body = newMask();
     blit(body, L.corpo, 0, W - 1, 77, 79, 0);
-    blit(body, L.corpo, 32, W - 1, 80 + P.liftA, 92, -P.liftA);
+    // De costas, no limite do chute, a perna que chuta some atrás do corpo.
+    if (!(back && P.kick)) blit(body, L.corpo, 32, W - 1, 80 + P.liftA, 92, -P.liftA);
     blit(body, L.corpo, 0, 31, 80 + P.liftB, 92, -P.liftB);
     blit(body, L.corpo, 0, W - 1, 0, 76, P.bob);
     L.corpo = body;
@@ -458,10 +461,12 @@
       paint(L.bracos, arm, SKIN, LIMB);
       if (P.seal) {
         // Mãos do selo na ponta do antebraço: punhos (sombra embaixo), abrindo, ou palmas erguidas (claro).
-        const up = { 1: 2, 2: 4, 3: 6 }[P.seal];
+        const up = { 1: 2, 2: 6, 3: 6, 4: 1, 5: 5, 6: 3 }[P.seal];
+        const wd = { 2: 2, 3: 2, 5: 2 }[P.seal] || 3;
         const hand = newMask();
-        for (let y = E[1] - up; y <= E[1] + 2; y++) rows(hand, y, [[E[0] - (P.seal === 3 ? 2 : 3), E[0] + 1]]);
-        paint(L.bracos, hand, SKIN, (c) => (P.seal === 1 ? (c.y >= E[1] ? SHADE : null) : P.seal === 3 ? LIGHT : null));
+        for (let y = E[1] - up; y <= E[1] + 2; y++) rows(hand, y, [[E[0] - wd, E[0] + 1]]);
+        paint(L.bracos, hand, SKIN, (c) => (P.seal === 1 || P.seal === 4 ? (c.y >= E[1] ? SHADE : null) : P.seal === 2 || P.seal === 3 ? LIGHT : null));
+        if (P.fx) px(L.efeito, [[E[0] - 5, E[1] - 5], [E[0] - 6, E[1] - 6], [E[0] - 5, E[1] + 4], [E[0] - 6, E[1] + 5], [E[0] + 3, E[1] - 7]], EYE_SHINE);
       }
     } else {
       paint(L.tras, armRows(P.armB), SKIN, () => SHADE);
@@ -481,6 +486,8 @@
     }
 
     L.cabeca = shiftG(L.cabeca, -lean, bob);
+    // Riscos brancos atrás do braço no soco.
+    if (P.fx && P.punch === 2) px(L.efeito, span(SH[0] - 9, SH[0] + 7, SH[1] - 4).concat(span(SH[0] - 5, SH[0] + 10, SH[1] + 4), span(SH[0] - 2, SH[0] + 5, SH[1] - 6)), EYE_SHINE);
     if (P.eyes === 'closed') {
       for (let i = 0; i < L.rosto.length; i++) if ([EYE_DARK, EYE_IRIS, EYE_SHINE, EYE_SHADE].includes(L.rosto[i])) L.rosto[i] = 0;
       px(L.rosto, span(20, 23, HY + 19), EYE_DARK);
@@ -543,6 +550,15 @@
     liftA: [0, 0, 0, 0, 2, 2][i], liftB: [0, 2, 2, 0, 0, 0][i],
     armA: [3, 2, -2, -3, -2, 2][i], armB: [-3, -2, 2, 3, 2, -2][i],
   });
+  // Selos de frente: seis formas de mão no meio do peito.
+  const SEALS = {
+    1: [63, 64, 65, 66, 67, 68].map((y) => [y, 29, 34]),                                  // punhos lado a lado
+    2: [59, 60, 61, 62, 63].map((y) => [y, 31, 32]).concat([64, 65, 66, 67, 68].map((y) => [y, 29, 34])), // dois dedos erguidos
+    3: [59, 60, 61, 62, 63, 64, 65, 66, 67].map((y) => [y, 30, 33]),                      // palma com palma
+    4: [66, 67, 68, 69].map((y) => [y, 26, 37]),                                          // mãos cruzadas, baixas
+    5: [60, 61, 62, 63, 64].map((y) => [y, 30, 34]).concat([65, 66, 67, 68, 69].map((y) => [y, 29, 33])), // punhos empilhados
+    6: [62, 63, 64, 65, 66, 67, 68].map((y) => [y, 28, 35]),                              // mãos abertas, entrelaçadas
+  };
   // Corrida: joelho e pé em relação ao quadril, em 6 fases (contato, apoio, impulso, calcanhar atrás, passagem, alcance).
   const RUN = [
     [[0, 0], [-4, 5], [-7, 11]], [[0, 0], [-1, 6], [0, 11]], [[0, 0], [3, 6], [6, 11]],
@@ -558,24 +574,24 @@
       armPts: [[0, 0], [12, 5]], armPtsB: [[0, -2], [12, 2]],
       liftA: i >= 3 ? 3 : 0, liftB: i < 3 ? 3 : 0,
     })) },
-    // Selos: punhos fechados, abre, palma com palma, e volta.
-    selos: { fps: 8, frames: [1, 1, 2, 3, 3, 2].map((seal, i) => ({
-      seal, bob: i === 1 || i === 4 ? 1 : 0, armPts: [[0, 0], [-1, 6], [-8, 3]],
+    // Selos: oito selos diferentes em sequência rápida, com riscos de velocidade nos quadros ímpares.
+    selos: { fps: 14, frames: [1, 4, 2, 5, 3, 6, 4, 2].map((seal, i) => ({
+      seal, fx: i % 2, bob: i % 4 === 1 ? 1 : 0, armPts: [[0, 0], [-1, 6], [-8, 3 + [0, 2, -1, 1, -2, 0, 2, -1][i]]],
     })) },
-    // Soco: arma o braço, solta com um passo à frente, segura, recolhe e volta.
-    soco: { fps: 14, frames: [
-      { lean: -1, bob: 1, armPts: [[0, 0], [5, 2], [0, 3]], armPtsB: [[0, 1], [-4, 4], [-7, 1]] },
-      { punch: 2, fist: 1, lean: 3, dx: -2, bob: 1, legA: -4, legB: 4, armPts: [[0, 0], [-14, -1]], armPtsB: [[0, 1], [6, 4]] },
-      { punch: 2, fist: 1, lean: 3, dx: -3, bob: 1, legA: -4, legB: 4, armPts: [[0, 0], [-15, -1]], armPtsB: [[0, 1], [6, 4]] },
-      { lean: 1, dx: -1, legA: -2, legB: 2, armPts: [[0, 0], [-5, 3], [-8, 0]], armPtsB: [[0, 1], [3, 5]] },
+    // Soco: recua e abaixa, dispara com um passo largo e o tronco jogado à frente, segura com riscos de velocidade, volta.
+    soco: { fps: 16, frames: [
+      { lean: -2, dx: 1, bob: 2, armPts: [[0, 0], [6, 1], [2, 3]], armPtsB: [[0, 1], [-4, 4], [-7, 1]] },
+      { punch: 2, fist: 1, fx: 1, lean: 4, dx: -5, bob: 2, legA: -5, legB: 5, armPts: [[0, 0], [-15, -1]], armPtsB: [[0, 1], [7, 3]] },
+      { punch: 2, fist: 1, fx: 1, lean: 4, dx: -6, bob: 2, legA: -5, legB: 5, armPts: [[0, 0], [-15, -1]], armPtsB: [[0, 1], [7, 3]] },
+      { lean: 2, dx: -3, bob: 1, legA: -3, legB: 3, armPts: [[0, 0], [-6, 3], [-9, 0]], armPtsB: [[0, 1], [3, 5]] },
       {},
     ] },
-    // Chute: sobe o joelho, estende a perna com o tronco para trás, segura, recolhe e volta.
+    // Chute alto: sobe o joelho, estende a perna na altura do ombro com o tronco jogado para trás, segura, recolhe e volta.
     chute: { fps: 14, frames: [
-      { lean: -1, liftA: 4, legPts: [[0, 0], [-6, 2], [-4, 9]], noToe: 1, armPts: [[0, 0], [-3, 5], [-6, 2]] },
-      { kick: 1, lean: -3, dx: -1, liftA: 5, legPts: [[0, 0], [-7, 0], [-15, -1]], noToe: 1, armPts: [[0, 0], [-3, 5], [-6, 2]] },
-      { kick: 1, lean: -3, dx: -2, liftA: 5, legPts: [[0, 0], [-7, 0], [-16, -1]], noToe: 1, armPts: [[0, 0], [-3, 5], [-6, 2]] },
-      { lean: -1, liftA: 4, legPts: [[0, 0], [-6, 2], [-4, 9]], noToe: 1, armPts: [[0, 0], [-3, 5], [-6, 2]] },
+      { lean: -1, liftA: 4, legPts: [[0, 0], [-6, -2], [-4, 5]], noToe: 1, armPts: [[0, 0], [-3, 5], [-6, 2]] },
+      { kick: 1, lean: -4, dx: -1, liftA: 5, legPts: [[0, 0], [-5, -6], [-11, -13]], noToe: 1, armPts: [[0, 0], [2, 5], [-2, 4]] },
+      { kick: 1, lean: -4, dx: -2, liftA: 5, legPts: [[0, 0], [-5, -6], [-12, -14]], noToe: 1, armPts: [[0, 0], [2, 5], [-2, 4]] },
+      { lean: -1, liftA: 4, legPts: [[0, 0], [-6, -2], [-4, 5]], noToe: 1, armPts: [[0, 0], [-3, 5], [-6, 2]] },
       {},
     ] },
     levar_golpe: { fps: 8, frames: [
@@ -590,35 +606,36 @@
     ] },
   };
 
-  // Deitado (derrotado): desenho próprio, não o boneco girado. A cabeça descansa no chão (é a única parte virada
-  // 90 graus, de olhos fechados); o tronco fica de lado, as pernas dobradas e a mão de cima apoiada no chão.
-  function lying(sex, back) {
-    let r = frontOrBack(sex, back, Object.assign({}, NEUTRAL, { eyes: 'closed', noArms: 1 }));
-    ['corpo', 'inferior', 'superior', 'tras'].forEach((n) => { r.layers[n] = newMask(); });
-    r = rotate(r, 90);
-    r.layers.cabeca = shiftG(r.layers.cabeca, 14, 0);
-    r.layers.rosto = shiftG(r.layers.rosto, 14, 0);
+  // Deitado (derrotado): de bruços, com o rosto afundado no chão. A cabeça é vista por trás, com a parte de baixo
+  // enterrada 4 linhas; o corpo fica estendido atrás dela, um braço dobrado com a mão no chão.
+  function lying(sex) {
+    const r = frontOrBack(sex, true, Object.assign({}, NEUTRAL, { noArms: 1 }));
     const L = r.layers;
-    const torso = limb(newMask(), [[38, 86], [22, 86]], sex === 'm' ? 12 : 11);
-    const body = limb(union(torso, newMask()), [[22, 88], [12, 85], [7, 89]], 6);
-    rows(body, 90, [[3, 9], [3, 9], [3, 9]]);                        // pé
+    ['corpo', 'inferior', 'superior', 'tras', 'rosto', 'efeito'].forEach((n) => { L[n] = newMask(); });
+    L.cabeca = shiftG(L.cabeca, -13, FEET_Y + 4 - (HY + 26));
+    for (let y = FEET_Y + 1; y < H; y++) for (let x = 0; x < W; x++) L.cabeca[key(x, y)] = 0; // parte enterrada
+    const torso = limb(newMask(), [[30, 87], [45, 87]], sex === 'm' ? 11 : 10);
+    const body = limb(union(torso, newMask()), [[45, 89], [57, 89]], 6);
+    rows(body, 88, [[57, 61], [57, 62], [57, 62], [57, 62], [57, 61]]);  // pé
     paint(L.corpo, body, SKIN, (c) => (c.dB <= 2 ? SHADE : c.dT === 1 ? LIGHT : null));
-    paint(L.tras, limb(newMask(), [[22, 85], [13, 81], [6, 85]], 6), SKIN, () => SHADE); // perna de baixo
-    paint(L.inferior, inter(rows(newMask(), 78, Array.from({ length: 15 }, () => [18, 25])), body), UNDER, (c) => (c.dB <= 2 ? SHADE : null));
-    if (sex === 'f') paint(L.superior, inter(rows(newMask(), 78, Array.from({ length: 15 }, () => [31, 35])), torso), UNDER, (c) => (c.dB <= 2 ? SHADE : null));
-    const arm = limb(newMask(), [[36, 83], [31, 88], [27, 90]], 4);
-    rows(arm, 89, [[23, 28], [22, 28], [22, 28], [23, 28]]);         // mão espalmada no chão
+    paint(L.tras, limb(newMask(), [[45, 86], [56, 84], [61, 86]], 6), SKIN, () => SHADE); // outra perna
+    paint(L.inferior, inter(rows(newMask(), 78, Array.from({ length: 15 }, () => [41, 48])), body), UNDER, (c) => (c.dB <= 2 ? SHADE : null));
+    if (sex === 'f') paint(L.superior, inter(rows(newMask(), 78, Array.from({ length: 15 }, () => [34, 38])), torso), UNDER, (c) => (c.dB <= 2 ? SHADE : null));
+    const arm = limb(newMask(), [[36, 84], [41, 80], [37, 89]], 4);
+    rows(arm, 89, [[33, 39], [32, 39], [32, 39], [33, 39]]);         // mão espalmada no chão
     paint(L.bracos, arm, SKIN, LIMB);
+    // Chão afundado em volta do rosto: sombra mais larga e dois torrões levantados.
     L.sombra = newMask();
-    rows(L.sombra, 91, [[4, 59], [1, 62], [1, 62], [4, 59]]);
+    rows(L.sombra, 90, [[1, 37], [0, 62], [0, 63], [0, 63], [2, 61]]);
     for (let i = 0; i < L.sombra.length; i++) if (L.sombra[i]) L.sombra[i] = SHADOW;
+    px(L.efeito, [[1, 89], [2, 88], [37, 89], [38, 88], [39, 89]], LINE);
     return r;
   }
 
   function build(sex, view, pose) {
     const P = Object.assign({}, NEUTRAL, pose || {});
     const lado = view === 'esquerda' || view === 'direita';
-    let r = P.lying ? lying(sex, view === 'costas') : lado ? side(sex, P) : frontOrBack(sex, view === 'costas', P);
+    let r = P.lying ? lying(sex) : lado ? side(sex, P) : frontOrBack(sex, view === 'costas', P);
     if (P.rot) r = rotate(r, P.rot);
     if (view === 'direita') r = flip(r);
     return { sex, view, width: W, height: H, feetY: FEET_Y, layers: r.layers, anchors: r.anchors };
