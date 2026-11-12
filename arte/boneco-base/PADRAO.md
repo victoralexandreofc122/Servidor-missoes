@@ -106,18 +106,26 @@ Para olhar bordas com outro olho: exporte a peça como grade para um `.px.js` e 
 `node ~/.claude/skills/pxl-pixel-art/bin/pxl.js check arquivo.px.js --edges`. Ele aponta quinas em L em linhas de 1 pixel,
 degraus fora de ordem e pontas soltas. São avisos para olhar, não erros.
 
-## Peças desenhadas na pxl (desenho à mão, por direção)
+## Todas as peças desenhadas passam pela pxl
 
-Para peças que pedem desenho detalhado (a juba de lado e de costas é o primeiro exemplo):
+Toda peça de modo `forma` (cabelos, bandana, máscara, cachecol, colete, capa) é desenhada pela pxl num estilo único, para
+não parecer feita por artistas diferentes:
 
-1. Desenhe na pxl em `arte/boneco-base/pxl/<peça>.px.js`, um sprite por direção com o nome `<peça>_<direção>`
-   (`frente`, `costas`, `lado`), no quadro do boneco: `w: 64, h: 96`, cabeça de y 31 a 57, rosto olhando para a esquerda.
-2. Use só 4 cores, na ordem contorno, sombra, base e luz: `pal({ k, s, b, l })`. O gerador troca pela cor escolhida.
-3. Registre a peça em `PECAS` no `importar-pxl.mjs` e crie o bloco `// <pxl:<peça>>` / `// </pxl:<peça>>` em
-   `boneco-base.js`.
-4. Rode `node arte/boneco-base/pxl/importar-pxl.mjs` (ele roda o build da pxl e grava a grade no gerador) e depois
-   `node arte/boneco-base/gerar.mjs`.
-5. Na peça, devolva `{ frente: mascara, pintado: arteDaPxl('<peça>', view) }`: `frente` é o que o gerador pinta (a calota,
-   por exemplo) e `pintado` é o desenho da pxl por cima.
+- base em tom médio, sombra de 1 ou 2 linhas embaixo e luz em cima (no cabelo, anel de brilho e fios de sombra);
+- cada mecha com metade em sombra e um fio de luz na borda; mechas e cabelo de trás um tom mais escuros;
+- contorno da pxl; tudo em 4 tons (contorno, sombra, base, luz), que o gerador troca pela cor escolhida.
+
+Fluxo, sempre que criar ou mudar uma peça:
+
+1. Descreva a forma da peça no gerador (`definirPeca`, com `k.mecha`, `k.linhas` etc.), como antes.
+2. `node arte/boneco-base/pxl/exportar-para-pxl.mjs`: escreve `pxl/pecas.px.js` (gerado, não editar) com a peça.
+3. `node arte/boneco-base/pxl/importar-pxl.mjs`: roda a pxl e grava o desenho no gerador.
+4. `node arte/boneco-base/gerar.mjs`: prancha, GIFs e página.
+
+Desenho à mão: para uma direção que pede mais que mechas, desenhe na pxl em `pxl/<peça>.px.js` um sprite
+`_<peça>_mao_<direção>` (sem contorno; ele vem no final) e registre a direção em `MAO` no exportador. Exemplo: a juba de
+costas e de lado. Esse arquivo usa a paleta e as funções do cabeçalho de `pecas.px.js`; não é construído sozinho.
 
 Nas animações o gerador move, entorta (balanço do cabelo) e corta o desenho; não é preciso desenhar quadro por quadro.
+
+O que não passa pela pxl: roupas do modo `cor` (são o próprio corpo recolorido) e estampas (símbolo chapado de uma cor).
