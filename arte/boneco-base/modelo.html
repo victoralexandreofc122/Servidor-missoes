@@ -20,15 +20,17 @@
 </head>
 <body>
 <h1>Boneco Base 64x96</h1>
-<p>Linha dos pés em Y=92 (traço vermelho quando a grade está ligada). Cabeça 27, pescoço 3, tronco 22, pernas 25.</p>
+<p>Linha dos pés em Y=92 (traço vermelho quando a grade está ligada). O boneco ocupa Y=16 a Y=92: cabeça 27, pescoço 3, tronco 22, pernas 25. Acima ficam 16 linhas para o cabelo.</p>
 
 <div class="barra" id="camadas"></div>
 <div class="barra">
   <label><input type="checkbox" id="grade"> Grade e linha dos pés</label>
   <label><input type="checkbox" id="ancoras"> Pontos de articulação</label>
+  <label><input type="checkbox" id="silhueta"> Silhueta</label>
   <label>Fundo
     <select id="fundo">
       <option value="xadrez">Xadrez</option>
+      <option value="#cfd6e2">Claro</option>
       <option value="#3f7d3a">Grama</option>
       <option value="#c9b28a">Areia</option>
       <option value="#23262e">Pedra escura</option>
@@ -49,8 +51,8 @@
 <script>
 (function () {
   const B = window.BonecoBase;
-  const NOMES = { sombra: 'Sombra', corpo: 'Corpo', intima: 'Roupa íntima', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços' };
-  const TITULO = { frente: 'Frente', esquerda: 'Lado (esquerda)', costas: 'Costas' };
+  const NOMES = { sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços' };
+  const TITULO = { frente: 'Frente', costas: 'Costas', esquerda: 'Esquerda', direita: 'Direita' };
   const ligadas = {};
   const barra = document.getElementById('camadas');
   B.LAYERS.forEach((n) => {
@@ -71,7 +73,7 @@
 
   function quadro(ctx, modelo, ox, oy, s) {
     const nomes = B.LAYERS.filter((n) => ligadas[n]);
-    B.draw(ctx, modelo, ox, oy, s, nomes);
+    B.draw(ctx, modelo, ox, oy, s, nomes, document.getElementById('silhueta').checked ? '#0b0d12' : null);
     if (document.getElementById('grade').checked && s >= 4) {
       ctx.fillStyle = 'rgba(255,255,255,0.10)';
       for (let x = 0; x <= B.W; x += 8) ctx.fillRect(ox + x * s, oy, 1, B.H * s);
@@ -91,7 +93,7 @@
 
   function tudo() {
     const real = document.getElementById('real');
-    real.width = B.W * 6 + 8 * 7; real.height = B.H + 16;
+    real.width = B.W * 8 + 8 * 9; real.height = B.H + 16;
     let c = real.getContext('2d');
     fundo(c, real.width, real.height, 8);
     let i = 0;

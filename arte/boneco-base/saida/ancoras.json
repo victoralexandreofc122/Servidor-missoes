@@ -5,7 +5,8 @@
   "camadas": [
     "sombra",
     "corpo",
-    "intima",
+    "inferior",
+    "superior",
     "cabeca",
     "rosto",
     "bracos"
@@ -28,28 +29,28 @@
         32,
         45
       ],
-      "ombro_e": [
-        21,
-        48
-      ],
       "ombro_d": [
-        42,
+        43,
         48
       ],
-      "cotovelo_e": [
+      "ombro_e": [
         20,
-        56
+        48
       ],
       "cotovelo_d": [
-        43,
+        44,
         56
       ],
-      "mao_e": [
+      "cotovelo_e": [
         19,
-        65
+        56
       ],
       "mao_d": [
-        44,
+        45,
+        65
+      ],
+      "mao_e": [
+        18,
         65
       ],
       "cintura": [
@@ -60,66 +61,20 @@
         32,
         67
       ],
-      "joelho_e": [
-        27,
-        81
-      ],
       "joelho_d": [
-        36,
+        37,
         81
       ],
-      "pe_e": [
+      "joelho_e": [
         26,
-        92
+        81
       ],
       "pe_d": [
         37,
         92
-      ]
-    },
-    "m_esquerda": {
-      "cabeca_topo": [
-        32,
-        16
       ],
-      "cabeca_centro": [
-        32,
-        29
-      ],
-      "olhos": [
-        22,
-        33
-      ],
-      "pescoco": [
-        31,
-        45
-      ],
-      "ombro": [
-        31,
-        48
-      ],
-      "cotovelo": [
-        31,
-        56
-      ],
-      "mao": [
-        30,
-        65
-      ],
-      "cintura": [
-        31,
-        62
-      ],
-      "quadril": [
-        31,
-        67
-      ],
-      "joelho": [
-        31,
-        81
-      ],
-      "pe": [
-        30,
+      "pe_e": [
+        26,
         92
       ]
     },
@@ -140,94 +95,28 @@
         32,
         45
       ],
-      "ombro_e": [
-        21,
-        48
-      ],
       "ombro_d": [
-        42,
-        48
-      ],
-      "cotovelo_e": [
-        20,
-        56
-      ],
-      "cotovelo_d": [
         43,
-        56
-      ],
-      "mao_e": [
-        19,
-        65
-      ],
-      "mao_d": [
-        44,
-        65
-      ],
-      "cintura": [
-        32,
-        62
-      ],
-      "quadril": [
-        32,
-        67
-      ],
-      "joelho_e": [
-        27,
-        81
-      ],
-      "joelho_d": [
-        36,
-        81
-      ],
-      "pe_e": [
-        26,
-        92
-      ],
-      "pe_d": [
-        37,
-        92
-      ]
-    },
-    "f_frente": {
-      "cabeca_topo": [
-        32,
-        16
-      ],
-      "cabeca_centro": [
-        32,
-        29
-      ],
-      "olhos": [
-        32,
-        33
-      ],
-      "pescoco": [
-        32,
-        45
+        48
       ],
       "ombro_e": [
-        24,
+        20,
         48
-      ],
-      "ombro_d": [
-        39,
-        48
-      ],
-      "cotovelo_e": [
-        23,
-        56
       ],
       "cotovelo_d": [
-        40,
+        44,
         56
       ],
-      "mao_e": [
-        22,
-        65
+      "cotovelo_e": [
+        19,
+        56
       ],
       "mao_d": [
-        41,
+        45,
+        65
+      ],
+      "mao_e": [
+        18,
         65
       ],
       "cintura": [
@@ -238,24 +127,24 @@
         32,
         67
       ],
-      "joelho_e": [
-        27,
-        81
-      ],
       "joelho_d": [
-        36,
+        37,
         81
       ],
-      "pe_e": [
+      "joelho_e": [
         26,
-        92
+        81
       ],
       "pe_d": [
         37,
         92
+      ],
+      "pe_e": [
+        26,
+        92
       ]
     },
-    "f_esquerda": {
+    "m_esquerda": {
       "cabeca_topo": [
         32,
         16
@@ -265,7 +154,7 @@
         29
       ],
       "olhos": [
-        22,
+        21,
         33
       ],
       "pescoco": [
@@ -277,7 +166,7 @@
         48
       ],
       "cotovelo": [
-        31,
+        32,
         56
       ],
       "mao": [
@@ -301,6 +190,118 @@
         92
       ]
     },
+    "m_direita": {
+      "cabeca_topo": [
+        31,
+        16
+      ],
+      "cabeca_centro": [
+        31,
+        29
+      ],
+      "olhos": [
+        42,
+        33
+      ],
+      "pescoco": [
+        32,
+        45
+      ],
+      "ombro": [
+        32,
+        48
+      ],
+      "cotovelo": [
+        31,
+        56
+      ],
+      "mao": [
+        33,
+        65
+      ],
+      "cintura": [
+        32,
+        62
+      ],
+      "quadril": [
+        32,
+        67
+      ],
+      "joelho": [
+        32,
+        81
+      ],
+      "pe": [
+        33,
+        92
+      ]
+    },
+    "f_frente": {
+      "cabeca_topo": [
+        32,
+        16
+      ],
+      "cabeca_centro": [
+        32,
+        29
+      ],
+      "olhos": [
+        32,
+        33
+      ],
+      "pescoco": [
+        32,
+        45
+      ],
+      "ombro_d": [
+        43,
+        48
+      ],
+      "ombro_e": [
+        20,
+        48
+      ],
+      "cotovelo_d": [
+        44,
+        56
+      ],
+      "cotovelo_e": [
+        19,
+        56
+      ],
+      "mao_d": [
+        45,
+        65
+      ],
+      "mao_e": [
+        18,
+        65
+      ],
+      "cintura": [
+        32,
+        62
+      ],
+      "quadril": [
+        32,
+        67
+      ],
+      "joelho_d": [
+        37,
+        81
+      ],
+      "joelho_e": [
+        26,
+        81
+      ],
+      "pe_d": [
+        37,
+        92
+      ],
+      "pe_e": [
+        26,
+        92
+      ]
+    },
     "f_costas": {
       "cabeca_topo": [
         32,
@@ -318,28 +319,28 @@
         32,
         45
       ],
-      "ombro_e": [
-        24,
-        48
-      ],
       "ombro_d": [
-        39,
+        43,
         48
       ],
-      "cotovelo_e": [
-        23,
-        56
+      "ombro_e": [
+        20,
+        48
       ],
       "cotovelo_d": [
-        40,
+        44,
         56
       ],
-      "mao_e": [
-        22,
-        65
+      "cotovelo_e": [
+        19,
+        56
       ],
       "mao_d": [
-        41,
+        45,
+        65
+      ],
+      "mao_e": [
+        18,
         65
       ],
       "cintura": [
@@ -350,20 +351,112 @@
         32,
         67
       ],
-      "joelho_e": [
-        27,
+      "joelho_d": [
+        37,
         81
       ],
-      "joelho_d": [
-        36,
+      "joelho_e": [
+        26,
         81
+      ],
+      "pe_d": [
+        37,
+        92
       ],
       "pe_e": [
         26,
         92
+      ]
+    },
+    "f_esquerda": {
+      "cabeca_topo": [
+        32,
+        16
       ],
-      "pe_d": [
-        37,
+      "cabeca_centro": [
+        32,
+        29
+      ],
+      "olhos": [
+        21,
+        33
+      ],
+      "pescoco": [
+        31,
+        45
+      ],
+      "ombro": [
+        31,
+        48
+      ],
+      "cotovelo": [
+        32,
+        56
+      ],
+      "mao": [
+        30,
+        65
+      ],
+      "cintura": [
+        31,
+        62
+      ],
+      "quadril": [
+        31,
+        67
+      ],
+      "joelho": [
+        31,
+        81
+      ],
+      "pe": [
+        30,
+        92
+      ]
+    },
+    "f_direita": {
+      "cabeca_topo": [
+        31,
+        16
+      ],
+      "cabeca_centro": [
+        31,
+        29
+      ],
+      "olhos": [
+        42,
+        33
+      ],
+      "pescoco": [
+        32,
+        45
+      ],
+      "ombro": [
+        32,
+        48
+      ],
+      "cotovelo": [
+        31,
+        56
+      ],
+      "mao": [
+        33,
+        65
+      ],
+      "cintura": [
+        32,
+        62
+      ],
+      "quadril": [
+        32,
+        67
+      ],
+      "joelho": [
+        32,
+        81
+      ],
+      "pe": [
+        33,
         92
       ]
     }
