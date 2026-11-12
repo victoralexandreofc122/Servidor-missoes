@@ -14,12 +14,12 @@
   // Índices de cor. A pele usa exatamente 4 tons: contorno, sombra, base e luz.
   const LINE = 1, SHADE = 2, BASE = 3, LIGHT = 4;
   const U_LINE = 5, U_SHADE = 6, U_BASE = 7;
-  const EYE_DARK = 8, EYE_IRIS = 9, EYE_SHINE = 10, SHADOW = 11;
+  const EYE_DARK = 8, EYE_IRIS = 9, EYE_SHINE = 10, SHADOW = 11, EYE_SHADE = 12;
 
   const PALETTE = {
     [LINE]: '#5a2a1c', [SHADE]: '#d98a5f', [BASE]: '#f6b98c', [LIGHT]: '#ffdcb9',
     [U_LINE]: '#5b6072', [U_SHADE]: '#b3b8c7', [U_BASE]: '#e6e8ef',
-    [EYE_DARK]: '#1d2136', [EYE_IRIS]: '#4a63b8', [EYE_SHINE]: '#ffffff',
+    [EYE_DARK]: '#1b1e33', [EYE_SHADE]: '#2f3f86', [EYE_IRIS]: '#5f7fd6', [EYE_SHINE]: '#ffffff',
     [SHADOW]: 'rgba(20,12,10,0.28)',
   };
 
@@ -159,9 +159,10 @@
     });
     if (!back) {
       if (sex === 'm') {
-        pxSym(L.corpo, span(33, 40, 66), SHADE);                     // linha do peitoral
-        pxSym(L.corpo, [[41, 65], [32, 64], [32, 65]], SHADE);
-        pxSym(L.corpo, span(34, 39, 63), LIGHT);                     // volume do peito
+        // Peitoral: arco embaixo de cada lado (mais baixo no meio do músculo), esterno curto e brilho pequeno em cima.
+        pxSym(L.corpo, [[33, 66], [34, 67], [35, 67], [36, 67], [37, 67], [38, 67], [39, 66], [40, 65], [41, 64]], SHADE);
+        pxSym(L.corpo, [[32, 65]], SHADE);
+        pxSym(L.corpo, span(35, 38, 63).concat(span(36, 37, 64)), LIGHT);
         pxSym(L.corpo, [[32, 70]], SHADE);                           // umbigo
       } else {
         pxSym(L.corpo, span(33, 36, 62), LIGHT);                     // colo
@@ -179,10 +180,18 @@
       return c.dB <= 1 || c.dL === 1 || c.dR === 1 ? SHADE : null;
     });
     if (sex === 'f') {
-      const top = inter(sym(newMask(), 63, [12, 12, 12, 12, 12]), trunk);
+      let top;
+      if (back) top = inter(sym(newMask(), 64, [12, 12, 12, 12]), trunk);
+      else {
+        // Decote em curva, base arredondada com um recorte no meio: lê como dois volumes, não dois quadrados.
+        top = sym(newMask(), 64, [10, 10, 10, 9]);
+        [[32, 64], [33, 64], [32, 67]].forEach(([x, y]) => { top[key(x, y)] = 0; top[key(W - 1 - x, y)] = 0; });
+        pxSym(top, [[37, 63], [38, 63], [39, 63]], 1);
+        top = inter(top, trunk);
+      }
       paint(L.superior, top, UNDER, (c) => {
         if (back) return c.dB <= 1 ? SHADE : null;
-        return c.dB <= 1 || c.ax === 0 ? SHADE : null;               // busto discreto
+        return c.y === 66 && (c.ax <= 1 || c.ax >= 7) ? SHADE : null; // sombra só na curva de baixo
       });
       pxSym(L.superior, [[38, 61], [38, 62]], U_LINE);               // alças
     }
@@ -201,6 +210,8 @@
       pxSym(L.rosto, span(36, 39, HY + 14), EYE_DARK);               // olho grande, cantos arredondados
       for (let y = HY + 15; y <= HY + 19; y++) pxSym(L.rosto, span(35, 40, y), EYE_DARK);
       pxSym(L.rosto, span(36, 39, HY + 20), EYE_DARK);
+      // Olho em 4 tons, como a pele: contorno, sombra da pálpebra, íris e brilho.
+      for (let y = HY + 15; y <= HY + 16; y++) pxSym(L.rosto, span(36, 39, y), EYE_SHADE);
       for (let y = HY + 17; y <= HY + 19; y++) pxSym(L.rosto, span(36, 39, y), EYE_IRIS);
       pxSym(L.rosto, [[37, HY + 15], [38, HY + 15], [37, HY + 16], [38, HY + 16]], EYE_SHINE);
       pxSym(L.rosto, [[32, HY + 21]], SHADE);                        // nariz
@@ -235,13 +246,13 @@
     m: {
       torso: [[27, 36], [25, 38], [24, 38], [24, 38], [24, 38], [24, 38], [24, 38], [25, 38], [25, 38], [25, 38], [25, 38],
         [25, 38], [25, 39], [25, 39], [25, 39], [25, 39], [25, 39]],
-      leg: [[82, 25, 38], [84, 26, 36], [87, 27, 38], [89, 27, 35], [90, 25, 35], [92, 22, 36]],
+      leg: [[81, 25, 38], [84, 26, 37], [87, 27, 37], [88, 27, 36], [89, 27, 35], [90, 25, 35], [92, 22, 36]],
       arm: [29, 34],
     },
     f: {
       torso: [[28, 36], [26, 37], [24, 37], [23, 37], [23, 37], [23, 37], [24, 37], [25, 36], [26, 36], [26, 36], [26, 36],
         [26, 37], [25, 38], [25, 40], [25, 40], [25, 40], [25, 40]],
-      leg: [[82, 25, 39], [84, 26, 36], [87, 27, 37], [89, 27, 34], [90, 25, 34], [92, 23, 35]],
+      leg: [[81, 25, 39], [82, 25, 38], [84, 26, 37], [87, 27, 36], [88, 27, 35], [89, 27, 34], [90, 25, 34], [92, 23, 35]],
       arm: [29, 33],
     },
   };
@@ -293,22 +304,29 @@
     px(L.rosto, span(20, 22, HY + 14), EYE_DARK);
     for (let y = HY + 15; y <= HY + 19; y++) px(L.rosto, span(20, 23, y), EYE_DARK);
     px(L.rosto, span(20, 22, HY + 20), EYE_DARK);
-    for (let y = HY + 17; y <= HY + 19; y++) px(L.rosto, span(20, 22, y), EYE_IRIS);
+    for (let y = HY + 15; y <= HY + 16; y++) px(L.rosto, span(21, 22, y), EYE_SHADE);
+    for (let y = HY + 17; y <= HY + 19; y++) px(L.rosto, span(21, 22, y), EYE_IRIS);
     px(L.rosto, [[21, HY + 15], [21, HY + 16]], EYE_SHINE);
     px(L.rosto, [[19, HY + 23], [20, HY + 23]], LINE);
 
     const [a, b] = s.arm;
     const arm = rows(newMask(), 61, [[a + 1, b - 1]]);
-    for (let y = 62; y <= 66; y++) rows(arm, y, [[a, b]]);
-    rows(arm, 67, [[a, b + 1], [a, b + 1]]);                         // cotovelo para trás
-    for (let y = 69; y <= 72; y++) rows(arm, y, [[a - 1, b]]);       // antebraço um pixel à frente
-    rows(arm, 73, [[a - 2, b], [a - 2, b], [a - 2, b], [a - 2, b], [a - 1, b - 1]]);
+    for (let y = 62; y <= 67; y++) rows(arm, y, [[a, b]]);           // braço
+    for (let y = 68; y <= 72; y++) rows(arm, y, [[a, b - 1]]);       // antebraço afina por trás
+    rows(arm, 73, [[a - 1, b - 1], [a - 1, b - 1], [a - 1, b - 1], [a - 1, b - 1], [a, b - 2]]); // mão
     paint(L.bracos, arm, SKIN, (c) => {
-      if (c.y <= 64) return LIGHT;
-      if (c.y === 68) return SHADE;
+      if (c.y <= 64 && c.dL >= 2) return LIGHT;
+      if (c.dR === 1 && c.y >= 65 && c.y <= 72) return SHADE;        // volume: sombra atrás
       if (c.y >= 76) return SHADE;
       return null;
     });
+    // Contorno escuro só atrás e na mão. Na frente e no ombro, onde o braço encosta no tronco, a borda vira sombra:
+    // o braço deixa de parecer uma peça colada por cima.
+    for (let y = 61; y <= 72; y++) for (let x = 0; x < W; x++) {
+      if (!arm[key(x, y)] || !trunk[key(x, y)]) continue;
+      const front = !has(arm, x - 1, y) || !has(arm, x, y - 1);
+      if (front && has(arm, x + 1, y)) L.bracos[key(x, y)] = SHADE;
+    }
 
     const anchors = {};
     Object.keys(A_SIDE).forEach((k) => { anchors[k] = A_SIDE[k].slice(); });
