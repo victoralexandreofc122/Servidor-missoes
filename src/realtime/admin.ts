@@ -67,6 +67,7 @@ export type AdminCommand =
   | { cmd: 'resetstats'; username: string }
   | { cmd: 'rank'; username: string; rank: AdminRank }
   | { cmd: 'resetclasses'; username: string }
+  | { cmd: 'rito'; username: string }
   | { cmd: 'help' }
   | { cmd: 'ir'; map: string; x?: number; y?: number }
   | { cmd: 'clima'; weather: Weather; minutes: number }
@@ -102,7 +103,7 @@ const RANK_WORDS: Readonly<Record<string, AdminRank>> = {
 export type ParsedAdmin = { ok: true; command: AdminCommand } | { ok: false; command: string; text: string };
 
 export const ADMIN_HELP = 'Admin (ou o painel 🛡️): /admin nivel <nome> <nível> · invocar <monstro> [qtd] · darjutsu <nome> <jutsu> [nível] · daritem <nome> <item> [qtd] · ryo <nome> <qtd>'
-  + ' · zerarpontos <nome> · patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage> · resetarclasses <admin|eu> · pvp [dias] · torneio <abrir [dias]|fechar|chaves|wo <nome>|encerrar|status> · bonusxp <global|mapa X|monstro X|vila X> <%> [min] · bonusxp remover <alvo|tudo> · ir <mapa> [x y] · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite> · efeito <nome> <efeito|limpar> [seg]'
+  + ' · zerarpontos <nome> · patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage> · resetarclasses <admin|eu> · rito <nome|eu> · pvp [dias] · torneio <abrir [dias]|fechar|chaves|wo <nome>|encerrar|status> · bonusxp <global|mapa X|monstro X|vila X> <%> [min] · bonusxp remover <alvo|tudo> · ir <mapa> [x y] · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite> · efeito <nome> <efeito|limpar> [seg]'
   + ' · fimdejogo <módulo> <ligar|desligar|auto> · vila <nome> <vila> · kage <vila> <nome> · eleicao <vila> · evento <guerra|tregua> <vila|todas> [vila] <horas>'
   + ' · renegado <nome> <sim|nao> · akatsuki <lider|remover> <nome> · temporada fechar';
 
@@ -271,6 +272,12 @@ export function parseAdminCommand(text: string, monsterTypes: readonly string[],
       const rank = RANK_WORDS[plain(args[1] ?? '')];
       if (args.length !== 2 || !username || !rank) return bad('patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage>');
       return { ok: true, command: { cmd: 'rank', username, rank } };
+    }
+    case 'rito': {
+      const who = plain(args[0] ?? '');
+      const username = who === 'eu' || who === 'me' ? 'eu' : user(args[0]);
+      if (args.length !== 1 || !username) return bad('rito <nome|eu> (completa o Rito do Despertar: 10/10)');
+      return { ok: true, command: { cmd: 'rito', username } };
     }
     case 'resetarclasses': {
       const who = plain(args[0] ?? '');
