@@ -13,6 +13,11 @@ lista de problemas se alguma estiver fora.
 - 3 direções desenhadas: `frente`, `costas` e `lado` (olhando para a esquerda). A direita é o espelho.
 - Nome: `id` em minúsculas, sem acento, com `_`. É um código interno; nome de item do jogo segue a regra das 3 opções.
 
+- **Sem pontas totalmente quadradas** (regra do Victor, 12/11/2026): todo canto convexo em L perde o pixel da quina. O
+  gerador aplica isso sozinho em tudo que pinta (`roundCorners` dentro de `paint`); não desenhe a quina "na mão".
+- Roupa de cima é lisa: com ela, some a musculatura do corpo; no feminino fica só a sombra embaixo do busto.
+- Estampa precisa de contraste com a roupa: se as cores forem parecidas, o gerador troca a estampa por branco ou preto.
+
 ## Os três modos
 
 ### Modo `cor`: roupa colada ao corpo

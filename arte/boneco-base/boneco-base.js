@@ -76,7 +76,14 @@
     if (inf && inf.modo === 'cor') { set(inf.partes, k.corInferior || 'preto'); hide.inferior = true; }
     if (k.pes) set(PECAS.calcado.partes, k.pes);
     if (k.maos) set(PECAS.luvas.partes, k.maos);
-    set([10], k.corCabelo || 'marrom'); set([11], k.bandana || 'azul'); set([12], k.corAcessorio || 'preto'); set([13], k.corEstampa || 'branco'); set([14], k.corPeca || 'cinza');
+    set([10], k.corCabelo || 'marrom'); set([11], k.bandana || 'azul'); set([12], k.corAcessorio || 'preto'); {
+      // A estampa precisa contrastar com a roupa: se as cores forem parecidas, troca por branco ou preto.
+      const lum = (hex) => { const n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+      let ce = k.corEstampa || 'branco';
+      const fundo = TECIDOS[k.corSuperior || 'azul'];
+      if (TECIDOS[ce] && fundo && Math.abs(lum(TECIDOS[ce][2]) - lum(fundo[2])) < 0.3) ce = lum(fundo[2]) < 0.5 ? 'branco' : 'preto';
+      set([13], ce);
+    } set([14], k.corPeca || 'cinza');
     return { cores, hide };
   }
   function colorOf(v, res) {
@@ -108,7 +115,21 @@
    * `rule(c)` devolve LIGHT, SHADE ou nada (fica a cor base). c traz x, y, ax (distância do eixo),
    * dT/dB/dL/dR (quantos pixels da peça existem acima, abaixo, à esquerda e à direita).
    */
+  // Regra: nada com ponta totalmente quadrada. Antes de pintar, tira o pixel de cada canto convexo em L
+  // (só onde a borda continua por pelo menos 3 pixels nos dois sentidos, para não comer peças finas).
+  function roundCorners(mask) {
+    const o = mask.slice();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (!mask[key(x, y)]) continue;
+      for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+        if (!has(mask, x - sx, y) && !has(mask, x, y - sy) && has(mask, x + 2 * sx, y) && has(mask, x, y + 2 * sy)
+          && has(mask, x + sx, y + sy)) { o[key(x, y)] = 0; break; }
+      }
+    }
+    return o;
+  }
   function paint(grid, mask, tones, rule) {
+    mask = roundCorners(mask);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       if (!mask[key(x, y)]) continue;
       const edge = !has(mask, x - 1, y) || !has(mask, x + 1, y) || !has(mask, x, y - 1) || !has(mask, x, y + 1);
@@ -333,6 +354,33 @@
       }
       return { frente: m, tras };
     } });
+  // Referência Graal: volume que passa do crânio, borda feita de pontas de mecha (serrilhada), franja em mechas
+  // pontudas cobrindo a testa até a sobrancelha e sombra separando as mechas.
+  definirPeca({ id: 'repicado', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo, sombra: SOMBRA_CABELO,
+    desenho(view, k) {
+      const m = k.nova(); const lado = view === 'lado';
+      const fim = view === 'costas' ? 24 : lado ? 22 : 13;
+      for (let i = -3; i <= fim; i++) k.cabeca(m, view, Math.max(i, -1), i < -1 ? 1 : 3);
+      // Borda de baixo e das laterais em pontas: uma mecha a cada 3 pixels, ponta de 2 linhas.
+      const ys = []; for (let y = HY + fim - 1; y <= HY + fim + 2; y++) ys.push(y);
+      for (let x = 10; x <= 54; x++) {
+        const dente = x % 3;
+        if (dente === 0) continue;
+        for (let y = HY + fim + 1; y <= HY + fim + (dente === 1 ? 2 : 1); y++) if (m[(HY + fim) * k.W + x]) m[y * k.W + x] = 1;
+      }
+      if (view === 'frente') {
+        // Rosto livre de y +12 para baixo, entre as costeletas; franja em 5 mechas pontudas.
+        for (let y = HY + 12; y <= HY + fim + 3; y++) k.apagar(m, y, [[19, 44]]);
+        [[20, 24], [25, 29], [30, 33], [34, 38], [39, 43]].forEach(([a, b], n) => {
+          for (let j = 0; j <= 3; j++) k.linhas(m, HY + 10 + j, [[a + Math.ceil(j / 2), b - Math.floor(j / 2) - (n % 2)]]);
+        });
+      }
+      if (lado) {
+        for (let y = HY + 12; y <= HY + fim + 3; y++) k.apagar(m, y, [[10, 37]]);
+        for (let j = 0; j <= 3; j++) k.linhas(m, HY + 10 + j, [[16 + j, 24 - j]]);           // mecha da franja
+      }
+      return { frente: m };
+    } });
   definirPeca({ id: 'bandana', tipo: 'bandana', modo: 'forma', camada: 'bandana', parte: PART.bandana,
     sombra: (c) => (c.dB === 1 ? SHADE : null),
     desenho(view, k) {
@@ -396,12 +444,13 @@
     desenho(view, k) {
       const m = k.nova();
       if (view === 'lado') return { frente: m };
-      const cx = view === 'costas' ? 31.5 : 36.5; const cy = view === 'costas' ? 66.5 : 64.5; const r = view === 'costas' ? 4.2 : 2.2;
+      // Anel grande no meio do peito (ou das costas), ponto no centro e a cauda saindo para a direita.
+      const cx = 31.5; const cy = 66.5; const r = 4.6;
       for (let y = 60; y <= 74; y++) for (let x = 20; x <= 44; x++) {
         const d = Math.hypot(x - cx, y - cy);
-        if ((d <= r && d >= r - 1.3) || (d < 1 && view === 'costas')) m[y * k.W + x] = 1;
+        if ((d <= r && d >= r - 1.3) || d < 1) m[y * k.W + x] = 1;
       }
-      if (view === 'costas') k.linhas(m, 66, [[32, 35]]);
+      k.linhas(m, 66, [[32, 35], [32, 35]]);
       return { frente: m };
     } });
   definirPeca({ id: 'listra', tipo: 'estampa', modo: 'estampa',
@@ -495,7 +544,11 @@
       if (c.y >= 67 && c.y <= 76 && (c.dL === 1 || c.dR === 1)) return SHADE; // lateral do tronco
       return null;
     });
-    if (!back) {
+    // Com roupa de cima, o tecido fica liso: some a musculatura; no feminino fica só a sombra embaixo do busto.
+    const vestido = !!(look && PECAS[look.superior] && PECAS[look.superior].modo === 'cor');
+    if (vestido) {
+      if (!back && sex === 'f') pxSym(L.corpo, [[34, 66], [35, 67], [36, 67], [37, 67], [38, 66]], SHADE);
+    } else if (!back) {
       if (sex === 'm') {
         // Peitoral: arco embaixo de cada lado (mais baixo no meio do músculo), esterno curto e brilho pequeno em cima.
         pxSym(L.corpo, [[33, 66], [34, 67], [35, 67], [36, 67], [37, 67], [38, 67], [39, 66], [40, 65], [41, 64]], SHADE);
@@ -742,7 +795,7 @@
       if (y === 91) return SHADE;
       if (y === 90 && c.dL >= 1 && c.dL <= 6) return LIGHT;          // peito do pé
       if (y === 83 && c.dL >= 2 && c.dL <= 4) return LIGHT;
-      if (sex === 'm' && y === 66 && c.dL <= 5) return SHADE;        // debaixo do peitoral
+      if (sex === 'm' && y === 66 && c.dL <= 5 && !(look && PECAS[look.superior])) return SHADE; // debaixo do peitoral
       return null;
     });
     // Perna e braço de trás: mesma forma, só contorno e sombra, numa camada abaixo do corpo.
