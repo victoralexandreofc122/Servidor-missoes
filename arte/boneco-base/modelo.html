@@ -59,7 +59,7 @@
 <script>
 (function () {
   const B = window.BonecoBase;
-  const NOMES = { tras: 'Perna e braço de trás', sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços', efeito: 'Efeito' };
+  const NOMES = { tras: 'Perna e braço de trás', sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços', arma: 'Arma', efeito: 'Efeito' };
   const TITULO = { frente: 'Frente', costas: 'Costas', esquerda: 'Esquerda', direita: 'Direita' };
   const ligadas = {};
   const barra = document.getElementById('camadas');
@@ -124,7 +124,7 @@
     });
   }
 
-  const ANIM_NOME = { parado: 'Parado', andar: 'Andar', correr: 'Correr', selos: 'Selos de mão', soco: 'Atacar: soco', chute: 'Atacar: chute', levar_golpe: 'Levar golpe', cair: 'Cair' };
+  const ANIM_NOME = { parado: 'Parado', andar: 'Andar', correr: 'Correr', selos: 'Selos de mão', soco: 'Atacar: soco', chute: 'Atacar: chute', espada: 'Atacar: espada', shuriken: 'Jogar shuriken', levar_golpe: 'Levar golpe', cair: 'Cair' };
   Object.keys(B.ANIMS).forEach((n) => {
     const o = document.createElement('option'); o.value = n; o.textContent = ANIM_NOME[n] || n;
     if (n === 'andar') o.selected = true;

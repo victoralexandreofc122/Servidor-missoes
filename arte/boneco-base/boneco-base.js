@@ -14,18 +14,19 @@
   // Índices de cor. A pele usa exatamente 4 tons: contorno, sombra, base e luz.
   const LINE = 1, SHADE = 2, BASE = 3, LIGHT = 4;
   const U_LINE = 5, U_SHADE = 6, U_BASE = 7;
-  const EYE_DARK = 8, EYE_IRIS = 9, EYE_SHINE = 10, SHADOW = 11, EYE_SHADE = 12;
+  const EYE_DARK = 8, EYE_IRIS = 9, EYE_SHINE = 10, SHADOW = 11, EYE_SHADE = 12, STEEL_LINE = 13, STEEL = 14, HILT = 15;
 
   const PALETTE = {
     [LINE]: '#5a2a1c', [SHADE]: '#d98a5f', [BASE]: '#f6b98c', [LIGHT]: '#ffdcb9',
     [U_LINE]: '#5b6072', [U_SHADE]: '#b3b8c7', [U_BASE]: '#e6e8ef',
     [EYE_DARK]: '#1b1e33', [EYE_SHADE]: '#2f3f86', [EYE_IRIS]: '#5f7fd6', [EYE_SHINE]: '#ffffff',
     [SHADOW]: 'rgba(20,12,10,0.28)',
+    [STEEL_LINE]: '#3b4252', [STEEL]: '#dfe5ee', [HILT]: '#6b4226',
   };
 
   // Ordem de desenho, de baixo para cima. `corpo`, `cabeca` e `bracos` formam o corpo-base, separados
   // para a roupa do tronco passar por baixo do braço e para animar cada parte.
-  const LAYERS = ['sombra', 'tras', 'corpo', 'inferior', 'superior', 'cabeca', 'rosto', 'bracos', 'efeito'];
+  const LAYERS = ['sombra', 'tras', 'corpo', 'inferior', 'superior', 'cabeca', 'rosto', 'bracos', 'arma', 'efeito'];
 
   // ---------- máscaras ----------
   const key = (x, y) => y * W + x;
@@ -102,6 +103,24 @@
     return mask;
   }
   const rel = (pts, o) => pts.map(([x, y]) => [o[0] + x, o[1] + y]);
+  // Armas. Lâmina: linha de aço da mão até a ponta, com o cabo nos dois primeiros pixels.
+  const METAL = { line: STEEL_LINE, shade: STEEL, base: STEEL, light: STEEL };
+  function blade(layer, from, to) {
+    paint(layer, limb(newMask(), [from, to], 3), METAL, null);
+    const n = Math.max(Math.abs(to[0] - from[0]), Math.abs(to[1] - from[1]), 1);
+    for (let k = 0; k <= 3; k++) {
+      const x = Math.round(from[0] + ((to[0] - from[0]) * k) / n); const y = Math.round(from[1] + ((to[1] - from[1]) * k) / n);
+      for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (x + i >= 0 && x + i < W && y + j >= 0 && y + j < H) layer[key(x + i, y + j)] = HILT;
+    }
+  }
+  // Shuriken: estrela de 4 pontas em duas posições de giro (em cruz e em X).
+  function star(layer, cx, cy, rot) {
+    const d = rot ? [[1, 1], [-1, 1], [1, -1], [-1, -1]] : [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const put = (x, y, v) => { if (x >= 0 && x < W && y >= 0 && y < H) layer[key(x, y)] = v; };
+    d.forEach(([i, j]) => { put(cx + i, cy + j, STEEL); put(cx + 2 * i, cy + 2 * j, STEEL); put(cx + 3 * i, cy + 3 * j, STEEL_LINE); });
+    if (!rot) [[1, 1], [-1, 1], [1, -1], [-1, -1]].forEach(([i, j]) => put(cx + i, cy + j, STEEL_LINE));
+    put(cx, cy, STEEL_LINE);
+  }
   const LIMB = (c) => (c.dT === 1 ? LIGHT : c.dB === 1 ? SHADE : null);
   // Copia para `dst` os pixels de `src` com x entre x0 e x1 e y entre y0 e y1, deslocados em dy.
   function blit(dst, src, x0, x1, y0, y1, dy) {
@@ -297,6 +316,17 @@
         });
         if (P.fx) pxSym(L.efeito, [[39, 61], [40, 60], [39, 70], [40, 71], [41, 65]], EYE_SHINE); // risco de velocidade
       }
+    } else if (P.wf) {
+      // Arma vista de frente (ou de costas): o braço A sobe até a mão, que segura a espada ou solta a shuriken.
+      const [hx, hy] = P.wf.hand;
+      const R = cut(arm, Math.min(66, hy));
+      if (!back) rows(R, hy - 3, [0, 1, 2, 3, 4, 5, 6].map(() => [hx - 3, hx + 3]));
+      L.bracos = newMask();
+      paint(L.bracos, union(R, mirror(arm)), SKIN, LIMB);
+      const wl = back ? L.tras : L.arma;                             // de costas a arma fica atrás do corpo
+      if (P.wf.tip) blade(wl, P.wf.hand, P.wf.tip);
+      if (P.wf.star) star(wl, P.wf.star[0], P.wf.star[1], P.wf.star[2]);
+      if (P.wf.arc && !back) paint(L.efeito, limb(newMask(), P.wf.arc, 2), { line: EYE_SHINE, shade: EYE_SHINE, base: EYE_SHINE, light: EYE_SHINE }, null);
     } else if (P.punch === 2) {
       // Soco visto de frente: o braço vem na direção da câmera e vira um punho na frente do ombro.
       const R = cut(arm, back ? 66 : 64);
@@ -460,12 +490,12 @@
     // Braço por segmentos (ombro, cotovelo, mão) quando a pose traz os pontos; senão, o braço solto que balança.
     const SH = [34 - lean, 63 + bob];
     const custom = !!P.armPts;
-    let arm;
+    let arm; let E = null;
     if (custom) {
       const t = s.arm - 1;
       const a = rel(P.armPts, SH);
       arm = limb(newMask(), a, t);
-      const E = a[a.length - 1];
+      E = a[a.length - 1];
       if (P.fist) rows(arm, E[1] - 3, [0, 1, 2, 3, 4, 5, 6].map(() => [E[0] - 3, E[0] + 3]));
       paint(L.tras, limb(newMask(), rel(P.armPtsB || P.armPts, SH), t), SKIN, () => SHADE);
       paint(L.bracos, arm, SKIN, LIMB);
@@ -496,6 +526,19 @@
     }
 
     L.cabeca = shiftG(L.cabeca, -lean, bob);
+    // Espada na mão, rastro do corte em arco em volta do ombro e shuriken no ar com rastro.
+    if (P.weapon && E) blade(L.arma, E, [E[0] + P.weapon[0], E[1] + P.weapon[1]]);
+    if (P.arc) {
+      const [a0, a1, rad] = P.arc;
+      for (let a = Math.min(a0, a1); a <= Math.max(a0, a1); a += 2) for (let k = 0; k < 2; k++) {
+        const x = Math.round(SH[0] + (rad - k) * Math.cos((a * Math.PI) / 180)); const y = Math.round(SH[1] + (rad - k) * Math.sin((a * Math.PI) / 180));
+        if (x >= 0 && x < W && y >= 0 && y < H) L.efeito[key(x, y)] = EYE_SHINE;
+      }
+    }
+    if (P.star) {
+      star(L.arma, SH[0] + P.star[0], SH[1] + P.star[1], P.star[2]);
+      if (P.star[3]) px(L.efeito, span(SH[0] + P.star[0] + 5, Math.min(W - 1, SH[0] + P.star[0] + 5 + P.star[3]), SH[1] + P.star[1]), EYE_SHINE);
+    }
     // Riscos brancos atrás do braço no soco.
     if (P.fx && P.punch === 2) px(L.efeito, span(SH[0] - 9, SH[0] + 7, SH[1] - 4).concat(span(SH[0] - 5, SH[0] + 10, SH[1] + 4), span(SH[0] - 2, SH[0] + 5, SH[1] - 6)), EYE_SHINE);
     if (P.eyes === 'closed') {
@@ -602,6 +645,29 @@
       { kick: 1, lean: -4, dx: -1, liftA: 5, legPts: [[0, 0], [-5, -6], [-11, -13]], noToe: 1, armPts: [[0, 0], [2, 5], [-2, 4]] },
       { kick: 1, lean: -4, dx: -2, liftA: 5, legPts: [[0, 0], [-5, -6], [-12, -14]], noToe: 1, armPts: [[0, 0], [2, 5], [-2, 4]] },
       { lean: -1, liftA: 4, legPts: [[0, 0], [-6, -2], [-4, 5]], noToe: 1, armPts: [[0, 0], [-3, 5], [-6, 2]] },
+      {},
+    ] },
+    // Espada: ergue a lâmina para trás, corta de cima para baixo com um passo e o rastro em arco, segura e volta.
+    espada: { fps: 14, frames: [
+      { lean: -1, bob: 1, armPts: [[0, 0], [3, -5], [2, -10]], armPtsB: [[0, 1], [-4, 4], [-7, 1]], weapon: [5, -13],
+        wf: { hand: [41, 58], tip: [46, 41] } },
+      { lean: 2, dx: -2, legA: -3, legB: 3, armPts: [[0, 0], [-7, -6]], armPtsB: [[0, 1], [5, 4]], weapon: [-12, -7], arc: [215, 288, 24],
+        wf: { hand: [40, 62], tip: [29, 50], arc: [[46, 42], [31, 48]] } },
+      { lean: 3, dx: -4, bob: 1, legA: -5, legB: 5, armPts: [[0, 0], [-9, 3]], armPtsB: [[0, 1], [6, 4]], weapon: [-13, 5], arc: [160, 250, 24],
+        wf: { hand: [38, 68], tip: [22, 79], arc: [[28, 50], [20, 74]] } },
+      { lean: 3, dx: -4, bob: 1, legA: -5, legB: 5, armPts: [[0, 0], [-9, 3]], armPtsB: [[0, 1], [6, 4]], weapon: [-13, 5],
+        wf: { hand: [38, 68], tip: [22, 79] } },
+      {},
+    ] },
+    // Shuriken: leva a mão para trás, estende o braço e solta; a estrela gira e segue em frente com um rastro.
+    shuriken: { fps: 14, frames: [
+      { lean: -1, bob: 1, armPts: [[0, 0], [5, -2], [8, -6]], armPtsB: [[0, 1], [-4, 4], [-7, 1]], star: [9, -9, 0],
+        wf: { hand: [42, 58], star: [42, 54, 0] } },
+      { lean: 2, dx: -1, legA: -2, legB: 2, armPts: [[0, 0], [-12, -2]], armPtsB: [[0, 1], [5, 4]], star: [-18, -2, 1, 4],
+        wf: { hand: [40, 64], star: [40, 70, 1] } },
+      { lean: 2, dx: -1, legA: -2, legB: 2, armPts: [[0, 0], [-9, 4]], armPtsB: [[0, 1], [5, 4]], star: [-27, -2, 0, 8],
+        wf: { hand: [39, 68], star: [38, 80, 0] } },
+      { lean: 1, armPts: [[0, 0], [-5, 5]] },
       {},
     ] },
     levar_golpe: { fps: 8, frames: [
