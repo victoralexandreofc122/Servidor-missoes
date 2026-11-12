@@ -46,7 +46,7 @@ B.SEXES.forEach((sx, r) => B.VIEWS.forEach((v, c) => {
     const t = g[y * B.W + x];
     if (!t) continue;
     const o = ((r * B.H + y) * B.W * cols + c * B.W + x) * 4;
-    rgba(B.PALETTE[t]).forEach((val, i) => { sheet[o + i] = val; });
+    rgba(B.colorOf(t, m.look)).forEach((val, i) => { sheet[o + i] = val; });
   }
 }));
 writeFileSync(join(out, 'boneco-base-sheet.png'), png(B.W * cols, B.H * rowsN, sheet));
@@ -64,7 +64,7 @@ function put(buf, bw, model, ox, oy, sc) {
   for (let y = 0; y < B.H; y++) for (let x = 0; x < B.W; x++) {
     const tone = grid[y * B.W + x];
     if (!tone) continue;
-    const [r, gg, b, al] = rgba(B.PALETTE[tone]);
+    const [r, gg, b, al] = rgba(B.colorOf(tone, model.look));
     for (let j = 0; j < sc; j++) for (let k = 0; k < sc; k++) {
       const o = ((oy + y * sc + j) * bw + ox + x * sc + k) * 4;
       const a0 = al / 255;
@@ -138,5 +138,30 @@ Object.keys(B.ANIMS).forEach((n) => {
     return buf;
   });
   writeFileSync(join(out, 'gif', `${n}.gif`), gif(w, h, frames, B.ANIMS[n].fps));
+});
+
+// Visuais de exemplo: prancha parada e GIFs vestidos (as peças acompanham as animações).
+const VISUAIS = [
+  { cabelo: 'espetado', corCabelo: 'amarelo', bandana: 'azul', superior: 'camiseta', corSuperior: 'laranja', inferior: 'calca', corInferior: 'laranja', pes: 'azul' },
+  { cabelo: 'longo', corCabelo: 'preto', acessorio: 'cachecol', corAcessorio: 'vermelho', superior: 'manga_longa', corSuperior: 'roxo', inferior: 'shorts', corInferior: 'preto', pes: 'preto', maos: 'preto' },
+  { cabelo: 'curto', corCabelo: 'cinza', bandana: 'preto', acessorio: 'mascara', corAcessorio: 'azul', superior: 'regata', corSuperior: 'azul', inferior: 'calca', corInferior: 'azul', pes: 'azul', maos: 'azul' },
+  { cabelo: 'curto', corCabelo: 'vermelho', superior: 'camiseta', corSuperior: 'branco', inferior: 'shorts', corInferior: 'verde', pes: 'marrom' },
+];
+{
+  const sc = 2, w = B.W * sc * 8, h = B.H * sc * VISUAIS.length;
+  const buf = Buffer.alloc(w * h * 4);
+  for (let k = 0; k < w * h; k++) { buf[k * 4] = 63; buf[k * 4 + 1] = 125; buf[k * 4 + 2] = 58; buf[k * 4 + 3] = 255; }
+  VISUAIS.forEach((look, r) => B.SEXES.forEach((sx, si) => B.VIEWS.forEach((v, c) => put(buf, w, B.build(sx, v, null, look), (si * 4 + c) * B.W * sc, r * B.H * sc, sc))));
+  writeFileSync(join(out, 'visuais.png'), png(w, h, buf));
+}
+['andar', 'correr', 'selos', 'espada', 'cair'].forEach((n) => {
+  const sc = 2, w = B.W * sc * 4, h = B.H * sc * 2;
+  const frames = B.ANIMS[n].frames.map((pose) => {
+    const buf = Buffer.alloc(w * h * 4);
+    for (let k = 0; k < w * h; k++) { buf[k * 4] = 63; buf[k * 4 + 1] = 125; buf[k * 4 + 2] = 58; buf[k * 4 + 3] = 255; }
+    B.SEXES.forEach((sx, r) => B.VIEWS.forEach((v, c) => put(buf, w, B.build(sx, v, pose, VISUAIS[r]), c * B.W * sc, r * B.H * sc, sc)));
+    return buf;
+  });
+  writeFileSync(join(out, 'gif', `vestido-${n}.gif`), gif(w, h, frames, B.ANIMS[n].fps));
 });
 console.log('ok: arte/boneco-base.html, saida/boneco-base-sheet.png, saida/ancoras.json');

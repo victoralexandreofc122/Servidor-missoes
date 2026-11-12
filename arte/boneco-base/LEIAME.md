@@ -24,3 +24,11 @@ coxa 9, joelho, panturrilha e pés de 10. Os segmentos de altura não mudaram.
 `levar_golpe` e `cair`. O gerador grava `saida/boneco-m-animacoes.png` e `boneco-f-animacoes.png`
 (linha = direção, coluna = quadro), `saida/animacoes.json` e um GIF por animação em `saida/gif/` (regra do Victor: toda animação nova é entregue em GIF).
 A camada `tras` guarda a perna e o braço de trás na visão de lado.
+
+## Roupas, cabelos, bandana e acessórios
+
+`build(sexo, direção, pose, visual)`. Cada pixel de pele do corpo guarda a parte a que pertence (`PART`: pescoço, tronco,
+quadril, coxa, canela, pé, braço, antebraço, mão). A roupa é uma troca de cor por parte (`TECIDOS`, 4 tons cada), então
+acompanha todas as animações sem desalinhar. Cabelo, bandana e acessório são peças desenhadas no espaço da cabeça, por
+direção, e andam junto com ela. Catálogo em `CATALOGO`; os nomes das peças são descrições provisórias, não nomes do jogo.
+`saida/visuais.png` mostra 4 exemplos e `saida/gif/vestido-*.gif` mostra as animações vestidas.

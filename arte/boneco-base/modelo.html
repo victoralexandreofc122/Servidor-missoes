@@ -39,6 +39,9 @@
   </label>
 </div>
 
+<h2>Visual</h2>
+<div class="barra" id="visual"></div>
+
 <h2>Animação (3x)</h2>
 <div class="barra">
   <label>Animação <select id="anim"></select></label>
@@ -59,7 +62,28 @@
 <script>
 (function () {
   const B = window.BonecoBase;
-  const NOMES = { tras: 'Perna e braço de trás', sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços', arma: 'Arma', efeito: 'Efeito' };
+  // Visual: uma lista por peça e por cor, montada a partir do catálogo do gerador.
+  const CAMPOS = [
+    ['cabelo', 'Cabelo', B.CATALOGO.cabelo, 'espetado'], ['corCabelo', 'Cor do cabelo', B.CATALOGO.cores, 'marrom'],
+    ['bandana', 'Bandana', ['nenhum'].concat(B.CATALOGO.cores), 'azul'],
+    ['acessorio', 'Acessório', B.CATALOGO.acessorio, 'nenhum'], ['corAcessorio', 'Cor do acessório', B.CATALOGO.cores, 'preto'],
+    ['superior', 'Roupa de cima', B.CATALOGO.superior, 'camiseta'], ['corSuperior', 'Cor', B.CATALOGO.cores, 'azul'],
+    ['inferior', 'Roupa de baixo', B.CATALOGO.inferior, 'calca'], ['corInferior', 'Cor', B.CATALOGO.cores, 'preto'],
+    ['pes', 'Calçado', ['nenhum'].concat(B.CATALOGO.cores), 'preto'], ['maos', 'Luvas', ['nenhum'].concat(B.CATALOGO.cores), 'nenhum'],
+  ];
+  CAMPOS.forEach(([id, rotulo, lista, padrao]) => {
+    const l = document.createElement('label');
+    l.textContent = rotulo + ' ';
+    const sel = document.createElement('select'); sel.id = 'v_' + id;
+    lista.forEach((o) => { const op = document.createElement('option'); op.value = o; op.textContent = o.replace('_', ' '); if (o === padrao) op.selected = true; sel.appendChild(op); });
+    l.appendChild(sel); document.getElementById('visual').appendChild(l);
+  });
+  function visual() {
+    const v = {};
+    CAMPOS.forEach(([id]) => { const val = document.getElementById('v_' + id).value; if (val !== 'nenhum') v[id] = val; });
+    return v;
+  }
+  const NOMES = { tras: 'Perna e braço de trás', cabelo_tras: 'Cabelo (atrás)', cabelo: 'Cabelo', bandana: 'Bandana', acessorio: 'Acessório', sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços', arma: 'Arma', efeito: 'Efeito' };
   const TITULO = { frente: 'Frente', costas: 'Costas', esquerda: 'Esquerda', direita: 'Direita' };
   const ligadas = {};
   const barra = document.getElementById('camadas');
@@ -105,7 +129,7 @@
     let c = real.getContext('2d');
     fundo(c, real.width, real.height, 8);
     let i = 0;
-    B.SEXES.forEach((sx) => B.VIEWS.forEach((v) => { quadro(c, B.build(sx, v), 8 + i * (B.W + 8), 8, 1); i++; }));
+    B.SEXES.forEach((sx) => B.VIEWS.forEach((v) => { quadro(c, B.build(sx, v, null, visual()), 8 + i * (B.W + 8), 8, 1); i++; }));
 
     B.SEXES.forEach((sx) => {
       const caixa = document.getElementById('zoom-' + sx);
@@ -116,7 +140,7 @@
         cv.width = B.W * 4; cv.height = B.H * 4;
         const ctx = cv.getContext('2d');
         fundo(ctx, cv.width, cv.height, 16);
-        quadro(ctx, B.build(sx, v), 0, 0, 4);
+        quadro(ctx, B.build(sx, v, null, visual()), 0, 0, 4);
         const cap = document.createElement('figcaption');
         cap.textContent = TITULO[v];
         fig.appendChild(cv); fig.appendChild(cap); caixa.appendChild(fig);
@@ -145,7 +169,7 @@
     cv.width = B.W * s * 4; cv.height = B.H * s * 2;
     const ctx = cv.getContext('2d');
     fundo(ctx, cv.width, cv.height, 12);
-    B.SEXES.forEach((sx, r) => B.VIEWS.forEach((v, c) => quadro(ctx, B.build(sx, v, an.frames[k]), c * B.W * s, r * B.H * s, s)));
+    B.SEXES.forEach((sx, r) => B.VIEWS.forEach((v, c) => quadro(ctx, B.build(sx, v, an.frames[k], visual()), c * B.W * s, r * B.H * s, s)));
     document.getElementById('quadro').textContent = 'quadro ' + (k + 1) + ' de ' + an.frames.length + ', ' + an.fps + ' por segundo';
   }
   requestAnimationFrame(vivo);

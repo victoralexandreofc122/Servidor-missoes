@@ -39,6 +39,9 @@
   </label>
 </div>
 
+<h2>Visual</h2>
+<div class="barra" id="visual"></div>
+
 <h2>Animação (3x)</h2>
 <div class="barra">
   <label>Animação <select id="anim"></select></label>
@@ -80,10 +83,63 @@
     [SHADOW]: 'rgba(20,12,10,0.28)',
     [STEEL_LINE]: '#3b4252', [STEEL]: '#dfe5ee', [HILT]: '#6b4226',
   };
+  // Sem roupa, as partes do corpo têm a cor da pele; cabelo, bandana e acessório têm uma cor padrão.
+  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].forEach((pt) => [0, 1, 2, 3].forEach((k) => {
+    PALETTE[20 + pt * 4 + k] = pt <= 9 ? PALETTE[1 + k] : null;
+  }));
 
   // Ordem de desenho, de baixo para cima. `corpo`, `cabeca` e `bracos` formam o corpo-base, separados
   // para a roupa do tronco passar por baixo do braço e para animar cada parte.
-  const LAYERS = ['sombra', 'tras', 'corpo', 'inferior', 'superior', 'cabeca', 'rosto', 'bracos', 'arma', 'efeito'];
+  const LAYERS = ['sombra', 'tras', 'cabelo_tras', 'corpo', 'inferior', 'superior', 'cabeca', 'rosto', 'cabelo', 'bandana',
+    'acessorio', 'bracos', 'arma', 'efeito'];
+  // Camadas presas à cabeça: andam junto com ela em toda pose.
+  const HEAD_LAYERS = ['cabeca', 'rosto', 'cabelo', 'cabelo_tras', 'bandana', 'acessorio'];
+
+  /*
+   * Partes. Cada pixel de pele do corpo guarda a parte a que pertence; a roupa é uma troca de cor por parte, então
+   * acompanha todas as poses sem desalinhar. O índice gravado é 20 + parte * 4 + tom (0 contorno, 1 sombra, 2 base, 3 luz).
+   * Cabelo, bandana e acessório usam o mesmo esquema (partes 10, 11 e 12) para poderem trocar de cor.
+   */
+  const PART = { pescoco: 1, tronco: 2, coxa: 3, canela: 4, pe: 5, braco: 6, antebraco: 7, mao: 8, quadril: 9, cabelo: 10, bandana: 11, acessorio: 12 };
+  const TECIDOS = {
+    preto: ['#14161c', '#23262f', '#33384a', '#4a5068'], cinza: ['#2a2d36', '#555b6b', '#868da0', '#b4bac8'],
+    branco: ['#5b6072', '#b3b8c7', '#e6e8ef', '#ffffff'], azul: ['#17223f', '#24407a', '#3560b0', '#5a88d8'],
+    vermelho: ['#4a1014', '#8a1f24', '#c23a34', '#e8695a'], verde: ['#12301c', '#1f5a34', '#2f8a4c', '#58b874'],
+    laranja: ['#5a2408', '#b3520f', '#ea7d1c', '#ffab52'], amarelo: ['#5a4208', '#b38a12', '#e6bc2a', '#ffe06a'],
+    roxo: ['#2a1440', '#4d2a7a', '#7646b0', '#a274dc'], marrom: ['#2e1a0e', '#5a3418', '#86522a', '#b27a46'],
+  };
+  const CATALOGO = {
+    cabelo: ['nenhum', 'curto', 'espetado', 'longo'], acessorio: ['nenhum', 'mascara', 'cachecol'],
+    superior: ['nenhum', 'regata', 'camiseta', 'manga_longa'], inferior: ['nenhum', 'shorts', 'calca'],
+    cores: Object.keys(TECIDOS),
+  };
+  const SUPERIOR = { regata: [2], camiseta: [2, 6], manga_longa: [2, 6, 7] };
+  const INFERIOR = { shorts: [9, 3], calca: [9, 3, 4] };
+  [[10, 'marrom'], [11, 'azul'], [12, 'preto']].forEach(([pt, cor]) => [0, 1, 2, 3].forEach((k) => { PALETTE[20 + pt * 4 + k] = TECIDOS[cor][k]; }));
+  // Marca os pixels de pele (tons 1 a 4) de uma camada com a parte devolvida por fn(x, y).
+  function tag(grid, fn) {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const v = grid[y * W + x];
+      if (v < 1 || v > 4) continue;
+      const pt = fn(x, y);
+      if (pt) grid[y * W + x] = 20 + pt * 4 + v - 1;
+    }
+  }
+  // Visual: quais partes trocam de cor, quais camadas somem (a roupa íntima debaixo da roupa) e as peças da cabeça.
+  function resolveLook(look) {
+    const k = look || {}; const cores = {}; const hide = {};
+    const set = (parts, cor) => { if (TECIDOS[cor]) parts.forEach((pt) => { cores[pt] = TECIDOS[cor]; }); };
+    if (SUPERIOR[k.superior]) { set(SUPERIOR[k.superior], k.corSuperior || 'azul'); hide.superior = true; }
+    if (INFERIOR[k.inferior]) { set(INFERIOR[k.inferior], k.corInferior || 'preto'); hide.inferior = true; }
+    if (k.pes) set([5], k.pes);
+    if (k.maos) set([8], k.maos);
+    set([10], k.corCabelo || 'marrom'); set([11], k.bandana || 'azul'); set([12], k.corAcessorio || 'preto');
+    return { cores, hide };
+  }
+  function colorOf(v, res) {
+    if (v >= 20 && res && res.cores) { const pal = res.cores[Math.floor((v - 20) / 4)]; if (pal) return pal[(v - 20) % 4]; }
+    return PALETTE[v];
+  }
 
   // ---------- máscaras ----------
   const key = (x, y) => y * W + x;
@@ -254,8 +310,68 @@
     return m;
   }
 
+  // ---------- cabelo, bandana e acessórios (desenhados no espaço da cabeça, por direção) ----------
+  const HAIR_RULE = (c) => (c.dB <= 1 ? SHADE : c.dT >= 2 && c.dT <= 3 && c.y <= HY + 6 ? LIGHT : null);
+  function headExtras(L, view, look) {
+    if (!look) return;
+    const lado = view === 'lado'; const back = view === 'costas';
+    // Linha i da cabeça (0 a 26), um pixel maior que o crânio; i = -1 é a linha acima do topo.
+    const headRow = (m, i, grow) => {
+      const j = Math.max(i, 0);
+      if (lado) rows(m, HY + i, [[HEAD_SIDE[j][0] - grow + (i < 0 ? 2 : 0), HEAD_SIDE[j][1] + grow - (i < 0 ? 2 : 0)]]);
+      else sym(m, HY + i, [HEAD_HW[j] + grow - (i < 0 ? 2 : 0)]);
+    };
+    if (look.cabelo && look.cabelo !== 'nenhum') {
+      const m = newMask(); const tras = newMask();
+      for (let i = -1; i <= (back ? 22 : 9); i++) headRow(m, i, 1);
+      if (lado) {
+        for (let i = 10; i <= 21; i++) rows(m, HY + i, [[39, HEAD_SIDE[i][1] + 1]]);       // atrás da orelha
+        rows(m, HY + 10, [[18, 19], [18, 18]]); rows(m, HY + 10, [[24, 26], [25, 26], [25, 25]]); // franja
+      } else if (!back) {
+        [[2, 4], [8, 11], [14, 16]].forEach(([a, b]) => { for (let y = HY + 10; y <= HY + 11; y++) { rows(m, y, [[32 + a, 31 + b + 1]]); rows(m, y, [[31 - b, 31 - a]]); } }); // franja
+        for (let y = HY + 12; y <= HY + 15; y++) { rows(m, y, [[46, 47]]); rows(m, y, [[16, 17]]); } // costeletas
+      }
+      if (look.cabelo === 'espetado') {
+        const tops = lado ? [22, 29, 36, 43] : [19, 25, 32, 38, 44];
+        tops.forEach((cx, n) => { for (let k = 0; k <= 6; k++) rows(m, HY - 7 + k, [[cx - Math.floor(k / 2) + (lado ? 1 : 0), cx + Math.floor(k / 2) + (lado ? 2 : n % 2)]]); });
+      }
+      if (look.cabelo === 'longo') {
+        if (lado) for (let y = HY + 22; y <= HY + 40; y++) rows(m, y, [[39, y > HY + 36 ? 45 : 47]]);
+        else if (back) for (let y = HY + 23; y <= HY + 40; y++) sym(m, y, [y > HY + 37 ? 12 : 14]);
+        else {
+          for (let y = HY + 10; y <= HY + 40; y++) sym(tras, y, [y > HY + 37 ? 14 : 16]);    // por trás do corpo
+          for (let y = HY + 12; y <= HY + 24; y++) { rows(m, y, [[46, 48]]); rows(m, y, [[15, 17]]); } // mechas na frente
+        }
+      }
+      paint(L.cabelo, m, SKIN, HAIR_RULE); tag(L.cabelo, () => PART.cabelo);
+      paint(L.cabelo_tras, tras, SKIN, HAIR_RULE); tag(L.cabelo_tras, () => PART.cabelo);
+    }
+    if (look.bandana) {
+      const m = newMask();
+      for (let i = 6; i <= 9; i++) headRow(m, i, 1);
+      if (back) { rows(m, HY + 8, [[30, 33], [30, 33], [30, 33]]); for (let y = HY + 11; y <= HY + 18; y++) { rows(m, y, [[28, 30]]); rows(m, y, [[33, 35]]); } }
+      if (lado) { rows(m, HY + 7, [[47, 49], [47, 49], [47, 49]]); for (let y = HY + 10; y <= HY + 18; y++) rows(m, y, [[47, 49]]); for (let y = HY + 10; y <= HY + 15; y++) rows(m, y, [[44, 45]]); }
+      paint(L.bandana, m, SKIN, (c) => (c.dB === 1 ? SHADE : null)); tag(L.bandana, () => PART.bandana);
+      // Placa de metal na testa (de costas não aparece).
+      if (!back) paint(L.bandana, rows(newMask(), HY + 6, [0, 1, 2, 3].map(() => (lado ? [17, 23] : [26, 37]))), METAL, null);
+    }
+    if (look.acessorio === 'mascara') {
+      const m = newMask();
+      if (lado) { for (let i = 19; i <= 26; i++) rows(m, HY + i, [[HEAD_SIDE[i][0], Math.min(31, HEAD_SIDE[i][1])]]); rows(m, HY + 20, [[32, 46], [32, 46]]); }
+      else if (back) { for (let i = 19; i <= 20; i++) sym(m, HY + i, [HEAD_HW[i]]); }
+      else for (let i = 19; i <= 26; i++) sym(m, HY + i, [HEAD_HW[i]]);
+      paint(L.acessorio, m, SKIN, (c) => (c.dB <= 1 ? SHADE : null)); tag(L.acessorio, () => PART.acessorio);
+    }
+    if (look.acessorio === 'cachecol') {
+      const m = newMask();
+      if (lado) { for (let y = 56; y <= 61; y++) rows(m, y, [[25, 38]]); for (let y = 62; y <= 73; y++) rows(m, y, [[37, 40]]); }
+      else { for (let y = 56; y <= 61; y++) sym(m, y, [9]); for (let y = 62; y <= (back ? 73 : 70); y++) rows(m, y, [back ? [25, 28] : [36, 39]]); }
+      paint(L.acessorio, m, SKIN, (c) => (c.dB <= 1 || c.y === 59 ? SHADE : null)); tag(L.acessorio, () => PART.acessorio);
+    }
+  }
+
   // ---------- frente e costas ----------
-  function frontOrBack(sex, back, P) {
+  function frontOrBack(sex, back, P, look) {
     const s = SHAPE[sex];
     const L = {}; LAYERS.forEach((n) => { L[n] = newMask(); });
     L.sombra = shadowLayer();
@@ -291,6 +407,7 @@
       pxSym(L.corpo, [[35, 64], [36, 64], [37, 65], [38, 65], [39, 65]], SHADE); // escápulas
     }
 
+    tag(L.corpo, (x, y) => (y <= 59 ? 1 : y <= 71 ? 2 : y <= 76 ? 9 : y <= 84 ? 3 : y <= 89 ? 4 : 5));
     const briefs = inter(sym(newMask(), 72, [12, 12, 12, 12, 12, 9, 7, 5, 3]), trunk);
     paint(L.inferior, briefs, UNDER, (c) => {
       if (c.y === 73) return null;
@@ -353,6 +470,7 @@
       if (k.endsWith('_d')) anchors[k.slice(0, -1) + 'e'] = [W - 1 - x, yy];
     });
 
+    headExtras(L, back ? 'costas' : 'frente', look);
     const cut = (m, yMax) => blit(newMask(), m, 0, W - 1, 0, yMax, 0);
     const bothArms = union(arm, mirror(arm));
     if (P.noArms) L.bracos = newMask();
@@ -406,6 +524,17 @@
       L.bracos = newMask();
       paint(L.bracos, cut(bothArms, 66), SKIN, LIMB);
     }
+    tag(L.bracos, (x, y) => {
+      if (!back && P.seal && x >= 26 && x <= 37 && y >= 59) return 8;
+      if (P.wf && !back) {
+        const [hx, hy] = P.wf.hand;
+        if (Math.abs(x - hx) <= 4 && Math.abs(y - hy) <= 3) return 8;
+        if (P.wf.two) return Math.abs(x - hx) > 7 ? 6 : 7;
+      }
+      if (!back && P.punch === 2 && x >= 36 && x <= 44 && y >= 61 && y <= 68) return 8;
+      if (!back && P.seal) return (x < 24 || x > 39) && y <= 67 ? 6 : 7;
+      return y <= 67 ? 6 : y <= 72 ? 7 : 8;
+    });
     if (P.kick && !back) {
       // Chute visto de frente: a perna sobe do quadril em linha reta até o pé na altura do ombro, vinda na direção da câmera.
       // Embaixo a coxa (larga), no meio o joelho e a canela, em cima o pé grande com a sola em sombra e os dedos.
@@ -413,13 +542,16 @@
       for (let y = 66; y <= 79; y++) rows(leg, y, [[y >= 74 ? 34 : 35, y >= 74 ? 43 : 42]]);   // coxa e joelho
       for (let y = 62; y <= 65; y++) rows(leg, y, [[35, 42]]);                                  // canela e tornozelo
       for (let y = 57; y <= 61; y++) rows(leg, y, [[33, 43]]);                                  // pé (sola)
-      paint(L.bracos, leg, SKIN, (c) => {
+      const kl = newMask();
+      paint(kl, leg, SKIN, (c) => {
         if (c.y <= 60) return SHADE;                                  // sola, em sombra
         if (c.y === 61) return c.dL >= 2 && c.dR >= 2 ? LIGHT : null; // dedos
         if (c.y >= 69 && c.y <= 71 && c.ax >= 4 && c.ax <= 8) return LIGHT; // joelho
         if (c.y >= 72 && (c.x >= 41)) return SHADE;                   // lado de fora da coxa
         return null;
       });
+      tag(kl, (x, y) => (y <= 61 ? 5 : y <= 69 ? 4 : 3));
+      for (let i = 0; i < kl.length; i++) if (kl[i]) L.bracos[i] = kl[i];
     }
     if (P.eyes === 'closed' && !back) {
       for (let i = 0; i < L.rosto.length; i++) if ([EYE_DARK, EYE_IRIS, EYE_SHINE, EYE_SHADE].includes(L.rosto[i])) L.rosto[i] = 0;
@@ -436,7 +568,7 @@
     blit(body, L.corpo, 0, W - 1, 0, 76, P.bob);
     L.corpo = body;
     ['inferior', 'superior'].forEach((n) => { L[n] = moved(L[n], P.bob); });
-    ['cabeca', 'rosto'].forEach((n) => { L[n] = moved(L[n], P.bob + (P.ninja ? 2 : 0)); }); // cabeça baixa na corrida
+    HEAD_LAYERS.forEach((n) => { L[n] = moved(L[n], P.bob + (P.ninja ? 2 : 0)); }); // cabeça baixa na corrida
     const arms = newMask();
     blit(arms, L.bracos, 32, W - 1, 0, H - 1, P.bob + (P.armA < 0 ? -1 : 0));
     blit(arms, L.bracos, 0, 31, 0, H - 1, P.bob + (P.armB < 0 ? -1 : 0));
@@ -469,7 +601,7 @@
   // e volta para a frente até a mão: curva leve, separada do corpo.
   const ARM_SIDE_X = [33, 33, 33, 33, 34, 34, 34, 35, 35, 34, 34, 33, 33, 33, 33, 33, 34];
 
-  function side(sex, P) {
+  function side(sex, P, look) {
     const s = SIDE[sex];
     const L = {}; LAYERS.forEach((n) => { L[n] = newMask(); });
     L.sombra = shadowLayer();
@@ -488,6 +620,7 @@
     const lean = P.lean;
     const trunk = rows(newMask(), 57 + bob, [0, 1, 2].map(() => [29 - lean, 34 - lean]));
     rows(trunk, 60 + bob, s.torso.map(([a, b], i) => { const d = Math.round((lean * (16 - i)) / 16); return [a - d, b - d]; }));
+    const torsoM = trunk.slice();
     // Perna por segmentos (quadril, joelho, pé), usada na corrida e no chute.
     const HIP = [32, 78];
     const segLeg = (pts) => {
@@ -514,6 +647,14 @@
     });
     // Perna e braço de trás: mesma forma, só contorno e sombra, numa camada abaixo do corpo.
     paint(L.tras, P.legPtsB ? segLeg(P.legPtsB) : legRows(newMask(), P.legB, P.liftB), SKIN, () => SHADE);
+    const legPart = (pts, lift) => {
+      if (!pts) return (x, y) => { const yy = y >= 80 ? y + lift : y; return yy <= 84 ? 3 : yy <= 89 ? 4 : 5; };
+      const a = rel(pts, HIP); const thigh = limb(newMask(), [a[0], a[1]], 6); const F = a[a.length - 1];
+      return (x, y) => (x >= F[0] - 5 && x <= F[0] + 3 && y >= F[1] - 2 && y <= F[1] + 3 ? 5 : thigh[key(x, y)] ? 3 : 4);
+    };
+    const nearLeg = legPart(P.legPts, P.liftA);
+    tag(L.corpo, (x, y) => (torsoM[key(x, y)] ? (y - bob <= 59 ? 1 : y - bob <= 71 ? 2 : 9) : nearLeg(x, y)));
+    tag(L.tras, legPart(P.legPtsB, P.liftB));
 
     // Com perna por segmentos a roupa fica só no quadril (senão pintaria a perna estendida do chute).
     const wide = (n) => Array.from({ length: n }, () => (P.legPts ? [25 - lean, 40] : [16, 48]));
@@ -564,8 +705,15 @@
       arm = limb(newMask(), a, t);
       E = a[a.length - 1];
       if (P.fist) rows(arm, E[1] - 3, [0, 1, 2, 3, 4, 5, 6].map(() => [E[0] - 3, E[0] + 3]));
+      const armPart = (pts) => {
+        const q = rel(pts, SH); const mid = q.length > 2 ? q[1] : [Math.round((q[0][0] + q[1][0]) / 2), Math.round((q[0][1] + q[1][1]) / 2)];
+        const upper = limb(newMask(), [q[0], mid], t); const En = q[q.length - 1];
+        return (x, y) => (Math.abs(x - En[0]) <= 3 && Math.abs(y - En[1]) <= 3 ? 8 : upper[key(x, y)] ? 6 : 7);
+      };
       paint(L.tras, limb(newMask(), rel(P.armPtsB || P.armPts, SH), t), SKIN, () => SHADE);
+      tag(L.tras, armPart(P.armPtsB || P.armPts));
       paint(L.bracos, arm, SKIN, LIMB);
+      tag(L.bracos, armPart(P.armPts));
       if (P.seal) {
         // Mãos do selo na ponta do antebraço: punhos (sombra embaixo), abrindo, ou palmas erguidas (claro).
         const up = { 1: 2, 2: 6, 3: 6, 4: 1, 5: 5, 6: 3 }[P.seal];
@@ -577,6 +725,7 @@
       }
     } else {
       paint(L.tras, armRows(P.armB), SKIN, () => SHADE);
+      tag(L.tras, (x, y) => (y - bob <= 67 ? 6 : y - bob <= 72 ? 7 : 8));
       arm = armRows(P.armA);
       paint(L.bracos, arm, SKIN, (c) => {
         if (c.y - bob <= 64 && c.dL >= 2) return LIGHT;
@@ -592,6 +741,8 @@
       if (front && has(arm, x + 1, y)) L.bracos[key(x, y)] = SHADE;
     }
 
+    tag(L.bracos, custom ? () => 8 : (x, y) => (y - bob <= 67 ? 6 : y - bob <= 72 ? 7 : 8));
+    headExtras(L, 'lado', look);
     L.cabeca = shiftG(L.cabeca, -lean, bob);
     // Espada na mão, rastro do corte em arco em volta do ombro e shuriken no ar com rastro.
     if (P.weapon && E) blade(L.arma, E, [E[0] + P.weapon[0], E[1] + P.weapon[1]]);
@@ -613,6 +764,7 @@
       px(L.rosto, span(20, 23, HY + 19), EYE_DARK);
     }
     L.rosto = shiftG(L.rosto, -lean, bob);
+    ['cabelo', 'cabelo_tras', 'bandana', 'acessorio'].forEach((n) => { L[n] = shiftG(L[n], -lean, bob); });
     if (P.dx) LAYERS.forEach((n) => { if (n !== 'sombra') L[n] = shiftG(L[n], P.dx, 0); });
     const anchors = {};
     Object.keys(A_SIDE).forEach((k) => { const [x, y] = A_SIDE[k]; anchors[k] = [x, y <= 76 ? y + bob : y]; });
@@ -752,22 +904,27 @@
 
   // Deitado (derrotado): de bruços, com o rosto afundado no chão. A cabeça é vista por trás, com a parte de baixo
   // enterrada 4 linhas; o corpo fica estendido atrás dela, um braço dobrado com a mão no chão.
-  function lying(sex) {
-    const r = frontOrBack(sex, true, Object.assign({}, NEUTRAL, { noArms: 1 }));
+  function lying(sex, look) {
+    const r = frontOrBack(sex, true, Object.assign({}, NEUTRAL, { noArms: 1 }), look);
     const L = r.layers;
     ['corpo', 'inferior', 'superior', 'tras', 'rosto', 'efeito'].forEach((n) => { L[n] = newMask(); });
-    L.cabeca = shiftG(L.cabeca, -13, FEET_Y + 4 - (HY + 26));
-    for (let y = FEET_Y + 1; y < H; y++) for (let x = 0; x < W; x++) L.cabeca[key(x, y)] = 0; // parte enterrada
+    HEAD_LAYERS.forEach((n) => {
+      L[n] = shiftG(L[n], -13, FEET_Y + 4 - (HY + 26));
+      for (let y = FEET_Y + 1; y < H; y++) for (let x = 0; x < W; x++) L[n][key(x, y)] = 0;   // parte enterrada
+    });
     const torso = limb(newMask(), [[30, 87], [45, 87]], sex === 'm' ? 11 : 10);
     const body = limb(union(torso, newMask()), [[45, 89], [57, 89]], 6);
     rows(body, 88, [[57, 61], [57, 62], [57, 62], [57, 62], [57, 61]]);  // pé
     paint(L.corpo, body, SKIN, (c) => (c.dB <= 2 ? SHADE : c.dT === 1 ? LIGHT : null));
     paint(L.tras, limb(newMask(), [[45, 86], [56, 84], [61, 86]], 6), SKIN, () => SHADE); // outra perna
+    tag(L.corpo, (x) => (x >= 58 ? 5 : x >= 52 ? 4 : x >= 46 ? 3 : x >= 41 ? 9 : 2));
+    tag(L.tras, (x) => (x >= 58 ? 5 : x >= 52 ? 4 : 3));
     paint(L.inferior, inter(rows(newMask(), 78, Array.from({ length: 15 }, () => [41, 48])), body), UNDER, (c) => (c.dB <= 2 ? SHADE : null));
     if (sex === 'f') paint(L.superior, inter(rows(newMask(), 78, Array.from({ length: 15 }, () => [34, 38])), torso), UNDER, (c) => (c.dB <= 2 ? SHADE : null));
     const arm = limb(newMask(), [[36, 84], [41, 80], [37, 89]], 4);
     rows(arm, 89, [[33, 39], [32, 39], [32, 39], [33, 39]]);         // mão espalmada no chão
     paint(L.bracos, arm, SKIN, LIMB);
+    tag(L.bracos, (x, y) => (y >= 88 && x <= 39 ? 8 : y <= 83 ? 6 : 7));
     // Chão afundado em volta do rosto: sombra mais larga e dois torrões levantados.
     L.sombra = newMask();
     rows(L.sombra, 90, [[1, 37], [0, 62], [0, 63], [0, 63], [2, 61]]);
@@ -776,19 +933,20 @@
     return r;
   }
 
-  function build(sex, view, pose) {
+  function build(sex, view, pose, look) {
     const P = Object.assign({}, NEUTRAL, pose || {});
     const lado = view === 'esquerda' || view === 'direita';
-    let r = P.lying ? lying(sex) : lado ? side(sex, P) : frontOrBack(sex, view === 'costas', P);
+    let r = P.lying ? lying(sex, look) : lado ? side(sex, P, look) : frontOrBack(sex, view === 'costas', P, look);
     if (P.rot) r = rotate(r, P.rot);
     if (view === 'direita') r = flip(r);
-    return { sex, view, width: W, height: H, feetY: FEET_Y, layers: r.layers, anchors: r.anchors };
+    return { sex, view, width: W, height: H, feetY: FEET_Y, layers: r.layers, anchors: r.anchors, look: resolveLook(look) };
   }
 
   // Junta as camadas pedidas numa matriz só (a de cima cobre a de baixo).
   function flatten(model, names) {
     const out = newMask();
-    (names || LAYERS).forEach((n) => { const g = model.layers[n]; for (let i = 0; i < g.length; i++) if (g[i]) out[i] = g[i]; });
+    const hide = (model.look && model.look.hide) || {};
+    (names || LAYERS).forEach((n) => { if (hide[n]) return; const g = model.layers[n]; for (let i = 0; i < g.length; i++) if (g[i]) out[i] = g[i]; });
     return out;
   }
 
@@ -799,18 +957,39 @@
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const v = g[key(x, y)];
       if (!v) continue;
-      ctx.fillStyle = flat && v !== SHADOW ? flat : PALETTE[v];
+      ctx.fillStyle = flat && v !== SHADOW ? flat : colorOf(v, model.look);
       ctx.fillRect(ox + x * scale, oy + y * scale, scale, scale);
     }
   }
 
-  return { W, H, FEET_Y, PALETTE, LAYERS, VIEWS, SEXES, ANIMS, build, flatten, draw, tones: { LINE, SHADE, BASE, LIGHT } };
+  return { W, H, FEET_Y, PALETTE, LAYERS, VIEWS, SEXES, ANIMS, CATALOGO, TECIDOS, PART, colorOf, build, flatten, draw, tones: { LINE, SHADE, BASE, LIGHT } };
 });
 </script>
 <script>
 (function () {
   const B = window.BonecoBase;
-  const NOMES = { tras: 'Perna e braço de trás', sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços', arma: 'Arma', efeito: 'Efeito' };
+  // Visual: uma lista por peça e por cor, montada a partir do catálogo do gerador.
+  const CAMPOS = [
+    ['cabelo', 'Cabelo', B.CATALOGO.cabelo, 'espetado'], ['corCabelo', 'Cor do cabelo', B.CATALOGO.cores, 'marrom'],
+    ['bandana', 'Bandana', ['nenhum'].concat(B.CATALOGO.cores), 'azul'],
+    ['acessorio', 'Acessório', B.CATALOGO.acessorio, 'nenhum'], ['corAcessorio', 'Cor do acessório', B.CATALOGO.cores, 'preto'],
+    ['superior', 'Roupa de cima', B.CATALOGO.superior, 'camiseta'], ['corSuperior', 'Cor', B.CATALOGO.cores, 'azul'],
+    ['inferior', 'Roupa de baixo', B.CATALOGO.inferior, 'calca'], ['corInferior', 'Cor', B.CATALOGO.cores, 'preto'],
+    ['pes', 'Calçado', ['nenhum'].concat(B.CATALOGO.cores), 'preto'], ['maos', 'Luvas', ['nenhum'].concat(B.CATALOGO.cores), 'nenhum'],
+  ];
+  CAMPOS.forEach(([id, rotulo, lista, padrao]) => {
+    const l = document.createElement('label');
+    l.textContent = rotulo + ' ';
+    const sel = document.createElement('select'); sel.id = 'v_' + id;
+    lista.forEach((o) => { const op = document.createElement('option'); op.value = o; op.textContent = o.replace('_', ' '); if (o === padrao) op.selected = true; sel.appendChild(op); });
+    l.appendChild(sel); document.getElementById('visual').appendChild(l);
+  });
+  function visual() {
+    const v = {};
+    CAMPOS.forEach(([id]) => { const val = document.getElementById('v_' + id).value; if (val !== 'nenhum') v[id] = val; });
+    return v;
+  }
+  const NOMES = { tras: 'Perna e braço de trás', cabelo_tras: 'Cabelo (atrás)', cabelo: 'Cabelo', bandana: 'Bandana', acessorio: 'Acessório', sombra: 'Sombra', corpo: 'Tronco e pernas', inferior: 'Roupa inferior', superior: 'Roupa superior', cabeca: 'Cabeça', rosto: 'Rosto', bracos: 'Braços', arma: 'Arma', efeito: 'Efeito' };
   const TITULO = { frente: 'Frente', costas: 'Costas', esquerda: 'Esquerda', direita: 'Direita' };
   const ligadas = {};
   const barra = document.getElementById('camadas');
@@ -856,7 +1035,7 @@
     let c = real.getContext('2d');
     fundo(c, real.width, real.height, 8);
     let i = 0;
-    B.SEXES.forEach((sx) => B.VIEWS.forEach((v) => { quadro(c, B.build(sx, v), 8 + i * (B.W + 8), 8, 1); i++; }));
+    B.SEXES.forEach((sx) => B.VIEWS.forEach((v) => { quadro(c, B.build(sx, v, null, visual()), 8 + i * (B.W + 8), 8, 1); i++; }));
 
     B.SEXES.forEach((sx) => {
       const caixa = document.getElementById('zoom-' + sx);
@@ -867,7 +1046,7 @@
         cv.width = B.W * 4; cv.height = B.H * 4;
         const ctx = cv.getContext('2d');
         fundo(ctx, cv.width, cv.height, 16);
-        quadro(ctx, B.build(sx, v), 0, 0, 4);
+        quadro(ctx, B.build(sx, v, null, visual()), 0, 0, 4);
         const cap = document.createElement('figcaption');
         cap.textContent = TITULO[v];
         fig.appendChild(cv); fig.appendChild(cap); caixa.appendChild(fig);
@@ -896,7 +1075,7 @@
     cv.width = B.W * s * 4; cv.height = B.H * s * 2;
     const ctx = cv.getContext('2d');
     fundo(ctx, cv.width, cv.height, 12);
-    B.SEXES.forEach((sx, r) => B.VIEWS.forEach((v, c) => quadro(ctx, B.build(sx, v, an.frames[k]), c * B.W * s, r * B.H * s, s)));
+    B.SEXES.forEach((sx, r) => B.VIEWS.forEach((v, c) => quadro(ctx, B.build(sx, v, an.frames[k], visual()), c * B.W * s, r * B.H * s, s)));
     document.getElementById('quadro').textContent = 'quadro ' + (k + 1) + ' de ' + an.frames.length + ', ' + an.fps + ' por segundo';
   }
   requestAnimationFrame(vivo);

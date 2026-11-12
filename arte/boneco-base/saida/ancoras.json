@@ -5,11 +5,15 @@
   "camadas": [
     "sombra",
     "tras",
+    "cabelo_tras",
     "corpo",
     "inferior",
     "superior",
     "cabeca",
     "rosto",
+    "cabelo",
+    "bandana",
+    "acessorio",
     "bracos",
     "arma",
     "efeito"
