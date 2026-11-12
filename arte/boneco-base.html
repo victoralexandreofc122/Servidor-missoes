@@ -520,10 +520,12 @@
   // Peça do tronco e estampa, desenhadas para o boneco parado e deslocadas (dx, dy) junto com o tronco.
   // A estampa só fica onde há tronco vestível por baixo (parte tronco do corpo, fora do contorno).
   const BODY_LAYERS = ['roupa', 'costas_tras', 'estampa'];
+  // Nada do corpo passa da linha dos pés (uma capa num corpo agachado, por exemplo).
+  function clipFloor(g) { for (let y = FEET_Y + 1; y < H; y++) for (let x = 0; x < W; x++) g[key(x, y)] = 0; return g; }
   function bodyExtras(L, view, look, dx, dy) {
     if (!look) return;
     shapePieces(L, view, [look.peca]);
-    BODY_LAYERS.forEach((n) => { L[n] = shiftG(L[n], dx, dy); });
+    BODY_LAYERS.forEach((n) => { L[n] = clipFloor(shiftG(L[n], dx, dy)); });
     const pc = PECAS[look.estampa];
     if (pc && pc.modo === 'estampa') {
       const d = shiftG((pc.desenho(view, KIT) || {}).frente || newMask(), dx, dy);
@@ -730,7 +732,7 @@
     blit(body, L.corpo, 0, 31, 80 + P.liftB, 92, -P.liftB);
     blit(body, L.corpo, 0, W - 1, 0, 76, P.bob);
     L.corpo = body;
-    ['inferior', 'superior'].concat(BODY_LAYERS).forEach((n) => { L[n] = moved(L[n], P.bob); });
+    ['inferior', 'superior'].concat(BODY_LAYERS).forEach((n) => { L[n] = clipFloor(moved(L[n], P.bob)); });
     HEAD_LAYERS.forEach((n) => { L[n] = moved(L[n], P.bob + (P.ninja ? 2 : 0)); }); // cabeça baixa na corrida
     const arms = newMask();
     blit(arms, L.bracos, 32, W - 1, 0, H - 1, P.bob + (P.armA < 0 ? -1 : 0));
