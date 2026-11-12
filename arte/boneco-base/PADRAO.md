@@ -58,6 +58,9 @@ Ferramentas (`k`):
 | `k.linhas(m, y0, [[x0, x1], ...])` | Uma faixa por linha, a partir de `y0` |
 | `k.simetrico(m, y0, [meiaLargura, ...])` | Linhas centradas no eixo (frente e costas) |
 | `k.cabeca(m, view, i, folga)` | Linha `i` da cabeça (0 a 26; -1 fica acima do topo), com `folga` pixels a mais |
+| `k.mecha(m, x, y, ângulo, comprimento, largura, curva)` | Mecha pontuda: sai de (x, y), afina até a ponta (que termina com 2 pixels) e pode entortar |
+| `k.mechas(m, lista)` / `k.mechasSim(m, lista)` | Várias mechas; `Sim` espelha cada uma (frente e costas) |
+| `k.apagar(m, y0, [[x0, x1], ...])` | Tira pixels (abrir o rosto, a frente de um colete) |
 | `k.HY`, `k.HEAD_HW`, `k.HEAD_SIDE` | Topo da cabeça e o contorno dela de frente e de lado |
 
 Uma peça de forma pode ficar presa à **cabeça** (tipos `cabelo`, `bandana`, `acessorio`) ou ao **tronco** (tipo `tronco`,
@@ -96,3 +99,9 @@ Peito e costas vão de y 61 a 71; o meio do tronco é o eixo entre x=31 e x=32. 
 - Peças do tronco e estampas somem no quadro deitado da queda, e de lado andam com o tronco sem acompanhar a inclinação
   linha a linha.
 - Estampa em mais de uma cor.
+
+## Conferência com a skill pxl-pixel-art
+
+Para olhar bordas com outro olho: exporte a peça como grade para um `.px.js` e rode
+`node ~/.claude/skills/pxl-pixel-art/bin/pxl.js check arquivo.px.js --edges`. Ele aponta quinas em L em linhas de 1 pixel,
+degraus fora de ordem e pontas soltas. São avisos para olhar, não erros.

@@ -145,9 +145,9 @@ Object.keys(B.ANIMS).forEach((n) => {
 
 // Visuais de exemplo: prancha parada e GIFs vestidos (as peças acompanham as animações).
 const VISUAIS = [
-  { cabelo: 'espetado', corCabelo: 'amarelo', bandana: 'azul', superior: 'camiseta', corSuperior: 'laranja', estampa: 'espiral', corEstampa: 'vermelho', inferior: 'calca', corInferior: 'laranja', pes: 'azul' },
-  { cabelo: 'longo', corCabelo: 'preto', acessorio: 'cachecol', corAcessorio: 'vermelho', superior: 'manga_longa', corSuperior: 'roxo', estampa: 'listra', corEstampa: 'branco', inferior: 'shorts', corInferior: 'preto', pes: 'preto', maos: 'preto' },
-  { cabelo: 'curto', corCabelo: 'cinza', bandana: 'preto', acessorio: 'mascara', corAcessorio: 'azul', superior: 'manga_longa', corSuperior: 'azul', peca: 'colete', corPeca: 'verde', inferior: 'calca', corInferior: 'azul', pes: 'azul', maos: 'azul' },
+  { cabelo: 'ourico', corCabelo: 'laranja', bandana: 'azul', superior: 'camiseta', corSuperior: 'laranja', estampa: 'espiral', corEstampa: 'vermelho', inferior: 'calca', corInferior: 'laranja', pes: 'azul' },
+  { cabelo: 'juba', corCabelo: 'branco', acessorio: 'cachecol', corAcessorio: 'vermelho', superior: 'manga_longa', corSuperior: 'roxo', estampa: 'listra', corEstampa: 'branco', inferior: 'shorts', corInferior: 'preto', pes: 'preto', maos: 'preto' },
+  { cabelo: 'topete_torto', corCabelo: 'cinza', bandana: 'preto', acessorio: 'mascara', corAcessorio: 'azul', superior: 'manga_longa', corSuperior: 'azul', peca: 'colete', corPeca: 'verde', inferior: 'calca', corInferior: 'azul', pes: 'azul', maos: 'azul' },
   { cabelo: 'curto', corCabelo: 'vermelho', superior: 'camiseta', corSuperior: 'preto', estampa: 'chama', corEstampa: 'laranja', peca: 'capa', corPeca: 'vermelho', inferior: 'calca', corInferior: 'preto', pes: 'marrom' },
 ];
 {

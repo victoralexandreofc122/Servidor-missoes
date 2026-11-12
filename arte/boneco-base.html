@@ -346,6 +346,26 @@
   const KIT = {
     HY, HEAD_HW, HEAD_SIDE, W, H,
     nova: newMask,
+    // Mecha: sai da base (x, y) na direção do ângulo (graus; -90 = para cima, 0 = para a direita), afinando de
+    // `largura` até a ponta em `comprimento` pixels. `curva` entorta a mecha (graus somados ao longo dela).
+    mecha(m, x, y, angulo, comprimento, largura, curva) {
+      const passos = comprimento * 3;
+      // A ponta termina com 2 pixels de espessura (nunca um fiapo de 1 pixel de contorno).
+      for (let i = 0; i <= Math.round(passos * 0.9); i++) {
+        const t = i / passos;
+        const a = ((angulo + (curva || 0) * t) * Math.PI) / 180;
+        const cx = x + Math.cos(a) * comprimento * t; const cy = y + Math.sin(a) * comprimento * t;
+        const r = Math.max((largura / 2) * (1 - t) ** 0.8, 1.6);
+        for (let yy = Math.floor(cy - r); yy <= Math.ceil(cy + r); yy++) for (let xx = Math.floor(cx - r); xx <= Math.ceil(cx + r); xx++) {
+          if (xx >= 0 && xx < W && yy >= 0 && yy < H && (xx - cx) ** 2 + (yy - cy) ** 2 <= r * r + 0.25) m[key(xx, yy)] = 1;
+        }
+      }
+      return m;
+    },
+    // Várias mechas: lista de [x, y, ângulo, comprimento, largura, curva].
+    mechas(m, lista) { lista.forEach((q) => this.mecha(m, ...q)); return m; },
+    // Na vista de frente e de costas, espelha cada mecha (a lista descreve só o lado direito da imagem).
+    mechasSim(m, lista) { lista.forEach(([x, y, a, c, l, cv]) => { this.mecha(m, x, y, a, c, l, cv); this.mecha(m, 63 - x, y, 180 - a, c, l, -(cv || 0)); }); return m; },
     apagar(m, y0, list) { list.forEach((r, i) => { for (let x = r[0]; x <= r[1]; x++) m[key(x, y0 + i)] = 0; }); return m; },
     linhas: rows,                                   // linhas(m, y0, [[x0, x1], ...]): uma faixa por linha
     simetrico: sym,                                 // simetrico(m, y0, [meiaLargura, ...]): frente e costas
@@ -406,11 +426,63 @@
   definirPeca({ id: 'longo', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo, sombra: SOMBRA_CABELO,
     desenho(view, k) {
       const m = cabeloBase(view, k); const tras = k.nova();
-      if (view === 'lado') for (let y = HY + 22; y <= HY + 40; y++) k.linhas(m, y, [[39, y > HY + 36 ? 45 : 47]]);
+      if (view === 'lado') {
+        // Desce atrás da orelha sem degrau: a borda da frente fica em 39 desde a orelha e a ponta afina no fim.
+        for (let y = HY + 14; y <= HY + 40; y++) {
+          const fim = HY + 40 - y;
+          k.linhas(m, y, [[39 + (fim < 3 ? 3 - fim : 0), 47 - (fim < 4 ? 4 - fim : 0)]]);
+        }
+      }
       else if (view === 'costas') for (let y = HY + 23; y <= HY + 40; y++) k.simetrico(m, y, [y > HY + 37 ? 12 : 14]);
       else {
         for (let y = HY + 10; y <= HY + 40; y++) k.simetrico(tras, y, [y > HY + 37 ? 14 : 16]);    // por trás do corpo
         for (let y = HY + 12; y <= HY + 24; y++) { k.linhas(m, y, [[46, 48]]); k.linhas(m, y, [[15, 17]]); } // mechas
+      }
+      return { frente: m, tras };
+    } });
+  // ---- Cabelos de mechas (inspirados em estilos de anime ninja, desenho próprio). Nomes são códigos provisórios.
+  // Ouriço: curto e cheio de pontas grossas em volta de toda a cabeça, franja em pontas até a sobrancelha.
+  definirPeca({ id: 'ourico', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo, sombra: SOMBRA_CABELO,
+    desenho(view, k) {
+      const m = cabeloBase(view, k);
+      if (view === 'lado') k.mechas(m, [[24, HY + 2, -115, 7, 6], [30, HY + 1, -95, 8, 7], [36, HY + 2, -70, 8, 7, 10], [42, HY + 5, -40, 8, 7, 10],
+        [45, HY + 11, -10, 7, 6, 15], [45, HY + 17, 20, 6, 5, 10], [20, HY + 6, 160, 5, 5, -20], [22, HY + 9, 120, 4, 4]]);
+      else if (view === 'costas') k.mechasSim(m, [[33, HY + 1, -88, 8, 7], [39, HY + 2, -60, 8, 7, 8], [44, HY + 6, -30, 8, 7, 10], [46, HY + 12, -5, 7, 6, 10],
+        [45, HY + 18, 30, 6, 5], [37, HY + 22, 80, 5, 5], [32, HY + 22, 95, 5, 5]]);
+      else k.mechasSim(m, [[33, HY + 1, -88, 8, 7], [39, HY + 2, -60, 8, 7, 8], [44, HY + 6, -30, 8, 7, 10], [46, HY + 12, -5, 6, 6, 10],
+        [34, HY + 7, 95, 5, 5], [40, HY + 7, 80, 5, 5]]);
+      return { frente: m };
+    } });
+  // Topete torto: alto e jogado para um lado, como se o vento empurrasse; uma mecha cai sobre a testa.
+  definirPeca({ id: 'topete_torto', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo, sombra: SOMBRA_CABELO,
+    desenho(view, k) {
+      const m = cabeloBase(view, k);
+      const dir = view === 'costas' ? -1 : 1;                          // de costas o lado inverte
+      const L = (x, y, a, c, l, cv) => [32 + dir * (x - 32), y, dir === 1 ? a : 180 - a, c, l, dir === 1 ? cv : -(cv || 0)];
+      if (view === 'lado') k.mechas(m, [[26, HY + 2, -80, 11, 8, 25], [32, HY + 1, -60, 12, 8, 20], [38, HY + 3, -40, 11, 8, 15], [43, HY + 7, -15, 9, 7, 10],
+        [45, HY + 14, 15, 6, 5], [21, HY + 6, 140, 6, 5, -10]]);
+      else {
+        k.mechas(m, [L(20, HY + 5, -110, 7, 7, 30), L(25, HY + 1, -80, 11, 8, 25), L(31, HY, -62, 13, 9, 20), L(37, HY + 1, -45, 13, 9, 15),
+          L(43, HY + 4, -25, 11, 8, 10), L(46, HY + 10, -5, 8, 6, 10), L(17, HY + 10, 200, 5, 5)]);
+        if (view === 'frente') k.mechas(m, [L(38, HY + 7, 125, 7, 5, 10), L(31, HY + 8, 110, 5, 4)]);   // mecha sobre a testa
+        else k.mechas(m, [L(40, HY + 20, 70, 6, 6), L(26, HY + 20, 100, 6, 6)]);
+      }
+      return { frente: m };
+    } });
+  // Juba: volume revolto em cima e uma juba longa e grossa descendo pelas costas até a cintura, com pontas soltas.
+  definirPeca({ id: 'juba', tipo: 'cabelo', modo: 'forma', camada: 'cabelo', parte: PART.cabelo, sombra: SOMBRA_CABELO,
+    desenho(view, k) {
+      const m = cabeloBase(view, k); const tras = k.nova();
+      if (view === 'lado') {
+        k.mechas(m, [[26, HY + 1, -100, 6, 6], [33, HY, -75, 7, 7, 10], [40, HY + 3, -45, 7, 7]]);
+        // A juba sai da nuca e desce pelas costas em mechas grossas, cada uma terminando em ponta.
+        k.mechas(m, [[44, HY + 8, 50, 14, 11, 25], [44, HY + 14, 70, 20, 11, 15], [41, HY + 18, 82, 24, 10, 8], [46, HY + 12, 30, 12, 8, 40]]);
+      } else if (view === 'costas') {
+        k.mechasSim(m, [[33, HY + 1, -88, 6, 6], [40, HY + 2, -55, 7, 7]]);
+        k.mechasSim(m, [[34, HY + 14, 88, 30, 13, -4], [42, HY + 12, 75, 27, 11, 10], [46, HY + 9, 50, 20, 9, 20]]);
+      } else {
+        k.mechasSim(m, [[33, HY + 1, -88, 6, 6], [40, HY + 2, -55, 7, 7], [46, HY + 11, 85, 18, 6, -5]]);   // mechas ao lado do rosto
+        k.mechasSim(tras, [[38, HY + 10, 60, 24, 14, 15], [44, HY + 10, 40, 22, 11, 30]]);                  // juba atrás do corpo
       }
       return { frente: m, tras };
     } });
