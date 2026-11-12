@@ -1338,5 +1338,5 @@
       return { d, mechas: rec.map((r) => ({ alvo: r.m === d.tras ? 'tras' : r.m === d.frente ? 'frente' : 'outro', a: r.a })) };
     } finally { KIT._rec = null; }
   }
-  return { gravarPeca, PXL_ARTE, HY, W, H, FEET_Y, PALETTE, LAYERS, VIEWS, SEXES, ANIMS, CATALOGO, TECIDOS, PART, PECAS, TIPOS, definirPeca, validarPecas, colorOf, build, flatten, draw, tones: { LINE, SHADE, BASE, LIGHT } };
+  return { gravarPeca, PXL_ARTE, HY, HEAD_HW, HEAD_SIDE, W, H, FEET_Y, PALETTE, LAYERS, VIEWS, SEXES, ANIMS, CATALOGO, TECIDOS, PART, PECAS, TIPOS, definirPeca, validarPecas, colorOf, build, flatten, draw, tones: { LINE, SHADE, BASE, LIGHT } };
 });

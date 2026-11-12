@@ -10,7 +10,9 @@ const js = readFileSync(join(here, '..', 'boneco-base.js'), 'utf8');
 const B = new Function('module', `${js}\nreturn module.exports;`)({ exports: {} });
 const VIEWS = ['frente', 'costas', 'lado'];
 // Direções com desenho à mão (em <peça>.px.js, sprite _<peça>_mao_<direção>): entram por cima da base, sem as mechas do gerador.
-const MAO = { juba: ['costas', 'lado'] };
+// Direções desenhadas inteiras à mão (em <peça>.px.js): sprite _<peça>_mao_<direção> e, se existir, _<peça>_mao_<direção>_tras
+// (a parte que fica atrás do corpo). Nelas o gerador não entra com base nem mechas.
+const MAO = { juba: ['frente', 'costas', 'lado'] };
 
 // A pxl contorna por fora (cresce 1 pixel); o gerador contornava por dentro. Para manter o tamanho, a base perde 1 pixel
 // de borda e as mechas ficam um pouco mais finas e curtas.
@@ -43,6 +45,24 @@ let out = `// GERADO por exportar-para-pxl.mjs a partir das peças do gerador. N
 pal({ k: "#3b4252", s: "#9aa3b5", b: "#dfe5ee", l: "#ffffff" })
 ramps("ksbl")
 const HY = ${B.HY}
+// Medidas da cabeça e do rosto (iguais nos dois modelos). Cabeça de y HY a HY+26.
+// HEAD_HW[i]: meia largura da cabeça de frente na linha HY+i (eixo entre x 31 e 32). HEAD_SIDE[i]: [x da frente, x de trás] de lado.
+const HEAD_HW = ${JSON.stringify(B.HEAD_HW)}
+const HEAD_SIDE = ${JSON.stringify(B.HEAD_SIDE)}
+// Áreas que o cabelo não pode cobrir (o rosto precisa continuar legível): [x, y, w, h].
+const ROSTO = { frente: { olhos: [[23, HY + 14, 6, 7], [35, HY + 14, 6, 7]], sobrancelhas: HY + 11 },
+  lado: { olho: [20, HY + 14, 4, 7], orelha: [34, HY + 12, 4, 8] } }
+// Faixas [y, x0, x1] que cobrem as linhas i0..i1 da cabeça com 'folga' pixels a mais de cada lado.
+function cabecaFaixas(view, i0, i1, folga = 1) {
+  const R = []
+  for (let i = i0; i <= i1; i++) {
+    const j = Math.max(i, 0), c = i < 0 ? 2 : 0
+    if (view === "lado") R.push([HY + i, HEAD_SIDE[j][0] - folga + c, HEAD_SIDE[j][1] + folga - c])
+    else R.push([HY + i, 32 - HEAD_HW[j] - folga + c, 31 + HEAD_HW[j] + folga - c])
+  }
+  return R
+}
+const faixasRect = (R, cor) => R.map(([y, a, b]) => rect(a, y, b - a + 1, 1, cor))
 
 function mecha(x, y, ang, len, larg, curva = 0) {
   const esq = [], dir = [], n = 10
@@ -86,7 +106,9 @@ function base(R, { cabelo, tras }) {
 }
 
 `;
-for (const id of Object.keys(MAO)) out += readFileSync(join(here, `${id}.px.js`), 'utf8') + '\n';
+const maoTexto = {};
+for (const id of Object.keys(MAO)) { maoTexto[id] = readFileSync(join(here, `${id}.px.js`), 'utf8'); out += maoTexto[id] + '\n'; }
+const temMao = (id, nome) => !!maoTexto[id] && maoTexto[id].includes(`sprite("${nome}"`);
 let n = 0;
 for (const id of Object.keys(B.PECAS)) {
   const pc = B.PECAS[id];
@@ -96,8 +118,16 @@ for (const id of Object.keys(B.PECAS)) {
     const { d, mechas } = B.gravarPeca(id, view);
     for (const alvo of ['frente', 'tras']) {
       const m = d[alvo]; const ms = mechas.filter((q) => q.alvo === alvo);
-      const mao = alvo === 'frente' && (MAO[id] || []).includes(view);
-      if (!(m && m.some((v) => v)) && !ms.length && !mao) continue;
+      const parte = `_${id}_mao_${view}${alvo === 'tras' ? '_tras' : ''}`;
+      if ((MAO[id] || []).includes(view) && temMao(id, `_${id}_mao_${view}`)) {
+        // Direção feita à mão: só o desenho (sem base nem mechas do gerador).
+        if (!temMao(id, parte)) continue;
+        out += `sprite("${id}_${view}${alvo === 'tras' ? '_tras' : ''}", { w: 64, h: 96, outline: "k" }, stamp("${parte}", 0, 0))\n`;
+        n++;
+        continue;
+      }
+      const mao = false;
+      if (!(m && m.some((v) => v)) && !ms.length) continue;
       const R = m ? faixas(corroer(m)) : [];
       const nome = `${id}_${view}${alvo === 'tras' ? '_tras' : ''}`;
       out += `sprite("${nome}", { w: 64, h: 96, outline: "k" },\n`;
