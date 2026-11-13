@@ -161,4 +161,69 @@ BEGIN
    WHERE season_id = p_season AND kind = p_kind AND village = p_village;
 END $$;
 
+-- ---------------------------------------------------------------- 3. rankeado 3v3
+
+CREATE TABLE IF NOT EXISTS game.ranked3_ratings (
+  player_id  uuid        PRIMARY KEY REFERENCES game.players (id) ON DELETE CASCADE,
+  mmr        integer     NOT NULL DEFAULT 1000 CHECK (mmr >= 0),
+  best_mmr   integer     NOT NULL DEFAULT 1000,
+  wins       integer     NOT NULL DEFAULT 0,
+  losses     integer     NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_ranked3_ratings_mmr ON game.ranked3_ratings (mmr DESC);
+
+CREATE TABLE IF NOT EXISTS game.ranked3_matches (
+  id            bigserial   PRIMARY KEY,
+  winners       uuid[]      NOT NULL,
+  losers        uuid[]      NOT NULL,
+  winner_rounds integer     NOT NULL,
+  loser_rounds  integer     NOT NULL,
+  reason        text        NOT NULL,
+  duration_ms   integer     NOT NULL DEFAULT 0,
+  counted       boolean     NOT NULL,
+  winner_delta  integer     NOT NULL DEFAULT 0,
+  loser_delta   integer     NOT NULL DEFAULT 0,
+  at            timestamptz NOT NULL DEFAULT now()
+);
+
+-- Resultado de uma partida 3v3: a mesma conta de Elo do 1v1 (game.ranked_elo, K = 24) com a MÉDIA dos pontos de cada time
+-- e o menor número de partidas do time (fator do novato). Cada vencedor ganha o mesmo; cada perdedor perde o mesmo (nunca
+-- abaixo de 0). Recompensa: 30 ryō para quem vence, 10 para quem perde. Com conta de admin no meio, não conta.
+CREATE OR REPLACE FUNCTION game.ranked3_result(p_winners uuid[], p_losers uuid[], p_winner_rounds integer, p_loser_rounds integer,
+                                               p_reason text, p_duration_ms integer)
+RETURNS TABLE (counted boolean, winner_delta integer, loser_delta integer)
+LANGUAGE plpgsql SET search_path = game AS $$
+DECLARE
+  v_wm integer;
+  v_lm integer;
+  v_wn integer;
+  v_ln integer;
+  e    record;
+BEGIN
+  IF cardinality(p_winners) < 1 OR cardinality(p_losers) < 1 OR p_winners && p_losers THEN
+    RAISE EXCEPTION 'Times inválidos' USING ERRCODE = 'check_violation', CONSTRAINT = 'rule_ranked3_teams';
+  END IF;
+  PERFORM 1 FROM players WHERE id = ANY (p_winners || p_losers) ORDER BY id FOR UPDATE;
+  counted := NOT EXISTS (SELECT 1 FROM players WHERE id = ANY (p_winners || p_losers) AND is_admin)
+             AND (SELECT count(*) FROM players WHERE id = ANY (p_winners || p_losers)) = cardinality(p_winners) + cardinality(p_losers);
+  winner_delta := 0; loser_delta := 0;
+  IF counted THEN
+    INSERT INTO ranked3_ratings (player_id) SELECT unnest(p_winners || p_losers) ON CONFLICT (player_id) DO NOTHING;
+    SELECT round(avg(mmr))::int, min(wins + losses) INTO v_wm, v_wn FROM ranked3_ratings WHERE player_id = ANY (p_winners);
+    SELECT round(avg(mmr))::int, min(wins + losses) INTO v_lm, v_ln FROM ranked3_ratings WHERE player_id = ANY (p_losers);
+    SELECT * INTO e FROM ranked_elo(v_wm, v_lm, v_wn, v_ln);
+    winner_delta := e.gain;
+    loser_delta := e.loss;
+    UPDATE ranked3_ratings SET mmr = mmr + winner_delta, best_mmr = greatest(best_mmr, mmr + winner_delta), wins = wins + 1, updated_at = now()
+     WHERE player_id = ANY (p_winners);
+    UPDATE ranked3_ratings SET mmr = greatest(0, mmr + loser_delta), losses = losses + 1, updated_at = now() WHERE player_id = ANY (p_losers);
+    UPDATE players SET ryo = ryo + 30 WHERE id = ANY (p_winners);
+    UPDATE players SET ryo = ryo + 10 WHERE id = ANY (p_losers);
+  END IF;
+  INSERT INTO ranked3_matches (winners, losers, winner_rounds, loser_rounds, reason, duration_ms, counted, winner_delta, loser_delta)
+  VALUES (p_winners, p_losers, p_winner_rounds, p_loser_rounds, p_reason, greatest(0, p_duration_ms), counted, winner_delta, loser_delta);
+  RETURN NEXT;
+END $$;
+
 COMMIT;

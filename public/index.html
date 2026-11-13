@@ -127,6 +127,9 @@
       <button id="duel-watch-btn" class="duel-btn duel-board-btn" type="button">👁 Assistir</button>
       <!-- v55: Torneio dos Heróis (Jounin) ou dos Vilões (renegados): inscrever e entrar na fila -->
       <button id="champion-btn" class="duel-btn" type="button" hidden>🦸 Torneio</button>
+      <!-- v55: rankeado 3v3 (sozinho ou com o trio) -->
+      <button id="team3-btn" class="duel-btn duel-board-btn" type="button">👥 3v3</button>
+      <button id="trio-btn" class="duel-btn duel-board-btn" type="button" aria-controls="trio-panel">Trio</button>
       <!-- v55: as lutas de todas as arenas (painel de espectador) -->
       <button id="arenas-btn" class="duel-btn duel-board-btn" type="button" aria-controls="arenas-panel">📺 Lutas</button>
       <button id="duel-board-btn" class="duel-btn duel-board-btn" type="button" aria-controls="ranked-panel" aria-label="Ranking" title="Ranking">🏆</button>
@@ -142,6 +145,18 @@
       <p class="ranked-season">Escolha uma luta para assistir. Você entra como fantasma: ninguém te vê, você não luta e pode trocar de luta quando quiser.</p>
       <ul id="arenas-list" class="arenas-list"></ul>
       <button id="arenas-stop" class="duel-btn" type="button" hidden>✋ Parar de assistir</button>
+    </section>
+    <!-- v55: o trio do 3v3: convidar pelo nome, aceitar convite, sair -->
+    <section id="trio-panel" class="mission-panel ranked-panel arenas-panel" hidden role="dialog" aria-labelledby="trio-title">
+      <header class="mission-head">
+        <h2 id="trio-title"><span aria-hidden="true">👥</span> Trio do 3v3</h2>
+        <button id="trio-close" class="icon-btn small" type="button" aria-label="Fechar o trio"><span aria-hidden="true">✕</span></button>
+      </header>
+      <p class="ranked-season">Monte um trio para entrar junto na fila do 3v3 (o líder põe os três). Sozinho, o jogo junta você com outros dois.</p>
+      <ul id="trio-members" class="arenas-list"></ul>
+      <form id="trio-form" class="trio-form"><input id="trio-name" type="text" maxlength="24" placeholder="Nome do ninja" autocomplete="off"><button class="duel-btn" type="submit">Convidar</button></form>
+      <ul id="trio-invites" class="arenas-list"></ul>
+      <button id="trio-leave" class="duel-btn" type="button" hidden>Sair do trio</button>
     </section>
     <!-- v55: faixa de quem está assistindo como fantasma -->
     <div id="ghost-bar" class="ghost-bar" hidden aria-live="polite"><span id="ghost-text">👁 Assistindo</span><button id="ghost-switch" class="duel-btn" type="button">📺 Trocar</button><button id="ghost-stop" class="duel-btn" type="button">✋ Parar</button></div>

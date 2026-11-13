@@ -65,7 +65,7 @@ import {
   type EffectBag, type EffectCode,
 } from './effects.js';
 import { NO_CLASS, PvpStats, reportText, toClassRows } from './pvpStats.js';
-import { DUEL, leavePenalty, addDamage, advance, endRound, fighters, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, takeVillageMatch, type VillageEntry, timeoutWinner, type DuelMatch, type DuelMode, type QueueEntry, type Side } from './duel.js';
+import { DUEL, TEAM3, takeTeamMatch, type TeamEntry, leavePenalty, addDamage, advance, endRound, fighters, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, takeVillageMatch, type VillageEntry, timeoutWinner, type DuelMatch, type DuelMode, type QueueEntry, type Side } from './duel.js';
 import {
   VALE, ACADEMY, REFUGE, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
   type MapLayout, type Wall,
@@ -674,6 +674,11 @@ export class GameWorld {
   private readonly arenaRecord = new Map<string, { wins: number; losses: number }>();
   /** v29: modo rankeado. A fila do Desafio, a partida da arena do Vale e para onde cada um volta ao sair do Vale. */
   private rankedQueue: QueueEntry[] = [];
+  /** v55: a fila do 3v3 (solos e trios) e os trios montados (líder -> membros) com os convites pendentes. */
+  private team3Queue: TeamEntry[] = [];
+  private trios = new Map<string, string[]>();
+  private trioInvites = new Map<string, Set<string>>();
+  private ranked3Ready = false;
   /** v41: fila do Torneio da Temporada (a partida só une ninjas da mesma vila) e a janela da fase de pontos. */
   private jouninQueue: VillageEntry[] = [];
   private readonly seasonStore: SeasonStore | undefined;
@@ -1212,6 +1217,7 @@ export class GameWorld {
     session.closed = true;
     if (this.sessions.get(session.id) !== session) return;
     this.rankedGone(session, true);
+    this.trioDrop(session.id);
     this.flushUsage(session);
     this.sessions.delete(session.id);
     this.mapPlayers.get(session.map)?.delete(session);
@@ -1293,6 +1299,7 @@ export class GameWorld {
     else if (parsed.type === 'travel') this.travel(session, parsed.to, t);
     else if (parsed.type === 'ranked') this.rankedAction(session, parsed.action, t);
     else if (parsed.type === 'watch') this.watchArena(session, parsed.arena);
+    else if (parsed.type === 'trio') this.trioAction(session, parsed.action, parsed.name, parsed.leaderId);
     else if (parsed.type === 'arenas') this.sendTo(session, { type: 'arenas', list: this.arenasView(), watching: session.watching ?? null });
     else this.endgameRequest(session, parsed, t);
     this.flushKicks();
@@ -4890,9 +4897,10 @@ export class GameWorld {
   // ---------------------------------------------------------------- modo rankeado (v29, duel.ts)
 
   /** Botões do modo rankeado: entrar no Vale, sair dele, entrar e sair da fila do Desafio. */
-  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand' | 'jounin_queue' | 'jounin_unqueue' | 'jounin_board' | 'final_queue' | 'final_unqueue' | 'final_board' | 'champion_join' | 'champion_queue' | 'champion_unqueue', t: number): void {
+  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand' | 'jounin_queue' | 'jounin_unqueue' | 'jounin_board' | 'final_queue' | 'final_unqueue' | 'final_board' | 'champion_join' | 'champion_queue' | 'champion_unqueue' | 'team3_queue' | 'team3_unqueue', t: number): void {
     if (action === 'jounin_board') return this.jouninBoard(s, t);
     if (action === 'champion_join' || action === 'champion_queue' || action === 'champion_unqueue') return this.championAction(s, action, t);
+    if (action === 'team3_queue' || action === 'team3_unqueue') return this.team3Action(s, action, t);
     if (action === 'final_board') return this.finalBoard(s, t);
     if (action === 'board') return this.rankedBoard(s, t);
     if (action === 'stand') return this.standUp(s);
@@ -4981,6 +4989,7 @@ export class GameWorld {
     this.jouninQueue = this.jouninQueue.filter((e) => e.id !== s.id);
     this.finalQueue = this.finalQueue.filter((id) => id !== s.id);
     this.champQueue = this.champQueue.filter((id) => id !== s.id);
+    this.team3Leave(s.id);
     if (s.watching) { this.watchers.get(s.watching)?.delete(s); if (disconnected) s.watching = undefined; }
     const d = this.duelOf(s.id);
     const side = d ? sideOf(d, s.id) : null;
@@ -5010,7 +5019,11 @@ export class GameWorld {
       this.duelClose(d);
       this.notice(otherId, 'O adversário saiu antes da luta: partida cancelada, sem pontos. Você volta para a fila.', 'info');
       const o = this.duelSession(otherId);
-      if (o && d.mode === 'final') this.finalQueue.unshift(o.id);
+      if (d.mode === 'ranked3') {
+        // v55 (3v3): os que ficaram voltam para a frente da fila, cada um sozinho
+        const back = fighters(d).filter((x) => x !== id && this.inArenaWorld(x));
+        this.team3Queue.unshift(...back.map((x) => ({ ids: [x], levels: [this.sessions.get(x)?.level ?? 1], joinedAt: t })));
+      } else if (o && d.mode === 'final') this.finalQueue.unshift(o.id);
       else if (o && (d.mode === 'herois' || d.mode === 'viloes')) this.champQueue.unshift(o.id);
       else if (o && d.mode === 'jounin' && o.village && this.jouninOpen(t)) this.jouninQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0, village: o.village });
       else if (o && d.mode === 'ranked') this.rankedQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0 });
@@ -5097,6 +5110,11 @@ export class GameWorld {
     if (this.champQueue.length > 0) {
       const valid = this.champPhase === 'chaves' ? this.champQueue.filter((id) => this.inArenaWorld(id)) : [];
       if (valid.length !== this.champQueue.length) this.champQueue = valid;
+    }
+    if (this.team3Queue.length > 0) {
+      // v55: trio com alguém fora do mundo das arenas sai inteiro da fila
+      const valid = this.team3Queue.filter((e) => e.ids.every((id) => this.inArenaWorld(id)));
+      if (valid.length !== this.team3Queue.length) { this.team3Queue = valid; this.sendQueues(); }
     }
     for (const [id, until] of this.duelAway) {
       const dd = this.duelOf(id);
@@ -5312,6 +5330,7 @@ export class GameWorld {
     if (d.mode === 'jounin') return this.jouninFinished(d, winnerId, loserId);
     if (d.mode === 'final') return this.finalFinished(d, winnerId, loserId);
     if (d.mode === 'herois' || d.mode === 'viloes') return this.championFinished(d, winnerId, loserId);
+    if (d.mode === 'ranked3') return this.team3Finished(d);
     const store = this.rankedReady ? this.rankedStore : undefined;
     if (!store) return;
     if (d.matchDamage.a + d.matchDamage.b === 0) {
@@ -5510,6 +5529,7 @@ export class GameWorld {
       type: 'duel_queue', queued: pos > 0, position: pos, size: this.rankedQueue.length,
       ...(this.jounin ? { jounin: { position: queuePosition(mine, s.id), size: mine.length } } : {}),
       ...(this.finalStage() ? { final: { position: this.finalQueue.indexOf(s.id) + 1, size: this.finalQueue.length } } : {}),
+      ...(this.team3Queue.length > 0 ? { team3: { queued: this.team3Queue.some((e) => e.ids.includes(s.id)), players: this.team3Queue.reduce((n, e) => n + e.ids.length, 0) } } : {}),
     });
   }
 
@@ -6023,8 +6043,140 @@ export class GameWorld {
       this.sendQueues();
     }).catch((err: unknown) => this.log.warn({ err, match: d.id }, 'torneios de campeão: falha ao gravar o jogo'));
   }
-  /** v55: a próxima partida do 3v3 (preenchido no passo do 3v3). */
-  private team3Pick(): MatchPick | null { return null; }
+  /** v55: a próxima partida do 3v3: 6 ninjas da fila (trios inteiros), times com a soma de níveis parecida. */
+  private team3Pick(): MatchPick | null {
+    const m = takeTeamMatch(this.team3Queue, this.now());
+    if (!m) return null;
+    this.team3Queue = m.rest;
+    return { a: m.a[0]!, b: m.b[0]!, mode: 'ranked3', label: 'Rankeado 3v3', big: false, teams: { a: m.a, b: m.b } };
+  }
+
+  /** v55: entrar e sair da fila do 3v3. Líder de trio completo entra com os 3; quem está num trio sem ser o líder não entra sozinho. */
+  private team3Action(s: Session, action: 'team3_queue' | 'team3_unqueue', t: number): void {
+    if (action === 'team3_unqueue') { this.team3Leave(s.id); this.sendQueues(); return; }
+    if (this.duelOf(s.id)) return;
+    if (s.level < DUEL.minLevel) return this.notice(s.id, `O rankeado abre no nível ${DUEL.minLevel}.`, 'bad');
+    const pen = this.rankedLeaves.get(s.id);
+    if (pen && t < pen.until) return this.notice(s.id, `Você saiu de uma partida: espere ${Math.ceil((pen.until - t) / 1000)} s para entrar na fila de novo.`, 'bad');
+    if (this.team3Queue.some((e) => e.ids.includes(s.id))) return;
+    const leader = this.trioLeaderOf(s.id);
+    let ids = [s.id];
+    if (leader) {
+      const members = this.trios.get(leader)!;
+      if (leader !== s.id) return this.notice(s.id, 'Quem põe o trio na fila é o líder.', 'bad');
+      if (members.length !== TEAM3.size) return this.notice(s.id, `O trio está com ${members.length} de ${TEAM3.size}: convide mais ou entre sozinho saindo do trio.`, 'bad');
+      if (!members.every((id) => this.inArenaWorld(id) && !this.duelOf(id))) return this.notice(s.id, 'O trio todo precisa estar na Arena (e fora de luta).', 'bad');
+      ids = [...members];
+    }
+    // uma fila por vez
+    for (const id of ids) {
+      this.rankedQueue = this.rankedQueue.filter((e) => e.id !== id);
+      this.jouninQueue = this.jouninQueue.filter((e) => e.id !== id);
+    }
+    this.team3Queue.push({ ids, levels: ids.map((id) => this.sessions.get(id)?.level ?? 1), joinedAt: t });
+    this.sendQueues();
+  }
+
+  /** v55: tira da fila do 3v3 a entrada de quem saiu (um trio sai inteiro). */
+  private team3Leave(id: string): void {
+    this.team3Queue = this.team3Queue.filter((e) => !e.ids.includes(id));
+  }
+
+  /** v55: o trio de quem é membro (o id do líder), se houver. */
+  private trioLeaderOf(id: string): string | undefined {
+    for (const [leader, members] of this.trios) if (members.includes(id)) return leader;
+    return undefined;
+  }
+
+  /** v55: o trio do 3v3: convidar pelo nome (vira líder), aceitar o convite e sair. Fica só na memória (é para a fila). */
+  private trioAction(s: Session, action: 'invite' | 'accept' | 'leave', name?: string, leaderId?: string): void {
+    const say = (text: string, tone: 'bad' | 'good' | 'info' = 'bad') => this.notice(s.id, text, tone);
+    const mine = this.trioLeaderOf(s.id);
+    if (action === 'leave') {
+      if (!mine) return;
+      this.team3Leave(mine);
+      const members = this.trios.get(mine)!.filter((x) => x !== s.id);
+      this.trios.delete(mine);
+      if (mine !== s.id && members.length > 1) this.trios.set(mine, members);   // o líder segue com quem ficou
+      else if (mine === s.id && members.length > 1) this.trios.set(members[0]!, members);   // saiu o líder: o próximo assume
+      for (const id of [s.id, ...members]) this.sendTrio(id);
+      return;
+    }
+    if (action === 'invite') {
+      const target = [...this.sessions.values()].find((x) => !x.closed && x.username.toLowerCase() === (name ?? '').toLowerCase());
+      if (!target || target.id === s.id) return say('Ninja não encontrado (precisa estar online).');
+      if (mine && mine !== s.id) return say('Só o líder do trio convida.');
+      const members = mine ? this.trios.get(mine)! : [s.id];
+      if (members.length >= TEAM3.size) return say('O trio já está completo.');
+      if (this.trioLeaderOf(target.id)) return say(`${target.username} já está num trio.`);
+      if (!mine) this.trios.set(s.id, members);
+      const inv = this.trioInvites.get(target.id) ?? new Set<string>();
+      inv.add(s.id);
+      this.trioInvites.set(target.id, inv);
+      this.notice(target.id, `${s.username} convidou você para um trio do 3v3: aceite em Arena → 👥 Trio.`, 'info');
+      say(`Convite enviado para ${target.username}.`, 'good');
+      this.sendTrio(s.id);
+      this.sendTrio(target.id);
+      return;
+    }
+    // accept
+    if (!leaderId || !this.trioInvites.get(s.id)?.has(leaderId)) return say('Convite não encontrado.');
+    if (mine) return say('Saia do seu trio antes de entrar em outro.');
+    const members = this.trios.get(leaderId);
+    if (!members || members.length >= TEAM3.size) { this.trioInvites.get(s.id)!.delete(leaderId); this.sendTrio(s.id); return say('Esse trio não tem mais vaga.'); }
+    members.push(s.id);
+    this.trioInvites.delete(s.id);
+    this.team3Leave(leaderId);   // mudou o trio: sai da fila (o líder põe de novo)
+    for (const id of members) this.sendTrio(id);
+  }
+
+  /** v55: caiu da conexão: sai do trio (o próximo vira líder) e dos convites. */
+  private trioDrop(id: string): void {
+    this.trioInvites.delete(id);
+    const leader = this.trioLeaderOf(id);
+    if (!leader) return;
+    this.team3Leave(leader);
+    const members = this.trios.get(leader)!.filter((x) => x !== id);
+    this.trios.delete(leader);
+    if (members.length > 1) this.trios.set(leader === id ? members[0]! : leader, members);
+    for (const m of members) this.sendTrio(m);
+  }
+
+  /** v55: manda o estado do trio para o ninja. */
+  private sendTrio(id: string): void {
+    const s = this.sessions.get(id);
+    if (!s) return;
+    const leader = this.trioLeaderOf(id) ?? null;
+    const view = (x: string) => { const p = this.sessions.get(x); return { id: x, name: p?.username ?? '?', level: p?.level ?? 0 }; };
+    this.sendTo(s, {
+      type: 'trio_state', leaderId: leader, members: leader ? this.trios.get(leader)!.map(view) : [],
+      invites: [...(this.trioInvites.get(id) ?? [])].filter((l) => this.trios.has(l)).map((l) => ({ leaderId: l, name: this.sessions.get(l)?.username ?? '?' })),
+    });
+  }
+
+  /** v55: grava a partida 3v3 (Elo com a média do time) e avisa os seis. */
+  private team3Finished(d: DuelMatch): void {
+    const store = this.rankedReady ? this.rankedStore : undefined;
+    if (!store?.result3 || !d.winner) return;
+    if (d.reason !== 'forfeit' && d.matchDamage.a + d.matchDamage.b === 0) return;
+    const winners = d.teams[d.winner], losers = d.teams[other(d.winner)];
+    const go = async () => {
+      if (!this.ranked3Ready) {
+        if (!(await store.available3?.())) return;
+        this.ranked3Ready = true;
+      }
+      const r = await store.result3!(winners, losers, d.wins[d.winner!], d.wins[other(d.winner!)], d.reason ?? 'rounds', this.now() - d.startedAt);
+      for (const id of [...winners, ...losers]) {
+        const s = this.sessions.get(id);
+        if (!s) continue;
+        const won = winners.includes(id);
+        const ryo = r.counted ? (won ? 30 : 10) : 0;
+        this.sendTo(s, { type: 'duel_rating', mode: 'ranked3', counted: r.counted, delta: won ? r.winnerDelta : r.loserDelta, mmr: 0, won, ryo });
+        if (ryo > 0) { s.ryo += ryo; this.sendInventory(s); }
+      }
+    };
+    go().catch((err: unknown) => this.log.warn({ err, match: d.id }, 'rankeado 3v3: falha ao gravar a partida'));
+  }
 
   /** v55: prazo da eliminatória acabou: cada jogo pendente vira W.O. para o lado `a` (o melhor cabeça de chave), rodada a rodada. */
   private async calendarWalkovers(store: SeasonStore, now: number): Promise<void> {

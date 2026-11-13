@@ -51,7 +51,8 @@ const ui = {
   jouninCut: $('jounin-cut'), jouninList: $('jounin-list'), jouninQueue: $('jounin-queue'), jouninWhy: $('jounin-why'),
   finalPanel: $('final-panel'), finalClose: $('final-close'), finalStatus: $('final-status'), finalMine: $('final-mine'), finalQueue: $('final-queue'),
   finalEra: $('final-era'), finalBracket: $('final-bracket'), finalGroups: $('final-groups'),
-  championBtn: $('champion-btn'),
+  championBtn: $('champion-btn'), team3Btn: $('team3-btn'), trioBtn: $('trio-btn'), trioPanel: $('trio-panel'), trioClose: $('trio-close'),
+  trioMembers: $('trio-members'), trioForm: $('trio-form'), trioName: $('trio-name'), trioInvites: $('trio-invites'), trioLeave: $('trio-leave'),
   arenasBtn: $('arenas-btn'), arenasPanel: $('arenas-panel'), arenasList: $('arenas-list'), arenasClose: $('arenas-close'), arenasStop: $('arenas-stop'),
   ghostBar: $('ghost-bar'), ghostText: $('ghost-text'), ghostSwitch: $('ghost-switch'), ghostStop: $('ghost-stop'),
   duelAgain: $('duel-again'), duelWatchBtn: $('duel-watch-btn'), duelAHp: $('duel-a-hp'), duelBHp: $('duel-b-hp'),
@@ -849,6 +850,11 @@ function handleMessage(msg) {
       break;
     case 'champion_state':
       state.champion = msg;
+      renderDuel();
+      break;
+    case 'trio_state':
+      state.trio = msg;
+      renderTrio();
       renderDuel();
       break;
     case 'arenas':
@@ -2559,17 +2565,22 @@ function showDuelBanner(won, score, points, voided = false) {
 const VILLAGE_SHORT = { vila_1: 'Chama Eterna', vila_3: 'Maré Oculta', vila_4: 'Vento Cortante', vila_5: 'Rocha Antiga' };
 
 /** Este jogador está numa partida do rankeado agora? */
+/** v55: os ids de um lado da partida (no 3v3, o time inteiro). */
+function duelTeam(d, side) {
+  const team = side === 'a' ? d.teamA : d.teamB;
+  return team ? team.map((v) => v.id) : [d[side]?.id].filter(Boolean);
+}
 function duelFighting() {
   const d = state.duel;
-  return !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
+  return !!d && d.phase !== 'idle' && [...duelTeam(d, 'a'), ...duelTeam(d, 'b')].includes(state.meId);
 }
 
 /** No Arena das Quatro Heranças: o outro lado da partida, só durante a rodada (o servidor confere de novo). */
 function duelFoe(id) {
   const d = state.duel;
   if (!d || d.phase !== 'round' || !d.a || !d.b) return false;
-  const ids = [d.a.id, d.b.id];
-  return ids.includes(state.meId) && ids.includes(id) && id !== state.meId;
+  const a = duelTeam(d, 'a'), b = duelTeam(d, 'b');
+  return (a.includes(state.meId) && b.includes(id)) || (b.includes(state.meId) && a.includes(id));
 }
 
 /** Placar no alto e o botão do Desafio, só no Vale. */
@@ -2579,10 +2590,18 @@ function renderDuel() {
   ui.rankedLabel.textContent = inArena ? 'Voltar' : 'Rankeado';
   ui.duelHud.hidden = !inArena;
   const d = state.duel;
-  const fighting = !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
+  const fighting = duelFighting();
   const q = state.duelQueue;
   ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden || !ui.jouninPanel.hidden || !ui.finalPanel.hidden || !ui.arenasPanel.hidden;
   ui.arenasBtn.hidden = fighting;
+  // v55: 3v3 (a fila mostra quantos esperam; 6 = uma partida) e o trio
+  const t3 = q?.team3;
+  ui.team3Btn.hidden = fighting;
+  ui.trioBtn.hidden = fighting;
+  ui.team3Btn.classList.toggle('queued', !!t3?.queued);
+  ui.team3Btn.textContent = t3?.queued ? `👥 3v3: ${t3.players}/6 · Cancelar` : t3?.players ? `👥 3v3 (${t3.players} na fila)` : '👥 3v3';
+  const trio = state.trio;
+  ui.trioBtn.textContent = trio?.members?.length ? `Trio ${trio.members.length}/3` : trio?.invites?.length ? `Trio (${trio.invites.length} convite)` : 'Trio';
   // v55: Torneio dos Heróis / dos Vilões: inscrever (1 dia) e depois jogar a chave
   const ch = state.champion;
   const chName = ch?.kind === 'viloes' ? 'Torneio dos Vilões' : 'Torneio dos Heróis';
@@ -2629,15 +2648,15 @@ function renderDuel() {
   ui.duelBtn.textContent = q?.queued ? `Fila: ${q.position}º · Cancelar` : busy ? '⚔️ Entrar na fila' : '⚔️ Desafio';
   document.body.classList.toggle('duel-fighting', fighting && d.phase !== 'done');
   if (!inArena) return;
-  const side = (el, v, wins, isMe) => {
-    el.name.textContent = v ? v.name : '?';
+  const side = (el, v, wins, isMe, team) => {
+    el.name.textContent = team && team.length > 1 ? team.map((x) => x.name).join(' + ') : v ? v.name : '?';   // v55: 3v3
     el.info.textContent = v ? `Nv ${v.level}${v.village ? ` · ${VILLAGE_SHORT[v.village] || ''}` : ''}` : '';
     el.wins.textContent = '●'.repeat(wins) + '○'.repeat(Math.max(0, 2 - wins));
     el.name.parentElement.classList.toggle('duel-me', !!isMe);
   };
   const live = d && d.phase !== 'idle';
-  side(ui.duelA, live ? d.a : null, live ? d.wins.a : 0, live && d.a?.id === state.meId);
-  side(ui.duelB, live ? d.b : null, live ? d.wins.b : 0, live && d.b?.id === state.meId);
+  side(ui.duelA, live ? d.a : null, live ? d.wins.a : 0, live && duelTeam(d, 'a').includes(state.meId), live ? d.teamA : null);
+  side(ui.duelB, live ? d.b : null, live ? d.wins.b : 0, live && duelTeam(d, 'b').includes(state.meId), live ? d.teamB : null);
   tickDuelClock();
 }
 
@@ -2731,6 +2750,38 @@ ui.championBtn.addEventListener('click', () => {
   if (!ch?.kind) return;
   if (ch.phase === 'inscricoes') { if (!ch.joined) send({ type: 'ranked', action: 'champion_join' }); return; }
   send({ type: 'ranked', action: ch.queued ? 'champion_unqueue' : 'champion_queue' });
+});
+ui.team3Btn.addEventListener('click', () => send({ type: 'ranked', action: state.duelQueue?.team3?.queued ? 'team3_unqueue' : 'team3_queue' }));
+/** v55: o painel do trio: membros (com o líder), convidar pelo nome, convites recebidos e sair. */
+function renderTrio() {
+  const t = state.trio || { members: [], invites: [], leaderId: null };
+  ui.trioLeave.hidden = !t.members.length;
+  ui.trioForm.hidden = !!t.leaderId && t.leaderId !== state.meId;
+  ui.trioMembers.replaceChildren(...t.members.map((m) => {
+    const li = document.createElement('li');
+    li.className = 'arenas-empty';
+    li.textContent = `${m.id === t.leaderId ? '👑 ' : '• '}${m.name} (Nv ${m.level})${m.id === state.meId ? ' · você' : ''}`;
+    return li;
+  }));
+  ui.trioInvites.replaceChildren(...t.invites.map((inv) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'arenas-item';
+    b.textContent = `Aceitar o convite de ${inv.name}`;
+    b.addEventListener('click', () => send({ type: 'trio', action: 'accept', leaderId: inv.leaderId }));
+    li.append(b);
+    return li;
+  }));
+}
+ui.trioBtn.addEventListener('click', () => { ui.trioPanel.hidden = !ui.trioPanel.hidden; renderTrio(); });
+ui.trioClose.addEventListener('click', () => { ui.trioPanel.hidden = true; });
+ui.trioLeave.addEventListener('click', () => send({ type: 'trio', action: 'leave' }));
+ui.trioForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = ui.trioName.value.trim();
+  if (name.length >= 3) send({ type: 'trio', action: 'invite', name });
+  ui.trioName.value = '';
 });
 ui.arenasBtn.addEventListener('click', () => (ui.arenasPanel.hidden ? openArenas() : (ui.arenasPanel.hidden = true, renderDuel())));
 ui.arenasClose.addEventListener('click', () => { ui.arenasPanel.hidden = true; renderDuel(); });

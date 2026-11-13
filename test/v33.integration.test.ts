@@ -76,3 +76,26 @@ describe('v33 no banco: Torneio dos Heróis e dos Vilões', { skip: noDatabase }
     assert.equal(title.name, 'Vilão Mais Forte da Era');
   });
 });
+
+describe('v33 no banco: rankeado 3v3', { skip: noDatabase }, () => {
+  let t: Db;
+  before(async () => { t = await createTestDatabase(); });
+  after(async () => { await t?.drop(); });
+
+  it('Elo K=24 com a média do time: cada vencedor ganha o mesmo, cada perdedor perde o mesmo; 30/10 ryō; admin no meio não conta', async () => {
+    const ids = [];
+    for (const n of ['t3a1', 't3a2', 't3a3', 't3b1', 't3b2', 't3b3']) ids.push(await t.createPlayer(n));
+    const w = ids.slice(0, 3), l = ids.slice(3);
+    const r = await one(t, 'SELECT * FROM game.ranked3_result($1::uuid[], $2::uuid[], 2, 1, $3, 60000)', [w, l, 'rounds']);
+    assert.equal(r.counted, true);
+    assert.ok(r.winner_delta > 0 && r.loser_delta < 0);
+    const rows = (await t.pool.query('SELECT player_id, mmr, wins, losses FROM game.ranked3_ratings')).rows;
+    for (const id of w) assert.equal(rows.find((x) => x.player_id === id).mmr, 1000 + r.winner_delta);
+    for (const id of l) assert.equal(rows.find((x) => x.player_id === id).mmr, 1000 + r.loser_delta);
+    assert.equal((await one(t, 'SELECT ryo FROM game.players WHERE id = $1', [w[0]])).ryo, '30');
+    await t.pool.query('UPDATE game.players SET is_admin = true WHERE id = $1', [w[0]]);
+    const r2 = await one(t, 'SELECT * FROM game.ranked3_result($1::uuid[], $2::uuid[], 2, 0, $3, 1000)', [w, l, 'rounds']);
+    assert.equal(r2.counted, false);
+    await assert.rejects(t.pool.query('SELECT * FROM game.ranked3_result($1::uuid[], $2::uuid[], 2, 0, $3, 1000)', [w, w, 'rounds']));
+  });
+});

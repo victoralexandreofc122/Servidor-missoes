@@ -1042,3 +1042,7 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
 .ghost-bar .duel-btn { padding: 6px 14px; font-size: 13px; }
 /* o fantasma não usa os botões de combate */
 body.spectating #combat, body.spectating #joystick { display: none; }
+.trio-form { display: flex; gap: 8px; margin: 0 12px 10px; }
+.trio-form input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(214, 180, 110, 0.6); background: rgba(0, 0, 0, 0.35); color: #fff3d6; font: inherit; }
+.trio-form .duel-btn { padding: 8px 14px; font-size: 14px; }
+#trio-leave { margin: 0 12px 12px; }
