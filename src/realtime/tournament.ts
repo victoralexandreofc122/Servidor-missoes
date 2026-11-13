@@ -116,7 +116,8 @@ export function jouninOfEra(slots: number, table: readonly GroupRow[], bracket: 
   return [...inBracket, ...rest].slice(0, Math.max(0, slots));
 }
 
-export interface PendingMatch { a: string; b: string }
+/** v55: `big` = semifinal ou final (luta sozinha na arena principal); `label` = o que aparece no painel. */
+export interface PendingMatch { a: string; b: string; big?: boolean; label?: string }
 /**
  * Fila da fase final: a primeira dupla, por ordem de espera, que tem um jogo pendente entre si (grupo ou chave).
  * `queue` = ids em ordem de chegada. Devolve a dupla e a fila que sobra; sem dupla possível, `null`.

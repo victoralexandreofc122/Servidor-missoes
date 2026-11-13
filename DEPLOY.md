@@ -1272,3 +1272,22 @@ As migrações v11, v12 e v14 também passaram a aceitar `consumable` (rodar uma
 4. Conferência no Neon: `SELECT count(*) FROM game.players WHERE attr_agility > 0;` deve dar 0.
 5. Classe Cura: a descrição da Palma Curadora diz "Cura 50"; a Casca de Chakra, "absorve até 40 de dano" (valores fixos da v54,
    só no código: o banco não guarda os números dos jutsus).
+
+## Passo 48 — Arenas, 3v3, calendário e torneios de campeão (SQL v33)
+
+Rode `db/schema_v33_pvp_torneio.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v32**, e só então
+mescle o código. Pode rodar de novo sem erro.
+
+- `game.close_era`: a virada automática da Era (60 dias).
+- Torneio dos Heróis e dos Vilões: `game.champion_tournaments`, `game.champion_entries`, `game.champion_brackets` e as funções
+  `champion_slot`, `champion_join`, `champion_result`, `champion_crown`.
+- Rankeado 3v3: `game.ranked3_ratings`, `game.ranked3_matches` e `game.ranked3_result`.
+
+As arenas extras e o espectador não precisam de banco. Sem a v33 o jogo sobe igual: o 3v3 não grava pontos, os torneios de
+campeão ficam desligados e a Era não vira sozinha.
+
+### Testar no celular
+
+1. Arena → "📺 Lutas": aparecem as lutas de todas as arenas; tocar numa leva você para assistir como fantasma.
+2. "👥 3v3" com 6 ninjas na fila (ou um Trio + 3): a partida 3 contra 3 começa numa arena livre.
+3. Conferência no Neon: `SELECT to_regclass('game.ranked3_matches');` não pode dar vazio.

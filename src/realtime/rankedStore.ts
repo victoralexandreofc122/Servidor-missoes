@@ -48,6 +48,11 @@ export interface RankedStore {
   board(playerId: string, limit: number): Promise<RankedBoard>;
   /** Fecha a temporada vencida (ou à força); devolve o número da que fechou, ou null. */
   closeSeason(now: Date, force?: boolean): Promise<number | null>;
+  /** v55 (migração v33): o rankeado 3v3 está no banco? */
+  available3?(): Promise<boolean>;
+  /** v55: grava uma partida 3v3 (Elo K = 24 com a média do time). */
+  result3?(winners: readonly string[], losers: readonly string[], winnerRounds: number, loserRounds: number, reason: string, durationMs: number):
+    Promise<{ counted: boolean; winnerDelta: number; loserDelta: number }>;
 }
 
 export const RANKED_SQL = {
@@ -105,6 +110,15 @@ export function makeRankedStore(db: Db): RankedStore {
         me: me.rows[0] ? toRow(me.rows[0]) : null,
         overall: overall ? { mmr: overall.mmr, best: overall.best_mmr, wins: overall.wins, losses: overall.losses } : null,
       };
+    },
+    async available3() {
+      return (await db.query<{ ok: boolean }>(`SELECT to_regclass('game.ranked3_matches') IS NOT NULL AS ok`)).rows[0]?.ok === true;
+    },
+    async result3(winners, losers, wr, lr, reason, durationMs) {
+      const r = (await db.query<{ counted: boolean; winner_delta: number; loser_delta: number }>(
+        'SELECT counted, winner_delta, loser_delta FROM game.ranked3_result($1::uuid[], $2::uuid[], $3, $4, $5, $6)',
+        [[...winners], [...losers], wr, lr, reason, Math.round(durationMs)])).rows[0]!;
+      return { counted: r.counted, winnerDelta: r.winner_delta, loserDelta: r.loser_delta };
     },
     async closeSeason(now, force = false) {
       return (await db.query<{ id: number | null }>(RANKED_SQL.close, [now, force])).rows[0]?.id ?? null;

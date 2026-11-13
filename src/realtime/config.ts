@@ -328,6 +328,8 @@ export interface EndgameConfig {
   allyTravelRyo: number;
   /** Quem vira renegado: a recompensa aparece sobre o nome a partir disto (ryō). */
   showBountyFrom: number;
+  /** v55: o calendário automático da Era (calendar.ts). Desligado: só o /admin torneio. */
+  autoCalendar: boolean;
 }
 
 export interface RealtimeConfig {
@@ -565,6 +567,8 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     tickMs: 60_000,
     allyTravelRyo: 50,
     showBountyFrom: 1,
+    /** v55: o calendário automático da Era (abre e fecha o Torneio sozinho; o /admin torneio continua valendo). */
+    autoCalendar: true,
   },
   missionRequestEveryMs: 400,
 

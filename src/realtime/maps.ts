@@ -27,7 +27,9 @@ import type { Box } from './movement.js';
 export type Edge = 'east' | 'west' | 'north' | 'south';
 export type MapId = 'map_1' | 'map_2' | 'interior_weapons' | 'interior_clothes' | 'interior_scrolls' | 'academy_interior'
   | 'vila_nevoa' | 'vila_nuvem' | 'vila_areia' | 'zona_conflito' | 'refugio'
-  | 'caverna_lodo' | 'clareira_queimada' | 'poco' | 'vale_estatuas';
+  | 'caverna_lodo' | 'clareira_queimada' | 'poco' | 'vale_estatuas'
+  /** v55: as arenas extras, cópias da Arena das Quatro Heranças, para as lutas em paralelo (só se chega levado pelo servidor). */
+  | 'arena_2' | 'arena_3' | 'arena_4';
 /** Tema de cores do mapa (chão, telhados e enfeites; ver public/mapArt.js). */
 export type MapTheme = 'folha' | 'nevoa' | 'nuvem' | 'areia' | 'conflito' | 'refugio';
 /** As 3 lojas com interior (o NPC lojista manda `shop_open` com isto). */
@@ -1307,7 +1309,8 @@ export function valeFightBox(): Box {
   return { x: f.x + t, y: f.y + t, w: f.w - 2 * t, h: f.h - 2 * t };
 }
 
-function vale(): MapLayout {
+/** v55: a Arena das Quatro Heranças (`vale_estatuas`) e as arenas extras, iguais a ela (só o nome muda). */
+function vale(id: MapId = 'vale_estatuas', name = 'Arena das Quatro Heranças'): MapLayout {
   const { width: W, height: H } = VALE;
   const f = VALE.fence, t = VALE.thickness;
   const walls: Wall[] = [
@@ -1324,7 +1327,7 @@ function vale(): MapLayout {
   ];
   const fight = valeFightBox();
   return {
-    id: 'vale_estatuas', name: 'Arena das Quatro Heranças', kind: 'wild', theme: 'folha', ranked: true, width: W, height: H, safe: true, walls,
+    id, name, kind: 'wild', theme: 'folha', ranked: true, width: W, height: H, safe: true, walls,
     exits: [], doors: [],
     areas: [area('slab', 0, 0, W, H), area('arena', f.x, f.y, f.w, f.h)],
     deco: [
@@ -1354,6 +1357,7 @@ export function buildMaps(): Record<MapId, MapLayout> {
     caverna_lodo: cave(), clareira_queimada: burnedClearing(), poco: well(),
     interior_weapons: interior(weapons), interior_clothes: interior(clothes), interior_scrolls: interior(scrolls),
     academy_interior: academy(), vale_estatuas: vale(),
+    arena_2: vale('arena_2', 'Arena 2'), arena_3: vale('arena_3', 'Arena 3'), arena_4: vale('arena_4', 'Arena 4'),
   };
 }
 

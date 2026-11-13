@@ -126,13 +126,24 @@ export type DuelPhase = 'prep' | 'round' | 'interval' | 'done';
 export type Side = 'a' | 'b';
 
 /** 'ranked' = o rankeado de sempre (MMR); 'jounin' = Torneio da Temporada (pontos da era, v41). */
-export type DuelMode = 'ranked' | 'jounin' | 'final';   // 'final' = jogo de grupo ou de chave da Fase Final (v43)
+export type DuelMode = 'ranked' | 'jounin' | 'final' | 'herois' | 'viloes' | 'ranked3';   // 'final' = Fase Final (v43); v55: torneios de campeão e o 3v3
 
 export interface DuelMatch {
   id: number;
   mode: DuelMode;
+  /** Lado a (o capitão, no 3v3) e lado b. */
   a: string;
   b: string;
+  /** v55: a arena (mapa) desta partida: a principal (Arena das Quatro Heranças) ou uma das arenas extras. */
+  arena: string;
+  /** v55: o que aparece no painel de espectador ("Grupo A", "Chave", "Rankeado 3v3"...). */
+  label: string;
+  /** v55: semifinal ou final: luta sozinha na arena principal, com aviso para todo o servidor. */
+  big: boolean;
+  /** v55 (3v3): os times. No 1v1 cada time é um só. */
+  teams: { a: string[]; b: string[] };
+  /** v55 (3v3): quem já caiu nesta rodada (fora até a próxima). */
+  down: Set<string>;
   phase: DuelPhase;
   /** Quando a fase atual acaba (relógio do servidor). */
   until: number;
@@ -156,16 +167,21 @@ export interface DuelMatch {
   reason?: 'rounds' | 'forfeit';
 }
 
-export function newMatch(id: number, a: string, b: string, now: number, mode: DuelMode = 'ranked'): DuelMatch {
+export interface MatchOpts { arena?: string; label?: string; big?: boolean; teams?: { a: string[]; b: string[] } }
+
+export function newMatch(id: number, a: string, b: string, now: number, mode: DuelMode = 'ranked', opts: MatchOpts = {}): DuelMatch {
   return {
-    id, mode, a, b, phase: 'prep', until: now + DUEL.prepMs, round: 1, wins: { a: 0, b: 0 },
+    id, mode, a, b, arena: opts.arena ?? 'vale_estatuas', label: opts.label ?? '', big: opts.big ?? false,
+    teams: opts.teams ?? { a: [a], b: [b] }, down: new Set(), phase: 'prep', until: now + DUEL.prepMs, round: 1, wins: { a: 0, b: 0 },
     roundDamage: { a: 0, b: 0 }, matchDamage: { a: 0, b: 0 }, replay: false, history: [],
     startedAt: now, roundStartedAt: now, rounds: [],
   };
 }
 
 export const other = (s: Side): Side => (s === 'a' ? 'b' : 'a');
-export const sideOf = (m: DuelMatch, id: string): Side | null => (id === m.a ? 'a' : id === m.b ? 'b' : null);
+export const sideOf = (m: DuelMatch, id: string): Side | null => (m.teams.a.includes(id) ? 'a' : m.teams.b.includes(id) ? 'b' : null);
+/** v55: todos os ninjas da partida (os dois lados). */
+export const fighters = (m: DuelMatch): string[] => [...m.teams.a, ...m.teams.b];
 
 /** Soma dano causado por `by` (já depois do escudo e da rede de segurança). */
 export function addDamage(m: DuelMatch, by: Side, dmg: number): void {
@@ -237,4 +253,71 @@ export function advance(m: DuelMatch, now: number): boolean {
     return true;
   }
   return false;
+}
+
+// ---------------------------------------------------------------- v55: rankeado 3v3 (a fila e os times)
+
+export const TEAM3 = {
+  size: 3,
+  /** Teto de poder: a diferença entre a soma dos níveis dos dois times (ex.: 40+40+40 x 45+45+35 = 5). */
+  powerGap: 15,
+  /** Depois de esperar isto, o primeiro da fila aceita o melhor equilíbrio possível, mesmo acima do teto. */
+  relaxAfterMs: 90_000,
+  /** Quantas entradas da fila (solos e trios) entram na busca dos 6. */
+  window: 12,
+} as const;
+
+/** Uma entrada na fila do 3v3: um solo (1 ninja) ou um trio (3 ninjas que entraram juntos). */
+export interface TeamEntry { ids: string[]; levels: number[]; joinedAt: number }
+
+const sum = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0);
+
+/**
+ * A melhor divisão de entradas (que somam 6 ninjas) em dois times de 3: trios ficam juntos. Devolve os times e a diferença
+ * de poder (soma dos níveis), ou null se não dá para dividir.
+ */
+export function splitTeams(entries: readonly TeamEntry[]): { a: TeamEntry[]; b: TeamEntry[]; gap: number } | null {
+  let best: { a: TeamEntry[]; b: TeamEntry[]; gap: number } | null = null;
+  const n = entries.length;
+  // o time `a` sempre tem a primeira entrada (quem espera há mais tempo); testa todas as combinações (n <= 6)
+  for (let mask = 0; mask < 1 << n; mask++) {
+    if (!(mask & 1)) continue;
+    const a = entries.filter((_, i) => mask & (1 << i)), b = entries.filter((_, i) => !(mask & (1 << i)));
+    if (sum(a.map((e) => e.ids.length)) !== TEAM3.size || sum(b.map((e) => e.ids.length)) !== TEAM3.size) continue;
+    const gap = Math.abs(sum(a.flatMap((e) => e.levels)) - sum(b.flatMap((e) => e.levels)));
+    if (!best || gap < best.gap) best = { a, b, gap };
+  }
+  return best;
+}
+
+/**
+ * Tira da fila do 3v3 a próxima partida. O primeiro da fila sempre entra. Procura, nas próximas entradas, o grupo de 6
+ * ninjas (trios inteiros) com o melhor equilíbrio de poder; aceita se a diferença couber no teto (ou se o primeiro já
+ * espera há `relaxAfterMs`). Sem 6 ninjas, null. Não muda a fila recebida.
+ */
+export function takeTeamMatch(queue: readonly TeamEntry[], now: number, rules: { powerGap: number; relaxAfterMs: number; window: number } = TEAM3):
+  { a: string[]; b: string[]; gap: number; rest: TeamEntry[] } | null {
+  if (queue.length === 0 || sum(queue.map((e) => e.ids.length)) < 2 * TEAM3.size) return null;
+  const head = queue[0]!;
+  const pool = queue.slice(1, 1 + rules.window);
+  let best: { a: TeamEntry[]; b: TeamEntry[]; gap: number } | null = null;
+  // escolhe quais entradas (além da primeira) completam 6 ninjas: todas as combinações da janela
+  const need = 2 * TEAM3.size - head.ids.length;
+  const pick = (start: number, left: number, chosen: TeamEntry[]): void => {
+    if (left === 0) {
+      const split = splitTeams([head, ...chosen]);
+      if (split && (!best || split.gap < best.gap)) best = split;
+      return;
+    }
+    for (let i = start; i < pool.length; i++) {
+      const e = pool[i]!;
+      if (e.ids.length <= left) pick(i + 1, left - e.ids.length, [...chosen, e]);
+    }
+  };
+  pick(0, need, []);
+  const found = best as { a: TeamEntry[]; b: TeamEntry[]; gap: number } | null;
+  if (!found) return null;
+  if (found.gap > rules.powerGap && now - head.joinedAt < rules.relaxAfterMs) return null;
+  const used = new Set([...found.a, ...found.b]);
+  return { a: found.a.flatMap((e) => e.ids), b: found.b.flatMap((e) => e.ids), gap: found.gap, rest: queue.filter((e) => !used.has(e)) };
 }
