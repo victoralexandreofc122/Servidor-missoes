@@ -34,7 +34,7 @@ describe('v46: ícone e descrição de cada jutsu', () => {
 
   it('exemplos: segundos com vírgula, porcentagem e números da zona', () => {
     assert.equal(jutsuDescription('illusion_estaca', SK.illusion_estaca), 'Estaca em linha (6 casas): fere e prende o primeiro inimigo por 1,6 s.');
-    assert.equal(jutsuDescription('wind_veu', SK.wind_veu), 'Escudo de vento: absorve dano até 12% da sua vida por 3 s.');
+    assert.equal(jutsuDescription('wind_veu', SK.wind_veu), 'Escudo de vento: absorve até 40 de dano por 3 s.');
     assert.match(jutsuDescription('shadow_armadilha', SK.shadow_armadilha), /por 10 s: .* preso por 1,3 s\./);
     assert.match(jutsuDescription('stone_4', SK.stone_4), /perde 80% da força/);
     assert.match(jutsuDescription('shadow_recuo', SK.shadow_recuo), /Salta 3 casas para trás/);

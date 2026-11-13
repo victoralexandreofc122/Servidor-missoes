@@ -54,7 +54,7 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
   water_muro: { name: 'Muro de Água', class: 'water', tier: 1, form: 'muro',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 10_000, range: 2, radius: 3, thick: 0.6, wallHp: 60, wallKind: 'agua', durationMs: 3000 } },
   water_clone: { name: 'Duplo de Água', class: 'water', tier: 2, form: 'invocacao',
-    numbers: { ...CLEAN, base: 0, damage: 0, cost: 30, cooldownMs: 15_000, range: 0, summonType: 'clone_agua', summonHp: 0.15, durationMs: 6000 } },
+    numbers: { ...CLEAN, base: 8, damage: dmg(8, 2), cost: 30, cooldownMs: 15_000, range: 0, radius: 1.3, summonType: 'clone_agua', summonHp: 0.15, durationMs: 6000, punchEveryMs: 1500 } },   // v54: o Duplo também bate (golpe d'água fraco)
   water_nevoa: { name: 'Véu de Bruma', class: 'water', tier: 1, form: 'zona',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 12_000, range: 0, radius: 3,
       zone: { ms: 4000, kind: 'agua', self: true, dark: true } } },
@@ -109,14 +109,14 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
 
   // ------------------------------------------------------------------ Médico (classe Cura)
   heal_desintox: { name: 'Desintoxicação Celular', class: 'heal', tier: 1, form: 'limpeza',
-    numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 12_000, heal: 10, cleanse: ['queimadura', 'ferida', 'veneno'] } },
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 12_000, heal: 15, cleanse: ['queimadura', 'ferida', 'veneno'] } },
   heal_bisturi: { name: 'Corte Cirúrgico', class: 'heal', tier: 1, form: 'buff_basico',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 15_000, durationMs: 5000, basicBuff: 0.15, firstBleed: 2 } },
   heal_aura: { name: 'Aura de Regeneração', class: 'heal', tier: 1, form: 'zona',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 12_000, range: 0, radius: 2,
-      zone: { ms: 3000, kind: 'cura', heal: 4, follow: true, self: true } } },
+      zone: { ms: 3000, kind: 'cura', heal: 10, follow: true, self: true } } },
   heal_palma: { name: 'Palma Curadora', class: 'heal', tier: 1, form: 'palma',
-    numbers: { ...CLEAN, base: 0, damage: 0, cost: 25, cooldownMs: 8000, range: 1.5, heal: 30, castMs: 2000, castSlow: 0.4 } },
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 25, cooldownMs: 8000, range: 1.5, heal: 50, castMs: 2000, castSlow: 0.4 } },
   heal_disturbio: { name: 'Descontrole Muscular', class: 'heal', tier: 2, form: 'alvo',
     numbers: { ...CLEAN, base: 18, damage: dmg(18, 2), cost: 27, cooldownMs: 14_000, range: 5, invertMs: 1600, castMs: 300 } },
   heal_2: { name: 'Punho Sísmico', class: 'heal', tier: 2, form: 'impacto',
@@ -125,7 +125,7 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 51, cooldownMs: 30_000, range: 0, radius: 4, castMs: 800, castSlow: 0,
       zone: { ms: 4000, kind: 'cura', heal: 25, self: true } } },
   heal_4: { name: 'Renovação Celular', class: 'heal', tier: 4, form: 'cura_tempo',
-    numbers: { ...CLEAN, base: 0, damage: 0, cost: 66, cooldownMs: 60_000, durationMs: 10_000, hot: 0.03, castMs: 1000, castSlow: 0 } },
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 66, cooldownMs: 60_000, durationMs: 10_000, hotHeal: 10, castMs: 1000, castSlow: 0 } },
 
   // ------------------------------------------------------------------ Armas (escalam com o atributo Armas e a arma; PvP x2,5)
   // As bases da adaptação x0,72 (18/25: a mesma proporção da Chuva de Kunais para a Bola de Fogo), porque o atributo Armas
@@ -184,7 +184,7 @@ export const CLASS_V2: Readonly<Record<string, ClassJutsu>> = {
   wind_shuriken: { name: 'Shuriken do Vento', class: 'wind', tier: 1, form: 'projetil',
     numbers: { ...CLEAN, base: 20, damage: dmg(20, 1), cost: 12, cooldownMs: 3000, range: 9, speed: 16, radius: 0, coneDeg: undefined } },
   wind_veu: { name: 'Véu de Vento', class: 'wind', tier: 1, form: 'escudo_vida',
-    numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 15_000, range: 0, coneDeg: undefined, shieldShare: 0.12, durationMs: 3000 } },
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 15_000, range: 0, coneDeg: undefined, shield: 40, durationMs: 3000 } },
   wind_salto: { name: 'Passo Aéreo', class: 'wind', tier: 1, form: 'recuo',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 9000, range: 4, coneDeg: undefined, dash: 4 } },
   wind_2: { name: 'Balas de Vento', class: 'wind', tier: 2, form: 'leque',
@@ -241,14 +241,14 @@ export const CLAN_JUTSUS: Readonly<Record<string, ClassJutsu & { clan: 'rubro' |
   rubro_chamas: { name: 'Brasa Sem Luz', class: 'fire', clan: 'rubro', tier: 3, form: 'linha',
     numbers: { ...CLEAN, base: 6, damage: dmg(6, 3), cost: 34, cooldownMs: 10_000, range: 6, radius: undefined, dotAmount: 3, dotMs: 4000 } },
   rubro_guardiao: { name: 'Sentinela Espectral', class: 'fire', clan: 'rubro', tier: 4, form: 'escudo_vida',
-    numbers: { ...CLEAN, base: 15, damage: dmg(15, 4), cost: 44, cooldownMs: 20_000, range: 1.5, radius: undefined, coneDeg: 120, shieldShare: 0.2, durationMs: 4000 } },
+    numbers: { ...CLEAN, base: 15, damage: dmg(15, 4), cost: 44, cooldownMs: 20_000, range: 1.5, radius: undefined, coneDeg: 120, shield: 65, durationMs: 4000 } },
   // nível 60 (pedido do Victor: no jogo comum, não só em evento)
   // Mundo Espelhado: olhar em linha 5 com 0,8 s de selos parado; QUALQUER dano nos selos faz falhar (volta metade da recarga)
   rubro_lua: { name: 'Mundo Espelhado', class: 'fire', clan: 'rubro', tier: 4, form: 'linha',
     numbers: { ...CLEAN, base: 30, damage: dmg(30, 4), cost: 44, cooldownMs: 30_000, range: 5, radius: undefined, stunMs: 2400, castMs: 800, castSlow: 0, breakOnDamage: true } },
   // Colosso Espectral: 5 s transformado (escudo de 25%, Básico +15%) e, no fim, a onda à frente que levanta
   rubro_completo: { name: 'Colosso Espectral', class: 'fire', clan: 'rubro', tier: 4, form: 'transformacao',
-    numbers: { ...CLEAN, base: 30, damage: dmg(30, 4), cost: 44, cooldownMs: 30_000, range: 2.5, radius: 2.5, shieldShare: 0.25, basicBuff: 0.15, durationMs: 5000, liftMs: 800, castMs: 500, castSlow: 0 } },
+    numbers: { ...CLEAN, base: 30, damage: dmg(30, 4), cost: 44, cooldownMs: 30_000, range: 2.5, radius: 2.5, shield: 85, basicBuff: 0.15, durationMs: 5000, liftMs: 800, castMs: 500, castSlow: 0 } },
   // v35: Clã Umbra (nomes escolhidos pelo Victor em 09/11/2026). A cor e o custo vêm da mecânica Sombra.
   // Deslize Noturno: avanço de 4 casas; 1,5 s sem poder ser alvo de jutsu de alvo único; o próximo golpe (em 4 s) +15%
   umbra_deslize: { name: 'Deslize Noturno', class: 'shadow', clan: 'umbra', tier: 1, form: 'recuo',

@@ -34,10 +34,10 @@ describe('v5 no banco: nível, pontos e kits (PostgreSQL real)', { skip: noDatab
     const id = await t.createPlayer('mei');
     const profile = makeProfile(t.db);
     await makeProgression(t.db).grantXp(id, 17_600);    // nível 12 (curva v7): 11 pontos
-    for (let i = 0; i < 10; i++) assert.equal((await profile.spendPoint(id, 'agility')).ok, true);
-    const eleventh = await profile.spendPoint(id, 'agility');
-    assert.ok(eleventh.ok && eleventh.attributes.agility === 11 && eleventh.statPoints === 0, 'o teto de 10 pontos não existe mais');
-    await t.pool.query(`UPDATE game.players SET stat_points = stat_points + 1, attr_agility = attr_agility - 1 WHERE id = $1`, [id]);
+    for (let i = 0; i < 10; i++) assert.equal((await profile.spendPoint(id, 'taijutsu')).ok, true);
+    const eleventh = await profile.spendPoint(id, 'taijutsu');
+    assert.ok(eleventh.ok && eleventh.attributes.taijutsu === 11 && eleventh.statPoints === 0, 'o teto de 10 pontos não existe mais');
+    await t.pool.query(`UPDATE game.players SET stat_points = stat_points + 1, attr_taijutsu = attr_taijutsu - 1 WHERE id = $1`, [id]);
     const both = await Promise.all([profile.spendPoint(id, 'vitality'), profile.spendPoint(id, 'chakra')]);
     assert.equal(both.filter((b) => b.ok).length, 1, 'o último ponto só sai uma vez');
   });

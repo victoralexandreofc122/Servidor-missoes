@@ -1,5 +1,5 @@
 -- =====================================================================================================================
--- Herança do Fogo: banco completo (base até a v31), na ordem. Gerado por scripts/gerar-init.sh.
+-- Herança do Fogo: banco completo (base até a v32), na ordem. Gerado por scripts/gerar-init.sh.
 -- SÓ PARA UM BANCO NOVO E VAZIO. Num banco que já roda, NÃO rode isto: a base (schema_ranks_missoes_sensei) e a v8 dão erro
 -- se repetidas ("already exists"); rode só as migrações que faltam (DEPLOY.md). As de v9 em diante podem ser repetidas.
 -- Cada arquivo tem o seu BEGIN/COMMIT.
@@ -2991,7 +2991,7 @@ END $$;
 -- ---------------------------------------------------------------- 8. capas e o que mostrar no boneco
 
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
-ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory'));   -- 'shoes': v12, 'accessory': v14 (rodar a v11 de novo não quebra)
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable'));   -- 'shoes': v12, 'accessory': v14, 'consumable': v32 (rodar a v11 de novo não quebra)
 INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
   ('capa_viagem',    'Capa de Viagem',    'cape', NULL, NULL, 400,  'clothes'),
   ('capa_vila',      'Capa da Vila',      'cape', NULL, NULL, 900,  'clothes'),
@@ -3259,7 +3259,7 @@ BEGIN;
 -- ---------------------------------------------------------------- 1. sapatos no catálogo
 
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
-ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory'));   -- 'accessory': v14 (rodar a v12 de novo não quebra)
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable'));   -- 'accessory': v14, 'consumable': v32 (rodar a v12 de novo não quebra)
 INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
   ('sandalia_ninja', 'Sandália Ninja',    'shoes', NULL, NULL, 80,  'clothes'),
   ('sandalia_couro', 'Sandália de Couro', 'shoes', NULL, NULL, 250, 'clothes'),
@@ -3398,7 +3398,7 @@ BEGIN;
 -- ---------------------------------------------------------------- 1. acessórios no catálogo
 
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
-ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory'));
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable'));   -- 'consumable': v32 (rodar de novo não quebra)
 INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
   ('casaco_petroleo', 'Casaco com Capuz (petróleo)', 'accessory', NULL, NULL, 1200, 'clothes'),
   ('casaco_preto',    'Casaco com Capuz (preto)',    'accessory', NULL, NULL, 1200, 'clothes'),
@@ -5542,4 +5542,41 @@ COMMIT;
 
 -- Conferência (opcional):
 -- SELECT count(*) FROM game.jutsus;   -- 186
+
+
+-- ################################################################################################
+-- ## schema_v32_alpha_ajustes.sql
+-- ################################################################################################
+-- =====================================================================================================================
+-- v32: ajustes do Teste Alpha. Rode no SQL Editor do Neon, no branch `production`, DEPOIS da v31 e ANTES do código novo.
+-- Pode rodar de novo sem erro (a segunda vez não muda nada). Nada é apagado.
+--
+--  1. A Agilidade saiu do jogo: os pontos dela viram Taijutsu (a velocidade e o ritmo do Ataque Básico agora vêm do
+--     Taijutsu). A soma dos pontos não muda (pontos livres + gastos = nível - 1 continua valendo). A coluna attr_agility
+--     fica, zerada, para não quebrar nada; o servidor não deixa mais gastar ponto nela.
+--  2. O item novo "Shuriken" (consumível): qualquer classe lança uma no lugar do Ataque Básico e ela é gasta. Vende na
+--     loja de armas por 10 ryō e cai dos monstros. game.items passa a aceitar o tipo 'consumable'.
+-- =====================================================================================================================
+BEGIN;
+
+-- 1. Agilidade -> Taijutsu
+UPDATE game.players
+   SET attr_taijutsu = attr_taijutsu + attr_agility,
+       attr_agility  = 0
+ WHERE attr_agility > 0;
+
+-- 2. a Shuriken
+ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable'));
+
+INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
+  ('shuriken', 'Shuriken', 'consumable', NULL, NULL, 10, 'weapons')
+ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, kind = EXCLUDED.kind, class_code = EXCLUDED.class_code,
+  damage = EXCLUDED.damage, price_ryo = EXCLUDED.price_ryo, shop = EXCLUDED.shop;
+
+COMMIT;
+
+-- Conferência (opcional):
+-- SELECT count(*) FROM game.players WHERE attr_agility > 0;            -- 0
+-- SELECT code, name, kind, price_ryo, shop FROM game.items WHERE code = 'shuriken';
 

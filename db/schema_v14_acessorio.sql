@@ -19,7 +19,7 @@ BEGIN;
 -- ---------------------------------------------------------------- 1. acessórios no catálogo
 
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
-ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory'));
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable'));   -- 'consumable': v32 (rodar de novo não quebra)
 INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
   ('casaco_petroleo', 'Casaco com Capuz (petróleo)', 'accessory', NULL, NULL, 1200, 'clothes'),
   ('casaco_preto',    'Casaco com Capuz (preto)',    'accessory', NULL, NULL, 1200, 'clothes'),

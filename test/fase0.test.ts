@@ -54,11 +54,11 @@ describe('Maestria por jutsu (Fogo)', () => {
       for (const g of gains) {
         const changed = g === 'dano' ? (c.damage ?? 0) > 0
           : g === 'efeito' ? EFFECT.some((k) => c[k] && m[k] > c[k]) || (c.zone && ['firstRootMs', 'endStunMs'].some((k) => c.zone[k] && m.zone[k] > c.zone[k]))
-          : g === 'cura' ? (c.heal && m.heal > c.heal) || (c.hot && m.hot > c.hot) || (c.zone?.heal && m.zone.heal > c.zone.heal)
+          : g === 'cura' ? (c.heal && m.heal > c.heal) || (c.hotHeal && m.hotHeal > c.hotHeal) || (c.zone?.heal && m.zone.heal > c.zone.heal)
           : g === 'alcance' ? (c.range && m.range > c.range) || (c.dash && Math.abs(m.dash) > Math.abs(c.dash))
           : g === 'recarga' ? m.cooldownMs < c.cooldownMs
           : g === 'duracao' ? (c.durationMs && m.durationMs > c.durationMs) || (c.zone && m.zone.ms > c.zone.ms)
-          : ['shieldShare', 'wallHp', 'wallHpShare', 'summonHp'].some((k) => c[k] && m[k] > c[k]);
+          : ['shield', 'wallHp', 'wallHpShare', 'summonHp'].some((k) => c[k] && m[k] > c[k]);
         assert.ok(changed, `${code}: "${g}" não muda nada`);
       }
     }
@@ -66,9 +66,9 @@ describe('Maestria por jutsu (Fogo)', () => {
 
   it('Fase 1.5: exemplos (controle, cura contínua, recuo, escudo, invocação)', () => {
     assert.equal(withMastery(SKILLS.shadow, 'shadow', 4).rootMs, 6500);
-    assert.equal(withMastery(SKILLS.heal_4, 'heal_4', 4).hot, 0.039);
+    assert.equal(withMastery(SKILLS.heal_4, 'heal_4', 4).hotHeal, 13);   // v54: 10 fixo por segundo, +30%
     assert.equal(withMastery(SKILLS.shadow_recuo, 'shadow_recuo', 4).dash, -3.45);
-    assert.equal(withMastery(SKILLS.wind_veu, 'wind_veu', 4).shieldShare, 0.156);
+    assert.equal(withMastery(SKILLS.wind_veu, 'wind_veu', 4).shield, 52);   // v54: escudo fixo 40, +30%
     const clone: any = withMastery(SKILLS.water_clone, 'water_clone', 4);
     assert.deepEqual([clone.durationMs, clone.summonHp], [7800, 0.195]);
     assert.equal(withMastery(SKILLS.water_3, 'water_3', 4).selfRootMs, SKILLS.water_3.selfRootMs, 'o Cárcere prende mais o alvo, não você');

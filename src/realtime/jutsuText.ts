@@ -12,7 +12,7 @@ import { MEC_TEXT } from './jutsusMecanicas.js';
 
 export interface JutsuText { icon: string; text: string }
 
-const PERCENT = new Set(['basicBuff', 'speedBuff', 'hpCost', 'shieldShare', 'hot', 'dr', 'reduction', 'markBonus', 'nextHitBonus', 'zoneDamageCut', 'summonHp', 'wallHpShare', 'lifesteal', 'lowHpBonus', 'brandBonus', 'echo']);
+const PERCENT = new Set(['basicBuff', 'speedBuff', 'hpCost', 'dr', 'reduction', 'markBonus', 'nextHitBonus', 'zoneDamageCut', 'summonHp', 'wallHpShare', 'lifesteal', 'lowHpBonus', 'brandBonus', 'echo']);
 
 export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   // ------------------------------------------------------------------ Academia
@@ -31,15 +31,15 @@ export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   fire_hotan: { icon: '🐉', text: 'Projétil grande e lento ({range} casas) que explode no primeiro inimigo (raio {radius}).' },
   fire_4: { icon: '☄️', text: '{shots} meteoros caem na área mirada (até {range} casas), cada um com aviso no chão de {durationMs}. Quem sai das marcas não leva.' },
   // ------------------------------------------------------------------ Cura
-  heal: { icon: '💚', text: 'Cura você ou o aliado focado (até {radius} casas).' },
-  heal_aura: { icon: '🌿', text: 'Aura que anda com você por {zone.ms} (raio {radius}) e cura quem está dentro a cada segundo.' },
+  heal: { icon: '💚', text: 'Cura {heal} em você ou no aliado focado (até {radius} casas).' },
+  heal_aura: { icon: '🌿', text: 'Aura que anda com você por {zone.ms} (raio {radius}) e cura {zone.heal} em quem está dentro a cada segundo.' },
   heal_bisturi: { icon: '💉', text: 'Por {durationMs} o seu Ataque Básico bate {basicBuff} mais forte; o primeiro golpe faz o alvo sangrar.' },
-  heal_desintox: { icon: '🧪', text: 'Tira queimadura, ferida e veneno de você e cura um pouco.' },
-  heal_palma: { icon: '🤲', text: 'Canaliza por {castMs}: cura bastante o aliado colado em você (em você mesmo, a metade). Vida cheia: não sai.' },
+  heal_desintox: { icon: '🧪', text: 'Tira queimadura, ferida e veneno de você (ou do aliado focado) e cura {heal}.' },
+  heal_palma: { icon: '🤲', text: 'Canaliza por {castMs}: cura {heal} no aliado colado em você (em você mesmo, a metade). Vida cheia: não sai.' },
   heal_2: { icon: '💥', text: 'Soco colado: o alvo leva tudo e fica no ar por {liftMs}; quem está em volta leva a metade.' },
   heal_disturbio: { icon: '🔀', text: 'Embaralha os controles do alvo (até {range} casas) por {invertMs}: ele anda ao contrário.' },
-  heal_3: { icon: '⛲', text: 'Zona de cura em volta de você (raio {radius}) por {zone.ms}: cura você e os aliados dentro dela.' },
-  heal_4: { icon: '🧬', text: 'Regenera {hot} da sua vida por segundo durante {durationMs}.' },
+  heal_3: { icon: '⛲', text: 'Zona de cura em volta de você (raio {radius}) por {zone.ms}: cura {zone.heal} por segundo em você e nos aliados dentro dela.' },
+  heal_4: { icon: '🧬', text: 'Cura {hotHeal} por segundo durante {durationMs}.' },
   // ------------------------------------------------------------------ Ilusão
   illusion: { icon: '🌀', text: 'Atordoa todos em volta de você (raio {radius}) por {stunMs}.' },
   illusion_kai: { icon: '🔔', text: 'Limpa lentidão, silêncio e sono de você. Funciona mesmo em silêncio.' },
@@ -94,7 +94,7 @@ export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   water_muro: { icon: '🌊', text: 'Muro de água à frente por {durationMs}: bloqueia a passagem e os projéteis.' },
   water_nevoa: { icon: '🌁', text: 'Bruma em volta de você (raio {radius}) por {zone.ms}: os inimigos dentro quase não enxergam.' },
   water_2: { icon: '💦', text: 'Onda em volta de você (raio {radius}): dano, empurra {push} casas e deixa molhado.' },
-  water_clone: { icon: '👥', text: 'Cria um duplo de água ao seu lado por {durationMs}: ele atrai os monstros e segura golpes.' },
+  water_clone: { icon: '👥', text: 'Cria um duplo de água ao seu lado por {durationMs}: ele anda até o inimigo, atrai os monstros e bate com jatos de água (raio {radius}).' },
   water_xarope: { icon: '🍯', text: 'Poça na área mirada (raio {radius}) por {zone.ms}: quem pisa fica lento. Sem dano.' },
   water_3: { icon: '🔵', text: 'Esfera em linha ({range} casas): prende o primeiro inimigo por {rootMs}, mas você também fica parado por {selfRootMs}.' },
   water_4: { icon: '🧿', text: 'Redemoinho na área mirada (raio {radius}) por {zone.ms}: dano, lentidão e puxa todos para o centro.' },
@@ -111,7 +111,7 @@ export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   wind: { icon: '🌬️', text: 'Rajada em cone curto ({range} casas) que empurra {push} casas.' },
   wind_salto: { icon: '🦘', text: 'Salta {dash} casas na direção escolhida, sem dano.' },
   wind_shuriken: { icon: '🍃', text: 'Shuriken de vento em linha reta ({range} casas): rápida e de longo alcance.' },
-  wind_veu: { icon: '🎐', text: 'Escudo de vento: absorve dano até {shieldShare} da sua vida por {durationMs}.' },
+  wind_veu: { icon: '🎐', text: 'Escudo de vento: absorve até {shield} de dano por {durationMs}.' },
   wind_2: { icon: '☁️', text: 'Leque de {shots} balas de ar ({range} casas). Todas podem acertar o mesmo alvo.' },
   wind_arco: { icon: '🌙', text: 'Lâmina larga em linha ({range} casas): corta TODOS numa faixa de 3 casas de largura.' },
   wind_3: { icon: '🌪️', text: 'Tornado na área mirada (raio {radius}), quase sem aviso: dano e atordoa por {stunMs}.' },
@@ -120,9 +120,9 @@ export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   rubro_olho: { icon: '🔴', text: 'O próximo golpe que você receber perde {reduction} da força.' },
   rubro_transe: { icon: '😵', text: 'Olhar em linha ({range} casas): atordoa o primeiro inimigo por {stunMs}.' },
   rubro_chamas: { icon: '🖤', text: 'Chama escura em linha ({range} casas): o alvo queima por {dotMs}.' },
-  rubro_guardiao: { icon: '🛡️', text: 'Escudo de {shieldShare} da sua vida por {durationMs} e um corte em cone à frente.' },
+  rubro_guardiao: { icon: '🛡️', text: 'Escudo de {shield} de dano por {durationMs} e um corte em cone à frente.' },
   rubro_lua: { icon: '🌕', text: 'Olhar em linha ({range} casas) depois de {castMs} de selos parado: dano alto e atordoa por {stunMs}. Qualquer dano nos selos faz falhar.' },
-  rubro_completo: { icon: '👹', text: 'Por {durationMs}: escudo de {shieldShare} da vida e Ataque Básico {basicBuff} mais forte. No fim, uma onda à frente levanta os inimigos por {liftMs}.' },
+  rubro_completo: { icon: '👹', text: 'Por {durationMs}: escudo de {shield} e Ataque Básico {basicBuff} mais forte. No fim, uma onda à frente levanta os inimigos por {liftMs}.' },
   // ------------------------------------------------------------------ Clã Umbra
   umbra_deslize: { icon: '🦇', text: 'Desliza {dash} casas; por {stealthMs} ninguém trava o alvo em você, e o seu próximo golpe (em até {nextHitMs}) bate {nextHitBonus} mais.' },
   umbra_faminta: { icon: '🐺', text: 'Marca um alvo (até {range} casas) por {markMs}: o seu próximo golpe nele bate {markBonus} mais e deixa lento por {markSlowMs}.' },

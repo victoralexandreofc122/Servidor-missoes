@@ -406,7 +406,7 @@ export const masteryUseLevel = (code: string, gain: 'dano' | 'cura', level: numb
 const EFFECT_KEYS = ['stunMs', 'rootMs', 'silenceMs', 'paralysisMs', 'burnMs', 'slowMs', 'darkMs', 'invertMs', 'woundMs', 'dotMs', 'firstStunMs',
   'liftMs', 'markMs', 'markSlowMs', 'stealthMs', 'nextHitMs', 'sleepMs', 'poisonMs', 'brandMs'] as const;
 const ZONE_EFFECT_KEYS = ['firstRootMs', 'endStunMs'] as const;
-const PROTECTION_KEYS = ['shieldShare', 'wallHp', 'wallHpShare', 'summonHp'] as const;
+const PROTECTION_KEYS = ['shield', 'wallHp', 'wallHpShare', 'summonHp'] as const;
 
 /** Os números do jutsu no nível de uso `level`, com a maestria de efeito, cura, alcance, recarga, duração e proteção (dano: no golpe). */
 export function withMastery<T extends SkillConfig>(cfg: T, code: string, level: number): T {
@@ -422,7 +422,7 @@ export function withMastery<T extends SkillConfig>(cfg: T, code: string, level: 
   const heal = 1 + masteryBonus(code, 'cura', level);
   if (heal !== 1) {
     if (typeof out.heal === 'number') out.heal = Math.round(out.heal * heal * 100) / 100;
-    if (typeof out.hot === 'number') out.hot = Math.round(out.hot * heal * 10_000) / 10_000;
+    if (typeof out.hotHeal === 'number') out.hotHeal = Math.round(out.hotHeal * heal * 100) / 100;
     if (zone && typeof zone.heal === 'number') zone.heal = Math.round(zone.heal * heal * 100) / 100;
   }
   const cd = 1 - masteryBonus(code, 'recarga', level);

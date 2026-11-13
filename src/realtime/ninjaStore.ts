@@ -59,6 +59,8 @@ export interface NinjaStore {
   applyKage(playerId: string): Promise<StoreResult<{ already: boolean }>>;
   /** Item ganho em combate (pergaminho que caiu do monstro). */
   addItem(playerId: string, item: string, qty: number): Promise<Inventory>;
+  /** v53: gasta 1 do item (a Shuriken). false = não tinha. A linha some quando chega a zero. */
+  useItem?(playerId: string, item: string): Promise<boolean>;
   /** v30 (migração v19): grava a linhagem (só se ainda não tinha) e ensina jutsus (os do clã, pelo nível). */
   chooseClan?(playerId: string, clan: string): Promise<void>;
   learnJutsus?(playerId: string, codes: string[]): Promise<void>;
@@ -115,6 +117,11 @@ export const NINJA_SQL = {
   addItem: `
     INSERT INTO game.player_items (player_id, item_code, quantity) VALUES ($1, $2, $3)
     ON CONFLICT (player_id, item_code) DO UPDATE SET quantity = game.player_items.quantity + EXCLUDED.quantity`,
+  /** v53: tira 1 (apaga a linha no último; quantity > 0 é regra do banco). Só uma das duas partes acha a linha. */
+  useItem: `
+    WITH gone AS (DELETE FROM game.player_items WHERE player_id = $1 AND item_code = $2 AND quantity = 1 RETURNING 0 AS qty),
+         less AS (UPDATE game.player_items SET quantity = quantity - 1 WHERE player_id = $1 AND item_code = $2 AND quantity > 1 RETURNING quantity AS qty)
+    SELECT qty FROM gone UNION ALL SELECT qty FROM less`,
   inventory: `SELECT ${INVENTORY} AS items`,
   /** Checagem de boot: a migração v7 foi aplicada? (LIMIT 0: não lê linha.) */
   bootCheck: `SELECT tutorial_step, ryo, equipped_weapon, attr_weapons FROM game.players LIMIT 0`,
@@ -273,6 +280,10 @@ export function makeNinjaStore(db: Db): NinjaStore {
     async addItem(playerId, item, qty) {
       await db.query(NINJA_SQL.addItem, [playerId, item, qty]);
       return inventoryOf(db, playerId);
+    },
+
+    async useItem(playerId, item) {
+      return (await db.query(NINJA_SQL.useItem, [playerId, item])).rows.length > 0;
     },
 
     async rankOf(playerId) {

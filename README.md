@@ -240,6 +240,42 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v54: valores fixos, Cura rebalanceada e Cegueira como estado (sem migração nova: vai junto da v32)
+
+- **Regra de ouro, valores fixos:** nenhum jutsu cura ou protege por % da vida máxima. Os escudos passaram a ter valor
+  fixo (`shield`, convertidos para uma vida de referência de ~333: 12% = 40, 18% = 60, 20% = 65, 25% = 85) e a
+  Renovação Celular cura um valor fixo por segundo. Escudos da Cura escalam com o Chakra; os das outras classes, com o
+  atributo de dano delas. A maestria de proteção continua valendo.
+- **Cura (valores base, escalam com Chakra e maestria):** Aura de Regeneração 10 por pulso (3 pulsos), Palma Curadora 50,
+  Desintoxicação Celular 15, Casca de Chakra escudo 40, Renovação Celular 10 por segundo por 10 s, Santuário Vital 10 por
+  pulso (5 pulsos) e -5 de dano fixo em cada golpe que o dono leva dentro dele (antes -15%).
+- **Cegueira (Escuridão) é um estado:** quem pisa numa zona escura (Véu de Bruma, Véu da Meia-Noite, Mancha Negra, Noite
+  Fechada) fica cego até o fim da zona, mesmo saindo dela. Cego, perde o alvo por completo (v54 anterior).
+- **Shuriken:** sem nenhuma no inventário, não atira (antes saía o golpe normal).
+- **Duplo de Água:** além de andar até o inimigo, bate (jato de água fraco, 8 de base, a cada 1,5 s, raio 1,3).
+- Ficam em %: a vida das invocações e dos muros (parte da vida de quem lança) e o teto do roubo de vida. Não são cura nem
+  escudo; mudam numa próxima rodada se o Victor quiser.
+
+### v53: ajustes do Teste Alpha (migração v32, `db/schema_v32_alpha_ajustes.sql`)
+
+- **A Agilidade saiu:** os pontos dela viram Taijutsu (a migração soma). São 5 atributos.
+- **Taijutsu:** além do dano corpo a corpo, cada ponto dá velocidade (+0,1 casa/s por ponto efetivo, até +3) e deixa o
+  Ataque Básico mais rápido (-0,4% de recarga por ponto efetivo; 59 pontos: 600 -> 533 ms). Mais que isso, a build de
+  Taijutsu vencia todas as outras no simulador de duelos (`test/pvpBalance.test.ts`).
+- **Chakra:** chakra máximo, meditação e agora a cura dos jutsus (+4% por ponto efetivo; 59 pontos: x2,11). Vale para toda
+  cura de jutsu (Cura, Palma, zonas de cura, Desintoxicação, Renovação). O dano da classe Cura continua com o Ninjutsu.
+- **Auditoria de escala** (`test/alphaAjustes.test.ts`): os 186 jutsus conferidos. Armas só com Armas, Taijutsu com
+  Taijutsu, o resto (elementais, Cura, clãs, Academia) com Ninjutsu. Nenhum estava errado.
+- **Shuriken (consumível):** qualquer classe. O botão ✴️ lança uma (Ataque Básico à distância, 6 casas, escala só com
+  Armas) e gasta uma; sem nenhuma, o botão fica apagado. 10 ryō na loja de armas (de 10 em 10); 15% de chance de cair 1 a 2
+  de cada monstro.
+- **Invocações:** andam até o alvo (o que o dono mirou nos últimos 10 s ou o inimigo mais perto, até 7 casas) e socam
+  quando ele está no raio do golpe, com animação (preparo, braço esticado na direção do alvo, impacto na frente). Sem alvo,
+  voltam para perto do dono. Os clones (Duplo de Água, Reflexo Vazio, Segunda Voz) também andam até o inimigo, mas não
+  batem: são isca.
+- **Artes das invocações:** a Sentinela de Sombra e o Arsenal Vivo usavam o desenho do Golem; agora têm o próprio
+  (vulto roxo com garra; núcleo de aço com 3 lâminas que giram e disparam no golpe), desenhados por código.
+
 ### v52: mecânicas inéditas, pacote 3 de 3: posição (migração v31, `db/schema_v31_mecanicas.sql`)
 
 Fecha os 12 jutsus de mecânica inédita (186 no total). A v31 traz os 12 de uma vez.

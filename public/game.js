@@ -57,7 +57,7 @@ const ui = {
   duelPhase: $('duel-phase'), duelClock: $('duel-clock'),
   duelA: { name: $('duel-a-name'), info: $('duel-a-info'), wins: $('duel-a-wins') },
   duelB: { name: $('duel-b-name'), info: $('duel-b-info'), wins: $('duel-b-wins') },
-  combat: $('combat'), attackBtn: $('attack-btn'), runBtn: $('run-btn'), kitBtn: $('kit-btn'), kitLabel: $('kit-label'),
+  combat: $('combat'), attackBtn: $('attack-btn'), shurikenBtn: $('shuriken-btn'), shurikenCount: $('shuriken-count'), runBtn: $('run-btn'), kitBtn: $('kit-btn'), kitLabel: $('kit-label'),
   slots: [...document.querySelectorAll('#combat .skill')],
   statusToggle: $('status-toggle'), statusBadge: $('status-badge'), statusPanel: $('status-panel'), statusClose: $('status-close'),
   statusLevel: $('status-level'), tabAttrs: $('tab-attrs'), tabKits: $('tab-kits'), paneAttrs: $('pane-attrs'), paneKits: $('pane-kits'),
@@ -713,6 +713,7 @@ function handleMessage(msg) {
       if (msg.cape !== undefined) state.ninja.cape = msg.cape;
       Object.assign(state.ninja, { ryo: msg.ryo, items: msg.items, equipped: msg.equipped, equippedScroll: msg.equippedScroll ?? null, equippedShoes: msg.equippedShoes ?? null, equippedAccessory: msg.equippedAccessory ?? null });
       renderInventory();
+      renderShurikenButton();
       renderResetButton();
       renderShopItems();
       renderTutorial();
@@ -776,11 +777,18 @@ function handleMessage(msg) {
       if (m) Object.assign(m, { hp: msg.hp, maxHp: msg.maxHp, ownerId: msg.ownerId });
       break;
     }
-    case 'summon_punch':
-      state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: msg.r, color: '#c9a678', start: now });
-      if (particles.quality !== 'off') decals.push({ kind: 'cratera', x: msg.x, y: msg.y, r: msg.r * 0.7, start: now, ms: 2200, seed: seedOf(msg.id) });   // v48: o soco do Golem racha o chão
-      particles.burst('stone', msg.x, msg.y, 1.8, msg.r);
+    case 'summon_punch': {
+      // v53: a invocação prepara e bate para o lado do alvo (drawSummon); o impacto cai na frente dela, no tempo do golpe
+      const sm = state.monsters.get(msg.id);
+      if (sm) { sm.punchAt = now; if (msg.fx !== undefined) sm.punchDir = [msg.fx, msg.fy]; }
+      const hx = msg.x + (msg.fx ?? 0) * msg.r * 0.6, hy = msg.y + (msg.fy ?? 0) * msg.r * 0.6;
+      const at = now + SUMMON_PUNCH_MS * 0.45;
+      const look = { golem: ['#c9a678', 'stone'], sentinela_sombra: ['#b07cff', 'shadow'], arsenal: ['#dfe6ee', 'weapons'], clone_agua: ['#8fd6ff', 'water'] }[sm?.type] || ['#c9a678', 'stone'];
+      state.effects.push({ skill: 'jutsu_ring', x: hx, y: hy, fx: 0, fy: 0, r: msg.r * 0.8, color: look[0], start: at });
+      if (particles.quality !== 'off' && sm?.type === 'golem') decals.push({ kind: 'cratera', x: hx, y: hy, r: msg.r * 0.6, start: at, ms: 2200, seed: seedOf(msg.id) });   // v48: o soco do Golem racha o chão
+      setTimeout(() => particles.burst(look[1], hx, hy, 1.8, msg.r * 0.8), SUMMON_PUNCH_MS * 0.45);
       break;
+    }
     case 'clan_mark':
       // v35: a linhagem marcada no Criador (desperta no Rito do Despertar, com o Diretor)
       state.ninja.clanMark = msg.clan;
@@ -1220,11 +1228,12 @@ function handleMessage(msg) {
       // Fogo / Kunai / Shuriken Gigante saiu voando: a tela anda com ele; quem decide onde bate é o servidor (`impact`).
       // Poderes da Akatsuki: a Escultura Detonante voa como a bola de fogo; a Tempestade de Páginas, como kunais.
       const sheet = msg.power ? (msg.power === 'blast' ? 'fireball' : 'kunai') : msg.weapon ? 'fuma' : mechanicOf(msg.skill) === 'fire' ? 'fireball' : 'kunai';
-      vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now);
+      // v53: a Shuriken de mão voa como a Gigante, só que pequena (e não sai das costas de ninguém)
+      vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now, msg.weapon === 'shuriken' ? 0.42 : 1);
       // v47: o rastro no elemento do jutsu
       flying.set(msg.id, { x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, speed: msg.speed, range: msg.range, start: now, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 300,
         el: msg.skill ? elementOfSkill(msg.skill) : msg.power === 'blast' ? 'fire' : 'weapons', skill: msg.skill });
-      const thrower = msg.weapon ? state.players.get(msg.playerId) : null;
+      const thrower = msg.weapon && msg.weapon !== 'shuriken' ? state.players.get(msg.playerId) : null;
       if (thrower) thrower.thrown = { id: msg.id, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 400 };   // costas vazias enquanto voa
       break;
     }
@@ -1299,6 +1308,7 @@ function handleMessage(msg) {
         const m = state.monsters.get(id);
         if (m) {
           if (Math.abs(x - m.x) > 0.02) m.face = x > m.x ? 1 : -1;   // olha para onde anda
+          if (Math.abs(x - m.x) + Math.abs(y - m.y) > 0.01) m.walkAt = performance.now();   // v53: invocação andando (passo)
           m.tx = x; m.ty = y;
         }
       }
@@ -1516,7 +1526,9 @@ ui.buffs.addEventListener('click', (e) => {
 });
 
 /** Nome de cada monstro na janela do alvo. */
-const MONSTER_NAMES = { slime: 'Slime', lodo_escuro: 'Lodo Escuro', lodo_sombrio: 'Lodo Sombrio', dummy: 'Boneco de Treino', sparring: 'Boneco de Treino' };
+const MONSTER_NAMES = { slime: 'Slime', lodo_escuro: 'Lodo Escuro', lodo_sombrio: 'Lodo Sombrio', dummy: 'Boneco de Treino', sparring: 'Boneco de Treino',
+  // v53: as invocações (o nome do jutsu que chama cada uma)
+  golem: 'Golem de Terra Titânico', sentinela_sombra: 'Sentinela de Sombra', arsenal: 'Arsenal Vivo', clone_agua: 'Duplo de Água' };
 
 /** Busto do boneco (cabeça e ombros, de frente) num canvas quadrado: a célula 64x96 em escala 2, sem borrar. */
 function drawBust(c, look) {
@@ -2806,6 +2818,11 @@ function focusEntity() {
 function cycleFocus() {
   const me = state.players.get(state.meId);
   if (!me || state.me.dead) return;
+  if (me.fx?.escuridao > performance.now()) {     // v54: sem visão (Escuridão) não dá para mirar em ninguém
+    setFocus(null);
+    addFloater(me.x, me.y - 1.1, 'Sem visão', '#9a8cc8', 0.8);
+    return;
+  }
   const foes = [...state.monsters.values()].filter((m) => m.map === state.mapId);
   const allies = [];
   for (const p of state.players.values()) {
@@ -3126,16 +3143,17 @@ function renderShopItems() {
     const price = document.createElement('small');
     price.className = 'price';
     const have = state.ninja.items?.[item.code] || 0;
-    price.textContent = `${ryoText(priceOf(item))}${item.damage ? ` · +${item.damage} de dano` : ''}${item.throw ? ' · de arremesso' : ''}${item.kind === 'cape' ? ' · capa' : item.kind === 'shoes' ? ' · sapato' : item.kind === 'accessory' ? ' · acessório (por cima da roupa)' : ''}${have ? ` · você tem ${have}` : ''}`;
+    price.textContent = `${ryoText(priceOf(item))}${item.damage ? ` · +${item.damage} de dano` : ''}${item.throw ? ' · de arremesso' : ''}${item.kind === 'cape' ? ' · capa' : item.kind === 'shoes' ? ' · sapato' : item.kind === 'accessory' ? ' · acessório (por cima da roupa)' : item.kind === 'consumable' ? ' · consumível (botão ✴️)' : ''}${have ? ` · você tem ${have}` : ''}`;
     n.append(price);
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'icon-btn small';
-    b.textContent = 'Comprar';
-    b.disabled = (state.ninja.ryo || 0) < priceOf(item);
+    const pack = item.kind === 'consumable' ? 10 : 1;          // v53: a Shuriken sai em pacotes de 10
+    b.textContent = pack > 1 ? `Comprar ${pack}` : 'Comprar';
+    b.disabled = (state.ninja.ryo || 0) < priceOf(item) * pack;
     b.addEventListener('click', () => {
       if (!tapGuard(`buy:${item.code}`)) return;
-      send({ type: 'buy', item: item.code, qty: 1 });
+      send({ type: 'buy', item: item.code, qty: pack });
     });
     li.append(i, n, b);
     return li;
@@ -3245,7 +3263,7 @@ const EQUIP_KIND = {
 };
 /** O que está no espaço `slot` da tela (arma, pergaminho, capa ou sapato). */
 const slotItem = (n, slot) => Object.values(EQUIP_KIND).find((k) => k.slot === slot)?.current(n) ?? null;
-const ATTR_ROWS = [['vitality', '❤️', 'Vitalidade'], ['chakra', '💧', 'Chakra'], ['agility', '💨', 'Agilidade'],
+const ATTR_ROWS = [['vitality', '❤️', 'Vitalidade'], ['chakra', '💧', 'Chakra'],   // v53: a Agilidade saiu (virou Taijutsu)
   ['taijutsu', '👊', 'Taijutsu'], ['ninjutsu', '🌀', 'Ninjutsu'], ['weapons', '🗡️', 'Armas']];
 
 /*
@@ -3319,6 +3337,22 @@ function drawItemIcon(c, code) {
   if (cape) {
     const s = Math.floor(Math.min(c.width, c.height) / 32);
     g.drawImage(cape, 0, 0, 32, 32, (c.width - 32 * s) / 2, (c.height - 32 * s) / 2, 32 * s, 32 * s);
+    return;
+  }
+  if (code === 'shuriken') {                          // v53: a Shuriken de mão: estrela de 4 pontas, aço e furo no meio
+    const cx = c.width / 2, cy = c.height / 2, R = c.width * 0.4, r = c.width * 0.11;
+    g.fillStyle = '#1a1d24';
+    g.beginPath();
+    for (let i = 0; i < 8; i++) { const a = (i * Math.PI) / 4 - Math.PI / 4, d = i % 2 ? r * 1.2 : R + 2; g.lineTo(cx + Math.cos(a) * d, cy + Math.sin(a) * d); }
+    g.fill();
+    g.fillStyle = '#9aa6b4';
+    g.beginPath();
+    for (let i = 0; i < 8; i++) { const a = (i * Math.PI) / 4 - Math.PI / 4, d = i % 2 ? r : R; g.lineTo(cx + Math.cos(a) * d, cy + Math.sin(a) * d); }
+    g.fill();
+    g.fillStyle = '#d7dee8';
+    g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(-Math.PI / 4) * R, cy + Math.sin(-Math.PI / 4) * R); g.lineTo(cx + r, cy); g.fill();
+    g.fillStyle = '#1a1d24';
+    g.beginPath(); g.arc(cx, cy, r * 0.7, 0, Math.PI * 2); g.fill();
     return;
   }
   if (drawWeaponIcon(g, code, c.width, c.height)) {
@@ -3488,7 +3522,8 @@ ui.equipInfo.addEventListener('click', () => {
     : def?.kind === 'scroll' ? ' · pergaminho (pode ir nas costas)'
       : def?.kind === 'cape' ? ' · capa (todos veem; dá para esconder no ⚙️)'
         : def?.kind === 'shoes' ? ' · sapato (vai nos pés; todos veem)'
-          : def?.kind === 'accessory' ? ' · acessório (por cima da roupa; todos veem)' : ` · ×${qty}`;
+          : def?.kind === 'accessory' ? ' · acessório (por cima da roupa; todos veem)'
+            : def?.kind === 'consumable' ? ` · ×${qty} · lance com o botão ✴️ (qualquer classe; gasta 1 por lançamento)` : ` · ×${qty}`;
   ui.equipDetail.replaceChildren(name, document.createTextNode(more));
 });
 ui.equipTurn.addEventListener('click', () => { eqDir = [0, 1, 3, 2][([0, 1, 3, 2].indexOf(eqDir) + 1) % 4]; drawEquipFigure(performance.now(), true); });
@@ -3842,6 +3877,7 @@ function drawCooldowns(now) {
     }
   };
   paint(ui.attackBtn, 'attack');
+  paint(ui.shurikenBtn, 'attack');   // v53: a Shuriken usa a recarga do Ataque Básico
   for (const button of ui.slots) if (button.dataset.skill) paint(button, button.dataset.skill);
   eg.drawPowerCooldown(now);
 }
@@ -3906,6 +3942,21 @@ function basicAttack() {
   send(state.focusId ? { type: 'attack', targetId: state.focusId } : { type: 'attack' });
 }
 
+/** v53: ✴️ lança uma Shuriken do inventário (o servidor gasta 1). Sem nenhuma, o botão fica apagado e não manda nada. */
+function throwShuriken() {
+  if (!state.connected || state.me.dead || !tapGuard('attack')) return;
+  if (!((state.ninja.items || {}).shuriken > 0)) { addSystemLine('✴️ Sem Shurikens: compre na loja de armas ou derrote monstros.'); return; }
+  send(state.focusId ? { type: 'attack', targetId: state.focusId, shuriken: true } : { type: 'attack', shuriken: true });
+}
+/** O botão ✴️: quantas Shurikens sobraram (apagado com zero). */
+function renderShurikenButton() {
+  const n = (state.ninja.items || {}).shuriken || 0;
+  ui.shurikenCount.textContent = n > 99 ? '99+' : String(n);
+  ui.shurikenBtn.classList.toggle('empty', n <= 0);
+  ui.shurikenBtn.setAttribute('aria-disabled', String(n <= 0));
+  ui.shurikenBtn.setAttribute('aria-label', n > 0 ? `Lançar Shuriken (${n} na mochila)` : 'Lançar Shuriken (nenhuma na mochila)');
+}
+
 /** 🏃 Correr: pede; a velocidade nova chega no "stats" do servidor. */
 function toggleRun() {
   if (!state.connected) return;
@@ -3919,6 +3970,7 @@ function switchKit() {
 }
 
 onTap(ui.attackBtn, basicAttack);
+onTap(ui.shurikenBtn, throwShuriken);
 onTap(ui.runBtn, toggleRun);
 onTap(ui.kitBtn, switchKit);
 ui.slots.forEach((button, i) => bindSkillButton(button, i));
@@ -4158,18 +4210,16 @@ const num = (n) => String(Math.round(Number(n || 0) * 10) / 10).replace('.', ','
 /** Quanto o PRÓXIMO ponto rende (progress.nextGain, calculado pelo servidor com o soft cap). */
 const ATTR_EFFECT = {
   vitality: (g) => `próximo ponto: +${num(g)} vida`,
-  chakra: (g) => `próximo ponto: +${num(g)} chakra (e meditação mais rápida)`,
-  agility: (g) => `próximo ponto: +${num(g)} velocidade`,
-  taijutsu: (g) => `próximo ponto: +${num(g * 100)}% Ataque Básico`,
-  ninjutsu: (g) => `próximo ponto: +${num(g * 100)}% jutsus`,
-  weapons: (g) => `próximo ponto: +${num(g * 100)}% armas`,
+  chakra: (g) => `próximo ponto: +${num(g)} chakra, meditação e cura mais fortes`,
+  taijutsu: (g) => `próximo ponto: +${num(g * 100)}% corpo a corpo, Básico mais rápido e mais velocidade`,
+  ninjutsu: (g) => `próximo ponto: +${num(g * 100)}% jutsus elementais e dano da Cura`,
+  weapons: (g) => `próximo ponto: +${num(g * 100)}% arma equipada e jutsus de Armas`,
 };
 /** O que o atributo dá hoje (números do SERVIDOR, em progress.derived). */
 const ATTR_NOW = {
   vitality: (d) => `vida ${d.maxHp}`,
-  chakra: (d) => `chakra ${d.maxChakra} · ${num(d.meditationChakraPerSec)}/s meditando`,
-  agility: (d) => `${String(d.walkSpeed).replace('.', ',')} / ${String(d.runSpeed).replace('.', ',')}`,
-  taijutsu: (d) => `×${String(d.physicalMultiplier).replace('.', ',')}`,
+  chakra: (d) => `chakra ${d.maxChakra} · ${num(d.meditationChakraPerSec)}/s · cura ×${num(d.healMultiplier ?? 1)}`,
+  taijutsu: (d) => `×${String(d.physicalMultiplier).replace('.', ',')} · ${num(d.walkSpeed)}/${num(d.runSpeed)} · ${d.attackCooldownMs} ms`,
   ninjutsu: (d) => `×${String(d.jutsuMultiplier).replace('.', ',')}`,
   weapons: (d) => `×${String(d.weaponMultiplier ?? 1).replace('.', ',')}`,
 };
@@ -5981,6 +6031,7 @@ function update(dt) {
   }
   // Foco perdido: alvo morreu/sumiu ou o jogador andou para longe (mais de 12 casas).
   if (state.focusId && me && !keepFocus(me, focusEntity())) setFocus(null);
+  if (state.focusId && me?.fx?.escuridao > now) setFocus(null);   // v54: a escuridão tira o alvo na hora
   if (me) updateCamera(dt, me);
   updateNpcProximity(me);
 }
@@ -7459,40 +7510,128 @@ function drawCrown(g, sx, top, r) {
   g.restore();
 }
 
-/** v30: invocações dos jutsus: o Golem de Terra (pedra) e o Duplo de Água (um ninja d'água translúcido). */
+/** v53: as invocações desenhadas por código (sem sprite): o tipo de monstro de cada uma. */
+const SUMMON_TYPES = new Set(['golem', 'clone_agua', 'sentinela_sombra', 'arsenal']);
+const SUMMON_PUNCH_MS = 460;
+
+/**
+ * v30/v53: invocações dos jutsus, desenhadas por código no estilo do jogo (contorno escuro, 2-3 tons):
+ *   golem            Golem de Terra Titânico: pedra marrom, punhos grandes; soca para o lado do alvo
+ *   sentinela_sombra Sentinela de Sombra: vulto roxo-escuro sem pernas (fumaça embaixo), olhos violeta, garra
+ *   arsenal          Arsenal Vivo: núcleo de aço com 3 lâminas girando em volta; no golpe as lâminas vão no alvo
+ *   clone_agua       Duplo de Água / Reflexo Vazio / Segunda Voz: o ninja d'água translúcido
+ * Andando: balança (passo). Socando (`summon_punch`): prepara (braço para trás) e bate na direção do alvo.
+ */
 function drawSummon(m, sx, sy, T, now) {
-  const golem = m.type === 'golem';
-  const s = golem ? 1.5 : 1;
-  const w = T * 0.62 * s, h = T * 0.95 * s;
+  const kind = m.type;
+  const big = kind === 'golem' ? 1.5 : kind === 'clone_agua' ? 1 : 1.3;
+  const w = T * 0.62 * big, h = T * 0.95 * big;
   const born = Math.max(0.1, Math.min(1, (now - (m.bornAt || now)) / 300));
+  const walking = now - (m.walkAt || 0) < 260;
+  const step = walking ? Math.sin(now / 90) : 0;
+  const pk = m.punchAt ? (now - m.punchAt) / SUMMON_PUNCH_MS : 9;
+  const punching = pk >= 0 && pk < 1;
+  // braço: 0 = parado, < 0 = puxado para trás (preparo), 1 = esticado (o golpe)
+  const reach = !punching ? 0 : pk < 0.35 ? -pk / 0.35 : pk < 0.55 ? -1 + ((pk - 0.35) / 0.2) * 2 : 1 - (pk - 0.55) / 0.45;
+  const [dx, dy] = m.punchDir || [m.face === -1 ? -1 : 1, 0];
+  const face = punching ? (dx < 0 ? -1 : 1) : m.face === -1 ? -1 : 1;
+  const lean = punching ? reach * T * 0.12 : 0;
   ctx.save();
-  ctx.globalAlpha = golem ? 1 : 0.62;
+  ctx.globalAlpha = kind === 'clone_agua' ? 0.62 : 1;
   ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-  ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.3, w * 0.7, T * 0.16 * s, 0, 0, Math.PI * 2); ctx.fill();
-  const top = sy + T * 0.3 - h * born;
-  if (golem) {
-    ctx.fillStyle = '#6b5236'; ctx.fillRect(sx - w / 2, top + h * 0.25, w, h * 0.75);           // corpo
-    ctx.fillStyle = '#8a6a48'; ctx.fillRect(sx - w * 0.35, top, w * 0.7, h * 0.32);              // cabeça
-    ctx.fillStyle = '#5b4632'; ctx.fillRect(sx - w * 0.85, top + h * 0.3, w * 0.32, h * 0.5);    // braços
-    ctx.fillRect(sx + w * 0.53, top + h * 0.3, w * 0.32, h * 0.5);
-    ctx.fillStyle = '#ffcf5a'; ctx.fillRect(sx - w * 0.2, top + h * 0.12, 4, 4); ctx.fillRect(sx + w * 0.12, top + h * 0.12, 4, 4);   // olhos
-    ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.strokeRect(sx - w / 2, top + h * 0.25, w, h * 0.75); ctx.strokeRect(sx - w * 0.35, top, w * 0.7, h * 0.32);
+  ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.3, w * 0.7, T * 0.16 * big, 0, 0, Math.PI * 2); ctx.fill();
+  const top = sy + T * 0.3 - h * born - Math.abs(step) * T * 0.05;
+  const cx = sx + lean * dx;
+  const ink = '#1a120c';
+  const box = (x, y, bw, bh, fill, line = ink) => {
+    ctx.fillStyle = fill; ctx.fillRect(Math.round(x), Math.round(y), Math.round(bw), Math.round(bh));
+    ctx.strokeStyle = line; ctx.lineWidth = 2; ctx.strokeRect(Math.round(x) + 0.5, Math.round(y) + 0.5, Math.round(bw) - 1, Math.round(bh) - 1);
+  };
+  if (kind === 'golem') {
+    // pernas (passo alternado), corpo, cabeça, braços; o braço do lado do golpe estica
+    box(cx - w * 0.36, top + h * 0.78 + step * 2, w * 0.28, h * 0.22, '#5b4632');
+    box(cx + w * 0.08, top + h * 0.78 - step * 2, w * 0.28, h * 0.22, '#5b4632');
+    box(cx - w / 2, top + h * 0.28, w, h * 0.54, '#7a5d3e');
+    ctx.fillStyle = '#937252'; ctx.fillRect(cx - w / 2 + 3, top + h * 0.28 + 3, w * 0.42, h * 0.2);        // luz
+    ctx.fillStyle = '#4e3b29'; ctx.fillRect(cx - w * 0.05, top + h * 0.42, 2, h * 0.22); ctx.fillRect(cx - w * 0.05, top + h * 0.52, w * 0.2, 2);   // racha
+    box(cx - w * 0.33, top, w * 0.66, h * 0.32, '#8a6a48');
+    ctx.fillStyle = '#ffcf5a'; ctx.fillRect(cx - w * 0.2, top + h * 0.12, 4, 4); ctx.fillRect(cx + w * 0.1, top + h * 0.12, 4, 4);
+    const arm = (side) => {
+      const hit = punching && side === face;
+      const ext = hit ? reach : 0;
+      const ax = cx + side * w * 0.5 + (hit ? dx * ext * w * 0.85 : 0) - (side < 0 ? w * 0.34 : 0);
+      const ay = top + h * 0.32 + (hit ? dy * ext * h * 0.3 - Math.max(0, -ext) * h * 0.15 : step * 2 * side);
+      box(ax, ay, w * 0.34, h * 0.42, '#5b4632');
+      box(ax - 2, ay + h * 0.34, w * 0.38, h * 0.16, '#6b5236');                                             // punho
+    };
+    arm(-1); arm(1);
+  } else if (kind === 'sentinela_sombra') {
+    // fumaça embaixo (sem pernas), manto, capuz com olhos, a garra que avança no golpe
+    for (let i = 0; i < 4; i++) {
+      const a = now / 260 + i * 1.7;
+      ctx.fillStyle = `rgba(40, 18, 64, ${0.55 - i * 0.1})`;
+      ctx.beginPath(); ctx.ellipse(cx + Math.sin(a) * w * 0.3, top + h * (0.86 + i * 0.03), w * (0.34 - i * 0.04), h * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#2b1a40'; ctx.strokeStyle = '#0c0614'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - w * 0.42, top + h * 0.88); ctx.lineTo(cx - w * 0.3, top + h * 0.22); ctx.lineTo(cx + w * 0.3, top + h * 0.22); ctx.lineTo(cx + w * 0.42, top + h * 0.88);
+    for (let i = 4; i >= 0; i--) ctx.lineTo(cx - w * 0.42 + (w * 0.84 * i) / 4, top + h * (0.88 + (i % 2 ? 0.06 : 0)));
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#3d2758'; ctx.fillRect(cx - w * 0.22, top + h * 0.3, w * 0.12, h * 0.5);              // dobra do manto (luz)
+    ctx.fillStyle = '#20132f'; ctx.beginPath(); ctx.ellipse(cx, top + h * 0.17, w * 0.3, h * 0.17, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#0c0614'; ctx.beginPath(); ctx.ellipse(cx + face * w * 0.04, top + h * 0.19, w * 0.2, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c38bff'; ctx.fillRect(cx + face * w * 0.04 - w * 0.11, top + h * 0.17, 4, 3); ctx.fillRect(cx + face * w * 0.04 + w * 0.06, top + h * 0.17, 4, 3);
+    const ext = punching ? Math.max(0, reach) : 0;
+    const hx = cx + face * w * 0.36 + dx * ext * w * 0.7, hy = top + h * 0.45 + dy * ext * h * 0.35 - (punching && reach < 0 ? -reach * h * 0.15 : 0);
+    ctx.strokeStyle = '#0c0614'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(cx + face * w * 0.22, top + h * 0.35); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.strokeStyle = '#2b1a40'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx + face * w * 0.22, top + h * 0.35); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.strokeStyle = '#c38bff'; ctx.lineWidth = 2;                                                            // as 3 garras
+    for (const k of [-1, 0, 1]) { ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + face * T * 0.16 + k * T * 0.03, hy + k * T * 0.09 + T * 0.04); ctx.stroke(); }
+  } else if (kind === 'arsenal') {
+    // núcleo de aço com o selo; 3 lâminas girando; no golpe elas disparam para o alvo e voltam
+    const coreY = top + h * 0.5 + Math.sin(now / 240) * T * 0.04;
+    ctx.fillStyle = '#2a2f38'; ctx.strokeStyle = ink; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, coreY, w * 0.22, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#8c96a6'; ctx.beginPath(); ctx.arc(cx - w * 0.05, coreY - w * 0.05, w * 0.12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffd36b'; ctx.beginPath(); ctx.arc(cx, coreY, w * 0.06, 0, Math.PI * 2); ctx.fill();
+    const out = punching ? Math.max(0, reach) : 0;
+    for (let i = 0; i < 3; i++) {
+      const a = now / 300 + (i * Math.PI * 2) / 3;
+      const r = w * 0.55;
+      const bx = cx + Math.cos(a) * r * (1 - out) + dx * out * w * 1.1, by = coreY + Math.sin(a) * r * 0.55 * (1 - out) + dy * out * h * 0.6;
+      const ang = out > 0 ? Math.atan2(dy, dx) : a + Math.PI / 2;
+      ctx.save(); ctx.translate(bx, by); ctx.rotate(ang);
+      ctx.fillStyle = ink; ctx.fillRect(-T * 0.2, -3, T * 0.4, 6);
+      ctx.fillStyle = '#cfd6e0'; ctx.fillRect(-T * 0.18, -2, T * 0.3, 4);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(-T * 0.18, -2, T * 0.3, 1);
+      ctx.fillStyle = '#6b4423'; ctx.fillRect(T * 0.12, -2, T * 0.07, 4);
+      ctx.restore();
+    }
   } else {
     const g = ctx.createLinearGradient(0, top, 0, top + h);
     g.addColorStop(0, '#bfe6ff'); g.addColorStop(1, '#3ca6ff');
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.ellipse(sx, top + h * 0.2, w * 0.38, h * 0.2, 0, 0, Math.PI * 2); ctx.fill();              // cabeça
-    ctx.fillRect(sx - w * 0.32, top + h * 0.36, w * 0.64, h * 0.64);                                               // corpo
+    ctx.beginPath(); ctx.ellipse(cx, top + h * 0.2, w * 0.38, h * 0.2, 0, 0, Math.PI * 2); ctx.fill();              // cabeça
+    ctx.fillRect(cx - w * 0.32, top + h * 0.36, w * 0.64, h * 0.5);                                               // corpo
+    ctx.fillRect(cx - w * 0.3, top + h * 0.84 + step * 2, w * 0.24, h * 0.16);                                    // pernas
+    ctx.fillRect(cx + w * 0.06, top + h * 0.84 - step * 2, w * 0.24, h * 0.16);
     ctx.strokeStyle = 'rgba(230, 248, 255, 0.9)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(sx - w * 0.3, top + h * (0.55 + 0.05 * Math.sin(now / 150))); ctx.lineTo(sx + w * 0.3, top + h * 0.55); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - w * 0.3, top + h * (0.55 + 0.05 * Math.sin(now / 150))); ctx.lineTo(cx + w * 0.3, top + h * 0.55); ctx.stroke();
+    // v54: o braço d'água: puxa para trás e estica num jato na direção do alvo
+    const ext = punching ? reach : 0;
+    const sx0 = cx + face * w * 0.3, sy0 = top + h * 0.48;
+    const hx = sx0 + (ext > 0 ? dx * ext * w * 1.1 : face * ext * w * 0.25), hy = sy0 + (ext > 0 ? dy * ext * h * 0.5 : 0);
+    ctx.strokeStyle = '#3ca6ff'; ctx.lineWidth = Math.max(3, T * 0.12); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(sx0, sy0); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.fillStyle = '#d8f2ff'; ctx.beginPath(); ctx.arc(hx, hy, Math.max(3, T * 0.09) * (ext > 0.5 ? 1.5 : 1), 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
-  if (m.hp !== undefined && m.maxHp) drawHpBar(sx, top - 6, w + 6, m.hp / m.maxHp, golem ? '#c9a678' : '#8fd6ff');
+  const bar = { golem: '#c9a678', sentinela_sombra: '#b07cff', arsenal: '#cfd6e0' }[kind] || '#8fd6ff';
+  if (m.hp !== undefined && m.maxHp) drawHpBar(sx, top - 6, w + 6, m.hp / m.maxHp, bar);
 }
 
 function drawMonster(m, sx, sy, T, now) {
   if (m.type === 'dummy' || m.type === 'sparring') return drawDummyMonster(m, sx, sy, T, now);
-  if (m.type === 'golem' || m.type === 'clone_agua') return drawSummon(m, sx, sy, T, now);   // v30: invocações
+  if (SUMMON_TYPES.has(m.type)) return drawSummon(m, sx, sy, T, now);   // v30/v53: invocações
   const born = Math.max(0.05, Math.min(1, (now - m.bornAt) / 250));
   const art = monsterArtReady(m.type);
   // Com sprite, a morte é a animação dela (monsterSprites.js); sem, o slime encolhe e some em 0,45 s.

@@ -357,7 +357,7 @@ describe('v7: Armas, loja, Extração e classe (servidor)', () => {
   it('Ataque Básico com a Kunai de Treino: +10 de dano base (x0,5 na v28); o atributo Armas escala a arma pela metade', () => {
     for (const [weapons, expected] of [[0, 11], [20, 13]] as const) {
       const { join, sess, world } = setup();
-      const p = join('kaito', { equipped: 'kunai_training', items: { kunai_training: 1 }, attributes: { vitality: 0, chakra: 0, agility: 0, taijutsu: 0, ninjutsu: 0, weapons } });
+      const p = join('kaito', { equipped: 'kunai_training', items: { kunai_training: 1 }, attributes: { vitality: 0, chakra: 0, taijutsu: 0, ninjutsu: 0, weapons } });
       const s = sess(p.id);
       (world as any).transfer(s, 'map_2', 30, 50, 'walk');
       const m = world.spawnMonster({ x: 31, y: 50 }, undefined, 'map_2');

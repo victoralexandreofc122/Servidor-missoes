@@ -41,7 +41,7 @@ const CLAN_HINT: Readonly<Record<Clan, string>> = {
   andarilho: 'Sem clã, a Substituição volta 15% mais rápido.',
 };
 import { CC_BUDGET, CC_WEIGHT, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, pvpHitRaw, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
-import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, gearOf, SCROLL, type Gear } from './items.js';
+import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, SHURIKEN, SHURIKEN_DAMAGE, SHURIKEN_DROP, SHURIKEN_THROW, gearOf, SCROLL, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
 import type { RankedStore } from './rankedStore.js';
@@ -357,6 +357,8 @@ interface Session {
   substituteLevel: number;
   /** Alvo focado quando armou (no nível 4 aparece atrás DELE). */
   substituteFocus: string | undefined;
+  /** v53: o último alvo que ele mirou (jutsu ou Ataque Básico com foco) e quando: as invocações dele vão nesse alvo. */
+  aimFocus?: { id: string; at: number };
   // ------------------------------------------------ v8
   /** Modo Administrador (lido do banco ao conectar; o banco confere de novo a cada comando). */
   readonly isAdmin: boolean;
@@ -445,6 +447,8 @@ interface Monster {
   /** v30: provocado: persegue e bate nesta invocação (Golem, Clone) enquanto ela existir. */
   tauntId?: string;
   punch?: { damage: number; hit: HitInfo; liftMs: number; everyMs: number; nextAt: number; radius: number };
+  /** v53: em quem a invocação está indo (monstro ou ninja inimigo do dono). */
+  summonTargetId?: string;
   readonly id: string;
   readonly type: string;
   readonly map: MapId;
@@ -506,6 +510,8 @@ interface GroundZone {
   dark?: boolean; trap?: boolean;
   /** v35: quem lançou leva esta fração a menos de dano enquanto está dentro (Noite Fechada). */
   cut?: number;
+  /** v54: quem lançou perde este dano fixo em cada golpe enquanto está dentro (Santuário Vital). */
+  cutFlat?: number;
 }
 /** Golpe avisado: o círculo aparece no chão e o dano cai em `at` (dá tempo de sair). */
 interface GroundStrike { id: number; map: MapId; x: number; y: number; r: number; ownerId: string; at: number; damage: number; label: string; stunMs: number; hit?: HitInfo; slowMs?: number; rootMs?: number; woundMs?: number }
@@ -610,6 +616,15 @@ function masteryInfo(code: string, v: SkillConfig): { mastery?: MasteryGain[] } 
 
 /** Alcance (casas) das curas de efeito próprio da classe Cura quando há um aliado em foco. */
 const HEAL_BUDDY_REACH = 4;
+
+/** v53: a IA das invocações (Golem, Sentinela, Arsenal, os clones): sem `ai` no tipo, esta. */
+const SUMMON_AI = { aggroRange: 7, chaseSpeed: 3, leashRange: 12 } as const;
+/** O alvo mirado pelo dono vale por 10 s e até 10 casas da invocação; longe do dono mais que 2,5 casas sem alvo, ela volta. */
+const SUMMON_FOCUS_MS = 10_000;
+const SUMMON_FOCUS_RANGE = 10;
+const SUMMON_FOLLOW = 2.5;
+/** O golpe de cada invocação conta como o jutsu que a chamou (maestria, recarga do PvP, nome no registro). */
+const SUMMON_SKILL: Readonly<Record<string, Skill>> = { golem: 'stone_golem', sentinela_sombra: 'shadow_sentinela', arsenal: 'weapons_arsenal', clone_agua: 'water_clone' };
 
 export class GameWorld {
   private readonly sessions = new Map<string, Session>();
@@ -868,7 +883,7 @@ export class GameWorld {
     );
   }
 
-  /** Velocidade atual (casas/s): andar ou correr, mais a agilidade (e a passiva da Névoa, já nos stats). Passo Radicular: +20%. */
+  /** Velocidade atual (casas/s): andar ou correr, mais o Taijutsu (e a passiva da Névoa, já nos stats). Passo Radicular: +20%. */
   private speedOf(s: Session): number {
     const base = s.running ? s.stats.runSpeed : s.stats.walkSpeed;
     const slow = s.effects.size > 0 ? speedFactor(s.effects, this.now()) : 1;   // Lentidão
@@ -1203,12 +1218,12 @@ export class GameWorld {
     } else if (parsed.type === 'client_error') this.watch.clientError?.(session.username, parsed);
     else if (parsed.type === 'move') this.setDirection(session, parsed.dx, parsed.dy);
     else if (parsed.type === 'input') this.queueInputs(session, parsed.seq, parsed.inputs);
-    else if (parsed.type === 'cast') this.cast(session, parsed.skill, t, parsed.targetId, parsed.dir);
+    else if (parsed.type === 'cast') { const f = this.sight(session, parsed.targetId, t); this.noteFocus(session, f, t); this.cast(session, parsed.skill, t, f, parsed.dir); }
     else if (parsed.type === 'meditate') this.meditate(session, parsed.active);
     else if (parsed.type === 'respawn') this.respawn(session, t);
     else if (parsed.type === 'talk') this.talk(session, parsed.npcId, t);
     else if (parsed.type === 'missions') this.missionRequest(session, t, (m) => m.current(session.id).then((mission) => this.sendMission(session.id, mission, 'sync')));
-    else if (parsed.type === 'attack') this.basicAttack(session, t, parsed.targetId);
+    else if (parsed.type === 'attack') { const f = this.sight(session, parsed.targetId, t); this.noteFocus(session, f, t); this.basicAttack(session, t, f, parsed.shuriken === true); }
     else if (parsed.type === 'run') this.setRunning(session, parsed.active, t);
     else if (parsed.type === 'switch_kit') this.switchKit(session, parsed.kit);
     else if (parsed.type === 'set_loadout') this.setLoadout(session, { A: parsed.kitA, B: parsed.kitB });
@@ -2204,8 +2219,9 @@ export class GameWorld {
         break;
       case 'cura':
         // Passiva da Folha: +10% de cura (de quem cura). Ferida (anti-cura): metade.
-        this.healPlayer(healed!, pvp ? pvpHeal(base1.heal ?? 0, tier, masteryUseLevel(skill, 'cura', level), this.passive(session, 'heal'))
-          : (cfg.heal ?? 0) * this.passive(session, 'heal'), t);   // v36: a cura da maestria já vem em cfg (withMastery)
+        // v53: o Chakra de quem cura aumenta a cura (healMultiplier)
+        this.healPlayer(healed!, (pvp ? pvpHeal(base1.heal ?? 0, tier, masteryUseLevel(skill, 'cura', level), this.passive(session, 'heal'))
+          : (cfg.heal ?? 0) * this.passive(session, 'heal')) * session.stats.healMultiplier, t);   // v36: a cura da maestria já vem em cfg (withMastery)
         break;
       case 'teleporte': {
         const from = { x: session.x, y: session.y };
@@ -2326,7 +2342,7 @@ export class GameWorld {
   spawnZone(owner: Session, z: {
     x: number; y: number; r: number; kind: GroundZone['kind']; ms: number; tickMs?: number; damage?: number; slowMs?: number; heal?: number; label?: string;
     follow?: boolean; pull?: number; firstRootMs?: number; endDamage?: number; endStunMs?: number; hit?: HitInfo; endHit?: HitInfo;
-    dark?: boolean; trap?: boolean; cut?: number;
+    dark?: boolean; trap?: boolean; cut?: number; cutFlat?: number;
   }, t: number = this.now()): number {
     const id = ++this.groundSeq;
     const tickMs = z.tickMs ?? 1000;
@@ -2336,7 +2352,7 @@ export class GameWorld {
       ...(z.follow ? { follow: true } : {}), ...(z.pull ? { pull: z.pull } : {}), ...(z.firstRootMs ? { firstRootMs: z.firstRootMs } : {}),
       ...(z.endDamage ? { endDamage: z.endDamage } : {}), ...(z.endStunMs ? { endStunMs: z.endStunMs } : {}),
       ...(z.hit ? { hit: z.hit } : {}), ...(z.endHit ? { endHit: z.endHit } : {}),
-      ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(z.cut ? { cut: z.cut } : {}),
+      ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(z.cut ? { cut: z.cut } : {}), ...(z.cutFlat ? { cutFlat: z.cutFlat } : {}),
     });
     this.broadcastMap(owner.map, { type: 'ground', id, kind: z.kind, x: round2(z.x), y: round2(z.y), r: z.r, ms: z.ms, ...(z.label ? { skill: z.label } : {}), ...(z.follow ? { follow: owner.id } : {}) });
     return id;
@@ -2405,7 +2421,8 @@ export class GameWorld {
       if (z.damage > 0 || z.slowMs > 0 || z.pull || z.dark) {
         for (const x of this.targetsFor(owner)) {
           if (!inside(x, z)) continue;
-          if (z.dark && x.kind === 'player') this.applyEffect(x, 'escuridao', t, z.tickMs + 150, undefined, owner);
+          // v54: a Cegueira é um estado: quem pisa fica cego até o fim da zona, mesmo que saia dela
+          if (z.dark && x.kind === 'player') this.applyEffect(x, 'escuridao', t, Math.max(z.tickMs + 150, z.until - t), undefined, owner);
           if (z.damage > 0) this.hitTarget(x, z.damage, owner, t, 'skill', z.label, z.hit);
           if (z.slowMs > 0 && this.stillThere(x)) this.applyEffect(x, 'lentidao', t, z.slowMs, undefined, owner);
           if (z.pull && this.stillThere(x)) this.pullToCenter(x, owner, z, z.pull, t);
@@ -2849,10 +2866,10 @@ export class GameWorld {
           ...(dmg > 0 && !z.endHit && !z.trap ? { damage: tickDmg, hit: tickHit } : {}),
           ...(z.slow ? { slowMs: 1100 } : {}),
           // cura no PvP com o fator x0,5 (docs/jutsus-v2.md, seção 2)
-          ...(z.heal ? { heal: Math.max(1, Math.round(z.heal * (pvp ? 0.5 : 1))) } : {}),
+          ...(z.heal ? { heal: Math.max(1, Math.round(z.heal * (pvp ? 0.5 : 1) * s.stats.healMultiplier)) } : {}),   // v53: + Chakra
           ...(z.follow ? { follow: true } : {}), ...(z.pull ? { pull: z.pull } : {}), ...(z.firstRootMs ? { firstRootMs: z.firstRootMs } : {}),
           ...((z.endHit || z.trap) && dmg > 0 ? { endDamage: dmg, endHit: hit } : {}), ...(z.endStunMs ? { endStunMs: z.endStunMs } : {}),
-          ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(cfg.zoneDamageCut ? { cut: cfg.zoneDamageCut } : {}),
+          ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(cfg.zoneDamageCut ? { cut: cfg.zoneDamageCut } : {}), ...(cfg.zoneDamageFlat ? { cutFlat: cfg.zoneDamageFlat } : {}),
         }, t);
         break;
       }
@@ -2888,7 +2905,7 @@ export class GameWorld {
       }
       case 'transformacao': {
         // Colosso Espectral: escudo + Básico mais forte agora; a onda à frente cai no fim
-        s.absorb = { hp: Math.round(s.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.25)), until: t + (cfg.durationMs ?? 5000) };
+        s.absorb = { hp: this.shieldOf(s, skill, cfg, 85), until: t + (cfg.durationMs ?? 5000) };   // v54: escudo fixo (não % da vida)
         s.basicBuff = { until: t + (cfg.durationMs ?? 5000), bonus: cfg.basicBuff ?? 0.15 };
         if (cfg.speedBuff) { s.haste = cfg.speedBuff; s.hasteUntil = t + (cfg.durationMs ?? 5000); }   // v49: Olho da Tempestade
         const at = ahead(o, fx, fy, cfg.range ?? 2.5);
@@ -2899,7 +2916,7 @@ export class GameWorld {
       case 'escudo_vida': {
         // escudo único: até 25% da vida máxima; o novo troca o anterior (na Casca de Chakra, vale para o aliado em foco)
         const who = buddy();
-        who.absorb = { hp: Math.round(who.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.12)), until: t + (cfg.durationMs ?? 3000) };
+        who.absorb = { hp: this.shieldOf(s, skill, cfg, 40), until: t + (cfg.durationMs ?? 3000) };   // v54: escudo fixo de quem lança
         this.sendTo(who, { type: 'notice', text: `Escudo: ${who.absorb.hp} de vida por ${Math.round((cfg.durationMs ?? 3000) / 1000)} s.`, tone: 'good' });
         if (who !== s) this.sendTo(s, { type: 'notice', text: `Escudo em ${who.username}.`, tone: 'good' });
         for (const x of hits) strike(x);
@@ -2917,8 +2934,9 @@ export class GameWorld {
       case 'palma': {
         const k = pvp ? 0.5 : 1;
         const ally = hits[0];
-        if (ally && ally.kind === 'player') this.healPlayer(ally.session, Math.round((cfg.heal ?? 30) * k), t);
-        else this.healPlayer(s, Math.round((cfg.heal ?? 30) * 0.5 * k), t);
+        const hm = s.stats.healMultiplier;   // v53: + Chakra
+        if (ally && ally.kind === 'player') this.healPlayer(ally.session, Math.round((cfg.heal ?? 30) * k * hm), t);
+        else this.healPlayer(s, Math.round((cfg.heal ?? 30) * 0.5 * k * hm), t);
         break;
       }
       case 'bumerangue': {
@@ -2931,13 +2949,13 @@ export class GameWorld {
         const who = buddy();
         const me: Target = { kind: 'player', id: who.id, x: who.x, y: who.y, session: who };
         for (const code of cfg.cleanse ?? []) if (EFFECT_CODES.includes(code as EffectCode)) this.dropEffect(me, code as EffectCode, t);
-        if (cfg.heal) this.healPlayer(who, Math.round(cfg.heal * (pvp ? 0.5 : 1)), t);
+        if (cfg.heal) this.healPlayer(who, Math.round(cfg.heal * (pvp ? 0.5 : 1) * s.stats.healMultiplier), t);   // v53: + Chakra
         if (who !== s) this.sendTo(s, { type: 'notice', text: `Cura em ${who.username}.`, tone: 'good' });
         break;
       }
       case 'cura_tempo': {
         const who = buddy();
-        const per = Math.max(1, Math.round(who.stats.maxHp * (cfg.hot ?? 0.03) * (pvp ? 0.5 : 1)));
+        const per = Math.max(1, Math.round((cfg.hotHeal ?? 10) * (pvp ? 0.5 : 1) * s.stats.healMultiplier));   // v54: cura fixa por segundo, + Chakra
         this.applyEffect({ kind: 'player', id: who.id, x: who.x, y: who.y, session: who }, 'regeneracao', t, cfg.durationMs ?? 10_000, per, s);
         if (who !== s) this.sendTo(s, { type: 'notice', text: `Renovação em ${who.username}.`, tone: 'good' });
         break;
@@ -3076,23 +3094,89 @@ export class GameWorld {
     void t;
   }
 
-  /** v30: a invocação: acaba no tempo; o Golem soca quem está em volta a cada `everyMs` (levanta). */
-  private summonTick(m: Monster, t: number): void {
+  /**
+   * v54: sem visão (Escuridão: Véu de Bruma, Noite Eterna, Noite Fechada, Véu da Meia-Noite, Mancha Negra) o ninja perde o
+   * alvo por completo: o foco que o cliente manda é ignorado (o golpe sai para onde ele olha) e as invocações dele
+   * também não ganham alvo mirado. Devolve o foco que vale.
+   */
+  private sight(s: Session, targetId: string | undefined, t: number): string | undefined {
+    if (targetId === undefined || !hasEffect(this.effectsOf({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }), 'escuridao', t)) return targetId;
+    s.aimFocus = undefined;
+    return undefined;
+  }
+
+  /**
+   * v54: o escudo fixo do jutsu (`shield`), escalado pelo atributo: os da Cura com o Chakra (como a cura); os das outras
+   * classes com o atributo de dano delas (Ninjutsu, Taijutsu ou Armas). A maestria de proteção já vem em `cfg`.
+   */
+  private shieldOf(s: Session, skill: Skill, cfg: SkillConfig, fallback: number): number {
+    const mult = JUTSU_BY_CODE.get(skill)?.class === 'heal' ? s.stats.healMultiplier : damageMultiplier(s.stats, cfg.scaling ?? 'ninjutsu');
+    return Math.max(1, Math.round((cfg.shield ?? fallback) * mult));
+  }
+
+  /** v53: guarda o alvo que o ninja mirou (as invocações dele vão nele). */
+  private noteFocus(s: Session, targetId: string | undefined, t: number): void {
+    if (targetId !== undefined) s.aimFocus = { id: targetId, at: t };
+  }
+
+  /**
+   * v30/v53: a invocação: acaba no tempo; anda até o alvo e, quem bate (Golem, Sentinela, Arsenal), soca quando ele está no
+   * raio do golpe, a cada `everyMs` (levanta). O alvo: o que o dono mirou por último (até 10 s, a até 10 casas dela), senão o
+   * inimigo do dono mais perto (até `aggroRange`), senão volta para perto do dono. Os clones (sem golpe) também vão até o
+   * inimigo: são isca (os monstros batem neles). Devolve true se andou.
+   */
+  private summonTick(m: Monster, t: number, dt: number): boolean {
     const owner = m.ownerId ? this.sessions.get(m.ownerId) : undefined;
     if (!owner || owner.closed || owner.map !== m.map || t >= (m.summonUntil ?? 0)) {
       this.monsters.delete(m.id);
       this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: m.ownerId ?? '' });
-      return;
+      return false;
     }
+    const type = this.monsterType(m.type);
+    const ai = type.ai ?? SUMMON_AI;
     const p = m.punch;
-    if (!p || t < p.nextAt || t < m.stunnedUntil) return;
-    p.nextAt = t + p.everyMs;
-    const hits = this.targetsFor(owner).filter((x) => x.id !== m.id && Math.hypot(x.x - m.x, x.y - m.y) <= p.radius);
-    this.broadcastMap(m.map, { type: 'summon_punch', id: m.id, x: round2(m.x), y: round2(m.y), r: p.radius });
-    for (const x of hits) {
-      this.hitTarget(x, p.damage, owner, t, 'skill', 'stone_golem', p.hit);
-      if (p.liftMs && this.stillThere(x)) this.applyStatus(x, 'stunned', p.liftMs, t, owner);
+    const enemies = this.targetsFor(owner).filter((x) => x.id !== m.id && !(x.kind === 'monster' && x.monster.ownerId));
+    if (t >= m.nextThinkAt) {
+      m.nextThinkAt = t + this.config.combat.monsterThinkMs;
+      const f = owner.aimFocus && t - owner.aimFocus.at <= SUMMON_FOCUS_MS ? enemies.find((x) => x.id === owner.aimFocus!.id) : undefined;
+      const pick = f && distance(m, f) <= SUMMON_FOCUS_RANGE ? f : nearest(m, enemies, ai.aggroRange);
+      if (pick?.id !== m.summonTargetId) {
+        m.summonTargetId = pick?.id;
+        if (pick) this.broadcastMap(m.map, { type: 'monster_aggro', id: m.id, targetId: pick.id });
+      }
     }
+    const target = m.summonTargetId ? enemies.find((x) => x.id === m.summonTargetId) : undefined;
+    if (!target) m.summonTargetId = undefined;
+    // o golpe: só com alguém no raio (antes socava o ar parado no lugar)
+    if (p && t >= p.nextAt && t >= m.stunnedUntil) {
+      const hits = enemies.filter((x) => Math.hypot(x.x - m.x, x.y - m.y) <= p.radius);
+      if (hits.length > 0) {
+        p.nextAt = t + p.everyMs;
+        const aim = target && hits.includes(target) ? target : hits[0]!;
+        const [fx, fy] = unit(aim.x - m.x, aim.y - m.y);
+        this.broadcastMap(m.map, { type: 'summon_punch', id: m.id, x: round2(m.x), y: round2(m.y), r: p.radius, fx: round2(fx), fy: round2(fy) });
+        for (const x of hits) {
+          this.hitTarget(x, p.damage, owner, t, 'skill', SUMMON_SKILL[m.type] ?? 'stone_golem', p.hit);
+          if (p.liftMs && this.stillThere(x)) this.applyStatus(x, 'stunned', p.liftMs, t, owner);
+        }
+        return false;                                            // socando, não anda
+      }
+    }
+    if (t < m.stunnedUntil || t < m.rootedUntil || effectBlock(m.effects, t) === 'all') return false;
+    // até onde ir: encostar no alvo (o golpe pega de perto) ou ficar ao lado do dono
+    const goal: { x: number; y: number } | undefined = target ?? (distance(m, owner) > SUMMON_FOLLOW ? owner : undefined);
+    if (!goal) return false;
+    const stop = target ? (p ? p.radius * 0.6 : 1.1) : SUMMON_FOLLOW * 0.6;
+    if (distance(m, goal) <= stop) return false;
+    const layout = this.layout(m.map);
+    const free = (x: number, y: number) => x >= 0 && y >= 0 && x < layout.width && y < layout.height && !blocked(x, y, layout.walls);
+    const [ux, uy] = unit(goal.x - m.x, goal.y - m.y);
+    const next = steer(m, ux, uy, Math.min(distance(m, goal) - stop, ai.chaseSpeed * speedFactor(m.effects, t) * dt), free);
+    if (!next) return false;
+    m.dir = [ux, uy];
+    m.x = q3(next.x);
+    m.y = q3(next.y);
+    return true;
   }
 
   /** v30: ergue um muro (entra nas paredes do mapa: bloqueia passagem, linhas e projéteis) e avisa o mapa. */
@@ -3419,7 +3503,7 @@ export class GameWorld {
    * mais perto, e acerta TODOS no ARCO (raio 1,6, 90°) na direção dele. Tentar atacar encerra a
    * meditação, como as habilidades.
    */
-  private basicAttack(session: Session, t: number, targetId?: string): void {
+  private basicAttack(session: Session, t: number, targetId?: string, shuriken = false): void {
     const cfg = this.config.combat.basicAttack;
     const fail = (reason: 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'DEAD' | 'SAFE_ZONE' | 'STUNNED' | 'ASLEEP') => this.sendTo(session, { type: 'attack_failed', reason });
     this.stopMeditation(session, 'cast');
@@ -3432,8 +3516,12 @@ export class GameWorld {
     const safe = this.inSafeZone(session);
     // Arma de arremesso (Shuriken Gigante): o golpe vira um lançamento dela, com o alcance dela.
     // As outras mudam o JEITO do golpe (items.ts, `swing`): a kunai é rápida e estreita, a espada longa lenta e larga.
-    const weapon = session.equipped ? ITEM_BY_CODE.get(session.equipped) : undefined;
-    const thrown = weapon?.throw;
+    // v53: a Shuriken de mão (consumível): com uma no inventário, o golpe vira o lançamento dela; sem nenhuma, o golpe normal.
+    // v54: sem Shuriken no inventário, não atira (nem sai o golpe normal)
+    if (shuriken && !((session.items[SHURIKEN] ?? 0) > 0)) return this.sendTo(session, { type: 'notice', text: 'Sem Shurikens: compre na loja de armas.', tone: 'bad' });
+    const star = shuriken;
+    const weapon = star ? ITEM_BY_CODE.get(SHURIKEN) : session.equipped ? ITEM_BY_CODE.get(session.equipped) : undefined;
+    const thrown = star ? SHURIKEN_THROW : weapon?.throw;
     const swing = weapon?.swing ?? { cooldownFactor: 1, arcDeg: cfg.arcDeg, range: cfg.range };
     const range = thrown ? thrown.range : swing.range;
     const targets = safe ? [] : this.targetsFor(session, true);
@@ -3442,7 +3530,7 @@ export class GameWorld {
     const focused = targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined;
     const aim = (focused && distance(session, focused) <= range ? focused : nearest(session, targets, range)) ?? focused;
     if (aim) this.faceTo(session, aim);
-    const cd = Math.round(session.stats.attackCooldownMs * (thrown ? thrown.cooldownFactor : swing.cooldownFactor));   // Agilidade deixa mais rápido
+    const cd = Math.round(session.stats.attackCooldownMs * (thrown ? thrown.cooldownFactor : swing.cooldownFactor));   // Taijutsu deixa mais rápido
     session.cooldowns.attack = t + cd;
     this.broadcastMap(session.map, {
       type: 'attack', playerId: session.id, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy), cd,
@@ -3457,6 +3545,17 @@ export class GameWorld {
     const bb = session.basicBuff && t < session.basicBuff.until ? 1 + session.basicBuff.bonus : 1;
     const damage = Math.round((cfg.damage * scale * session.stats.physicalMultiplier
       + this.weaponDamage(session) * this.passive(session, 'weapons') * scale * (1 + (session.stats.weaponMultiplier - 1) / 2)) * bb);
+    if (star) {
+      if (safe) return;                                    // na zona segura o golpe sai, mas não gasta nem acerta
+      this.spendShuriken(session);
+      this.launch(session, session.fx, session.fy, {
+        weapon: SHURIKEN, speed: thrown!.speed, range: thrown!.range, radius: 0, volley: new Set(), hitRadius: thrown!.hitRadius, source: 'attack',
+        // só o atributo Armas (é arma de arremesso), com o buff de Básico
+        damage: Math.round(SHURIKEN_DAMAGE * this.config.combat.damageScale.basic * session.stats.weaponMultiplier * this.passive(session, 'weapons')
+          * (session.basicBuff && t < session.basicBuff.until ? 1 + session.basicBuff.bonus : 1)),
+      });
+      return;
+    }
     if (thrown) {
       this.launch(session, session.fx, session.fy, {
         weapon: weapon!.code, speed: thrown.speed, range: thrown.range, damage: Math.round(damage * thrown.damageFactor), radius: 0,
@@ -3484,7 +3583,7 @@ export class GameWorld {
     }
   }
 
-  /** Correr liga/desliga. A velocidade vem SEMPRE daqui (5 ou 8, mais agilidade); o cliente só pede. */
+  /** Correr liga/desliga. A velocidade vem SEMPRE daqui (5 ou 8, mais o Taijutsu); o cliente só pede. */
   private setRunning(session: Session, active: boolean, t: number): void {
     if (session.running === active) return;
     session.running = active;
@@ -3727,6 +3826,7 @@ export class GameWorld {
       this.trackKill(who, m.type);
       this.riteKill(who, m.type);   // v35: o Rito do Despertar
       this.maybeDropScroll(who);
+      this.maybeDropShuriken(who);
     }
   }
 
@@ -3781,6 +3881,34 @@ export class GameWorld {
         break;
       }
     }
+  }
+
+  /** v53: gasta 1 Shuriken: na hora na memória (o botão mostra o que sobrou) e grava no banco (fora de ordem não perde nada). */
+  private spendShuriken(s: Session): void {
+    const left = (s.items[SHURIKEN] ?? 0) - 1;
+    const items = { ...s.items };
+    if (left > 0) items[SHURIKEN] = left; else delete items[SHURIKEN];
+    s.items = items;
+    this.sendInventory(s);
+    const store = this.store;
+    if (!store?.useItem) return;
+    const { id } = s;
+    store.useItem(id, SHURIKEN).catch((err: unknown) => this.log.warn({ playerId: id, err }, 'falha ao gastar a shuriken'));
+  }
+
+  /** v53: qualquer ninja: às vezes o monstro deixa 1 a 2 Shurikens. */
+  private maybeDropShuriken(killer: Session): void {
+    const store = this.store;
+    if (!store || this.secureRandom() >= SHURIKEN_DROP.chance) return;
+    const qty = SHURIKEN_DROP.min + Math.floor(this.secureRandom() * (SHURIKEN_DROP.max - SHURIKEN_DROP.min + 1));
+    const { id } = killer;
+    store.addItem(id, SHURIKEN, qty).then((items) => {
+      const s = this.sessions.get(id);
+      if (!s) return;
+      s.items = items;
+      this.sendInventory(s);
+      this.sendTo(s, { type: 'notice', text: `O monstro deixou ${qty} Shuriken${qty > 1 ? 's' : ''}!`, tone: 'good' });
+    }).catch((err: unknown) => this.log.warn({ playerId: id, err }, 'falha ao gravar a shuriken do drop'));
   }
 
   /** Genin ou acima (com classe): às vezes o monstro deixa 1 Pergaminho (v34: o pergaminho único, serve para qualquer classe sua). */
@@ -4601,8 +4729,9 @@ export class GameWorld {
   private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session, label?: string): void {
     if (t < session.intangibleUntil) return;                    // Forma Fantasma (Akatsuki)
     // v35: Noite Fechada: dentro da própria zona, o Umbra leva menos dano
-    const cutZone = amount > 0 ? this.zones.find((z) => z.cut && z.ownerId === session.id && z.map === session.map && t < z.until && Math.hypot(session.x - z.x, session.y - z.y) <= z.r) : undefined;
-    if (cutZone) amount = Math.round(amount * (1 - cutZone.cut!));
+    const cutZone = amount > 0 ? this.zones.find((z) => (z.cut || z.cutFlat) && z.ownerId === session.id && z.map === session.map && t < z.until && Math.hypot(session.x - z.x, session.y - z.y) <= z.r) : undefined;
+    if (cutZone?.cut) amount = Math.round(amount * (1 - cutZone.cut));
+    if (cutZone?.cutFlat) amount = Math.max(0, amount - cutZone.cutFlat);   // v54: Santuário Vital: -5 fixo em cada golpe
     if (by && by !== session) { this.markPvp(session); this.markPvp(by); }   // v38: capítulo do PvP
     // v29 (bug da rodada 2): no Arena das Quatro Heranças só se apanha durante a rodada, e só quem está na partida. Uma
     // queimadura que sobrava da rodada 1 batia no intervalo, com a vida já em 0, e matava de verdade o perdedor.
@@ -5816,7 +5945,7 @@ export class GameWorld {
    * dele; parado, anda à toa como antes. Atordoado, preso ou dormindo, não anda. Devolve true se andou.
    */
   private updateMonster(m: Monster, t: number, dt: number): boolean {
-    if (m.ownerId) { this.summonTick(m, t); return false; }   // v30: invocação tem a regra própria
+    if (m.ownerId) return this.summonTick(m, t, dt);          // v30/v53: invocação tem a regra própria (anda e soca)
     const type = this.monsterType(m.type);
     if (type.stationary) return false;
     // Golpe marcado em preparo: parado; atordoado ou dormindo, perde o golpe; na hora, pula (ou esmaga) e acerta o círculo.
@@ -6075,7 +6204,7 @@ export class GameWorld {
     this.lastTick = t;
     const p = this.config.combat.player;
 
-    // 1. Jogadores: movimento (andando 5, correndo 8, + agilidade) e energia.
+    // 1. Jogadores: movimento (andando 5, correndo 8, + Taijutsu) e energia.
     for (const s of this.sessions.values()) {
       if (s.closed || s.dead) { if (s.casting) s.casting = null; continue; }
       this.moveSession(s, dtMs, t);

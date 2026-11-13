@@ -593,6 +593,7 @@ body.editing .mm-wrap, body.editing .tracker, body.editing .chat-box, body.editi
   .cbtn.kit { --x: -290; --y: -16; }
   .cbtn.talk { --x: -282; --y: 46; }
   .cbtn.power { --x: 0; --y: 78; }
+  .cbtn.shuriken { --x: 215; --y: 82; }
 }
 
 /* ------------------------------------------------------------ Equipamentos de Shinobi (abre na Mochila) */

@@ -23,7 +23,7 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
 export interface ItemDef {
   code: string;
   name: string;
-  kind: 'weapon' | 'scroll' | 'cape' | 'shoes' | 'accessory';
+  kind: 'weapon' | 'scroll' | 'cape' | 'shoes' | 'accessory' | 'consumable';
   icon: string;
   /** Arma: dano somado ao Ataque Básico (escala com o atributo Armas). */
   damage?: number;
@@ -56,7 +56,7 @@ export interface ShoeLook {
  * a espada curta, equilibrada; a espada longa, lenta, larga e com mais alcance.
  */
 export interface SwingStats {
-  /** Recarga = a do Ataque Básico (com a Agilidade) x este fator. */
+  /** Recarga = a do Ataque Básico (com o Taijutsu) x este fator. */
   cooldownFactor: number;
   /** Abertura do arco (graus) e alcance (casas). */
   arcDeg: number;
@@ -73,7 +73,7 @@ export interface ThrowStats {
   speed: number;
   /** Meia largura da linha que acerta (casas). Kunai e Fogo: 0,5. */
   hitRadius: number;
-  /** Recarga = a do Ataque Básico (com a Agilidade) x este fator. */
+  /** Recarga = a do Ataque Básico (com o Taijutsu) x este fator. */
   cooldownFactor: number;
   /** Dano = (Ataque Básico + a arma) x este fator. */
   damageFactor: number;
@@ -100,6 +100,9 @@ export const ITEMS: readonly ItemDef[] = [
     code: 'katana', name: 'Espada Longa', kind: 'weapon', icon: '⚔️', damage: 28, price: 2000, shop: 'weapons', hold: 'back', twoHanded: true,
     swing: { cooldownFactor: 1.15, arcDeg: 140, range: 2 },
   },
+  // v53 (migração v32): a Shuriken de mão, consumível. Qualquer classe usa: o botão ✴️ lança uma (Ataque Básico à
+  // distância, escala com Armas) e gasta uma do inventário. Vende na loja de armas (10 ryō cada, de 10 em 10) e cai dos monstros.
+  { code: 'shuriken', name: 'Shuriken', kind: 'consumable', icon: '✴️', price: 10, shop: 'weapons', hold: 'hand' },
   // v34 (migração v24): um pergaminho só, que serve para a Extração de qualquer classe sua. Os de classe ficam no catálogo, sem venda
   // (a v24 somou todos no pergaminho novo).
   { code: 'scroll_liso', name: 'Pergaminho', kind: 'scroll', icon: '📜', price: 150, shop: 'scrolls', hold: 'back' },
@@ -149,6 +152,13 @@ export const SCROLL = 'scroll_liso';
 export const KILL_RYO = { min: 5, max: 15 } as const;
 /** Chance de um monstro deixar 1 pergaminho da classe do jogador (Genin ou acima). */
 export const SCROLL_DROP_CHANCE = 0.04;
+
+/** v53: a Shuriken de mão (consumível): o código, o arremesso e o dano base (antes do damageScale.basic e do atributo Armas). */
+export const SHURIKEN = 'shuriken';
+export const SHURIKEN_THROW: ThrowStats = { range: 6, speed: 14, hitRadius: 0.5, cooldownFactor: 1.2, damageFactor: 1 };
+export const SHURIKEN_DAMAGE = 16;
+/** Monstro derrotado deixa 1 a 2 Shurikens com esta chance (qualquer rank). */
+export const SHURIKEN_DROP = { chance: 0.15, min: 1, max: 2 } as const;
 
 /**
  * O que aparece no boneco (todos veem): arma na mão, item nas costas, o pergaminho nas costas e o sapato (null = descalço).

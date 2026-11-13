@@ -18,7 +18,7 @@ BEGIN;
 -- ---------------------------------------------------------------- 1. sapatos no catálogo
 
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
-ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory'));   -- 'accessory': v14 (rodar a v12 de novo não quebra)
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable'));   -- 'accessory': v14, 'consumable': v32 (rodar a v12 de novo não quebra)
 INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
   ('sandalia_ninja', 'Sandália Ninja',    'shoes', NULL, NULL, 80,  'clothes'),
   ('sandalia_couro', 'Sandália de Couro', 'shoes', NULL, NULL, 250, 'clothes'),
