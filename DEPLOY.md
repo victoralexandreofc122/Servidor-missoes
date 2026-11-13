@@ -1270,3 +1270,5 @@ As migrações v11, v12 e v14 também passaram a aceitar `consumable` (rodar uma
 2. Loja de armas: "Shuriken" com o botão "Comprar 10". O botão ✴️ ao lado do ataque mostra quantas sobram e lança uma.
 3. Golem de Terra Titânico, Sentinela de Sombra ou Arsenal Vivo perto de um monstro: a invocação anda até ele e soca.
 4. Conferência no Neon: `SELECT count(*) FROM game.players WHERE attr_agility > 0;` deve dar 0.
+5. Classe Cura: a descrição da Palma Curadora diz "Cura 50"; a Casca de Chakra, "absorve até 40 de dano" (valores fixos da v54,
+   só no código: o banco não guarda os números dos jutsus).

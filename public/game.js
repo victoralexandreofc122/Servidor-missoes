@@ -783,7 +783,7 @@ function handleMessage(msg) {
       if (sm) { sm.punchAt = now; if (msg.fx !== undefined) sm.punchDir = [msg.fx, msg.fy]; }
       const hx = msg.x + (msg.fx ?? 0) * msg.r * 0.6, hy = msg.y + (msg.fy ?? 0) * msg.r * 0.6;
       const at = now + SUMMON_PUNCH_MS * 0.45;
-      const look = { golem: ['#c9a678', 'stone'], sentinela_sombra: ['#b07cff', 'shadow'], arsenal: ['#dfe6ee', 'weapons'] }[sm?.type] || ['#c9a678', 'stone'];
+      const look = { golem: ['#c9a678', 'stone'], sentinela_sombra: ['#b07cff', 'shadow'], arsenal: ['#dfe6ee', 'weapons'], clone_agua: ['#8fd6ff', 'water'] }[sm?.type] || ['#c9a678', 'stone'];
       state.effects.push({ skill: 'jutsu_ring', x: hx, y: hy, fx: 0, fy: 0, r: msg.r * 0.8, color: look[0], start: at });
       if (particles.quality !== 'off' && sm?.type === 'golem') decals.push({ kind: 'cratera', x: hx, y: hy, r: msg.r * 0.6, start: at, ms: 2200, seed: seedOf(msg.id) });   // v48: o soco do Golem racha o chão
       setTimeout(() => particles.burst(look[1], hx, hy, 1.8, msg.r * 0.8), SUMMON_PUNCH_MS * 0.45);
@@ -7616,6 +7616,13 @@ function drawSummon(m, sx, sy, T, now) {
     ctx.fillRect(cx + w * 0.06, top + h * 0.84 - step * 2, w * 0.24, h * 0.16);
     ctx.strokeStyle = 'rgba(230, 248, 255, 0.9)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(cx - w * 0.3, top + h * (0.55 + 0.05 * Math.sin(now / 150))); ctx.lineTo(cx + w * 0.3, top + h * 0.55); ctx.stroke();
+    // v54: o braço d'água: puxa para trás e estica num jato na direção do alvo
+    const ext = punching ? reach : 0;
+    const sx0 = cx + face * w * 0.3, sy0 = top + h * 0.48;
+    const hx = sx0 + (ext > 0 ? dx * ext * w * 1.1 : face * ext * w * 0.25), hy = sy0 + (ext > 0 ? dy * ext * h * 0.5 : 0);
+    ctx.strokeStyle = '#3ca6ff'; ctx.lineWidth = Math.max(3, T * 0.12); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(sx0, sy0); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.fillStyle = '#d8f2ff'; ctx.beginPath(); ctx.arc(hx, hy, Math.max(3, T * 0.09) * (ext > 0.5 ? 1.5 : 1), 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
   const bar = { golem: '#c9a678', sentinela_sombra: '#b07cff', arsenal: '#cfd6e0' }[kind] || '#8fd6ff';

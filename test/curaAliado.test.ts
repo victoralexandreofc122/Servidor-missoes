@@ -44,7 +44,7 @@ describe('Cura em quem está em foco', () => {
     a.send({ type: 'cast', skill: 'heal_desintox', targetId: ally.id });
     run(60);
     assert.equal(ally.effects.has('queimadura'), false);
-    assert.equal(ally.hp, ally.stats.maxHp - 20);
+    assert.equal(ally.hp, ally.stats.maxHp - 15);
     assert.equal(s.hp, s.stats.maxHp - 5, 'o curandeiro não foi curado');
   });
 
@@ -54,7 +54,7 @@ describe('Cura em quem está em foco', () => {
     s.hp = s.stats.maxHp - 30;
     a.send({ type: 'cast', skill: 'heal_desintox' });
     run(60);
-    assert.equal(s.hp, s.stats.maxHp - 20);
+    assert.equal(s.hp, s.stats.maxHp - 15);
     assert.equal(ally.hp, ally.stats.maxHp - 30);
   });
 
@@ -64,7 +64,7 @@ describe('Cura em quem está em foco', () => {
     s.hp = s.stats.maxHp - 30;
     a.send({ type: 'cast', skill: 'heal_desintox', targetId: ally.id });
     run(60);
-    assert.equal(s.hp, s.stats.maxHp - 20);
+    assert.equal(s.hp, s.stats.maxHp - 15);
     assert.equal(ally.hp, ally.stats.maxHp - 30);
   });
 
@@ -76,7 +76,7 @@ describe('Cura em quem está em foco', () => {
     assert.ok(ally.effects.has('regeneracao'));
     assert.equal(s.effects.has('regeneracao'), false);
     run(2100);
-    assert.ok(ally.hp >= 10 + 2 * Math.round(ally.stats.maxHp * 0.03), 'cura por segundo no aliado');
+    assert.ok(ally.hp >= 10 + 2 * 10, 'cura por segundo no aliado');
   });
 
   it('Casca de Chakra no aliado: o escudo é dele', () => {
@@ -94,10 +94,10 @@ describe('Cura em quem está em foco', () => {
     c.run(60);
     assert.ok(c.ally.hp > c.ally.stats.maxHp - 40, 'Cura');
     const p = duo('heal_palma', 1);
-    p.ally.hp = p.ally.stats.maxHp - 40;
+    p.ally.hp = p.ally.stats.maxHp - 60;
     p.a.send({ type: 'cast', skill: 'heal_palma', targetId: p.ally.id });
     p.run(2200);
-    assert.equal(p.ally.hp, p.ally.stats.maxHp - 40 + 30, 'Palma: cura cheia no aliado');
+    assert.equal(p.ally.hp, p.ally.stats.maxHp - 60 + 50, "Palma: cura cheia no aliado (50, v54)");
   });
 });
 

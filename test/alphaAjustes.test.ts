@@ -98,7 +98,7 @@ describe('v53: a Shuriken de mão (consumível)', () => {
     assert.equal(ITEMS.filter((i) => i.kind === 'consumable').length, 1);
   });
 
-  it('lança uma (projétil "shuriken", só com Armas) e gasta 1; sem nenhuma, sai o golpe normal', () => {
+  it('lança uma (projétil "shuriken", só com Armas) e gasta 1; sem nenhuma, não atira', () => {
     const { a, s, run } = ninja(undefined, { ...NO_ATTRIBUTES, weapons: 10 });
     s.items = { [SHURIKEN]: 2 };
     a.send({ type: 'attack', shuriken: true });
@@ -114,7 +114,8 @@ describe('v53: a Shuriken de mão (consumível)', () => {
     a.conn.clear();
     a.send({ type: 'attack', shuriken: true });
     assert.equal(a.conn.of('projectile').length, 0, 'sem Shuriken: nada voa');
-    assert.equal(a.conn.last('attack').throw, undefined, 'sai o golpe normal');
+    assert.equal(a.conn.of('attack').length, 0, 'v54: sem munição não atira (nem o golpe normal)');
+    assert.match(a.conn.last('notice').text, /Sem Shurikens/);
   });
 
   it('acerta o monstro na linha e o dano sobe com Armas (e não com Taijutsu)', () => {
@@ -197,5 +198,74 @@ describe('v54: sem visão (Escuridão) o ninja perde o alvo', () => {
     assert.equal(clear.aim !== undefined, true, 'enxergando: o alvo mirado é guardado');
     assert.equal(blind.aim, undefined, 'na escuridão: nenhum alvo guardado');
     assert.ok(blind.lost <= clear.lost);
+  });
+});
+
+describe('v54: valores fixos (sem % da vida), Cura nova e Cegueira como estado', () => {
+  const SK: any = REALTIME.combat.skills;
+  it('nenhum jutsu usa % da vida máxima em cura ou escudo', () => {
+    for (const [code, cfg] of Object.entries(SK) as [string, any][]) {
+      assert.equal(cfg.shieldShare, undefined, `${code}: escudo em %`);
+      assert.equal(cfg.hot, undefined, `${code}: cura em % por segundo`);
+    }
+  });
+
+  it('valores base da classe Cura (pedido do Teste Alpha)', () => {
+    assert.deepEqual([SK.heal_aura.zone.heal, SK.heal_aura.zone.ms], [10, 3000], 'Aura: 10 por pulso, 3 pulsos');
+    assert.equal(SK.heal_palma.heal, 50);
+    assert.equal(SK.heal_desintox.heal, 15);
+    assert.equal(SK.heal_casca.shield, 40);
+    assert.deepEqual([SK.heal_4.hotHeal, SK.heal_4.durationMs], [10, 10_000], 'Renovação: 10 por segundo por 10 s');
+    assert.deepEqual([SK.heal_santuario.zone.heal, SK.heal_santuario.zone.ms, SK.heal_santuario.zoneDamageFlat], [10, 5000, 5]);
+  });
+
+  it('Casca de Chakra: escudo fixo de 40, maior com Chakra (e não com a vida)', () => {
+    const shield = (attributes: typeof NO_ATTRIBUTES) => {
+      const { a, s, run } = ninja('heal_casca', attributes);
+      a.send({ type: 'cast', skill: 'heal_casca' });
+      run(100);
+      return s.absorb.hp;
+    };
+    assert.equal(shield(NO_ATTRIBUTES), 40);
+    assert.ok(shield({ ...NO_ATTRIBUTES, chakra: 20 }) > 40);
+    assert.equal(shield({ ...NO_ATTRIBUTES, vitality: 40 }), 40, 'mais vida não aumenta o escudo');
+  });
+
+  it('Santuário Vital: dentro dele cada golpe no dono perde 5', () => {
+    const { a, s, world, run } = ninja('heal_santuario');
+    a.send({ type: 'cast', skill: 'heal_santuario' });
+    run(700);
+    s.hp = 100;
+    world.damagePlayer(s, 20, world.now());
+    assert.equal(s.hp, 85);
+  });
+
+  it('Cegueira: quem pisa na zona escura fica cego até o fim dela, mesmo saindo', () => {
+    const c = config();
+    const w = setupWorld({ ...c, combat: { ...c.combat, pvp: true } });   // a escuridão pega quem o dono pode machucar
+    const world: any = w.world;
+    const caster = w.connect('kaito'), foe = w.connect('mei');
+    const row = openSpot();
+    placeIn(world, caster.id, 'map_2', row.x, row.y);
+    placeIn(world, foe.id, 'map_2', row.x + 1, row.y);
+    const s = world.sessions.get(caster.id), f = world.sessions.get(foe.id);
+    world.spawnZone(s, { x: f.x, y: f.y, r: 2, kind: 'sombra', ms: 4000, tickMs: 500, dark: true, label: 'shadow_mancha' }, world.now());
+    w.run(600);
+    assert.ok(f.effects.has('escuridao'), 'cego dentro da zona');
+    placeIn(world, foe.id, 'map_2', row.x + 6, row.y);   // saiu da zona
+    w.run(1500);
+    assert.ok(f.effects.has('escuridao'), 'continua cego fora da zona');
+    w.run(2500);
+    assert.equal(f.effects.has('escuridao'), false, 'acabou com a zona');
+  });
+
+  it('Duplo de Água também bate (golpe fraco) quando o inimigo está perto', () => {
+    const { a, world, run, row } = ninja('water_clone');
+    const m = world.spawnMonster({ x: row.x + 5, y: row.y }, undefined, 'map_2');
+    const hp0 = world.monsters.get(m.id).hp;
+    a.send({ type: 'cast', skill: 'water_clone' });
+    run(5000);
+    assert.ok(a.conn.of('summon_punch').length > 0, 'socou');
+    assert.ok((world.monsters.get(m.id)?.hp ?? 0) < hp0);
   });
 });

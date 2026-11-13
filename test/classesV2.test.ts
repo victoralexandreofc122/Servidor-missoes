@@ -169,13 +169,13 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(a.conn.of('ground_end').length >= 4, true);
   });
 
-  it('limpeza (Desintoxicação): tira a queimadura de si e cura 10', () => {
+  it('limpeza (Desintoxicação): tira a queimadura de si e cura 15 (v54)', () => {
     const { s, cast, world } = scene('heal_desintox', []);
     world.applyEffect({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }, 'queimadura', world.now(), 3000, 3);
     s.hp = s.stats.maxHp - 30;
     cast();
     assert.equal(s.effects.has('queimadura'), false);
-    assert.equal(s.hp, s.stats.maxHp - 20);
+    assert.equal(s.hp, s.stats.maxHp - 15);
   });
 
   it('Dissipação sai em silêncio e tira o silêncio', () => {
@@ -187,13 +187,13 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.equal(s.effects.has('silencio'), false);
   });
 
-  it('cura ao longo do tempo (Renovação Celular): 3% da vida por segundo por 10 s', () => {
+  it('cura ao longo do tempo (Renovação Celular): 10 fixos por segundo por 10 s (v54)', () => {
     const { s, cast, run } = scene('heal_4', []);
     s.hp = 10;
     cast();
     assert.ok(s.effects.has('regeneracao'));
     run(2100);
-    assert.equal(s.hp, 10 + 2 * Math.round(s.stats.maxHp * 0.03));
+    assert.equal(s.hp, 10 + 2 * 10);
   });
 
   it('impacto (Punho Sísmico): o alvo direto leva tudo e é levantado; quem está em volta, metade', () => {
@@ -332,7 +332,7 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     run(1900);
     assert.equal(s.hp, s.stats.maxHp - 40, 'ainda canalizando');
     run(200);
-    assert.equal(s.hp, s.stats.maxHp - 40 + 15, 'em si: metade de 30');
+    assert.equal(s.hp, s.stats.maxHp - 40 + 25, 'em si: metade de 50 (v54)');
   });
 
   it('bumerangue (Shuriken Colossal): atravessa na ida e acerta de novo na volta', () => {
@@ -423,10 +423,10 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.ok(dealt(ms[0]) > 0 && dealt(ms[1]) > 0);
   });
 
-  it('Véu de Vento (escudo com vida): absorve até 12% da vida máxima', () => {
+  it('Véu de Vento (escudo fixo, v54): absorve até 40 de dano', () => {
     const { s, cast, world } = scene('wind_veu', []);
     cast();
-    const cap = Math.round(s.stats.maxHp * 0.12);
+    const cap = 40;
     assert.equal(s.absorb.hp, cap);
     const hp = s.hp;
     world.damagePlayer(s, cap + 5, world.now());
@@ -506,10 +506,10 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.ok(world.effectsOf({ kind: 'monster', id: m.id, monster: m }).has('queimadura'));
   });
 
-  it('Sentinela Espectral: escudo de 20% da vida e um corte na frente', () => {
+  it('Sentinela Espectral: escudo fixo de 65 (v54) e um corte na frente', () => {
     const { s, m, a, dealt } = scene('rubro_guardiao', [[1, 0]]);
     a.send({ type: 'cast', skill: 'rubro_guardiao' });                 // confere já (o monstro de teste bate de volta)
-    assert.equal(s.absorb.hp, Math.round(s.stats.maxHp * 0.2));
+    assert.equal(s.absorb.hp, 65);
     assert.ok(dealt(m) > 0);
   });
 
@@ -558,11 +558,11 @@ describe('Jutsus v2, entrega 5: as outras classes', () => {
     assert.ok(m.stunnedUntil > clock.now() + 1500, 'atordoado');
   });
 
-  it('Colosso Espectral: escudo de 25%, Básico +15% por 5 s e a onda no fim', () => {
+  it('Colosso Espectral: escudo fixo de 85 (v54), Básico +15% por 5 s e a onda no fim', () => {
     const { s, a, run, m, dealt } = scene('rubro_completo', [[2.5, 0]]);
     a.send({ type: 'cast', skill: 'rubro_completo' });
     run(560);
-    assert.equal(s.absorb.hp, Math.round(s.stats.maxHp * 0.25));
+    assert.equal(s.absorb.hp, 85);
     assert.equal(s.basicBuff.bonus, 0.15);
     const before = dealt(m);
     run(5100);

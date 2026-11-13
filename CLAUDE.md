@@ -31,7 +31,8 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 
 - **v53 (ajustes do Teste Alpha, migração v32):** Agilidade saiu (virou Taijutsu: velocidade e ritmo do Básico), Chakra
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
-  Vivo com desenho próprio). Branch `ccr-alpha-ajustes` até o Victor rodar a v32 no Neon.
+  Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
+  (perde o alvo), Duplo de Água bate. Branch `ccr-alpha-ajustes` até o Victor rodar a v32 no Neon.
 
 ## Documentos
 

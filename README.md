@@ -240,6 +240,22 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v54: valores fixos, Cura rebalanceada e Cegueira como estado (sem migração nova: vai junto da v32)
+
+- **Regra de ouro, valores fixos:** nenhum jutsu cura ou protege por % da vida máxima. Os escudos passaram a ter valor
+  fixo (`shield`, convertidos para uma vida de referência de ~333: 12% = 40, 18% = 60, 20% = 65, 25% = 85) e a
+  Renovação Celular cura um valor fixo por segundo. Escudos da Cura escalam com o Chakra; os das outras classes, com o
+  atributo de dano delas. A maestria de proteção continua valendo.
+- **Cura (valores base, escalam com Chakra e maestria):** Aura de Regeneração 10 por pulso (3 pulsos), Palma Curadora 50,
+  Desintoxicação Celular 15, Casca de Chakra escudo 40, Renovação Celular 10 por segundo por 10 s, Santuário Vital 10 por
+  pulso (5 pulsos) e -5 de dano fixo em cada golpe que o dono leva dentro dele (antes -15%).
+- **Cegueira (Escuridão) é um estado:** quem pisa numa zona escura (Véu de Bruma, Véu da Meia-Noite, Mancha Negra, Noite
+  Fechada) fica cego até o fim da zona, mesmo saindo dela. Cego, perde o alvo por completo (v54 anterior).
+- **Shuriken:** sem nenhuma no inventário, não atira (antes saía o golpe normal).
+- **Duplo de Água:** além de andar até o inimigo, bate (jato de água fraco, 8 de base, a cada 1,5 s, raio 1,3).
+- Ficam em %: a vida das invocações e dos muros (parte da vida de quem lança) e o teto do roubo de vida. Não são cura nem
+  escudo; mudam numa próxima rodada se o Victor quiser.
+
 ### v53: ajustes do Teste Alpha (migração v32, `db/schema_v32_alpha_ajustes.sql`)
 
 - **A Agilidade saiu:** os pontos dela viram Taijutsu (a migração soma). São 5 atributos.

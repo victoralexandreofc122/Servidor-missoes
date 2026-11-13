@@ -101,7 +101,8 @@ export interface SkillConfig {
   /** Tira estes efeitos de si (Desintoxicação, Dissipação). */
   cleanse?: string[];
   /** Cura ao longo do tempo em si: fração da vida máxima por segundo, por `durationMs`. */
-  hot?: number;
+  /** v54: cura fixa por segundo (Renovação Celular). Escala com o Chakra e a maestria de cura. */
+  hotHeal?: number;
   /** Paga o custo e a recarga maiores do PvP da mecânica (Armas x2,5). Sem: jutsu com números próprios paga o seu. */
   pvpScale?: boolean;
   /** Avanço que acerta todos no caminho. */
@@ -136,12 +137,15 @@ export interface SkillConfig {
   markSlowMs?: number;
   /** v35: quem lançou a zona recebe esta fração a menos de dano enquanto está dentro dela (Noite Fechada). */
   zoneDamageCut?: number;
+  /** v54: dentro da própria zona, cada golpe que o dono leva perde este valor fixo (Santuário Vital: 5). */
+  zoneDamageFlat?: number;
   /** v35: Forma Umbral: dano de quem ele atravessa (o `damage`) e lentidão (`slowMs`); `speedBuff` e `durationMs`. */
   /** v30: dano ao longo do tempo (queimadura) ao acertar: por pulso e duração (Brasa Sem Luz). */
   dotAmount?: number;
   dotMs?: number;
   /** v30: escudo de vida (Véu de Vento): parte da vida máxima, por `durationMs` (regra única: até 25%). */
-  shieldShare?: number;
+  /** v54: escudo fixo (absorve este dano). Cura: escala com o Chakra; as outras classes, com o atributo de dano delas. */
+  shield?: number;
   /** v30: ferida (cura recebida pela metade) por este tempo (Disco do Furacão). */
   woundMs?: number;
   /** v49 (Fase 2.5): sono no alvo por este tempo (acorda ao apanhar; conta no teto de controle). */

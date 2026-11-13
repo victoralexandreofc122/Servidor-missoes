@@ -510,6 +510,8 @@ interface GroundZone {
   dark?: boolean; trap?: boolean;
   /** v35: quem lançou leva esta fração a menos de dano enquanto está dentro (Noite Fechada). */
   cut?: number;
+  /** v54: quem lançou perde este dano fixo em cada golpe enquanto está dentro (Santuário Vital). */
+  cutFlat?: number;
 }
 /** Golpe avisado: o círculo aparece no chão e o dano cai em `at` (dá tempo de sair). */
 interface GroundStrike { id: number; map: MapId; x: number; y: number; r: number; ownerId: string; at: number; damage: number; label: string; stunMs: number; hit?: HitInfo; slowMs?: number; rootMs?: number; woundMs?: number }
@@ -622,7 +624,7 @@ const SUMMON_FOCUS_MS = 10_000;
 const SUMMON_FOCUS_RANGE = 10;
 const SUMMON_FOLLOW = 2.5;
 /** O golpe de cada invocação conta como o jutsu que a chamou (maestria, recarga do PvP, nome no registro). */
-const SUMMON_SKILL: Readonly<Record<string, Skill>> = { golem: 'stone_golem', sentinela_sombra: 'shadow_sentinela', arsenal: 'weapons_arsenal' };
+const SUMMON_SKILL: Readonly<Record<string, Skill>> = { golem: 'stone_golem', sentinela_sombra: 'shadow_sentinela', arsenal: 'weapons_arsenal', clone_agua: 'water_clone' };
 
 export class GameWorld {
   private readonly sessions = new Map<string, Session>();
@@ -2340,7 +2342,7 @@ export class GameWorld {
   spawnZone(owner: Session, z: {
     x: number; y: number; r: number; kind: GroundZone['kind']; ms: number; tickMs?: number; damage?: number; slowMs?: number; heal?: number; label?: string;
     follow?: boolean; pull?: number; firstRootMs?: number; endDamage?: number; endStunMs?: number; hit?: HitInfo; endHit?: HitInfo;
-    dark?: boolean; trap?: boolean; cut?: number;
+    dark?: boolean; trap?: boolean; cut?: number; cutFlat?: number;
   }, t: number = this.now()): number {
     const id = ++this.groundSeq;
     const tickMs = z.tickMs ?? 1000;
@@ -2350,7 +2352,7 @@ export class GameWorld {
       ...(z.follow ? { follow: true } : {}), ...(z.pull ? { pull: z.pull } : {}), ...(z.firstRootMs ? { firstRootMs: z.firstRootMs } : {}),
       ...(z.endDamage ? { endDamage: z.endDamage } : {}), ...(z.endStunMs ? { endStunMs: z.endStunMs } : {}),
       ...(z.hit ? { hit: z.hit } : {}), ...(z.endHit ? { endHit: z.endHit } : {}),
-      ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(z.cut ? { cut: z.cut } : {}),
+      ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(z.cut ? { cut: z.cut } : {}), ...(z.cutFlat ? { cutFlat: z.cutFlat } : {}),
     });
     this.broadcastMap(owner.map, { type: 'ground', id, kind: z.kind, x: round2(z.x), y: round2(z.y), r: z.r, ms: z.ms, ...(z.label ? { skill: z.label } : {}), ...(z.follow ? { follow: owner.id } : {}) });
     return id;
@@ -2419,7 +2421,8 @@ export class GameWorld {
       if (z.damage > 0 || z.slowMs > 0 || z.pull || z.dark) {
         for (const x of this.targetsFor(owner)) {
           if (!inside(x, z)) continue;
-          if (z.dark && x.kind === 'player') this.applyEffect(x, 'escuridao', t, z.tickMs + 150, undefined, owner);
+          // v54: a Cegueira é um estado: quem pisa fica cego até o fim da zona, mesmo que saia dela
+          if (z.dark && x.kind === 'player') this.applyEffect(x, 'escuridao', t, Math.max(z.tickMs + 150, z.until - t), undefined, owner);
           if (z.damage > 0) this.hitTarget(x, z.damage, owner, t, 'skill', z.label, z.hit);
           if (z.slowMs > 0 && this.stillThere(x)) this.applyEffect(x, 'lentidao', t, z.slowMs, undefined, owner);
           if (z.pull && this.stillThere(x)) this.pullToCenter(x, owner, z, z.pull, t);
@@ -2866,7 +2869,7 @@ export class GameWorld {
           ...(z.heal ? { heal: Math.max(1, Math.round(z.heal * (pvp ? 0.5 : 1) * s.stats.healMultiplier)) } : {}),   // v53: + Chakra
           ...(z.follow ? { follow: true } : {}), ...(z.pull ? { pull: z.pull } : {}), ...(z.firstRootMs ? { firstRootMs: z.firstRootMs } : {}),
           ...((z.endHit || z.trap) && dmg > 0 ? { endDamage: dmg, endHit: hit } : {}), ...(z.endStunMs ? { endStunMs: z.endStunMs } : {}),
-          ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(cfg.zoneDamageCut ? { cut: cfg.zoneDamageCut } : {}),
+          ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(cfg.zoneDamageCut ? { cut: cfg.zoneDamageCut } : {}), ...(cfg.zoneDamageFlat ? { cutFlat: cfg.zoneDamageFlat } : {}),
         }, t);
         break;
       }
@@ -2902,7 +2905,7 @@ export class GameWorld {
       }
       case 'transformacao': {
         // Colosso Espectral: escudo + Básico mais forte agora; a onda à frente cai no fim
-        s.absorb = { hp: Math.round(s.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.25)), until: t + (cfg.durationMs ?? 5000) };
+        s.absorb = { hp: this.shieldOf(s, skill, cfg, 85), until: t + (cfg.durationMs ?? 5000) };   // v54: escudo fixo (não % da vida)
         s.basicBuff = { until: t + (cfg.durationMs ?? 5000), bonus: cfg.basicBuff ?? 0.15 };
         if (cfg.speedBuff) { s.haste = cfg.speedBuff; s.hasteUntil = t + (cfg.durationMs ?? 5000); }   // v49: Olho da Tempestade
         const at = ahead(o, fx, fy, cfg.range ?? 2.5);
@@ -2913,7 +2916,7 @@ export class GameWorld {
       case 'escudo_vida': {
         // escudo único: até 25% da vida máxima; o novo troca o anterior (na Casca de Chakra, vale para o aliado em foco)
         const who = buddy();
-        who.absorb = { hp: Math.round(who.stats.maxHp * Math.min(0.25, cfg.shieldShare ?? 0.12)), until: t + (cfg.durationMs ?? 3000) };
+        who.absorb = { hp: this.shieldOf(s, skill, cfg, 40), until: t + (cfg.durationMs ?? 3000) };   // v54: escudo fixo de quem lança
         this.sendTo(who, { type: 'notice', text: `Escudo: ${who.absorb.hp} de vida por ${Math.round((cfg.durationMs ?? 3000) / 1000)} s.`, tone: 'good' });
         if (who !== s) this.sendTo(s, { type: 'notice', text: `Escudo em ${who.username}.`, tone: 'good' });
         for (const x of hits) strike(x);
@@ -2952,7 +2955,7 @@ export class GameWorld {
       }
       case 'cura_tempo': {
         const who = buddy();
-        const per = Math.max(1, Math.round(who.stats.maxHp * (cfg.hot ?? 0.03) * (pvp ? 0.5 : 1) * s.stats.healMultiplier));   // v53: + Chakra
+        const per = Math.max(1, Math.round((cfg.hotHeal ?? 10) * (pvp ? 0.5 : 1) * s.stats.healMultiplier));   // v54: cura fixa por segundo, + Chakra
         this.applyEffect({ kind: 'player', id: who.id, x: who.x, y: who.y, session: who }, 'regeneracao', t, cfg.durationMs ?? 10_000, per, s);
         if (who !== s) this.sendTo(s, { type: 'notice', text: `Renovação em ${who.username}.`, tone: 'good' });
         break;
@@ -3100,6 +3103,15 @@ export class GameWorld {
     if (targetId === undefined || !hasEffect(this.effectsOf({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }), 'escuridao', t)) return targetId;
     s.aimFocus = undefined;
     return undefined;
+  }
+
+  /**
+   * v54: o escudo fixo do jutsu (`shield`), escalado pelo atributo: os da Cura com o Chakra (como a cura); os das outras
+   * classes com o atributo de dano delas (Ninjutsu, Taijutsu ou Armas). A maestria de proteção já vem em `cfg`.
+   */
+  private shieldOf(s: Session, skill: Skill, cfg: SkillConfig, fallback: number): number {
+    const mult = JUTSU_BY_CODE.get(skill)?.class === 'heal' ? s.stats.healMultiplier : damageMultiplier(s.stats, cfg.scaling ?? 'ninjutsu');
+    return Math.max(1, Math.round((cfg.shield ?? fallback) * mult));
   }
 
   /** v53: guarda o alvo que o ninja mirou (as invocações dele vão nele). */
@@ -3505,7 +3517,9 @@ export class GameWorld {
     // Arma de arremesso (Shuriken Gigante): o golpe vira um lançamento dela, com o alcance dela.
     // As outras mudam o JEITO do golpe (items.ts, `swing`): a kunai é rápida e estreita, a espada longa lenta e larga.
     // v53: a Shuriken de mão (consumível): com uma no inventário, o golpe vira o lançamento dela; sem nenhuma, o golpe normal.
-    const star = shuriken && (session.items[SHURIKEN] ?? 0) > 0;
+    // v54: sem Shuriken no inventário, não atira (nem sai o golpe normal)
+    if (shuriken && !((session.items[SHURIKEN] ?? 0) > 0)) return this.sendTo(session, { type: 'notice', text: 'Sem Shurikens: compre na loja de armas.', tone: 'bad' });
+    const star = shuriken;
     const weapon = star ? ITEM_BY_CODE.get(SHURIKEN) : session.equipped ? ITEM_BY_CODE.get(session.equipped) : undefined;
     const thrown = star ? SHURIKEN_THROW : weapon?.throw;
     const swing = weapon?.swing ?? { cooldownFactor: 1, arcDeg: cfg.arcDeg, range: cfg.range };
@@ -4715,8 +4729,9 @@ export class GameWorld {
   private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session, label?: string): void {
     if (t < session.intangibleUntil) return;                    // Forma Fantasma (Akatsuki)
     // v35: Noite Fechada: dentro da própria zona, o Umbra leva menos dano
-    const cutZone = amount > 0 ? this.zones.find((z) => z.cut && z.ownerId === session.id && z.map === session.map && t < z.until && Math.hypot(session.x - z.x, session.y - z.y) <= z.r) : undefined;
-    if (cutZone) amount = Math.round(amount * (1 - cutZone.cut!));
+    const cutZone = amount > 0 ? this.zones.find((z) => (z.cut || z.cutFlat) && z.ownerId === session.id && z.map === session.map && t < z.until && Math.hypot(session.x - z.x, session.y - z.y) <= z.r) : undefined;
+    if (cutZone?.cut) amount = Math.round(amount * (1 - cutZone.cut));
+    if (cutZone?.cutFlat) amount = Math.max(0, amount - cutZone.cutFlat);   // v54: Santuário Vital: -5 fixo em cada golpe
     if (by && by !== session) { this.markPvp(session); this.markPvp(by); }   // v38: capítulo do PvP
     // v29 (bug da rodada 2): no Arena das Quatro Heranças só se apanha durante a rodada, e só quem está na partida. Uma
     // queimadura que sobrava da rodada 1 batia no intervalo, com a vida já em 0, e matava de verdade o perdedor.
