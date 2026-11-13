@@ -2818,6 +2818,11 @@ function focusEntity() {
 function cycleFocus() {
   const me = state.players.get(state.meId);
   if (!me || state.me.dead) return;
+  if (me.fx?.escuridao > performance.now()) {     // v54: sem visão (Escuridão) não dá para mirar em ninguém
+    setFocus(null);
+    addFloater(me.x, me.y - 1.1, 'Sem visão', '#9a8cc8', 0.8);
+    return;
+  }
   const foes = [...state.monsters.values()].filter((m) => m.map === state.mapId);
   const allies = [];
   for (const p of state.players.values()) {
@@ -6026,6 +6031,7 @@ function update(dt) {
   }
   // Foco perdido: alvo morreu/sumiu ou o jogador andou para longe (mais de 12 casas).
   if (state.focusId && me && !keepFocus(me, focusEntity())) setFocus(null);
+  if (state.focusId && me?.fx?.escuridao > now) setFocus(null);   // v54: a escuridão tira o alvo na hora
   if (me) updateCamera(dt, me);
   updateNpcProximity(me);
 }

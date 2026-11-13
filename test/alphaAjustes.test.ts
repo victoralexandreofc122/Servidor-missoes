@@ -179,3 +179,23 @@ describe('v53: as invocações andam até o alvo e batem', () => {
     assert.ok(Math.hypot(summon.x - s.x, summon.y - s.y) < 3, 'voltou para perto do dono');
   });
 });
+
+describe('v54: sem visão (Escuridão) o ninja perde o alvo', () => {
+  it('com o alvo focado: sem escuridão acerta nele; na escuridão o foco é ignorado (o golpe sai para onde olha)', () => {
+    const hitsFocused = (dark: boolean) => {
+      const { a, s, world, run, row } = ninja('fire');
+      // o alvo fica ao lado do caminho: só o foco (ou nada) o escolheria; o golpe em linha para a direita erra
+      const m = world.spawnMonster({ x: row.x + 3, y: row.y + 1 }, undefined, 'map_2');
+      if (dark) world.applyEffect({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }, 'escuridao', world.now(), 3000);
+      const hp0 = world.monsters.get(m.id).hp;
+      a.send({ type: 'attack', targetId: m.id });
+      run(200);
+      return { lost: hp0 - world.monsters.get(m.id).hp, aim: s.aimFocus?.id };
+    };
+    const clear = hitsFocused(false);
+    const blind = hitsFocused(true);
+    assert.equal(clear.aim !== undefined, true, 'enxergando: o alvo mirado é guardado');
+    assert.equal(blind.aim, undefined, 'na escuridão: nenhum alvo guardado');
+    assert.ok(blind.lost <= clear.lost);
+  });
+});

@@ -1216,12 +1216,12 @@ export class GameWorld {
     } else if (parsed.type === 'client_error') this.watch.clientError?.(session.username, parsed);
     else if (parsed.type === 'move') this.setDirection(session, parsed.dx, parsed.dy);
     else if (parsed.type === 'input') this.queueInputs(session, parsed.seq, parsed.inputs);
-    else if (parsed.type === 'cast') { this.noteFocus(session, parsed.targetId, t); this.cast(session, parsed.skill, t, parsed.targetId, parsed.dir); }
+    else if (parsed.type === 'cast') { const f = this.sight(session, parsed.targetId, t); this.noteFocus(session, f, t); this.cast(session, parsed.skill, t, f, parsed.dir); }
     else if (parsed.type === 'meditate') this.meditate(session, parsed.active);
     else if (parsed.type === 'respawn') this.respawn(session, t);
     else if (parsed.type === 'talk') this.talk(session, parsed.npcId, t);
     else if (parsed.type === 'missions') this.missionRequest(session, t, (m) => m.current(session.id).then((mission) => this.sendMission(session.id, mission, 'sync')));
-    else if (parsed.type === 'attack') { this.noteFocus(session, parsed.targetId, t); this.basicAttack(session, t, parsed.targetId, parsed.shuriken === true); }
+    else if (parsed.type === 'attack') { const f = this.sight(session, parsed.targetId, t); this.noteFocus(session, f, t); this.basicAttack(session, t, f, parsed.shuriken === true); }
     else if (parsed.type === 'run') this.setRunning(session, parsed.active, t);
     else if (parsed.type === 'switch_kit') this.switchKit(session, parsed.kit);
     else if (parsed.type === 'set_loadout') this.setLoadout(session, { A: parsed.kitA, B: parsed.kitB });
@@ -3089,6 +3089,17 @@ export class GameWorld {
     this.monsters.delete(x.id);
     this.broadcastMap(x.map, { type: 'monster_died', id: x.id, killerId: '' });
     void t;
+  }
+
+  /**
+   * v54: sem visão (Escuridão: Véu de Bruma, Noite Eterna, Noite Fechada, Véu da Meia-Noite, Mancha Negra) o ninja perde o
+   * alvo por completo: o foco que o cliente manda é ignorado (o golpe sai para onde ele olha) e as invocações dele
+   * também não ganham alvo mirado. Devolve o foco que vale.
+   */
+  private sight(s: Session, targetId: string | undefined, t: number): string | undefined {
+    if (targetId === undefined || !hasEffect(this.effectsOf({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }), 'escuridao', t)) return targetId;
+    s.aimFocus = undefined;
+    return undefined;
   }
 
   /** v53: guarda o alvo que o ninja mirou (as invocações dele vão nele). */
