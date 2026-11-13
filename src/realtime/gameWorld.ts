@@ -46,9 +46,10 @@ import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Villa
 import { activeModules, dueModules, type EndgameModule } from './endgame.js';
 import type { RankedStore } from './rankedStore.js';
 import { JUTSU_TEXT, jutsuDescription } from './jutsuText.js';
-import { JOUNIN_RULES, type JouninStage, type SeasonStore } from './seasonStore.js';
+import { JOUNIN_RULES, type JouninStage, type SeasonStore, type SeasonView } from './seasonStore.js';
 import { bonusesFor, xpWithBonus, type XpBonus, type XpBonusScope, type XpBonusStore } from './xpBonus.js';
 import { bracketChampion, bracketEntrants, jouninOfEra, makeBracket, takePending, type PendingMatch } from './tournament.js';
+import { calendarStep } from './calendar.js';
 import { SHOW_ALL, type Display, type EndgamePlayer, type EndgameStore, type KageAction, type Politics, type PvpKill, type TickEvent } from './endgameStore.js';
 import { VILLAGE_INFO, alliesOf, villageFullName, conflictHostile, mapAllowed, type Diplomacy, type Faction, type MapAccess, type PassiveKind } from './villages.js';
 import { POWERS, POWER_BY_SLOT, type PowerDef, type PowerKind } from './akatsuki.js';
@@ -671,6 +672,7 @@ export class GameWorld {
   private finalists = new Map<string, string>();
   private seasonReady = false;
   private seasonBusy = false;
+  private calendarBusy = false;
   /** v30: muros dos jutsus (Muralha de Terra, Muro de Água): a caixa está nas paredes do mapa enquanto o muro existe. */
   private barriers: { id: number; map: MapId; box: Wall; hp: number; kind: 'rocha' | 'agua'; until: number; ownerId?: string }[] = [];
   private duel: DuelMatch | null = null;
@@ -5582,6 +5584,69 @@ export class GameWorld {
     }).catch((err: unknown) => this.log.warn({ err, playerId: id }, 'torneio: falha ao ler os pontos'));
   }
 
+  /**
+   * v55: o calendário automático da Era (calendar.ts). A cada minuto, depois da manutenção do Torneio: abre a fase de
+   * pontos na semana 3, monta os grupos no fim dela, passa para as chaves, encerra o Torneio e vira a Era no dia 60.
+   * Cada passo é o mesmo do /admin torneio (que continua forçando em teste).
+   */
+  async calendarMaintenance(): Promise<void> {
+    const store = this.seasonStore;
+    if (!store || this.calendarBusy || !this.config.endgame.autoCalendar || !this.seasonReady) return;
+    this.calendarBusy = true;
+    try {
+      const era = await store.current();
+      if (!era) return;
+      await this.refreshFinal();
+      const now = this.now();
+      const step = calendarStep({
+        startsAt: era.startsAt.getTime(), endsAt: era.endsAt.getTime(), stage: era.stage, finalReady: era.finalReady, pending: this.finalPending.length,
+        jounin: era.jounin ? { startsAt: era.jounin.startsAt.getTime(), endsAt: era.jounin.endsAt.getTime() } : null,
+      }, now);
+      if (step) {
+        let text = '';
+        if (step.kind === 'open_points') {
+          await store.openJounin(new Date(now), new Date(step.endsAt));
+          await this.seasonMaintenance();
+          const when = new Date(step.endsAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
+          this.broadcast({ type: 'announce', message: `🏆 O Torneio da Temporada começou! Fase de pontos até ${when}. Nível 40 ou mais: entre na fila na Arena.` });
+          text = 'fase de pontos aberta';
+        } else if (step.kind === 'start_groups') text = await this.adminFinalGroups(store, now);
+        else if (step.kind === 'start_bracket') text = await this.adminFinalBracket(store, now);
+        else if (step.kind === 'finish') {
+          if (step.wo) await this.calendarWalkovers(store, now);
+          text = await this.adminFinalFinish(store, now);
+        } else if (step.kind === 'close_era' && store.closeEra) {
+          const closed = await store.closeEra(new Date(now));
+          if (closed !== null) {
+            this.jounin = null;
+            await this.seasonMaintenance();
+            this.broadcast({ type: 'announce', message: `📜 A Era ${closed} terminou. Começou a Era ${closed + 1}: o Torneio da Temporada abre na semana 3.` });
+            text = `era ${closed} fechada`;
+          }
+        }
+        if (text) this.log.info({ step: step.kind, text }, 'calendário: passo automático');
+        for (const s of this.mapPlayers.get('vale_estatuas') ?? []) this.sendJouninState(s);
+      }
+      await this.championMaintenance(era, now);
+    } catch (err) {
+      this.log.warn({ err }, 'calendário: falha no passo automático');
+    } finally {
+      this.calendarBusy = false;
+    }
+  }
+
+  /** v55: Torneio dos Heróis e dos Vilões (preenchido no passo dos torneios de campeão). */
+  private async championMaintenance(_era: SeasonView, _now: number): Promise<void> {}
+
+  /** v55: prazo da eliminatória acabou: cada jogo pendente vira W.O. para o lado `a` (o melhor cabeça de chave), rodada a rodada. */
+  private async calendarWalkovers(store: SeasonStore, now: number): Promise<void> {
+    for (let i = 0; i < 12; i++) {
+      await this.refreshFinal();
+      if (this.finalPending.length === 0) return;
+      for (const m of this.finalPending) await store.finalResult('chaves', m.a, m.b, 2, 0, 'wo', new Date(now));
+    }
+  }
+
   /** A cada minuto: procura a v27 (aplicar no Neon não precisa reiniciar) e lê a janela da fase de pontos. */
   async seasonMaintenance(): Promise<void> {
     const store = this.seasonStore;
@@ -6337,7 +6402,7 @@ export class GameWorld {
     this.xpBonusTimer.unref();
     if (this.seasonStore) {
       void this.seasonMaintenance();
-      this.seasonTimer = setInterval(() => void this.seasonMaintenance(), this.config.endgame.tickMs);
+      this.seasonTimer = setInterval(() => void this.seasonMaintenance().then(() => this.calendarMaintenance()), this.config.endgame.tickMs);
       this.seasonTimer.unref();
     }
     if (this.rankedStore) {

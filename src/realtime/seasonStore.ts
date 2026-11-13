@@ -101,6 +101,8 @@ export interface SeasonStore {
   era(seasonId: number): Promise<EraRow[]>;
   /** Ryō e patente de agora (depois do encerramento, para atualizar quem está online). */
   fresh(ids: readonly string[]): Promise<{ id: string; ryo: number; rank: { code: string; name: string }; canBeSensei: boolean }[]>;
+  /** v55 (migração v33): fecha a Era vencida e abre a próxima (60 dias). null = nada a fechar (ou a v33 não rodou). */
+  closeEra?(now: Date): Promise<number | null>;
 }
 
 export const SEASON_SQL = {
@@ -128,6 +130,8 @@ export const SEASON_SQL = {
   era: `SELECT e.position, e.player_id, p.username, e.village FROM game.jounin_era e JOIN game.players p ON p.id = e.player_id WHERE e.season_id = $1 ORDER BY e.village, e.position`,
   fresh: `SELECT p.id, p.ryo, r.code, r.name, r.can_be_sensei FROM game.players p JOIN game.ranks r ON r.id = p.current_rank_id WHERE p.id = ANY($1::uuid[])`,
   open: `SELECT game.jounin_open($1, $2) AS id`,
+  closeEraReady: `SELECT to_regprocedure('game.close_era(timestamp with time zone)') IS NOT NULL AS ok`,
+  closeEra: `SELECT game.close_era($1) AS id`,
   close: `UPDATE game.seasons SET jounin_ends_at = $1 WHERE closed_at IS NULL AND jounin_starts_at < $1 AND jounin_ends_at > $1 RETURNING id`,
   eligible: `SELECT game.jounin_eligible($1) AS ok`,
   mine: `SELECT points, wins, losses FROM game.jounin_points WHERE season_id = $1 AND player_id = $2`,
@@ -224,6 +228,10 @@ export function makeSeasonStore(db: Queryable): SeasonStore {
       if (ids.length === 0) return [];
       const { rows } = await db.query<{ id: string; ryo: string; code: string; name: string; can_be_sensei: boolean }>(SEASON_SQL.fresh, [ids]);
       return rows.map((r) => ({ id: r.id, ryo: Number(r.ryo), rank: { code: r.code, name: r.name }, canBeSensei: r.can_be_sensei }));
+    },
+    async closeEra(now) {
+      if (!(await db.query<{ ok: boolean }>(SEASON_SQL.closeEraReady)).rows[0]?.ok) return null;
+      return (await db.query<{ id: number | null }>(SEASON_SQL.closeEra, [now])).rows[0]?.id ?? null;
     },
     async slots(seasonId) {
       const { rows } = await db.query<{ village: string; active_players: number; slots: number }>(SEASON_SQL.slots, [seasonId]);

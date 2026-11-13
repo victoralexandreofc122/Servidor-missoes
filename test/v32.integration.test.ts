@@ -55,3 +55,23 @@ describe('v32 no banco: a Shuriken', { skip: noDatabase }, () => {
     assert.ok(r.ok && r.statPoints === 2 && r.attributes.taijutsu === 0);
   });
 });
+
+describe('v33 no banco: a virada da Era', { skip: noDatabase }, () => {
+  let t: Db;
+  before(async () => { t = await createTestDatabase(); });
+  after(async () => { await t?.drop(); });
+
+  it('não fecha antes do dia 60; no prazo fecha e abre a próxima com 60 dias; Fase Final em andamento segura', async () => {
+    const era = await one(t, 'SELECT id, ends_at FROM game.seasons WHERE closed_at IS NULL');
+    assert.equal((await one(t, 'SELECT game.close_era(now()) AS id')).id, null);
+    await t.pool.query(`UPDATE game.seasons SET jounin_stage = 'grupos' WHERE id = $1`, [era.id]);
+    assert.equal((await one(t, 'SELECT game.close_era($1) AS id', [new Date(era.ends_at.getTime() + 1000)])).id, null, 'grupos em andamento');
+    await t.pool.query(`UPDATE game.seasons SET jounin_stage = 'encerrado' WHERE id = $1`, [era.id]);
+    const at = new Date(era.ends_at.getTime() + 1000);
+    assert.equal((await one(t, 'SELECT game.close_era($1) AS id', [at])).id, era.id);
+    const next = await one(t, 'SELECT id, starts_at, ends_at FROM game.seasons WHERE closed_at IS NULL');
+    assert.equal(next.id, era.id + 1);
+    assert.equal(next.ends_at.getTime() - next.starts_at.getTime(), 60 * 86_400_000);
+    assert.equal((await one(t, 'SELECT game.close_era($1) AS id', [at])).id, null, 'rodar de novo não fecha a nova');
+  });
+});
