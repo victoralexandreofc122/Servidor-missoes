@@ -30,6 +30,10 @@ export interface StaticFile {
 /** Atlas dos monstros em public/assets/monsters/ (a lista bate com monsterData.js: test/monstros.test.ts confere). */
 export const MONSTER_ART_TYPES = ['slime', 'lodo_escuro', 'lodo_sombrio', 'rei_lodo'] as const;
 
+/** v56: os quadros de public/assets/vfx/<jutsu>_0N.png (a lista bate com vfxJutsus.js: test/vfx.test.ts confere). */
+export const JUTSU_SPRITES = ['fogo', 'sopro', 'nevoa', 'linha', 'teleporte', 'substituicao'] as const;
+export const JUTSU_SPRITE_FRAMES = JUTSU_SPRITES.flatMap((n) => [1, 2, 3].map((i) => `${n}_0${i}`));
+
 /** Folhas PNG de public/assets/<pasta>/ (a lista bate com vfxData.js e weaponData.js: test/static.test.ts confere). */
 function sheets(folder: 'vfx' | 'weapons', names: readonly string[]) {
   return names.map((n) => ({ route: `/assets/${folder}/${n}.png`, file: `assets/${folder}/${n}.png`, contentType: 'image/png', binary: true as const }));
@@ -80,6 +84,9 @@ const FILES = [
   // Efeitos dos golpes e armas em pixel art (arte/armas-vfx): o código, os dados e as folhas (abaixo, em VFX_SHEETS/WEAPON_SHEETS).
   { route: '/vfx.js', file: 'vfx.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/vfxData.js', file: 'vfxData.js', contentType: 'text/javascript; charset=utf-8' },
+  // v56: os sprites desenhados pelo Victor (3 quadros por jutsu: lançamento, ativo, fim)
+  { route: '/vfxJutsus.js', file: 'vfxJutsus.js', contentType: 'text/javascript; charset=utf-8' },
+  ...sheets('vfx', JUTSU_SPRITE_FRAMES),
   { route: '/weapons.js', file: 'weapons.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/weaponData.js', file: 'weaponData.js', contentType: 'text/javascript; charset=utf-8' },
   ...sheets('vfx', [
