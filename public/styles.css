@@ -520,6 +520,8 @@ button { font: inherit; color: inherit; touch-action: manipulation; cursor: poin
 .cbtn.kit { --x: 70.7; --y: -70.7; }
 .cbtn.target { --x: 102.5; --y: 177.5; }
 .cbtn.talk { --x: 177.5; --y: 102.5; --c: rgba(110, 80, 10, 0.9); border-color: #ffd23f; animation: badge-pop 0.45s ease-out; }
+.cbtn.shuriken { --x: 180; --y: -80; --c: rgba(40, 46, 58, 0.85); }   /* v53: a Shuriken de mão */
+.cbtn.shuriken.empty { opacity: 0.4; filter: grayscale(0.9); }
 .cbtn.power { --size: 56; --x: 177.5; --y: 30; --c: rgba(90, 14, 18, 0.92); border-color: #e8574a; }
 
 .cbtn.skill.empty { opacity: 0.35; border-style: dashed; }

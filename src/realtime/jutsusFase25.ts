@@ -104,7 +104,7 @@ export const FASE25: Readonly<Record<string, ClassJutsu>> = {
   shadow_punho: { name: 'Punho do Abismo', class: 'shadow', tier: 4, form: 'aviso',
     numbers: { ...CLEAN, base: 28, damage: dmg(28, 4), cost: 55, cooldownMs: 16_000, range: 7, radius: 3, durationMs: 1000, rootMs: 1600, castMs: 600 } },
   shadow_sentinela: { name: 'Sentinela de Sombra', class: 'shadow', tier: 4, form: 'invocacao',
-    numbers: { ...CLEAN, base: 16, damage: dmg(16, 4), cost: 55, cooldownMs: 40_000, range: 0, radius: 1.5, summonType: 'golem', summonHp: 0.3, durationMs: 10_000, punchEveryMs: 3000, liftMs: 500, castMs: 1000, castSlow: 0 } },
+    numbers: { ...CLEAN, base: 16, damage: dmg(16, 4), cost: 55, cooldownMs: 40_000, range: 0, radius: 1.5, summonType: 'sentinela_sombra', summonHp: 0.3, durationMs: 10_000, punchEveryMs: 3000, liftMs: 500, castMs: 1000, castSlow: 0 } },
   // ------------------------------------------------------------------ stone
   stone_pisao: { name: 'Pisão da Montanha', class: 'stone', tier: 2, form: 'anel_golpe',
     numbers: { ...CLEAN, base: 20, damage: dmg(20, 2), cost: 27, cooldownMs: 10_000, radius: 2.5, range: undefined, liftMs: 800 } },
@@ -168,7 +168,7 @@ export const FASE25: Readonly<Record<string, ClassJutsu>> = {
   weapons_ceu: { name: 'Céu de Lâminas', class: 'weapons', tier: 4, form: 'meteoros',
     numbers: { ...CLEAN, base: 4.7, damage: dmg(4.7, 4), cost: 22, cooldownMs: 8000, shots: 5, range: 7, radius: 4, durationMs: 800, castMs: 500, castSlow: 0, pvpScale: true } },
   weapons_arsenal: { name: 'Arsenal Vivo', class: 'weapons', tier: 4, form: 'invocacao',
-    numbers: { ...CLEAN, base: 11.5, damage: dmg(11.5, 4), cost: 22, cooldownMs: 16_000, range: 0, radius: 1.5, shots: 1, summonType: 'golem', summonHp: 0.25, durationMs: 10_000, punchEveryMs: 2500, castMs: 800, castSlow: 0, pvpScale: true } },
+    numbers: { ...CLEAN, base: 11.5, damage: dmg(11.5, 4), cost: 22, cooldownMs: 16_000, range: 0, radius: 1.5, shots: 1, summonType: 'arsenal', summonHp: 0.25, durationMs: 10_000, punchEveryMs: 2500, castMs: 800, castSlow: 0, pvpScale: true } },
   // ------------------------------------------------------------------ wind
   wind_pulso: { name: 'Pulso de Vento', class: 'wind', tier: 2, form: 'anel_golpe',
     numbers: { ...CLEAN, base: 18, damage: dmg(18, 2), cost: 22, cooldownMs: 8000, radius: 3, range: undefined, push: 2.5 } },

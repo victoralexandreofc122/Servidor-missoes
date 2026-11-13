@@ -442,8 +442,8 @@ interface StateRow {
 const toState = (r: StateRow): AdminPlayerState => ({
   totalXp: Number(r.total_xp), level: r.level, statPoints: r.stat_points,
   attributes: {
-    vitality: r.attr_vitality, chakra: r.attr_chakra, agility: r.attr_agility,
-    taijutsu: r.attr_taijutsu, ninjutsu: r.attr_ninjutsu, weapons: r.attr_weapons,
+    vitality: r.attr_vitality, chakra: r.attr_chakra,
+    taijutsu: r.attr_taijutsu + (r.attr_agility ?? 0), ninjutsu: r.attr_ninjutsu, weapons: r.attr_weapons,
   },
 });
 

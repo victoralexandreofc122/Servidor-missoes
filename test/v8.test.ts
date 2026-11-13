@@ -157,11 +157,11 @@ describe('v8: atributos com rendimento decrescente (soft cap) e sem teto', () =>
     assert.ok(Math.abs(effectivePoints(3, 0.05) - (1 + 1 / 1.05 + 1 / 1.1)) < 1e-12);
   });
 
-  it('nível 60 com tudo em Vitalidade: 379 de vida (e não 690); velocidade com teto de +5', () => {
+  it('nível 60 com tudo em Vitalidade: 379 de vida (e não 690); Taijutsu 59: velocidade +2,79 (teto +3) e Básico em 533 ms', () => {
     const base = { maxHp: 100, maxChakra: 100, meditationChakraPerSec: 15, walkSpeed: 5, runSpeed: 8, attackCooldownMs: 600 };
     assert.equal(derivedStats(base, RULES, { ...NO_ATTRIBUTES, vitality: 59 }).maxHp, 379);
-    const fast = derivedStats(base, RULES, { ...NO_ATTRIBUTES, agility: 59 });
-    assert.deepEqual([fast.walkSpeed, fast.runSpeed, fast.attackCooldownMs], [10, 13, 360]);
+    const fast = derivedStats(base, RULES, { ...NO_ATTRIBUTES, taijutsu: 59 });
+    assert.deepEqual([fast.walkSpeed, fast.runSpeed, fast.attackCooldownMs], [7.79, 10.79, 533]);
     // Mais pontos sempre rendem MAIS (nunca menos), só cada vez menos por ponto.
     let last = 0;
     for (let n = 1; n <= 59; n++) {
@@ -175,7 +175,7 @@ describe('v8: atributos com rendimento decrescente (soft cap) e sem teto', () =>
     const base = { maxHp: 100, maxChakra: 100, meditationChakraPerSec: 15, walkSpeed: 5, runSpeed: 8, attackCooldownMs: 600 };
     const d = derivedStats(base, RULES, { ...NO_ATTRIBUTES, chakra: 1 });
     assert.deepEqual([d.maxChakra, d.meditationChakraPerSec], [110, 16]);
-    assert.deepEqual(Object.keys(NO_ATTRIBUTES), ['vitality', 'chakra', 'agility', 'taijutsu', 'ninjutsu', 'weapons']);
+    assert.deepEqual(Object.keys(NO_ATTRIBUTES), ['vitality', 'chakra', 'taijutsu', 'ninjutsu', 'weapons']);
   });
 
   it('o SERVIDOR manda o ganho do próximo ponto (nextGain) e o custo de redefinir; não existe mais "máximo de pontos"', () => {

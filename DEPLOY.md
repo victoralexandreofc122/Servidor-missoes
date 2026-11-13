@@ -1253,3 +1253,20 @@ Cadastra os 12 jutsus em `game.jutsus` e atualiza `game.valid_kit` para os 186 c
 
 1. Loja de Pergaminhos: alguns tiers passam a mostrar 5 jutsus (o de mecânica inédita é o quinto).
 2. Conferência no Neon: `SELECT count(*) FROM game.jutsus;` deve dar 186.
+
+## Passo 47 — Ajustes do Teste Alpha (SQL v32)
+
+Rode `db/schema_v32_alpha_ajustes.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v31**, e só então mescle
+o código. Pode rodar de novo sem erro.
+
+- Os pontos de **Agilidade viram Taijutsu** (o atributo saiu do jogo; a soma dos pontos de cada um não muda).
+- Cadastra o item **Shuriken** (consumível, 10 ryō, loja de armas). `game.items` passa a aceitar o tipo `consumable`.
+
+As migrações v11, v12 e v14 também passaram a aceitar `consumable` (rodar uma delas de novo depois da v32 não quebra).
+
+### Testar no celular
+
+1. Ficha → Atributos: não há mais Agilidade; quem tinha pontos nela vê os mesmos pontos em Taijutsu.
+2. Loja de armas: "Shuriken" com o botão "Comprar 10". O botão ✴️ ao lado do ataque mostra quantas sobram e lança uma.
+3. Golem de Terra Titânico, Sentinela de Sombra ou Arsenal Vivo perto de um monstro: a invocação anda até ele e soca.
+4. Conferência no Neon: `SELECT count(*) FROM game.players WHERE attr_agility > 0;` deve dar 0.

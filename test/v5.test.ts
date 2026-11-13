@@ -52,13 +52,13 @@ describe('v5: atributos e nível (funções puras)', () => {
     assert.deepEqual(levelProgress(10 ** 9), { level: 60, xpInLevel: 0, xpToNext: 0 });
   });
 
-  it('1º ponto: +10 vida, +10 chakra e +1/s meditando (Chakra), +0,5 velocidade, +5% físico, +5% jutsu; os seguintes com soft cap (v8)', () => {
+  it('1º ponto: +10 vida, +10 chakra e +1/s meditando (Chakra), Taijutsu +5% físico, +0,1 velocidade e Básico mais rápido; +5% jutsu; Chakra +4% de cura; os seguintes com soft cap (v8, v53)', () => {
     const base = { maxHp: 100, maxChakra: 100, meditationChakraPerSec: 15, walkSpeed: 5, runSpeed: 8, attackCooldownMs: 600 };
-    const one = derivedStats(base, REALTIME.combat.attributes, { vitality: 1, chakra: 1, agility: 1, taijutsu: 1, ninjutsu: 1, weapons: 1 });
-    assert.deepEqual(one, { maxHp: 110, maxChakra: 110, meditationChakraPerSec: 16, walkSpeed: 5.5, runSpeed: 8.5, physicalMultiplier: 1.05, jutsuMultiplier: 1.05, weaponMultiplier: 1.05, attackCooldownMs: 576 });
+    const one = derivedStats(base, REALTIME.combat.attributes, { vitality: 1, chakra: 1, taijutsu: 1, ninjutsu: 1, weapons: 1 });
+    assert.deepEqual(one, { maxHp: 110, maxChakra: 110, meditationChakraPerSec: 16, walkSpeed: 5.1, runSpeed: 8.1, physicalMultiplier: 1.05, jutsuMultiplier: 1.05, weaponMultiplier: 1.05, attackCooldownMs: 598, healMultiplier: 1.04 });
     // 2 pontos = 1 + 1/1,05; 3 = ... + 1/1,10; 4 = ... + 1/1,15 (rendimento decrescente).
-    const d = derivedStats(base, REALTIME.combat.attributes, { vitality: 2, chakra: 3, agility: 2, taijutsu: 2, ninjutsu: 4, weapons: 0 });
-    assert.deepEqual(d, { maxHp: 120, maxChakra: 129, meditationChakraPerSec: 17.86, walkSpeed: 5.98, runSpeed: 8.98, physicalMultiplier: 1.098, jutsuMultiplier: 1.187, weaponMultiplier: 1, attackCooldownMs: 553 });
+    const d = derivedStats(base, REALTIME.combat.attributes, { vitality: 2, chakra: 3, taijutsu: 2, ninjutsu: 4, weapons: 0 });
+    assert.deepEqual(d, { maxHp: 120, maxChakra: 129, meditationChakraPerSec: 17.86, walkSpeed: 5.2, runSpeed: 8.2, physicalMultiplier: 1.098, jutsuMultiplier: 1.187, weaponMultiplier: 1, attackCooldownMs: 595, healMultiplier: 1.114 });
     assert.equal(scaledDamage(12, 1.1), 13);
     assert.equal(scaledDamage(25, 1.2), 30);
   });
@@ -135,13 +135,13 @@ describe('v5: corrida e velocidade', () => {
     assert.equal(a.conn.last('error').code, 'INVALID_MESSAGE');
   });
 
-  it('Agilidade: +0,5 no 1º ponto (soft cap nos seguintes) em andar E correr', () => {
+  it('v53: Taijutsu dá velocidade: +0,1 no 1º ponto (soft cap nos seguintes) em andar E correr', () => {
     const { world } = setupWorld(config);
     const conn = new (class { sent: any[] = []; bufferedAmount = 0; send(d: string) { this.sent.push(JSON.parse(d)); } close() {} })();
-    const h = world.join({ id: 'p2', username: 'rapido', attributes: { ...NO_ATTRIBUTES, agility: 4 } }, conn);
-    assert.equal(conn.sent[0].you.speed, 6.87);
+    const h = world.join({ id: 'p2', username: 'rapido', attributes: { ...NO_ATTRIBUTES, taijutsu: 4 } }, conn);
+    assert.equal(conn.sent[0].you.speed, 5.37);
     h.receive(JSON.stringify({ type: 'run', active: true }));
-    assert.equal(conn.sent.at(-1).speed, 9.87);
+    assert.equal(conn.sent.at(-1).speed, 8.37);
   });
 });
 

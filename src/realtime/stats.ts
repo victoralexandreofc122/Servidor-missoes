@@ -4,18 +4,21 @@
  * O cliente só recebe o resultado pronto (nunca calcula).
  */
 
-/** Os 6 atributos que o jogador upa com pontos (v8: "Chakra" junta o antigo Chakra Máximo e o Regen Chakra). */
-export const ATTRIBUTES = ['vitality', 'chakra', 'agility', 'taijutsu', 'ninjutsu', 'weapons'] as const;
+/**
+ * Os 5 atributos que o jogador upa com pontos (v8: "Chakra" junta o antigo Chakra Máximo e o Regen Chakra).
+ * v53: a Agilidade saiu (a velocidade e o ritmo do Ataque Básico agora vêm do Taijutsu); os pontos dela viraram Taijutsu
+ * (migração v32). Enquanto a coluna attr_agility existir, quem lê o banco soma o que sobrar nela ao Taijutsu.
+ */
+export const ATTRIBUTES = ['vitality', 'chakra', 'taijutsu', 'ninjutsu', 'weapons'] as const;
 export type Attribute = (typeof ATTRIBUTES)[number];
 export type Attributes = Record<Attribute, number>;
 
-export const NO_ATTRIBUTES: Readonly<Attributes> = { vitality: 0, chakra: 0, agility: 0, taijutsu: 0, ninjutsu: 0, weapons: 0 };
+export const NO_ATTRIBUTES: Readonly<Attributes> = { vitality: 0, chakra: 0, taijutsu: 0, ninjutsu: 0, weapons: 0 };
 
 /** Coluna de cada atributo em game.players (lista fechada: nunca vem do cliente). */
 export const ATTRIBUTE_COLUMNS: Readonly<Record<Attribute, string>> = {
   vitality: 'attr_vitality',
   chakra: 'attr_chakra',
-  agility: 'attr_agility',
   taijutsu: 'attr_taijutsu',
   ninjutsu: 'attr_ninjutsu',
   weapons: 'attr_weapons',
@@ -34,8 +37,12 @@ export interface AttributeRules {
   perPoint: Attributes;
   /** Chakra também acelera a meditação: chakra/s do 1º ponto (com o mesmo soft cap). */
   chakraRegenPerPoint: number;
-  /** Agilidade também acelera o Ataque Básico: cada ponto (efetivo) corta esta fração da recarga (0,04 = 4%). */
-  agilityAttackSpeed: number;
+  /** v53: Taijutsu também acelera o Ataque Básico: cada ponto (efetivo) corta esta fração da recarga (0,012 = 1,2%). */
+  taijutsuAttackSpeed: number;
+  /** v53: Taijutsu também acelera o movimento: casas/s por ponto efetivo (até `maxSpeedBonus`). */
+  taijutsuMoveSpeed: number;
+  /** v53: Chakra também aumenta a cura dos jutsus de Cura: fração por ponto efetivo (0,04 = +4%). */
+  chakraHealPerPoint: number;
   /** A recarga do ataque nunca fica abaixo desta fração da base (0,6 = 60%). */
   minAttackCooldownFactor: number;
   /** Bônus máximo de velocidade (casas/s): o movimento com predição e a colisão contam com passos curtos. */
@@ -51,7 +58,7 @@ export interface BaseStats {
   meditationChakraPerSec: number;
   walkSpeed: number;
   runSpeed: number;
-  /** Recarga do Ataque Básico sem Agilidade (ms). */
+  /** Recarga do Ataque Básico sem Taijutsu (ms). */
   attackCooldownMs: number;
 }
 
@@ -68,8 +75,10 @@ export interface DerivedStats {
   jutsuMultiplier: number;
   /** Dano de ARMAS (Kunai equipada e jutsus da classe Armas): 1 + Armas. */
   weaponMultiplier: number;
-  /** Recarga do Ataque Básico já com a Agilidade (ms). */
+  /** Recarga do Ataque Básico já com o Taijutsu (ms). */
   attackCooldownMs: number;
+  /** v53: cura dos jutsus de Cura: 1 + Chakra (1,2 = +20%). Só a cura; o dano da classe Cura vem do Ninjutsu. */
+  healMultiplier: number;
 }
 
 /** Ganho REAL de um ponto quando já há `invested` pontos no atributo: base / (1 + invested × softCap). */
@@ -94,18 +103,19 @@ export function derivedStats(base: BaseStats, rules: AttributeRules, a: Attribut
   const p = rules.perPoint;
   const e = (points: number) => effectivePoints(points, rules.softCap);
   const chakra = e(a.chakra);
-  const agility = e(a.agility);
-  const speedBonus = Math.min(rules.maxSpeedBonus, agility * p.agility);
+  const taijutsu = e(a.taijutsu);
+  const speedBonus = Math.min(rules.maxSpeedBonus, taijutsu * rules.taijutsuMoveSpeed);
   return {
     maxHp: Math.round(base.maxHp + rules.hpPerLevel * (Math.max(1, level) - 1) + e(a.vitality) * p.vitality),
     maxChakra: Math.round(base.maxChakra + chakra * p.chakra),
     meditationChakraPerSec: round2(base.meditationChakraPerSec + chakra * rules.chakraRegenPerPoint),
     walkSpeed: round2(base.walkSpeed + speedBonus),
     runSpeed: round2(base.runSpeed + speedBonus),
-    physicalMultiplier: round3(1 + e(a.taijutsu) * p.taijutsu),
+    physicalMultiplier: round3(1 + taijutsu * p.taijutsu),
     jutsuMultiplier: round3(1 + e(a.ninjutsu) * p.ninjutsu),
     weaponMultiplier: round3(1 + e(a.weapons) * p.weapons),
-    attackCooldownMs: Math.round(base.attackCooldownMs * Math.max(rules.minAttackCooldownFactor, 1 - agility * rules.agilityAttackSpeed)),
+    attackCooldownMs: Math.round(base.attackCooldownMs * Math.max(rules.minAttackCooldownFactor, 1 - taijutsu * rules.taijutsuAttackSpeed)),
+    healMultiplier: round3(1 + chakra * rules.chakraHealPerPoint),
   };
 }
 

@@ -451,16 +451,20 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       softCap: 0.05,
       // Vida por nível (v28, plano do duelo): +6 por nível acima do 1, no jogo todo (nível 60: +354).
       hpPerLevel: 6,
-      // vitalidade +10 vida · chakra +10 de chakra máximo (e +1/s meditando, abaixo) · agilidade +0,5 velocidade
-      // taijutsu +5% no corpo a corpo (Ataque Básico e o soco 👊) · ninjutsu +5% nos jutsus elementais
-      // armas +5% no dano da arma equipada (Kunai: +10 de base) e nos jutsus da classe Armas
-      perPoint: { vitality: 10, chakra: 10, agility: 0.5, taijutsu: 0.05, ninjutsu: 0.05, weapons: 0.05 },
+      // vitalidade +10 vida · chakra +10 de chakra máximo (e +1/s meditando e +4% de cura, abaixo)
+      // taijutsu +5% no corpo a corpo (Ataque Básico e o soco 👊), mais ritmo do Básico e velocidade (abaixo)
+      // ninjutsu +5% nos jutsus elementais e no dano da classe Cura · armas +5% na arma equipada e nos jutsus de Armas
+      perPoint: { vitality: 10, chakra: 10, taijutsu: 0.05, ninjutsu: 0.05, weapons: 0.05 },
       chakraRegenPerPoint: 1,
-      // Agilidade também acelera o Ataque Básico: -4% de recarga por ponto efetivo (até 60% da base).
-      agilityAttackSpeed: 0.04,
+      // v53: Chakra aumenta a cura dos jutsus de Cura: +4% por ponto efetivo (59 pontos ~ +110%).
+      chakraHealPerPoint: 0.04,
+      // v53 (a Agilidade saiu): Taijutsu acelera o Ataque Básico, -0,4% de recarga por ponto efetivo (59 pontos: 600 -> 533 ms;
+      // mais que isso a build de Taijutsu vence todas no simulador de duelos, test/pvpBalance.test.ts)...
+      taijutsuAttackSpeed: 0.004,
       minAttackCooldownFactor: 0.6,
-      // Velocidade: no máximo +5 casas/s (o mesmo dos 10 pontos de antes, com o soft cap ~12 pontos).
-      maxSpeedBonus: 5,
+      // ...e o movimento: +0,1 casa/s por ponto efetivo, no máximo +3 (59 pontos ~ +2,75).
+      taijutsuMoveSpeed: 0.1,
+      maxSpeedBonus: 3,
       resetCostRyo: 500,
     },
     monsters: {
@@ -475,9 +479,13 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     monsterTypes: {
       // Sala 1: destruir 3 com o Ataque Básico (2 golpes cada). Não batem.
       dummy: { maxHp: 12, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 2500 },
-      // v30: invocações dos jutsus (a vida de verdade vem de quem invoca; não andam, não dão XP, não renascem)
-      clone_agua: { maxHp: 50, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12 },
-      golem: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12 },
+      // v30: invocações dos jutsus (a vida de verdade vem de quem invoca; não dão XP, não renascem; empurrão não move).
+      // v53: andam até o alvo (o que o dono mirou ou o inimigo mais perto) na velocidade do `ai` e socam quando ele está perto.
+      clone_agua: { maxHp: 50, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 3.6, leashRange: 12 } },
+      golem: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 2.6, leashRange: 12 } },
+      // v53: Sentinela de Sombra e Arsenal Vivo têm o tipo (e o desenho) próprio: antes saíam como o Golem de Terra
+      sentinela_sombra: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 3.4, leashRange: 12 } },
+      arsenal: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 3.2, leashRange: 12 } },
       // Sala de Jutsus: ARMADILHA de lâminas que bate (fraco) em quem chega perto: treina a Substituição.
       sparring: { maxHp: 400, xp: 0, attackRange: 1.6, attackDamage: 6, attackEveryMs: 1800, stationary: true, respawnMs: 2500 },
       // Zona de Conflito: lodo sombrio, mais forte que o slime (para quem já é Chunin).

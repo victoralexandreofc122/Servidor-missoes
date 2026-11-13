@@ -27,8 +27,7 @@ interface AttrRow {
 const toAttributes = (r: AttrRow): Attributes => ({
   vitality: r.attr_vitality,
   chakra: r.attr_chakra,
-  agility: r.attr_agility,
-  taijutsu: r.attr_taijutsu,
+  taijutsu: r.attr_taijutsu + (r.attr_agility ?? 0),   // v53: a Agilidade virou Taijutsu
   ninjutsu: r.attr_ninjutsu,
   weapons: r.attr_weapons,
 });

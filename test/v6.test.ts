@@ -55,23 +55,23 @@ describe('v6: dano por tipo (Taijutsu x Ninjutsu)', () => {
   });
 });
 
-describe('v6: Agilidade também acelera o Ataque Básico', () => {
-  it('recarga 600 ms -> 4% a menos por ponto efetivo (5 pontos com soft cap: 490 ms), nunca abaixo de 60%', () => {
+describe('v53: Taijutsu também acelera o Ataque Básico (a Agilidade saiu)', () => {
+  it('recarga 600 ms -> 0,4% a menos por ponto efetivo (5 pontos com soft cap: 589 ms; 59 pontos: 533 ms)', () => {
     const { world, clock } = setupWorld(config);
     const c = new Conn();
-    const h = world.join({ id: 'agil', username: 'agil', attributes: { ...NO_ATTRIBUTES, agility: 5 } }, c);
-    assert.equal(c.sent[0].progress.derived.attackCooldownMs, 490);
+    const h = world.join({ id: 'agil', username: 'agil', attributes: { ...NO_ATTRIBUTES, taijutsu: 5 } }, c);
+    assert.equal(c.sent[0].progress.derived.attackCooldownMs, 589);
     world.spawnMonster({ x: S.x + 1, y: S.y });
     h.receive(JSON.stringify({ type: 'attack' }));
-    clock.advance(490);
+    clock.advance(589);
     h.receive(JSON.stringify({ type: 'attack' }));
-    assert.equal(c.sent.filter((m) => m.type === 'attack').length, 2, 'com 490 ms já ataca de novo');
-    clock.advance(489);
+    assert.equal(c.sent.filter((m) => m.type === 'attack').length, 2, 'com 589 ms já ataca de novo');
+    clock.advance(588);
     h.receive(JSON.stringify({ type: 'attack' }));
     assert.equal(c.last('attack_failed').reason, 'COOLDOWN');
     const max = new Conn();
-    world.join({ id: 'max', username: 'max', attributes: { ...NO_ATTRIBUTES, agility: 20 } }, max);
-    assert.equal(max.sent[0].progress.derived.attackCooldownMs, 360, '20 pontos: no piso de 60% de 600');
+    world.join({ id: 'max', username: 'max', attributes: { ...NO_ATTRIBUTES, taijutsu: 59 } }, max);
+    assert.equal(max.sent[0].progress.derived.attackCooldownMs, 533, '59 pontos (nível 60, tudo em Taijutsu): acima do piso de 60%');
   });
 });
 

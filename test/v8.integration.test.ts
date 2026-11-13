@@ -199,14 +199,14 @@ describe('v8 no banco: atributos, redefinição, chat, missões e equipamento', 
     const profile = makeProfile(t.db);
     assert.deepEqual(await profile.resetAttributes(id, 500), { ok: false, text: 'Você ainda não investiu nenhum ponto.' });
     await makeProgression(t.db).grantXp(id, levelStart(4), 300);
-    await profile.spendPoint(id, 'agility');
+    await profile.spendPoint(id, 'taijutsu');
     await profile.spendPoint(id, 'chakra');
     assert.deepEqual(await profile.resetAttributes(id, 500), { ok: false, text: 'Ryō insuficiente.' });
-    assert.equal((await one('SELECT attr_agility FROM game.players WHERE id = $1', [id])).attr_agility, 1, 'recusa não mexe em nada');
+    assert.equal((await one('SELECT attr_taijutsu FROM game.players WHERE id = $1', [id])).attr_taijutsu, 1, 'recusa não mexe em nada');
     await t.pool.query('UPDATE game.players SET ryo = 650 WHERE id = $1', [id]);
     const r = await profile.resetAttributes(id, 500);
     assert.ok(r.ok);
-    assert.deepEqual([r.ryo, r.statPoints, r.attributes.agility, r.attributes.chakra], [150, 3, 0, 0]);
+    assert.deepEqual([r.ryo, r.statPoints, r.attributes.taijutsu, r.attributes.chakra], [150, 3, 0, 0]);
     await assert.rejects(t.pool.query('SELECT game.reset_attributes($1, -10)', [id]), rule('rule_reset_cost'));
   });
 

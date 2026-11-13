@@ -38,6 +38,7 @@ import type { PowerKind } from './akatsuki.js';
  *   { "type": "talk", "npcId": "sensei" }       falar com o NPC Mestre (precisa estar perto)
  *   { "type": "missions" }                      pedir a missão atual (abrir a Sala de Missões)
  *   { "type": "attack", "targetId": "m12" }     ataque básico (sem chakra); targetId opcional
+ *   { "type": "attack", "shuriken": true }      v53: lança uma Shuriken do inventário (gasta 1; sem nenhuma, o golpe normal)
  *   { "type": "run", "active": true }           correr (8) ou andar (5); o servidor aplica
  *   { "type": "switch_kit", "kit": "B" }        trocar de kit (só vale depois que o servidor confirma)
  *   { "type": "set_loadout", "kitA": [..], "kitB": [..] }   até 4 habilidades por kit
@@ -244,7 +245,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z][a-z_]{0,23}$/) }),
   z.object({ type: z.literal('missions') }),
-  z.object({ type: z.literal('attack'), targetId: targetId.optional() }),
+  // v53: shuriken = lança uma Shuriken do inventário (sem nenhuma: o golpe normal, com a arma equipada)
+  z.object({ type: z.literal('attack'), targetId: targetId.optional(), shuriken: z.literal(true).optional() }),
   z.object({ type: z.literal('run'), active: z.boolean() }),
   z.object({ type: z.literal('switch_kit'), kit: z.enum(['A', 'B']) }),
   z.object({ type: z.literal('set_loadout'), kitA: skillList, kitB: skillList }),
@@ -671,7 +673,7 @@ export type ServerMessage =
   | { type: 'barrier_end'; id: number }
   // v30: invocação de um ninja (é um monstro com dono; some no fim) e o soco do Golem
   | { type: 'summon'; id: string; ownerId: string; kind: string; hp: number; maxHp: number; ms: number }
-  | { type: 'summon_punch'; id: string; x: number; y: number; r: number }
+  | { type: 'summon_punch'; id: string; x: number; y: number; r: number; fx?: number; fy?: number }   // v53: fx/fy = para onde soca
   // v29: conjuração (selos) começou, e foi interrompida
   | { type: 'cast_start'; playerId: string; skill: string; ms: number }
   | { type: 'cast_interrupted'; playerId: string; skill: string; reason: 'interrupted' | 'cancel' }

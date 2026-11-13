@@ -78,8 +78,7 @@ export function makeFindPlayer(db: Queryable) {
       attributes: {
         vitality: row.attr_vitality,
         chakra: row.attr_chakra,
-        agility: row.attr_agility,
-        taijutsu: row.attr_taijutsu,
+        taijutsu: row.attr_taijutsu + (row.attr_agility ?? 0),   // v53: a Agilidade virou Taijutsu
         ninjutsu: row.attr_ninjutsu,
         weapons: row.attr_weapons,
       },

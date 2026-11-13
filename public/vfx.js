@@ -66,9 +66,9 @@ export class VFXManager {
   }
 
   /** Projétil saindo (mensagem `projectile`): voa na direção (fx, fy) até o alcance ou o `impact`. */
-  launch(id, name, x, y, fx, fy, speed, range, start) {
+  launch(id, name, x, y, fx, fy, speed, range, start, scale = 1) {
     if (!sheets[name]) return false;
-    this.shots.set(id, { name, x, y, fx, fy, speed, range, start, until: start + (range / Math.max(0.1, speed)) * 1000 + 400 });
+    this.shots.set(id, { name, x, y, fx, fy, speed, range, start, scale, until: start + (range / Math.max(0.1, speed)) * 1000 + 400 });
     return true;
   }
 
@@ -96,7 +96,7 @@ export class VFXManager {
       const e = VFX.efeitos[p.name];
       const d = Math.min(p.range, (p.speed * Math.max(0, now - p.start)) / 1000);
       const frame = Math.floor(Math.max(0, now - p.start) / e.ms) % e.quadros;
-      drawFrame(g, sheets[p.name], e, frame, toX(p.x + p.fx * d), toY(p.y + p.fy * d), s * e.px, Math.atan2(p.fy, p.fx), dpr);
+      drawFrame(g, sheets[p.name], e, frame, toX(p.x + p.fx * d), toY(p.y + p.fy * d), s * e.px * (p.scale ?? 1), Math.atan2(p.fy, p.fx), dpr);
     }
   }
 }
