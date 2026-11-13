@@ -32,7 +32,10 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 - **v53 (ajustes do Teste Alpha, migração v32):** Agilidade saiu (virou Taijutsu: velocidade e ritmo do Básico), Chakra
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
-  (perde o alvo), Duplo de Água bate. Branch `ccr-alpha-ajustes` até o Victor rodar a v32 no Neon.
+  (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v55 (migração v33):** 4 arenas simultâneas e espectador fantasma (painel "Lutas"), semifinal e final sozinhas na principal,
+  rankeado 3v3 (solo e Trio), calendário automático da Era e do Torneio, Torneio dos Heróis e dos Vilões. Branch
+  `ccr-pvp-torneio` até o Victor rodar a v33 no Neon.
 
 ## Documentos
 

@@ -2743,7 +2743,7 @@ function renderGhost() {
   document.body.classList.toggle('spectating', !!state.spectating);
   if (!state.spectating) return;
   const f = (state.arenas || []).find((x) => x.arena === state.watching);
-  ui.ghostText.textContent = f ? `👁 Assistindo · ${f.arenaName}: ${f.a.join(' + ')} vs ${f.b.join(' + ')}` : '👁 Assistindo';
+  ui.ghostText.textContent = f ? `👁 Assistindo · ${f.arenaName} · ${f.label}` : '👁 Assistindo';   // os nomes já estão no placar
 }
 ui.championBtn.addEventListener('click', () => {
   const ch = state.champion;

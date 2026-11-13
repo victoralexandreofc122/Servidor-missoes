@@ -99,3 +99,30 @@ describe('v33 no banco: rankeado 3v3', { skip: noDatabase }, () => {
     await assert.rejects(t.pool.query('SELECT * FROM game.ranked3_result($1::uuid[], $2::uuid[], 2, 0, $3, 1000)', [w, w, 'rounds']));
   });
 });
+
+describe('fim da temporada do rankeado (v15): as recompensas que o servidor paga sozinho a cada 60 dias', { skip: noDatabase }, () => {
+  let t: Db;
+  before(async () => { t = await createTestDatabase(); });
+  after(async () => { await t?.drop(); });
+
+  it('1º: 5.000 ryō e o Manto do Campeão; 2º a 10º: 2.000 e o manto; 11º a 50º: 500; só com 10+ partidas', async () => {
+    const season = (await one(t, 'SELECT id FROM game.ranked_seasons WHERE closed_at IS NULL')).id;
+    const ids: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      const id = await t.createPlayer(`temporada${i}`);
+      ids.push(id);
+      await t.pool.query('INSERT INTO game.ranked_season_ratings (season_id, player_id, mmr, wins, losses) VALUES ($1, $2, $3, 5, 5)', [season, id, 2000 - i * 10]);
+    }
+    const few = await t.createPlayer('poucas_partidas');
+    await t.pool.query('INSERT INTO game.ranked_season_ratings (season_id, player_id, mmr, wins, losses) VALUES ($1, $2, 9999, 5, 4)', [season, few]);
+    assert.equal((await one(t, 'SELECT game.close_ranked_season(now(), true) AS id')).id, season);
+    const ryo = async (id: string) => Number((await one(t, 'SELECT ryo FROM game.players WHERE id = $1', [id])).ryo);
+    const cape = async (id: string) => !!(await one(t, `SELECT 1 AS x FROM game.player_items WHERE player_id = $1 AND item_code = 'manto_campeao'`, [id]));
+    assert.deepEqual([await ryo(ids[0]!), await cape(ids[0]!)], [5000, true], 'campeão');
+    assert.deepEqual([await ryo(ids[1]!), await cape(ids[1]!)], [2000, true], 'elite');
+    assert.deepEqual([await ryo(ids[9]!), await cape(ids[9]!)], [2000, true], '10º ainda é elite');
+    assert.deepEqual([await ryo(ids[10]!), await cape(ids[10]!)], [500, false], 'veterano');
+    assert.equal(await ryo(few), 0, 'menos de 10 partidas: fora');
+    assert.ok(await one(t, 'SELECT id FROM game.ranked_seasons WHERE closed_at IS NULL AND id = $1', [season + 1]), 'a próxima temporada abriu');
+  });
+});

@@ -1046,3 +1046,8 @@ body.spectating #combat, body.spectating #joystick { display: none; }
 .trio-form input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(214, 180, 110, 0.6); background: rgba(0, 0, 0, 0.35); color: #fff3d6; font: inherit; }
 .trio-form .duel-btn { padding: 8px 14px; font-size: 14px; }
 #trio-leave { margin: 0 12px 12px; }
+/* v55: com mais botões (3v3, Trio, Lutas, torneios), a barra fica compacta: uma linha, sem quebrar o texto */
+.duel-bar { flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 32px); row-gap: 6px; }
+.duel-bar .duel-btn { padding: 6px 12px; font-size: 13px; letter-spacing: 0.5px; white-space: nowrap; }
+.ghost-bar { top: auto; bottom: calc(var(--safe-bottom, 0px) + 40px); font-size: 13px; max-width: calc(100vw - 32px); }
+.ghost-bar .duel-btn { white-space: nowrap; padding: 5px 12px; font-size: 13px; }

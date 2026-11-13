@@ -240,6 +240,30 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v55: arenas simultâneas, espectador, 3v3, calendário automático e torneios de campeão (migração v33, `db/schema_v33_pvp_torneio.sql`)
+
+- **Arenas simultâneas:** além da Arena das Quatro Heranças, as Arenas 2, 3 e 4 (cópias dela). Até 4 lutas ao mesmo tempo
+  (rankeado 1v1, 3v3, Torneio da Temporada, Fase Final e torneios de campeão); a principal recebe a primeira.
+- **Semifinal e final, uma por vez:** esperam as outras arenas esvaziarem, lutam sozinhas na principal e o servidor inteiro
+  recebe o aviso ("A Grande Final do Torneio da Temporada vai começar..."). Enquanto isso, nenhuma outra luta começa.
+- **Painel "📺 Lutas" (espectador):** lista as lutas de agora ("Arena 2: A vs B · Rankeado 1v1 · Rodada 1 · 0 x 0"). Tocar
+  numa leva você como **fantasma**: ninguém te vê, você não bate nem apanha, vê o placar e pode trocar de luta ou parar
+  ("✋ Parar" volta para a praça). Assistindo, você continua na fila e sai para lutar quando a sua partida sai.
+- **Rankeado 3v3:** botão "👥 3v3" (sozinho) ou com o **Trio** (o líder convida pelo nome e põe os três na fila). Times com
+  a soma dos níveis parecida (teto de 15; depois de 90 s de espera, o melhor equilíbrio possível). Melhor de 3; a rodada
+  acaba quando os 3 de um time caem (quem cai fica fora até a próxima); sem fogo amigo. Elo K=24 com a média de cada time
+  (pontos próprios do 3v3), 30 ryō para quem vence e 10 para quem perde.
+- **Calendário automático da Era (60 dias):** dia 14 (semana 3) abre a fase de pontos do Torneio da Temporada por 10 dias;
+  no fim monta os grupos; grupos até 3 dias e chaves até 3 dias (antes, se os jogos acabarem; no prazo, W.O. para o melhor
+  cabeça de chave); dia 60 vira a Era. O `/admin torneio` continua forçando cada passo para teste.
+- **Torneio dos Heróis e dos Vilões:** abrem com a Fase Final (mesma semana). 1 dia de inscrições (botão 🦸 na Arena),
+  depois até 5 dias de chave (melhor de 3, nas mesmas arenas; o vencedor volta sozinho para a fila do próximo jogo).
+  Heróis: Jounin ou ANBU, menos o Kage, um torneio por vila, título "Herói da <vila>". Vilões: os renegados (o Maior Vilão
+  ainda não existe no jogo), título "Vilão Mais Forte da Era".
+- **Recompensas de fim de temporada do rankeado:** já eram automáticas desde a v15 (a cada minuto o servidor fecha a
+  temporada vencida): 1º 5.000 ryō e o Manto do Campeão; 2º a 10º 2.000 e o manto; 11º a 50º 500 (com 10+ partidas). Agora
+  há teste de banco cobrindo.
+
 ### v54: valores fixos, Cura rebalanceada e Cegueira como estado (sem migração nova: vai junto da v32)
 
 - **Regra de ouro, valores fixos:** nenhum jutsu cura ou protege por % da vida máxima. Os escudos passaram a ter valor
