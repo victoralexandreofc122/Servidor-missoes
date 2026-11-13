@@ -596,3 +596,11 @@ describe('v8: equipamento visível no boneco (paperdoll)', () => {
     assert.equal(S.x > 0, true);
   });
 });
+
+describe('admin: /admin rito', () => {
+  it('interpreta o comando (nome ou "eu") e recusa sem alvo', () => {
+    assert.deepEqual(parseAdminCommand('/admin rito eu', []), { ok: true, command: { cmd: 'rito', username: 'eu' } });
+    assert.deepEqual(parseAdminCommand('/admin rito kaito', []), { ok: true, command: { cmd: 'rito', username: 'kaito' } });
+    assert.equal(parseAdminCommand('/admin rito', []).ok, false);
+  });
+});

@@ -1471,6 +1471,7 @@ export class GameWorld {
     if (c.cmd === 'ir') return this.adminGo(session, c.map as MapId, c.x, c.y);
     if (c.cmd === 'clima' || c.cmd === 'hora') return this.adminSky(session, c, t);
     if (c.cmd === 'efeito') return this.adminEffect(session, c, t);
+    if (c.cmd === 'rito') return this.adminRite(session, c.username);
     if (c.cmd === 'pvp') return this.adminPvp(session, c.days, t);
     if (c.cmd === 'torneio') return this.adminJounin(session, c.action, c.days, c.username);
     if (c.cmd === 'bonusxp') return this.adminXpBonus(session, c);
@@ -1650,6 +1651,20 @@ export class GameWorld {
   }
 
   /** Efeito num ninja ONLINE (para testar effects.ts): só na memória, como o clima; vai para a auditoria. */
+  /** /admin rito: completa o Rito do Despertar (10/10) de quem está online e ainda não despertou. */
+  private adminRite(s: Session, username: string): void {
+    const name = username === 'eu' ? s.username : username;
+    const who = [...this.sessions.values()].find((x) => !x.closed && x.username.toLowerCase() === name.toLowerCase());
+    const fail = (text: string) => { this.audit(s.id, 'rito', who?.id ?? null, { username: name }, false, text); this.sendTo(s, { type: 'notice', text: `Admin: ${text}`, tone: 'bad' }); };
+    if (!who) return fail(`${name} não está online.`);
+    if (who.clan) return fail(`${who.username} já despertou a linhagem.`);
+    if (!who.clanMark) return fail(`${who.username} ainda não marcou a linhagem no Criador de Personagem.`);
+    this.setRite(who, RITE.count);
+    this.audit(s.id, 'rito', who.id, {}, true, null);
+    if (who.id !== s.id) this.sendTo(who, { type: 'notice', text: `O administrador completou o seu Rito: ${RITE.count}/${RITE.count}. Volte ao Diretor da Academia.`, tone: 'good' });
+    this.sendTo(s, { type: 'notice', text: `Admin: Rito de ${who.username} completo (${RITE.count}/${RITE.count}).`, tone: 'good' });
+  }
+
   private adminEffect(s: Session, c: { username: string; effect: EffectCode | 'limpar'; seconds: number }, t: number): void {
     const who = [...this.sessions.values()].find((x) => !x.closed && x.username.toLowerCase() === c.username.toLowerCase());
     if (!who) {
