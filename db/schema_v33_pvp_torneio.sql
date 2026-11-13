@@ -27,4 +27,138 @@ BEGIN
   RETURN s.id;
 END $$;
 
+-- ---------------------------------------------------------------- 2. Torneio dos Heróis e Torneio dos Vilões
+
+-- Um torneio por Era: o dos Heróis, um por vila (village = a vila); o dos Vilões, um só (village = '').
+CREATE TABLE IF NOT EXISTS game.champion_tournaments (
+  season_id   integer     NOT NULL REFERENCES game.seasons (id),
+  kind        text        NOT NULL CHECK (kind IN ('herois', 'viloes')),
+  village     text        NOT NULL DEFAULT '',
+  opened_at   timestamptz NOT NULL DEFAULT now(),
+  bracket_at  timestamptz,
+  closed_at   timestamptz,
+  champion_id uuid        REFERENCES game.players (id) ON DELETE SET NULL,
+  PRIMARY KEY (season_id, kind, village)
+);
+
+CREATE TABLE IF NOT EXISTS game.champion_entries (
+  season_id integer     NOT NULL REFERENCES game.seasons (id),
+  kind      text        NOT NULL CHECK (kind IN ('herois', 'viloes')),
+  village   text        NOT NULL DEFAULT '',
+  player_id uuid        NOT NULL REFERENCES game.players (id) ON DELETE CASCADE,
+  joined_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (season_id, kind, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS game.champion_brackets (
+  season_id integer     NOT NULL REFERENCES game.seasons (id),
+  kind      text        NOT NULL CHECK (kind IN ('herois', 'viloes')),
+  village   text        NOT NULL DEFAULT '',
+  round     integer     NOT NULL CHECK (round > 0),
+  slot      integer     NOT NULL CHECK (slot > 0),
+  rounds    integer     NOT NULL CHECK (rounds > 0),
+  a_id      uuid        REFERENCES game.players (id) ON DELETE SET NULL,
+  b_id      uuid        REFERENCES game.players (id) ON DELETE SET NULL,
+  winner_id uuid        REFERENCES game.players (id) ON DELETE SET NULL,
+  a_rounds  integer     NOT NULL DEFAULT 0,
+  b_rounds  integer     NOT NULL DEFAULT 0,
+  reason    text,
+  played_at timestamptz,
+  PRIMARY KEY (season_id, kind, village, round, slot),
+  CONSTRAINT ck_champion_brackets_round CHECK (round <= rounds)
+);
+
+-- Quem pode entrar e por qual "vila" do torneio. Heróis: Jounin (ou ANBU) que não é o Kage nem renegado; um torneio por
+-- vila. Vilões: renegado (o Maior Vilão ainda não existe no jogo: quando existir, fica fora daqui). NULL = não pode.
+CREATE OR REPLACE FUNCTION game.champion_slot(p_player uuid, p_kind text) RETURNS text
+LANGUAGE sql STABLE SET search_path = game AS $$
+  SELECT CASE
+    WHEN p_kind = 'herois' AND p.renegade_at IS NULL AND p.village IS NOT NULL AND r.code IN ('JONIN', 'S_JONIN', 'ANBU')
+         AND NOT EXISTS (SELECT 1 FROM village_kages k WHERE k.player_id = p.id AND k.term_ends_at > now()) THEN p.village
+    WHEN p_kind = 'viloes' AND p.renegade_at IS NOT NULL THEN ''
+  END
+  FROM players p JOIN ranks r ON r.id = p.current_rank_id
+  WHERE p.id = p_player
+$$;
+
+-- Inscrição: só na Era aberta, com as inscrições do torneio abertas (sem chave ainda). Devolve a "vila" do torneio.
+CREATE OR REPLACE FUNCTION game.champion_join(p_player uuid, p_kind text, p_now timestamptz DEFAULT now()) RETURNS text
+LANGUAGE plpgsql SET search_path = game AS $$
+DECLARE
+  v_season  integer;
+  v_village text;
+BEGIN
+  SELECT id INTO v_season FROM seasons WHERE closed_at IS NULL;
+  v_village := champion_slot(p_player, p_kind);
+  IF v_season IS NULL OR v_village IS NULL THEN
+    RAISE EXCEPTION 'Não pode entrar neste torneio' USING ERRCODE = 'check_violation', CONSTRAINT = 'rule_champion_not_eligible';
+  END IF;
+  INSERT INTO champion_tournaments (season_id, kind, village, opened_at) VALUES (v_season, p_kind, v_village, p_now)
+  ON CONFLICT (season_id, kind, village) DO NOTHING;
+  IF EXISTS (SELECT 1 FROM champion_tournaments t WHERE t.season_id = v_season AND t.kind = p_kind AND t.village = v_village AND t.bracket_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'As inscrições já fecharam' USING ERRCODE = 'check_violation', CONSTRAINT = 'rule_champion_closed';
+  END IF;
+  INSERT INTO champion_entries (season_id, kind, village, player_id, joined_at) VALUES (v_season, p_kind, v_village, p_player, p_now)
+  ON CONFLICT (season_id, kind, player_id) DO NOTHING;
+  RETURN v_village;
+END $$;
+
+-- Resultado de um jogo da chave: grava e leva o vencedor para a rodada seguinte. Na final: o campeão ganha o título
+-- ("Herói da <vila>" ou "Vilão Mais Forte da Era") e o torneio fecha. Devolve o campeão (ou NULL se a chave continua).
+CREATE OR REPLACE FUNCTION game.champion_result(p_kind text, p_winner uuid, p_loser uuid, p_winner_rounds integer, p_loser_rounds integer,
+                                                p_reason text, p_now timestamptz DEFAULT now()) RETURNS uuid
+LANGUAGE plpgsql SET search_path = game AS $$
+DECLARE
+  v_season integer;
+  m        record;
+BEGIN
+  SELECT id INTO v_season FROM seasons WHERE closed_at IS NULL;
+  SELECT * INTO m FROM champion_brackets b
+   WHERE b.season_id = v_season AND b.kind = p_kind AND b.winner_id IS NULL
+     AND ((b.a_id = p_winner AND b.b_id = p_loser) OR (b.a_id = p_loser AND b.b_id = p_winner))
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Não há jogo pendente entre os dois' USING ERRCODE = 'check_violation', CONSTRAINT = 'rule_champion_no_match';
+  END IF;
+  UPDATE champion_brackets b
+     SET winner_id = p_winner, played_at = p_now, reason = p_reason,
+         a_rounds = CASE WHEN b.a_id = p_winner THEN p_winner_rounds ELSE p_loser_rounds END,
+         b_rounds = CASE WHEN b.b_id = p_winner THEN p_winner_rounds ELSE p_loser_rounds END
+   WHERE b.season_id = m.season_id AND b.kind = m.kind AND b.village = m.village AND b.round = m.round AND b.slot = m.slot;
+  IF m.round < m.rounds THEN
+    INSERT INTO champion_brackets (season_id, kind, village, round, slot, rounds, a_id, b_id)
+    VALUES (m.season_id, m.kind, m.village, m.round + 1, (m.slot + 1) / 2, m.rounds,
+            CASE WHEN m.slot % 2 = 1 THEN p_winner END, CASE WHEN m.slot % 2 = 0 THEN p_winner END)
+    ON CONFLICT (season_id, kind, village, round, slot) DO UPDATE
+      SET a_id = COALESCE(EXCLUDED.a_id, champion_brackets.a_id), b_id = COALESCE(EXCLUDED.b_id, champion_brackets.b_id);
+    RETURN NULL;
+  END IF;
+  PERFORM champion_crown(m.season_id, m.kind, m.village, p_winner, p_now);
+  RETURN p_winner;
+END $$;
+
+-- O campeão: título permanente (com a Era no código) e o torneio fecha.
+CREATE OR REPLACE FUNCTION game.champion_crown(p_season integer, p_kind text, p_village text, p_player uuid, p_now timestamptz DEFAULT now()) RETURNS void
+LANGUAGE plpgsql SET search_path = game AS $$
+DECLARE
+  v_code  text;
+  v_name  text;
+  v_title uuid;
+BEGIN
+  IF p_kind = 'herois' THEN
+    v_code := 'HEROI_' || p_season || '_' || upper(p_village);
+    v_name := 'Herói da ' || COALESCE((SELECT name FROM villages WHERE code = p_village), p_village);
+  ELSE
+    v_code := 'VILAO_' || p_season;
+    v_name := 'Vilão Mais Forte da Era';
+  END IF;
+  INSERT INTO titles (code, name, description)
+  VALUES (v_code, v_name, CASE WHEN p_kind = 'herois' THEN 'Campeão do Torneio dos Heróis, Era ' ELSE 'Campeão do Torneio dos Vilões, Era ' END || p_season)
+  ON CONFLICT (code) DO NOTHING;
+  SELECT id INTO v_title FROM titles WHERE code = v_code;
+  INSERT INTO player_titles (player_id, title_id) VALUES (p_player, v_title) ON CONFLICT (player_id, title_id) DO NOTHING;
+  UPDATE champion_tournaments SET champion_id = p_player, closed_at = p_now
+   WHERE season_id = p_season AND kind = p_kind AND village = p_village;
+END $$;
+
 COMMIT;

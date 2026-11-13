@@ -47,9 +47,10 @@ import { activeModules, dueModules, type EndgameModule } from './endgame.js';
 import type { RankedStore } from './rankedStore.js';
 import { JUTSU_TEXT, jutsuDescription } from './jutsuText.js';
 import { JOUNIN_RULES, type JouninStage, type SeasonStore, type SeasonView } from './seasonStore.js';
+import { CHAMPION_NAME, type ChampionKind, type ChampionPending, type ChampionStore } from './championStore.js';
 import { bonusesFor, xpWithBonus, type XpBonus, type XpBonusScope, type XpBonusStore } from './xpBonus.js';
 import { bracketChampion, bracketEntrants, jouninOfEra, makeBracket, takePending, type PendingMatch } from './tournament.js';
-import { calendarStep } from './calendar.js';
+import { calendarStep, championPhase, type ChampionPhase } from './calendar.js';
 import { SHOW_ALL, type Display, type EndgamePlayer, type EndgameStore, type KageAction, type Politics, type PvpKill, type TickEvent } from './endgameStore.js';
 import { VILLAGE_INFO, alliesOf, villageFullName, conflictHostile, mapAllowed, type Diplomacy, type Faction, type MapAccess, type PassiveKind } from './villages.js';
 import { POWERS, POWER_BY_SLOT, type PowerDef, type PowerKind } from './akatsuki.js';
@@ -183,6 +184,8 @@ export interface WorldOptions {
   ranked?: RankedStore;
   /** v41 (migração v27): eras e Torneio da Temporada. */
   season?: SeasonStore;
+  /** v55 (migração v33): Torneio dos Heróis e dos Vilões. */
+  champion?: ChampionStore;
   /** v44 (migração v29): bônus de XP do admin guardados no banco. Sem isto: valem só enquanto o servidor está ligado. */
   xpBonus?: XpBonusStore;
   /** Quem vigia o servidor (site do jogo: saúde, bugs e comportamento suspeito). */
@@ -674,6 +677,18 @@ export class GameWorld {
   /** v41: fila do Torneio da Temporada (a partida só une ninjas da mesma vila) e a janela da fase de pontos. */
   private jouninQueue: VillageEntry[] = [];
   private readonly seasonStore: SeasonStore | undefined;
+  /** v55: Torneio dos Heróis e dos Vilões (migração v33). */
+  private readonly championStore: ChampionStore | undefined;
+  private champReady = false;
+  private champEra = 0;
+  private champPhase: ChampionPhase = 'fechado';
+  /** Os jogos que podem acontecer agora nas chaves dos dois torneios. */
+  private champPending: ChampionPending[] = [];
+  /** A fila dos torneios de campeão (ids, na ordem de chegada). */
+  private champQueue: string[] = [];
+  /** Por qual torneio cada ninja pode jogar nesta Era (null: nenhum), e quem já se inscreveu. */
+  private champSlot = new Map<string, { kind: ChampionKind; village: string } | null>();
+  private champJoined = new Set<string>();
   private jounin: { seasonId: number; startsAt: number; endsAt: number; stage: JouninStage; finalReady: boolean } | null = null;
   /** v43: Fase Final: quem espera um jogo, os jogos que ainda podem acontecer e os finalistas (id -> vila). */
   private finalQueue: string[] = [];
@@ -738,6 +753,7 @@ export class GameWorld {
     this.endgame = options.endgame;
     this.rankedStore = options.ranked;
     this.seasonStore = options.season;
+    this.championStore = options.champion;
     this.xpBonusStore = options.xpBonus;
     this.watch = options.watch ?? {};
     for (const id of Object.keys(this.config.maps) as MapId[]) { this.mapPlayers.set(id, new Set()); this.watchers.set(id, new Set()); }
@@ -1170,6 +1186,7 @@ export class GameWorld {
       if (session.map !== 'vale_estatuas' && !this.duelOf(session.id)) { session.watching = undefined; const at = this.valeArrival(); this.transfer(session, 'vale_estatuas', at.x, at.y, 'travel'); }
       this.sendDuelState(session);
       this.sendJouninState(session);   // v43: reconectou já na Arena: o placar, as filas e o Torneio
+      this.sendChampionState(session);
       this.sendTo(session, { type: 'arenas', list: this.arenasView(), watching: null });
     }
     if (session.clan) this.grantClanJutsus(session);   // v30: um tier do clã que o nível alcançou longe do jogo
@@ -4873,8 +4890,9 @@ export class GameWorld {
   // ---------------------------------------------------------------- modo rankeado (v29, duel.ts)
 
   /** Botões do modo rankeado: entrar no Vale, sair dele, entrar e sair da fila do Desafio. */
-  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand' | 'jounin_queue' | 'jounin_unqueue' | 'jounin_board' | 'final_queue' | 'final_unqueue' | 'final_board', t: number): void {
+  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand' | 'jounin_queue' | 'jounin_unqueue' | 'jounin_board' | 'final_queue' | 'final_unqueue' | 'final_board' | 'champion_join' | 'champion_queue' | 'champion_unqueue', t: number): void {
     if (action === 'jounin_board') return this.jouninBoard(s, t);
+    if (action === 'champion_join' || action === 'champion_queue' || action === 'champion_unqueue') return this.championAction(s, action, t);
     if (action === 'final_board') return this.finalBoard(s, t);
     if (action === 'board') return this.rankedBoard(s, t);
     if (action === 'stand') return this.standUp(s);
@@ -4900,6 +4918,8 @@ export class GameWorld {
       this.transfer(s, 'vale_estatuas', at.x, at.y, 'travel');
       this.sendDuelState(s);
       this.sendJouninState(s);
+      this.sendChampionState(s);
+      this.sendTo(s, { type: 'arenas', list: this.arenasView(), watching: null });
       return;
     }
     if (!inVale) return;
@@ -4960,6 +4980,7 @@ export class GameWorld {
     this.rankedQueue = this.rankedQueue.filter((e) => e.id !== s.id);
     this.jouninQueue = this.jouninQueue.filter((e) => e.id !== s.id);
     this.finalQueue = this.finalQueue.filter((id) => id !== s.id);
+    this.champQueue = this.champQueue.filter((id) => id !== s.id);
     if (s.watching) { this.watchers.get(s.watching)?.delete(s); if (disconnected) s.watching = undefined; }
     const d = this.duelOf(s.id);
     const side = d ? sideOf(d, s.id) : null;
@@ -4990,6 +5011,7 @@ export class GameWorld {
       this.notice(otherId, 'O adversário saiu antes da luta: partida cancelada, sem pontos. Você volta para a fila.', 'info');
       const o = this.duelSession(otherId);
       if (o && d.mode === 'final') this.finalQueue.unshift(o.id);
+      else if (o && (d.mode === 'herois' || d.mode === 'viloes')) this.champQueue.unshift(o.id);
       else if (o && d.mode === 'jounin' && o.village && this.jouninOpen(t)) this.jouninQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0, village: o.village });
       else if (o && d.mode === 'ranked') this.rankedQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0 });
       this.sendQueues();
@@ -5071,6 +5093,10 @@ export class GameWorld {
     if (this.finalQueue.length > 0) {
       const valid = this.finalStage() ? this.finalQueue.filter((id) => this.inArenaWorld(id)) : [];
       if (valid.length !== this.finalQueue.length) { this.finalQueue = valid; this.sendQueues(); }
+    }
+    if (this.champQueue.length > 0) {
+      const valid = this.champPhase === 'chaves' ? this.champQueue.filter((id) => this.inArenaWorld(id)) : [];
+      if (valid.length !== this.champQueue.length) this.champQueue = valid;
     }
     for (const [id, until] of this.duelAway) {
       const dd = this.duelOf(id);
@@ -5285,6 +5311,7 @@ export class GameWorld {
     this.log.info({ match: d.id, winner: winnerId, loser: loserId, reason: d.reason, wins: d.wins, mode: d.mode }, 'rankeado: partida acabou');
     if (d.mode === 'jounin') return this.jouninFinished(d, winnerId, loserId);
     if (d.mode === 'final') return this.finalFinished(d, winnerId, loserId);
+    if (d.mode === 'herois' || d.mode === 'viloes') return this.championFinished(d, winnerId, loserId);
     const store = this.rankedReady ? this.rankedStore : undefined;
     if (!store) return;
     if (d.matchDamage.a + d.matchDamage.b === 0) {
@@ -5837,10 +5864,165 @@ export class GameWorld {
     }
   }
 
-  /** v55: Torneio dos Heróis e dos Vilões (preenchido no passo dos torneios de campeão). */
-  private async championMaintenance(_era: SeasonView, _now: number): Promise<void> {}
-  /** v55: a próxima partida dos torneios de campeão (preenchido no passo dos torneios de campeão). */
-  private championPick(_big: boolean, _consume: boolean): MatchPick | null { return null; }
+  /**
+   * v55: Torneio dos Heróis e dos Vilões, no ritmo do calendário: abrem com a Fase Final do Torneio da Temporada (1 dia
+   * de inscrições), montam as chaves (cabeças de chave pelo nível) e, no prazo (5 dias), o jogo que faltou é W.O. a favor
+   * do melhor cabeça de chave. Inscrito sozinho é campeão direto. Chamado a cada minuto (e pelos testes).
+   */
+  async championMaintenance(era: SeasonView, now: number): Promise<void> {
+    const store = this.championStore;
+    if (!store) return;
+    if (!this.champReady) {
+      if (!(await store.available())) return;
+      this.champReady = true;
+      this.log.info({}, 'torneios de campeão: migração v33 encontrada');
+    }
+    if (this.champEra !== era.id) { this.champEra = era.id; this.champSlot.clear(); this.champJoined.clear(); this.champQueue = []; }
+    const opened = era.jounin && era.stage !== 'pontos' ? era.jounin.endsAt.getTime() : null;
+    const phase = championPhase({ startsAt: era.startsAt.getTime(), endsAt: era.endsAt.getTime(), stage: era.stage, finalReady: era.finalReady, pending: 0,
+      jounin: era.jounin ? { startsAt: era.jounin.startsAt.getTime(), endsAt: era.jounin.endsAt.getTime() } : null }, opened, false, now);
+    const was = this.champPhase;
+    this.champPhase = phase;
+    if (phase === 'inscricoes' && was !== 'inscricoes') {
+      this.broadcast({ type: 'announce', message: '🦸 Inscrições abertas por 24 h na Arena: Torneio dos Heróis (Jounin de cada vila, menos o Kage) e Torneio dos Vilões (renegados)!' });
+    }
+    if (phase === 'chaves' || phase === 'encerrado') {
+      const at = new Date(now);
+      for (const t of await store.tournaments(era.id)) {
+        if (t.bracketAt) continue;
+        const entrants = await store.entries(era.id, t.kind, t.village);
+        await store.saveBracket(era.id, t.kind, t.village, entrants.length >= 2 ? makeBracket(entrants) : [], at);
+        const where = t.kind === 'herois' ? ` (${villageName(t.village as Village)})` : '';
+        if (entrants.length === 1) {
+          await store.crown(era.id, t.kind, t.village, entrants[0]!, at);
+          this.announceChampion(t.kind, t.village, entrants[0]!);
+        } else if (entrants.length >= 2) this.broadcast({ type: 'announce', message: `🦸 ${CHAMPION_NAME[t.kind]}${where}: a chave de ${entrants.length} está montada! Entre na fila na Arena.` });
+      }
+    }
+    if (phase === 'encerrado') {
+      // prazo: o jogo que faltou é W.O. para o lado a (o melhor cabeça de chave), rodada a rodada
+      for (let i = 0; i < 12; i++) {
+        const pend = await store.pending(era.id);
+        if (pend.length === 0) break;
+        for (const m of pend) {
+          const champ = await store.result(m.kind, m.a, m.b, 2, 0, 'wo', new Date(now));
+          if (champ) this.announceChampion(m.kind, m.village, champ);
+        }
+      }
+    }
+    this.champPending = phase === 'chaves' ? await store.pending(era.id) : [];
+    if (was !== phase) for (const arena of ARENAS) for (const s of this.mapPlayers.get(arena) ?? []) this.sendChampionState(s);
+  }
+
+  /** v55: aviso do campeão para o servidor inteiro (o título já foi gravado pelo banco). */
+  private announceChampion(kind: ChampionKind, village: string, playerId: string): void {
+    const name = this.sessions.get(playerId)?.username;
+    const title = kind === 'herois' ? `Herói da ${villageName(village as Village)}` : 'Vilão Mais Forte da Era';
+    this.broadcast({ type: 'announce', message: `👑 ${CHAMPION_NAME[kind]}: ${name ?? 'o campeão'} é o ${title}!` });
+    const s = this.sessions.get(playerId);
+    if (s) this.sendTo(s, { type: 'notice', text: `Você ganhou o título "${title}"!`, tone: 'good' });
+  }
+
+  /** v55: por qual torneio de campeão o ninja pode jogar nesta Era (lido do banco uma vez por Era). */
+  private async championSlotOf(s: Session): Promise<{ kind: ChampionKind; village: string } | null> {
+    const store = this.championStore;
+    if (!store || !this.champReady) return null;
+    if (this.champSlot.has(s.id)) return this.champSlot.get(s.id)!;
+    let slot: { kind: ChampionKind; village: string } | null = null;
+    for (const kind of ['herois', 'viloes'] as const) {
+      const v = await store.slot(s.id, kind);
+      if (v !== null) { slot = { kind, village: v }; break; }
+    }
+    this.champSlot.set(s.id, slot);
+    return slot;
+  }
+
+  /** v55: o botão do torneio de campeão de quem está na Arena (a etapa, o torneio dele, inscrito, na fila, o próximo jogo). */
+  private sendChampionState(s: Session): void {
+    if (this.champPhase === 'fechado' || !this.champReady) return this.sendTo(s, { type: 'champion_state', phase: this.champPhase, kind: null });
+    const id = s.id;
+    void this.championSlotOf(s).then((slot) => {
+      const cur = this.sessions.get(id);
+      if (!cur) return;
+      const foe = this.champPending.find((m) => m.a === id || m.b === id);
+      this.sendTo(cur, {
+        type: 'champion_state', phase: this.champPhase, kind: slot?.kind ?? null, joined: this.champJoined.has(id),
+        queued: this.champQueue.includes(id), ...(foe ? { foe: this.sessions.get(foe.a === id ? foe.b : foe.a)?.username ?? '?' } : {}),
+      });
+    }).catch((err: unknown) => this.log.warn({ err, playerId: id }, 'torneios de campeão: falha ao ler a vaga'));
+  }
+
+  /** v55: inscrever-se (nas inscrições) ou entrar e sair da fila (nas chaves) do Torneio dos Heróis ou dos Vilões. */
+  private championAction(s: Session, action: 'champion_join' | 'champion_queue' | 'champion_unqueue', t: number): void {
+    const store = this.championStore;
+    const say = (text: string, tone: 'bad' | 'good' | 'info' = 'bad') => this.notice(s.id, text, tone);
+    if (!store || !this.champReady) return say('Os torneios de campeão precisam da migração v33.');
+    if (action === 'champion_unqueue') {
+      this.champQueue = this.champQueue.filter((id) => id !== s.id);
+      this.sendChampionState(s);
+      this.sendQueues();
+      return;
+    }
+    if (this.duelOf(s.id)) return;
+    const id = s.id;
+    void this.championSlotOf(s).then(async (slot) => {
+      const cur = this.sessions.get(id);
+      if (!cur) return;
+      if (!slot) return say('Torneio dos Heróis: só Jounin (menos o Kage). Torneio dos Vilões: só renegados.');
+      if (action === 'champion_join') {
+        if (this.champPhase !== 'inscricoes') return say('As inscrições não estão abertas.');
+        const r = await store.join(id, slot.kind, new Date(t));
+        if (!r.ok) return say(r.code === 'closed' ? 'As inscrições já fecharam.' : 'Você não pode entrar neste torneio.');
+        this.champJoined.add(id);
+        say(`Inscrito no ${CHAMPION_NAME[slot.kind]}! A chave sai quando as inscrições fecharem.`, 'good');
+      } else {
+        if (this.champPhase !== 'chaves') return say('A chave ainda não começou.');
+        if (!this.champPending.some((m) => m.a === id || m.b === id)) return say('Você não tem jogo na chave agora.');
+        const pen = this.rankedLeaves.get(id);
+        if (pen && t < pen.until) return say(`Você saiu de uma partida: espere ${Math.ceil((pen.until - t) / 1000)} s.`);
+        this.rankedQueue = this.rankedQueue.filter((e) => e.id !== id);
+        this.jouninQueue = this.jouninQueue.filter((e) => e.id !== id);
+        if (!this.champQueue.includes(id)) this.champQueue.push(id);
+        this.sendQueues();
+      }
+      this.sendChampionState(cur);
+    }).catch((err: unknown) => this.log.warn({ err, playerId: id }, 'torneios de campeão: falha no pedido'));
+  }
+
+  /** v55: a próxima partida dos torneios de campeão: a primeira dupla da fila com jogo pendente entre si. */
+  private championPick(big: boolean, consume: boolean): MatchPick | null {
+    if (this.champPending.length === 0 || this.champQueue.length < 2) return null;
+    const isBig = (m: ChampionPending) => m.round >= m.rounds - 1;
+    const fin = takePending(this.champQueue, this.champPending.filter((m) => isBig(m) === big));
+    if (!fin) return null;
+    if (consume) this.champQueue = fin.rest;
+    const m = this.champPending.find((x) => (x.a === fin.a && x.b === fin.b) || (x.a === fin.b && x.b === fin.a))!;
+    const stage = m.round === m.rounds ? 'Grande Final' : m.round === m.rounds - 1 ? 'Semifinal' : `Rodada ${m.round}`;
+    const where = m.kind === 'herois' ? ` (${villageName(m.village as Village)})` : '';
+    return { a: fin.a, b: fin.b, mode: m.kind, label: `${big ? (stage === 'Grande Final' ? 'A Grande Final' : 'A Semifinal') + ' do ' : ''}${CHAMPION_NAME[m.kind]}${where}${big ? '' : `: ${stage}`}`, big };
+  }
+
+  /** v55: grava o jogo do torneio de campeão; na final o banco coroa o campeão. */
+  private championFinished(d: DuelMatch, winnerId: string, loserId: string): void {
+    const store = this.championStore;
+    if (!store || (d.mode !== 'herois' && d.mode !== 'viloes')) return;
+    if (d.reason !== 'forfeit' && d.matchDamage.a + d.matchDamage.b === 0) return;
+    const kind = d.mode;
+    const wr = d.wins[d.winner!], lr = d.wins[other(d.winner!)];
+    const pend = this.champPending.find((m) => (m.a === winnerId && m.b === loserId) || (m.a === loserId && m.b === winnerId));
+    store.result(kind, winnerId, loserId, wr, lr, d.reason ?? 'rounds', new Date(this.now())).then(async (champ) => {
+      if (champ && pend) this.announceChampion(kind, pend.village, champ);
+      else if (champ === null) {
+        const w = this.sessions.get(winnerId)?.username ?? '?', l = this.sessions.get(loserId)?.username ?? '?';
+        this.broadcastMap('vale_estatuas', { type: 'announce', message: `🦸 ${CHAMPION_NAME[kind]}: ${w} venceu ${l} por ${wr} a ${lr}.` });
+      }
+      this.champPending = this.champEra ? await store.pending(this.champEra) : [];
+      // o vencedor segue na chave: volta sozinho para a fila (o próximo jogo sai quando o adversário dele também estiver)
+      if (champ === null && this.inArenaWorld(winnerId) && !this.champQueue.includes(winnerId)) this.champQueue.push(winnerId);
+      for (const id of [winnerId, loserId]) { const s = this.sessions.get(id); if (s) this.sendChampionState(s); }
+      this.sendQueues();
+    }).catch((err: unknown) => this.log.warn({ err, match: d.id }, 'torneios de campeão: falha ao gravar o jogo'));
+  }
   /** v55: a próxima partida do 3v3 (preenchido no passo do 3v3). */
   private team3Pick(): MatchPick | null { return null; }
 

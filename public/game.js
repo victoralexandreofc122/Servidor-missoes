@@ -51,6 +51,7 @@ const ui = {
   jouninCut: $('jounin-cut'), jouninList: $('jounin-list'), jouninQueue: $('jounin-queue'), jouninWhy: $('jounin-why'),
   finalPanel: $('final-panel'), finalClose: $('final-close'), finalStatus: $('final-status'), finalMine: $('final-mine'), finalQueue: $('final-queue'),
   finalEra: $('final-era'), finalBracket: $('final-bracket'), finalGroups: $('final-groups'),
+  championBtn: $('champion-btn'),
   arenasBtn: $('arenas-btn'), arenasPanel: $('arenas-panel'), arenasList: $('arenas-list'), arenasClose: $('arenas-close'), arenasStop: $('arenas-stop'),
   ghostBar: $('ghost-bar'), ghostText: $('ghost-text'), ghostSwitch: $('ghost-switch'), ghostStop: $('ghost-stop'),
   duelAgain: $('duel-again'), duelWatchBtn: $('duel-watch-btn'), duelAHp: $('duel-a-hp'), duelBHp: $('duel-b-hp'),
@@ -845,6 +846,10 @@ function handleMessage(msg) {
     case 'cooldowns_reset':
       // v45: começo de rodada do duelo: o servidor zerou as recargas
       for (const k of Object.keys(cooldowns)) delete cooldowns[k];
+      break;
+    case 'champion_state':
+      state.champion = msg;
+      renderDuel();
       break;
     case 'arenas':
       state.arenas = msg.list;
@@ -2578,6 +2583,16 @@ function renderDuel() {
   const q = state.duelQueue;
   ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden || !ui.jouninPanel.hidden || !ui.finalPanel.hidden || !ui.arenasPanel.hidden;
   ui.arenasBtn.hidden = fighting;
+  // v55: Torneio dos Heróis / dos Vilões: inscrever (1 dia) e depois jogar a chave
+  const ch = state.champion;
+  const chName = ch?.kind === 'viloes' ? 'Torneio dos Vilões' : 'Torneio dos Heróis';
+  const chShow = !fighting && !!ch?.kind && (ch.phase === 'inscricoes' || (ch.phase === 'chaves' && (!!ch.foe || ch.queued)));
+  ui.championBtn.hidden = !chShow;
+  if (chShow) {
+    ui.championBtn.textContent = ch.phase === 'inscricoes' ? (ch.joined ? `🦸 Inscrito: ${chName}` : `🦸 Inscrever: ${chName}`)
+      : ch.queued ? `🦸 Na fila${ch.foe ? ` (vs ${ch.foe})` : ''} · Cancelar` : `🦸 ${chName}: jogar vs ${ch.foe}`;
+    ui.championBtn.classList.toggle('queued', !!ch.queued || (ch.phase === 'inscricoes' && !!ch.joined));
+  }
   if (fighting || !inArena) ui.arenasPanel.hidden = true;
   ui.duelBtn.hidden = fighting;
   // v42: Torneio da Temporada: aberto = botão dourado (ou a posição na fila); fechado = cadeado
@@ -2711,6 +2726,12 @@ function renderGhost() {
   const f = (state.arenas || []).find((x) => x.arena === state.watching);
   ui.ghostText.textContent = f ? `👁 Assistindo · ${f.arenaName}: ${f.a.join(' + ')} vs ${f.b.join(' + ')}` : '👁 Assistindo';
 }
+ui.championBtn.addEventListener('click', () => {
+  const ch = state.champion;
+  if (!ch?.kind) return;
+  if (ch.phase === 'inscricoes') { if (!ch.joined) send({ type: 'ranked', action: 'champion_join' }); return; }
+  send({ type: 'ranked', action: ch.queued ? 'champion_unqueue' : 'champion_queue' });
+});
 ui.arenasBtn.addEventListener('click', () => (ui.arenasPanel.hidden ? openArenas() : (ui.arenasPanel.hidden = true, renderDuel())));
 ui.arenasClose.addEventListener('click', () => { ui.arenasPanel.hidden = true; renderDuel(); });
 ui.arenasStop.addEventListener('click', () => { send({ type: 'watch', arena: null }); ui.arenasPanel.hidden = true; });

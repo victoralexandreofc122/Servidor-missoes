@@ -246,7 +246,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: targetId.optional(), dir: z.tuple([axis, axis]).optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
   // v29: modo rankeado: entrar no Arena das Quatro Heranças, sair dele, entrar na fila do Desafio e sair da fila.
-  z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board', 'sit', 'stand', 'jounin_queue', 'jounin_unqueue', 'jounin_board', 'final_queue', 'final_unqueue', 'final_board']) }),
+  z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board', 'sit', 'stand', 'jounin_queue', 'jounin_unqueue', 'jounin_board', 'final_queue', 'final_unqueue', 'final_board', 'champion_join', 'champion_queue', 'champion_unqueue']) }),
   // v55: espectador: assistir a luta de uma arena como fantasma (null = parar de assistir) e pedir a lista das lutas
   z.object({ type: z.literal('watch'), arena: z.enum(['vale_estatuas', 'arena_2', 'arena_3', 'arena_4']).nullable() }),
   z.object({ type: z.literal('arenas') }),
@@ -702,6 +702,8 @@ export type ServerMessage =
       /** v29: um lado caiu e tem até `ms` para reconectar. */ away?: { side: 'a' | 'b'; ms: number };
       /** v55: a arena desta partida, o rótulo do painel e os times (3v3: os 3 de cada lado; quem caiu na rodada). */
       arena?: string; label?: string; big?: boolean; teamA?: DuelSideView[]; teamB?: DuelSideView[]; down?: string[] }
+  /** v55: o Torneio dos Heróis ou dos Vilões de quem está na Arena: a etapa, o torneio dele (null: nenhum), inscrito, na fila, o adversário. */
+  | { type: 'champion_state'; phase: 'fechado' | 'inscricoes' | 'chaves' | 'encerrado'; kind: 'herois' | 'viloes' | null; joined?: boolean; queued?: boolean; foe?: string }
   /** v55: as lutas acontecendo agora, para o painel de espectador ("Assistir"). `watching` = a arena que ele assiste. */
   | { type: 'arenas'; list: ArenaFightView[]; watching: string | null }
   | { type: 'arena_result'; winnerId: string; winner: string; loserId: string; loser: string; winnerRecord: ArenaRecord; loserRecord: ArenaRecord }

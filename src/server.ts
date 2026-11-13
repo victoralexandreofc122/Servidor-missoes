@@ -10,6 +10,7 @@ import { makeAdminStore } from './realtime/admin.js';
 import { ENDGAME_SQL, makeEndgameStore } from './realtime/endgameStore.js';
 import { RANKED_SQL, makeRankedStore } from './realtime/rankedStore.js';
 import { makeSeasonStore } from './realtime/seasonStore.js';
+import { makeChampionStore } from './realtime/championStore.js';
 import { makeXpBonusStore } from './realtime/xpBonus.js';
 import { CHAT_SQL, makeChatLog } from './realtime/chatLog.js';
 import { attachGameGateway } from './realtime/gateway.js';
@@ -141,6 +142,7 @@ const gateway = attachGameGateway(publicApp.server, {
   endgame,                                                        // vilas, Kage, PvP, renegados, Akatsuki (v11, opcional)
   xpBonus: makeXpBonusStore(db),                                  // bônus de XP do admin (v29, opcional)
   season: makeSeasonStore(db),                                    // eras e Torneio da Temporada (v27, opcional)
+  champion: makeChampionStore(db),                                // Torneio dos Heróis e dos Vilões (v33, opcional)
   ranked: makeRankedStore(db),                                    // pontos e temporadas do rankeado (v15, opcional)
   watch: sentinel,                                                // site do jogo: tempo do loop, bugs, suspeitas
   log: gameLog,
