@@ -23,6 +23,7 @@ import { mountManualUI } from './manual.js';
 import { pickAnim } from './rig.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
+import { JutsuSprites, jutsuSpritesReady, loadJutsuSprites } from './vfxJutsus.js';
 import { GROUND_ELEMENT, Particles, elementOf } from './particles.js';
 import { STRIKE_ART, ZONE_ART, drawBolt, drawDecal, drawStatusArt, drawStrikeArt, drawWindDisc, drawZoneArt } from './jutsuArt.js';
 import { drawBackWeapon, drawHandWeapon, drawWeaponIcon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
@@ -756,6 +757,12 @@ function handleMessage(msg) {
       break;
     case 'ground':
       (state.ground ||= new Map()).set(msg.id, { ...msg, start: performance.now(), end: performance.now() + msg.ms });
+      // v56: a Névoa Inflamável com o sprite: a nuvem girando e, no fim, a faísca acendendo (o aviso continua por baixo)
+      if (msg.kind === 'aviso' && msg.skill && formOf(msg.skill) === 'nuvem_detona' && jutsuSpritesReady('nevoa')) {
+        const t0 = performance.now(), sc = (msg.r ?? 2.5) / 2.5, spark = Math.min(600, msg.ms * 0.3);
+        jfx.show('nevoa_01', msg.x, msg.y, t0, msg.ms - spark + 80, { scale: sc, layer: 'ground', fadeIn: 200, fadeOut: 80 });
+        jfx.show('nevoa_02', msg.x, msg.y, t0 + msg.ms - spark, spark, { scale: sc, layer: 'ground', fadeIn: 60, fadeOut: 40, flicker: true });
+      }
       break;
     case 'ground_end': {
       // v29 (Fogo novo): o aviso de um jutsu de Fogo caiu (meteoro, cinzas, névoa): explode ali
@@ -771,7 +778,10 @@ function handleMessage(msg) {
         }
       }
       if (z?.kind === 'aviso') particles.burst(z.skill ? elementOfSkill(z.skill) : 'neutral', z.x, z.y, 2.2, z.r);   // v47: o golpe avisado caiu
-      if (z?.kind === 'aviso' && z.skill && mechanicOf(z.skill) === 'fire'
+      const nevoa = z?.kind === 'aviso' && z.skill && formOf(z.skill) === 'nuvem_detona'
+        && jfx.show('nevoa_03', z.x, z.y, now, 520, { scale: z.r / 2.5, fadeIn: 30, fadeOut: 220, grow: 0.12 });
+      if (nevoa) hitShake(120);
+      else if (z?.kind === 'aviso' && z.skill && mechanicOf(z.skill) === 'fire'
         && !vfx.play('explosion', z.x, z.y, { start: now, scale: z.r / 2 })) {
         state.effects.push({ skill: 'fire', x: z.x, y: z.y, fx: 0, fy: 0, r: z.r, start: now });
       } else if (z?.kind === 'aviso' && z.skill && mechanicOf(z.skill) !== 'fire') {
@@ -945,7 +955,13 @@ function handleMessage(msg) {
       break;
     case 'teleport': {
       // Teleporte Curto: o SERVIDOR decidiu o lugar (alcance pelo nível, parando antes da parede).
-      if (!vfx.play('smoke', msg.fromX, msg.fromY, { start: now })) {
+      // v56: com o sprite: a fumaça abre onde estava (quadros 1 e 2, com o clarão azul) e o anel aparece onde chegou (3)
+      if (jutsuSpritesReady('teleporte')) {
+        jfx.show('teleporte_01', msg.fromX, msg.fromY, now, 140, { fadeIn: 0, fadeOut: 40 });
+        jfx.show('teleporte_02', msg.fromX, msg.fromY, now + 90, 560, { fadeIn: 40, fadeOut: 260, grow: 0.15 });
+        jfx.show('teleporte_03', msg.x, msg.y, now + 60, 650, { fadeIn: 40, fadeOut: 320, grow: 0.25 });
+        particles.burst('wind', msg.fromX, msg.fromY, 0.6, 0);
+      } else if (!vfx.play('smoke', msg.fromX, msg.fromY, { start: now })) {
         state.effects.push({ skill: 'teleport', x: msg.fromX, y: msg.fromY, fx: 0, fy: 0, start: now });
         state.effects.push({ skill: 'teleport', x: msg.x, y: msg.y, fx: 0, fy: 0, start: now + 60 });
       } else {
@@ -1046,9 +1062,17 @@ function handleMessage(msg) {
     }
     case 'substitution': {
       // Substituição: o golpe acertou um TRONCO; o ninja aparece atrás do atacante.
-      state.effects.push({ skill: 'log', x: msg.logX, y: msg.logY, fx: 0, fy: 0, start: now });
-      if (!vfx.play('smoke', msg.x, msg.y, { start: now })) state.effects.push({ skill: 'teleport', x: msg.x, y: msg.y, fx: 0, fy: 0, start: now });
-      vfx.play('smoke', msg.logX, msg.logY, { start: now, scale: 0.8 });
+      // v56: com o sprite: a fumaça explode (1), o tronco aparece no meio dela (2) e fica caído no chão (3)
+      if (jutsuSpritesReady('substituicao')) {
+        jfx.show('substituicao_01', msg.logX, msg.logY, now, 200, { fadeIn: 0, fadeOut: 60, grow: 0.1 });
+        jfx.show('substituicao_02', msg.logX, msg.logY, now + 160, 420, { fadeIn: 40, fadeOut: 80 });
+        jfx.show('substituicao_03', msg.logX, msg.logY + 0.45, now + 540, 1100, { fadeIn: 60, fadeOut: 400, layer: 'ground' });
+        jfx.show('teleporte_02', msg.x, msg.y, now, 380, { fadeIn: 0, fadeOut: 200, scale: 0.8 });
+      } else {
+        state.effects.push({ skill: 'log', x: msg.logX, y: msg.logY, fx: 0, fy: 0, start: now });
+        if (!vfx.play('smoke', msg.x, msg.y, { start: now })) state.effects.push({ skill: 'teleport', x: msg.x, y: msg.y, fx: 0, fy: 0, start: now });
+        vfx.play('smoke', msg.logX, msg.logY, { start: now, scale: 0.8 });
+      }
       const p = state.players.get(msg.playerId);
       if (p) addFloater(msg.logX, msg.logY - 0.9, 'Substituição!', '#e8c66a', 1);
       jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
@@ -1212,7 +1236,8 @@ function handleMessage(msg) {
       const form = formOf(msg.skill);
       const color = CAST_COLOR[fxKind] || '#f4ecd8';
       const lineEnd = { tx: msg.tx ?? msg.x + msg.fx * (info.range ?? 5), ty: msg.ty ?? msg.y + msg.fy * (info.range ?? 5) };
-      if (form === 'cone_fogo') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 3, cone: info.coneDeg ?? 90, start: now });
+      if (castSprites(msg, form, info, lineEnd, now)) { /* v56: o sprite desenhado (Fogo, Sopro, Linha) */ }
+      else if (form === 'cone_fogo') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 3, cone: info.coneDeg ?? 90, start: now });
       else if (form === 'linha_fogo') state.effects.push({ skill: 'fire_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, start: now });
       // v30: as formas das outras classes
       else if (form === 'cone_golpe') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 1.5, cone: info.coneDeg ?? 90, color, start: now });
@@ -1255,7 +1280,10 @@ function handleMessage(msg) {
       // Poderes da Akatsuki: a Escultura Detonante voa como a bola de fogo; a Tempestade de Páginas, como kunais.
       const sheet = msg.power ? (msg.power === 'blast' ? 'fireball' : 'kunai') : msg.weapon ? 'fuma' : mechanicOf(msg.skill) === 'fire' ? 'fireball' : 'kunai';
       // v53: a Shuriken de mão voa como a Gigante, só que pequena (e não sai das costas de ninguém)
-      vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now, msg.weapon === 'shuriken' ? 0.42 : 1);
+      // v56: o Fogo voa com o sprite desenhado (quadro 2); as outras bolas de fogo, com a folha antiga
+      const drawn = !msg.power && !msg.weapon && sheet === 'fireball' && jutsuSpritesReady('fogo')
+        && jfx.launch(msg.id, 'fogo_02', msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now);
+      if (!drawn) vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now, msg.weapon === 'shuriken' ? 0.42 : 1);
       // v47: o rastro no elemento do jutsu
       flying.set(msg.id, { x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, speed: msg.speed, range: msg.range, start: now, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 300,
         el: msg.skill ? elementOfSkill(msg.skill) : msg.power === 'blast' ? 'fire' : 'weapons', skill: msg.skill });
@@ -1265,6 +1293,8 @@ function handleMessage(msg) {
     }
     case 'impact': {
       vfx.land(msg.id);
+      const spriteShot = jfx.shots.has(msg.id);
+      jfx.land(msg.id);
       {
         // v47: estouro no elemento do projétil; a explosão (raio > 0) treme de leve a tela de quem está perto
         const el = flying.get(msg.id)?.el ?? (msg.skill ? elementOfSkill(msg.skill) : 'weapons');
@@ -1277,7 +1307,9 @@ function handleMessage(msg) {
         for (const p of state.players.values()) if (p.thrown?.id === msg.id) p.thrown = null;
         break;
       }
-      if (msg.r > 0) {
+      if (msg.r > 0 && spriteShot && jfx.show('fogo_03', msg.x, msg.y, now, 480, { scale: msg.r / 1.3, fadeIn: 20, fadeOut: 200, grow: 0.15 })) {
+        // v56: a explosão desenhada (quadro 3); as brasas e a fumaça vêm do particles.burst acima
+      } else if (msg.r > 0) {
         if (!vfx.play('explosion', msg.x, msg.y, { start: now, scale: msg.r / 2 })) {
           state.effects.push({ skill: 'fire', x: msg.x, y: msg.y, fx: 0, fy: 0, r: msg.r, start: now });
         }
@@ -1923,6 +1955,7 @@ function enterMap(id, announce) {
     eg.closeTravel();
     state.effects.length = 0;
     vfx.clear();
+    jfx.clear();
     particles.clear();
     flying.clear();
     arts.length = 0;
@@ -2161,6 +2194,8 @@ const formOf = (skill) => state.world.skills?.[skill]?.form || FORM_OF_MECHANIC[
 const CAST_COLOR = { fire: '#ff7a2e', water: '#3ca6ff', lightning: '#fff27a', illusion: '#a072ff', shadow: '#8b7ad8', stone: '#c9a678', heal: '#5fe07a', taijutsu: '#f2b13a', weapons: '#c9d2da', wind: '#9fe8c8' };
 /** Efeitos em sprite (assets/vfx). Os de `SKILLS`/drawEffect ficam de reserva, se as folhas não carregarem. */
 const vfx = new VFXManager();
+/** v56: os sprites desenhados pelo Victor (Teleporte, Substituição, Fogo e os 3 do Fogo T1), quadro a quadro. */
+const jfx = new JutsuSprites();
 
 /*
  * v47: partículas dos jutsus (public/particles.js). Cada elemento tem as suas (brasas, gotas, riscos elétricos, poeira e
@@ -2171,6 +2206,42 @@ const VFX_KEY = 'nin.vfx';
 try { particles.setQuality(localStorage.getItem(VFX_KEY) || 'full'); } catch { /* modo privado */ }
 /** Projéteis voando (id do servidor -> de onde, para onde e o elemento): o rastro sai a cada quadro. */
 const flying = new Map();
+
+/**
+ * v56: lançamento com o sprite desenhado. Fogo (projétil): o quadro 1 na mão (o voo e a explosão vêm do `projectile` e
+ * do `impact`). Sopro Incinerador (cone): 1 na mão, 2 o cone, 3 as brasas apagando. Linha de Fogo Rasante: 1 na mão,
+ * 2 as chamas em pé ao longo da linha (acendem uma depois da outra), 3 apagando. Devolve false sem sprite (desenho antigo).
+ */
+function castSprites(msg, form, info, lineEnd, now) {
+  const hand = (d) => ({ x: msg.x + msg.fx * d, y: msg.y + msg.fy * d - 0.15 });
+  const angle = Math.atan2(msg.fy, msg.fx);
+  if (form === 'cone_fogo' && jutsuSpritesReady('sopro')) {
+    const h = hand(0.35), sc = (info.range ?? 3) / 3;
+    jfx.show('sopro_01', h.x, h.y, now, 160, { fadeIn: 0, fadeOut: 60, flicker: true });
+    jfx.show('sopro_02', h.x, h.y, now + 110, 460, { angle, scale: sc, fadeIn: 50, fadeOut: 90, flicker: true });
+    jfx.show('sopro_03', h.x + msg.fx * 0.4, h.y + msg.fy * 0.4, now + 520, 520, { angle, scale: sc, fadeIn: 40, fadeOut: 300, grow: 0.12 });
+    return true;
+  }
+  if (form === 'linha_fogo' && jutsuSpritesReady('linha')) {
+    const h = hand(0.35);
+    jfx.show('linha_01', h.x, h.y, now, 200, { fadeIn: 0, fadeOut: 60, flicker: true });
+    const len = Math.hypot(lineEnd.tx - msg.x, lineEnd.ty - msg.y);
+    const n = Math.max(1, Math.round(len / 1.1));
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.6) / n, x = msg.x + (lineEnd.tx - msg.x) * t, y = msg.y + (lineEnd.ty - msg.y) * t + 0.35;
+      const at = now + 80 + i * 45;
+      jfx.show('linha_02', x, y, at, 900, { fadeIn: 60, fadeOut: 120, flicker: true, layer: 'ground' });
+      jfx.show('linha_03', x, y, at + 850, 520, { fadeIn: 60, fadeOut: 300, layer: 'ground' });
+    }
+    return true;
+  }
+  if (msg.skill === 'fire' && jutsuSpritesReady('fogo')) {
+    const h = hand(0.45);
+    jfx.show('fogo_01', h.x, h.y, now, 200, { fadeIn: 0, fadeOut: 80, flicker: true });
+    return false;   // o resto do Fogo segue como antes (o projétil e o impacto)
+  }
+  return false;
+}
 /** Os últimos lançamentos (para a faísca do acerto saber o elemento e de onde veio o golpe). */
 const recentCasts = [];
 const elementOfSkill = (skill) => elementOf(mechanicOf(skill));
@@ -4941,6 +5012,7 @@ function renderCreatorOptions() {
     return row;
   }));
 }
+loadJutsuSprites();   // v56: 6 jutsus com sprite próprio (vfxJutsus.js)
 loadVfx();       // folhas dos efeitos dos golpes (assets/vfx); até chegarem, os efeitos desenhados à mão
 loadWeapons();   // armas em pixel art (assets/weapons); até chegarem, as armas de retângulos
 loadMonsterSprites();   // monstros em sprites (assets/monsters); até chegarem, os slimes desenhados à mão
@@ -6417,6 +6489,7 @@ function draw(now) {
   drawBarriers(toScreenX, toScreenY, T, now);         // v30: muros dos jutsus
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   vfx.draw(ctx, 'ground', toScreenX, toScreenY, T, dpr, now);
+  jfx.draw(ctx, 'ground', toScreenX, toScreenY, T, now);
   drawTelegraphs(toScreenX, toScreenY, T, now);
   drawAimPreview(updateAim(me), toScreenX, toScreenY, T, now);
 
@@ -6465,6 +6538,7 @@ function draw(now) {
   for (const fx of state.effects) if (!GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   drawDarkness(me, toScreenX, toScreenY, T, now);     // v30: escuridão (Véu de Bruma, Noite Eterna)
   vfx.draw(ctx, 'top', toScreenX, toScreenY, T, dpr, now);
+  jfx.draw(ctx, 'top', toScreenX, toScreenY, T, now);
   drawArtTop(toScreenX, toScreenY, T, now);                    // v48: desenhos próprios e efeitos no alvo
   drawParticles(toScreenX, toScreenY, T, viewW, viewH, now);   // v47: partículas dos jutsus
 

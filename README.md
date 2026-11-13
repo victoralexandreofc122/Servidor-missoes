@@ -240,6 +240,14 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v56: sprites desenhados de 6 jutsus (sem migração)
+
+- Teleporte Curto, Substituição, Fogo, Sopro Incinerador, Névoa Inflamável e Linha de Fogo Rasante com a arte do Victor:
+  3 quadros cada em `public/assets/vfx/<jutsu>_0N.png` (fundo xadrez e textos tirados, reduzidos para a escala do jogo).
+- `public/vfxJutsus.js`: carrega os 18 quadros e toca o quadro 1 no lançamento, o 2 com o golpe ativo (voo, cone, linha,
+  nuvem, fumaça) e o 3 no fim (explosão, brasas, tronco caído). Fogo com brilho somado (`lighter`), fumaça e névoa com
+  `screen`. As partículas (brasas no voo, fumaça e faíscas no impacto) continuam por cima. Sem as imagens, o desenho antigo.
+
 ### v55: arenas simultâneas, espectador, 3v3, calendário automático e torneios de campeão (migração v33, `db/schema_v33_pvp_torneio.sql`)
 
 - **Arenas simultâneas:** além da Arena das Quatro Heranças, as Arenas 2, 3 e 4 (cópias dela). Até 4 lutas ao mesmo tempo
@@ -263,6 +271,7 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Recompensas de fim de temporada do rankeado:** já eram automáticas desde a v15 (a cada minuto o servidor fecha a
   temporada vencida): 1º 5.000 ryō e o Manto do Campeão; 2º a 10º 2.000 e o manto; 11º a 50º 500 (com 10+ partidas). Agora
   há teste de banco cobrindo.
+
 
 ### v54: valores fixos, Cura rebalanceada e Cegueira como estado (sem migração nova: vai junto da v32)
 

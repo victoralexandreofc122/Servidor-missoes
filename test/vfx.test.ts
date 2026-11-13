@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { ITEMS } from '../src/realtime/items.js';
-import { loadPublicFiles } from '../src/web/staticFiles.js';
+import { JUTSU_SPRITE_FRAMES, loadPublicFiles } from '../src/web/staticFiles.js';
 
 /*
  * Efeitos dos golpes e armas em pixel art (arte/armas-vfx): os dados gerados batem com os PNGs, tudo é
@@ -122,7 +122,7 @@ describe('lista fechada de arquivos (staticFiles)', () => {
     // (os atlas dos monstros, em /assets/monsters, têm o próprio teste: test/monstros.test.ts)
     const served = new Set(files.filter((f) => f.route.startsWith('/assets/') && !f.route.startsWith('/assets/monsters/')).map((f) => f.route));
     const weaponSheets = Object.values<any>(ARMAS.armas).flatMap((a) => ['mao', 'costas', 'bainha'].filter((k) => a[k]).map((k) => a[k]));
-    const wanted = new Set([...Object.values<any>(VFX.efeitos), ...weaponSheets].map((x) => `/${x.arquivo}`));
+    const wanted = new Set([...[...Object.values<any>(VFX.efeitos), ...weaponSheets].map((x) => `/${x.arquivo}`), ...JUTSU_SPRITE_FRAMES.map((n) => `/assets/vfx/${n}.png`)]);
     assert.deepEqual([...served].sort(), [...wanted].sort());
     for (const f of files.filter((x) => x.route.startsWith('/assets/') && !x.route.startsWith('/assets/monsters/'))) {
       assert.equal(f.contentType, 'image/png', f.route);
