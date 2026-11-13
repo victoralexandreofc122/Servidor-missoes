@@ -350,7 +350,7 @@ describe('v45: duelo (rankeado e Torneio): campo limpo e recargas zeradas a cada
     const a = mk('kaito'), b = mk('mei');
     for (const p of [a, b]) { p.s.tutorial = 4; p.s.level = 20; p.send({ type: 'ranked', action: 'enter' }); p.send({ type: 'ranked', action: 'queue' }); }
     w.run(200);
-    assert.equal(world.duel?.phase, 'prep');
+    assert.equal(world.duels.get('vale_estatuas')?.phase, 'prep');
     const kit = ['shadow_armadilha', 'stone_golem', 'stone_muralha', 'rubro_completo'];
     for (const k of kit) a.s.jutsus.set(k, 0);
     a.s.kits[a.s.activeKit] = kit;
@@ -361,7 +361,7 @@ describe('v45: duelo (rankeado e Torneio): campo limpo e recargas zeradas a cada
     assert.ok([...world.monsters.values()].some((m: any) => m.ownerId === a.id));
     a.conn.clear();
     w.run(10_000);                                   // a rodada começa
-    assert.equal(world.duel.phase, 'round');
+    assert.equal(world.duels.get('vale_estatuas').phase, 'round');
     assert.equal(world.zones.length + world.strikes.length + world.barriers.length + world.projectiles.length, 0, 'campo limpo no começo da rodada');
     assert.equal([...world.monsters.values()].filter((m: any) => m.ownerId).length, 0);
     assert.deepEqual(a.s.cooldowns, {}, 'recargas zeradas');
@@ -372,11 +372,11 @@ describe('v45: duelo (rankeado e Torneio): campo limpo e recargas zeradas a cada
     a.send({ type: 'cast', skill: 'shadow_armadilha' });
     w.run(100);
     assert.equal(world.zones.length, 1);
-    world.duelRoundOver('a', w.clock.now());
+    world.duelRoundOver(world.duels.get('vale_estatuas'), 'a', w.clock.now());
     assert.equal(world.zones.length, 0, 'o campo fica limpo já no intervalo');
     w.run(5200);
-    assert.equal(world.duel.phase, 'round');
-    assert.equal(world.duel.round, 2);
+    assert.equal(world.duels.get('vale_estatuas').phase, 'round');
+    assert.equal(world.duels.get('vale_estatuas').round, 2);
     const hp = b.s.hp;
     w.run(3000);
     assert.equal(b.s.hp, hp, 'nada da rodada 1 acerta na rodada 2');

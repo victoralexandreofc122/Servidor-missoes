@@ -132,7 +132,7 @@ describe('v41: Torneio da Temporada no servidor (fila, partida e pontos)', () =>
     for (const p of [a, x]) p.send({ type: 'ranked', action: 'jounin_queue' });
     await flush();
     run(cfg.tickMs * 3);
-    assert.equal((w as any).duel, null, 'vilas diferentes não se enfrentam');
+    assert.equal((w as any).duels.size, 0, 'vilas diferentes não se enfrentam');
     assert.deepEqual(x.conn.last('duel_queue').jounin, { position: 1, size: 1 }, 'cada um vê só a fila da própria vila');
     const b = join('rin', { village: 'vila_1' });
     b.send({ type: 'ranked', action: 'jounin_queue' });

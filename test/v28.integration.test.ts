@@ -209,7 +209,7 @@ describe('v43 no banco: a Fase Final pelo jogo (fila, Arena e comandos de admin)
     // nin1 e nin2 são de grupos diferentes: não há jogo entre eles; nin1 e nin4 são do mesmo grupo
     for (const p of [a, c]) p.send({ type: 'ranked', action: 'final_queue' });
     run(cfg.tickMs * 3);
-    assert.equal((w as any).duel, null);
+    assert.equal((w as any).duels.size, 0);
     b.send({ type: 'ranked', action: 'final_queue' });
     run(cfg.tickMs + DUEL.prepMs);
     const st = a.conn.last('duel_state');

@@ -126,13 +126,24 @@ export type DuelPhase = 'prep' | 'round' | 'interval' | 'done';
 export type Side = 'a' | 'b';
 
 /** 'ranked' = o rankeado de sempre (MMR); 'jounin' = Torneio da Temporada (pontos da era, v41). */
-export type DuelMode = 'ranked' | 'jounin' | 'final';   // 'final' = jogo de grupo ou de chave da Fase Final (v43)
+export type DuelMode = 'ranked' | 'jounin' | 'final' | 'herois' | 'viloes' | 'ranked3';   // 'final' = Fase Final (v43); v55: torneios de campeão e o 3v3
 
 export interface DuelMatch {
   id: number;
   mode: DuelMode;
+  /** Lado a (o capitão, no 3v3) e lado b. */
   a: string;
   b: string;
+  /** v55: a arena (mapa) desta partida: a principal (Arena das Quatro Heranças) ou uma das arenas extras. */
+  arena: string;
+  /** v55: o que aparece no painel de espectador ("Grupo A", "Chave", "Rankeado 3v3"...). */
+  label: string;
+  /** v55: semifinal ou final: luta sozinha na arena principal, com aviso para todo o servidor. */
+  big: boolean;
+  /** v55 (3v3): os times. No 1v1 cada time é um só. */
+  teams: { a: string[]; b: string[] };
+  /** v55 (3v3): quem já caiu nesta rodada (fora até a próxima). */
+  down: Set<string>;
   phase: DuelPhase;
   /** Quando a fase atual acaba (relógio do servidor). */
   until: number;
@@ -156,16 +167,21 @@ export interface DuelMatch {
   reason?: 'rounds' | 'forfeit';
 }
 
-export function newMatch(id: number, a: string, b: string, now: number, mode: DuelMode = 'ranked'): DuelMatch {
+export interface MatchOpts { arena?: string; label?: string; big?: boolean; teams?: { a: string[]; b: string[] } }
+
+export function newMatch(id: number, a: string, b: string, now: number, mode: DuelMode = 'ranked', opts: MatchOpts = {}): DuelMatch {
   return {
-    id, mode, a, b, phase: 'prep', until: now + DUEL.prepMs, round: 1, wins: { a: 0, b: 0 },
+    id, mode, a, b, arena: opts.arena ?? 'vale_estatuas', label: opts.label ?? '', big: opts.big ?? false,
+    teams: opts.teams ?? { a: [a], b: [b] }, down: new Set(), phase: 'prep', until: now + DUEL.prepMs, round: 1, wins: { a: 0, b: 0 },
     roundDamage: { a: 0, b: 0 }, matchDamage: { a: 0, b: 0 }, replay: false, history: [],
     startedAt: now, roundStartedAt: now, rounds: [],
   };
 }
 
 export const other = (s: Side): Side => (s === 'a' ? 'b' : 'a');
-export const sideOf = (m: DuelMatch, id: string): Side | null => (id === m.a ? 'a' : id === m.b ? 'b' : null);
+export const sideOf = (m: DuelMatch, id: string): Side | null => (m.teams.a.includes(id) ? 'a' : m.teams.b.includes(id) ? 'b' : null);
+/** v55: todos os ninjas da partida (os dois lados). */
+export const fighters = (m: DuelMatch): string[] => [...m.teams.a, ...m.teams.b];
 
 /** Soma dano causado por `by` (já depois do escudo e da rede de segurança). */
 export function addDamage(m: DuelMatch, by: Side, dmg: number): void {

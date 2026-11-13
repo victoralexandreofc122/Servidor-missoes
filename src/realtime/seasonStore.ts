@@ -121,8 +121,11 @@ export const SEASON_SQL = {
                 SELECT $1, $2, x.round, x.slot, x.rounds, x.a, x.b, x.w, CASE WHEN x.w IS NOT NULL THEN 'bye' END, CASE WHEN x.w IS NOT NULL THEN now() END
                   FROM unnest($3::int[], $4::int[], $5::int[], $6::uuid[], $7::uuid[], $8::uuid[]) AS x(round, slot, rounds, a, b, w)
                 ON CONFLICT (season_id, village, round, slot) DO NOTHING`,
-  pendingGroups: `SELECT a_id AS a, b_id AS b FROM game.tournament_group_matches WHERE season_id = $1 AND played_at IS NULL`,
-  pendingBracket: `SELECT a_id AS a, b_id AS b FROM game.tournament_brackets WHERE season_id = $1 AND winner_id IS NULL AND a_id IS NOT NULL AND b_id IS NOT NULL`,
+  pendingGroups: `SELECT a_id AS a, b_id AS b, false AS big, 'Grupo ' || chr(64 + group_no) AS label FROM game.tournament_group_matches WHERE season_id = $1 AND played_at IS NULL`,
+  // v55: semifinal e final (`big`) lutam sozinhas na arena principal
+  pendingBracket: `SELECT a_id AS a, b_id AS b, round >= rounds - 1 AS big,
+                          CASE WHEN round = rounds THEN 'Grande Final' WHEN round = rounds - 1 THEN 'Semifinal' ELSE 'Chave' END AS label
+                     FROM game.tournament_brackets WHERE season_id = $1 AND winner_id IS NULL AND a_id IS NOT NULL AND b_id IS NOT NULL`,
   finalists: `SELECT player_id, village FROM game.tournament_groups WHERE season_id = $1`,
   groupResult: `SELECT game.tournament_group_result($1, $2, $3, $4, $5, $6)`,
   bracketResult: `SELECT game.tournament_bracket_result($1, $2, $3, $4, $5, $6)`,

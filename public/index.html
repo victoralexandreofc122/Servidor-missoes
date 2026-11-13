@@ -125,10 +125,24 @@
       <button id="duel-btn" class="duel-btn" type="button">⚔️ Desafio</button>
       <button id="jounin-btn" class="duel-btn jounin-btn" type="button" aria-controls="jounin-panel">🔒 Torneio Fechado</button>
       <button id="duel-watch-btn" class="duel-btn duel-board-btn" type="button">👁 Assistir</button>
+      <!-- v55: as lutas de todas as arenas (painel de espectador) -->
+      <button id="arenas-btn" class="duel-btn duel-board-btn" type="button" aria-controls="arenas-panel">📺 Lutas</button>
       <button id="duel-board-btn" class="duel-btn duel-board-btn" type="button" aria-controls="ranked-panel" aria-label="Ranking" title="Ranking">🏆</button>
     </div>
 
     <!-- v29 (migração v15): o ranking do rankeado. -->
+    <!-- v55: painel de espectador: as lutas acontecendo agora; tocar numa leva você para assistir como fantasma -->
+    <section id="arenas-panel" class="mission-panel ranked-panel arenas-panel" hidden role="dialog" aria-labelledby="arenas-title">
+      <header class="mission-head">
+        <h2 id="arenas-title"><span aria-hidden="true">📺</span> Lutas agora</h2>
+        <button id="arenas-close" class="icon-btn small" type="button" aria-label="Fechar as lutas"><span aria-hidden="true">✕</span></button>
+      </header>
+      <p class="ranked-season">Escolha uma luta para assistir. Você entra como fantasma: ninguém te vê, você não luta e pode trocar de luta quando quiser.</p>
+      <ul id="arenas-list" class="arenas-list"></ul>
+      <button id="arenas-stop" class="duel-btn" type="button" hidden>✋ Parar de assistir</button>
+    </section>
+    <!-- v55: faixa de quem está assistindo como fantasma -->
+    <div id="ghost-bar" class="ghost-bar" hidden aria-live="polite"><span id="ghost-text">👁 Assistindo</span><button id="ghost-switch" class="duel-btn" type="button">📺 Trocar</button><button id="ghost-stop" class="duel-btn" type="button">✋ Parar</button></div>
     <section id="ranked-panel" class="mission-panel ranked-panel" hidden role="dialog" aria-labelledby="ranked-title">
       <header class="mission-head">
         <h2 id="ranked-title"><span aria-hidden="true">🏆</span> Ranking do Rankeado</h2>

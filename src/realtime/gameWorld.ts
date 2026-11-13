@@ -10,7 +10,7 @@ import {
 import {
   CLOSE, ClientMessage, DIRECTED_SKILLS, LINE_MECHANICS, aimShapeOf, REALTIME_ERRORS, SKILLS, sanitizeChat,
   type CastFailReason, type KitName, type KitView, type Kits, type MapChangeReason, type MeditationEnd, type MissionView, type MonsterView,
-  type DuelSideView, type LineageView, type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
+  type ArenaFightView, type DuelSideView, type LineageView, type NinjaView, type PlayerView, type ProgressView, type RankView, type RealtimeErrorCode, type SelfView, type ServerMessage,
   type Skill, type WorldInfo, type Appearance, type Dir, type MonsterStatus,
   type EndgameView, type FactionView, type PowerFailReason, type TravelOption, type SkyView, type GroundKind,
 } from './protocol.js';
@@ -64,7 +64,7 @@ import {
   type EffectBag, type EffectCode,
 } from './effects.js';
 import { NO_CLASS, PvpStats, reportText, toClassRows } from './pvpStats.js';
-import { DUEL, leavePenalty, addDamage, advance, endRound, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, takeVillageMatch, type VillageEntry, timeoutWinner, type DuelMatch, type QueueEntry, type Side } from './duel.js';
+import { DUEL, leavePenalty, addDamage, advance, endRound, fighters, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, takeVillageMatch, type VillageEntry, timeoutWinner, type DuelMatch, type DuelMode, type QueueEntry, type Side } from './duel.js';
 import {
   VALE, ACADEMY, REFUGE, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
   type MapLayout, type Wall,
@@ -272,6 +272,8 @@ interface Session {
   protectedUntil: number;
   /** v29: sentado na arquibancada do Vale (anda: levanta). */
   sitting: boolean;
+  /** v55: assistindo a luta desta arena como fantasma (fora da lista do mapa: ninguém vê, não bate, não apanha). */
+  watching?: MapId;
   /** v29: última vez que tomou dano ou gastou chakra (a vida só volta 7 s depois, com o chakra cheio). */
   calmSince: number;
   dead: boolean;
@@ -627,6 +629,13 @@ const SUMMON_FOLLOW = 2.5;
 /** O golpe de cada invocação conta como o jutsu que a chamou (maestria, recarga do PvP, nome no registro). */
 const SUMMON_SKILL: Readonly<Record<string, Skill>> = { golem: 'stone_golem', sentinela_sombra: 'shadow_sentinela', arsenal: 'weapons_arsenal', clone_agua: 'water_clone' };
 
+/** v55: as arenas, na ordem em que recebem lutas: a principal (com arquibancada) e as extras, para as lutas em paralelo. */
+const ARENAS: readonly MapId[] = ['vale_estatuas', 'arena_2', 'arena_3', 'arena_4'];
+/** v55: o que o fantasma (espectador) não pode fazer: andar, lutar, meditar, falar com NPC. */
+const GHOST_BLOCKED = new Set(['move', 'input', 'cast', 'attack', 'meditate', 'respawn', 'talk', 'power', 'run']);
+/** v55: a próxima partida a montar (1v1, 3v3, Fase Final ou torneio de campeão). */
+interface MatchPick { a: string; b: string; mode: DuelMode; label: string; big: boolean; teams?: { a: string[]; b: string[] } }
+
 export class GameWorld {
   private readonly sessions = new Map<string, Session>();
   private readonly monsters = new Map<string, Monster>();
@@ -675,7 +684,10 @@ export class GameWorld {
   private calendarBusy = false;
   /** v30: muros dos jutsus (Muralha de Terra, Muro de Água): a caixa está nas paredes do mapa enquanto o muro existe. */
   private barriers: { id: number; map: MapId; box: Wall; hp: number; kind: 'rocha' | 'agua'; until: number; ownerId?: string }[] = [];
-  private duel: DuelMatch | null = null;
+  /** v55: as partidas em andamento, uma por arena (a principal e as extras). */
+  private duels = new Map<MapId, DuelMatch>();
+  /** v55: os espectadores (fantasmas) de cada arena: recebem tudo o que acontece lá, mas não estão na lista do mapa. */
+  private watchers = new Map<MapId, Set<Session>>();
   private duelSeq = 0;
   private readonly rankedReturn = new Map<string, { map: MapId; x: number; y: number }>();
   /** v29 (revisão EGM): saídas de partida (castigo na fila) e o último adversário de cada um (fila evita repetir). */
@@ -728,7 +740,7 @@ export class GameWorld {
     this.seasonStore = options.season;
     this.xpBonusStore = options.xpBonus;
     this.watch = options.watch ?? {};
-    for (const id of Object.keys(this.config.maps) as MapId[]) this.mapPlayers.set(id, new Set());
+    for (const id of Object.keys(this.config.maps) as MapId[]) { this.mapPlayers.set(id, new Set()); this.watchers.set(id, new Set()); }
     this.lastTick = now();
     this.pvpStats = new PvpStats(this.lastTick);
     // Começa sempre com o clima normal; o primeiro sorteio vem depois do tempo mínimo de um clima.
@@ -1153,7 +1165,13 @@ export class GameWorld {
     });
     this.joinEndgame(session, !eg);
     this.duelRejoin(session);                  // v29: caiu no meio da partida do rankeado e voltou a tempo
-    if (session.map === 'vale_estatuas') { this.sendDuelState(session); this.sendJouninState(session); }   // v43: reconectou já na Arena: o placar, as filas e o Torneio
+    if (this.layout(session.map).ranked) {
+      // v55: reconectou numa arena extra sem luta (ou assistindo): volta para a praça da Arena das Quatro Heranças
+      if (session.map !== 'vale_estatuas' && !this.duelOf(session.id)) { session.watching = undefined; const at = this.valeArrival(); this.transfer(session, 'vale_estatuas', at.x, at.y, 'travel'); }
+      this.sendDuelState(session);
+      this.sendJouninState(session);   // v43: reconectou já na Arena: o placar, as filas e o Torneio
+      this.sendTo(session, { type: 'arenas', list: this.arenasView(), watching: null });
+    }
     if (session.clan) this.grantClanJutsus(session);   // v30: um tier do clã que o nível alcançou longe do jogo
     else if (session.rank.code !== 'ACADEMY' && session.level >= CLAN_TIER_LEVEL[0]) {
       this.sendTo(session, { type: 'notice', text: session.clanMark
@@ -1180,6 +1198,7 @@ export class GameWorld {
     this.flushUsage(session);
     this.sessions.delete(session.id);
     this.mapPlayers.get(session.map)?.delete(session);
+    if (session.watching) this.watchers.get(session.watching)?.delete(session);
     this.broadcastMap(session.map, { type: 'player_left', playerId: session.id });
     this.log.info({ playerId: session.id, online: this.sessions.size }, 'jogador saiu');
     this.flushKicks();
@@ -1214,6 +1233,7 @@ export class GameWorld {
         // JSON malformado: cai no erro abaixo
       }
     }
+    if (parsed && session.watching && GHOST_BLOCKED.has(parsed.type)) return;   // v55: o fantasma só assiste
     if (!parsed) {
       this.watch.invalidMessage?.(session.username);
       this.sendError(session, 'INVALID_MESSAGE');
@@ -1255,6 +1275,8 @@ export class GameWorld {
     else if (parsed.type === 'set_display') this.setDisplay(session, { cape: parsed.cape, weapon: parsed.weapon, scroll: parsed.scroll });
     else if (parsed.type === 'travel') this.travel(session, parsed.to, t);
     else if (parsed.type === 'ranked') this.rankedAction(session, parsed.action, t);
+    else if (parsed.type === 'watch') this.watchArena(session, parsed.arena);
+    else if (parsed.type === 'arenas') this.sendTo(session, { type: 'arenas', list: this.arenasView(), watching: session.watching ?? null });
     else this.endgameRequest(session, parsed, t);
     this.flushKicks();
   }
@@ -2273,8 +2295,10 @@ export class GameWorld {
     if (attacker.tutorial < 4 || victim.tutorial < 4 || t < victim.protectedUntil) return false;
     // v29: no Arena das Quatro Heranças só lutam os dois da partida, e só durante a rodada.
     if (this.layout(attacker.map).ranked) {
-      const d = this.duel;
-      return !!d && d.phase === 'round' && sideOf(d, attacker.id) !== null && sideOf(d, victim.id) !== null;
+      // v55: cada arena tem a sua partida; no 3v3 só se bate no outro time, e quem caiu na rodada fica fora
+      const d = this.duels.get(attacker.map);
+      const sa = d ? sideOf(d, attacker.id) : null, sv = d ? sideOf(d, victim.id) : null;
+      return !!d && d.phase === 'round' && sa !== null && sv !== null && sa !== sv && !d.down.has(attacker.id) && !d.down.has(victim.id);
     }
     if (this.inSafeZone(attacker) || this.inSafeZone(victim)) return false;
     const layout = this.layout(attacker.map);
@@ -2546,7 +2570,10 @@ export class GameWorld {
   /** Aplica (ou renova) um efeito e avisa todos no mapa. Sono acaba a meditação; lentidão muda a velocidade do dono. */
   private applyEffect(x: Target, code: EffectCode, t: number, ms?: number, amount?: number, source?: Session): void {
     // Rankeado: fora da rodada ninguém ganha efeito (a Bola de Fogo que fecha a rodada queimava depois do golpe).
-    if (x.kind === 'player' && this.layout(x.session.map).ranked && !(this.duel?.phase === 'round' && sideOf(this.duel, x.id))) return;
+    if (x.kind === 'player' && this.layout(x.session.map).ranked) {
+      const dd = this.duels.get(x.session.map);
+      if (!(dd?.phase === 'round' && sideOf(dd, x.id) && !dd.down.has(x.id))) return;
+    }
     if (x.kind === 'player' && (code === 'sono' || code === 'silencio' || code === 'invertido')) {
       ms = this.ccGate(x.session, source, code, ms ?? EFFECTS[code].defaultMs, t);
       if (ms <= 0) return;
@@ -4738,8 +4765,8 @@ export class GameWorld {
     // v29 (bug da rodada 2): no Arena das Quatro Heranças só se apanha durante a rodada, e só quem está na partida. Uma
     // queimadura que sobrava da rodada 1 batia no intervalo, com a vida já em 0, e matava de verdade o perdedor.
     if (this.layout(session.map).ranked) {
-      const d = this.duel;
-      if (!d || d.phase !== 'round' || !sideOf(d, session.id)) return;
+      const d = this.duels.get(session.map);
+      if (!d || d.phase !== 'round' || !sideOf(d, session.id) || d.down.has(session.id)) return;
     }
     // v30: Mundo Espelhado: qualquer dano nos selos faz falhar (sem Concentração que salve); volta metade da recarga
     if (session.casting && amount > 0 && this.config.combat.skills[session.casting.skill]?.breakOnDamage) {
@@ -4795,14 +4822,29 @@ export class GameWorld {
     session.hp = Math.max(0, session.hp - dmg);
     if (by && label) this.pvpStats.hit(label, classOf(by), before - session.hp);
     // v29: rankeado. O dano conta para o desempate; zerar a vida não mata: fecha a rodada.
-    const duel = this.duel;
+    const duel = this.duels.get(session.map);
     const duelSide = duel ? sideOf(duel, session.id) : null;
     if (duel && duelSide && duel.phase === 'round') {
       addDamage(duel, other(duelSide), before - session.hp);
       if (session.hp <= 0) {
         this.broadcastMap(session.map, { type: 'hit', target: 'player', id: session.id, amount: dmg, kind: 'damage', hp: 0, maxHp: session.stats.maxHp });
         session.sentHp = 0;
-        this.duelRoundOver(other(duelSide), t);
+        duel.down.add(session.id);
+        // 1v1: zerou, a rodada acaba. 3v3 (v55): o time só perde a rodada quando os 3 caem; quem caiu fica fora até a próxima
+        if (duel.teams[duelSide].every((id) => duel.down.has(id) || !this.duelSession(id))) {
+          this.duelRoundOver(duel, other(duelSide), t);
+          return;
+        }
+        session.dead = true;
+        session.deadAt = t;
+        session.respawnMs = 1e9;
+        session.dx = 0;
+        session.dy = 0;
+        this.dropInputs(session);
+        for (const code of [...session.effects.keys()]) this.dropEffect({ kind: 'player', id: session.id, x: session.x, y: session.y, session }, code, t);
+        this.broadcastMap(session.map, { type: 'player_died', playerId: session.id, respawnInMs: 0, arena: true });
+        this.broadcastDuel(duel);
+        this.sendStats(session, t);
         return;
       }
     }
@@ -4838,7 +4880,7 @@ export class GameWorld {
     if (action === 'stand') return this.standUp(s);
     if (action === 'sit') {
       // só em cima da arquibancada do Vale, fora da partida
-      if (s.dead || s.sitting || s.map !== 'vale_estatuas' || (this.duel && sideOf(this.duel, s.id))) return;
+      if (s.dead || s.sitting || s.watching || !this.layout(s.map).ranked || this.duelOf(s.id)) return;
       if (!VALE.stands.some((b) => s.x >= b.x && s.x <= b.x + b.w && s.y >= b.y && s.y <= b.y + b.h)) return;
       this.stopMeditation(s, 'manual');
       s.dx = 0;
@@ -4874,7 +4916,7 @@ export class GameWorld {
       return;
     }
     if (action === 'queue') {
-      if (this.duel && sideOf(this.duel, s.id)) return;
+      if (this.duelOf(s.id)) return;
       if (s.level < DUEL.minLevel) return this.notice(s.id, `O rankeado abre no nível ${DUEL.minLevel}.`, 'bad');
       const pen = this.rankedLeaves.get(s.id);
       if (pen && t < pen.until) return this.notice(s.id, `Você saiu de uma partida: espere ${Math.ceil((pen.until - t) / 1000)} s para entrar na fila de novo.`, 'bad');
@@ -4892,9 +4934,11 @@ export class GameWorld {
     }
     // leave: sai da fila e volta para onde estava (ou para casa). Decisão do Victor: depois que a partida começou, tem
     // que ir até o fim (só cair da conexão encerra, e aí é W.O.).
-    if (this.duel && sideOf(this.duel, s.id) && this.duel.phase !== 'done') {
+    const mine = this.duelOf(s.id);
+    if (mine && mine.phase !== 'done') {
       return this.notice(s.id, 'A luta já começou: vá até o fim!', 'bad');
     }
+    if (s.watching) this.unwatch(s);
     this.rankedGone(s);
     const back = this.rankedReturn.get(s.id) ?? this.homeOf(s.village);
     this.rankedReturn.delete(s.id);
@@ -4916,13 +4960,14 @@ export class GameWorld {
     this.rankedQueue = this.rankedQueue.filter((e) => e.id !== s.id);
     this.jouninQueue = this.jouninQueue.filter((e) => e.id !== s.id);
     this.finalQueue = this.finalQueue.filter((id) => id !== s.id);
-    const d = this.duel;
+    if (s.watching) { this.watchers.get(s.watching)?.delete(s); if (disconnected) s.watching = undefined; }
+    const d = this.duelOf(s.id);
     const side = d ? sideOf(d, s.id) : null;
     if (d && side && d.phase !== 'done') {
       if (disconnected && d.phase !== 'prep') {
         // caiu da conexão no meio da luta (na preparação cancela na hora, sem pontos): espera DUEL.reconnectMs antes do W.O. (troca de Wi-Fi para 4G no celular, por exemplo)
         this.duelAway.set(s.id, this.now() + DUEL.reconnectMs);
-        this.broadcastDuel();
+        this.broadcastDuel(d);
       } else this.duelAbandon(s.id, side);
     }
     if (before !== this.rankedQueue.length + this.jouninQueue.length + this.finalQueue.length) this.sendQueues();
@@ -4931,7 +4976,7 @@ export class GameWorld {
   /** Abandonou a partida de vez (o tempo para reconectar acabou): castigo, e cancela (preparação) ou dá W.O. */
   private duelAbandon(id: string, side: Side): void {
     this.duelAway.delete(id);
-    const d = this.duel;
+    const d = this.duelOf(id);
     if (!d || d.phase === 'done') return;
     const t = this.now();
     // castigo: fica fora da fila por um tempo que dobra a cada saída no dia
@@ -4948,6 +4993,12 @@ export class GameWorld {
       else if (o && d.mode === 'jounin' && o.village && this.jouninOpen(t)) this.jouninQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0, village: o.village });
       else if (o && d.mode === 'ranked') this.rankedQueue.unshift({ id: o.id, level: o.level, joinedAt: t, skips: 0 });
       this.sendQueues();
+    } else if (d.teams[side].length > 1 && d.teams[side].some((x) => x !== id && this.duelSession(x))) {
+      // v55 (3v3): um do time saiu: os outros seguem sem ele (ele conta como caído nas rodadas)
+      d.down.add(id);
+      d.teams[side] = d.teams[side].filter((x) => x !== id);
+      if (d[side] === id) d[side] = d.teams[side][0]!;
+      this.broadcastDuel(d);
     } else {
       forfeit(d, side, t);
       this.duelFinished(d);
@@ -4956,14 +5007,14 @@ export class GameWorld {
 
   /** Voltou dentro do tempo: volta para o seu lado da arena e a partida segue. */
   private duelRejoin(s: Session): void {
-    const d = this.duel;
+    const d = this.duelOf(s.id);
     const side = d ? sideOf(d, s.id) : null;
     if (!d || !side || !this.duelAway.has(s.id) || d.phase === 'done') return;
     this.duelAway.delete(s.id);
-    const at = VALE.start[side];
-    this.transfer(s, 'vale_estatuas', at.x, at.y, 'respawn');
-    this.notice(d[other(side)], `${s.username} voltou: a luta continua!`, 'info');
-    this.broadcastDuel();
+    const at = this.startSpot(d, s.id);
+    this.transfer(s, d.arena as MapId, at.x, at.y, 'respawn');
+    for (const o of d.teams[other(side)]) this.notice(o, `${s.username} voltou: a luta continua!`, 'info');
+    this.broadcastDuel(d);
   }
 
   /** v29 (revisão EGM): onde se chega no Vale, espalhado pela praça de baixo (longe de quem já está lá). */
@@ -4982,85 +5033,160 @@ export class GameWorld {
   /** O ninja da partida, se ainda está conectado e no Vale. */
   private duelSession(id: string): Session | undefined {
     const s = this.sessions.get(id);
-    return s && !s.closed && s.map === 'vale_estatuas' ? s : undefined;
+    return s && !s.closed && !s.watching && this.layout(s.map).ranked ? s : undefined;
+  }
+
+  /** v55: está no mundo das arenas (numa arena ou assistindo uma): vale para continuar nas filas. */
+  private inArenaWorld(id: string): boolean {
+    const s = this.sessions.get(id);
+    return !!s && !s.closed && this.layout(s.map).ranked === true;
+  }
+
+  /** v55: a partida em que o ninja está lutando (em qualquer arena). */
+  private duelOf(id: string): DuelMatch | undefined {
+    for (const d of this.duels.values()) if (sideOf(d, id)) return d;
+    return undefined;
+  }
+
+  /** v55: onde cada um começa a rodada: o lado dele, e no 3v3 os três em fila, 2 casas um do outro. */
+  private startSpot(d: DuelMatch, id: string): { x: number; y: number } {
+    const side = sideOf(d, id) ?? 'a';
+    const team = d.teams[side];
+    const i = Math.max(0, team.indexOf(id));
+    const at = VALE.start[side];
+    return { x: at.x, y: at.y + (i - (team.length - 1) / 2) * 2 };
   }
 
   /** Forma a próxima partida e passa as fases. Chamado a cada tick. */
   private rankedTick(t: number): void {
     if (this.rankedQueue.length > 0) {
-      const valid = this.rankedQueue.filter((e) => this.duelSession(e.id));
+      const valid = this.rankedQueue.filter((e) => this.inArenaWorld(e.id));
       if (valid.length !== this.rankedQueue.length) { this.rankedQueue = valid; this.sendQueues(); }
     }
     if (this.jouninQueue.length > 0) {
       // fila do Torneio: sai quem saiu do Vale; a janela fechou: a fila esvazia
-      const valid = this.jouninOpen(t) ? this.jouninQueue.filter((e) => this.duelSession(e.id)) : [];
+      const valid = this.jouninOpen(t) ? this.jouninQueue.filter((e) => this.inArenaWorld(e.id)) : [];
       if (valid.length !== this.jouninQueue.length) { this.jouninQueue = valid; this.sendQueues(); }
     }
     if (this.finalQueue.length > 0) {
-      const valid = this.finalStage() ? this.finalQueue.filter((id) => this.duelSession(id)) : [];
+      const valid = this.finalStage() ? this.finalQueue.filter((id) => this.inArenaWorld(id)) : [];
       if (valid.length !== this.finalQueue.length) { this.finalQueue = valid; this.sendQueues(); }
     }
     for (const [id, until] of this.duelAway) {
-      const side = this.duel ? sideOf(this.duel, id) : null;
+      const dd = this.duelOf(id);
+      const side = dd ? sideOf(dd, id) : null;
       if (!side) this.duelAway.delete(id);
       else if (t >= until) this.duelAbandon(id, side);
     }
-    const d = this.duel;
-    if (!d) {
-      // v43: jogo da Fase Final tem a vez (são poucos e têm prazo): a primeira dupla da fila com jogo pendente entre si.
-      const fin = this.finalStage() ? takePending(this.finalQueue, this.finalPending) : null;
-      if (fin) {
-        this.finalQueue = fin.rest;
-        const m = newMatch(++this.duelSeq, fin.a, fin.b, t, 'final');
-        this.duel = m;
-        this.duelPlace(m, t);
-        this.sendQueues();
-        this.broadcastDuel();
-        this.log.info({ match: m.id, a: m.a, b: m.b, mode: m.mode }, 'rankeado: partida começou');
-        return;
-      }
-      // A arena é uma só: entre o rankeado e o Torneio, luta primeiro a dupla de quem espera há mais tempo.
-      const ranked = takeMatch(this.rankedQueue);
-      const tourney = takeVillageMatch(this.jouninQueue);
-      if (!ranked && !tourney) return;
-      const waited = (q: readonly QueueEntry[], id: string) => q.find((e) => e.id === id)?.joinedAt ?? Infinity;
-      const useTourney = !!tourney && (!ranked || waited(this.jouninQueue, tourney.a) <= waited(this.rankedQueue, ranked.a));
-      const pick = useTourney ? tourney! : ranked!;
-      if (useTourney) this.jouninQueue = tourney!.rest;
-      else this.rankedQueue = ranked!.rest;
-      const m = newMatch(++this.duelSeq, pick.a, pick.b, t, useTourney ? 'jounin' : 'ranked');
-      this.rankedLast.set(pick.a, pick.b);
-      this.rankedLast.set(pick.b, pick.a);
-      this.duel = m;
-      this.duelPlace(m, t);
-      this.sendQueues();
-      this.broadcastDuel();
-      this.log.info({ match: m.id, a: m.a, b: m.b, mode: m.mode }, 'rankeado: partida começou');
-      return;
-    }
+    for (const d of [...this.duels.values()]) this.duelStep(d, t);
+    this.matchmake(t);
+  }
+
+  /** v55: uma partida anda: preparação e intervalo viram rodada, a rodada acaba no tempo, o resultado fecha a arena. */
+  private duelStep(d: DuelMatch, t: number): void {
     if (d.phase === 'done') {
       if (t >= d.until) this.duelClose(d);
       return;
     }
     if (d.phase === 'round' && t >= d.until) {
-      const share = (id: string) => { const x = this.duelSession(id); return x ? x.hp / x.stats.maxHp : 0; };
-      this.duelRoundOver(timeoutWinner(d, { a: share(d.a), b: share(d.b) }), t);
+      // vida que sobrou em porcentagem (no 3v3, a média do time; quem caiu conta 0)
+      const share = (side: Side) => {
+        const list = d.teams[side];
+        return list.reduce((sum, id) => { const x = this.duelSession(id); return sum + (x && !d.down.has(id) ? x.hp / x.stats.maxHp : 0); }, 0) / Math.max(1, list.length);
+      };
+      this.duelRoundOver(d, timeoutWinner(d, { a: share('a'), b: share('b') }), t);
       return;
     }
     if (advance(d, t)) {
       this.duelPlace(d, t);
-      this.broadcastDuel();
+      this.broadcastDuel(d);
     }
+  }
+
+  /**
+   * v55: abre partidas enquanto houver arena livre. A principal (Arena das Quatro Heranças) primeiro, depois as extras:
+   * as lutas da fila e da Fase Final acontecem em paralelo. Semifinal e final (`big`) esperam todas as arenas ficarem
+   * livres e lutam sozinhas na principal, com aviso para o servidor inteiro; enquanto isso, ninguém mais começa.
+   */
+  private matchmake(t: number): void {
+    if ([...this.duels.values()].some((d) => d.big)) return;
+    for (;;) {
+      if (this.nextBig(false)) {
+        if (this.duels.size > 0) return;            // espera as outras lutas acabarem (a dupla continua na fila)
+        this.startMatch(this.nextBig(true)!, 'vale_estatuas', t);
+        return;
+      }
+      const arena = ARENAS.find((a) => !this.duels.has(a));
+      if (!arena) return;
+      const pick = this.nextPick();
+      if (!pick) return;
+      this.startMatch(pick, arena, t);
+    }
+  }
+
+  /** v55: a próxima semifinal ou final pronta (os dois na fila), se houver. Tira os dois da fila. */
+  private nextBig(consume: boolean): MatchPick | null {
+    const fin = this.finalStage() ? takePending(this.finalQueue, this.finalPending.filter((m) => m.big)) : null;
+    if (fin) {
+      if (consume) this.finalQueue = fin.rest;
+      const pend = this.finalPending.find((m) => (m.a === fin.a && m.b === fin.b) || (m.a === fin.b && m.b === fin.a));
+      return { a: fin.a, b: fin.b, mode: 'final', label: `${pend?.label === 'Grande Final' ? 'A Grande Final' : 'A Semifinal'} do Torneio da Temporada`, big: true };
+    }
+    return this.championPick(true, consume);
+  }
+
+  /** v55: a próxima partida comum: Fase Final (grupos e chaves), torneios de campeão, Torneio da Temporada e rankeado. */
+  private nextPick(): MatchPick | null {
+    // jogo da Fase Final tem a vez (são poucos e têm prazo): a primeira dupla da fila com jogo pendente entre si
+    const fin = this.finalStage() ? takePending(this.finalQueue, this.finalPending.filter((m) => !m.big)) : null;
+    if (fin) {
+      this.finalQueue = fin.rest;
+      const pend = this.finalPending.find((m) => (m.a === fin.a && m.b === fin.b) || (m.a === fin.b && m.b === fin.a));
+      return { a: fin.a, b: fin.b, mode: 'final', label: `Torneio da Temporada: ${pend?.label ?? (this.finalStage() === 'grupos' ? 'grupos' : 'chave')}`, big: false };
+    }
+    const champ = this.championPick(false, true);
+    if (champ) return champ;
+    const team = this.team3Pick();
+    if (team) return team;
+    // entre o rankeado e o Torneio, luta primeiro a dupla de quem espera há mais tempo
+    const ranked = takeMatch(this.rankedQueue);
+    const tourney = takeVillageMatch(this.jouninQueue);
+    if (!ranked && !tourney) return null;
+    const waited = (q: readonly QueueEntry[], id: string) => q.find((e) => e.id === id)?.joinedAt ?? Infinity;
+    const useTourney = !!tourney && (!ranked || waited(this.jouninQueue, tourney.a) <= waited(this.rankedQueue, ranked.a));
+    const pick = useTourney ? tourney! : ranked!;
+    if (useTourney) this.jouninQueue = tourney!.rest;
+    else this.rankedQueue = ranked!.rest;
+    this.rankedLast.set(pick.a, pick.b);
+    this.rankedLast.set(pick.b, pick.a);
+    return { a: pick.a, b: pick.b, mode: useTourney ? 'jounin' : 'ranked', label: useTourney ? `Torneio da Temporada: ${villageName(tourney!.village as Village)}` : 'Rankeado 1v1', big: false };
+  }
+
+  /** v55: monta a partida na arena e avisa (a final e a semifinal: o servidor inteiro). */
+  private startMatch(p: MatchPick, arena: MapId, t: number): void {
+    const m = newMatch(++this.duelSeq, p.a, p.b, t, p.mode, { arena, label: p.label, big: p.big, ...(p.teams ? { teams: p.teams } : {}) });
+    this.duels.set(arena, m);
+    this.duelPlace(m, t);
+    this.sendQueues();
+    this.broadcastDuel(m);
+    if (p.big) {
+      const names = (ids: string[]) => ids.map((id) => this.sessions.get(id)?.username ?? '?').join(' + ');
+      this.broadcast({ type: 'announce', message: `🏟️ ${p.label} vai começar: ${names(m.teams.a)} x ${names(m.teams.b)}! A arquibancada da Arena das Quatro Heranças está aberta.` });
+    }
+    this.log.info({ match: m.id, arena, a: m.a, b: m.b, mode: m.mode, big: m.big }, 'rankeado: partida começou');
   }
 
   /** Começo da preparação e de cada rodada: os dois no seu lado, com vida e chakra cheios e sem efeitos. */
   private duelPlace(d: DuelMatch, t: number): void {
-    for (const side of ['a', 'b'] as const) {
-      const s = this.duelSession(d[side]);
+    d.down.clear();
+    for (const id of fighters(d)) {
+      const cur = this.sessions.get(id);
+      if (cur?.watching) this.unwatch(cur, false);      // estava assistindo outra luta: vai lutar
+      const s = this.duelSession(id);
       if (!s) continue;
       const wasDead = this.duelRefresh(s, t);
-      const at = VALE.start[side];
-      this.transfer(s, 'vale_estatuas', at.x, at.y, 'respawn');
+      const at = this.startSpot(d, id);
+      this.transfer(s, d.arena as MapId, at.x, at.y, 'respawn');
       if (wasDead) this.broadcastMap(s.map, { type: 'player_respawned', playerId: s.id, x: s.x, y: s.y, hp: s.hp, maxHp: s.stats.maxHp });
       this.sendStats(s, t);
     }
@@ -5139,22 +5265,21 @@ export class GameWorld {
   }
 
   /** A rodada acabou (alguém zerou, ou o tempo). Os efeitos que sobraram (queimadura...) acabam junto. */
-  private duelRoundOver(winner: Side | null, t: number): void {
-    const d = this.duel;
-    if (!d || d.phase !== 'round') return;
-    for (const id of [d.a, d.b]) {
+  private duelRoundOver(d: DuelMatch, winner: Side | null, t: number): void {
+    if (d.phase !== 'round') return;
+    for (const id of fighters(d)) {
       const s = this.duelSession(id);
       if (s) for (const code of [...s.effects.keys()]) this.dropEffect({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }, code, t);
       if (s) this.clearFight(s, t);   // v45: o campo fica limpo já no intervalo
     }
     const over = endRound(d, winner, t);
-    this.broadcastDuel();
+    this.broadcastDuel(d);
     if (over) this.duelFinished(d);
   }
 
   /** A partida acabou: avisa o Vale (o placar fica na tela até `endMs`). */
   private duelFinished(d: DuelMatch): void {
-    this.broadcastDuel();
+    this.broadcastDuel(d);
     if (!d.winner) return;
     const winnerId = d[d.winner], loserId = d[other(d.winner)];
     this.log.info({ match: d.id, winner: winnerId, loser: loserId, reason: d.reason, wins: d.wins, mode: d.mode }, 'rankeado: partida acabou');
@@ -5222,9 +5347,9 @@ export class GameWorld {
 
   /** Fim da tela de resultado: os dois saem da arena (com a vida cheia) e a arena fica livre para a próxima. */
   private duelClose(d: DuelMatch): void {
-    this.duel = null;
+    if (this.duels.get(d.arena as MapId) === d) this.duels.delete(d.arena as MapId);
     const t = this.now();
-    for (const id of [d.a, d.b]) {
+    for (const id of fighters(d)) {
       const s = this.duelSession(id);
       if (!s) continue;
       const wasDead = this.duelRefresh(s, t);
@@ -5233,7 +5358,7 @@ export class GameWorld {
       if (wasDead) this.broadcastMap(s.map, { type: 'player_respawned', playerId: s.id, x: s.x, y: s.y, hp: s.hp, maxHp: s.stats.maxHp });
       this.sendStats(s, t);
     }
-    this.broadcastDuel();
+    this.broadcastDuel(d, true);
   }
 
   private duelSideView(id: string): DuelSideView | undefined {
@@ -5241,8 +5366,7 @@ export class GameWorld {
     return s ? { id: s.id, name: s.username, level: s.level, village: s.village } : undefined;
   }
 
-  private duelStateMessage(): ServerMessage {
-    const d = this.duel;
+  private duelStateMessage(d: DuelMatch | undefined): ServerMessage {
     if (!d) return { type: 'duel_state', phase: 'idle', ms: 0, round: 0, wins: { a: 0, b: 0 }, history: [], queue: this.rankedQueue.length + this.jouninQueue.length + this.finalQueue.length };
     const a = this.duelSideView(d.a), b = this.duelSideView(d.b);
     return {
@@ -5252,6 +5376,12 @@ export class GameWorld {
       ...(d.winner ? { winner: d.winner } : {}), ...(d.reason ? { reason: d.reason } : {}),
       ...(d.phase === 'done' && d.matchDamage.a + d.matchDamage.b === 0 ? { voided: true } : {}),
       ...this.awayView(d),
+      arena: d.arena, label: d.label, ...(d.big ? { big: true } : {}),
+      ...(d.teams.a.length > 1 || d.teams.b.length > 1 ? {
+        teamA: d.teams.a.map((id) => this.duelSideView(id)).filter((x): x is DuelSideView => !!x),
+        teamB: d.teams.b.map((id) => this.duelSideView(id)).filter((x): x is DuelSideView => !!x),
+        down: [...d.down],
+      } : {}),
     };
   }
 
@@ -5264,13 +5394,85 @@ export class GameWorld {
     return {};
   }
 
-  private broadcastDuel(): void {
-    this.broadcastMap('vale_estatuas', this.duelStateMessage());
+  /** v55: o placar vai para a arena da partida (lutadores e fantasmas); a lista de lutas vai para todo o mundo das arenas. */
+  private broadcastDuel(d: DuelMatch, closed = false): void {
+    this.broadcastMap(d.arena as MapId, closed ? this.duelStateMessage(this.duels.get(d.arena as MapId)) : this.duelStateMessage(d));
+    this.broadcastArenas();
   }
 
   private sendDuelState(s: Session): void {
-    this.sendTo(s, this.duelStateMessage());
+    this.sendTo(s, this.duelStateMessage(this.duels.get(s.map)));
     this.sendQueueTo(s);
+  }
+
+  /** v55: as lutas de agora, para o painel "Assistir". */
+  private arenasView(): ArenaFightView[] {
+    const name = (id: string) => this.sessions.get(id)?.username ?? '?';
+    return ARENAS.flatMap((arena) => {
+      const d = this.duels.get(arena);
+      if (!d) return [];
+      return [{ arena, arenaName: this.layout(arena).name, label: d.label, mode: d.mode, big: d.big, a: d.teams.a.map(name), b: d.teams.b.map(name),
+        phase: d.phase, round: d.round, wins: { ...d.wins } }];
+    });
+  }
+
+  /** v55: manda a lista de lutas para quem está nas arenas (inclusive os fantasmas). */
+  private broadcastArenas(): void {
+    const list = this.arenasView();
+    for (const arena of ARENAS) {
+      for (const s of this.mapPlayers.get(arena) ?? []) this.sendTo(s, { type: 'arenas', list, watching: s.watching ?? null });
+      for (const s of this.watchers.get(arena) ?? []) this.sendTo(s, { type: 'arenas', list, watching: s.watching ?? null });
+    }
+  }
+
+  /**
+   * v55: assistir a luta de uma arena como fantasma: sai da lista do mapa onde estava (ninguém mais o vê), passa a receber
+   * tudo o que acontece na arena escolhida (sem estar na lista dela: os lutadores não o veem, ele não bate nem apanha) e
+   * pode trocar de luta quando quiser. A arena principal (a do Vale, com arquibancada) é assistida em pessoa.
+   */
+  private watchArena(s: Session, arena: MapId | null): void {
+    if (s.dead || s.closed || !this.layout(s.map).ranked) return;
+    if (this.duelOf(s.id)) return this.notice(s.id, 'Você está lutando: assista depois da sua partida.', 'bad');
+    if (arena === null || arena === 'vale_estatuas') { if (s.watching) this.unwatch(s); return; }
+    if (!ARENAS.includes(arena) || s.watching === arena) return;
+    if (!this.duels.has(arena)) return this.notice(s.id, 'Essa arena está vazia agora.', 'info');
+    this.standUp(s);
+    this.stopMeditation(s, 'manual');
+    if (s.watching) this.watchers.get(s.watching)?.delete(s);
+    else {
+      this.mapPlayers.get(s.map)?.delete(s);
+      this.broadcastMap(s.map, { type: 'player_left', playerId: s.id });
+    }
+    s.watching = arena;
+    s.map = arena;
+    const f = VALE.fence;
+    s.x = f.x + f.w / 2;
+    s.y = f.y + f.h / 2;
+    s.dx = 0;
+    s.dy = 0;
+    this.dropInputs(s);
+    this.watchers.get(arena)!.add(s);
+    const maps = this.layoutsFor(s, arena);
+    this.sendTo(s, {
+      type: 'map_changed', map: arena, x: round3(s.x), y: round3(s.y), a: s.ackSeq, players: this.othersIn(s), monsters: this.monstersIn(arena), reason: 'travel',
+      spectator: true, ...(Object.keys(maps).length > 0 ? { maps } : {}),
+    });
+    this.sendTo(s, this.duelStateMessage(this.duels.get(arena)));
+    this.sendTo(s, { type: 'arenas', list: this.arenasView(), watching: arena });
+  }
+
+  /** v55: para de assistir e volta para a praça da Arena das Quatro Heranças (`back`: volta mesmo; false: só sai da lista). */
+  private unwatch(s: Session, back = true): void {
+    const arena = s.watching;
+    if (!arena) return;
+    this.watchers.get(arena)?.delete(s);
+    s.watching = undefined;
+    if (!back) return;
+    const at = this.valeArrival();
+    this.transfer(s, 'vale_estatuas', at.x, at.y, 'travel');
+    this.sendDuelState(s);
+    this.sendJouninState(s);
+    this.sendTo(s, { type: 'arenas', list: this.arenasView(), watching: null });
   }
 
   /** A posição do ninja nas duas filas. A do Torneio conta só a vila dele (é com ela que ele pode lutar). */
@@ -5317,7 +5519,7 @@ export class GameWorld {
   /** Entrar na fila da Fase Final: só finalista com jogo pendente. A partida sai quando um adversário dele também entra. */
   private finalEnqueue(s: Session, t: number): void {
     const say = (text: string) => this.notice(s.id, text, 'bad');
-    if (this.duel && sideOf(this.duel, s.id)) return;
+    if (this.duelOf(s.id)) return;
     if (!this.finalStage()) return say('A Fase Final do Torneio não está em andamento.');
     if (!this.finalists.has(s.id)) return say('Só os finalistas da sua vila jogam a Fase Final.');
     if (this.finalFoes(s.id).length === 0) return say(this.finalStage() === 'grupos' ? 'Você já fez todos os seus jogos do grupo.' : 'Você não tem jogo na chave agora.');
@@ -5489,7 +5691,7 @@ export class GameWorld {
   /** Entrar na fila do Torneio: janela aberta, elegível (o banco confere quem já foi Jounin em outra era) e fora de castigo. */
   private jouninEnqueue(s: Session, t: number): void {
     const say = (text: string) => this.notice(s.id, text, 'bad');
-    if (this.duel && sideOf(this.duel, s.id)) return;
+    if (this.duelOf(s.id)) return;
     const store = this.seasonReady ? this.seasonStore : undefined;
     if (!store || !this.jouninOpen(t)) return say('O Torneio da Temporada não está na fase de pontos.');
     const unfit = this.jouninFit(s);
@@ -5501,9 +5703,9 @@ export class GameWorld {
     store.eligible(id).then((ok) => {
       const cur = this.sessions.get(id);
       const now = this.now();
-      if (!cur || cur.closed || cur.map !== 'vale_estatuas' || !cur.village || !this.jouninOpen(now)) return;
+      if (!cur || cur.closed || !this.layout(cur.map).ranked || !cur.village || !this.jouninOpen(now)) return;
       if (!ok || this.jouninFit(cur)) return this.notice(id, 'Você não pode disputar o Torneio da Temporada (quem já foi Jounin não disputa de novo).', 'bad');
-      if ((this.duel && sideOf(this.duel, id)) || this.jouninQueue.some((e) => e.id === id)) return;
+      if (this.duelOf(id) || this.jouninQueue.some((e) => e.id === id)) return;
       this.rankedQueue = this.rankedQueue.filter((e) => e.id !== id);   // uma fila por vez
       const last = this.rankedLast.get(id);
       this.jouninQueue.push({ id, level: cur.level, joinedAt: now, skips: 0, village: cur.village, ...(last ? { last } : {}) });
@@ -5637,6 +5839,10 @@ export class GameWorld {
 
   /** v55: Torneio dos Heróis e dos Vilões (preenchido no passo dos torneios de campeão). */
   private async championMaintenance(_era: SeasonView, _now: number): Promise<void> {}
+  /** v55: a próxima partida dos torneios de campeão (preenchido no passo dos torneios de campeão). */
+  private championPick(_big: boolean, _consume: boolean): MatchPick | null { return null; }
+  /** v55: a próxima partida do 3v3 (preenchido no passo do 3v3). */
+  private team3Pick(): MatchPick | null { return null; }
 
   /** v55: prazo da eliminatória acabou: cada jogo pendente vira W.O. para o lado `a` (o melhor cabeça de chave), rodada a rodada. */
   private async calendarWalkovers(store: SeasonStore, now: number): Promise<void> {
@@ -6489,7 +6695,7 @@ export class GameWorld {
   }
 
   private passive(s: Session, kind: PassiveKind): number {
-    if (this.duel && sideOf(this.duel, s.id)) return 1;          // v29: rankeado sem passiva da vila
+    if (this.duelOf(s.id)) return 1;          // v29: rankeado sem passiva da vila
     return this.passiveOf(s.village, kind);
   }
 
@@ -7189,11 +7395,13 @@ export class GameWorld {
   /** Serializa UMA vez e manda para quem está no mapa (menos `exceptId`). */
   private broadcastMap(map: MapId, message: ServerMessage, exceptId?: string): void {
     const players = this.mapPlayers.get(map);
-    if (!players || players.size === 0) return;
+    const ghosts = this.watchers.get(map);
+    if ((!players || players.size === 0) && (!ghosts || ghosts.size === 0)) return;
     const data = JSON.stringify(message);
-    for (const session of players) {
+    for (const session of players ?? []) {
       if (session.id !== exceptId) this.sendRaw(session, data);
     }
+    for (const session of ghosts ?? []) if (session.id !== exceptId) this.sendRaw(session, data);   // v55: os fantasmas assistindo
   }
 
   /** Serializa UMA vez e manda para TODOS os mapas (menos `exceptId`): só avisos gerais. */

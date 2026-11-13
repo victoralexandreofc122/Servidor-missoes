@@ -76,27 +76,31 @@ describe('modo rankeado (v29): Arena das Quatro Heranças, fila e partida', () =
     assert.deepEqual(st.wins, { a: 1, b: 0 });
   });
 
-  it('quem sai no meio da partida perde; a arena fica livre e a próxima dupla da fila entra', () => {
+  it('v55: 4 na fila = 2 lutas em paralelo (Arena das Quatro Heranças e Arena 2); quem sai no meio perde e a arena fica livre', () => {
     const { world: w, join, run } = world();
     const [a, b, c, d] = ['kaito', 'mei', 'rin', 'sora'].map((n) => join(n));
     for (const p of [a!, b!, c!, d!]) { p.send({ type: 'ranked', action: 'enter' }); p.send({ type: 'ranked', action: 'queue' }); }
     run(REALTIME.tickMs);
-    assert.deepEqual(c!.conn.last('duel_queue'), { type: 'duel_queue', queued: true, position: 1, size: 2 });
+    const main = a!.conn.last('duel_state'), second = c!.conn.last('duel_state');
+    assert.deepEqual([main.arena, main.a.name, main.b.name], ['vale_estatuas', 'kaito', 'mei']);
+    assert.deepEqual([second.arena, second.a.name, second.b.name], ['arena_2', 'rin', 'sora'], 'a segunda dupla não espera: luta na Arena 2');
+    assert.equal(session(w, c!.id).map, 'arena_2');
+    assert.deepEqual(a!.conn.last('arenas').list.map((x: any) => x.arena), ['vale_estatuas', 'arena_2'], 'o painel lista as duas lutas');
     run(DUEL.prepMs);
     b!.send({ type: 'ranked', action: 'leave' });
     assert.match(b!.conn.last('notice').text, /vá até o fim/, 'Voltar não sai da luta (decisão do Victor)');
     b!.leave();                                                   // só cair da conexão encerra: W.O. depois de 15 s
-    assert.equal(c!.conn.last('duel_state').away.side, 'b', 'todos veem a contagem para ele voltar');
+    assert.equal(a!.conn.last('duel_state').away.side, 'b', 'todos veem a contagem para ele voltar');
+    assert.equal(c!.conn.last('duel_state').away, undefined, 'a outra arena não é afetada');
     run(DUEL.reconnectMs + REALTIME.tickMs);
-    const st = c!.conn.last('duel_state');
+    const st = a!.conn.last('duel_state');
     assert.equal(st.phase, 'done');
     assert.equal(st.winner, 'a');
     assert.equal(st.reason, 'forfeit');
     run(DUEL.endMs + REALTIME.tickMs * 2);
-    const next = c!.conn.last('duel_state');
-    assert.equal(next.phase, 'prep');
-    assert.deepEqual([next.a.name, next.b.name], ['rin', 'sora']);
+    assert.equal(a!.conn.last('duel_state').phase, 'idle', 'a arena principal ficou livre');
     assert.ok(session(w, a!.id).y > VALE.fence.y + VALE.fence.h, 'o vencedor voltou à praça');
+    assert.equal(session(w, a!.id).map, 'vale_estatuas');
   });
 
   it('a rodada que chega ao tempo vai para quem tem mais vida', () => {

@@ -229,6 +229,11 @@ export interface RankedRowView { position: number; playerId: string; username: s
 export type GroundKind = 'fogo' | 'lama' | 'cura' | 'aviso' | 'agua' | 'sombra' | 'ilusao' | 'armas' | 'raio' | 'vento';
 
 export interface DuelSideView { id: string; name: string; level: number; village: string | null }
+/** v55: uma luta no painel de espectador. */
+export interface ArenaFightView {
+  arena: string; arenaName: string; label: string; mode: string; big: boolean;
+  a: string[]; b: string[]; phase: 'prep' | 'round' | 'interval' | 'done'; round: number; wins: { a: number; b: number };
+}
 
 export type KitName = 'A' | 'B';
 export type Kits = Record<KitName, Skill[]>;
@@ -242,6 +247,9 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
   // v29: modo rankeado: entrar no Arena das Quatro Heranças, sair dele, entrar na fila do Desafio e sair da fila.
   z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board', 'sit', 'stand', 'jounin_queue', 'jounin_unqueue', 'jounin_board', 'final_queue', 'final_unqueue', 'final_board']) }),
+  // v55: espectador: assistir a luta de uma arena como fantasma (null = parar de assistir) e pedir a lista das lutas
+  z.object({ type: z.literal('watch'), arena: z.enum(['vale_estatuas', 'arena_2', 'arena_3', 'arena_4']).nullable() }),
+  z.object({ type: z.literal('arenas') }),
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z][a-z_]{0,23}$/) }),
   z.object({ type: z.literal('missions') }),
@@ -609,7 +617,8 @@ export type ServerMessage =
   | { type: 'player_joined'; player: PlayerView }
   | { type: 'shop_open'; shop: ShopKind; npcId: string }
   /** maps: layouts que o cliente ainda não tinha (o mapa novo e os vizinhos dele). */
-  | { type: 'map_changed'; map: MapId; x: number; y: number; a: number; players: PlayerView[]; monsters: MonsterView[]; reason: MapChangeReason; maps?: Partial<Record<MapId, MapLayout>> }
+  | { type: 'map_changed'; map: MapId; x: number; y: number; a: number; players: PlayerView[]; monsters: MonsterView[]; reason: MapChangeReason; maps?: Partial<Record<MapId, MapLayout>>;
+      /** v55: entrou como fantasma (espectador): o cliente esconde o próprio boneco e trava os controles. */ spectator?: boolean }
   | { type: 'player_moved'; playerId: string; x: number; y: number; d: Dir; a: number }
   | { type: 'player_appearance'; playerId: string; appearance: Appearance }
   | { type: 'player_left'; playerId: string }
@@ -681,16 +690,20 @@ export type ServerMessage =
   | { type: 'sit'; playerId: string; active: boolean }
   // v29 (migração v15): os pontos de quem lutou depois da partida, e o painel do ranking.
   | { type: 'duel_rating'; counted: boolean; delta: number; mmr: number; won: boolean; ryo: number;
-      /** v41: 'jounin' = partida do Torneio da Temporada (`mmr` leva os pontos da era). */ mode?: 'ranked' | 'jounin' | 'final' }
+      /** v41: 'jounin' = partida do Torneio da Temporada (`mmr` leva os pontos da era). */ mode?: 'ranked' | 'jounin' | 'final' | 'herois' | 'viloes' | 'ranked3' }
   | { type: 'ranked_board'; available: boolean; season?: { id: number; endsAt: number } | null; top?: RankedRowView[]; me?: RankedRowView | null;
       overall?: { mmr: number; best: number; wins: number; losses: number } | null }
   /** v45: as recargas voltaram a zero (começo de cada rodada do duelo): o cliente limpa os botões. */
   | { type: 'cooldowns_reset' }
   | { type: 'duel_state'; phase: 'idle' | 'prep' | 'round' | 'interval' | 'done'; ms: number; round: number; wins: { a: number; b: number };
       a?: DuelSideView; b?: DuelSideView; history: ('a' | 'b')[]; winner?: 'a' | 'b'; reason?: 'rounds' | 'forfeit'; queue: number;
-      /** v41: partida do Torneio da Temporada ('final' = Fase Final, v43). */ mode?: 'ranked' | 'jounin' | 'final';
+      /** v41: partida do Torneio da Temporada ('final' = Fase Final, v43). */ mode?: 'ranked' | 'jounin' | 'final' | 'herois' | 'viloes' | 'ranked3';
       /** v29: a partida acabou sem nenhum dano (não conta pontos). */ voided?: boolean;
-      /** v29: um lado caiu e tem até `ms` para reconectar. */ away?: { side: 'a' | 'b'; ms: number } }
+      /** v29: um lado caiu e tem até `ms` para reconectar. */ away?: { side: 'a' | 'b'; ms: number };
+      /** v55: a arena desta partida, o rótulo do painel e os times (3v3: os 3 de cada lado; quem caiu na rodada). */
+      arena?: string; label?: string; big?: boolean; teamA?: DuelSideView[]; teamB?: DuelSideView[]; down?: string[] }
+  /** v55: as lutas acontecendo agora, para o painel de espectador ("Assistir"). `watching` = a arena que ele assiste. */
+  | { type: 'arenas'; list: ArenaFightView[]; watching: string | null }
   | { type: 'arena_result'; winnerId: string; winner: string; loserId: string; loser: string; winnerRecord: ArenaRecord; loserRecord: ArenaRecord }
   | { type: 'player_respawned'; playerId: string; x: number; y: number; hp: number; maxHp: number }
   | { type: 'xp'; gained: number; totalXp: number; rank: RankView; promoted: boolean }

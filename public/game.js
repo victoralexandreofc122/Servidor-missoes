@@ -51,6 +51,8 @@ const ui = {
   jouninCut: $('jounin-cut'), jouninList: $('jounin-list'), jouninQueue: $('jounin-queue'), jouninWhy: $('jounin-why'),
   finalPanel: $('final-panel'), finalClose: $('final-close'), finalStatus: $('final-status'), finalMine: $('final-mine'), finalQueue: $('final-queue'),
   finalEra: $('final-era'), finalBracket: $('final-bracket'), finalGroups: $('final-groups'),
+  arenasBtn: $('arenas-btn'), arenasPanel: $('arenas-panel'), arenasList: $('arenas-list'), arenasClose: $('arenas-close'), arenasStop: $('arenas-stop'),
+  ghostBar: $('ghost-bar'), ghostText: $('ghost-text'), ghostSwitch: $('ghost-switch'), ghostStop: $('ghost-stop'),
   duelAgain: $('duel-again'), duelWatchBtn: $('duel-watch-btn'), duelAHp: $('duel-a-hp'), duelBHp: $('duel-b-hp'),
   rankedProgress: $('ranked-progress'), rankedProgressBar: $('ranked-progress-bar'), rankedProgressText: $('ranked-progress-text'),
   duelBanner: $('duel-banner'), duelBannerTitle: $('duel-banner-title'), duelBannerScore: $('duel-banner-score'), duelBannerPoints: $('duel-banner-points'),
@@ -300,7 +302,7 @@ function showLogin(message = '') {
 
 // v29: modo rankeado. O botão do menu vai ao Vale (lá, volta); o Desafio entra e sai da fila.
 ui.rankedToggle.addEventListener('click', () => {
-  send({ type: 'ranked', action: state.mapId === 'vale_estatuas' ? 'leave' : 'enter' });
+  send({ type: 'ranked', action: isArenaMap() ? 'leave' : 'enter' });
 });
 ui.duelBtn.addEventListener('click', () => {
   send({ type: 'ranked', action: state.duelQueue?.queued ? 'unqueue' : 'queue' });
@@ -352,11 +354,16 @@ ui.duelWatchBtn.addEventListener('click', () => {
   state.watchArena = !state.watchArena;
   renderDuel();
 });
+/** v55: o mapa é uma arena (a Arena das Quatro Heranças ou uma das extras)? */
+function isArenaMap(id = state.mapId) {
+  return id === 'vale_estatuas' || /^arena_\d$/.test(id || '') || !!state.maps[id]?.ranked;
+}
+
 /** O ninja está em cima de uma arquibancada do Vale? */
 function onStands() {
   const me = state.players.get(state.meId);
   const map = state.maps[state.mapId];
-  if (!me || !map || state.mapId !== 'vale_estatuas') return false;
+  if (!me || !map || !isArenaMap()) return false;
   return (map.deco || []).some((d) => d.k === 'stands' && me.x >= d.x && me.x <= d.x + d.w && me.y >= d.y && me.y <= d.y + d.h);
 }
 
@@ -839,6 +846,12 @@ function handleMessage(msg) {
       // v45: começo de rodada do duelo: o servidor zerou as recargas
       for (const k of Object.keys(cooldowns)) delete cooldowns[k];
       break;
+    case 'arenas':
+      state.arenas = msg.list;
+      state.watching = msg.watching;
+      renderArenas();
+      renderGhost();
+      break;
     case 'duel_state':
       state.duel = { ...msg, until: performance.now() + msg.ms, ...(msg.away ? { awayUntil: performance.now() + msg.away.ms } : {}) };
       duelAnnounce(msg);
@@ -1036,6 +1049,8 @@ function handleMessage(msg) {
       // novo em si já pode estar na tela (a predição atravessa na hora); aqui chegam os
       // jogadores e monstros de lá. Os do mapa antigo somem.
       state.serverMap = msg.map;
+      state.spectating = !!msg.spectator;   // v55: entrou (ou saiu) como fantasma
+      renderGhost();
       if (msg.maps) Object.assign(state.maps, msg.maps);   // o mapa novo e os vizinhos que ainda não tínhamos
       for (const id of [...state.players.keys()]) if (id !== state.meId) state.players.delete(id);
       state.monsters.clear();
@@ -1045,7 +1060,7 @@ function handleMessage(msg) {
       if (me) { me.map = msg.map; me.tx = msg.x; me.ty = msg.y; }
       if (!predWorld) break;
       // Renascer e o tutorial (o servidor leva para a sala seguinte / Praça): salto, sem refazer entradas.
-      if (msg.reason === 'respawn' || msg.reason === 'tutorial') pred.teleport(msg.map, msg.x, msg.y);
+      if (msg.reason === 'respawn' || msg.reason === 'tutorial' || msg.spectator) pred.teleport(msg.map, msg.x, msg.y);
       else pred.reconcile(msg.map, msg.x, msg.y, msg.a, predWorld);
       if (msg.reason === 'tutorial' && me) { me.x = msg.x; me.y = msg.y; me.snaps = [{ t: now, x: msg.x, y: msg.y }]; }
       updateOnline();
@@ -2554,13 +2569,16 @@ function duelFoe(id) {
 
 /** Placar no alto e o botão do Desafio, só no Vale. */
 function renderDuel() {
-  const inVale = state.mapId === 'vale_estatuas';
-  ui.rankedLabel.textContent = inVale ? 'Voltar' : 'Rankeado';
-  ui.duelHud.hidden = !inVale;
+  const inArena = isArenaMap();
+  const inVale = inArena && !state.spectating;      // v55: o fantasma vê o placar da luta, mas não os botões
+  ui.rankedLabel.textContent = inArena ? 'Voltar' : 'Rankeado';
+  ui.duelHud.hidden = !inArena;
   const d = state.duel;
   const fighting = !!d && d.phase !== 'idle' && [d.a?.id, d.b?.id].includes(state.meId);
   const q = state.duelQueue;
-  ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden || !ui.jouninPanel.hidden || !ui.finalPanel.hidden;
+  ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden || !ui.jouninPanel.hidden || !ui.finalPanel.hidden || !ui.arenasPanel.hidden;
+  ui.arenasBtn.hidden = fighting;
+  if (fighting || !inArena) ui.arenasPanel.hidden = true;
   ui.duelBtn.hidden = fighting;
   // v42: Torneio da Temporada: aberto = botão dourado (ou a posição na fila); fechado = cadeado
   const jq = q?.jounin?.position || 0;
@@ -2595,7 +2613,7 @@ function renderDuel() {
   ui.duelBtn.classList.toggle('busy', busy && !q?.queued);
   ui.duelBtn.textContent = q?.queued ? `Fila: ${q.position}º · Cancelar` : busy ? '⚔️ Entrar na fila' : '⚔️ Desafio';
   document.body.classList.toggle('duel-fighting', fighting && d.phase !== 'done');
-  if (!inVale) return;
+  if (!inArena) return;
   const side = (el, v, wins, isMe) => {
     el.name.textContent = v ? v.name : '?';
     el.info.textContent = v ? `Nv ${v.level}${v.village ? ` · ${VILLAGE_SHORT[v.village] || ''}` : ''}` : '';
@@ -2645,9 +2663,59 @@ function tickDuelClock() {
 }
 setInterval(() => {
   // o mapa do cliente troca depois da mensagem (a predição atravessa): confere aqui se entrou ou saiu do Vale
-  if ((state.mapId === 'vale_estatuas') === ui.duelHud.hidden || (state.mapId === 'vale_estatuas' && onStands() !== state.onStands)) renderDuel();
+  if ((isArenaMap() && !state.spectating) === ui.duelHud.hidden || (isArenaMap() && onStands() !== state.onStands)) renderDuel();
   else tickDuelClock();
 }, 250);
+
+/** v55: o painel "Lutas agora": cada luta acontecendo nas arenas; tocar numa = assistir como fantasma. */
+const ARENA_PHASE = { prep: 'Preparação', round: 'Rodada', interval: 'Intervalo', done: 'Fim' };
+function renderArenas() {
+  const list = state.arenas || [];
+  ui.arenasBtn.textContent = list.length ? `📺 Lutas (${list.length})` : '📺 Lutas';
+  ui.arenasStop.hidden = !state.watching;
+  if (ui.arenasPanel.hidden) return;
+  if (!list.length) {
+    const li = document.createElement('li');
+    li.className = 'arenas-empty';
+    li.textContent = 'Nenhuma luta agora. Entre na fila do Desafio!';
+    ui.arenasList.replaceChildren(li);
+    return;
+  }
+  ui.arenasList.replaceChildren(...list.map((f) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'arenas-item' + (f.arena === state.watching ? ' watching' : '') + (f.big ? ' big' : '');
+    const title = document.createElement('b');
+    title.textContent = `${f.arenaName}: ${f.a.join(' + ')} vs ${f.b.join(' + ')}`;
+    const info = document.createElement('small');
+    info.textContent = `${f.label} · ${f.phase === 'round' ? `Rodada ${f.round}` : ARENA_PHASE[f.phase] || ''} · ${f.wins.a} x ${f.wins.b}${f.arena === state.watching ? ' · assistindo' : ''}`;
+    b.append(title, info);
+    b.addEventListener('click', () => { send({ type: 'watch', arena: f.arena }); ui.arenasPanel.hidden = true; renderDuel(); });
+    li.append(b);
+    return li;
+  }));
+}
+function openArenas() {
+  ui.arenasPanel.hidden = false;
+  ui.rankedPanel.hidden = true;
+  send({ type: 'arenas' });
+  renderArenas();
+  renderDuel();
+}
+/** v55: a faixa do fantasma: qual luta está assistindo, trocar e parar. */
+function renderGhost() {
+  ui.ghostBar.hidden = !state.spectating;
+  document.body.classList.toggle('spectating', !!state.spectating);
+  if (!state.spectating) return;
+  const f = (state.arenas || []).find((x) => x.arena === state.watching);
+  ui.ghostText.textContent = f ? `👁 Assistindo · ${f.arenaName}: ${f.a.join(' + ')} vs ${f.b.join(' + ')}` : '👁 Assistindo';
+}
+ui.arenasBtn.addEventListener('click', () => (ui.arenasPanel.hidden ? openArenas() : (ui.arenasPanel.hidden = true, renderDuel())));
+ui.arenasClose.addEventListener('click', () => { ui.arenasPanel.hidden = true; renderDuel(); });
+ui.arenasStop.addEventListener('click', () => { send({ type: 'watch', arena: null }); ui.arenasPanel.hidden = true; });
+ui.ghostSwitch.addEventListener('click', openArenas);
+ui.ghostStop.addEventListener('click', () => send({ type: 'watch', arena: null }));
 
 /** O painel do ranking (temporada, top 50 e a sua linha). */
 function renderRankedBoard(msg) {
@@ -5980,7 +6048,7 @@ function update(dt) {
   const now = performance.now();
   if (me && predWorld) {
     // Próprio jogador: predição (anda já) + envio das entradas em lote + correção suave.
-    const canMove = state.connected && !state.me.dead;
+    const canMove = state.connected && !state.me.dead && !state.spectating;   // v55: o fantasma só assiste
     // v30: controles invertidos (Descontrole Muscular): anda ao contrário enquanto durar
     const inv = me.fx?.invertido > now ? -1 : 1;
     const dx = quantize(dir.x) * inv, dy = quantize(dir.y) * inv;
@@ -6194,7 +6262,8 @@ function draw(now) {
   // Tremor curto (o golpe marcado caiu perto): alguns centésimos de casa para os lados.
   const shake = now < (state.shakeUntil || 0) ? ((state.shakeUntil - now) / 220) * 0.12 : 0;
   // v29: no Vale, "Assistir" leva a câmera para o meio da arena (quem está lutando sempre vê o próprio ninja)
-  const watch = state.watchArena && state.sitting && state.mapId === 'vale_estatuas' && !duelFighting();
+  // v55: o fantasma (espectador de outra arena) sempre olha o meio da luta
+  const watch = state.spectating || (state.watchArena && state.sitting && isArenaMap() && !duelFighting());
   const fx = watch ? 22 : me ? me.x + cam.ox : width / 2, fy = watch ? 15 : me ? me.y + cam.oy : height / 2;
   const camX = fx + (shake ? Math.sin(now / 9) * shake : 0);
   const camY = fy + (shake ? Math.cos(now / 11) * shake : 0);
@@ -6304,7 +6373,7 @@ function draw(now) {
     if (m.diedAt && now - m.diedAt > monsterDeathMs(m.type)) { state.monsters.delete(m.id); continue; }   // terminou de sumir
     if (m.map === state.mapId) drawList.push(m);
   }
-  for (const p of state.players.values()) if (p.map === state.mapId) drawList.push(p);
+  for (const p of state.players.values()) if (p.map === state.mapId && !(state.spectating && p.id === state.meId)) drawList.push(p);
   for (const n of state.npcs) drawList.push(n);
   // Árvores, pedras altas e barracas no meio dos bonecos, pela linha da base (quem passa atrás fica atrás da copa).
   for (const pr of state.props) {
