@@ -195,6 +195,8 @@ export interface WorldOptions {
 export interface JoiningPlayer {
   id: string;
   username: string;
+  /** v59 (migração v34): o último lugar gravado no banco (o servidor confere antes de usar). */
+  lastPosition?: { map: string; x: number; y: number };
   xp?: number;
   rank?: RankView;
   canBeSensei?: boolean;
@@ -642,6 +644,9 @@ const ARENAS: readonly MapId[] = ['vale_estatuas', 'arena_2', 'arena_3', 'arena_
  * Arena e Vale não guardam (a luta já foi dada como perdida ao sair) e o fantasma também não.
  */
 export const RECONNECT_GRACE_MS = 120_000;
+const posKey = (p: { map: string; x: number; y: number } | null) => (p ? `${p.map}:${p.x}:${p.y}` : '-');
+/** v59 (migração v34): de quanto em quanto tempo o último lugar de quem está andando vai para o banco. */
+export const POSITION_SAVE_MS = 30_000;
 /** v55: o que o fantasma (espectador) não pode fazer: andar, lutar, meditar, falar com NPC. */
 const GHOST_BLOCKED = new Set(['move', 'input', 'cast', 'attack', 'meditate', 'respawn', 'talk', 'power', 'run']);
 /** v55: a próxima partida a montar (1v1, 3v3, Fase Final ou torneio de campeão). */
@@ -651,6 +656,10 @@ export class GameWorld {
   private readonly sessions = new Map<string, Session>();
   private readonly monsters = new Map<string, Monster>();
   private readonly pendingKicks: { session: Session; close: { code: number; reason: string } }[] = [];
+  /** v59: a última posição gravada de cada um (para só gravar o que mudou) e se a tabela da v34 existe. */
+  private readonly savedKey = new Map<string, string>();
+  private positionsOff = false;
+  private positionTimer: NodeJS.Timeout | undefined;
   /** v59: quem caiu há pouco (id -> sessão e até quando vale voltar no mesmo lugar). */
   private readonly parked = new Map<string, { session: Session; until: number }>();
   private readonly random: () => number;
@@ -1040,6 +1049,8 @@ export class GameWorld {
     const tutorial = player.tutorialStep ?? previous?.tutorial ?? 4;
     // Quem não terminou o tutorial nasce na Academia, na sala do passo em que está; os outros, na praça da vila deles.
     const home = tutorial < 4 ? { map: 'academy_interior' as MapId, ...academySpawn(tutorial) } : this.homeOf(village);
+    // v59: sem sessão na memória, o último lugar gravado no banco (se ainda vale: mapa existe, fora da parede, não é arena)
+    const saved = !previous && tutorial >= 4 ? this.savedSpot(player.lastPosition) : undefined;
     const jutsus = new Map<string, number>(
       player.jutsus ? Object.entries(player.jutsus) : previous ? [...previous.jutsus] : DEFAULT_JUTSUS.map((j) => [j, 0]),
     );
@@ -1049,9 +1060,9 @@ export class GameWorld {
       id: player.id,
       username: player.username,
       conn,
-      map: previous?.map ?? home.map,
-      x: previous?.x ?? home.x,
-      y: previous?.y ?? home.y,
+      map: previous?.map ?? saved?.map ?? home.map,
+      x: previous?.x ?? saved?.x ?? home.x,
+      y: previous?.y ?? saved?.y ?? home.y,
       dx: 0,
       dy: 0,
       inputQueue: [],
@@ -1148,7 +1159,7 @@ export class GameWorld {
       cape: eg ? eg.cape : (previous?.cape ?? null),
       display: { ...(eg?.display ?? previous?.display ?? SHOW_ALL) },
       villageSwitches: eg ? eg.villageSwitches : (previous?.villageSwitches ?? 0),
-      doorBack: previous?.doorBack,
+      doorBack: previous?.doorBack ?? (saved && this.layout(saved.map).kind === 'interior' ? this.backFor({ village }, saved.map) : undefined),
       powerBuff: previous?.powerBuff,
       basicBuff: undefined,
       casting: null,
@@ -1189,6 +1200,8 @@ export class GameWorld {
       this.broadcastMap(session.map, { type: 'player_joined', player: this.view(session) }, session.id);
       this.log.info({ playerId: player.id, online: this.sessions.size }, 'jogador entrou');
     }
+    if (saved) this.enforceAccess(session);   // v59: o lugar gravado pode ter ficado proibido (virou renegado, aliança acabou)
+    this.savedKey.set(session.id, posKey(this.positionOf(session)));
 
     // v34: com banco, só fica no kit jutsu da Academia, das suas classes (Primária e Secundária) ou da sua linhagem
     if (this.store) session.kits = this.usableKits(session);
@@ -1237,8 +1250,51 @@ export class GameWorld {
     if (session.watching) this.watchers.get(session.watching)?.delete(session);
     this.broadcastMap(session.map, { type: 'player_left', playerId: session.id });
     this.park(session);
+    void this.persistPositions([session]);   // v59: o último lugar vai para o banco na hora de sair
     this.log.info({ playerId: session.id, online: this.sessions.size }, 'jogador saiu');
     this.flushKicks();
+  }
+
+  /** v59: o lugar que vale gravar; null = nascer na praça (morto, na arena/Vale, fantasma, ainda no tutorial). */
+  private positionOf(s: Session): { map: string; x: number; y: number } | null {
+    if (s.dead || s.watching || s.tutorial < 4 || ARENAS.includes(s.map)) return null;
+    return { map: s.map, x: Math.round(s.x * 100) / 100, y: Math.round(s.y * 100) / 100 };
+  }
+
+  /** v59: o lugar gravado ainda serve? (mapa existe, não é arena nem Academia, dentro do mapa e fora da parede) */
+  private savedSpot(pos: JoiningPlayer['lastPosition']): { map: MapId; x: number; y: number } | undefined {
+    if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return undefined;
+    const layout = this.config.maps[pos.map as MapId];
+    if (!layout || ARENAS.includes(pos.map as MapId) || pos.map === 'academy_interior') return undefined;
+    if (pos.x < 0.5 || pos.y < 0.5 || pos.x > layout.width - 0.5 || pos.y > layout.height - 0.5 || blocked(pos.x, pos.y, layout.walls)) return undefined;
+    return { map: pos.map as MapId, x: pos.x, y: pos.y };
+  }
+
+  /**
+   * v59 (migração v34): grava o último lugar de quem mudou desde a última vez (a cada 30 s, ao sair e ao desligar).
+   * Sem a v34 no banco, para de tentar e o jogo segue (nasce na praça, como antes).
+   */
+  async persistPositions(list: Iterable<Session> = this.sessions.values()): Promise<void> {
+    const store = this.store;
+    if (!store?.savePositions || this.positionsOff) return;
+    const rows: { id: string; pos: { map: string; x: number; y: number } | null }[] = [];
+    for (const s of list) {
+      const pos = this.positionOf(s);
+      const key = posKey(pos);
+      if (this.savedKey.get(s.id) === key) continue;
+      this.savedKey.set(s.id, key);
+      rows.push({ id: s.id, pos });
+    }
+    if (!rows.length) return;
+    try {
+      if (!(await store.savePositions(rows))) {
+        this.positionsOff = true;
+        this.log.warn({}, 'último lugar dos jogadores desligado: rode a migração v34 no Neon');
+      }
+    } catch (err) {
+      for (const r of rows) this.savedKey.delete(r.id);   // tenta de novo na próxima
+      this.log.warn({ err }, 'falha ao gravar o último lugar dos jogadores');
+    }
   }
 
   /** v59: quem caiu: guarda a sessão por 2 minutos (menos na arena, no Vale e assistindo como fantasma). */
@@ -3551,6 +3607,7 @@ export class GameWorld {
   /** Grava o uso de TODO mundo (desligando o servidor). */
   async flushAll(maxWaitMs = 5000): Promise<void> {
     await Promise.all([...this.sessions.values()].map((s) => this.flushUsage(s)));
+    await this.persistPositions();   // v59: deploy: o último lugar de todos antes de desligar
     // v37: no desligamento (deploy), espera também as gravações na fila de cada jogador (Rito, compras, linhagem...).
     const until = Date.now() + maxWaitMs;
     while (Date.now() < until && [...this.sessions.values()].some((s) => s.profileBusy || s.profileQueue.length > 0)) {
@@ -6966,6 +7023,9 @@ export class GameWorld {
       this.chatLog.purge().catch((err: unknown) => this.log.warn({ err }, 'falha ao limpar o histórico do chat'));
     }, CHAT_HISTORY.purgeEveryMs);
     this.purgeTimer.unref();
+    // v59: o último lugar de quem está andando vai para o banco de tempos em tempos (se o servidor cair, perde no máximo 30 s)
+    this.positionTimer = setInterval(() => void this.persistPositions(), POSITION_SAVE_MS);
+    this.positionTimer.unref();
     // Fim de jogo: confere a v11, a população e roda a manutenção (eleições, temporadas) a cada minuto.
     void this.xpBonusMaintenance();
     void this.xpBonusMaintenance();   // os bônus gravados voltam logo que o servidor sobe
@@ -6996,6 +7056,7 @@ export class GameWorld {
     if (this.rankedTimer) clearInterval(this.rankedTimer);
     if (this.seasonTimer) clearInterval(this.seasonTimer);
     if (this.xpBonusTimer) clearInterval(this.xpBonusTimer);
+    if (this.positionTimer) clearInterval(this.positionTimer);
     this.timer = undefined;
     this.purgeTimer = undefined;
     this.endgameTimer = undefined;

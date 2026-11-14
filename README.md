@@ -240,11 +240,15 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
-### v59: reconexão no mesmo lugar e contador da Shuriken (sem migração)
+### v59: o ninja volta sempre ao último lugar (migração v34, `db/schema_v34_posicao.sql`) e contador da Shuriken
 
-- **Caiu a conexão** (troca de app ou de aba no celular, rede oscilando): o servidor guarda o ninja onde estava (mapa,
-  posição, vida, chakra, recargas e efeitos) por **2 minutos**. Voltou nesse tempo: continua dali, sem curar. Passou dos
-  2 minutos, ou o servidor reiniciou: volta para a praça da vila, como antes. Na arena, no Vale e assistindo como
+- **Último lugar no banco (v34):** o servidor grava o mapa e a posição de cada ninja (a cada 30 s se andou, ao sair e
+  no desligamento do deploy). Ao entrar, mesmo horas depois ou com o servidor reiniciado, ele volta ali. O lugar é
+  conferido ao entrar (mapa existe, fora da parede, acesso permitido); morto, na arena/Vale, fantasma e no tutorial não
+  guardam (nasce na praça, como antes).
+
+- **Caiu a conexão** (troca de app ou de aba no celular, rede oscilando): além do lugar, o servidor guarda vida, chakra,
+  recargas e efeitos por **2 minutos** (memória). Voltou nesse tempo: continua igual, sem curar. Na arena, no Vale e assistindo como
   fantasma não guarda (a luta já conta como perdida ao sair).
 - **Shuriken:** a quantidade sempre ficou salva no banco; o botão ✴️ é que mostrava 0 (cinza) ao entrar, até chegar outra
   atualização do inventário. Agora a contagem certa aparece já na entrada.

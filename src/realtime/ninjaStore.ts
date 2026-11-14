@@ -61,6 +61,8 @@ export interface NinjaStore {
   addItem(playerId: string, item: string, qty: number): Promise<Inventory>;
   /** v53: gasta 1 do item (a Shuriken). false = não tinha. A linha some quando chega a zero. */
   useItem?(playerId: string, item: string): Promise<boolean>;
+  /** v59 (migração v34): grava o último lugar (pos null = apaga: nasce na praça). false = a tabela ainda não existe. */
+  savePositions?(rows: readonly { id: string; pos: { map: string; x: number; y: number } | null }[]): Promise<boolean>;
   /** v30 (migração v19): grava a linhagem (só se ainda não tinha) e ensina jutsus (os do clã, pelo nível). */
   chooseClan?(playerId: string, clan: string): Promise<void>;
   learnJutsus?(playerId: string, codes: string[]): Promise<void>;
@@ -123,6 +125,12 @@ export const NINJA_SQL = {
          less AS (UPDATE game.player_items SET quantity = quantity - 1 WHERE player_id = $1 AND item_code = $2 AND quantity > 1 RETURNING quantity AS qty)
     SELECT qty FROM gone UNION ALL SELECT qty FROM less`,
   inventory: `SELECT ${INVENTORY} AS items`,
+  /** v59 (migração v34): o último lugar de vários de uma vez. */
+  savePositions: `
+    INSERT INTO game.player_positions (player_id, map_id, x, y, saved_at)
+    SELECT id, map, x, y, now() FROM unnest($1::uuid[], $2::text[], $3::real[], $4::real[]) AS t(id, map, x, y)
+    ON CONFLICT (player_id) DO UPDATE SET map_id = EXCLUDED.map_id, x = EXCLUDED.x, y = EXCLUDED.y, saved_at = now()`,
+  clearPositions: `DELETE FROM game.player_positions WHERE player_id = ANY($1::uuid[])`,
   /** Checagem de boot: a migração v7 foi aplicada? (LIMIT 0: não lê linha.) */
   bootCheck: `SELECT tutorial_step, ryo, equipped_weapon, attr_weapons FROM game.players LIMIT 0`,
   /** Checagem de boot: a migração v12 (sapatos) foi aplicada? Sem ela o servidor não sobe (o login lê a coluna). */
@@ -284,6 +292,21 @@ export function makeNinjaStore(db: Db): NinjaStore {
 
     async useItem(playerId, item) {
       return (await db.query(NINJA_SQL.useItem, [playerId, item])).rows.length > 0;
+    },
+
+    async savePositions(rows) {
+      const put = rows.filter((r) => r.pos);
+      const del = rows.filter((r) => !r.pos).map((r) => r.id);
+      try {
+        if (put.length) {
+          await db.query(NINJA_SQL.savePositions, [put.map((r) => r.id), put.map((r) => r.pos!.map), put.map((r) => r.pos!.x), put.map((r) => r.pos!.y)]);
+        }
+        if (del.length) await db.query(NINJA_SQL.clearPositions, [del]);
+        return true;
+      } catch (err) {
+        if ((err as { code?: string })?.code === '42P01') return false;   // a v34 ainda não rodou
+        throw err;
+      }
     },
 
     async rankOf(playerId) {
