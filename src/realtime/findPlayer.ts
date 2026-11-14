@@ -21,6 +21,8 @@ export const FIND_PLAYER_SQL = `
    WHERE p.id = $1`;
 
 export const MANUAL_SQL = `SELECT chapter, read_at IS NOT NULL AS read FROM game.player_tutorial WHERE player_id = $1`;
+/** v59 (migração v34): o último lugar onde o ninja estava. */
+export const POSITION_SQL = `SELECT map_id, x, y FROM game.player_positions WHERE player_id = $1`;
 
 interface Row {
   id: string;
@@ -66,8 +68,13 @@ export function makeFindPlayer(db: Queryable) {
     const manual = await db.query<{ chapter: string; read: boolean }>(MANUAL_SQL, [playerId])
       .then((r) => ({ unlocked: r.rows.map((x) => x.chapter), read: r.rows.filter((x) => x.read).map((x) => x.chapter) }))
       .catch((err: { code?: string }) => { if (err?.code === '42P01') return undefined; throw err; });
+    // v59 (migração v34): sem a tabela ainda, nasce na praça como antes
+    const lastPosition = await db.query<{ map_id: string; x: number; y: number }>(POSITION_SQL, [playerId])
+      .then((r) => (r.rows[0] ? { map: r.rows[0].map_id, x: Number(r.rows[0].x), y: Number(r.rows[0].y) } : undefined))
+      .catch((err: { code?: string }) => { if (err?.code === '42P01') return undefined; throw err; });
     return {
       ...(manual ? { manual } : {}),
+      ...(lastPosition ? { lastPosition } : {}),
       id: row.id,
       username: row.username,
       xp: Number(row.total_xp),

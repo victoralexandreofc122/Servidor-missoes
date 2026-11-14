@@ -1291,3 +1291,19 @@ campeão ficam desligados e a Era não vira sozinha.
 1. Arena → "📺 Lutas": aparecem as lutas de todas as arenas; tocar numa leva você para assistir como fantasma.
 2. "👥 3v3" com 6 ninjas na fila (ou um Trio + 3): a partida 3 contra 3 começa numa arena livre.
 3. Conferência no Neon: `SELECT to_regclass('game.ranked3_matches');` não pode dar vazio.
+
+## Passo 49 — O ninja volta sempre ao último lugar (SQL v34)
+
+Rode `db/schema_v34_posicao.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v33**, e só então
+mescle o código. Pode rodar de novo sem erro.
+
+- `game.player_positions`: o mapa e a posição de cada ninja. O servidor grava a cada 30 s (só quem andou), quando o
+  jogador sai e quando o servidor desliga (deploy). Ao entrar, ele volta ali (se o lugar ainda vale).
+- Sem a v34 o jogo sobe igual: volta só dentro de 2 minutos (a guarda em memória) e, depois disso, na praça.
+
+### Testar no celular
+
+1. Vá para longe da praça (Floresta, Caverna), feche o jogo e abra horas depois: você está no mesmo lugar.
+2. Morra e feche o jogo antes de renascer: ao abrir, você está na praça (morto não guarda o lugar).
+3. Conferência no Neon: `SELECT map_id, x, y, saved_at FROM game.player_positions ORDER BY saved_at DESC LIMIT 5;`
+
