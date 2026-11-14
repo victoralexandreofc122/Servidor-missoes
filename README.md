@@ -240,6 +240,18 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v58: som próprio para cada coisa (sem migração)
+
+- **Música do chefe** entra junto com a barra do Rei Lodo (até 20 casas) e sai quando ela some.
+- **Sair e voltar ao navegador:** a música pausa quando a página fica escondida e volta de onde parou (o primeiro toque
+  também retoma, para o iPhone).
+- **Efeitos únicos:** cada elemento tem lançamento, voo e impacto próprios (fogo ruge e crepita voando e explode; água
+  chia e respinga; raio zumbe e estala; vento sopra; terra estronda; sombra, ilusão, cura, taijutsu e armas também).
+  Selos de mão estalando com a energia do elemento subindo (corta com um "fsss" se interromper); cada estado tem o seu
+  som quando pega (queimando, molhado, paralisado, sono, veneno...) e quem queima chia de tempos em tempos; teleporte,
+  substituição (puf + tronco), notificação (info, boa, ruim), anúncio (gongo), recompensa (moedas), chat, lodo atacando
+  e morrendo, rugido do Rei Lodo, aviso de golpe no chão, atordoado e cura recebida.
+
 ### v57: áudio (músicas e efeitos sonoros; sem migração)
 
 - **Músicas** (`public/assets/audio`, MP3 112 kbps, todas no mesmo volume, -18 LUFS): calmas nas cidades e Academia

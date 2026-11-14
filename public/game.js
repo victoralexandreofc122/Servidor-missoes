@@ -758,6 +758,7 @@ function handleMessage(msg) {
       break;
     case 'ground':
       (state.ground ||= new Map()).set(msg.id, { ...msg, start: performance.now(), end: performance.now() + msg.ms });
+      if (msg.kind === 'aviso') sfxAt('warn', msg.x, msg.y, 1);   // v58: golpe vai cair aqui
       // v56: a Névoa Inflamável com o sprite: a nuvem girando e, no fim, a faísca acendendo (o aviso continua por baixo)
       if (msg.kind === 'aviso' && msg.skill && formOf(msg.skill) === 'nuvem_detona' && jutsuSpritesReady('nevoa')) {
         const t0 = performance.now(), sc = (msg.r ?? 2.5) / 2.5, spark = Math.min(600, msg.ms * 0.3);
@@ -778,6 +779,7 @@ function handleMessage(msg) {
           hitShake(160);
         }
       }
+      if (z?.kind === 'aviso') sfxAt('impact', z.x, z.y, 1, { el: z.skill ? elementOfSkill(z.skill) : 'neutral' });   // v58
       if (z?.kind === 'aviso') particles.burst(z.skill ? elementOfSkill(z.skill) : 'neutral', z.x, z.y, 2.2, z.r);   // v47: o golpe avisado caiu
       const nevoa = z?.kind === 'aviso' && z.skill && formOf(z.skill) === 'nuvem_detona'
         && jfx.show('nevoa_03', z.x, z.y, now, 520, { scale: z.r / 2.5, fadeIn: 30, fadeOut: 220, grow: 0.12 });
@@ -846,7 +848,7 @@ function handleMessage(msg) {
       if (p) { p.casting = { skill: msg.skill, start: now, end: now + msg.ms }; p.act = { kind: 'jutsu', start: now }; }
       // v57: o som de carregar pelo tempo do selo
       castSounds.get(msg.playerId)?.stop(true);
-      if (p) castSounds.set(msg.playerId, sfxAt('charge', p.x, p.y, msg.playerId === state.meId ? 1 : 0.6, { ms: msg.ms }));
+      if (p) castSounds.set(msg.playerId, sfxAt('charge', p.x, p.y, msg.playerId === state.meId ? 1 : 0.6, { ms: msg.ms, el: elementOfSkill(msg.skill), voiceMs: msg.ms }));
       break;
     }
     case 'cast_interrupted': {
@@ -974,6 +976,7 @@ function handleMessage(msg) {
       } else {
         vfx.play('smoke', msg.x, msg.y, { start: now, delay: 60 });
       }
+      sfxAt('teleport', msg.fromX, msg.fromY, msg.playerId === state.meId ? 1 : 0.8);   // v58
       jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
       break;
     }
@@ -982,6 +985,7 @@ function handleMessage(msg) {
       const e = msg.target === 'monster' ? state.monsters.get(msg.id) : state.players.get(msg.id);
       if (e) {
         e.fx = e.fx || {};
+        if (msg.ms > 0 && !(e.fx[msg.effect] > now)) sfxAt('status', e.x, e.y, msg.id === state.meId ? 1 : 0.8, { code: msg.effect });   // v58: pegou agora
         if (msg.ms > 0) e.fx[msg.effect] = now + msg.ms;
         else delete e.fx[msg.effect];
       }
@@ -1018,6 +1022,7 @@ function handleMessage(msg) {
     case 'boss_phase': {
       // O chefe mudou de fase (chamou os filhos, ficou furioso): aviso grande e o texto em cima dele.
       showToast(`👑 ${msg.text}`, 3500);
+      audio.sfx('boss_roar', 1);   // v58
       const m = state.monsters.get(msg.id);
       if (m) {
         addFloater(m.x, m.y - 2.4, msg.phase >= 2 ? 'FÚRIA!' : '!!', '#ff7a4a', 1.4);
@@ -1082,6 +1087,7 @@ function handleMessage(msg) {
       }
       const p = state.players.get(msg.playerId);
       if (p) addFloater(msg.logX, msg.logY - 0.9, 'Substituição!', '#e8c66a', 1);
+      sfxAt('substitution', msg.logX, msg.logY, msg.playerId === state.meId ? 1 : 0.8);   // v58
       jumpPlayer(msg.playerId, msg.x, msg.y, msg.a);
       if (msg.playerId === state.meId && navigator.vibrate) try { navigator.vibrate(30); } catch { /* sem vibração */ }
       break;
@@ -1143,6 +1149,7 @@ function handleMessage(msg) {
       const entry = { channel: msg.channel || 'local', playerId: msg.playerId, username: msg.username, to: msg.to, message: msg.message, at: new Date().toISOString() };
       addChatLine(chatWho(entry), msg.message, msg.playerId === state.meId, entry.channel === 'local' ? '' : entry.channel);
       rememberChat(entry);
+      if (msg.playerId !== state.meId) audio.sfx('chat', 1);   // v58
       const p = state.players.get(msg.playerId);
       // Balão só para a fala local (global e sussurro não "saem da boca" no mapa).
       if (p && entry.channel === 'local') p.bubble = { text: msg.message, until: now + 4500 };
@@ -1203,7 +1210,7 @@ function handleMessage(msg) {
         attacker.act = { kind: armed ? 'golpe' : attacker.act?.kind === 'soco' ? 'chute' : 'soco', start: now };
       }
       if (msg.playerId === state.meId) startCooldown('attack', msg.cd);
-      sfxAt('slash', msg.x, msg.y, msg.playerId === state.meId ? 1 : 0.7, { pitch: attacker?.gear?.hand || attacker?.gear?.back ? 1 : 0.75 });   // v57
+      sfxAt(msg.throw ? 'shuriken' : attacker?.gear?.hand || attacker?.gear?.back ? 'slash' : 'punch', msg.x, msg.y, msg.playerId === state.meId ? 1 : 0.7);   // v58: com arma corta, sem arma soca
       break;
     }
     case 'attack_failed': {
@@ -1229,6 +1236,7 @@ function handleMessage(msg) {
       if (navigator.vibrate) try { navigator.vibrate([40, 40, 40]); } catch { /* sem vibração */ }
       break;
     case 'notice':
+      audio.sfx('notify', 1, { tone: msg.tone });   // v58: info, boa ou ruim (dá para saber pelo som)
       showToast(msg.text, 4500);
       addSystemLine(msg.text);
       break;
@@ -1240,7 +1248,11 @@ function handleMessage(msg) {
     case 'cast': {
       castSounds.get(msg.playerId)?.stop(false);   // v57: o selo terminou: o carregar solta e sai o "whoosh"
       castSounds.delete(msg.playerId);
-      sfxAt('whoosh', msg.x, msg.y, msg.playerId === state.meId ? 1 : 0.7);
+      {   // v58: cada elemento soa diferente (Teleporte e Substituição têm o som próprio, na mensagem deles)
+        const mech = mechanicOf(msg.skill);
+        if (mech !== 'teleport' && mech !== 'substitution') sfxAt('cast', msg.x, msg.y, msg.playerId === state.meId ? 1 : 0.7, { el: elementOfSkill(msg.skill) });
+        else if (mech === 'substitution') sfxAt('seal', msg.x, msg.y, msg.playerId === state.meId ? 1 : 0.7);
+      }
       // Efeito pela MECÂNICA do jutsu (os tiers 2 a 4 usam a do tier 1, maior).
       const fxKind = mechanicOf(msg.skill);
       // v29 (Jutsus v2): as formas novas do Fogo têm desenho próprio (cone, linha, buff); o resto pela mecânica.
@@ -1299,12 +1311,24 @@ function handleMessage(msg) {
       // v47: o rastro no elemento do jutsu
       flying.set(msg.id, { x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, speed: msg.speed, range: msg.range, start: now, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 300,
         el: msg.skill ? elementOfSkill(msg.skill) : msg.power === 'blast' ? 'fire' : 'weapons', skill: msg.skill });
+      {   // v58: o projétil faz barulho enquanto voa (fogo ruge e crepita); o volume segue a distância (audioTick)
+        const el = msg.skill ? elementOfSkill(msg.skill) : msg.power === 'blast' ? 'fire' : 'weapons';
+        const h = sfxAt('fly', msg.x, msg.y, 1, { el, voiceMs: (msg.range / Math.max(0.1, msg.speed)) * 1000 + 300 });
+        if (h) flySounds.set(msg.id, { h, el });
+      }
       const thrower = msg.weapon && msg.weapon !== 'shuriken' ? state.players.get(msg.playerId) : null;
       if (thrower) thrower.thrown = { id: msg.id, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 400 };   // costas vazias enquanto voa
       break;
     }
     case 'impact': {
       vfx.land(msg.id);
+      {   // v58: o voo para e soa o impacto do elemento (explosão do fogo, splash da água...)
+        const f = flySounds.get(msg.id);
+        f?.h.stop(false);
+        flySounds.delete(msg.id);
+        const el = f?.el ?? (msg.skill ? elementOfSkill(msg.skill) : msg.weapon ? 'weapons' : 'neutral');
+        sfxAt('impact', msg.x, msg.y, msg.r > 0 ? 1 : 0.7, { el });
+      }
       const spriteShot = jfx.shots.has(msg.id);
       jfx.land(msg.id);
       {
@@ -1334,6 +1358,7 @@ function handleMessage(msg) {
       // PvP: jogador atordoado (Relâmpago) ou preso (Sombra).
       const p = state.players.get(msg.playerId);
       if (p) {
+        sfxAt('stunned', p.x, p.y, msg.playerId === state.meId ? 1 : 0.7);   // v58
         if (msg.status === 'stunned') p.stunnedUntil = now + msg.ms;
         else p.rootedUntil = now + msg.ms;
       }
@@ -1355,7 +1380,7 @@ function handleMessage(msg) {
       const text = heal ? `+${msg.amount}` : `-${msg.amount}${msg.shielded ? ' 🛡' : ''}`;
       addFloater(target.x, target.y - 0.6, text, color, mine || msg.target === 'monster' ? 1.15 : 0.9);
       if (!heal) vfx.play('hit', target.x, target.y - 0.15, { start: now, scale: 0.8 });
-      if (!heal) sfxAt('thud', target.x, target.y, mine ? 1 : 0.75);   // v57
+      sfxAt(heal ? 'healed' : 'thud', target.x, target.y, mine ? 1 : 0.75);   // v57
       if (heal) particles.burst('heal', target.x, target.y, 0.8, 0.3);   // v47
       else hitParticles(msg, target, mine);
       // Ninja atingido: o tranco do golpe (sem cortar o próprio golpe ou jutsu no meio).
@@ -1391,6 +1416,7 @@ function handleMessage(msg) {
       if (m) {
         if (t && Math.abs(t.x - m.x) > 0.05) m.face = t.x > m.x ? 1 : -1;
         playMonster(m, 'attack', now);
+        sfxAt('slime', m.x, m.y, m.type === 'rei_lodo' ? 1 : 0.8);   // v58
       }
       break;
     }
@@ -1407,7 +1433,7 @@ function handleMessage(msg) {
     }
     case 'monster_died': {
       const m = state.monsters.get(msg.id);
-      if (m) { m.diedAt = now; m.hp = 0; }
+      if (m) { m.diedAt = now; m.hp = 0; sfxAt('slime_die', m.x, m.y, 0.9); }   // v58
       if (state.focusId === msg.id) setFocus(null);
       break;
     }
@@ -1475,6 +1501,7 @@ function handleMessage(msg) {
       break;
     }
     case 'announce':
+      audio.sfx('announce', 1);   // v58: gongo
       addSystemLine(msg.message);
       if (/Torneio da Temporada/.test(msg.message)) showToast(msg.message, 7000);   // v42: aviso na tela, além do chat
       break;
@@ -1510,6 +1537,7 @@ function handleMessage(msg) {
       break;
     }
     case 'mission_reward': {
+      audio.sfx('coins', 1);   // v58
       const xp = msg.rewards.reduce((sum, r) => sum + r.xp, 0);
       const titles = msg.rewards.filter((r) => r.title && r.titleNew).map((r) => r.title);
       state.lastReward = { xp, titles };
@@ -5050,7 +5078,7 @@ function renderAudioUi() {
 }
 audioUi.music.addEventListener('input', () => { audio.setVolume('music', Number(audioUi.music.value)); renderAudioUi(); });
 audioUi.sfx.addEventListener('input', () => { audio.setVolume('sfx', Number(audioUi.sfx.value)); renderAudioUi(); });
-audioUi.sfx.addEventListener('change', () => audio.sfx('slash', 1));   // solta o slider: um golpe de amostra
+audioUi.sfx.addEventListener('change', () => audio.sfx('cast', 1, { el: 'fire' }));   // solta o slider: um golpe de amostra
 audioUi.mute.addEventListener('click', () => { audio.setMute(!audio.settings.mute); renderAudioUi(); });
 renderAudioUi();
 /** Efeito no mapa: mais baixo quanto mais longe de mim (some a 14 casas). */
@@ -5061,15 +5089,14 @@ function sfxAt(kind, x, y, base = 1, opt) {
 }
 /** Selos em andamento: id de quem conjura -> o som de carregar (para cortar na interrupção). */
 const castSounds = new Map();
+/** v58: projéteis voando: id -> { h (som que dura), el } */
+const flySounds = new Map();
+let burnAt = 0;
 const MYSTERY_MAPS = new Set(['refugio', 'zona_conflito']);
 /** O clima da música agora: chefe por perto lutando, arena/rankeado/torneio, lugar tenso ou calmo. */
 function musicMood(me) {
   if (isArenaMap() || state.spectating) return 'pvp';
-  if (me) {
-    for (const m of state.monsters.values()) {
-      if (m.type === 'rei_lodo' && !m.diedAt && (m.aggro || m.hp < m.maxHp) && Math.hypot(m.x - me.x, m.y - me.y) < 16) return 'boss';
-    }
-  }
+  if (me && !ui.bossBar.hidden) return 'boss';   // v58: a música do chefe entra junto com a barra dele (20 casas)
   return MYSTERY_MAPS.has(state.mapId) ? 'misterio' : 'calma';
 }
 const steps = { x: 0, y: 0, dist: 0, alt: false, moodAt: 0 };
@@ -5082,6 +5109,20 @@ function audioTick(me, now) {
   if (moved > 0 && moved < 0.5 && !state.me.dead) {
     steps.dist += moved;
     if (steps.dist >= 0.7) { steps.dist = 0; steps.alt = !steps.alt; audio.sfx('step', 1, { alt: steps.alt }); }
+  }
+  // v58: o som do voo acompanha o projétil (mais alto quando passa perto)
+  for (const [id, f] of flySounds) {
+    const p = flying.get(id);
+    if (!p || now > p.until) { f.h.stop(false); flySounds.delete(id); continue; }
+    const d = Math.min(p.range, (p.speed * Math.max(0, now - p.start)) / 1000);
+    f.h.setVol(Math.max(0, 1 - Math.hypot(p.x + p.fx * d - me.x, p.y + p.fy * d - me.y) / 14));
+  }
+  // v58: quem está queimando por perto chia e estala de tempos em tempos
+  if (now - burnAt >= 650) {
+    burnAt = now;
+    for (const e of [...state.monsters.values(), ...state.players.values()]) {
+      if (e.fx?.queimadura > now && !e.diedAt && !e.dead) sfxAt('burning', e.x, e.y, e.id === state.meId ? 1 : 0.8);
+    }
   }
   if (now - steps.moodAt >= 500) { steps.moodAt = now; audio.setMood(musicMood(me)); audio.tick(now); }
 }
