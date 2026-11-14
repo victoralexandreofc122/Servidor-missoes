@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, statSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import Fastify from 'fastify';
+import { EFFECT_CODES } from '../src/realtime/effects.js';
 import { MUSIC_TRACKS, byteRange, loadPublicFiles, registerStaticFiles } from '../src/web/staticFiles.js';
 
 /* v57: áudio (músicas em MP3 servidas com Range; efeitos sintetizados no cliente, public/audio.js). */
@@ -28,7 +29,19 @@ describe('v57: músicas', () => {
 
   it('volumes padrão: música 40%, efeitos 60%, sem mudo; os efeitos pedidos existem', () => {
     assert.deepEqual(A.DEFAULT_AUDIO, { music: 40, sfx: 60, mute: false });
-    for (const k of ['slash', 'thud', 'charge', 'whoosh', 'step', 'blip', 'levelup', 'death']) assert.ok(A.SFX_KINDS.includes(k), k);
+    for (const k of ['slash', 'punch', 'thud', 'charge', 'seal', 'cast', 'impact', 'fly', 'step', 'blip', 'levelup', 'death',
+      'teleport', 'substitution', 'notify', 'announce', 'coins', 'burning', 'status', 'slime', 'boss_roar', 'warn']) assert.ok(A.SFX_KINDS.includes(k), k);
+  });
+
+  it('v58: cada elemento tem som próprio de lançamento, voo e impacto; cada estado tem o seu', () => {
+    const { CAST, IMPACT, STATUS, FLY } = A.SOUND_TABLES;
+    for (const el of ['fire', 'water', 'lightning', 'wind', 'stone', 'shadow', 'illusion', 'heal', 'taijutsu', 'weapons']) {
+      assert.equal(typeof CAST[el], 'function', `lançamento ${el}`);
+      assert.equal(typeof IMPACT[el], 'function', `impacto ${el}`);
+      assert.ok(CAST[el] !== CAST.neutral && IMPACT[el] !== IMPACT.neutral, el);
+    }
+    for (const el of ['fire', 'water', 'lightning', 'wind', 'stone', 'shadow', 'illusion', 'weapons']) assert.ok(FLY[el], `voo ${el}`);
+    for (const code of EFFECT_CODES) assert.equal(typeof STATUS[code], 'function', `estado ${code}`);
   });
 
   it('antes do primeiro toque nada toca (sem contexto de áudio)', () => {
