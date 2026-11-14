@@ -240,6 +240,16 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v57: áudio (músicas e efeitos sonoros; sem migração)
+
+- **Músicas** (`public/assets/audio`, MP3 112 kbps, todas no mesmo volume, -18 LUFS): calmas nas cidades e Academia
+  (as duas revezam a cada 5 min), PvP na Arena/Rankeado/Torneio, chefe quando o Rei Lodo luta perto, tensa no Refúgio e
+  na Zona de Conflito; vitória e derrota tocam 10 s e a música de antes volta de onde parou. Crossfade de 1,5 s.
+- **Efeitos sintetizados** (Web Audio, sem arquivos): golpe, acerto, selo carregando (corta se interromper), lançamento,
+  passos, clique de interface, subida de nível e morte. Mais baixos de longe; compressor e limite de vozes contra estouro.
+- **Config.:** volume da música (40%), dos efeitos (60%) e Mudo, salvos no navegador. Nada toca antes do primeiro toque
+  dentro do jogo. O servidor responde em pedaços (Range, 206) para o iPhone tocar o áudio.
+
 ### v56: sprites desenhados de 6 jutsus (sem migração)
 
 - Teleporte Curto, Substituição, Fogo, Sopro Incinerador, Névoa Inflamável e Linha de Fogo Rasante com a arte do Victor:

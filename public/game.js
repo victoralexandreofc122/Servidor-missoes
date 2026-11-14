@@ -24,6 +24,7 @@ import { pickAnim } from './rig.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
 import { JutsuSprites, jutsuSpritesReady, loadJutsuSprites } from './vfxJutsus.js';
+import { AudioManager } from './audio.js';
 import { GROUND_ELEMENT, Particles, elementOf } from './particles.js';
 import { STRIKE_ART, ZONE_ART, drawBolt, drawDecal, drawStatusArt, drawStrikeArt, drawWindDisc, drawZoneArt } from './jutsuArt.js';
 import { drawBackWeapon, drawHandWeapon, drawWeaponIcon, drawnForStrike, isThrown, loadWeapons, weaponReady } from './weapons.js';
@@ -843,9 +844,14 @@ function handleMessage(msg) {
       // v29: selos. A barra aparece sobre a cabeça de quem conjura (e maior perto dos botões, para quem conjura).
       const p = state.players.get(msg.playerId);
       if (p) { p.casting = { skill: msg.skill, start: now, end: now + msg.ms }; p.act = { kind: 'jutsu', start: now }; }
+      // v57: o som de carregar pelo tempo do selo
+      castSounds.get(msg.playerId)?.stop(true);
+      if (p) castSounds.set(msg.playerId, sfxAt('charge', p.x, p.y, msg.playerId === state.meId ? 1 : 0.6, { ms: msg.ms }));
       break;
     }
     case 'cast_interrupted': {
+      castSounds.get(msg.playerId)?.stop(true);   // v57: interrompido, o som corta na hora
+      castSounds.delete(msg.playerId);
       const p = state.players.get(msg.playerId);
       if (p) {
         p.casting = null;
@@ -945,6 +951,7 @@ function handleMessage(msg) {
         const mine = msg.winnerId === state.meId ? msg.winnerRecord : msg.loserRecord;
         state.arenaRecord = mine;
         showToast(`${msg.winnerId === state.meId ? 'Vitória' : 'Derrota'} na arena · ${mine.wins}V ${mine.losses}D`, 3500);
+        audio.stinger(msg.winnerId === state.meId ? 'vitoria' : 'derrota');   // v57
         updateOnline();
       }
       break;
@@ -1172,6 +1179,7 @@ function handleMessage(msg) {
       renderStatus();
       renderVitals();
       if (before && msg.statPoints > before.statPoints) pulse(ui.statusToggle);
+      if (before && msg.level > before.level) audio.sfx('levelup', 1);   // v57
       break;
     }
     case 'kit':
@@ -1195,6 +1203,7 @@ function handleMessage(msg) {
         attacker.act = { kind: armed ? 'golpe' : attacker.act?.kind === 'soco' ? 'chute' : 'soco', start: now };
       }
       if (msg.playerId === state.meId) startCooldown('attack', msg.cd);
+      sfxAt('slash', msg.x, msg.y, msg.playerId === state.meId ? 1 : 0.7, { pitch: attacker?.gear?.hand || attacker?.gear?.back ? 1 : 0.75 });   // v57
       break;
     }
     case 'attack_failed': {
@@ -1229,6 +1238,9 @@ function handleMessage(msg) {
       break;
     }
     case 'cast': {
+      castSounds.get(msg.playerId)?.stop(false);   // v57: o selo terminou: o carregar solta e sai o "whoosh"
+      castSounds.delete(msg.playerId);
+      sfxAt('whoosh', msg.x, msg.y, msg.playerId === state.meId ? 1 : 0.7);
       // Efeito pela MECÂNICA do jutsu (os tiers 2 a 4 usam a do tier 1, maior).
       const fxKind = mechanicOf(msg.skill);
       // v29 (Jutsus v2): as formas novas do Fogo têm desenho próprio (cone, linha, buff); o resto pela mecânica.
@@ -1343,6 +1355,7 @@ function handleMessage(msg) {
       const text = heal ? `+${msg.amount}` : `-${msg.amount}${msg.shielded ? ' 🛡' : ''}`;
       addFloater(target.x, target.y - 0.6, text, color, mine || msg.target === 'monster' ? 1.15 : 0.9);
       if (!heal) vfx.play('hit', target.x, target.y - 0.15, { start: now, scale: 0.8 });
+      if (!heal) sfxAt('thud', target.x, target.y, mine ? 1 : 0.75);   // v57
       if (heal) particles.burst('heal', target.x, target.y, 0.8, 0.3);   // v47
       else hitParticles(msg, target, mine);
       // Ninja atingido: o tranco do golpe (sem cortar o próprio golpe ou jutsu no meio).
@@ -1424,6 +1437,8 @@ function handleMessage(msg) {
     case 'player_died': {
       const p = state.players.get(msg.playerId);
       if (p) { p.dead = true; p.hp = 0; }
+      castSounds.get(msg.playerId)?.stop(true);
+      if (p) sfxAt('death', p.x, p.y, msg.playerId === state.meId ? 1 : 0.6);   // v57
       if (msg.playerId === state.meId) {
         state.me.dead = true;
         state.me.hp = 0;
@@ -2624,6 +2639,7 @@ function renderJouninBoard() {
 let bannerTimer = 0;
 function showDuelBanner(won, score, points, voided = false) {
   ui.duelBanner.hidden = false;
+  if (!voided) audio.stinger(won ? 'vitoria' : 'derrota');   // v57: 10 s e a música de antes volta
   ui.duelBanner.classList.toggle('lose', !won && !voided);
   ui.duelBanner.classList.toggle('void', voided);
   ui.duelBannerTitle.textContent = voided ? 'PARTIDA ANULADA' : won ? 'VITÓRIA' : 'DERROTA';
@@ -5012,6 +5028,63 @@ function renderCreatorOptions() {
     return row;
   }));
 }
+// v57: áudio. Nada toca antes do primeiro toque/tecla DENTRO do jogo (regra dos navegadores e do Victor: não no login).
+const audio = new AudioManager();
+const unlockAudio = () => { if (state.connected && state.meId) audio.unlock(); };
+for (const ev of ['pointerdown', 'keydown', 'touchend']) addEventListener(ev, unlockAudio, { capture: true, passive: true });
+// Clique de interface (blip): botões, menus e caixas; os botões de combate têm o som do golpe.
+document.addEventListener('click', (e) => {
+  const el = e.target instanceof Element ? e.target.closest('button, select, input[type="checkbox"], .menu-btn') : null;
+  if (el && !el.closest('.cbtn')) audio.sfx('blip', 0.9);
+}, true);
+const audioUi = { music: $('vol-music'), musicOut: $('vol-music-out'), sfx: $('vol-sfx'), sfxOut: $('vol-sfx-out'), mute: $('audio-mute') };
+function renderAudioUi() {
+  const s = audio.settings;
+  audioUi.music.value = String(s.music);
+  audioUi.musicOut.textContent = `${s.music}%`;
+  audioUi.sfx.value = String(s.sfx);
+  audioUi.sfxOut.textContent = `${s.sfx}%`;
+  audioUi.mute.textContent = s.mute ? '🔇 Mudo (tocar para ligar o som)' : '🔊 Som ligado';
+  audioUi.mute.setAttribute('aria-pressed', String(s.mute));
+  audioUi.mute.classList.toggle('muted', s.mute);
+}
+audioUi.music.addEventListener('input', () => { audio.setVolume('music', Number(audioUi.music.value)); renderAudioUi(); });
+audioUi.sfx.addEventListener('input', () => { audio.setVolume('sfx', Number(audioUi.sfx.value)); renderAudioUi(); });
+audioUi.sfx.addEventListener('change', () => audio.sfx('slash', 1));   // solta o slider: um golpe de amostra
+audioUi.mute.addEventListener('click', () => { audio.setMute(!audio.settings.mute); renderAudioUi(); });
+renderAudioUi();
+/** Efeito no mapa: mais baixo quanto mais longe de mim (some a 14 casas). */
+function sfxAt(kind, x, y, base = 1, opt) {
+  const me = state.players.get(state.meId);
+  if (!me) return null;
+  return audio.sfx(kind, base * Math.max(0, 1 - Math.hypot(x - me.x, y - me.y) / 14), opt);
+}
+/** Selos em andamento: id de quem conjura -> o som de carregar (para cortar na interrupção). */
+const castSounds = new Map();
+const MYSTERY_MAPS = new Set(['refugio', 'zona_conflito']);
+/** O clima da música agora: chefe por perto lutando, arena/rankeado/torneio, lugar tenso ou calmo. */
+function musicMood(me) {
+  if (isArenaMap() || state.spectating) return 'pvp';
+  if (me) {
+    for (const m of state.monsters.values()) {
+      if (m.type === 'rei_lodo' && !m.diedAt && (m.aggro || m.hp < m.maxHp) && Math.hypot(m.x - me.x, m.y - me.y) < 16) return 'boss';
+    }
+  }
+  return MYSTERY_MAPS.has(state.mapId) ? 'misterio' : 'calma';
+}
+const steps = { x: 0, y: 0, dist: 0, alt: false, moodAt: 0 };
+/** A cada quadro: passos de quem joga (pela distância andada) e, a cada meio segundo, o clima da música. */
+function audioTick(me, now) {
+  if (!audio.unlocked || !me) return;
+  const moved = Math.hypot(me.x - steps.x, me.y - steps.y);
+  steps.x = me.x;
+  steps.y = me.y;
+  if (moved > 0 && moved < 0.5 && !state.me.dead) {
+    steps.dist += moved;
+    if (steps.dist >= 0.7) { steps.dist = 0; steps.alt = !steps.alt; audio.sfx('step', 1, { alt: steps.alt }); }
+  }
+  if (now - steps.moodAt >= 500) { steps.moodAt = now; audio.setMood(musicMood(me)); audio.tick(now); }
+}
 loadJutsuSprites();   // v56: 6 jutsus com sprite próprio (vfxJutsus.js)
 loadVfx();       // folhas dos efeitos dos golpes (assets/vfx); até chegarem, os efeitos desenhados à mão
 loadWeapons();   // armas em pixel art (assets/weapons); até chegarem, as armas de retângulos
@@ -6190,6 +6263,7 @@ function update(dt) {
   const me = state.players.get(state.meId);
   const speed = state.me.speed || state.world.speed;   // velocidade que o SERVIDOR mandou (andar/correr + agilidade)
   const now = performance.now();
+  audioTick(me, now);   // v57: passos e música (posição do quadro anterior: um quadro de atraso, imperceptível)
   if (me && predWorld) {
     // Próprio jogador: predição (anda já) + envio das entradas em lote + correção suave.
     const canMove = state.connected && !state.me.dead && !state.spectating;   // v55: o fantasma só assiste

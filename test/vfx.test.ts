@@ -120,11 +120,11 @@ describe('lista fechada de arquivos (staticFiles)', () => {
   it('serve cada folha dos dados como image/png em bytes, e nenhuma a mais', () => {
     const files = loadPublicFiles();
     // (os atlas dos monstros, em /assets/monsters, têm o próprio teste: test/monstros.test.ts)
-    const served = new Set(files.filter((f) => f.route.startsWith('/assets/') && !f.route.startsWith('/assets/monsters/')).map((f) => f.route));
+    const served = new Set(files.filter((f) => f.route.startsWith('/assets/') && !f.route.startsWith('/assets/monsters/') && !f.route.startsWith('/assets/audio/')).map((f) => f.route));
     const weaponSheets = Object.values<any>(ARMAS.armas).flatMap((a) => ['mao', 'costas', 'bainha'].filter((k) => a[k]).map((k) => a[k]));
     const wanted = new Set([...[...Object.values<any>(VFX.efeitos), ...weaponSheets].map((x) => `/${x.arquivo}`), ...JUTSU_SPRITE_FRAMES.map((n) => `/assets/vfx/${n}.png`)]);
     assert.deepEqual([...served].sort(), [...wanted].sort());
-    for (const f of files.filter((x) => x.route.startsWith('/assets/') && !x.route.startsWith('/assets/monsters/'))) {
+    for (const f of files.filter((x) => x.route.startsWith('/assets/') && !x.route.startsWith('/assets/monsters/') && !x.route.startsWith('/assets/audio/'))) {
       assert.equal(f.contentType, 'image/png', f.route);
       assert.ok(Buffer.isBuffer(f.body), f.route);
     }
