@@ -655,6 +655,7 @@ function handleMessage(msg) {
       if (msg.progress) state.progress = msg.progress;
       if (msg.kit) state.kit = msg.kit;
       if (msg.ninja) state.ninja = msg.ninja;
+      renderShurikenButton();   // v59: a contagem do ✴️ já vem na entrada (antes ficava 0 até o próximo inventário)
       manualUI.refreshBadge();                       // v38: capítulo do Pergaminho do Mestre ainda não lido: o ☰ pisca
       renderDisplayBoxes();
       pred.gates.tutorial = state.ninja.tutorialStep;   // portas da Academia: o MESMO passo do servidor

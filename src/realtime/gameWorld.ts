@@ -634,6 +634,14 @@ const SUMMON_SKILL: Readonly<Record<string, Skill>> = { golem: 'stone_golem', se
 
 /** v55: as arenas, na ordem em que recebem lutas: a principal (com arquibancada) e as extras, para as lutas em paralelo. */
 const ARENAS: readonly MapId[] = ['vale_estatuas', 'arena_2', 'arena_3', 'arena_4'];
+
+/**
+ * v59: a conexão caiu (o celular corta ao trocar de app ou de aba, a rede oscilou): o servidor guarda o ninja onde
+ * estava (mapa, posição, vida, chakra, recargas, efeitos) por 2 minutos. Voltou nesse tempo: continua dali.
+ * Passou dos 2 minutos (ou o servidor reiniciou): volta para a praça da vila, como antes.
+ * Arena e Vale não guardam (a luta já foi dada como perdida ao sair) e o fantasma também não.
+ */
+export const RECONNECT_GRACE_MS = 120_000;
 /** v55: o que o fantasma (espectador) não pode fazer: andar, lutar, meditar, falar com NPC. */
 const GHOST_BLOCKED = new Set(['move', 'input', 'cast', 'attack', 'meditate', 'respawn', 'talk', 'power', 'run']);
 /** v55: a próxima partida a montar (1v1, 3v3, Fase Final ou torneio de campeão). */
@@ -643,6 +651,8 @@ export class GameWorld {
   private readonly sessions = new Map<string, Session>();
   private readonly monsters = new Map<string, Monster>();
   private readonly pendingKicks: { session: Session; close: { code: number; reason: string } }[] = [];
+  /** v59: quem caiu há pouco (id -> sessão e até quando vale voltar no mesmo lugar). */
+  private readonly parked = new Map<string, { session: Session; until: number }>();
   private readonly random: () => number;
   /** O céu: o clima agora, até quando ele dura, o ajuste do relógio (admin "hora") e a última fase avisada. */
   private sky: { weather: Weather; until: number; offsetMs: number; phase: DayPhase };
@@ -1014,7 +1024,9 @@ export class GameWorld {
    */
   join(player: JoiningPlayer, conn: Connection): SessionHandle {
     const t = this.now();
-    const previous = this.sessions.get(player.id);
+    const live = this.sessions.get(player.id);
+    // v59: a sessão que caiu há menos de 2 minutos volta no mesmo lugar
+    const previous = live ?? this.unpark(player.id, t);
     const attributes = { ...(player.attributes ?? previous?.attributes ?? NO_ATTRIBUTES) };
     let appearance = player.appearance !== undefined ? player.appearance : (previous?.appearance ?? null);
     // Vila: do banco (v11); sem ele, a da sessão antiga ou a da bandana (o jogo de antes: todos da Folha).
@@ -1161,7 +1173,8 @@ export class GameWorld {
     session.sentStats = statsKey(session);
     session.sentHp = shownHp(session.hp);
 
-    if (previous) {
+    if (live) {
+      const previous = live;
       // A conexão nova começa sem meditar; se a antiga meditava, todos param de ver a aura.
       if (previous.meditating) this.broadcastMap(previous.map, { type: 'meditation', playerId: previous.id, active: false, reason: 'manual' });
       previous.closed = true;
@@ -1223,8 +1236,26 @@ export class GameWorld {
     this.mapPlayers.get(session.map)?.delete(session);
     if (session.watching) this.watchers.get(session.watching)?.delete(session);
     this.broadcastMap(session.map, { type: 'player_left', playerId: session.id });
+    this.park(session);
     this.log.info({ playerId: session.id, online: this.sessions.size }, 'jogador saiu');
     this.flushKicks();
+  }
+
+  /** v59: quem caiu: guarda a sessão por 2 minutos (menos na arena, no Vale e assistindo como fantasma). */
+  private park(session: Session): void {
+    const t = this.now();
+    for (const [id, p] of this.parked) if (p.until <= t) this.parked.delete(id);   // limpa as vencidas
+    if (session.watching || ARENAS.includes(session.map)) return;
+    session.meditating = false;
+    session.sitting = false;
+    this.parked.set(session.id, { session, until: t + RECONNECT_GRACE_MS });
+  }
+
+  /** v59: a sessão guardada, se ainda está no prazo (e sai da guarda). */
+  private unpark(id: string, t: number): Session | undefined {
+    const p = this.parked.get(id);
+    this.parked.delete(id);
+    return p && p.until > t ? p.session : undefined;
   }
 
   /** Uma mensagem do cliente. Primeiro o anti-flood (barato), depois o JSON. */

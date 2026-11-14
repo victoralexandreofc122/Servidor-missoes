@@ -240,6 +240,15 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v59: reconexão no mesmo lugar e contador da Shuriken (sem migração)
+
+- **Caiu a conexão** (troca de app ou de aba no celular, rede oscilando): o servidor guarda o ninja onde estava (mapa,
+  posição, vida, chakra, recargas e efeitos) por **2 minutos**. Voltou nesse tempo: continua dali, sem curar. Passou dos
+  2 minutos, ou o servidor reiniciou: volta para a praça da vila, como antes. Na arena, no Vale e assistindo como
+  fantasma não guarda (a luta já conta como perdida ao sair).
+- **Shuriken:** a quantidade sempre ficou salva no banco; o botão ✴️ é que mostrava 0 (cinza) ao entrar, até chegar outra
+  atualização do inventário. Agora a contagem certa aparece já na entrada.
+
 ### v58: som próprio para cada coisa (sem migração)
 
 - **Música do chefe** entra junto com a barra do Rei Lodo (até 20 casas) e sai quando ela some.
