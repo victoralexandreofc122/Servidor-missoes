@@ -1001,6 +1001,11 @@ body.tut-bag #inv-toggle { animation: ready-glow 1.4s ease-in-out infinite; bord
 .display-opts legend { padding: 0 6px; color: #e8c66a; font-size: 13px; }
 .display-opts label { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; min-height: 36px; }
 .display-opts input { width: 20px; height: 20px; }
+/* v57: o Som usa a caixa das opções, mas com sliders inteiros (uma linha cada) */
+.audio-opts label.slider { display: grid; margin-right: 0; min-height: 0; }
+.audio-opts .slider input { width: 100%; height: 32px; }
+#audio-mute { margin-top: 6px; width: 100%; }
+#audio-mute.muted { border-color: #ff8a6a; color: #ffd0c4; }
 
 /* ------------------------------------------------------------ Estilo v2: noite azul e ouro
  * Painéis azul-marinho translúcidos, texto creme, destaque dourado e rótulos em Barlow Condensed (letra estreita:

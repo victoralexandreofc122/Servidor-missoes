@@ -485,6 +485,17 @@
         <h2 id="settings-title"><span aria-hidden="true">⚙️</span> Configurações</h2>
         <button id="settings-close" class="icon-btn small" type="button" aria-label="Fechar as configurações"><span aria-hidden="true">✕</span></button>
       </header>
+      <!-- v57: som (salvo no navegador: localStorage) -->
+      <fieldset class="display-opts audio-opts">
+        <legend>Som</legend>
+        <label class="slider">Volume da música <output id="vol-music-out">40%</output>
+          <input id="vol-music" type="range" min="0" max="100" step="5" value="40">
+        </label>
+        <label class="slider">Volume dos efeitos <output id="vol-sfx-out">60%</output>
+          <input id="vol-sfx" type="range" min="0" max="100" step="5" value="60">
+        </label>
+        <button id="audio-mute" type="button" class="secondary" aria-pressed="false">🔊 Som ligado</button>
+      </fieldset>
       <button id="edit-layout" type="button" class="primary">✏️ Editar layout (arrastar botões)</button>
       <label class="slider">Tamanho dos botões <output id="btn-scale-out">100%</output>
         <input id="btn-scale" type="range" min="70" max="130" step="5" value="100">

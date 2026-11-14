@@ -30,6 +30,9 @@ export interface StaticFile {
 /** Atlas dos monstros em public/assets/monsters/ (a lista bate com monsterData.js: test/monstros.test.ts confere). */
 export const MONSTER_ART_TYPES = ['slime', 'lodo_escuro', 'lodo_sombrio', 'rei_lodo'] as const;
 
+/** v57: as músicas (public/assets/audio, MP3; os efeitos sonoros são sintetizados no cliente, audio.js). */
+export const MUSIC_TRACKS = ['musica_calma_1', 'musica_calma_2', 'musica_pvp', 'musica_vitoria', 'musica_derrota', 'musica_boss', 'musica_misterio_1'] as const;
+
 /** v56: os quadros de public/assets/vfx/<jutsu>_0N.png (a lista bate com vfxJutsus.js: test/vfx.test.ts confere). */
 export const JUTSU_SPRITES = ['fogo', 'sopro', 'nevoa', 'linha', 'teleporte', 'substituicao'] as const;
 export const JUTSU_SPRITE_FRAMES = JUTSU_SPRITES.flatMap((n) => [1, 2, 3].map((i) => `${n}_0${i}`));
@@ -86,6 +89,9 @@ const FILES = [
   { route: '/vfxData.js', file: 'vfxData.js', contentType: 'text/javascript; charset=utf-8' },
   // v56: os sprites desenhados pelo Victor (3 quadros por jutsu: lançamento, ativo, fim)
   { route: '/vfxJutsus.js', file: 'vfxJutsus.js', contentType: 'text/javascript; charset=utf-8' },
+  // v57: áudio (o gerenciador e as músicas)
+  { route: '/audio.js', file: 'audio.js', contentType: 'text/javascript; charset=utf-8' },
+  ...MUSIC_TRACKS.map((n) => ({ route: `/assets/audio/${n}.mp3`, file: `assets/audio/${n}.mp3`, contentType: 'audio/mpeg', binary: true as const })),
   ...sheets('vfx', JUTSU_SPRITE_FRAMES),
   { route: '/weapons.js', file: 'weapons.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/weaponData.js', file: 'weaponData.js', contentType: 'text/javascript; charset=utf-8' },
@@ -152,7 +158,29 @@ export function registerStaticFiles(app: FastifyInstance, files: readonly Static
         reply.header('content-security-policy', CONTENT_SECURITY_POLICY).header('x-frame-options', 'DENY');
       }
       if (request.headers['if-none-match'] === file.etag) return reply.code(304).send();
+      // v57: áudio em pedaços (Range): o Safari do iPhone só toca <audio> se o servidor responder 206.
+      if (file.contentType.startsWith('audio/')) {
+        reply.header('accept-ranges', 'bytes');
+        const range = byteRange(request.headers.range, file.body.length);
+        if (range === 'bad') return reply.code(416).header('content-range', `bytes */${file.body.length}`).send();
+        if (range) {
+          const body = Buffer.isBuffer(file.body) ? file.body.subarray(range[0], range[1] + 1) : Buffer.from(file.body).subarray(range[0], range[1] + 1);
+          return reply.code(206).header('content-range', `bytes ${range[0]}-${range[1]}/${file.body.length}`).send(body);
+        }
+      }
       return reply.code(200).send(file.body);
     });
   }
+}
+
+/** Cabeçalho Range ("bytes=ini-fim", "bytes=ini-", "bytes=-n"): [ini, fim] inclusivo; undefined = sem Range; 'bad' = fora do arquivo. */
+export function byteRange(header: string | undefined, size: number): [number, number] | 'bad' | undefined {
+  if (!header) return undefined;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!m || (m[1] === '' && m[2] === '')) return undefined;   // vários pedaços ou formato estranho: manda o arquivo todo
+  let start: number, end: number;
+  if (m[1] === '') { start = Math.max(0, size - Number(m[2])); end = size - 1; }
+  else { start = Number(m[1]); end = m[2] === '' ? size - 1 : Math.min(Number(m[2]), size - 1); }
+  if (start >= size || start > end) return 'bad';
+  return [start, end];
 }
