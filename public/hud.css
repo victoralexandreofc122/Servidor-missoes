@@ -1054,3 +1054,51 @@ body.spectating #combat, body.spectating #joystick { display: none; }
 .duel-bar .duel-btn { padding: 6px 12px; font-size: 13px; letter-spacing: 0.5px; white-space: nowrap; }
 .ghost-bar { top: auto; bottom: calc(var(--safe-bottom, 0px) + 40px); font-size: 13px; max-width: calc(100vw - 32px); }
 .ghost-bar .duel-btn { white-space: nowrap; padding: 5px 12px; font-size: 13px; }
+
+/* =====================================================================================================================
+ * v66: o guia de UI, UX e HUD (docs/ui/estrutura-ui-ux-hud.md). As regras abaixo vêm por último de propósito: valem por
+ * cima das medidas antigas, em todas as telas.
+ * ===================================================================================================================== */
+
+/* Regra 2 (legibilidade): nenhum texto do HUD abaixo de 12 px. A barra de chakra cresce para caber o número. */
+.hud-me .bar-chakra b { font-size: max(12px, calc(11px * var(--s-hud))); }
+.hud-me .bar-chakra { min-height: 14px; }
+.cbtn .cost { font-size: 12px; line-height: 14px; }
+.menu-badge { font-size: 12px; }
+.mm-wrap .pill, .mm-wrap .pill .st-detail { font-size: 12px; }
+.chat-box .chat-feed li, .chat-tab { font-size: 12px; }
+@media (max-height: 430px) {
+  .hud-me .bar-chakra { height: 14px; }
+  .mm-wrap .pill { font-size: 12px; }
+  .chat-box .chat-feed li, .chat-tab { font-size: 12px; }
+}
+
+/* Zona do polegar (alvos de toque): no toque, todo controle do HUD tem pelo menos 44 x 44 px (WCAG 2.5.5). O "–" do chat
+   continua pequeno no desenho, mas a área de toque cresce em volta dele. */
+@media (pointer: coarse) {
+  .chat-box .chat-bar input, .chat-box .chat-bar button, .chat-tab { height: 44px; }
+  .chat-box .chat-bar button { width: 44px; }
+  .chat-tab { min-width: 64px; }
+  .chat-min { position: relative; z-index: 2; }
+  .chat-min::after { content: ""; position: absolute; inset: -12px -9px; }
+  .chat-head { min-height: 22px; }
+}
+
+/* A lista de efeitos (🌙🌧🕊) não rouba toque do chat embaixo dela: só os ícones recebem o toque; e no celular deitado o
+   chat desce o bastante para não ficar por baixo dos ícones. */
+body:not(.editing) .hud-me, .buffs { pointer-events: none; }   /* no Editar layout o bloco volta a ser arrastável */
+.hud-me .buffs li { pointer-events: auto; }
+@media (max-height: 430px) {
+  .chat-box { top: calc(var(--safe-top) + 114px); max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 114px - 150px); }
+}
+
+/* Regra 4 (exibição sob demanda): o HUD de combate. Na luta (bateu, apanhou, lançou jutsu ou focou um alvo nos últimos
+   segundos, game.js updateCombatHud), o que não é da luta some (missões, status da conexão), o chat e o menu do
+   computador ficam apagados (o menu continua clicável); ao sair da luta, tudo volta. O jogador desliga em Config. → "HUD de combate". */
+body.combat-hud .tracker, body.combat-hud .mm-wrap .pill { opacity: 0; pointer-events: none; }
+body.combat-hud .chat-box:not(:focus-within):not(.active) { opacity: 0.22; }
+@media (hover: hover) and (pointer: fine) {   /* no celular o menu só abre quando o jogador toca no ☰: fica como está */
+  body.combat-hud .menu-grid { opacity: 0.35; }
+  body.combat-hud .menu-grid:hover { opacity: 1; }
+}
+.tracker, .mm-wrap .pill, .menu-grid { transition: opacity 0.35s ease; }

@@ -604,12 +604,31 @@ function drawFxIcons(e, sx, y, T, now) {
 }
 
 const CAST_FAIL_TEXT = {
-  NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum alvo perto', SILENCED: 'Silenciado!', ASLEEP: 'Dormindo…',
-  FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
-  NOT_EQUIPPED: 'Fora do kit ativo', SAFE_ZONE: 'Zona segura: sem combate',
-  NOT_LEARNED: 'Jutsu não aprendido', BLOCKED: 'Caminho bloqueado', NO_SUMMON: 'Sem invocação por perto', TUTORIAL_LOCKED: 'Primeiro, o Ataque Básico',
+  NO_CHAKRA: 'Chakra insuficiente: medite 🧘', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum alvo perto: chegue mais perto', SILENCED: 'Silenciado: espere passar', ASLEEP: 'Dormindo: espere acordar',
+  FULL_HP: 'Vida cheia: guarde a cura', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo longe: chegue mais perto',
+  NOT_EQUIPPED: 'Fora do kit ativo: troque de kit 🔄', SAFE_ZONE: 'Zona segura 🕊️: sem combate aqui',
+  NOT_LEARNED: 'Jutsu não aprendido: extraia na loja de Pergaminhos', NOT_YOUR_CLASS: 'Jutsu de outra classe: só vale na sua classe', BLOCKED: 'Caminho bloqueado: mire para outro lado', NO_SUMMON: 'Sem invocação por perto', TUTORIAL_LOCKED: 'Primeiro, o Ataque Básico 🗡️',
   STUNNED: 'Atordoado!', CASTING: 'Fazendo os selos…',
 };
+
+/**
+ * v66 (guia de UI: respostas diretas): o aviso de "não deu" diz a causa e o que fazer, com os números quando há.
+ * Ex.: "Chakra: custa 20, você tem 12" em vez de só "Chakra insuficiente".
+ */
+function castFailText(msg) {
+  const r = msg.reason;
+  if (r === 'NO_CHAKRA') {
+    const cost = skillPrice(msg.skill)?.cost;
+    const have = Math.floor(state.me?.chakra ?? 0);
+    return cost !== undefined ? `Chakra: custa ${cost}, você tem ${have}` : 'Chakra insuficiente: medite 🧘';
+  }
+  if (r === 'COOLDOWN') {
+    const cd = cooldowns[msg.skill];
+    const left = cd ? Math.max(0, cd.until - performance.now()) / 1000 : 0;
+    return left > 0.05 ? `Recarregando: ${left.toFixed(1).replace('.', ',')} s` : CAST_FAIL_TEXT.COOLDOWN;
+  }
+  return CAST_FAIL_TEXT[r] || 'Não deu agora';
+}
 
 /** v64: o momento exato de cada dica (lore.js HINTS; uma vez por aparelho). */
 function hintsFor(msg) {
@@ -1272,13 +1291,13 @@ function handleMessage(msg) {
         const armed = attacker.gear?.hand || attacker.gear?.back;
         attacker.act = { kind: armed ? 'golpe' : attacker.act?.kind === 'soco' ? 'chute' : 'soco', start: now };
       }
-      if (msg.playerId === state.meId) startCooldown('attack', msg.cd);
+      if (msg.playerId === state.meId) { startCooldown('attack', msg.cd); markCombat(); }   // v66: HUD de combate
       sfxAt(msg.throw ? 'shuriken' : attacker?.gear?.hand || attacker?.gear?.back ? 'slash' : 'punch', msg.x, msg.y, msg.playerId === state.meId ? 1 : 0.7);   // v58: com arma corta, sem arma soca
       break;
     }
     case 'attack_failed': {
       const me = state.players.get(state.meId);
-      if (me && msg.reason !== 'COOLDOWN') addFloater(me.x, me.y - 0.9, CAST_FAIL_TEXT[msg.reason] || 'Não deu', '#d8cdb8', 0.75);
+      if (me && msg.reason !== 'COOLDOWN') addFloater(me.x, me.y - 0.9, castFailText(msg), '#d8cdb8', 0.75);
       break;
     }
     case 'player_rank': {
@@ -1300,7 +1319,7 @@ function handleMessage(msg) {
       break;
     case 'notice':
       audio.sfx('notify', 1, { tone: msg.tone });   // v58: info, boa ou ruim (dá para saber pelo som)
-      showToast(msg.text, 4500);
+      showToast(msg.text);
       addSystemLine(msg.text);
       break;
     case 'player_hp': {
@@ -1309,6 +1328,7 @@ function handleMessage(msg) {
       break;
     }
     case 'cast': {
+      if (msg.playerId === state.meId && mechanicOf(msg.skill) !== 'heal') markCombat();   // v66: HUD de combate
       castSounds.get(msg.playerId)?.stop(false);   // v57: o selo terminou: o carregar solta e sai o "whoosh"
       castSounds.delete(msg.playerId);
       {   // v58: cada elemento soa diferente (Teleporte e Substituição têm o som próprio, na mensagem deles)
@@ -1429,7 +1449,7 @@ function handleMessage(msg) {
     }
     case 'cast_failed': {
       const me = state.players.get(state.meId);
-      if (me) addFloater(me.x, me.y - 0.9, CAST_FAIL_TEXT[msg.reason] || 'Não deu', '#d8cdb8', 0.75);
+      if (me) addFloater(me.x, me.y - 0.9, castFailText(msg), '#d8cdb8', 0.75);
       break;
     }
     case 'hit': {
@@ -1439,6 +1459,7 @@ function handleMessage(msg) {
       target.maxHp = msg.maxHp;
       const heal = msg.kind === 'heal';
       const mine = msg.target === 'player' && msg.id === state.meId;
+      if (mine && !heal) markCombat();   // v66: apanhou: HUD de combate
       const color = heal ? '#6cf08a' : msg.target === 'monster' ? '#fff3c4' : '#ff6b5a';
       const text = heal ? `+${msg.amount}` : `-${msg.amount}${msg.shielded ? ' 🛡' : ''}`;
       addFloater(target.x, target.y - 0.6, text, color, mine || msg.target === 'monster' ? 1.15 : 0.9);
@@ -1567,7 +1588,7 @@ function handleMessage(msg) {
     case 'announce':
       audio.sfx('announce', 1);   // v58: gongo
       addSystemLine(msg.message);
-      if (/Torneio da Temporada/.test(msg.message)) showToast(msg.message, 7000);   // v42: aviso na tela, além do chat
+      if (/Torneio da Temporada/.test(msg.message)) showToast(msg.message, 5000);   // v42: aviso na tela, além do chat (v66: no máximo 5 s; o texto fica no chat)
       break;
 
     // ---- missões (o servidor conta os abates e decide a conclusão; aqui só se mostra)
@@ -2105,11 +2126,49 @@ function setStatus(text, kind, detail = '') {
 }
 
 let toastTimer = null;
-function showToast(text, ms = 3500) {
+/**
+ * v66 (guia de UI): um aviso fica na tela entre 2 e 5 s, conforme o tamanho do texto (≈ 40 ms por letra a mais de 1,6 s).
+ * O que passa de 5 s de leitura também vai para o chat/histórico. ms = 0: fica até outro aviso.
+ */
+const TOAST_MIN_MS = 2000, TOAST_MAX_MS = 5000;
+function readMs(text) { return Math.round(Math.min(TOAST_MAX_MS, Math.max(TOAST_MIN_MS, 1600 + 40 * String(text).length))); }
+function showToast(text, ms) {
   ui.toast.textContent = text;
   ui.toast.hidden = false;
   clearTimeout(toastTimer);
-  if (ms > 0) toastTimer = setTimeout(() => { ui.toast.hidden = true; }, ms);
+  if (ms === 0) return;
+  const shown = Math.min(TOAST_MAX_MS, Math.max(TOAST_MIN_MS, ms ?? readMs(text)));
+  toastTimer = setTimeout(() => { ui.toast.hidden = true; }, shown);
+}
+
+// ------------------------------------------------------------------ v66: HUD de combate (guia de UI, regra 4)
+/*
+ * Exibição sob demanda: na luta (bateu, apanhou, lançou jutsu nos últimos 6 s, ou tem alvo focado), o que não é da luta
+ * some (missões, status da conexão) e o chat fica bem apagado (hud.css body.combat-hud). Na zona segura e na Academia
+ * (o passo do tutorial fica nas missões) nunca.
+ * Config. → HUD → "HUD de combate" desliga (guardado no aparelho).
+ */
+const COMBAT_HUD_MS = 6000;
+let combatUntil = 0;
+let combatHudOn = true;
+try { combatHudOn = localStorage.getItem('nin.combatHud') !== '0'; } catch { /* sem armazenamento: fica ligado */ }
+function markCombat() { combatUntil = performance.now() + COMBAT_HUD_MS; updateCombatHud(); }
+function updateCombatHud() {
+  const fighting = combatHudOn && !document.body.classList.contains('editing') && !state.inSafeZone && state.mapId !== 'academy_interior'
+    && (performance.now() < combatUntil || !!state.focusId);
+  document.body.classList.toggle('combat-hud', fighting);
+}
+setInterval(updateCombatHud, 400);
+{
+  const box = $('combat-hud-opt');
+  if (box) {
+    box.checked = combatHudOn;
+    box.addEventListener('change', () => {
+      combatHudOn = box.checked;
+      try { localStorage.setItem('nin.combatHud', combatHudOn ? '1' : '0'); } catch { /* sem armazenamento */ }
+      updateCombatHud();
+    });
+  }
 }
 
 // ------------------------------------------------------------------ movimento (joystick + teclado)
@@ -3035,7 +3094,7 @@ function duelAnnounce(msg) {
   if (msg.phase === 'prep' && prev?.phase !== 'prep') {
     if (mine) showToast(`Seu adversário: ${mine === 'a' ? msg.b.name : msg.a.name} (Nv ${mine === 'a' ? msg.b.level : msg.a.level})`, 4000);
     addSystemLine(`⚔️ ${msg.mode === 'jounin' ? 'Torneio da Temporada' : 'Rankeado'}: ${msg.a.name} x ${msg.b.name}.`);
-  } else if (msg.phase === 'round' && prev?.phase !== 'round' && mine) showToast(`Rodada ${msg.round}: lute!`, 1800);
+  } else if (msg.phase === 'round' && prev?.phase !== 'round' && mine) showToast(`Rodada ${msg.round}: lute!`, 2000);
   else if (msg.phase === 'done' && prev?.phase !== 'done') {
     const w = msg.winner ? msg[msg.winner] : null;
     if (msg.voided) addSystemLine(`⚖️ Rankeado: partida anulada (ninguém causou dano).`);
