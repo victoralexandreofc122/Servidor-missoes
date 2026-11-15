@@ -18,7 +18,7 @@ UPDATE game.players
 
 -- 2. a Shuriken
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
-ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable'));
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable', 'relic'));
 
 INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
   ('shuriken', 'Shuriken', 'consumable', NULL, NULL, 10, 'weapons')

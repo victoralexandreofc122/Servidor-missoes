@@ -2,6 +2,7 @@
  * Regras do tempo real. Valores conservadores para o plano Free do Render;
  * mudam aqui, num lugar só.
  */
+import { TITANS, TITAN_EVENT } from './titans.js';
 import { CREATURES, CREATURE_STATS } from './vinculo.js';
 import { buildSkills, type JutsuCode, type Mechanic } from './jutsus.js';
 import type { AttributeRules } from './stats.js';
@@ -64,6 +65,19 @@ export interface SkillConfig {
   poison?: number;
   poisonMax?: number;
   poisonMs?: number;
+  /** v63 (clãs novos): espinhos (Muralha Interior), escudo dividido (Guarda), resposta (Muro que Responde), juramento,
+   * várias invocações, precisa de invocação (Troca), esquiva total (Passo do Vento), esquiva extra (Véu de Ar), eco. */
+  thornsPct?: number;
+  thornsRange?: number;
+  shareShield?: boolean;
+  retortPush?: number;
+  retortSlowMs?: number;
+  oathShare?: number;
+  summonCount?: number;
+  needsSummon?: boolean;
+  evadeMs?: number;
+  dodgePct?: number;
+  echoMs?: number;
   /** v50: bate mais com a vida baixa: bônus inteiro com 25% da vida ou menos, crescendo desde a vida cheia. */
   lowHpBonus?: number;
   /** v50: tira até este chakra do alvo e causa `chakraBurnRatio` de dano por ponto tirado. */
@@ -165,7 +179,9 @@ export interface SkillConfig {
   returnBase?: number;
   /** Zona no chão: dura `ms`; `split` = em quantos pulsos o dano do jutsu se divide; `endHit` = o dano cai no fim. */
   zone?: {
-    ms: number; tickMs?: number; kind: 'fogo' | 'lama' | 'cura' | 'agua' | 'sombra' | 'ilusao' | 'armas' | 'raio' | 'vento';
+    ms: number; tickMs?: number; kind: 'fogo' | 'lama' | 'cura' | 'agua' | 'sombra' | 'ilusao' | 'armas' | 'raio' | 'vento' | 'veneno';
+    /** v63: Névoa Tóxica: quem está dentro ganha uma carga de veneno a cada pulso. */
+    poison?: number; poisonMax?: number; poisonMs?: number;
     slow?: boolean; heal?: number; follow?: boolean; self?: boolean; pull?: number; split?: number;
     endHit?: boolean; endStunMs?: number; firstRootMs?: number;
     /** v30: escurece quem está dentro (Véu de Bruma); armadilha: dispara no 1º que pisar e some. */
@@ -315,7 +331,7 @@ export interface CombatConfig {
   skills: Readonly<Record<JutsuCode, SkillConfig & { mechanic: Mechanic }>>;
 }
 
-export type NpcRole = 'sensei' | 'travel' | 'shop' | 'tutor' | 'director';
+export type NpcRole = 'sensei' | 'travel' | 'shop' | 'tutor' | 'director' | 'cronista';
 export interface NpcConfig { id: string; name: string; map: MapId; x: number; y: number; range: number; role: NpcRole; shop?: ShopKind }
 
 export interface EndgameConfig {
@@ -493,6 +509,21 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       // v53: Sentinela de Sombra e Arsenal Vivo têm o tipo (e o desenho) próprio: antes saíam como o Golem de Terra
       sentinela_sombra: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 3.4, leashRange: 12 } },
       arsenal: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 3.2, leashRange: 12 } },
+      // v63: as invocações dos clãs novos (Áspide e Garra)
+      serpente_aspide: { maxHp: 40, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 4.2, leashRange: 12 } },
+      fera_garra: { maxHp: 60, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 4.6, leashRange: 12 } },
+      fera_rei: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 3.8, leashRange: 12 } },
+      // v61 (Fase 3): os 10 Titãs Ancestrais (chefes do evento "Cinturão da Era"; a vida de verdade vem do banco, global)
+      ...Object.fromEntries(TITANS.map((ti) => [`tita_${ti.index}`, {
+        maxHp: TITAN_EVENT.hp(ti.index), xp: 2500, attackRange: 2.4, attackDamage: 40 + ti.index * 3, attackEveryMs: 1500, stationary: false, respawnMs: 1e12,
+        ai: { aggroRange: 6, chaseSpeed: 2.2, leashRange: 8 },
+        slam: { everyMs: 5500, windupMs: 1200, range: 7, radius: 3, damage: 60 + ti.index * 4 },
+        boss: {
+          name: `Titã ${ti.name}`,
+          ryo: { min: 400, max: 700 },
+          phases: [{ at: 0.4, text: `O Titã ${ti.name} está furioso!`, enrage: 1.3 }],
+        },
+      }])),
       // v60 (Vínculo Ancestral): as 8 criaturas (a vida de verdade vem do dono e da afinidade; seguem o dono; gameWorld.creatureTick)
       ...Object.fromEntries(CREATURES.map((c) => [`vinculo_${c}`, {
         maxHp: 100, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12,
@@ -566,6 +597,8 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     { id: 'tutor_jutsu', name: 'Professor Kenji', map: 'academy_interior', x: 44.5, y: 12, range: 2.5, role: 'tutor' },
     { id: 'tutor_weapons', name: 'Professora Mei', map: 'academy_interior', x: 61, y: 10, range: 2.5, role: 'tutor' },
     { id: 'director', name: 'Diretor da Academia', map: 'academy_interior', x: ACADEMY.director.x, y: ACADEMY.director.y, range: 3, role: 'director' },
+    // v62 (Fase 3): o Cronista conta a Crônica das Eras conforme o mundo cresce (worldProgress.ts)
+    { id: 'cronista', name: 'O Cronista', map: 'academy_interior', x: 51, y: 6, range: 3, role: 'cronista' },
   ],
   endgame: {
     thresholds: { vilas: 30, pvp: 60, renegados: 100, akatsuki: 150 },

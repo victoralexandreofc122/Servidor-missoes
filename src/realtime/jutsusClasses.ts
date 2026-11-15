@@ -223,7 +223,7 @@ export const CAST_OF_EXISTING: Readonly<Record<string, number>> = {};
 
 // ------------------------------------------------------------------ v30: os clãs (linhagem; docs/jutsus-v2.md, seção 5)
 
-export const CLANS = ['rubro', 'umbra', 'andarilho'] as const;
+export const CLANS = ['rubro', 'umbra', 'andarilho', 'bastiao', 'aspide', 'garra', 'zefiro'] as const;
 export type Clan = (typeof CLANS)[number];
 /** Nível em que cada tier do clã chega (o tier 1 no despertar, a partir de Genin no nível 11). */
 export const CLAN_TIER_LEVEL = [11, 20, 40, 60] as const;
@@ -232,7 +232,10 @@ export const CLAN_TIER_LEVEL = [11, 20, 40, 60] as const;
 export const CLAN_CODES = ['rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao', 'rubro_lua', 'rubro_completo',
   'umbra_deslize', 'umbra_faminta', 'umbra_noite', 'umbra_forma'] as const;
 
-export const CLAN_JUTSUS: Readonly<Record<string, ClassJutsu & { clan: 'rubro' | 'umbra' }>> = {
+/** Clãs com árvore própria (o Andarilho não tem). */
+export type TreeClan = Exclude<Clan, 'andarilho'>;
+
+export const CLAN_JUTSUS: Readonly<Record<string, ClassJutsu & { clan: TreeClan }>> = {
   // Olho Rubro: o próximo golpe recebido dói metade (a pele de rocha da Terra, no olho)
   rubro_olho: { name: 'Olhar Rubro', class: 'fire', clan: 'rubro', tier: 1, form: 'escudo',
     numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 12_000, range: 0, radius: undefined, reduction: 0.5 } },
@@ -263,13 +266,88 @@ export const CLAN_JUTSUS: Readonly<Record<string, ClassJutsu & { clan: 'rubro' |
   // Forma Umbral: 0,8 s de selos; 5 s como sombra: ignora projéteis, +20% de velocidade, quem ele atravessa leva dano e 0,5 s lento
   umbra_forma: { name: 'Forma Umbral', class: 'shadow', clan: 'umbra', tier: 4, form: 'forma_sombra',
     numbers: { ...CLEAN, base: 18, damage: dmg(18, 4), cost: 44, cooldownMs: 30_000, range: 0, radius: 0.9, speedBuff: 0.2, durationMs: 5000, slowMs: 500, castMs: 800, castSlow: 0 } },
+  // ---------------------------------------------------------------- v63 (Fase 3, Etapa 4): os 4 clãs novos
+  // Clã Bastião (defesa; a cor e o custo vêm da mecânica Pedra). Passiva: +15% de resistência a controle, +2 s nos escudos.
+  // Muralha Interior: escudo de 40 por 4 s; quem bate de perto (até 1,8 casa) leva 20% do golpe de volta
+  bastiao_muralha: { name: 'Muralha Interior', class: 'stone', clan: 'bastiao', tier: 1, form: 'escudo_vida',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 15, cooldownMs: 12_000, range: 0, radius: undefined, shield: 40, durationMs: 4000, thornsPct: 0.2, thornsRange: 1.8 } },
+  // Guarda Compartilhada: escudo de 35 em você e no aliado mirado (até 6 casas)
+  bastiao_guarda: { name: 'Guarda Compartilhada', class: 'stone', clan: 'bastiao', tier: 2, form: 'escudo_vida',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 14_000, range: 6, radius: undefined, shield: 35, durationMs: 4000, shareShield: true } },
+  // Muro que Responde: por 2 s, quem te acertar é empurrado 2 casas e fica lento (1,5 s)
+  bastiao_resposta: { name: 'Muro que Responde', class: 'stone', clan: 'bastiao', tier: 3, form: 'postura',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 25, cooldownMs: 16_000, range: 0, radius: undefined, durationMs: 2000, retortPush: 2, retortSlowMs: 1500 } },
+  // Juramento do Escudo: 10 s com -50% de dano; metade do dano dos aliados a até 6 casas vem para você
+  bastiao_juramento: { name: 'Juramento do Escudo', class: 'stone', clan: 'bastiao', tier: 4, form: 'postura',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 44, cooldownMs: 40_000, range: 6, radius: undefined, durationMs: 10_000, dr: 0.5, oathShare: 0.5 } },
+  // Clã Áspide (veneno; mecânica Armas, sem a escala do atributo Armas). Passiva: o veneno pulsa já no 1º segundo (dano
+  // dobrado nele) e o alvo envenenado recebe 30% menos cura.
+  // Cuspe da Áspide: projétil que envenena (6 s) e deixa lento por 2 s
+  aspide_cuspe: { name: 'Cuspe da Áspide', class: 'weapons', clan: 'aspide', tier: 1, form: 'projetil',
+    numbers: { ...CLEAN, base: 10, damage: dmg(10, 1), cost: 15, cooldownMs: 6000, range: 7, speed: 13, radius: 0, shots: 1, scaling: undefined, poison: 3, poisonMax: 3, poisonMs: 6000, slowMs: 2000 } },
+  // Névoa Tóxica: zona de 2,5 casas por 5 s; quem fica dentro ganha uma carga de veneno a cada 1 s
+  aspide_nevoa: { name: 'Névoa Tóxica', class: 'weapons', clan: 'aspide', tier: 2, form: 'zona',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 22, cooldownMs: 15_000, range: 6, radius: 2.5, shots: undefined, scaling: undefined,
+      zone: { ms: 5000, tickMs: 1000, kind: 'veneno', poison: 2, poisonMax: 4, poisonMs: 3000 } } },
+  // Constrição: prende o alvo por 1,5 s e aplica um veneno forte (5 s)
+  aspide_constricao: { name: 'Constrição', class: 'weapons', clan: 'aspide', tier: 3, form: 'alvo',
+    numbers: { ...CLEAN, base: 12, damage: dmg(12, 3), cost: 30, cooldownMs: 14_000, range: 5, radius: undefined, shots: undefined, scaling: undefined, rootMs: 1500, poison: 6, poisonMax: 1, poisonMs: 5000 } },
+  // Ninho de Áspides: 3 serpentes por 8 s que mordem e envenenam
+  aspide_ninho: { name: 'Ninho de Áspides', class: 'weapons', clan: 'aspide', tier: 4, form: 'invocacao',
+    numbers: { ...CLEAN, base: 5, damage: dmg(5, 4), cost: 44, cooldownMs: 30_000, range: 0, radius: 1.3, shots: undefined, scaling: undefined, summonType: 'serpente_aspide',
+      summonHp: 0.08, summonCount: 3, durationMs: 8000, punchEveryMs: 1500, poison: 2, poisonMax: 3, poisonMs: 4000 } },
+  // Clã Garra (invocações; mecânica Taijutsu, sem a escala do atributo). Passiva: invocações com +30% de vida; o mestre
+  // anda 10% mais rápido.
+  // Chamado da Matilha: uma fera pequena por 10 s
+  garra_matilha: { name: 'Chamado da Matilha', class: 'taijutsu', clan: 'garra', tier: 1, form: 'invocacao',
+    numbers: { ...CLEAN, base: 8, damage: dmg(8, 1), cost: 18, cooldownMs: 16_000, range: 0, radius: 1.3, scaling: undefined, summonType: 'fera_garra', summonHp: 0.12, durationMs: 10_000, punchEveryMs: 1500 } },
+  // Uivo de Comando: o uivo atordoa o alvo 0,5 s e as suas invocações saltam nele e mordem
+  garra_uivo: { name: 'Uivo de Comando', class: 'taijutsu', clan: 'garra', tier: 2, form: 'comando',
+    numbers: { ...CLEAN, base: 8, damage: dmg(8, 2), cost: 20, cooldownMs: 12_000, range: 8, radius: undefined, scaling: undefined, stunMs: 500 } },
+  // Troca Instintiva: troca de lugar com a sua invocação (a mais perto, até 10 casas)
+  garra_troca: { name: 'Troca Instintiva', class: 'taijutsu', clan: 'garra', tier: 3, form: 'troca',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 10_000, range: 10, radius: undefined, scaling: undefined, needsSummon: true } },
+  // Rei da Matilha: uma fera grande por 15 s, com 40% da sua vida
+  garra_rei: { name: 'Rei da Matilha', class: 'taijutsu', clan: 'garra', tier: 4, form: 'invocacao',
+    numbers: { ...CLEAN, base: 14, damage: dmg(14, 4), cost: 44, cooldownMs: 35_000, range: 0, radius: 1.6, scaling: undefined, summonType: 'fera_rei', summonHp: 0.4, durationMs: 15_000, punchEveryMs: 2000 } },
+  // Clã Zéfiro (esquiva; mecânica Vento). Passiva: 5% de esquiva natural; jutsus de mobilidade voltam 15% mais rápido.
+  // Passo do Vento: avanço de 3 casas e 0,5 s de esquiva total
+  zefiro_passo: { name: 'Passo do Vento', class: 'wind', clan: 'zefiro', tier: 1, form: 'recuo',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 12, cooldownMs: 7000, range: 3, dash: 3, radius: undefined, evadeMs: 500 } },
+  // Véu de Ar: 4 s com +25% de esquiva
+  zefiro_veu: { name: 'Véu de Ar', class: 'wind', clan: 'zefiro', tier: 2, form: 'postura',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 15_000, range: 0, radius: undefined, durationMs: 4000, dodgePct: 0.25 } },
+  // Eco do Vento: volta para onde você estava 3 s atrás (no mesmo mapa)
+  zefiro_eco: { name: 'Eco do Vento', class: 'wind', clan: 'zefiro', tier: 3, form: 'eco',
+    numbers: { ...CLEAN, base: 0, damage: 0, cost: 20, cooldownMs: 14_000, range: 0, radius: undefined, echoMs: 3000 } },
+  // Mil Passos: salta em até 5 inimigos em volta (5 casas), golpeando cada um
+  zefiro_mil: { name: 'Mil Passos', class: 'wind', clan: 'zefiro', tier: 4, form: 'mil_passos',
+    numbers: { ...CLEAN, base: 14, damage: dmg(14, 4), cost: 44, cooldownMs: 24_000, range: 5, radius: 5, targets: 5 } },
 };
+
+/** v63: os 16 códigos dos clãs novos (no fim da lista de jutsus: o banco e os kits guardam os de antes). */
+export const CLAN_NOVOS_CODES = ['bastiao_muralha', 'bastiao_guarda', 'bastiao_resposta', 'bastiao_juramento',
+  'aspide_cuspe', 'aspide_nevoa', 'aspide_constricao', 'aspide_ninho', 'garra_matilha', 'garra_uivo', 'garra_troca', 'garra_rei',
+  'zefiro_passo', 'zefiro_veu', 'zefiro_eco', 'zefiro_mil'] as const;
+
+/** v63: números das passivas dos clãs novos. */
+export const CLAN_PASSIVE = {
+  bastiao: { ccCut: 0.15, shieldMs: 2000 },
+  aspide: { healCut: 0.3 },
+  garra: { summonHp: 1.3, speed: 1.1 },
+  zefiro: { dodge: 0.05, mobilityCd: 0.85 },
+} as const;
 
 /** Os jutsus de cada linhagem, do tier 1 ao 4 (Andarilho não tem árvore: tem a Substituição 15% mais rápida). */
 export const CLAN_TREE: Readonly<Record<Clan, readonly string[]>> = {
   rubro: ['rubro_olho', 'rubro_transe', 'rubro_chamas', 'rubro_guardiao'],
   umbra: ['umbra_deslize', 'umbra_faminta', 'umbra_noite', 'umbra_forma'],   // v35: os 4 próprios (a classe Sombra é outra coisa)
   andarilho: [],
+  // v63 (Fase 3, Etapa 4): os 4 clãs novos (escolhas do Victor, 15/11/2026)
+  bastiao: ['bastiao_muralha', 'bastiao_guarda', 'bastiao_resposta', 'bastiao_juramento'],
+  aspide: ['aspide_cuspe', 'aspide_nevoa', 'aspide_constricao', 'aspide_ninho'],
+  garra: ['garra_matilha', 'garra_uivo', 'garra_troca', 'garra_rei'],
+  zefiro: ['zefiro_passo', 'zefiro_veu', 'zefiro_eco', 'zefiro_mil'],
 };
 
 /** Os jutsus do clã que o ninja já alcançou pelo nível. */

@@ -68,6 +68,8 @@ export interface ActiveEffect {
   sourceId: string | null;
   /** v50: cargas (veneno). */
   stacks?: number;
+  /** v63 (Clã Áspide): o alvo recebe esta fração a menos de cura enquanto o efeito dura. */
+  healCut?: number;
 }
 export type EffectBag = Map<EffectCode, ActiveEffect>;
 
@@ -132,7 +134,11 @@ export function speedFactor(bag: EffectBag, t: number): number {
 /** Cura recebida x isto (ferida). */
 export function healFactor(bag: EffectBag, t: number): number {
   let f = 1;
-  for (const [code, e] of bag) if (e.until > t && EFFECTS[code].healTaken !== undefined) f = Math.min(f, EFFECTS[code].healTaken!);
+  for (const [code, e] of bag) {
+    if (e.until <= t) continue;
+    if (EFFECTS[code].healTaken !== undefined) f = Math.min(f, EFFECTS[code].healTaken!);
+    if (e.healCut) f = Math.min(f, 1 - e.healCut);
+  }
   return f;
 }
 

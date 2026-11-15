@@ -227,7 +227,7 @@ const reason = z.string().max(300);
 /** v29: uma linha do ranking do rankeado. */
 export interface RankedRowView { position: number; playerId: string; username: string; village: string | null; level: number; mmr: number; wins: number; losses: number }
 /** v29: tipos de zona no chão; 'aviso' = o círculo vermelho do golpe que vai cair. */
-export type GroundKind = 'fogo' | 'lama' | 'cura' | 'aviso' | 'agua' | 'sombra' | 'ilusao' | 'armas' | 'raio' | 'vento';
+export type GroundKind = 'fogo' | 'lama' | 'cura' | 'aviso' | 'agua' | 'sombra' | 'ilusao' | 'armas' | 'raio' | 'vento' | 'veneno';
 
 export interface DuelSideView { id: string; name: string; level: number; village: string | null }
 /** v55: uma luta no painel de espectador. */
@@ -251,6 +251,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   // v55: o trio do 3v3: convidar pelo nome, aceitar o convite de um líder e sair do trio
   z.object({ type: z.literal('trio'), action: z.enum(['invite', 'accept', 'leave']), name: z.string().min(3).max(24).optional(), leaderId: targetId.optional() }),
   // v60: Vínculo Ancestral (aba do menu e botões do HUD). dash = o avanço extra do Estado Primal do Tigre.
+  // v61/v62 (Fase 3): o estado do mundo e dos Titãs; a Habilidade Suprema do Portador
+  z.object({ type: z.literal('fase3'), action: z.enum(['state', 'supreme']) }),
   z.object({ type: z.literal('vinculo'), action: z.enum(['state', 'equip', 'summon', 'dismiss', 'primal', 'dash']), creature: z.enum(CREATURES).optional() }),
   // v55: espectador: assistir a luta de uma arena como fantasma (null = parar de assistir) e pedir a lista das lutas
   z.object({ type: z.literal('watch'), arena: z.enum(['vale_estatuas', 'arena_2', 'arena_3', 'arena_4']).nullable() }),
@@ -269,7 +271,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('deliver_mission'), senseiId: uuid }),
   z.object({ type: z.literal('evaluate_mission'), missionId: uuid, approved: z.boolean(), score: z.number().int().min(1).max(5) }),
   z.object({ type: z.literal('choose_class'), class: z.enum(CLASSES) }),
-  // v30: o despertar da linhagem (Clã Rubro, Clã Umbra ou Andarilho)
+  // v30: o despertar da linhagem (Clã Rubro, Clã Umbra ou Andarilho; v63: + Bastião, Áspide, Garra e Zéfiro)
   z.object({ type: z.literal('clan'), clan: z.enum(CLANS) }),
   z.object({ type: z.literal('extract'), class: z.enum(CLASSES), level: z.number().int().min(1).max(4) }),
   z.object({ type: z.literal('buy'), item: z.enum(ITEM_CODES), qty: z.number().int().min(1).max(99) }),
@@ -419,7 +421,7 @@ export interface NpcView {
   /** Mapa onde ele fica (o cliente só desenha os do mapa atual: lojista só dentro da loja). */
   map: MapId;
   /** O que ele faz: Mestre (Sala de Missões), Posto de Viagem, lojista, professor ou o Diretor da Academia. */
-  role: 'sensei' | 'travel' | 'shop' | 'tutor' | 'director';
+  role: 'sensei' | 'travel' | 'shop' | 'tutor' | 'director' | 'cronista';
   /** Lojista: falar com ele abre a loja (shop_open). */
   shop?: ShopKind;
   x: number;
@@ -612,7 +614,7 @@ export interface WorldInfo {
   manualReward: { ryo: number; xp: number };
 }
 
-export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'NOT_YOUR_CLASS' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED' | 'SILENCED' | 'ASLEEP' | 'CASTING';
+export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'NOT_YOUR_CLASS' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED' | 'SILENCED' | 'ASLEEP' | 'CASTING' | 'NO_SUMMON';
 /** Por que a meditação acabou. */
 export type MeditationEnd = 'manual' | 'moved' | 'cast' | 'damaged' | 'died';
 export type MonsterStatus = 'stunned' | 'rooted';
@@ -672,7 +674,18 @@ export type ServerMessage =
   /** v55: o trio de quem recebe (para a fila do 3v3 em grupo): o líder, os membros e os convites que ele recebeu. */
   | { type: 'trio_state'; leaderId: string | null; members: { id: string; name: string; level: number }[]; invites: { leaderId: string; name: string }[] }
   | { type: 'vinculo_state' } & VinculoView
+  // v62: o marco do mundo (o que está trancado) e a Crônica do Cronista
+  | { type: 'world_state'; stage: number; active: number; forced: boolean; locked: string[]; next: number | null }
+  | { type: 'chronicle'; stage: number; chapters: { title: string; text: string; open: boolean }[] }
+  // v61: o Titã acordado (vida global), os Portadores da Era e o meu (recarga da Suprema)
+  | { type: 'titan_state'; awake: { index: number; name: string; icon: string; hp: number; maxHp: number; map: string } | null;
+      bearers: { titan: number; name: string; username: string }[]; mine: { titan: number; cdMs: number; activeMs: number } | null;
+      titans: { index: number; name: string; icon: string; color: string; passive: string; active: string }[] }
+  // v61/v62: o que todos veem: a Suprema do Portador, o Renascer, o escudo do Último Fôlego
+  | { type: 'fase3_fx'; kind: 'supreme' | 'revive' | 'shield'; playerId: string; titan?: number; x: number; y: number; ms?: number }
   // v60: o que todos no mapa veem do Vínculo: a fumaça da invocação, a aura do Primal, a esquiva, a teia, o crítico, o gato some
+  // v63 (clãs novos): o rastro do Mil Passos, a Troca Instintiva, o Eco do Vento, o Uivo, os espinhos e a resposta do Bastião, a esquiva
+  | { type: 'clan_fx'; kind: 'mil_passos' | 'troca' | 'eco' | 'uivo' | 'espinhos' | 'resposta' | 'esquiva' | 'juramento'; playerId: string; pts?: [number, number][]; x?: number; y?: number; ms?: number }
   | { type: 'vinculo_fx'; kind: 'summon' | 'primal' | 'primal_end' | 'cancel' | 'dodge' | 'web' | 'crit' | 'stealth' | 'reveal' | 'pool' | 'taunt'; playerId?: string; id?: string; creature?: Creature; x?: number; y?: number; r?: number; ms?: number; on?: boolean }
   /** v41: o Torneio da Temporada para quem recebe: aberto agora, até quando, se ele pode jogar e os pontos dele na era. */
   /** v42: o painel do Torneio: os 10 primeiros da vila, a linha de corte (2x as vagas) e a linha de quem pediu. */

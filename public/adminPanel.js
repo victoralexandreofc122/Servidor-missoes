@@ -12,7 +12,7 @@ const TABS = [
 ];
 const FEEDBACK_CAT = { bug: '🐞 Bug', sugestao: '💡 Sugestão', balanceamento: '⚖️ Balanceamento', outro: '💬 Outro' };
 const CLASS_PT = { fire: 'Fogo', water: 'Água', lightning: 'Raio', stone: 'Terra', taijutsu: 'Taijutsu', illusion: 'Ilusão', shadow: 'Sombra', heal: 'Cura', weapons: 'Armas', wind: 'Vento' };
-const CLAN_PT = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' };
+const CLAN_PT = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho', bastiao: 'Clã Bastião', aspide: 'Clã Áspide', garra: 'Clã Garra', zefiro: 'Clã Zéfiro' };
 const WEATHERS = [['normal', '☁️ Normal'], ['quente', '☀️ Quente'], ['chuva', '🌧️ Chuva'], ['neblina', '🌫️ Neblina']];
 const PHASES = [['amanhecer', '🌅 Amanhecer'], ['dia', '🌞 Dia'], ['entardecer', '🌇 Entardecer'], ['noite', '🌙 Noite']];
 const XP_VILLAGES = [['chama', 'Chama Eterna'], ['mare', 'Maré Oculta'], ['vento', 'Vento Cortante'], ['rocha', 'Rocha Antiga']];

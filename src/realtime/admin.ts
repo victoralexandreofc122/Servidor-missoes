@@ -76,6 +76,10 @@ export type AdminCommand =
   | { cmd: 'pvp'; days: number }
   | { cmd: 'bonusxp'; action: 'set' | 'remove' | 'list'; scope: 'global' | 'mapa' | 'monstro' | 'vila' | 'tudo'; target: string; percent: number; minutes: number }
   | { cmd: 'torneio'; action: 'abrir' | 'fechar' | 'chaves' | 'encerrar' | 'wo' | 'status'; days: number; username?: string }
+  // v61/v62 (Fase 3): marco do mundo (null = segue a população), acordar um Titã agora, dar o Portador (teste)
+  | { cmd: 'mundo'; stage: number | null }
+  | { cmd: 'tita'; titan: number }
+  | { cmd: 'portador'; username: string; titan: number }
   | EndgameAdminCommand;
 
 /** Comandos do fim de jogo (v11). */
@@ -105,7 +109,8 @@ export type ParsedAdmin = { ok: true; command: AdminCommand } | { ok: false; com
 export const ADMIN_HELP = 'Admin (ou o painel 🛡️): /admin nivel <nome> <nível> · invocar <monstro> [qtd] · darjutsu <nome> <jutsu> [nível] · daritem <nome> <item> [qtd] · ryo <nome> <qtd>'
   + ' · zerarpontos <nome> · patente <nome|eu> <academia|genin|chunin|jounin|anbu|kage> · resetarclasses <admin|eu> · rito <nome|eu> · pvp [dias] · torneio <abrir [dias]|fechar|chaves|wo <nome>|encerrar|status> · bonusxp <global|mapa X|monstro X|vila X> <%> [min] · bonusxp remover <alvo|tudo> · ir <mapa> [x y] · clima <normal|quente|chuva|neblina> [min] · hora <amanhecer|dia|entardecer|noite> · efeito <nome> <efeito|limpar> [seg]'
   + ' · fimdejogo <módulo> <ligar|desligar|auto> · vila <nome> <vila> · kage <vila> <nome> · eleicao <vila> · evento <guerra|tregua> <vila|todas> [vila] <horas>'
-  + ' · renegado <nome> <sim|nao> · akatsuki <lider|remover> <nome> · temporada fechar';
+  + ' · renegado <nome> <sim|nao> · akatsuki <lider|remover> <nome> · temporada fechar'
+  + ' · mundo <0|30|60|100|150|250|auto> · tita <1-10> · portador <nome|eu> <1-10>';
 
 /** Os nomes antigos (em inglês) e as variações que também valem: apontam para o nome em português. */
 export const ADMIN_ALIASES: Readonly<Record<string, string>> = {
@@ -174,6 +179,23 @@ export function parseAdminCommand(text: string, monsterTypes: readonly string[],
       const days = int(args[1] ?? '10', 1, 60);
       if (!['abrir', 'fechar', 'chaves', 'encerrar', 'status'].includes(action) || args.length > 2 || days === undefined || (action !== 'abrir' && args.length > 1)) return bad(usage);
       return { ok: true, command: { cmd, action: action as 'abrir' | 'fechar' | 'chaves' | 'encerrar' | 'status', days } };
+    }
+    case 'mundo': {
+      const a = (args[0] ?? '').toLowerCase();
+      if (a === 'auto') return { ok: true, command: { cmd, stage: null } };
+      const n = Number(a);
+      if (args.length !== 1 || ![0, 30, 60, 100, 150, 250].includes(n)) return bad('mundo <0|30|60|100|150|250|auto>');
+      return { ok: true, command: { cmd, stage: n } };
+    }
+    case 'tita': {
+      const n = int(args[0] ?? '', 1, 10);
+      if (args.length !== 1 || n === undefined) return bad('tita <1-10>');
+      return { ok: true, command: { cmd, titan: n } };
+    }
+    case 'portador': {
+      const n = int(args[1] ?? '', 1, 10);
+      if (args.length !== 2 || n === undefined || !args[0]) return bad('portador <nome|eu> <1-10>');
+      return { ok: true, command: { cmd, username: args[0], titan: n } };
     }
     case 'bonusxp': {
       // v44: bônus de XP. bonusxp <global|mapa X|monstro X|vila X> <% 1 a 500> [minutos] · bonusxp remover <alvo|tudo> · bonusxp (lista)

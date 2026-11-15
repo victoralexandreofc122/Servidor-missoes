@@ -42,6 +42,8 @@ export function priceFactor(v, villages, d, now) {
 /** Pode entrar no mapa? (sem `access`: tudo aberto) */
 export function mapAllowed(layout, access) {
   if (!layout || !access) return true;
+  if (layout.id && access.locked?.includes(layout.id)) return false;   // v62: trancado pelo marco do mundo (névoa)
+  if (access.villagesOff) return true;
   if (layout.refuge) return access.village === null;
   if (layout.village) return layout.village === access.village || access.allies.includes(layout.village);
   return true;

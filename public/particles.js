@@ -28,11 +28,13 @@ export const ELEMENTS = {
   heal: { colors: ['#d8ffe0', '#8cf0a0', '#5fe07a'], shape: 'plus', g: -1.6, life: [0.5, 1], size: [0.08, 0.16], speed: [0.2, 1], glow: true, extra: { shape: 'dot', colors: ['#eafff0'], share: 0.4 } },
   taijutsu: { colors: ['#fff3c4', '#f2b13a', '#d98a1e'], shape: 'spark', g: 1.5, life: [0.15, 0.35], size: [0.2, 0.45], speed: [2.5, 5], glow: true, extra: { shape: 'smoke', colors: ['#cdbb9a'], share: 0.3 } },
   weapons: { colors: ['#ffffff', '#e6edf2', '#ffd27a'], shape: 'spark', g: 3, life: [0.12, 0.3], size: [0.16, 0.36], speed: [2.5, 5.5], glow: true, extra: { shape: 'dot', colors: ['#c9d2da'], share: 0.2 } },
+  // v63: veneno (Névoa Tóxica, mordida das áspides): fumaça verde-escura que sobe devagar, com bolhas claras
+  poison: { colors: ['#9be05a', '#5a9a2a', '#2f5a16'], shape: 'smoke', g: -0.5, life: [0.6, 1.2], size: [0.12, 0.26], speed: [0.2, 0.9], glow: false, extra: { shape: 'dot', colors: ['#d8ff8a'], share: 0.3 } },
   neutral: { colors: ['#ffffff', '#fff3c4'], shape: 'spark', g: 1, life: [0.12, 0.28], size: [0.16, 0.34], speed: [2, 4.5], glow: true },
 };
 
 /** Zona no chão (mensagem `ground`) -> elemento. O 'aviso' usa o elemento do jutsu que avisou. */
-export const GROUND_ELEMENT = { fogo: 'fire', lama: 'stone', cura: 'heal', agua: 'water', sombra: 'shadow', ilusao: 'illusion', armas: 'weapons', raio: 'lightning', vento: 'wind' };
+export const GROUND_ELEMENT = { fogo: 'fire', lama: 'stone', cura: 'heal', agua: 'water', sombra: 'shadow', ilusao: 'illusion', armas: 'weapons', raio: 'lightning', vento: 'wind', veneno: 'poison' };
 
 /** O elemento de um jutsu: a mecânica dele (clãs: Rubro = fogo, Umbra = sombra); o que não tem, neutro. */
 export function elementOf(mechanic) {

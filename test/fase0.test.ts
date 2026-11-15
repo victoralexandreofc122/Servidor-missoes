@@ -38,7 +38,7 @@ describe('Maestria por jutsu (Fogo)', () => {
   it('Fase 1.5: todo jutsu de classe e de clã tem a regra nova (no máximo 2 ganhos); a Academia evolui do jeito dela', () => {
     const all = JUTSUS.filter((j) => j.tier > 0).map((j) => j.code).sort();
     assert.deepEqual(Object.keys(MASTERY).sort(), all);
-    assert.equal(all.length, 184);   // v49 (Fase 2.5): 98 + 74
+    assert.equal(all.length, 200);   // v49 (Fase 2.5): 98 + 74; v63: + 16 dos clãs novos
     for (const [code, gains] of Object.entries(MASTERY)) assert.ok(gains.length >= 1 && gains.length <= 2, code);
     assert.ok(!MASTERY.teleport && !MASTERY.substitution);
     assert.deepEqual(masteryOf('water_3'), ['dano', 'efeito']);

@@ -240,6 +240,56 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v63: os 4 clãs novos e os nomes das relíquias (migração v38, `db/schema_v38_clas_novos.sql`)
+
+Fase 3, Etapa 4, com as escolhas do Victor (15/11/2026): Bastião 1A 2A 3A 4C, Áspide 1B 2A 3B 4B, Garra 1A 2A 3C 4A,
+Zéfiro 1A 2B 3A 4B; relíquias todas da opção A. Os clãs entram no Criador (agora 7 linhagens) e despertam no Rito do
+Despertar como o Rubro e o Umbra: o 1º jutsu no despertar (Genin, nível 11), os outros nos níveis 20, 40 e 60.
+
+- **Clã Bastião** (defesa; passiva: controle em você dura 15% menos, os seus escudos duram 2 s a mais): Muralha Interior
+  (escudo de 40 por 4 s; quem bate de perto leva 20% de volta), Guarda Compartilhada (escudo de 35 em você e no aliado
+  mirado), Muro que Responde (2 s: quem te acerta é empurrado 2 casas e fica lento), Juramento do Escudo (10 s: -50% de
+  dano e metade do dano dos aliados a até 6 casas vem para você).
+- **Clã Áspide** (veneno; passiva: o veneno novo pulsa já no 1º segundo, dano dobrado nele, e o envenenado recebe 30%
+  menos cura): Cuspe da Áspide (projétil que envenena e deixa lento 2 s), Névoa Tóxica (zona de 2,5 casas por 5 s que
+  dá uma carga de veneno por segundo), Constrição (prende 1,5 s e veneno forte), Ninho de Áspides (3 serpentes por 8 s).
+- **Clã Garra** (invocações; passiva: invocações com +30% de vida, o mestre anda 10% mais rápido): Chamado da Matilha
+  (fera por 10 s), Uivo de Comando (atordoa 0,5 s e as invocações saltam no alvo e mordem), Troca Instintiva (troca de
+  lugar com a invocação), Rei da Matilha (fera grande por 15 s, com 40% da vida).
+- **Clã Zéfiro** (esquiva; passiva: 5% de esquiva natural nos golpes diretos, jutsus de mobilidade recarregam 15% mais
+  rápido): Passo do Vento (avanço de 3 casas e 0,5 s de esquiva total), Véu de Ar (4 s com +25% de esquiva), Eco do
+  Vento (volta para onde estava 3 s atrás), Mil Passos (salta em até 5 inimigos a até 5 casas, golpeando cada um).
+- **Arte:** serpentes, a fera e o Rei da Matilha desenhados por código (de lado, contorno escuro, 3 tons); a Névoa Tóxica
+  tem fumaça verde própria; cada clã novo tem a sua cor nos jutsus.
+- **Relíquias:** Amuleto do Fôlego, Amuleto da Corrente, Amuleto do Punho, Selo da Firmeza, Selo da Couraça, Selo do
+  Vigor, Presa Rubra, Último Fôlego, Fluxo Sereno, Coração da Fênix Cinza, Punho da Chama Antiga.
+- 202 jutsus no total; todos passam pela auditoria (`test/auditoriaJutsus.test.ts`) e têm testes próprios em
+  `test/clasNovos.test.ts`.
+
+### v61/v62: Fase 3: Titãs, Progressão de Mundo e Loot (migrações v36 e v37)
+
+- **Titãs Ancestrais, o "Cinturão da Era" (v36):** 10 Titãs (Chama Eterna, Maré de Sangue, Trovão Ancestral, Vento
+  Cortante, Rocha Antiga, Noite Eterna, Pesadelo, Corpo Fechado, Mil Lâminas, Vida) acordam um por dia nos 10 primeiros
+  dias da Era, na Clareira Queimada. Vida global (gravada a cada 15 s; reinício não enche de novo). Quem não cai até o dia
+  seguinte volta a dormir. O MVP (mais dano) vira o Portador até o fim da Era (título; um Titã por ninja por Era: se o MVP
+  já porta outro, vai para o 2º em dano).
+- **Portadores:** passiva e Habilidade Suprema em TODOS os modos. Botão 🔱 no HUD (efeito de 1 min, recarga de 20 min,
+  gravada no banco). Passivas: queimadura no Básico; Água cura 20%; 10% de paralisar; +20% de velocidade e -10% de
+  recarga; escudo de 15% que volta a cada 10 s; x1,5 de costas; controles +20%; +30% no Básico e Taijutsu; +1 de alcance
+  nas Armas; 1% de vida por segundo fora de combate. Supremas: explosão, cura total e limpeza, atordoar em área e raio em
+  cadeia, invisível e +100% de velocidade (5 s), imune a controle e escudo de 50%, execução abaixo de 20%, inverter os
+  controles em volta, golpe em cone, 16 lâminas em volta, cura total dos aliados na tela.
+- **Progressão de Mundo (v37):** a população dos últimos 7 dias abre os marcos (30 Floresta e Rei Lodo; 60 Zona de
+  Conflito e PvP Livre; 100 Refúgio e Eleição de Kage; 150 Terra Sem Lei e Titãs; 250 expansão). Mapa trancado some do
+  Posto de Viagem e a saída vira névoa (a mesma regra no servidor e na predição). O marco não volta atrás. **Começa forçado
+  em 250 (tudo aberto)** para o Teste Alpha não perder a Floresta: `/admin mundo auto` liga a regra.
+- **O Cronista (Academia):** conta a Crônica das Eras capítulo por capítulo, até o marco do mundo; o resto está borrado.
+  O painel também mostra os 10 Titãs e os Portadores da Era.
+- **Loot (v37):** os chefes (Rei Lodo, Titãs) rolam uma relíquia para cada ninja que tirou 5% da vida: Lendário 0,05%,
+  Épico 0,5%, Raro 3%, Comum 10%. 11 relíquias (valem só de ter na mochila; nomes da opção A desde a v38), entre elas "renasce com 30% uma vez por Era" e "Básico sempre queima".
+- **Admin:** `/admin mundo <0|30|60|100|150|250|auto>`, `/admin tita <1-10>` (acorda agora), `/admin portador <nome|eu> <1-10>`.
+- Sem a v36/v37 o jogo sobe igual (sem Titãs, sem trava de mapas, sem loot).
+
 ### v60: Vínculo Ancestral e Estado Primal (migração v35, `db/schema_v35_vinculo.sql`)
 
 - **Aba "🐾 Vínculo" no menu:** as 8 criaturas (Sapo, Lobo, Águia, Gato, Lesma, Aranha, Tartaruga, Tigre), cada uma com o

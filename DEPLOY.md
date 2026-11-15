@@ -1323,3 +1323,46 @@ Sem a v35 o jogo sobe igual: a aba Vínculo avisa que ainda não está ligado.
 1. ☰ → 🐾 Vínculo → Equipar uma criatura. Na Floresta, o botão da criatura aparece à esquerda dos jutsus: Invocar.
 2. Entre no Vale (Rankeado): a criatura some e os botões somem.
 3. Conferência no Neon: `SELECT creature_type, affinity_level, xp, equipped FROM game.player_vinculo LIMIT 10;`
+
+## Passo 51 — Titãs Ancestrais e Portadores (SQL v36)
+
+Rode `db/schema_v36_titas.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v35**. Pode rodar de novo
+sem erro.
+
+- `game.titan_awakenings` (vida global de cada Titã na Era), `game.titan_damage` (dano de cada ninja),
+  `game.titan_bearers` (o Portador e a recarga da Suprema) e os 10 títulos `TITA_*`.
+- Funções `game.titan_add_damage`, `game.titan_crown` e `game.titan_expire`.
+
+## Passo 52 — Progressão de Mundo e Loot (SQL v37)
+
+Rode `db/schema_v37_mundo_loot.sql` inteiro, **depois da v36**, e só então mescle o código. Pode rodar de novo sem erro.
+
+- `game.world_progression` (começa forçado no marco 250: tudo aberto). Para o mundo seguir a população, no jogo:
+  `/admin mundo auto`.
+- O tipo `relic` no catálogo, as 11 relíquias, `game.loot_drops` (registro) e `game.loot_revives` (Renascer por Era).
+
+### Testar no celular
+
+1. `/admin tita 1` e vá à Clareira Queimada (Floresta, ao sul): o Titã Chama Eterna, com a barra de chefe.
+2. `/admin portador eu 1`: o botão 🔱 aparece no HUD; toque: explosão em volta.
+3. Academia: fale com O Cronista (perto da entrada da sala 4).
+4. `/admin mundo 0`: a saída sul da Aldeia vira névoa. Volte com `/admin mundo 250` (ou `auto`).
+5. Conferência no Neon: `SELECT * FROM game.world_progression;` e `SELECT * FROM game.titan_bearers;`
+
+## Passo 53 — Os 4 clãs novos e os nomes das relíquias (SQL v38)
+
+Rode `db/schema_v38_clas_novos.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v37**, e só então
+mescle o código. Pode rodar de novo sem erro. Nada é apagado.
+
+- As linhagens aceitam `bastiao`, `aspide`, `garra` e `zefiro` (`game.players.clan` e `clan_mark`, `game.jutsus.clan_code`).
+- Os 16 jutsus dos clãs novos em `game.jutsus`; `game.valid_kit` aceita os 202 códigos.
+- As 11 relíquias com os nomes da opção A.
+- As migrações antigas (v16, v18, v19, v20, v25, v30, v31) também foram atualizadas com os clãs e os códigos novos: rodar
+  uma delas de novo depois da v38 não desfaz nada.
+
+### Testar no celular
+
+1. Menu ☰ → Config. → Mudar visual do personagem: a linha "Linhagem" mostra os 7.
+2. Um Genin de nível 11 com um clã novo marcado faz o Rito do Despertar com o Diretor e recebe o 1º jutsu do clã.
+3. Conferência no Neon: `SELECT clan_code, count(*) FROM game.jutsus WHERE clan_code IS NOT NULL GROUP BY 1;` (4 em cada
+   clã) e `SELECT code, name FROM game.items WHERE kind = 'relic';`.

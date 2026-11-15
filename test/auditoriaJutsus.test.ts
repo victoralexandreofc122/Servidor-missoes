@@ -78,6 +78,11 @@ function launch(code: string, level: 1 | 4, pve = false): Run {
   } else Object.assign(sb, { x: P.x + dist, y: P.y, fx: -1, fy: 0 });
   const tgt = pve ? mon : sb;
   if (cfg.needsRooted) tgt.rootedUntil = w.clock.now() + 1000;
+  if (cfg.needsSummon) {
+    // v63: Troca Instintiva: uma invocação parada atrás de quem lança (some em 3 s)
+    const m = world.monsters.get(world.spawnMonster({ x: P.x - 2, y: P.y }, undefined, map, 'clone_agua', true).id);
+    Object.assign(m, { ownerId: sa.id, summonUntil: w.clock.now() + 3000 });
+  }
   const heals = ['cura', 'palma', 'cura_tempo', 'limpeza'].includes(j.form) || !!cfg.zone?.heal;
   if (heals) sa.hp = Math.round(sa.stats.maxHp * 0.4);
   const hpA0 = sa.hp, hp0 = tgt.hp, ch0 = sa.chakra, pos0 = { x: sa.x, y: sa.y };
@@ -134,12 +139,12 @@ const get = (code: string, level: 1 | 4, pve = false) => {
   return cache.get(k)!;
 };
 /** Jutsus que só acertam depois (o Umbra precisa atravessar o alvo) ou que não tiram vida de ninguém. */
-const NO_DIRECT_DAMAGE = new Set(['umbra_forma', 'stone_resposta']);   // (o contra-ataque só bate quando apanha)
+const NO_DIRECT_DAMAGE = new Set(['umbra_forma', 'stone_resposta', 'garra_uivo']);   // (o contra-ataque só bate quando apanha; o Uivo morde pelas invocações)
 
 describe('v45: auditoria dos 100 jutsus (catálogo)', () => {
   it('100 jutsus; cada classe tem jutsu nos 4 tiers; as linhagens têm os 4 tiers; todos têm números e forma', () => {
-    assert.equal(JUTSUS.length, 186);   // v49 (Fase 2.5): 100 + 74
-    assert.equal(new Set(ALL).size, 186, 'nenhum código repetido');
+    assert.equal(JUTSUS.length, 202);   // v49 (Fase 2.5): 100 + 74; v50: + 12; v63: + 16 dos clãs novos
+    assert.equal(new Set(ALL).size, 202, 'nenhum código repetido');
     // Fase 2.5: toda classe tem pelo menos 4 jutsus em cada tier
     for (const c of CLASSES) for (const tier of [1, 2, 3, 4]) assert.ok(JUTSUS.filter((j) => j.class === c && j.tier === tier).length >= 4, `${c} tier ${tier}`);
     for (const c of CLASSES) {
@@ -147,7 +152,7 @@ describe('v45: auditoria dos 100 jutsus (catálogo)', () => {
       for (const tier of [1, 2, 3, 4]) assert.ok(mine.some((j) => j.tier === tier), `${c} sem jutsu de tier ${tier}`);
       assert.ok(mine.length >= 8, `${c} com só ${mine.length} jutsus`);
     }
-    for (const clan of ['rubro', 'umbra'] as const) {
+    for (const clan of ['rubro', 'umbra', 'bastiao', 'aspide', 'garra', 'zefiro'] as const) {
       assert.deepEqual(CLAN_TREE[clan].map((code) => JUTSU_BY_CODE.get(code)!.tier), [1, 2, 3, 4], clan);
     }
     for (const j of JUTSUS) {
@@ -332,7 +337,8 @@ describe('v45: mira e prévia', () => {
     const start = js.indexOf("case 'cast': {"), end = js.indexOf("case 'projectile': {");
     const block = js.slice(start, end);
     const own = ['cone_fogo', 'linha_fogo', 'cone_golpe', 'linha', 'ricochete', 'agarre', 'faixa', 'anel_golpe', 'impacto', 'alvo', 'marca', 'escudo_vida', 'transformacao',
-      'forma_sombra', 'contra', 'reflexo', 'retorno', 'muro', 'invocacao', 'zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque', 'palma'];
+      'forma_sombra', 'contra', 'reflexo', 'retorno', 'muro', 'invocacao', 'zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque', 'palma',
+      'postura', 'comando', 'troca', 'eco', 'mil_passos'];   // v63: clãs novos
     for (const f of own) assert.ok(block.includes(`'${f}'`), `forma ${f} sem desenho no cliente`);
     // as que sobram usam o desenho da mecânica de propósito (tier 1 de cada classe) ou o chão / o projétil
     const byMechanic = new Set<JutsuForm>(['linha_explode', 'cone', 'avanco', 'anel', 'linha_prende', 'escudo', 'cura', 'trilhas', 'linha_raio', 'teleporte', 'substituicao',

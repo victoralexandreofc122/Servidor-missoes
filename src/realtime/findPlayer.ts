@@ -24,6 +24,7 @@ export const MANUAL_SQL = `SELECT chapter, read_at IS NOT NULL AS read FROM game
 /** v60 (migração v35): as criaturas do Vínculo Ancestral e o Estado Primal. */
 export const VINCULO_SQL = `SELECT creature_type, affinity_level, xp, equipped FROM game.player_vinculo WHERE player_id = $1`;
 export const PRIMAL_SQL = `SELECT active_until, cooldown_until FROM game.player_primal_state WHERE player_id = $1`;
+export const REVIVES_SQL = `SELECT era_id FROM game.loot_revives WHERE player_id = $1`;
 /** v59 (migração v34): o último lugar onde o ninja estava. */
 export const POSITION_SQL = `SELECT map_id, x, y FROM game.player_positions WHERE player_id = $1`;
 
@@ -87,9 +88,13 @@ export function makeFindPlayer(db: Queryable) {
         };
       })
       .catch((err: { code?: string }) => { if (err?.code === '42P01') return undefined; throw err; });
+    // v62 (migração v37): as Eras em que a Relíquia do Renascer já foi usada
+    const revives = await db.query<{ era_id: number }>(REVIVES_SQL, [playerId]).then((r) => r.rows.map((x) => Number(x.era_id)))
+      .catch((err: { code?: string }) => { if (err?.code === '42P01') return undefined; throw err; });
     return {
       ...(manual ? { manual } : {}),
       ...(lastPosition ? { lastPosition } : {}),
+      ...(revives ? { revives } : {}),
       ...(vinculo ? { vinculo } : {}),
       id: row.id,
       username: row.username,

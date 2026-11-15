@@ -478,12 +478,26 @@
       <button id="target-btn" type="button" class="cbtn small target" aria-pressed="false" aria-label="Focar alvo"><span class="ico" aria-hidden="true">🎯</span></button>
       <button id="talk-btn" type="button" class="cbtn small talk" hidden aria-label="Falar"><span class="ico" aria-hidden="true">💬</span></button>
       <button id="power-btn" type="button" class="cbtn small power" hidden aria-label="Poder dos Cinzas"><span class="ico" aria-hidden="true">🌑</span><i class="cd" aria-hidden="true"></i></button>
+      <!-- v61: Habilidade Suprema do Portador de um Titã (vale em todos os modos) -->
+      <button id="supreme-btn" type="button" class="cbtn small supreme" hidden aria-label="Habilidade Suprema"><span class="ico" aria-hidden="true">🔱</span><b class="kit-label" id="supreme-label"></b><i class="cd" aria-hidden="true"></i></button>
       <!-- v60: Vínculo Ancestral (só no mapa aberto) -->
       <button id="summon-btn" type="button" class="cbtn small vsummon" hidden aria-label="Invocar a criatura"><span class="ico" aria-hidden="true">🐾</span><b class="kit-label" id="summon-label"></b><i class="cd" aria-hidden="true"></i></button>
       <button id="primal-btn" type="button" class="cbtn small vprimal" hidden aria-label="Estado Primal"><span class="ico" aria-hidden="true">🔥</span><b class="kit-label" id="primal-label"></b><i class="cd" aria-hidden="true"></i></button>
     </div>
 
     <!-- Configurações: layout da HUD (só muda no modo "Editar layout", nunca sem querer), tamanho e transparência. -->
+    <!-- v62: O Cronista (Academia): a Crônica das Eras e os Titãs/Portadores da Era -->
+    <section id="chronicle-panel" class="mission-panel chronicle-panel" hidden role="dialog" aria-labelledby="chronicle-title">
+      <header class="mission-head">
+        <h2 id="chronicle-title"><span aria-hidden="true">📜</span> A Crônica das Eras</h2>
+        <button id="chronicle-close" class="icon-btn small" type="button" aria-label="Fechar a Crônica"><span aria-hidden="true">✕</span></button>
+      </header>
+      <p id="chronicle-world" class="vinculo-note"></p>
+      <div id="chronicle-list" class="chronicle-list"></div>
+      <h3 class="chronicle-sub">Cinturão da Era: os Titãs</h3>
+      <div id="titan-list" class="vinculo-list"></div>
+    </section>
+
     <!-- v60: Vínculo Ancestral: as 8 criaturas, a afinidade de cada uma e qual está equipada -->
     <section id="vinculo-panel" class="mission-panel vinculo-panel" hidden role="dialog" aria-labelledby="vinculo-title">
       <header class="mission-head">

@@ -14,7 +14,7 @@ BEGIN;
 
 ALTER TABLE game.players ADD COLUMN IF NOT EXISTS clan_mark text;
 ALTER TABLE game.players DROP CONSTRAINT IF EXISTS ck_players_clan_mark;
-ALTER TABLE game.players ADD CONSTRAINT ck_players_clan_mark CHECK (clan_mark IS NULL OR clan_mark IN ('rubro', 'umbra', 'andarilho'));
+ALTER TABLE game.players ADD CONSTRAINT ck_players_clan_mark CHECK (clan_mark IS NULL OR clan_mark IN ('rubro', 'umbra', 'andarilho', 'bastiao', 'aspide', 'garra', 'zefiro'));
 ALTER TABLE game.players ADD COLUMN IF NOT EXISTS rite_progress smallint;
 ALTER TABLE game.players DROP CONSTRAINT IF EXISTS ck_players_rite_progress;
 ALTER TABLE game.players ADD CONSTRAINT ck_players_rite_progress CHECK (rite_progress IS NULL OR rite_progress BETWEEN 0 AND 100);
@@ -59,7 +59,10 @@ RETURN kit IS NOT NULL
     'weapons_arco', 'weapons_ceu', 'weapons_arsenal', 'wind_pulso', 'wind_leve', 'wind_asa', 'wind_vortice',
     'wind_cadeia', 'wind_milcortes', 'wind_fenda', 'wind_olho',
     -- v31 (mecânicas inéditas)
-    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo', 'shadow_troca', 'water_laco', 'lightning_volta', 'illusion_voz'
+    'shadow_beijo', 'weapons_peconha', 'taijutsu_furia', 'heal_meridianos', 'stone_resposta', 'wind_espelho', 'fire_marca', 'illusion_emprestimo', 'shadow_troca', 'water_laco', 'lightning_volta', 'illusion_voz',
+    -- v38 (clãs novos)
+    'bastiao_muralha', 'bastiao_guarda', 'bastiao_resposta', 'bastiao_juramento', 'aspide_cuspe', 'aspide_nevoa', 'aspide_constricao', 'aspide_ninho',
+    'garra_matilha', 'garra_uivo', 'garra_troca', 'garra_rei', 'zefiro_passo', 'zefiro_veu', 'zefiro_eco', 'zefiro_mil'
    ]::text[]
    AND cardinality(kit) = (SELECT count(DISTINCT s) FROM unnest(kit) AS s);
 
