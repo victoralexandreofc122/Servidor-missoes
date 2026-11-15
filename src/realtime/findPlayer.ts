@@ -21,6 +21,9 @@ export const FIND_PLAYER_SQL = `
    WHERE p.id = $1`;
 
 export const MANUAL_SQL = `SELECT chapter, read_at IS NOT NULL AS read FROM game.player_tutorial WHERE player_id = $1`;
+/** v60 (migração v35): as criaturas do Vínculo Ancestral e o Estado Primal. */
+export const VINCULO_SQL = `SELECT creature_type, affinity_level, xp, equipped FROM game.player_vinculo WHERE player_id = $1`;
+export const PRIMAL_SQL = `SELECT active_until, cooldown_until FROM game.player_primal_state WHERE player_id = $1`;
 /** v59 (migração v34): o último lugar onde o ninja estava. */
 export const POSITION_SQL = `SELECT map_id, x, y FROM game.player_positions WHERE player_id = $1`;
 
@@ -72,9 +75,22 @@ export function makeFindPlayer(db: Queryable) {
     const lastPosition = await db.query<{ map_id: string; x: number; y: number }>(POSITION_SQL, [playerId])
       .then((r) => (r.rows[0] ? { map: r.rows[0].map_id, x: Number(r.rows[0].x), y: Number(r.rows[0].y) } : undefined))
       .catch((err: { code?: string }) => { if (err?.code === '42P01') return undefined; throw err; });
+    // v60 (migração v35): sem as tabelas, o Vínculo fica desligado (a aba avisa) e o jogo segue
+    const vinculo = await db.query<{ creature_type: string; affinity_level: number; xp: number; equipped: boolean }>(VINCULO_SQL, [playerId])
+      .then(async (r) => {
+        const primal = (await db.query<{ active_until: Date | null; cooldown_until: Date | null }>(PRIMAL_SQL, [playerId])).rows[0];
+        return {
+          equipped: r.rows.find((x) => x.equipped)?.creature_type ?? null,
+          creatures: Object.fromEntries(r.rows.map((x) => [x.creature_type, { level: Number(x.affinity_level), xp: Number(x.xp) }])),
+          primalUntil: primal?.active_until ? primal.active_until.getTime() : 0,
+          primalCooldownUntil: primal?.cooldown_until ? primal.cooldown_until.getTime() : 0,
+        };
+      })
+      .catch((err: { code?: string }) => { if (err?.code === '42P01') return undefined; throw err; });
     return {
       ...(manual ? { manual } : {}),
       ...(lastPosition ? { lastPosition } : {}),
+      ...(vinculo ? { vinculo } : {}),
       id: row.id,
       username: row.username,
       xp: Number(row.total_xp),

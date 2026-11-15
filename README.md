@@ -240,6 +240,26 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v60: Vínculo Ancestral e Estado Primal (migração v35, `db/schema_v35_vinculo.sql`)
+
+- **Aba "🐾 Vínculo" no menu:** as 8 criaturas (Sapo, Lobo, Águia, Gato, Lesma, Aranha, Tartaruga, Tigre), cada uma com o
+  papel, o que faz, o Estado Primal e a barra de afinidade (1 a 5). Equipa-se uma.
+- **Invocar (botão no HUD):** 40% do chakra máximo, recarga de 2 minutos. A criatura (o Lobo são 2) aparece numa fumaça,
+  segue o dono, vai junto na troca de mapa e luta sozinha. Hierarquia de alvos: o que o dono mira, quem bateu nele por
+  último, Renegados, ninjas de vilas não aliadas, chefes e monstros (os ninjas só onde há PvP).
+- **O que cada uma faz:** Sapo cospe óleo (lentidão) e puxa monstros; 2 Lobos mordem; Águia cura o dono e o minimapa mostra
+  30 casas; Gato invisível, golpe crítico ao sair dela; Lesma faz poças de cura e divide 30% do dano do dono; Aranha tece
+  teias que prendem; Tartaruga provoca os monstros e tem escudo; Tigre avança até o alvo e bate forte.
+- **Afinidade:** a criatura ganha XP acertando (2) e derrubando (15); 100, 300, 600 e 1000 de XP para os níveis 2 a 5.
+- **Estado Primal (afinidade 5, criatura em campo, 60 s, recarga de 5 min):** Sapo +50% de duração e alcance nos jutsus de
+  controle; Lobo Básico sangra e +30% de velocidade de ataque; Águia Básico empurra e revela o mapa por 10 s; Gato 50% de
+  esquiva por 5 s ao levar golpe (recarga 10 s); Lesma -50% de dano e cura em dobro; Aranha aura de lentidão e chakra
+  voltando sem meditar; Tartaruga imune a controle e escudo de 30% da vida; Tigre +40% de dano físico e um avanço extra
+  (o botão do Primal vira o avanço). Aura da cor da criatura em volta do boneco.
+- **Regra de Ouro:** só no mapa aberto. Vale, arenas, Zona de Conflito, arena das vilas, partida, fantasma e tutorial
+  cancelam a criatura e o Estado Primal; os botões somem lá.
+- Sem a v35 o jogo sobe igual (a aba avisa que o Vínculo ainda não está ligado).
+
 ### v59: o ninja volta sempre ao último lugar (migração v34, `db/schema_v34_posicao.sql`) e contador da Shuriken
 
 - **Último lugar no banco (v34):** o servidor grava o mapa e a posição de cada ninja (a cada 30 s se andou, ao sair e

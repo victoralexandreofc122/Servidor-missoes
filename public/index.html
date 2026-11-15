@@ -94,6 +94,7 @@
       <button id="inv-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="inv-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 7V5.5a3.5 3.5 0 0 1 7 0V7"/><path d="M6 7h12a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V9a2 2 0 0 1 2-2z"/><path d="M9 13h6v4H9z"/></svg><span>Mochila</span><b id="inv-badge" class="menu-badge" hidden></b></button>
       <button id="status-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="status-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.4-6 8-6s6.5 2 8 6"/></svg><span>Perfil</span><b id="status-badge" class="menu-badge"></b></button>
       <button id="missions-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="missions-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/><path d="M7 4a2 2 0 0 0-2 2v12a2 2 0 0 0 4 0V6a2 2 0 0 0-2-2z"/><path d="M12 9h4M12 13h4M12 17h2"/></svg><span>Missões</span><b id="missions-badge" class="menu-badge"></b></button>
+      <button id="vinculo-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="vinculo-panel"><span class="ico-emoji" aria-hidden="true">🐾</span><span>Vínculo</span></button>
       <button id="settings-toggle" class="menu-btn" type="button" aria-label="Configurações" aria-expanded="false" aria-controls="settings-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Config.</span></button>
       <button id="village-toggle" class="menu-btn" type="button" hidden aria-expanded="false" aria-controls="village-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5c3 .8 15 .8 18 0"/><path d="M4.5 4c4 1 11 1 15 0"/><path d="M5.5 10.5h13"/><path d="M8 6.5V21M16 6.5V21"/></svg><span id="village-badge">Vila</span></button>
       <button id="history-toggle" class="menu-btn" type="button" aria-label="Histórico do chat" aria-expanded="false" aria-controls="history-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><span>Histórico</span></button>
@@ -477,9 +478,22 @@
       <button id="target-btn" type="button" class="cbtn small target" aria-pressed="false" aria-label="Focar alvo"><span class="ico" aria-hidden="true">🎯</span></button>
       <button id="talk-btn" type="button" class="cbtn small talk" hidden aria-label="Falar"><span class="ico" aria-hidden="true">💬</span></button>
       <button id="power-btn" type="button" class="cbtn small power" hidden aria-label="Poder dos Cinzas"><span class="ico" aria-hidden="true">🌑</span><i class="cd" aria-hidden="true"></i></button>
+      <!-- v60: Vínculo Ancestral (só no mapa aberto) -->
+      <button id="summon-btn" type="button" class="cbtn small vsummon" hidden aria-label="Invocar a criatura"><span class="ico" aria-hidden="true">🐾</span><b class="kit-label" id="summon-label"></b><i class="cd" aria-hidden="true"></i></button>
+      <button id="primal-btn" type="button" class="cbtn small vprimal" hidden aria-label="Estado Primal"><span class="ico" aria-hidden="true">🔥</span><b class="kit-label" id="primal-label"></b><i class="cd" aria-hidden="true"></i></button>
     </div>
 
     <!-- Configurações: layout da HUD (só muda no modo "Editar layout", nunca sem querer), tamanho e transparência. -->
+    <!-- v60: Vínculo Ancestral: as 8 criaturas, a afinidade de cada uma e qual está equipada -->
+    <section id="vinculo-panel" class="mission-panel vinculo-panel" hidden role="dialog" aria-labelledby="vinculo-title">
+      <header class="mission-head">
+        <h2 id="vinculo-title"><span aria-hidden="true">🐾</span> Vínculo Ancestral</h2>
+        <button id="vinculo-close" class="icon-btn small" type="button" aria-label="Fechar o Vínculo Ancestral"><span aria-hidden="true">✕</span></button>
+      </header>
+      <p id="vinculo-note" class="vinculo-note"></p>
+      <div id="vinculo-list" class="vinculo-list"></div>
+    </section>
+
     <section id="settings-panel" class="mission-panel settings-panel" hidden role="dialog" aria-labelledby="settings-title">
       <header class="mission-head">
         <h2 id="settings-title"><span aria-hidden="true">⚙️</span> Configurações</h2>

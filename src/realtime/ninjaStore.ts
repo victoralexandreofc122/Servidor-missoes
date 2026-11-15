@@ -63,6 +63,12 @@ export interface NinjaStore {
   useItem?(playerId: string, item: string): Promise<boolean>;
   /** v59 (migração v34): grava o último lugar (pos null = apaga: nasce na praça). false = a tabela ainda não existe. */
   savePositions?(rows: readonly { id: string; pos: { map: string; x: number; y: number } | null }[]): Promise<boolean>;
+  /** v60 (migração v35): equipa a criatura do Vínculo Ancestral. false = a tabela ainda não existe. */
+  vinculoEquip?(playerId: string, creature: string): Promise<boolean>;
+  /** v60: soma XP de afinidade; devolve o nível e o XP de agora (undefined sem a tabela). */
+  vinculoAddXp?(playerId: string, creature: string, xp: number): Promise<{ level: number; xp: number } | undefined>;
+  /** v60: grava o Estado Primal (até quando vale e até quando recarrega). */
+  vinculoPrimal?(playerId: string, activeUntil: Date, cooldownUntil: Date): Promise<boolean>;
   /** v30 (migração v19): grava a linhagem (só se ainda não tinha) e ensina jutsus (os do clã, pelo nível). */
   chooseClan?(playerId: string, clan: string): Promise<void>;
   learnJutsus?(playerId: string, codes: string[]): Promise<void>;
@@ -131,6 +137,11 @@ export const NINJA_SQL = {
     SELECT id, map, x, y, now() FROM unnest($1::uuid[], $2::text[], $3::real[], $4::real[]) AS t(id, map, x, y)
     ON CONFLICT (player_id) DO UPDATE SET map_id = EXCLUDED.map_id, x = EXCLUDED.x, y = EXCLUDED.y, saved_at = now()`,
   clearPositions: `DELETE FROM game.player_positions WHERE player_id = ANY($1::uuid[])`,
+  vinculoEquip: `SELECT game.vinculo_equip($1, $2)`,
+  vinculoAddXp: `SELECT affinity_level, xp FROM game.vinculo_add_xp($1, $2, $3)`,
+  vinculoPrimal: `
+    INSERT INTO game.player_primal_state (player_id, active_until, cooldown_until) VALUES ($1, $2, $3)
+    ON CONFLICT (player_id) DO UPDATE SET active_until = EXCLUDED.active_until, cooldown_until = EXCLUDED.cooldown_until`,
   /** Checagem de boot: a migração v7 foi aplicada? (LIMIT 0: não lê linha.) */
   bootCheck: `SELECT tutorial_step, ryo, equipped_weapon, attr_weapons FROM game.players LIMIT 0`,
   /** Checagem de boot: a migração v12 (sapatos) foi aplicada? Sem ela o servidor não sobe (o login lê a coluna). */
@@ -162,6 +173,9 @@ const classesOf = async (q: Queryable, playerId: string): Promise<Classes> => {
   const row = (await q.query<{ primary_class: ClassCode; secondary_class: ClassCode | null }>(NINJA_SQL.classes, [playerId])).rows[0];
   return { primary: row?.primary_class ?? null, secondary: row?.secondary_class ?? null };
 };
+
+/** Tabela ou função que ainda não existe (migração não rodada): 42P01 (tabela) ou 42883 (função). */
+const missing = (err: unknown) => ['42P01', '42883'].includes((err as { code?: string })?.code ?? '');
 
 export function makeNinjaStore(db: Db): NinjaStore {
   return {
@@ -292,6 +306,21 @@ export function makeNinjaStore(db: Db): NinjaStore {
 
     async useItem(playerId, item) {
       return (await db.query(NINJA_SQL.useItem, [playerId, item])).rows.length > 0;
+    },
+
+    async vinculoEquip(playerId, creature) {
+      try { await db.query(NINJA_SQL.vinculoEquip, [playerId, creature]); return true; }
+      catch (err) { if (missing(err)) return false; throw err; }
+    },
+    async vinculoAddXp(playerId, creature, xp) {
+      try {
+        const r = (await db.query<{ affinity_level: number; xp: number }>(NINJA_SQL.vinculoAddXp, [playerId, creature, Math.round(xp)])).rows[0];
+        return r ? { level: Number(r.affinity_level), xp: Number(r.xp) } : undefined;
+      } catch (err) { if (missing(err)) return undefined; throw err; }
+    },
+    async vinculoPrimal(playerId, activeUntil, cooldownUntil) {
+      try { await db.query(NINJA_SQL.vinculoPrimal, [playerId, activeUntil, cooldownUntil]); return true; }
+      catch (err) { if (missing(err)) return false; throw err; }
     },
 
     async savePositions(rows) {

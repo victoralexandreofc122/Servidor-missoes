@@ -33,6 +33,8 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v60 (migração v35):** Vínculo Ancestral (8 criaturas, afinidade, Invocar no HUD) e Estado Primal, só no mapa aberto.
+  Branch `ccr-vinculo` até o Victor rodar a v35 no Neon.
 - **v59 (migração v34):** o ninja volta sempre ao último lugar (posição gravada no banco), guarda de 2 min ao cair a conexão,
   contador da Shuriken certo na entrada. Branch `ccr-reconexao` até o Victor rodar a v34 no Neon.
 - **v55 (migração v33):** 4 arenas simultâneas e espectador fantasma (painel "Lutas"), semifinal e final sozinhas na principal,

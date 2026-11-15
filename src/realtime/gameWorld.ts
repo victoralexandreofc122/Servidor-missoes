@@ -1,3 +1,4 @@
+import { CC_EFFECTS, CREATURE_INFO, CREATURE_NUMBERS, CREATURE_STATS, CREATURES, PRIMAL, VINCULO, affinityBar, affinityLevel, affinityMult, creatureBaseDamage, isCreature, pickTarget, type Creature, type TargetCandidate } from './vinculo.js';
 import { randomInt } from 'node:crypto';
 import { SKY, dayPhase, offsetFor, outdoors, pickWeather, skyEffects, weatherFits, type DayPhase, type SkyEffects, type Weather } from './weather.js';
 import {
@@ -14,6 +15,7 @@ import {
   type Skill, type WorldInfo, type Appearance, type Dir, type MonsterStatus,
   type EndgameView, type FactionView, type PowerFailReason, type TravelOption, type SkyView, type GroundKind,
 } from './protocol.js';
+import type { VinculoView } from './protocol.js';
 import { NPC_OFFER_CODES, type Missions, type TalkOutcome } from './missions.js';
 import {
   ADMIN_HELP, isAdminCommand, isEndgameAdmin, parseAdminCommand, type AdminCommand, type AdminPlayerState, type AdminStore, type EndgameAdminCommand,
@@ -197,6 +199,8 @@ export interface JoiningPlayer {
   username: string;
   /** v59 (migração v34): o último lugar gravado no banco (o servidor confere antes de usar). */
   lastPosition?: { map: string; x: number; y: number };
+  /** v60 (migração v35): Vínculo Ancestral (sem a tabela: undefined, o Vínculo fica desligado). */
+  vinculo?: { equipped: string | null; creatures: Record<string, { level: number; xp: number }>; primalUntil: number; primalCooldownUntil: number };
   xp?: number;
   rank?: RankView;
   canBeSensei?: boolean;
@@ -431,6 +435,22 @@ interface Session {
   umbraForm: { until: number; damage: number; slowMs: number; hit: HitInfo; done: Set<string> } | null;
   hasteUntil: number;
   haste: number;
+  /** v60: Vínculo Ancestral (null = a migração v35 ainda não rodou). */
+  vinculo: { equipped: Creature | null; creatures: Partial<Record<Creature, { level: number; xp: number }>> } | null;
+  vinculoCdUntil: number;
+  /** v60: Estado Primal: de qual criatura, até quando vale e até quando recarrega. */
+  primalKind: Creature | null;
+  primalUntil: number;
+  primalCdUntil: number;
+  /** v60: quem bateu nele por último (a criatura vai nele: 2º na hierarquia de alvos). */
+  lastHitBy: { id: string; at: number } | null;
+  /** v60: Primal do Gato (esquiva) e do Tigre (avanço extra). */
+  dodgeUntil: number;
+  dodgeCdUntil: number;
+  tigerDashCdUntil: number;
+  /** v60: XP de afinidade ainda não gravado no banco. */
+  vinculoXp: number;
+  vinculoXpAt: number;
   /** Último pedido de painel (vila, ranking, viagem): toque repetido não vira enxurrada no banco. */
   lastPanelAt: number;
 }
@@ -457,6 +477,8 @@ interface Monster {
   punch?: { damage: number; hit: HitInfo; liftMs: number; everyMs: number; nextAt: number; radius: number };
   /** v53: em quem a invocação está indo (monstro ou ninja inimigo do dono). */
   summonTargetId?: string;
+  /** v60: criatura do Vínculo Ancestral: qual, afinidade, próxima habilidade, invisível (Gato), escudo (Tartaruga). */
+  creature?: { kind: Creature; level: number; nextAt: number; nextAuxAt: number; stealth: boolean; visibleUntil: number; absorb: number };
   readonly id: string;
   readonly type: string;
   readonly map: MapId;
@@ -645,6 +667,9 @@ const ARENAS: readonly MapId[] = ['vale_estatuas', 'arena_2', 'arena_3', 'arena_
  */
 export const RECONNECT_GRACE_MS = 120_000;
 const posKey = (p: { map: string; x: number; y: number } | null) => (p ? `${p.map}:${p.x}:${p.y}` : '-');
+/** v60: as criaturas que vieram do banco (só as conhecidas). */
+const creaturesFrom = (raw: Record<string, { level: number; xp: number }>): Partial<Record<Creature, { level: number; xp: number }>> =>
+  Object.fromEntries(Object.entries(raw).filter(([k]) => isCreature(k)).map(([k, v]) => [k, { level: Math.max(1, Math.min(5, v.level)), xp: Math.max(0, v.xp) }]));
 /** v59 (migração v34): de quanto em quanto tempo o último lugar de quem está andando vai para o banco. */
 export const POSITION_SAVE_MS = 30_000;
 /** v55: o que o fantasma (espectador) não pode fazer: andar, lutar, meditar, falar com NPC. */
@@ -656,6 +681,9 @@ export class GameWorld {
   private readonly sessions = new Map<string, Session>();
   private readonly monsters = new Map<string, Monster>();
   private readonly pendingKicks: { session: Session; close: { code: number; reason: string } }[] = [];
+  /** v60: sangramento do Primal do Lobo (dano a cada 1 s) e a próxima conferência da área do Vínculo. */
+  private readonly bleeds: { targetId: string; kind: 'monster' | 'player'; ownerId: string; until: number; next: number; dmg: number }[] = [];
+  private vinculoCheckAt = 0;
   /** v59: a última posição gravada de cada um (para só gravar o que mudou) e se a tabela da v34 existe. */
   private readonly savedKey = new Map<string, string>();
   private positionsOff = false;
@@ -1174,6 +1202,19 @@ export class GameWorld {
       counter: null, reflectUntil: 0, brand: null, anchor: null,
       hasteUntil: previous?.hasteUntil ?? 0,
       haste: previous?.haste ?? 0,
+      vinculo: player.vinculo
+        ? { equipped: isCreature(player.vinculo.equipped) ? player.vinculo.equipped : null, creatures: creaturesFrom(player.vinculo.creatures) }
+        : previous?.vinculo ?? (this.store ? null : { equipped: null, creatures: {} }),
+      vinculoCdUntil: previous?.vinculoCdUntil ?? 0,
+      primalKind: previous?.primalKind ?? null,
+      primalUntil: previous?.primalUntil ?? 0,
+      primalCdUntil: Math.max(previous?.primalCdUntil ?? 0, player.vinculo?.primalCooldownUntil ?? 0),
+      lastHitBy: null,
+      dodgeUntil: 0,
+      dodgeCdUntil: 0,
+      tigerDashCdUntil: 0,
+      vinculoXp: previous?.vinculoXp ?? 0,
+      vinculoXpAt: t,
       lastPanelAt: 0,
     };
     // Sala compartilhada (Academia, loja) sem saber por onde entrou: a saída leva para a porta da vila dele.
@@ -1251,8 +1292,505 @@ export class GameWorld {
     this.broadcastMap(session.map, { type: 'player_left', playerId: session.id });
     this.park(session);
     void this.persistPositions([session]);   // v59: o último lugar vai para o banco na hora de sair
+    void this.flushVinculoXp(session);       // v60: a afinidade que a criatura ganhou
     this.log.info({ playerId: session.id, online: this.sessions.size }, 'jogador saiu');
     this.flushKicks();
+  }
+
+  // ---------------------------------------------------------------- v60: Vínculo Ancestral e Estado Primal (vinculo.ts)
+
+  /** Pedidos da aba "Vínculo Ancestral" e dos botões do HUD. */
+  private vinculoAction(s: Session, action: 'state' | 'equip' | 'summon' | 'dismiss' | 'primal' | 'dash', creature: Creature | undefined, t: number): void {
+    if (action === 'state') return this.sendVinculo(s, t);
+    const say = (text: string, tone: 'info' | 'good' | 'bad' = 'bad') => this.sendTo(s, { type: 'notice', text, tone });
+    if (!s.vinculo) return say('O Vínculo Ancestral ainda não está ligado no servidor (falta a migração v35).');
+    if (action === 'equip') {
+      if (!creature) return;
+      if (this.creaturesOf(s).length > 0) return say('Dispense a criatura em campo antes de trocar.');
+      if (this.primalOn(s, s.primalKind ?? 'sapo', t)) return say('Espere o Estado Primal acabar para trocar de criatura.');
+      s.vinculo.equipped = creature;
+      s.vinculo.creatures[creature] ??= { level: 1, xp: 0 };
+      void this.store?.vinculoEquip?.(s.id, creature).catch((err: unknown) => this.log.warn({ playerId: s.id, err }, 'falha ao equipar a criatura'));
+      say(`${CREATURE_INFO[creature].icon} ${CREATURE_INFO[creature].name} equipado no Vínculo Ancestral.`, 'good');
+      return this.sendVinculo(s, t);
+    }
+    if (action === 'dismiss') {
+      if (this.creaturesOf(s).length === 0) return;
+      this.removeCreatures(s, 'dismiss');
+      return this.sendVinculo(s, t);
+    }
+    if (action === 'dash') return this.tigerDash(s, t);
+    if (action === 'summon') return this.vinculoSummon(s, t);
+    if (action === 'primal') return this.primalStart(s, t);
+  }
+
+  /**
+   * Regra de Ouro (pedido do Victor): só no mapa aberto (PvE) e eventos de mundo. Fora: Vale e arenas do rankeado/Torneio,
+   * Zona de Conflito, arena das vilas, partida em andamento, assistindo como fantasma e o tutorial. As Guerras de Aldeia
+   * (20v20) entram aqui quando existirem.
+   */
+  private vinculoAllowed(s: Session): boolean {
+    const layout = this.layout(s.map);
+    if (s.tutorial < 4 || s.watching || s.dead) return false;
+    if (ARENAS.includes(s.map) || layout.ranked || layout.conflict) return false;
+    if (arenaAt(layout, s.x, s.y)) return false;
+    if (this.duelOf(s.id)) return false;
+    return true;
+  }
+
+  /** O Estado Primal desta criatura está valendo agora? */
+  private primalOn(s: Session, kind: Creature, t: number): boolean {
+    return s.primalKind === kind && t < s.primalUntil;
+  }
+
+  /** As criaturas do ninja em campo (o Lobo são duas). */
+  private creaturesOf(s: Session): Monster[] {
+    const out: Monster[] = [];
+    for (const m of this.monsters.values()) if (m.creature && m.ownerId === s.id && m.hp > 0) out.push(m);
+    return out;
+  }
+
+  private vinculoView(s: Session, t: number): VinculoView {
+    const v = s.vinculo;
+    const kind = v?.equipped ?? null;
+    const lvl = kind ? (v?.creatures[kind]?.level ?? 1) : 0;
+    const summoned = this.creaturesOf(s);
+    return {
+      available: !!v,
+      allowed: this.vinculoAllowed(s),
+      equipped: kind,
+      creatures: CREATURES.map((code) => {
+        const c = v?.creatures[code] ?? { level: 1, xp: 0 };
+        const bar = affinityBar(c.xp);
+        return { code, ...CREATURE_INFO[code], level: c.level, xp: c.xp, into: bar.into, need: bar.need };
+      }),
+      summoned: summoned.map((m) => m.id),
+      cdMs: Math.max(0, s.vinculoCdUntil - t),
+      primal: {
+        kind: t < s.primalUntil ? s.primalKind : null,
+        activeMs: Math.max(0, s.primalUntil - t),
+        cdMs: Math.max(0, s.primalCdUntil - t),
+        ready: !!kind && lvl >= VINCULO.primalLevel && summoned.length > 0 && t >= s.primalCdUntil,
+      },
+      dashMs: Math.max(0, s.tigerDashCdUntil - t),
+      chakraCost: Math.ceil(s.stats.maxChakra * VINCULO.chakraPct),
+    };
+  }
+
+  private sendVinculo(s: Session, t: number = this.now()): void {
+    this.sendTo(s, { type: 'vinculo_state', ...this.vinculoView(s, t) });
+  }
+
+  /** Invocar: 40% do chakra máximo, recarga de 2 minutos; a criatura aparece ao lado (fumaça) e segue o dono. */
+  private vinculoSummon(s: Session, t: number): void {
+    const say = (text: string) => this.sendTo(s, { type: 'notice', text, tone: 'bad' });
+    const v = s.vinculo!;
+    if (!v.equipped) return say('Escolha uma criatura na aba Vínculo Ancestral (☰ → Vínculo Ancestral).');
+    if (!this.vinculoAllowed(s)) return say('O Vínculo Ancestral só vale no mapa aberto: aqui (rankeado, torneio, PvP) ele fica desligado.');
+    if (this.creaturesOf(s).length > 0) return say(`${CREATURE_INFO[v.equipped].name} já está com você.`);
+    if (t < s.vinculoCdUntil) return say(`Invocar: espere ${Math.ceil((s.vinculoCdUntil - t) / 1000)} s.`);
+    const cost = Math.ceil(s.stats.maxChakra * VINCULO.chakraPct);
+    if (s.chakra < cost) return say(`Invocar gasta ${cost} de chakra (40% do máximo). Medite para recuperar.`);
+    s.chakra -= cost;
+    s.calmSince = t;
+    s.vinculoCdUntil = t + VINCULO.cooldownMs;
+    this.sendStats(s, t);
+    this.spawnCreatures(s, v.equipped, t);
+    this.sendVinculo(s, t);
+  }
+
+  /** A criatura aparece (o Lobo são 2) ao lado do dono. `hp`: a vida que ela tinha (troca de mapa). */
+  private spawnCreatures(s: Session, kind: Creature, t: number, hp?: number[]): void {
+    const level = s.vinculo?.creatures[kind]?.level ?? 1;
+    const st = CREATURE_STATS[kind];
+    const maxHp = Math.max(1, Math.round(s.stats.maxHp * st.hpPct * affinityMult(level)));
+    const n = kind === 'lobo' ? 2 : 1;
+    const layout = this.layout(s.map);
+    for (let i = 0; i < n; i++) {
+      // ao lado do dono, num lugar livre
+      let at = { x: s.x, y: s.y };
+      for (const [ox, oy] of [[-0.9, 0.4], [0.9, 0.4], [0, 0.9], [-0.9, -0.4], [0.9, -0.4]]) {
+        const p = { x: s.x + ox! * (i === 1 ? -1 : 1), y: s.y + oy! };
+        if (p.x > 0.5 && p.y > 0.5 && p.x < layout.width - 0.5 && p.y < layout.height - 0.5 && !blocked(p.x, p.y, layout.walls)) { at = p; break; }
+      }
+      const view = this.spawnMonster(at, t, s.map, `vinculo_${kind}`, true);
+      const m = this.monsters.get(view.id);
+      if (!m) continue;
+      (m as { maxHp: number }).maxHp = maxHp;
+      m.hp = Math.max(1, Math.min(maxHp, hp?.[i] ?? maxHp));
+      m.ownerId = s.id;
+      m.summonUntil = Number.MAX_SAFE_INTEGER;
+      m.creature = {
+        kind, level, nextAt: t + 800, nextAuxAt: t + 1500, stealth: kind === 'gato', visibleUntil: 0,
+        absorb: kind === 'tartaruga' ? Math.round(maxHp * CREATURE_NUMBERS.turtleShieldPct) : 0,
+      };
+      this.broadcastMap(s.map, { type: 'summon', id: m.id, ownerId: s.id, kind: m.type, hp: m.hp, maxHp, ms: 0 });
+      if (kind === 'gato') this.broadcastMap(s.map, { type: 'vinculo_fx', kind: 'stealth', id: m.id, on: true });
+    }
+    this.broadcastMap(s.map, { type: 'vinculo_fx', kind: 'summon', playerId: s.id, creature: kind, x: round2(s.x), y: round2(s.y) });
+  }
+
+  /** Some com as criaturas do ninja (dispensou, morreu, área proibida, trocou de mapa). */
+  private removeCreatures(s: Session, why: 'dismiss' | 'cancel' | 'gone'): number[] {
+    const hps: number[] = [];
+    for (const m of this.creaturesOf(s)) {
+      hps.push(m.hp);
+      this.monsters.delete(m.id);
+      this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: s.id });
+    }
+    if (hps.length && why !== 'gone') this.broadcastMap(s.map, { type: 'vinculo_fx', kind: 'summon', playerId: s.id, x: round2(s.x), y: round2(s.y) });
+    return hps;
+  }
+
+  /** Troca de mapa: tira as criaturas do mapa antigo e guarda a vida delas (afterMapChange as põe no novo). */
+  private takeCreatures(s: Session): { kind: Creature; hps: number[] }[] {
+    const kind = this.creaturesOf(s)[0]?.creature?.kind;
+    if (!kind) return [];
+    return [{ kind, hps: this.removeCreatures(s, 'gone') }];
+  }
+
+  private afterMapChange(s: Session, carry: { kind: Creature; hps: number[] }[], t: number): void {
+    if (!this.vinculoAllowed(s)) {
+      if (carry.length > 0 || (s.primalKind && t < s.primalUntil)) this.cancelVinculo(s, t);
+      return;
+    }
+    for (const c of carry) this.spawnCreatures(s, c.kind, t, c.hps);
+    this.sendVinculo(s, t);
+  }
+
+  /** Entrou em área de PvP (ou morreu): a criatura some e o Estado Primal acaba (a recarga continua contando). */
+  private cancelVinculo(s: Session, t: number, notice = true): void {
+    const had = this.creaturesOf(s).length > 0 || (s.primalKind !== null && t < s.primalUntil);
+    this.removeCreatures(s, 'cancel');
+    if (s.primalKind && t < s.primalUntil) this.primalEnd(s, t);
+    if (!had) return;
+    this.broadcastMap(s.map, { type: 'vinculo_fx', kind: 'cancel', playerId: s.id });
+    if (notice && !s.dead) this.sendTo(s, { type: 'notice', text: 'Vínculo Ancestral desligado: área de PvP (rankeado, torneio ou guerra).', tone: 'info' });
+    this.sendVinculo(s, t);
+  }
+
+  /** Estado Primal: afinidade 5 com a criatura equipada, ela em campo, fora do PvP; 60 s; recarga de 5 min. */
+  private primalStart(s: Session, t: number): void {
+    const say = (text: string) => this.sendTo(s, { type: 'notice', text, tone: 'bad' });
+    const kind = s.vinculo!.equipped;
+    if (!kind) return say('Escolha uma criatura na aba Vínculo Ancestral.');
+    if (this.primalOn(s, 'tigre', t)) return this.tigerDash(s, t);           // no Primal do Tigre, o botão vira o avanço
+    if (t < s.primalUntil) return;
+    const lvl = s.vinculo!.creatures[kind]?.level ?? 1;
+    if (lvl < VINCULO.primalLevel) return say(`Estado Primal: precisa de afinidade ${VINCULO.primalLevel} com o ${CREATURE_INFO[kind].name} (agora ${lvl}).`);
+    if (this.creaturesOf(s).length === 0) return say(`Estado Primal: invoque o ${CREATURE_INFO[kind].name} primeiro.`);
+    if (!this.vinculoAllowed(s)) return say('O Estado Primal só vale no mapa aberto.');
+    if (t < s.primalCdUntil) return say(`Estado Primal: espere ${Math.ceil((s.primalCdUntil - t) / 1000)} s.`);
+    s.primalKind = kind;
+    s.primalUntil = t + VINCULO.primalMs;
+    s.primalCdUntil = s.primalUntil + VINCULO.primalCooldownMs;
+    if (kind === 'tartaruga') s.absorb = { hp: Math.round(s.stats.maxHp * PRIMAL.turtleShieldPct), until: s.primalUntil };
+    if (kind === 'aranha') {
+      this.spawnZone(s, { x: s.x, y: s.y, r: PRIMAL.spiderAura.radius, kind: 'lama', ms: VINCULO.primalMs, slowMs: PRIMAL.spiderAura.slowMs, follow: true, label: 'vinculo_aranha_aura' }, t);
+    }
+    if (kind === 'tigre') s.tigerDashCdUntil = t;
+    this.broadcastMap(s.map, { type: 'vinculo_fx', kind: 'primal', playerId: s.id, creature: kind, ms: VINCULO.primalMs });
+    this.sendTo(s, { type: 'notice', text: `${CREATURE_INFO[kind].icon} Estado Primal: ${CREATURE_INFO[kind].primal}`, tone: 'good' });
+    this.sendStats(s, t);
+    this.sendVinculo(s, t);
+    void this.store?.vinculoPrimal?.(s.id, new Date(s.primalUntil), new Date(s.primalCdUntil))
+      .catch((err: unknown) => this.log.warn({ playerId: s.id, err }, 'falha ao gravar o Estado Primal'));
+  }
+
+  private primalEnd(s: Session, t: number): void {
+    const kind = s.primalKind;
+    s.primalUntil = Math.min(s.primalUntil, t);
+    s.primalKind = null;
+    // a aura da Aranha some junto
+    for (const z of [...this.zones]) if (z.ownerId === s.id && z.label === 'vinculo_aranha_aura') { z.until = t; }
+    if (kind === 'tartaruga' && s.absorb) s.absorb = undefined;
+    this.broadcastMap(s.map, { type: 'vinculo_fx', kind: 'primal_end', playerId: s.id, ...(kind ? { creature: kind } : {}) });
+    this.sendStats(s, t);
+  }
+
+  /** Estado Primal do Tigre: o avanço extra (4 casas para onde olha, parando na parede). */
+  private tigerDash(s: Session, t: number): void {
+    if (!this.primalOn(s, 'tigre', t) || s.dead || t < s.stunnedUntil || t < s.rootedUntil) return;
+    if (t < s.tigerDashCdUntil) return this.sendTo(s, { type: 'notice', text: `Avanço: espere ${Math.ceil((s.tigerDashCdUntil - t) / 1000)} s.`, tone: 'bad' });
+    const layout = this.layout(s.map);
+    let to = { x: s.x, y: s.y };
+    for (let d = 0.1; d <= VINCULO.tigerDash.range; d += 0.1) {
+      const p = { x: s.x + s.fx * d, y: s.y + s.fy * d };
+      if (p.x < 0.5 || p.y < 0.5 || p.x > layout.width - 0.5 || p.y > layout.height - 0.5 || blocked(p.x, p.y, layout.walls)) break;
+      to = p;
+    }
+    s.tigerDashCdUntil = t + VINCULO.tigerDash.cooldownMs;
+    this.dash(s, { x: q3(to.x), y: q3(to.y) }, t);
+    this.sendVinculo(s, t);
+  }
+
+  /** Ataque Básico de quem está no Estado Primal: Lobo sangra o alvo; Águia empurra e revela o mapa por 10 s. */
+  private primalBasicHit(s: Session, x: Target, t: number): void {
+    if (this.primalOn(s, 'lobo', t) && this.stillThere(x)) {
+      const b = CREATURE_NUMBERS.wolfPrimalBleed;
+      this.applyEffect(x, 'ferida', t, b.ms, undefined, s);
+      this.bleeds.push({ targetId: x.id, kind: x.kind, ownerId: s.id, until: t + b.ms, next: t + 1000, dmg: b.perTick });
+    }
+    if (this.primalOn(s, 'aguia', t)) {
+      if (this.stillThere(x)) this.pushAway(x, s, s, PRIMAL.eagleReveal.push, t);
+      this.sendTo(s, { type: 'vinculo_fx', kind: 'reveal', playerId: s.id, ms: PRIMAL.eagleReveal.revealMs });
+    }
+  }
+
+  /** Jutsus de controle no Estado Primal do Sapo: +50% de duração e de alcance (lentidão e prender). */
+  private primalControl<C extends SkillConfig>(s: Session, cfg: C, t: number): C {
+    if (!this.primalOn(s, 'sapo', t)) return cfg;
+    const z = cfg.zone;
+    const control = !!(cfg.slowMs || cfg.rootMs || z?.slow || z?.firstRootMs);
+    if (!control) return cfg;
+    const k = PRIMAL.frogControl;
+    return {
+      ...cfg,
+      ...(cfg.range ? { range: cfg.range * k } : {}),
+      ...(cfg.slowMs ? { slowMs: Math.round(cfg.slowMs * k) } : {}),
+      ...(cfg.rootMs ? { rootMs: Math.round(cfg.rootMs * k) } : {}),
+      ...(z?.firstRootMs ? { zone: { ...z, firstRootMs: Math.round(z.firstRootMs * k) } } : {}),
+    };
+  }
+
+  /** A cada tick: área proibida cancela; o Primal acaba no tempo; sangramento; XP para o banco a cada 30 s. */
+  private vinculoTick(t: number): void {
+    if (t >= this.vinculoCheckAt) {
+      this.vinculoCheckAt = t + 400;
+      for (const s of this.sessions.values()) {
+        if (s.closed) continue;
+        const has = this.creaturesOf(s).length > 0;
+        if (s.primalKind && t >= s.primalUntil) { this.primalEnd(s, t); this.sendVinculo(s, t); }
+        if ((has || (s.primalKind && t < s.primalUntil)) && (!this.vinculoAllowed(s))) this.cancelVinculo(s, t, !s.dead);
+        if (s.vinculoXp > 0 && t - s.vinculoXpAt >= 30_000) void this.flushVinculoXp(s);
+      }
+    }
+    for (let i = this.bleeds.length - 1; i >= 0; i--) {
+      const b = this.bleeds[i]!;
+      if (t < b.next) continue;
+      const owner = this.sessions.get(b.ownerId);
+      const target = b.kind === 'monster' ? this.monsters.get(b.targetId) : this.sessions.get(b.targetId);
+      if (!owner || !target || t > b.until || (b.kind === 'monster' ? (target as Monster).hp <= 0 : (target as Session).dead)) { this.bleeds.splice(i, 1); continue; }
+      b.next += 1000;
+      const x: Target = b.kind === 'monster'
+        ? { kind: 'monster', id: b.targetId, x: target.x, y: target.y, monster: target as Monster }
+        : { kind: 'player', id: b.targetId, x: target.x, y: target.y, session: target as Session };
+      this.hitTarget(x, b.dmg, owner, t, 'skill', 'vinculo_sangramento');
+    }
+  }
+
+  /**
+   * A criatura: segue o dono; escolhe o alvo pela hierarquia (foco, quem bateu no dono, Renegados, outras vilas, chefes,
+   * monstros); anda até ele e usa a habilidade dela a cada `everyMs`. Devolve true se andou.
+   */
+  private creatureTick(m: Monster, t: number, dt: number): boolean {
+    const c = m.creature!;
+    const owner = m.ownerId ? this.sessions.get(m.ownerId) : undefined;
+    if (!owner || owner.closed || owner.dead || owner.map !== m.map) {
+      this.monsters.delete(m.id);
+      this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: m.ownerId ?? '' });
+      return false;
+    }
+    const st = CREATURE_STATS[c.kind];
+    // Gato: volta a ficar invisível depois de atacar
+    if (c.kind === 'gato' && !c.stealth && t >= c.visibleUntil) {
+      c.stealth = true;
+      this.broadcastMap(m.map, { type: 'vinculo_fx', kind: 'stealth', id: m.id, on: true });
+    }
+    // habilidades que não dependem de alvo (curar, poça, provocar)
+    if (t >= c.nextAuxAt) this.creatureAux(m, owner, t);
+    const enemies = this.targetsFor(owner).filter((x) => x.id !== m.id && !(x.kind === 'monster' && x.monster.ownerId));
+    if (t >= m.nextThinkAt) {
+      m.nextThinkAt = t + this.config.combat.monsterThinkMs;
+      const pick = this.creatureTarget(owner, m, enemies, t);
+      if (pick?.id !== m.summonTargetId) {
+        m.summonTargetId = pick?.id;
+        if (pick) this.broadcastMap(m.map, { type: 'monster_aggro', id: m.id, targetId: pick.id });
+      }
+    }
+    const target = m.summonTargetId ? enemies.find((x) => x.id === m.summonTargetId) : undefined;
+    if (!target) m.summonTargetId = undefined;
+    if (target && t >= c.nextAt && t >= m.stunnedUntil && distance(m, target) <= st.reach) {
+      c.nextAt = t + st.everyMs;
+      return this.creatureAct(m, owner, target, t);
+    }
+    if (t < m.stunnedUntil || t < m.rootedUntil || effectBlock(m.effects, t) === 'all') return false;
+    const goal: { x: number; y: number } | undefined = target ?? (distance(m, owner) > SUMMON_FOLLOW ? owner : undefined);
+    if (!goal) return false;
+    const stop = target ? Math.max(0.8, st.reach * 0.75) : SUMMON_FOLLOW * 0.6;
+    if (distance(m, goal) <= stop) return false;
+    // longe demais do dono (ficou para trás): aparece ao lado dele
+    if (!target && distance(m, owner) > 14) { m.x = q3(owner.x + 0.8); m.y = q3(owner.y + 0.4); return true; }
+    const layout = this.layout(m.map);
+    const free = (x: number, y: number) => x >= 0 && y >= 0 && x < layout.width && y < layout.height && !blocked(x, y, layout.walls);
+    const [ux, uy] = unit(goal.x - m.x, goal.y - m.y);
+    const next = steer(m, ux, uy, Math.min(distance(m, goal) - stop, st.speed * speedFactor(m.effects, t) * dt), free);
+    if (!next) return false;
+    m.dir = [ux, uy];
+    m.x = q3(next.x);
+    m.y = q3(next.y);
+    return true;
+  }
+
+  /** Hierarquia de alvos (vinculo.ts, pickTarget). Foco e quem bateu valem até 12 casas; o resto, até o aggro. */
+  private creatureTarget(owner: Session, m: Monster, enemies: Target[], t: number): Target | undefined {
+    const focusId = owner.aimFocus && t - owner.aimFocus.at <= SUMMON_FOCUS_MS ? owner.aimFocus.id : undefined;
+    const hitter = owner.lastHitBy && t - owner.lastHitBy.at <= VINCULO.lastAttackerMs ? owner.lastHitBy.id : undefined;
+    const list: (TargetCandidate & { target: Target })[] = [];
+    for (const x of enemies) {
+      const dist = distance(m, x);
+      const focus = x.id === focusId;
+      const lastAttacker = x.id === hitter;
+      if (dist > ((focus || lastAttacker) ? 12 : VINCULO.aggroRange)) continue;
+      const renegade = x.kind === 'player' && x.session.village === null;
+      list.push({
+        id: x.id, dist, target: x, focus, lastAttacker, renegade,
+        enemyVillage: x.kind === 'player' && !renegade,
+        boss: x.kind === 'monster' && !!this.monsterType(x.monster.type).boss,
+      });
+    }
+    return pickTarget(list)?.target;
+  }
+
+  /** O golpe/habilidade de cada criatura no alvo. Devolve true se a criatura se moveu (avanço do Tigre, pulo do Gato). */
+  private creatureAct(m: Monster, owner: Session, x: Target, t: number): boolean {
+    const c = m.creature!;
+    const st = CREATURE_STATS[c.kind];
+    let dmg = creatureBaseDamage(owner.level) * st.power * affinityMult(c.level);
+    let moved = false;
+    const [fx, fy] = unit(x.x - m.x, x.y - m.y);
+    m.dir = [fx, fy];
+    const N = CREATURE_NUMBERS;
+    switch (c.kind) {
+      case 'sapo': {                     // cospe óleo: deixa lento e puxa o monstro para perto
+        this.broadcastMap(m.map, { type: 'summon_punch', id: m.id, x: round2(m.x), y: round2(m.y), r: st.reach, fx: round2(fx), fy: round2(fy) });
+        this.applyEffect(x, 'lentidao', t, N.frogOil.slowMs, undefined, owner);
+        if (x.kind === 'monster') this.pullToward(x.monster, m, N.frogOil.pull);
+        break;
+      }
+      case 'gato': {                     // sai da invisibilidade com um crítico
+        const crit = c.stealth ? N.catCrit.stealth : this.random() < N.catCrit.chance ? N.catCrit.mult : 1;
+        dmg *= crit;
+        if (c.stealth) { m.x = q3(x.x - fx * 0.8); m.y = q3(x.y - fy * 0.8); moved = true; }
+        c.stealth = false;
+        c.visibleUntil = t + N.catCrit.revealMs;
+        this.broadcastMap(m.map, { type: 'vinculo_fx', kind: 'stealth', id: m.id, on: false });
+        if (crit > 1) this.broadcastMap(m.map, { type: 'vinculo_fx', kind: 'crit', id: m.id, x: round2(x.x), y: round2(x.y) });
+        this.broadcastMap(m.map, { type: 'summon_punch', id: m.id, x: round2(m.x), y: round2(m.y), r: st.reach, fx: round2(fx), fy: round2(fy) });
+        break;
+      }
+      case 'aranha': {                   // teia no chão onde o alvo está: prende quem entra
+        const w = N.spiderWeb;
+        this.spawnZone(owner, { x: x.x, y: x.y, r: w.radius, kind: 'lama', ms: w.ms, slowMs: 900, firstRootMs: w.rootMs, label: 'vinculo_aranha' }, t);
+        this.applyStatus(x, 'rooted', w.rootMs, t, owner);
+        this.broadcastMap(m.map, { type: 'summon_punch', id: m.id, x: round2(m.x), y: round2(m.y), r: st.reach, fx: round2(fx), fy: round2(fy) });
+        break;
+      }
+      case 'tigre': {                    // avança rápido até o alvo e bate forte
+        const layout = this.layout(m.map);
+        const to = { x: x.x - fx * 0.9, y: x.y - fy * 0.9 };
+        if (!blocked(to.x, to.y, layout.walls)) { m.x = q3(to.x); m.y = q3(to.y); moved = true; }
+        this.broadcastMap(m.map, { type: 'summon_punch', id: m.id, x: round2(m.x), y: round2(m.y), r: 1.4, fx: round2(fx), fy: round2(fy) });
+        break;
+      }
+      default:                           // Lobo, Águia, Lesma, Tartaruga: o golpe de perto
+        this.broadcastMap(m.map, { type: 'summon_punch', id: m.id, x: round2(m.x), y: round2(m.y), r: st.reach, fx: round2(fx), fy: round2(fy) });
+    }
+    this.creatureHit(owner, c.kind, x, Math.max(1, Math.round(dmg)), t);
+    return moved;
+  }
+
+  /** Dano da criatura (em nome do dono) e o XP de afinidade (acertou, derrubou). */
+  private creatureHit(owner: Session, kind: Creature, x: Target, dmg: number, t: number): void {
+    const before = x.kind === 'monster' ? x.monster.hp : x.session.hp;
+    this.hitTarget(x, dmg, owner, t, 'skill', `vinculo_${kind}`);
+    const after = x.kind === 'monster' ? (this.monsters.has(x.id) ? x.monster.hp : 0) : x.session.hp;
+    if (after >= before) return;
+    const dead = x.kind === 'monster' ? after <= 0 : x.session.dead;
+    this.addCreatureXp(owner, VINCULO.xpPerHit + (dead ? VINCULO.xpPerKill : 0), t);
+  }
+
+  /** O que a criatura faz sozinha: Águia cura o dono; Lesma faz poça de cura; Tartaruga provoca e refaz o escudo. */
+  private creatureAux(m: Monster, owner: Session, t: number): void {
+    const c = m.creature!;
+    const N = CREATURE_NUMBERS;
+    const mult = affinityMult(c.level);
+    switch (c.kind) {
+      case 'aguia':
+        c.nextAuxAt = t + 5_000;
+        if (owner.hp < owner.stats.maxHp) this.healPlayer(owner, Math.round(N.eagleHeal * mult * owner.stats.healMultiplier), t);
+        break;
+      case 'lesma': {
+        c.nextAuxAt = t + CREATURE_STATS.lesma.everyMs;
+        const fighting = owner.lastHitBy && t - owner.lastHitBy.at < 6_000;
+        if (!fighting && owner.hp >= owner.stats.maxHp) break;
+        const heal = Math.round(N.slugPool.heal * mult * (this.primalOn(owner, 'lesma', t) ? PRIMAL.slugHealMult : 1));
+        this.spawnZone(owner, { x: owner.x, y: owner.y, r: N.slugPool.radius, kind: 'cura', ms: N.slugPool.ms, tickMs: N.slugPool.tickMs, heal, label: 'vinculo_lesma' }, t);
+        break;
+      }
+      case 'tartaruga': {
+        c.nextAuxAt = t + CREATURE_STATS.tartaruga.everyMs;
+        c.absorb = Math.max(c.absorb, Math.round(m.maxHp * N.turtleShieldPct));
+        let n = 0;
+        for (const x of this.monsters.values()) {
+          if (x.ownerId || x.hp <= 0 || x.map !== m.map || distance(x, m) > N.turtleTauntRange) continue;
+          if (x.tauntId !== m.id) this.broadcastMap(m.map, { type: 'monster_aggro', id: x.id, targetId: m.id });
+          x.tauntId = m.id;
+          x.mind = 'chase';
+          n++;
+        }
+        if (n > 0) this.broadcastMap(m.map, { type: 'vinculo_fx', kind: 'taunt', id: m.id, x: round2(m.x), y: round2(m.y), r: N.turtleTauntRange });
+        break;
+      }
+      default:
+        c.nextAuxAt = t + 60_000;
+    }
+  }
+
+  /** Puxa o monstro para perto de `to` (até `dist` casas; para na parede). */
+  private pullToward(x: Monster, to: Point, dist: number): void {
+    const layout = this.layout(x.map);
+    const [ux, uy] = unit(to.x - x.x, to.y - x.y);
+    const max = Math.max(0, Math.min(dist, distance(x, to) - 1));
+    let at = { x: x.x, y: x.y };
+    for (let d = 0.1; d <= max; d += 0.1) {
+      const p = { x: x.x + ux * d, y: x.y + uy * d };
+      if (blocked(p.x, p.y, layout.walls)) break;
+      at = p;
+    }
+    x.x = q3(at.x);
+    x.y = q3(at.y);
+  }
+
+  /** Afinidade: soma na memória na hora (a barra anda) e grava no banco de tempos em tempos. Subiu de nível: avisa. */
+  private addCreatureXp(s: Session, xp: number, t: number): void {
+    const kind = s.vinculo?.equipped;
+    if (!kind || xp <= 0) return;
+    const c = (s.vinculo!.creatures[kind] ??= { level: 1, xp: 0 });
+    const before = c.level;
+    c.xp += xp;
+    c.level = affinityLevel(c.xp);
+    s.vinculoXp += xp;
+    if (c.level > before) {
+      for (const m of this.creaturesOf(s)) m.creature!.level = c.level;
+      this.sendTo(s, { type: 'notice', text: `${CREATURE_INFO[kind].icon} Afinidade com o ${CREATURE_INFO[kind].name}: nível ${c.level}!${c.level >= VINCULO.primalLevel ? ' O Estado Primal está liberado.' : ''}`, tone: 'good' });
+      this.sendVinculo(s, t);
+    }
+  }
+
+  async flushVinculoXp(s: Session): Promise<void> {
+    const kind = s.vinculo?.equipped;
+    const xp = s.vinculoXp;
+    s.vinculoXpAt = this.now();
+    if (!kind || xp <= 0 || !this.store?.vinculoAddXp) { if (!this.store) s.vinculoXp = 0; return; }
+    s.vinculoXp = 0;
+    try {
+      const r = await this.store.vinculoAddXp(s.id, kind, xp);
+      if (r && s.vinculo) s.vinculo.creatures[kind] = { level: r.level, xp: Math.max(r.xp, s.vinculo.creatures[kind]?.xp ?? 0) };
+    } catch (err) {
+      s.vinculoXp += xp;                                     // tenta de novo depois
+      this.log.warn({ playerId: s.id, err }, 'falha ao gravar a afinidade do Vínculo');
+    }
   }
 
   /** v59: o lugar que vale gravar; null = nascer na praça (morto, na arena/Vale, fantasma, ainda no tutorial). */
@@ -1387,6 +1925,7 @@ export class GameWorld {
     else if (parsed.type === 'ranked') this.rankedAction(session, parsed.action, t);
     else if (parsed.type === 'watch') this.watchArena(session, parsed.arena);
     else if (parsed.type === 'trio') this.trioAction(session, parsed.action, parsed.name, parsed.leaderId);
+    else if (parsed.type === 'vinculo') this.vinculoAction(session, parsed.action, parsed.creature, t);
     else if (parsed.type === 'arenas') this.sendTo(session, { type: 'arenas', list: this.arenasView(), watching: session.watching ?? null });
     else this.endgameRequest(session, parsed, t);
     this.flushKicks();
@@ -1506,6 +2045,8 @@ export class GameWorld {
    */
   private transfer(s: Session, to: MapId, x: number, y: number, reason: MapChangeReason): void {
     const from = s.map;
+    // v60: a criatura do Vínculo acompanha o dono para o mapa novo (se lá pode; senão, some e o Primal acaba)
+    const carry = from !== to ? this.takeCreatures(s) : [];
     if (this.config.maps[to]?.conflict || this.config.maps[to]?.ranked) this.markPvp(s);   // v38: capítulo do PvP
     this.standUp(s);
     s.x = x;
@@ -1524,6 +2065,7 @@ export class GameWorld {
       type: 'map_changed', map: to, x: round3(x), y: round3(y), a: s.ackSeq,
       players: this.othersIn(s), monsters: this.monstersIn(to), reason, ...(Object.keys(maps).length > 0 ? { maps } : {}),
     });
+    if (carry.length > 0 || (s.primalKind && this.now() < s.primalUntil)) this.afterMapChange(s, carry, this.now());
   }
 
   /**
@@ -2009,7 +2551,7 @@ export class GameWorld {
    */
   private cast(session: Session, skill: Skill, t: number, targetId?: string, dir?: [number, number], resolving = false): void {
     // Maestria (Fase 0): os números no nível de uso deste jogador (efeito, alcance e recarga; o dano e a cura, no golpe)
-    const cfg = withMastery(this.config.combat.skills[skill], skill, jutsuLevel(session.jutsus.get(skill) ?? 0));
+    const cfg = this.primalControl(session, withMastery(this.config.combat.skills[skill], skill, jutsuLevel(session.jutsus.get(skill) ?? 0)), t);
     const fail = (reason: CastFailReason) => this.sendTo(session, { type: 'cast_failed', skill, reason });
     // Qualquer TENTATIVA de usar habilidade encerra a meditação (mesmo que a habilidade falhe).
     this.stopMeditation(session, 'cast');
@@ -2449,6 +2991,7 @@ export class GameWorld {
       if (m.hp <= 0 || m.map !== s.map) continue;
       // v30: a invocação de um ninja só é alvo de quem pode machucar o dono
       if (m.ownerId) { const o = this.sessions.get(m.ownerId); if (!o || o === s || !this.canHurt(s, o, t)) continue; }
+      if (m.creature?.stealth) continue;                       // v60: o Gato invisível não é alvo
       out.push({ kind: 'monster', id: m.id, x: m.x, y: m.y, monster: m });
     }
     for (const o of this.mapPlayers.get(s.map) ?? []) {
@@ -2629,6 +3172,10 @@ export class GameWorld {
       if (t < mark.until) { amount = Math.round(amount * (1 + mark.bonus)); markSlow = mark.slowMs; }
       attacker.umbraMark = null;
     }
+    // v60: Estado Primal do Tigre: +40% de dano físico (Ataque Básico e jutsus de Taijutsu e Armas)
+    if (this.primalOn(attacker, 'tigre', t) && (source === 'attack' || ['taijutsu', 'weapons'].includes(JUTSU_BY_CODE.get(label as Skill)?.class ?? ''))) {
+      amount = Math.round(amount * PRIMAL.tigerPhysical);
+    }
     const hpBefore = target.kind === 'monster' ? target.monster.hp : target.session.hp;
     if (target.kind === 'monster') {
       if (target.monster.hp > 0 && this.monsters.has(target.id)) {
@@ -2647,6 +3194,7 @@ export class GameWorld {
       if (heal > 0) { hit.stolen = (hit.stolen ?? 0) + heal; this.healPlayer(attacker, heal, t); }
     }
     if (hurt && markSlow > 0 && this.stillThere(target)) this.applyEffect(target, 'lentidao', t, markSlow, undefined, attacker);
+    if (hurt && source === 'attack') this.primalBasicHit(attacker, target, t);   // v60: Lobo sangra, Águia empurra e revela
     // v51: marca que detona (Marca Incandescente): o próximo JUTSU de quem marcou explode nela (parte do dano dele a mais)
     const brand = attacker.brand;
     if (hurt && brand && brand.targetId === target.id && source === 'skill' && label !== 'detonacao') {
@@ -2685,6 +3233,7 @@ export class GameWorld {
       const dd = this.duels.get(x.session.map);
       if (!(dd?.phase === 'round' && sideOf(dd, x.id) && !dd.down.has(x.id))) return;
     }
+    if (x.kind === 'player' && (CC_EFFECTS as readonly string[]).includes(code) && this.primalOn(x.session, 'tartaruga', t)) return;   // v60
     if (x.kind === 'player' && (code === 'sono' || code === 'silencio' || code === 'invertido')) {
       ms = this.ccGate(x.session, source, code, ms ?? EFFECTS[code].defaultMs, t);
       if (ms <= 0) return;
@@ -3218,6 +3767,7 @@ export class GameWorld {
     let bestD = range;
     for (const x of this.monsters.values()) {
       if (!x.ownerId || x.hp <= 0 || x.map !== m.map) continue;
+      if (x.creature && x.creature.kind !== 'tartaruga') continue;   // v60: das criaturas, só a Tartaruga provoca
       const d = distance(m, x);
       if (d <= bestD) { best = x; bestD = d; }
     }
@@ -3226,6 +3776,12 @@ export class GameWorld {
 
   /** v30: monstro bate na invocação (ela some ao zerar; sem recompensa). */
   private hurtSummon(x: Monster, amount: number, t: number): void {
+    // v60: o escudo da Tartaruga segura primeiro
+    if (x.creature && x.creature.absorb > 0) {
+      const took = Math.min(amount, x.creature.absorb);
+      x.creature.absorb -= took;
+      amount -= took;
+    }
     x.hp = Math.max(0, x.hp - amount);
     this.broadcastMap(x.map, { type: 'hit', target: 'monster', id: x.id, amount, kind: 'damage', hp: x.hp, maxHp: x.maxHp });
     if (x.hp > 0) return;
@@ -3266,6 +3822,7 @@ export class GameWorld {
    * inimigo: são isca (os monstros batem neles). Devolve true se andou.
    */
   private summonTick(m: Monster, t: number, dt: number): boolean {
+    if (m.creature) return this.creatureTick(m, t, dt);       // v60: criatura do Vínculo Ancestral (regra própria)
     const owner = m.ownerId ? this.sessions.get(m.ownerId) : undefined;
     if (!owner || owner.closed || owner.map !== m.map || t >= (m.summonUntil ?? 0)) {
       this.monsters.delete(m.id);
@@ -3421,6 +3978,7 @@ export class GameWorld {
    * dura a metade, depois um quarto, e depois nada (imune até a janela passar).
    */
   private applyStatus(target: Target, status: MonsterStatus, ms: number, t: number, source?: Session): void {
+    if (target.kind === 'player' && this.primalOn(target.session, 'tartaruga', t)) return;   // v60: imune a controle
     const who = target.kind === 'monster' ? target.monster : target.session;
     if (target.kind === 'player' && source) {
       if (t < target.session.intangibleUntil) return;          // Forma Fantasma: nada de atordoar
@@ -3608,6 +4166,7 @@ export class GameWorld {
   async flushAll(maxWaitMs = 5000): Promise<void> {
     await Promise.all([...this.sessions.values()].map((s) => this.flushUsage(s)));
     await this.persistPositions();   // v59: deploy: o último lugar de todos antes de desligar
+    await Promise.all([...this.sessions.values()].map((s) => this.flushVinculoXp(s)));   // v60
     // v37: no desligamento (deploy), espera também as gravações na fila de cada jogador (Rito, compras, linhagem...).
     const until = Date.now() + maxWaitMs;
     while (Date.now() < until && [...this.sessions.values()].some((s) => s.profileBusy || s.profileQueue.length > 0)) {
@@ -3671,7 +4230,8 @@ export class GameWorld {
     const focused = targetId !== undefined ? targets.find((x) => x.id === targetId) : undefined;
     const aim = (focused && distance(session, focused) <= range ? focused : nearest(session, targets, range)) ?? focused;
     if (aim) this.faceTo(session, aim);
-    const cd = Math.round(session.stats.attackCooldownMs * (thrown ? thrown.cooldownFactor : swing.cooldownFactor));   // Taijutsu deixa mais rápido
+    const cd = Math.round(session.stats.attackCooldownMs * (thrown ? thrown.cooldownFactor : swing.cooldownFactor)
+      / (this.primalOn(session, 'lobo', t) ? PRIMAL.wolfAttackSpeed : 1));   // Taijutsu deixa mais rápido; v60: Primal do Lobo, +30%
     session.cooldowns.attack = t + cd;
     this.broadcastMap(session.map, {
       type: 'attack', playerId: session.id, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy), cd,
@@ -4869,6 +5429,19 @@ export class GameWorld {
    */
   private damagePlayer(session: Session, amount: number, t: number, attacker?: Point, by?: Session, label?: string): void {
     if (t < session.intangibleUntil) return;                    // Forma Fantasma (Akatsuki)
+    // v60: quem bateu por último (a criatura do Vínculo vai nele) e a esquiva do Estado Primal do Gato
+    const hitterId = by && by !== session ? by.id : (attacker as { id?: string } | undefined)?.id;
+    if (amount > 0 && hitterId) session.lastHitBy = { id: hitterId, at: t };
+    if (amount > 0 && this.primalOn(session, 'gato', t)) {
+      if (t >= session.dodgeUntil && t >= session.dodgeCdUntil) {
+        session.dodgeUntil = t + PRIMAL.catDodge.ms;
+        session.dodgeCdUntil = t + PRIMAL.catDodge.cooldownMs;
+      }
+      if (t < session.dodgeUntil && this.random() < PRIMAL.catDodge.chance) {
+        this.broadcastMap(session.map, { type: 'vinculo_fx', kind: 'dodge', playerId: session.id, x: round2(session.x), y: round2(session.y) });
+        return;
+      }
+    }
     // v35: Noite Fechada: dentro da própria zona, o Umbra leva menos dano
     const cutZone = amount > 0 ? this.zones.find((z) => (z.cut || z.cutFlat) && z.ownerId === session.id && z.map === session.map && t < z.until && Math.hypot(session.x - z.x, session.y - z.y) <= z.r) : undefined;
     if (cutZone?.cut) amount = Math.round(amount * (1 - cutZone.cut));
@@ -4929,6 +5502,13 @@ export class GameWorld {
       session.absorb.hp -= took;
       dmg -= took;
       if (session.absorb.hp <= 0) session.absorb = undefined;
+    }
+    // v60: Lesma: divide 30% do dano com ela; no Estado Primal da Lesma, 50% menos dano
+    if (dmg > 0 && this.primalOn(session, 'lesma', t)) dmg = Math.round(dmg * (1 - PRIMAL.slugDamageCut));
+    const slug = dmg > 0 ? this.creaturesOf(session).find((c) => c.creature!.kind === 'lesma' && c.hp > 0) : undefined;
+    if (slug) {
+      const share = Math.min(slug.hp, Math.round(dmg * CREATURE_NUMBERS.slugShare));
+      if (share > 0) { dmg -= share; this.hurtSummon(slug, share, t); }
     }
     const before = session.hp;
     session.hp = Math.max(0, session.hp - dmg);
@@ -6907,6 +7487,8 @@ export class GameWorld {
       // Chakra: SÓ meditando (também no rankeado). Vida: SÓ com o chakra no máximo e 7 s sem apanhar nem gastar
       // chakra (v29, decisão do Victor; vale no jogo todo).
       if (s.meditating) s.chakra = Math.min(s.stats.maxChakra, s.chakra + s.stats.meditationChakraPerSec * dt);
+      // v60: Estado Primal da Aranha: o chakra volta sem meditar (no ritmo da meditação)
+      else if (this.primalOn(s, 'aranha', t)) s.chakra = Math.min(s.stats.maxChakra, s.chakra + s.stats.meditationChakraPerSec * dt);
       if (s.chakra >= s.stats.maxChakra && t - s.calmSince >= p.hpRegenCalmMs) s.hp = Math.min(s.stats.maxHp, s.hp + p.hpRegenPerSec * dt);
       // Etapa 2 do tutorial: meditando DENTRO da Sala de Controle até o chakra encher.
       if (s.tutorial === 1 && s.meditating && s.chakra >= s.stats.maxChakra && s.map === 'academy_interior'
@@ -6918,6 +7500,9 @@ export class GameWorld {
         this.sendStats(s, t);
       }
     }
+
+    // 1b. v60: Vínculo Ancestral: área proibida cancela, o Primal acaba, o sangramento do Lobo, o XP vai para o banco.
+    this.vinculoTick(t);
 
     // 1c. Modo rankeado: forma a partida da fila e anda as fases dela.
     this.rankedTick(t);
