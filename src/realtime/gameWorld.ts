@@ -1,3 +1,7 @@
+import { BEARER, TITANS, TITAN_BY_INDEX, TITAN_EVENT, isBehind, titanOfDay, titanSleepsAt, titleCode } from './titans.js';
+import { BLURRED, CHRONICLE, STAGE_INFO, featureOpen, lockedMaps, nextStage } from './worldProgress.js';
+import { RARITY, RELIC, pickRelic, relicOn, rollRarity } from './loot.js';
+import type { Fase3Store } from './fase3Store.js';
 import { CC_EFFECTS, CREATURE_INFO, CREATURE_NUMBERS, CREATURE_STATS, CREATURES, PRIMAL, VINCULO, affinityBar, affinityLevel, affinityMult, creatureBaseDamage, isCreature, pickTarget, type Creature, type TargetCandidate } from './vinculo.js';
 import { randomInt } from 'node:crypto';
 import { SKY, dayPhase, offsetFor, outdoors, pickWeather, skyEffects, weatherFits, type DayPhase, type SkyEffects, type Weather } from './weather.js';
@@ -188,6 +192,8 @@ export interface WorldOptions {
   season?: SeasonStore;
   /** v55 (migração v33): Torneio dos Heróis e dos Vilões. */
   champion?: ChampionStore;
+  /** v61/v62 (migrações v36 e v37): Titãs e Portadores, Progressão de Mundo e Loot. */
+  fase3?: Fase3Store;
   /** v44 (migração v29): bônus de XP do admin guardados no banco. Sem isto: valem só enquanto o servidor está ligado. */
   xpBonus?: XpBonusStore;
   /** Quem vigia o servidor (site do jogo: saúde, bugs e comportamento suspeito). */
@@ -199,6 +205,8 @@ export interface JoiningPlayer {
   username: string;
   /** v59 (migração v34): o último lugar gravado no banco (o servidor confere antes de usar). */
   lastPosition?: { map: string; x: number; y: number };
+  /** v62 (migração v37): as Eras em que a Relíquia do Renascer já foi usada. */
+  revives?: number[];
   /** v60 (migração v35): Vínculo Ancestral (sem a tabela: undefined, o Vínculo fica desligado). */
   vinculo?: { equipped: string | null; creatures: Record<string, { level: number; xp: number }>; primalUntil: number; primalCooldownUntil: number };
   xp?: number;
@@ -451,6 +459,14 @@ interface Session {
   /** v60: XP de afinidade ainda não gravado no banco. */
   vinculoXp: number;
   vinculoXpAt: number;
+  /** v61: Habilidade Suprema do Portador valendo (qual Titã, até quando); escudo da Rocha; Vento (velocidade, invisível). */
+  titanActive: { titan: number; until: number } | null;
+  rockShieldAt: number;
+  windUntil: number;
+  invisUntil: number;
+  /** v62: Relíquia do Último Fôlego (recarga) e as Eras em que o Renascer já foi usado. */
+  lastBreathAt: number;
+  revives: number[];
   /** Último pedido de painel (vila, ranking, viagem): toque repetido não vira enxurrada no banco. */
   lastPanelAt: number;
 }
@@ -477,6 +493,8 @@ interface Monster {
   punch?: { damage: number; hit: HitInfo; liftMs: number; everyMs: number; nextAt: number; radius: number };
   /** v53: em quem a invocação está indo (monstro ou ninja inimigo do dono). */
   summonTargetId?: string;
+  /** v61: Titã Ancestral (1 a 10). */
+  titan?: number;
   /** v60: criatura do Vínculo Ancestral: qual, afinidade, próxima habilidade, invisível (Gato), escudo (Tartaruga). */
   creature?: { kind: Creature; level: number; nextAt: number; nextAuxAt: number; stealth: boolean; visibleUntil: number; absorb: number };
   readonly id: string;
@@ -681,6 +699,14 @@ export class GameWorld {
   private readonly sessions = new Map<string, Session>();
   private readonly monsters = new Map<string, Monster>();
   private readonly pendingKicks: { session: Session; close: { code: number; reason: string } }[] = [];
+  /** v61/v62: estado da Fase 3 (Titãs, Portadores, marco do mundo). */
+  private f3 = {
+    busy: false, titans: false, world: false, active: 0, stage: 0, override: null as number | null,
+    era: null as { id: number; startsAt: number } | null, bearersEra: -1,
+    bearers: new Map<string, { titan: number; cdUntil: number }>(), names: new Map<string, string>(),
+    titan: null as null | { era: number; index: number; monsterId: string; sleepsAt: number; saved: Map<string, number>; forced: boolean },
+  };
+  private fase3Timer: NodeJS.Timeout | undefined;
   /** v60: sangramento do Primal do Lobo (dano a cada 1 s) e a próxima conferência da área do Vínculo. */
   private readonly bleeds: { targetId: string; kind: 'monster' | 'player'; ownerId: string; until: number; next: number; dmg: number }[] = [];
   private vinculoCheckAt = 0;
@@ -731,6 +757,7 @@ export class GameWorld {
   private readonly seasonStore: SeasonStore | undefined;
   /** v55: Torneio dos Heróis e dos Vilões (migração v33). */
   private readonly championStore: ChampionStore | undefined;
+  private readonly fase3: Fase3Store | undefined;
   private champReady = false;
   private champEra = 0;
   private champPhase: ChampionPhase = 'fechado';
@@ -806,6 +833,7 @@ export class GameWorld {
     this.rankedStore = options.ranked;
     this.seasonStore = options.season;
     this.championStore = options.champion;
+    this.fase3 = options.fase3;
     this.xpBonusStore = options.xpBonus;
     this.watch = options.watch ?? {};
     for (const id of Object.keys(this.config.maps) as MapId[]) { this.mapPlayers.set(id, new Set()); this.watchers.set(id, new Set()); }
@@ -969,7 +997,7 @@ export class GameWorld {
   private speedOf(s: Session): number {
     const base = s.running ? s.stats.runSpeed : s.stats.walkSpeed;
     const slow = s.effects.size > 0 ? speedFactor(s.effects, this.now()) : 1;   // Lentidão
-    return round2(base * (s.hasteUntil > 0 ? 1 + s.haste : 1) * slow * (s.casting ? s.casting.slow : 1));
+    return round2(base * (s.hasteUntil > 0 ? 1 + s.haste : 1) * slow * (s.casting ? s.casting.slow : 1) * this.bearerSpeed(s, this.now()));   // v61: Vento Cortante
   }
 
   monsterList(): MonsterView[] {
@@ -1072,7 +1100,7 @@ export class GameWorld {
     const bandana = eg ? (eg.village ?? eg.renegadeFrom) : null;
     if (appearance && bandana && appearance.village !== bandana) appearance = { ...appearance, village: bandana };
     const village: Village | null = eg ? eg.village : previous ? previous.village : (appearance?.village ?? 'vila_1');
-    const stats = this.statsFor(village, attributes, player.level ?? previous?.level ?? 1);
+    const stats = this.withRelics({ items: player.items ?? previous?.items ?? {} }, this.statsFor(village, attributes, player.level ?? previous?.level ?? 1));   // v62: relíquias
     const kits: Kits = player.kits ?? previous?.kits ?? DEFAULT_KITS;
     const tutorial = player.tutorialStep ?? previous?.tutorial ?? 4;
     // Quem não terminou o tutorial nasce na Academia, na sala do passo em que está; os outros, na praça da vila deles.
@@ -1215,6 +1243,12 @@ export class GameWorld {
       tigerDashCdUntil: 0,
       vinculoXp: previous?.vinculoXp ?? 0,
       vinculoXpAt: t,
+      titanActive: previous?.titanActive ?? null,
+      rockShieldAt: 0,
+      windUntil: previous?.windUntil ?? 0,
+      invisUntil: previous?.invisUntil ?? 0,
+      lastBreathAt: previous?.lastBreathAt ?? 0,
+      revives: player.revives ?? previous?.revives ?? [],
       lastPanelAt: 0,
     };
     // Sala compartilhada (Academia, loja) sem saber por onde entrou: a saída leva para a porta da vila dele.
@@ -1295,6 +1329,469 @@ export class GameWorld {
     void this.flushVinculoXp(session);       // v60: a afinidade que a criatura ganhou
     this.log.info({ playerId: session.id, online: this.sessions.size }, 'jogador saiu');
     this.flushKicks();
+  }
+
+  // ---------------------------------------------------------------- v61/v62: Fase 3 (titans.ts, worldProgress.ts, loot.ts)
+
+  /** O marco do mundo que vale agora (forçado pelo admin ou o alcançado). Sem a v37: 250 (tudo aberto, como antes). */
+  private worldStage(): number {
+    if (!this.f3.world) return 250;
+    return this.f3.override ?? this.f3.stage;
+  }
+
+  /** Os mapas que o marco ainda tranca. */
+  private lockedNow(): string[] {
+    return lockedMaps(this.worldStage());
+  }
+
+  /** O Titã/Portador deste ninja nesta Era (undefined = não porta). */
+  private bearerOf(s: Session): { titan: number; cdUntil: number } | undefined {
+    return this.f3.bearers.get(s.id);
+  }
+
+  /** A passiva do Titã `index` vale para ele? (Regra de Ouro: em todos os modos.) */
+  private bears(s: Session, index: number): boolean {
+    return this.f3.bearers.get(s.id)?.titan === index;
+  }
+
+  /** A Habilidade Suprema do Titã `index` está valendo agora? */
+  private supreme(s: Session, index: number, t: number): boolean {
+    return s.titanActive !== null && s.titanActive.titan === index && t < s.titanActive.until;
+  }
+
+  /** Golpe base de quem tem a Suprema (o Ataque Básico dele, sem arma). */
+  private basicBase(s: Session): number {
+    const cfg = this.config.combat.basicAttack;
+    return cfg.damage * this.config.combat.damageScale.basic * s.stats.physicalMultiplier;
+  }
+
+  /** Bônus de atributo das relíquias (vida e chakra máximos). */
+  private withRelics(s: Pick<Session, 'items'>, stats: DerivedStats): DerivedStats {
+    let hp = 1, ch = 1;
+    if (relicOn(s.items, 'reliquia_c_vida')) hp += RELIC.hpPct;
+    if (relicOn(s.items, 'reliquia_r_vigor')) hp += RELIC.bigHpPct;
+    if (relicOn(s.items, 'reliquia_c_chakra')) ch += RELIC.chakraPct;
+    if (hp === 1 && ch === 1) return stats;
+    return { ...stats, maxHp: Math.round(stats.maxHp * hp), maxChakra: Math.round(stats.maxChakra * ch) };
+  }
+
+  /** Recalcula os atributos (relíquia nova, nível) e avisa o cliente. */
+  private refreshStats(s: Session, t: number): void {
+    s.stats = this.withRelics(s, this.statsFor(s.village, s.attributes, s.level));
+    s.hp = Math.min(s.hp, s.stats.maxHp);
+    s.chakra = Math.min(s.chakra, s.stats.maxChakra);
+    this.sendStats(s, t);
+  }
+
+  /** Velocidade do Portador do Vento Cortante (+20%; Suprema: +100% por 5 s). */
+  private bearerSpeed(s: Session, t: number): number {
+    if (!this.bears(s, 4)) return 1;
+    return BEARER.windSpeed * (s.windUntil > t ? BEARER.windActive.speed : 1);
+  }
+
+  /** Jutsus: Mil Lâminas (+1 casa nas Armas), Vento Cortante (-10% de recarga), Relíquia do Fluxo (-10% de chakra). */
+  private fase3Cfg<C extends SkillConfig>(s: Session, skill: Skill, cfg: C): C {
+    let out = cfg;
+    if (this.bears(s, 9) && JUTSU_BY_CODE.get(skill)?.class === 'weapons' && out.range) out = { ...out, range: out.range + BEARER.bladesRange };
+    if (this.bears(s, 4)) out = { ...out, cooldownMs: Math.round(out.cooldownMs * BEARER.windCooldown) };
+    if (relicOn(s.items, 'reliquia_e_fluxo')) out = { ...out, cost: Math.round(out.cost * RELIC.chakraCost) };
+    return out;
+  }
+
+  /** Dano que sai (antes de bater): Noite Eterna de costas, Corpo Fechado, Relíquia de Golpe. */
+  private fase3Outgoing(a: Session, x: Target, amount: number, source: 'attack' | 'skill', label: string): number {
+    let k = 1;
+    if (this.bears(a, 6)) {
+      const f = x.kind === 'player' ? { fx: x.session.fx, fy: x.session.fy } : { fx: x.monster.dir?.[0] ?? 1, fy: x.monster.dir?.[1] ?? 0 };
+      if (isBehind({ x: x.x, y: x.y, ...f }, a)) k *= BEARER.backstab;
+    }
+    const cls = JUTSU_BY_CODE.get(label as Skill)?.class;
+    if (this.bears(a, 8) && (source === 'attack' || cls === 'taijutsu')) k *= BEARER.closedBody;
+    if (source === 'attack' && relicOn(a.items, 'reliquia_c_golpe')) k *= 1 + RELIC.basicPct;
+    return k === 1 ? amount : Math.round(amount * k);
+  }
+
+  /** Depois do golpe entrar: queimar, curar com a Água, paralisar, roubar vida. */
+  private fase3AfterHit(a: Session, x: Target, dealt: number, source: 'attack' | 'skill', label: string, t: number): void {
+    if (dealt <= 0) return;
+    const there = this.stillThere(x);
+    if (source === 'attack' && there && (this.bears(a, 1) || relicOn(a.items, 'reliquia_l_brasa'))) {
+      this.applyEffect(x, 'queimadura', t, this.bears(a, 1) ? BEARER.burnMs : RELIC.burnMs, undefined, a);
+    }
+    if (this.bears(a, 2) && JUTSU_BY_CODE.get(label as Skill)?.class === 'water') this.healPlayer(a, Math.round(dealt * BEARER.waterHeal), t);
+    if (this.bears(a, 3) && there && this.random() < BEARER.paralyzeChance) this.applyStatus(x, 'stunned', BEARER.paralyzeMs, t, a);
+    if (source === 'attack' && relicOn(a.items, 'reliquia_e_sangue') && !a.dead) this.healPlayer(a, Math.max(1, Math.round(dealt * RELIC.lifesteal)), t);
+  }
+
+  /** Controle saindo (Pesadelo +20%) e chegando (Relíquia de Firmeza -15%; Suprema da Rocha: imune). */
+  private fase3Cc(target: Target, ms: number, source: Session | undefined, t: number): number {
+    if (target.kind === 'player' && this.supreme(target.session, 5, t)) return 0;
+    let out = ms;
+    if (source && this.bears(source, 7)) out *= BEARER.nightmareCc;
+    if (target.kind === 'player' && relicOn(target.session.items, 'reliquia_r_firmeza')) out *= 1 - RELIC.ccCut;
+    return Math.round(out);
+  }
+
+  /** A cada tick: Portador da Rocha (escudo que volta), da Vida (regenera fora de combate); a Suprema acaba. */
+  private fase3Tick(s: Session, t: number, dt: number): void {
+    const b = this.f3.bearers.get(s.id);
+    if (s.titanActive && t >= s.titanActive.until) { s.titanActive = null; this.sendTitanState(s, t); }
+    if (!b) return;
+    if (b.titan === 5 && t >= s.rockShieldAt) {
+      s.rockShieldAt = t + BEARER.rockShieldEveryMs;
+      const hp = Math.round(s.stats.maxHp * (this.supreme(s, 5, t) ? BEARER.rockActive.shieldPct : BEARER.rockShieldPct));
+      if (!s.absorb || s.absorb.hp < hp) s.absorb = { hp, until: t + BEARER.rockShieldEveryMs + 500 };
+    }
+    if (b.titan === 10 && t - s.calmSince >= BEARER.lifeCalmMs && s.hp < s.stats.maxHp) {
+      s.hp = Math.min(s.stats.maxHp, s.hp + s.stats.maxHp * BEARER.lifeRegenPct * dt);
+    }
+  }
+
+  /** Antes de morrer: a Relíquia do Renascer (uma vez por Era). true = renasceu (não morre). */
+  private tryRevive(s: Session, t: number): boolean {
+    if (!relicOn(s.items, 'reliquia_l_renascer')) return false;
+    const era = this.f3.era?.id ?? 0;
+    if (s.revives.includes(era)) return false;
+    s.revives = [...s.revives, era];
+    s.hp = Math.max(1, Math.round(s.stats.maxHp * RELIC.revivePct));
+    this.broadcastMap(s.map, { type: 'fase3_fx', kind: 'revive', playerId: s.id, x: round2(s.x), y: round2(s.y) });
+    this.sendTo(s, { type: 'notice', text: '🟡 Relíquia do Renascer: você voltou com 30% da vida (uma vez por Era).', tone: 'good' });
+    void this.fase3?.useRevive(s.id, era).catch((err: unknown) => this.log.warn({ playerId: s.id, err }, 'falha ao gravar o Renascer'));
+    return true;
+  }
+
+  /** Abaixo de 30% de vida: Relíquia do Último Fôlego (escudo de 20%, 1 vez por minuto). */
+  private lastBreath(s: Session, t: number): void {
+    const L = RELIC.lastBreath;
+    if (!relicOn(s.items, 'reliquia_e_ultimo') || s.dead || s.hp <= 0 || s.hp > s.stats.maxHp * L.below || t < s.lastBreathAt) return;
+    s.lastBreathAt = t + L.cooldownMs;
+    s.absorb = { hp: Math.round(s.stats.maxHp * L.shieldPct), until: t + 8_000 };
+    this.broadcastMap(s.map, { type: 'fase3_fx', kind: 'shield', playerId: s.id, x: round2(s.x), y: round2(s.y) });
+  }
+
+  /** Pedidos do cliente: o estado (mundo, Titã, Portadores), a Crônica (Cronista) e a Habilidade Suprema. */
+  private fase3Action(s: Session, action: 'state' | 'supreme', t: number): void {
+    if (action === 'state') { this.sendWorldState(s); return this.sendTitanState(s, t); }
+    if (action === 'supreme') return this.titanSupreme(s, t);
+  }
+
+  private sendWorldState(s: Session): void {
+    const stage = this.worldStage();
+    this.sendTo(s, { type: 'world_state', stage, active: this.f3.active, forced: this.f3.override !== null, locked: this.lockedNow(), next: nextStage(stage)?.min ?? null });
+  }
+
+  private titanView(s: Session, t: number): Extract<ServerMessage, { type: 'titan_state' }> {
+    const m = this.f3.titan ? this.monsters.get(this.f3.titan.monsterId) : undefined;
+    const info = this.f3.titan ? TITAN_BY_INDEX.get(this.f3.titan.index) : undefined;
+    const b = this.f3.bearers.get(s.id);
+    return {
+      type: 'titan_state',
+      awake: m && info ? { index: info.index, name: info.name, icon: info.icon, hp: m.hp, maxHp: m.maxHp, map: m.map } : null,
+      bearers: [...this.f3.bearers.entries()].map(([id, x]) => ({ titan: x.titan, name: TITAN_BY_INDEX.get(x.titan)?.name ?? '', username: this.f3.names.get(id) ?? '?' })),
+      mine: b ? { titan: b.titan, cdMs: Math.max(0, b.cdUntil - t), activeMs: s.titanActive ? Math.max(0, s.titanActive.until - t) : 0 } : null,
+      titans: TITANS.map((x) => ({ index: x.index, name: x.name, icon: x.icon, color: x.color, passive: x.passive, active: x.active })),
+    };
+  }
+
+  private sendTitanState(s: Session, t: number = this.now()): void {
+    this.sendTo(s, this.titanView(s, t));
+  }
+
+  /** O Cronista (Academia): a Crônica das Eras, aberta até o marco do mundo; o resto, borrado. */
+  private talkChronicler(s: Session): void {
+    const stage = this.worldStage();
+    this.sendTo(s, { type: 'npc_say', npcId: 'cronista', text: 'Sente-se, ninja. A Crônica das Eras cresce junto com o mundo.' });
+    this.sendTo(s, {
+      type: 'chronicle', stage,
+      chapters: CHRONICLE.map((c) => (stage >= c.min ? { title: c.title, text: c.text, open: true } : { title: c.title, text: BLURRED, open: false })),
+    });
+  }
+
+  /**
+   * A cada minuto (junto da Era): conta a população (marco do mundo), confere a Era (títulos da Era passada saem),
+   * os Portadores e o Titã do dia (acorda, volta a dormir).
+   */
+  async fase3Maintenance(force?: number): Promise<void> {
+    const store = this.fase3;
+    if (!store || this.f3.busy) return;
+    this.f3.busy = true;
+    const before = this.worldStage();                          // o marco que valia (sem a v37: 250, tudo aberto)
+    try {
+      if (!this.f3.titans || !this.f3.world) {
+        const a = await store.available();
+        this.f3.titans = a.titans;
+        this.f3.world = a.world;
+      }
+      const t = this.now();
+      if (this.f3.world) {
+        const w = await store.world(this.config.endgame.populationDays);
+        this.f3.active = w.active;
+        this.f3.stage = w.stage;
+        this.f3.override = w.override;
+        const now = this.worldStage();
+        if (now !== before) this.worldChanged(before, now, t);
+      }
+      const era = this.f3.era;
+      if (!this.f3.titans || !era) return;
+      if (this.f3.bearersEra !== era.id) {
+        const gone = await store.expireTitles(era.id);
+        if (gone > 0) this.log.info({ gone, era: era.id }, 'titãs: títulos da Era passada retirados');
+        this.f3.bearersEra = era.id;
+        this.f3.titan = null;
+      }
+      await this.reloadBearers(era.id);
+      await this.flushTitan();
+      // o Titã do dia (ou o forçado pelo admin)
+      const index = force ?? (featureOpen(this.worldStage(), 'titas') ? titanOfDay(era.startsAt, t) : null);
+      const cur = this.f3.titan;
+      if (cur && (cur.era !== era.id || (force === undefined && cur.index !== index && !cur.forced) || t >= cur.sleepsAt)) this.titanSleep(cur, t);
+      if (index !== null && !this.f3.titan) await this.titanAwaken(era.id, index, t, force !== undefined);
+    } catch (err) {
+      this.log.warn({ err }, 'fase 3: falha na manutenção');
+    } finally {
+      this.f3.busy = false;
+    }
+  }
+
+  /** O mundo mudou de marco: anuncia, tranca/abre e quem está num mapa que trancou volta para casa. */
+  private worldChanged(before: number, now: number, t: number): void {
+    const info = STAGE_INFO.find((i) => i.min === now);
+    if (now > before && info) this.broadcast({ type: 'announce', message: `🌍 O mundo cresceu! Abriu: ${info.label}.` });
+    for (const s of this.sessions.values()) {
+      this.sendWorldState(s);
+      this.enforceAccess(s);
+    }
+    void t;
+  }
+
+  private async reloadBearers(era: number): Promise<void> {
+    const rows = await this.fase3!.bearers(era);
+    const next = new Map<string, { titan: number; cdUntil: number }>();
+    for (const r of rows) {
+      next.set(r.playerId, { titan: r.titan, cdUntil: Math.max(r.activeCdUntil, this.f3.bearers.get(r.playerId)?.cdUntil ?? 0) });
+      this.f3.names.set(r.playerId, r.username);
+    }
+    const changed = [...next.keys()].some((id) => this.f3.bearers.get(id)?.titan !== next.get(id)?.titan) || next.size !== this.f3.bearers.size;
+    this.f3.bearers = next;
+    if (changed) for (const s of this.sessions.values()) this.sendTitanState(s);
+  }
+
+  /** Acorda o Titã `index`: a vida vem do banco (global; reinício não enche de novo). */
+  private async titanAwaken(era: number, index: number, t: number, forced: boolean): Promise<void> {
+    const info = TITAN_BY_INDEX.get(index);
+    const start = this.f3.era?.startsAt ?? t;
+    if (!info) return;
+    const sleeps = forced ? t + 86_400_000 : titanSleepsAt(start, index);
+    const row = (await this.fase3!.titans(era)).find((r) => r.titan === index) ?? await this.fase3!.awaken(era, index, TITAN_EVENT.hp(index), new Date(sleeps));
+    if (row.defeatedAt || row.hp <= 0) return;
+    const at = TITAN_EVENT.at;
+    const v = this.spawnMonster({ ...at }, t, TITAN_EVENT.map, `tita_${index}`, true);
+    const m = this.monsters.get(v.id);
+    if (!m) return;
+    (m as { home?: Point }).home = undefined;                 // não renasce sozinho: o Titã cai uma vez por Era
+    m.zone = { x: at.x - 9, y: at.y - 8, w: 18, h: 16 };
+    (m as { maxHp: number }).maxHp = row.maxHp;
+    m.hp = row.hp;
+    m.titan = index;
+    this.f3.titan = { era, index, monsterId: m.id, sleepsAt: Math.max(row.sleepsAt, forced ? sleeps : 0), saved: new Map(), forced };
+    this.broadcastMap(m.map, { type: 'hit', target: 'monster', id: m.id, amount: 0, kind: 'damage', hp: m.hp, maxHp: m.maxHp });
+    this.broadcast({ type: 'announce', message: `${info.icon} O Titã ${info.name} despertou na Clareira Queimada! Quem causar mais dano vira o Portador até o fim da Era.` });
+    for (const s of this.sessions.values()) this.sendTitanState(s, t);
+  }
+
+  /** Passou o dia: o Titã volta a dormir (sem Portador nesta Era). */
+  private titanSleep(cur: NonNullable<GameWorld['f3']['titan']>, t: number): void {
+    const m = this.monsters.get(cur.monsterId);
+    this.f3.titan = null;
+    if (!m) return;
+    void this.flushTitanOf(cur, m.hp);
+    this.monsters.delete(m.id);
+    this.broadcastMap(m.map, { type: 'monster_died', id: m.id, killerId: '' });
+    const info = TITAN_BY_INDEX.get(cur.index);
+    if (info) this.broadcast({ type: 'announce', message: `${info.icon} O Titã ${info.name} voltou a dormir. Ninguém o derrubou nesta Era.` });
+    for (const s of this.sessions.values()) this.sendTitanState(s, t);
+  }
+
+  /** Grava a vida global e o dano de cada um (a cada 15 s, no fim e no desligamento). */
+  async flushTitan(): Promise<void> {
+    const cur = this.f3.titan;
+    if (!cur) return;
+    const m = this.monsters.get(cur.monsterId);
+    if (m) await this.flushTitanOf(cur, m.hp, m);
+  }
+
+  private async flushTitanOf(cur: NonNullable<GameWorld['f3']['titan']>, hp: number, m?: Monster): Promise<void> {
+    const store = this.fase3;
+    if (!store) return;
+    const rows: { playerId: string; damage: number }[] = [];
+    if (m) {
+      for (const [id, dmg] of m.damageBy) {
+        const sent = cur.saved.get(id) ?? 0;
+        if (dmg > sent) { rows.push({ playerId: id, damage: dmg - sent }); cur.saved.set(id, dmg); }
+      }
+    }
+    try {
+      await store.addDamage(cur.era, cur.index, rows);
+      await store.saveTitan(cur.era, cur.index, hp);
+    } catch (err) {
+      for (const r of rows) cur.saved.set(r.playerId, (cur.saved.get(r.playerId) ?? 0) - r.damage);   // tenta de novo
+      this.log.warn({ err }, 'titãs: falha ao gravar a vida/dano');
+    }
+  }
+
+  /** O Titã caiu: grava o dano, coroa o MVP (o 1º em dano que ainda não porta outro Titã) e anuncia. */
+  private titanDefeated(m: Monster, t: number): void {
+    const cur = this.f3.titan;
+    if (!cur || cur.monsterId !== m.id) return;
+    this.f3.titan = null;
+    const info = TITAN_BY_INDEX.get(cur.index)!;
+    const store = this.fase3;
+    void (async () => {
+      try {
+        await this.flushTitanOf(cur, 0, m);
+        const id = store ? await store.crown(cur.era, cur.index, titleCode(info)) : null;
+        if (!id) { this.broadcast({ type: 'announce', message: `${info.icon} O Titã ${info.name} caiu!` }); return; }
+        await this.reloadBearers(cur.era);
+        const name = this.f3.names.get(id) ?? 'Um ninja';
+        this.broadcast({ type: 'announce', message: `${info.icon} O Titã ${info.name} caiu! ${name} é o ${info.title} até o fim da Era.` });
+        const s = this.sessions.get(id);
+        if (s) this.sendTo(s, { type: 'notice', text: `${info.icon} Você é o ${info.title}! Passiva: ${info.passive} Habilidade Suprema (botão no HUD): ${info.active}`, tone: 'good' });
+      } catch (err) {
+        this.log.warn({ err }, 'titãs: falha ao coroar o Portador');
+      }
+    })();
+    void t;
+  }
+
+  /**
+   * Loot dos chefes (loot.ts): cada ninja que tirou 5% ou mais da vida rola uma vez (Lendário 0,05%, Épico 0,5%,
+   * Raro 3%, Comum 10%). Sem a v37: nada cai.
+   */
+  private bossLoot(m: Monster, source: string): void {
+    const store = this.fase3;
+    if (!store || !this.f3.world) return;
+    for (const [id, dmg] of m.damageBy) {
+      if (dmg < m.maxHp * TITAN_EVENT.lootShare) continue;
+      const rarity = rollRarity(this.secureRandom());
+      if (!rarity) continue;
+      const relic = pickRelic(rarity, this.secureRandom());
+      void store.grantLoot(id, relic.code, source).then((items) => {
+        const s = this.sessions.get(id);
+        const R = RARITY[rarity];
+        if (s) {
+          s.items = items;
+          this.sendInventory(s);
+          this.refreshStats(s, this.now());
+          this.sendTo(s, { type: 'notice', text: `${R.icon} ${R.name}! Você ganhou: ${relic.name} (${relic.effect})`, tone: 'good' });
+        }
+        if (rarity === 'lendario' || rarity === 'epico') this.broadcast({ type: 'announce', message: `${R.icon} ${this.f3.names.get(id) ?? s?.username ?? 'Um ninja'} conseguiu um item ${R.name}: ${relic.name}!` });
+      }).catch((err: unknown) => this.log.warn({ playerId: id, err }, 'loot: falha ao entregar'));
+    }
+  }
+
+  /** O botão da Habilidade Suprema do Portador (1 minuto de efeito, 20 minutos de recarga; vale em todos os modos). */
+  private titanSupreme(s: Session, t: number): void {
+    const b = this.f3.bearers.get(s.id);
+    if (!b) return;
+    if (s.dead || t < s.stunnedUntil) return;
+    if (t < b.cdUntil) return this.sendTo(s, { type: 'notice', text: `Habilidade Suprema: espere ${Math.ceil((b.cdUntil - t) / 60_000)} min.`, tone: 'bad' });
+    const info = TITAN_BY_INDEX.get(b.titan)!;
+    b.cdUntil = t + TITAN_EVENT.activeCooldownMs;
+    s.titanActive = { titan: b.titan, until: t + TITAN_EVENT.activeMs };
+    const era = this.f3.era?.id;
+    if (era !== undefined) void this.fase3?.setActiveCooldown(era, s.id, new Date(b.cdUntil)).catch((err: unknown) => this.log.warn({ err }, 'titãs: falha ao gravar a recarga'));
+    const B = BEARER;
+    const near = (r: number) => this.targetsFor(s).filter((x) => Math.hypot(x.x - s.x, x.y - s.y) <= r);
+    const base = this.basicBase(s);
+    switch (b.titan) {
+      case 1: for (const x of near(B.blast.radius)) this.hitTarget(x, Math.round(base * B.blast.mult), s, t, 'skill', 'tita_chama'); break;
+      case 2: {
+        s.hp = s.stats.maxHp;
+        for (const [code] of [...s.effects]) if (EFFECTS[code].kind !== 'buff') this.dropEffect({ kind: 'player', id: s.id, x: s.x, y: s.y, session: s }, code, t);
+        s.stunnedUntil = 0; s.rootedUntil = 0;
+        break;
+      }
+      case 3: {
+        const hits = near(B.chain.radius);
+        for (const x of hits) this.applyStatus(x, 'stunned', B.chain.stunMs, t, s);
+        for (const x of hits.sort((p, q) => distance(s, p) - distance(s, q)).slice(0, B.chain.jumps)) this.hitTarget(x, Math.round(base * B.chain.mult), s, t, 'skill', 'tita_trovao');
+        break;
+      }
+      case 4: s.windUntil = t + B.windActive.ms; s.invisUntil = t + B.windActive.ms; break;
+      case 5: s.absorb = { hp: Math.round(s.stats.maxHp * B.rockActive.shieldPct), until: t + TITAN_EVENT.activeMs }; break;
+      case 6: {
+        const prey = near(B.execute.range).filter((x) => (x.kind === 'player' ? x.session.hp / x.session.stats.maxHp : x.monster.hp / x.monster.maxHp) < B.execute.below
+          && !(x.kind === 'monster' && this.monsterType(x.monster.type).boss));
+        const x = prey.sort((p, q) => distance(s, p) - distance(s, q))[0];
+        if (x) this.hitTarget(x, x.kind === 'player' ? x.session.hp + (x.session.absorb?.hp ?? 0) + 1 : x.monster.hp, s, t, 'skill', 'tita_noite');
+        break;
+      }
+      case 7: for (const x of near(B.invert.radius)) this.applyEffect(x, 'invertido', t, B.invert.ms, undefined, s); break;
+      case 8: {
+        const hits = this.targetsFor(s).filter((x) => isInArc(s, s.fx, s.fy, x, B.cone.range, B.cone.arcDeg));
+        for (const x of hits) this.hitTarget(x, Math.round(base * B.cone.mult), s, t, 'skill', 'tita_corpo');
+        break;
+      }
+      case 9: {
+        for (let i = 0; i < B.blades.count; i++) {
+          const a = (i / B.blades.count) * Math.PI * 2;
+          this.launch(s, Math.cos(a), Math.sin(a), { weapon: 'kunai', speed: B.blades.speed, range: B.blades.range, damage: Math.round(base * B.blades.mult), radius: 0, volley: new Set(), hitRadius: 0.5, source: 'skill' });
+        }
+        break;
+      }
+      case 10: {
+        const allies = [...(this.mapPlayers.get(s.map) ?? [])].filter((o) => !o.dead && (o === s || !this.canHurt(s, o, t)) && Math.hypot(o.x - s.x, o.y - s.y) <= B.heal.radius);
+        for (const o of allies) { o.hp = o.stats.maxHp; this.sendStats(o, t); this.broadcastMap(o.map, { type: 'hit', target: 'player', id: o.id, amount: 0, kind: 'heal', hp: shownHp(o.hp), maxHp: o.stats.maxHp }); }
+        break;
+      }
+      default:
+    }
+    this.broadcastMap(s.map, { type: 'fase3_fx', kind: 'supreme', playerId: s.id, titan: b.titan, x: round2(s.x), y: round2(s.y), ms: b.titan === 4 ? B.windActive.ms : TITAN_EVENT.activeMs });
+    this.sendTo(s, { type: 'notice', text: `${info.icon} Habilidade Suprema: ${info.active}`, tone: 'good' });
+    this.sendStats(s, t);
+    this.sendTitanState(s, t);
+  }
+
+  /** /admin mundo, tita, portador (Fase 3). */
+  private adminFase3(s: Session, c: Extract<AdminCommand, { cmd: 'mundo' | 'tita' | 'portador' }>, t: number): void {
+    const store = this.fase3;
+    const say = (text: string, tone: 'info' | 'good' | 'bad' = 'info') => this.sendTo(s, { type: 'notice', text, tone });
+    if (!store) return say('Admin: sem banco.', 'bad');
+    const { id } = s;
+    if (c.cmd === 'mundo') {
+      this.queueTask(s, async () => {
+        if (!this.f3.world) return this.notice(id, 'Admin: rode a migração v37 no Neon primeiro.', 'bad');
+        await store.setWorldOverride(id, c.stage);
+        this.f3.override = c.stage;
+        await this.fase3Maintenance();
+        for (const x of this.sessions.values()) { this.sendWorldState(x); this.enforceAccess(x); }
+        this.notice(id, c.stage === null ? `Admin: o mundo segue a população (${this.f3.active} ativos, marco ${this.f3.stage}).` : `Admin: mundo forçado no marco ${c.stage}.`, 'good');
+      });
+      return;
+    }
+    if (c.cmd === 'tita') {
+      this.queueTask(s, async () => {
+        if (!this.f3.titans) await this.fase3Maintenance();
+        if (!this.f3.titans || !this.f3.era) return this.notice(id, 'Admin: precisa da v36 e de uma Era aberta (v27).', 'bad');
+        if (this.f3.titan) this.titanSleep(this.f3.titan, this.now());
+        await this.fase3Maintenance(c.titan);
+        this.notice(id, this.f3.titan ? `Admin: Titã ${c.titan} acordado na Clareira Queimada.` : 'Admin: esse Titã já caiu nesta Era.', this.f3.titan ? 'good' : 'bad');
+      });
+      return;
+    }
+    // portador: dá o título e a passiva (teste)
+    const target = c.username === 'eu' ? s : [...this.sessions.values()].find((x) => x.username.toLowerCase() === c.username.toLowerCase());
+    if (!target) return say('Admin: esse ninja não está online.', 'bad');
+    this.queueTask(s, async () => {
+      const era = this.f3.era;
+      if (!this.f3.titans || !era) return this.notice(id, 'Admin: precisa da v36 e de uma Era aberta.', 'bad');
+      const info = TITAN_BY_INDEX.get(c.titan)!;
+      await store.addDamage(era.id, c.titan, [{ playerId: target.id, damage: 1 }]);
+      const got = await store.crown(era.id, c.titan, titleCode(info));
+      await this.reloadBearers(era.id);
+      this.notice(id, got ? `Admin: ${target.username} é o ${info.title}.` : 'Admin: esse Titã já tem Portador nesta Era (ou o ninja já porta outro).', got ? 'good' : 'bad');
+    });
+    void t;
   }
 
   // ---------------------------------------------------------------- v60: Vínculo Ancestral e Estado Primal (vinculo.ts)
@@ -1926,6 +2423,7 @@ export class GameWorld {
     else if (parsed.type === 'watch') this.watchArena(session, parsed.arena);
     else if (parsed.type === 'trio') this.trioAction(session, parsed.action, parsed.name, parsed.leaderId);
     else if (parsed.type === 'vinculo') this.vinculoAction(session, parsed.action, parsed.creature, t);
+    else if (parsed.type === 'fase3') this.fase3Action(session, parsed.action, t);
     else if (parsed.type === 'arenas') this.sendTo(session, { type: 'arenas', list: this.arenasView(), watching: session.watching ?? null });
     else this.endgameRequest(session, parsed, t);
     this.flushKicks();
@@ -2167,6 +2665,7 @@ export class GameWorld {
     if (c.cmd === 'pvp') return this.adminPvp(session, c.days, t);
     if (c.cmd === 'torneio') return this.adminJounin(session, c.action, c.days, c.username);
     if (c.cmd === 'bonusxp') return this.adminXpBonus(session, c);
+    if (c.cmd === 'mundo' || c.cmd === 'tita' || c.cmd === 'portador') return this.adminFase3(session, c, t);
     const store = this.admin;
     if (!store) return this.sendTo(session, { type: 'notice', text: 'Modo Administrador sem banco: aqui só o /admin invocar funciona.', tone: 'bad' });
     if (isEndgameAdmin(c)) {
@@ -2419,7 +2918,7 @@ export class GameWorld {
   }
 
   /** Comandos de admin no banco. O alvo online vê a ficha nova na hora (sem anúncio, sem XP de abate). */
-  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | { cmd: 'clima' } | { cmd: 'hora' } | { cmd: 'pvp' } | { cmd: 'torneio' } | { cmd: 'bonusxp' } | EndgameAdminCommand>): Promise<void> {
+  private async runAdmin(adminId: string, store: AdminStore, c: Exclude<AdminCommand, { cmd: 'help' } | { cmd: 'spawn' } | { cmd: 'ir' } | { cmd: 'clima' } | { cmd: 'hora' } | { cmd: 'pvp' } | { cmd: 'torneio' } | { cmd: 'bonusxp' } | { cmd: 'mundo' } | { cmd: 'tita' } | { cmd: 'portador' } | EndgameAdminCommand>): Promise<void> {
     const say = (text: string, tone: 'info' | 'good' | 'bad') => this.notice(adminId, text, tone);
     // "eu" (só na patente): o próprio admin
     const username = (c.cmd === 'rank' || c.cmd === 'resetclasses') && c.username === 'eu' ? (this.sessions.get(adminId)?.username ?? c.username) : c.username;
@@ -2551,7 +3050,7 @@ export class GameWorld {
    */
   private cast(session: Session, skill: Skill, t: number, targetId?: string, dir?: [number, number], resolving = false): void {
     // Maestria (Fase 0): os números no nível de uso deste jogador (efeito, alcance e recarga; o dano e a cura, no golpe)
-    const cfg = this.primalControl(session, withMastery(this.config.combat.skills[skill], skill, jutsuLevel(session.jutsus.get(skill) ?? 0)), t);
+    const cfg = this.fase3Cfg(session, skill, this.primalControl(session, withMastery(this.config.combat.skills[skill], skill, jutsuLevel(session.jutsus.get(skill) ?? 0)), t));
     const fail = (reason: CastFailReason) => this.sendTo(session, { type: 'cast_failed', skill, reason });
     // Qualquer TENTATIVA de usar habilidade encerra a meditação (mesmo que a habilidade falhe).
     this.stopMeditation(session, 'cast');
@@ -2996,6 +3495,7 @@ export class GameWorld {
     }
     for (const o of this.mapPlayers.get(s.map) ?? []) {
       if (!this.canHurt(s, o, t)) continue;
+      if (o.invisUntil > t) continue;                          // v61: invisível (Suprema do Vento Cortante)
       const at = back > 0 ? pointAt(o.trail, t - back, o) : o;
       out.push({ kind: 'player', id: o.id, x: at.x, y: at.y, session: o });
     }
@@ -3172,6 +3672,7 @@ export class GameWorld {
       if (t < mark.until) { amount = Math.round(amount * (1 + mark.bonus)); markSlow = mark.slowMs; }
       attacker.umbraMark = null;
     }
+    amount = this.fase3Outgoing(attacker, target, amount, source, label);   // v61/v62: Portador e relíquias
     // v60: Estado Primal do Tigre: +40% de dano físico (Ataque Básico e jutsus de Taijutsu e Armas)
     if (this.primalOn(attacker, 'tigre', t) && (source === 'attack' || ['taijutsu', 'weapons'].includes(JUTSU_BY_CODE.get(label as Skill)?.class ?? ''))) {
       amount = Math.round(amount * PRIMAL.tigerPhysical);
@@ -3195,6 +3696,7 @@ export class GameWorld {
     }
     if (hurt && markSlow > 0 && this.stillThere(target)) this.applyEffect(target, 'lentidao', t, markSlow, undefined, attacker);
     if (hurt && source === 'attack') this.primalBasicHit(attacker, target, t);   // v60: Lobo sangra, Águia empurra e revela
+    if (hurt) this.fase3AfterHit(attacker, target, Math.max(0, hpBefore - Math.max(0, target.kind === 'monster' ? target.monster.hp : target.session.hp)), source, label, t);
     // v51: marca que detona (Marca Incandescente): o próximo JUTSU de quem marcou explode nela (parte do dano dele a mais)
     const brand = attacker.brand;
     if (hurt && brand && brand.targetId === target.id && source === 'skill' && label !== 'detonacao') {
@@ -3234,6 +3736,10 @@ export class GameWorld {
       if (!(dd?.phase === 'round' && sideOf(dd, x.id) && !dd.down.has(x.id))) return;
     }
     if (x.kind === 'player' && (CC_EFFECTS as readonly string[]).includes(code) && this.primalOn(x.session, 'tartaruga', t)) return;   // v60
+    if ((CC_EFFECTS as readonly string[]).includes(code)) {     // v61/v62: Pesadelo, Firmeza, Rocha
+      ms = this.fase3Cc(x, ms ?? EFFECTS[code].defaultMs, source, t);
+      if (ms <= 0) return;
+    }
     if (x.kind === 'player' && (code === 'sono' || code === 'silencio' || code === 'invertido')) {
       ms = this.ccGate(x.session, source, code, ms ?? EFFECTS[code].defaultMs, t);
       if (ms <= 0) return;
@@ -3979,6 +4485,8 @@ export class GameWorld {
    */
   private applyStatus(target: Target, status: MonsterStatus, ms: number, t: number, source?: Session): void {
     if (target.kind === 'player' && this.primalOn(target.session, 'tartaruga', t)) return;   // v60: imune a controle
+    ms = this.fase3Cc(target, ms, source, t);                   // v61/v62: Pesadelo +20%, Firmeza -15%, Rocha imune
+    if (ms <= 0) return;
     const who = target.kind === 'monster' ? target.monster : target.session;
     if (target.kind === 'player' && source) {
       if (t < target.session.intangibleUntil) return;          // Forma Fantasma: nada de atordoar
@@ -4167,6 +4675,7 @@ export class GameWorld {
     await Promise.all([...this.sessions.values()].map((s) => this.flushUsage(s)));
     await this.persistPositions();   // v59: deploy: o último lugar de todos antes de desligar
     await Promise.all([...this.sessions.values()].map((s) => this.flushVinculoXp(s)));   // v60
+    await this.flushTitan();                                     // v61: a vida global e o dano do Titã
     // v37: no desligamento (deploy), espera também as gravações na fila de cada jogador (Rito, compras, linhagem...).
     const until = Date.now() + maxWaitMs;
     while (Date.now() < until && [...this.sessions.values()].some((s) => s.profileBusy || s.profileQueue.length > 0)) {
@@ -4420,7 +4929,7 @@ export class GameWorld {
     const before = s.stats;
     s.statPoints = statPoints;
     s.attributes = { ...attributes };
-    s.stats = this.statsFor(s.village, s.attributes, s.level);
+    s.stats = this.withRelics(s, this.statsFor(s.village, s.attributes, s.level));
     if (!s.dead) {
       s.hp = Math.min(s.stats.maxHp, s.hp + Math.max(0, s.stats.maxHp - before.maxHp));
       s.chakra = Math.min(s.stats.maxChakra, s.chakra + Math.max(0, s.stats.maxChakra - before.maxChakra));
@@ -4520,6 +5029,8 @@ export class GameWorld {
     if (type.boss) {
       const names = winners.map((w) => w.username);
       this.broadcast({ type: 'announce', message: `${names.slice(0, 4).join(', ')}${names.length > 4 ? ' e mais' : ''} derrotaram o ${type.boss.name}!` });
+      if (m.titan) this.titanDefeated(m, t);                   // v61: o MVP vira o Portador
+      this.bossLoot(m, m.type);                                // v62: loot de raridade para quem tirou 5% ou mais
     }
     for (const who of winners) {
       const ryo = pay.min + Math.floor(this.random() * (pay.max - pay.min + 1));
@@ -5063,6 +5574,7 @@ export class GameWorld {
   /** Candidatura a Kage: nível 60, com o Diretor. Registrada; a eleição vem numa versão futura. */
   private applyKage(session: Session): void {
     if (!this.near(session, 'director')) return this.sendError(session, 'DIRECTOR_TOO_FAR');
+    if (!featureOpen(this.worldStage(), 'kage')) return this.sendTo(session, { type: 'notice', text: 'A Eleição de Kage abre quando o mundo chegar a 100 ninjas ativos.', tone: 'bad' });   // v62
     if (session.level < this.config.combat.rankLevels.kage) {
       return this.sendTo(session, { type: 'notice', text: `A candidatura a Kage é no nível ${this.config.combat.rankLevels.kage}.`, tone: 'bad' });
     }
@@ -5120,6 +5632,11 @@ export class GameWorld {
       if (t - session.lastMissionAt < this.config.missionRequestEveryMs) return;
       session.lastMissionAt = t;
       return this.sendTo(session, { type: 'travel_options', npcId: npc.id, options: this.travelOptions(session) });
+    }
+    if (npc.role === 'cronista') {                           // v62: a Crônica das Eras
+      if (t - session.lastMissionAt < this.config.missionRequestEveryMs) return;
+      session.lastMissionAt = t;
+      return this.talkChronicler(session);
     }
     if (npc.id === 'director' || npc.id.startsWith('tutor_')) {
       if (t - session.lastMissionAt < this.config.missionRequestEveryMs) return;
@@ -5503,6 +6020,7 @@ export class GameWorld {
       dmg -= took;
       if (session.absorb.hp <= 0) session.absorb = undefined;
     }
+    if (dmg > 0 && relicOn(session.items, 'reliquia_r_couraca')) dmg = Math.round(dmg * (1 - RELIC.damageCut));   // v62
     // v60: Lesma: divide 30% do dano com ela; no Estado Primal da Lesma, 50% menos dano
     if (dmg > 0 && this.primalOn(session, 'lesma', t)) dmg = Math.round(dmg * (1 - PRIMAL.slugDamageCut));
     const slug = dmg > 0 ? this.creaturesOf(session).find((c) => c.creature!.kind === 'lesma' && c.hp > 0) : undefined;
@@ -5540,8 +6058,10 @@ export class GameWorld {
         return;
       }
     }
+    if (session.hp <= 0 && this.tryRevive(session, t)) dmg = Math.max(0, dmg);   // v62: Relíquia do Renascer (uma vez por Era)
     const maxHp = session.stats.maxHp;
     this.broadcastMap(session.map, { type: 'hit', target: 'player', id: session.id, amount: dmg, kind: 'damage', hp: shownHp(session.hp), maxHp, ...(shielded ? { shielded: true } : {}) });
+    this.lastBreath(session, t);                                 // v62: Relíquia do Último Fôlego
     session.sentHp = shownHp(session.hp);
     if (session.hp <= 0) {
       const arena = this.arenaOf(session);
@@ -6867,6 +7387,7 @@ export class GameWorld {
         this.log.info({}, 'torneio: migração v27 encontrada');
       }
       const era = await store.current();
+      this.f3.era = era ? { id: era.id, startsAt: era.startsAt.getTime() } : null;   // v61: os Titãs seguem a Era
       const was = `${this.jouninOpen(this.now())}:${this.jounin?.stage}`;
       this.jounin = era?.jounin ? { seasonId: era.id, startsAt: era.jounin.startsAt.getTime(), endsAt: era.jounin.endsAt.getTime(), stage: era.stage, finalReady: era.finalReady } : null;
       await this.refreshFinal();
@@ -7286,7 +7807,7 @@ export class GameWorld {
     }
     m.tauntId = undefined;
     const layout = this.layout(m.map);
-    const ok = (s: Session) => s.map === m.map && !s.dead && !s.closed && !inSafeZone(layout, s.x, s.y);
+    const ok = (s: Session) => s.map === m.map && !s.dead && !s.closed && !inSafeZone(layout, s.x, s.y) && s.invisUntil <= this.now();
     let target: Session | undefined;
     const current = m.targetId ? this.sessions.get(m.targetId) : undefined;
     if (current && ok(current) && distance(m, current) <= ai.aggroRange * 2) target = current;
@@ -7489,6 +8010,7 @@ export class GameWorld {
       if (s.meditating) s.chakra = Math.min(s.stats.maxChakra, s.chakra + s.stats.meditationChakraPerSec * dt);
       // v60: Estado Primal da Aranha: o chakra volta sem meditar (no ritmo da meditação)
       else if (this.primalOn(s, 'aranha', t)) s.chakra = Math.min(s.stats.maxChakra, s.chakra + s.stats.meditationChakraPerSec * dt);
+      this.fase3Tick(s, t, dt);                                 // v61: Portador da Rocha (escudo) e da Vida (regenera)
       if (s.chakra >= s.stats.maxChakra && t - s.calmSince >= p.hpRegenCalmMs) s.hp = Math.min(s.stats.maxHp, s.hp + p.hpRegenPerSec * dt);
       // Etapa 2 do tutorial: meditando DENTRO da Sala de Controle até o chakra encher.
       if (s.tutorial === 1 && s.meditating && s.chakra >= s.stats.maxChakra && s.map === 'academy_interior'
@@ -7608,6 +8130,13 @@ export class GameWorld {
       this.chatLog.purge().catch((err: unknown) => this.log.warn({ err }, 'falha ao limpar o histórico do chat'));
     }, CHAT_HISTORY.purgeEveryMs);
     this.purgeTimer.unref();
+    // v61/v62: Fase 3: marco do mundo e Titãs a cada minuto; a vida global e o dano do Titã a cada 15 s
+    if (this.fase3) {
+      void this.fase3Maintenance();
+      let ticks = 0;
+      this.fase3Timer = setInterval(() => { ticks += 1; void (ticks % 4 === 0 ? this.fase3Maintenance() : this.flushTitan()); }, TITAN_EVENT.saveEveryMs);
+      this.fase3Timer.unref();
+    }
     // v59: o último lugar de quem está andando vai para o banco de tempos em tempos (se o servidor cair, perde no máximo 30 s)
     this.positionTimer = setInterval(() => void this.persistPositions(), POSITION_SAVE_MS);
     this.positionTimer.unref();
@@ -7642,6 +8171,7 @@ export class GameWorld {
     if (this.seasonTimer) clearInterval(this.seasonTimer);
     if (this.xpBonusTimer) clearInterval(this.xpBonusTimer);
     if (this.positionTimer) clearInterval(this.positionTimer);
+    if (this.fase3Timer) clearInterval(this.fase3Timer);
     this.timer = undefined;
     this.purgeTimer = undefined;
     this.endgameTimer = undefined;
@@ -7675,8 +8205,9 @@ export class GameWorld {
 
   /** Quem entra em qual mapa: a vila dele e as aliadas (renegado: só o Refúgio). Sem o módulo de vilas: tudo aberto. */
   private accessOf(s: Session): MapAccess | undefined {
-    if (!this.on('vilas')) return undefined;
-    return { village: s.village, allies: alliesOf(s.village, this.diplomacy(), this.now()) };
+    const locked = this.lockedNow();                           // v62: mapas que o marco do mundo ainda tranca (névoa)
+    if (!this.on('vilas')) return locked.length ? { village: s.village, allies: [], locked, villagesOff: true } : undefined;
+    return { village: s.village, allies: alliesOf(s.village, this.diplomacy(), this.now()), ...(locked.length ? { locked } : {}) };
   }
 
   /** Casa do ninja: a praça da vila dele (renegado: o Refúgio). Sem o módulo: a Vila de sempre. */
@@ -7832,7 +8363,8 @@ export class GameWorld {
     const here = this.layout(s.map);
     const allowed = (m: MapLayout | undefined) => {
       if (!m) return false;
-      if (!access) return !m.refuge && !m.conflict && !(m.village && m.village !== 'vila_1');
+      if (access?.locked?.includes(m.id)) return false;      // v62: trancado pelo marco do mundo
+      if (!access || access.villagesOff) return !m.refuge && !m.conflict && !(m.village && m.village !== 'vila_1');
       if (m.conflict) return this.on('pvp');
       return mapAllowed(m, access);
     };
@@ -7937,6 +8469,7 @@ export class GameWorld {
     const { id, username } = s;
     const say = (text: string, tone: 'info' | 'good' | 'bad' = 'info') => this.notice(id, text, tone);
     const refuse = (r: { ok: false; text: string }) => say(r.text, 'bad');
+    if (m.type === 'kage_vote' && !featureOpen(this.worldStage(), 'kage')) return say('A Eleição de Kage abre quando o mundo chegar a 100 ninjas ativos.', 'bad');   // v62
     const kageVillage = s.kageOf;
     this.queueTask(s, async () => {
       switch (m.type) {
@@ -8086,10 +8619,11 @@ export class GameWorld {
    */
   private travelOptions(s: Session): TravelOption[] {
     const out: TravelOption[] = [];
+    const locked = this.lockedNow();                           // v62: o que o mundo ainda não abriu nem aparece
     const home = this.homeOf(s.village);
     if (home.map !== s.map) out.push({ to: 'casa', name: s.village ? villageName(s.village) : 'Refúgio dos Renegados', cost: 0 });
-    if (s.village !== null && s.map !== 'map_2') out.push({ to: 'map_2', name: 'Floresta', cost: 0 });
-    if (s.map !== 'zona_conflito') {
+    if (s.village !== null && s.map !== 'map_2' && !locked.includes('map_2')) out.push({ to: 'map_2', name: 'Floresta', cost: 0 });
+    if (s.map !== 'zona_conflito' && !locked.includes('zona_conflito')) {
       out.push({ to: 'zona_conflito', name: 'Zona de Conflito', cost: 0, ...(this.on('pvp') ? {} : { locked: 'Abre quando o servidor crescer.' }) });
     }
     for (const v of alliesOf(s.village, this.diplomacy(), this.now())) {

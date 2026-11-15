@@ -33,6 +33,10 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v61/v62 (migrações v36 e v37, Fase 3):** Titãs Ancestrais e Portadores (passiva e Suprema em todos os modos), Progressão
+  de Mundo (marcos 30/60/100/150/250, névoa, O Cronista; começa forçado em 250) e Loot das relíquias. Branch `ccr-fase3`
+  até o Victor rodar a v36 e a v37. Etapa 4 (clãs Bastião, Áspide, Garra, Zéfiro) parada nas propostas:
+  `docs/fase3-propostas.md`; os nomes das relíquias também esperam escolha.
 - **v60 (migração v35):** Vínculo Ancestral (8 criaturas, afinidade, Invocar no HUD) e Estado Primal, só no mapa aberto.
   Branch `ccr-vinculo` até o Victor rodar a v35 no Neon.
 - **v59 (migração v34):** o ninja volta sempre ao último lugar (posição gravada no banco), guarda de 2 min ao cair a conexão,

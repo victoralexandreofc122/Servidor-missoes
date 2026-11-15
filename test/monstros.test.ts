@@ -30,7 +30,7 @@ const TYPES = REALTIME.combat.monsterTypes;
 
 describe('sprites dos monstros', () => {
   it('um atlas por monstro de caça (e o chefe), servido como image/webp; nenhum a mais', () => {
-    const fighters = [REALTIME.combat.monsters.type, ...Object.keys(TYPES)].filter((t) => t !== 'dummy' && t !== 'sparring' && !['golem', 'clone_agua', 'sentinela_sombra', 'arsenal'].includes(t) && !t.startsWith('vinculo_'));   // v30/v53/v60: invocações e criaturas do Vínculo desenhadas por código
+    const fighters = [REALTIME.combat.monsters.type, ...Object.keys(TYPES)].filter((t) => t !== 'dummy' && t !== 'sparring' && !['golem', 'clone_agua', 'sentinela_sombra', 'arsenal'].includes(t) && !t.startsWith('vinculo_') && !t.startsWith('tita_'));   // v30/v53/v60/v61: invocações, criaturas do Vínculo e Titãs desenhados por código
     assert.deepEqual(Object.keys(art).sort(), [...new Set(fighters)].sort());
     assert.deepEqual([...MONSTER_ART_TYPES].sort(), Object.keys(art).sort());
     const files = loadPublicFiles();

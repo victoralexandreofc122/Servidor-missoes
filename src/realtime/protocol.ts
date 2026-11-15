@@ -251,6 +251,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   // v55: o trio do 3v3: convidar pelo nome, aceitar o convite de um líder e sair do trio
   z.object({ type: z.literal('trio'), action: z.enum(['invite', 'accept', 'leave']), name: z.string().min(3).max(24).optional(), leaderId: targetId.optional() }),
   // v60: Vínculo Ancestral (aba do menu e botões do HUD). dash = o avanço extra do Estado Primal do Tigre.
+  // v61/v62 (Fase 3): o estado do mundo e dos Titãs; a Habilidade Suprema do Portador
+  z.object({ type: z.literal('fase3'), action: z.enum(['state', 'supreme']) }),
   z.object({ type: z.literal('vinculo'), action: z.enum(['state', 'equip', 'summon', 'dismiss', 'primal', 'dash']), creature: z.enum(CREATURES).optional() }),
   // v55: espectador: assistir a luta de uma arena como fantasma (null = parar de assistir) e pedir a lista das lutas
   z.object({ type: z.literal('watch'), arena: z.enum(['vale_estatuas', 'arena_2', 'arena_3', 'arena_4']).nullable() }),
@@ -419,7 +421,7 @@ export interface NpcView {
   /** Mapa onde ele fica (o cliente só desenha os do mapa atual: lojista só dentro da loja). */
   map: MapId;
   /** O que ele faz: Mestre (Sala de Missões), Posto de Viagem, lojista, professor ou o Diretor da Academia. */
-  role: 'sensei' | 'travel' | 'shop' | 'tutor' | 'director';
+  role: 'sensei' | 'travel' | 'shop' | 'tutor' | 'director' | 'cronista';
   /** Lojista: falar com ele abre a loja (shop_open). */
   shop?: ShopKind;
   x: number;
@@ -672,6 +674,15 @@ export type ServerMessage =
   /** v55: o trio de quem recebe (para a fila do 3v3 em grupo): o líder, os membros e os convites que ele recebeu. */
   | { type: 'trio_state'; leaderId: string | null; members: { id: string; name: string; level: number }[]; invites: { leaderId: string; name: string }[] }
   | { type: 'vinculo_state' } & VinculoView
+  // v62: o marco do mundo (o que está trancado) e a Crônica do Cronista
+  | { type: 'world_state'; stage: number; active: number; forced: boolean; locked: string[]; next: number | null }
+  | { type: 'chronicle'; stage: number; chapters: { title: string; text: string; open: boolean }[] }
+  // v61: o Titã acordado (vida global), os Portadores da Era e o meu (recarga da Suprema)
+  | { type: 'titan_state'; awake: { index: number; name: string; icon: string; hp: number; maxHp: number; map: string } | null;
+      bearers: { titan: number; name: string; username: string }[]; mine: { titan: number; cdMs: number; activeMs: number } | null;
+      titans: { index: number; name: string; icon: string; color: string; passive: string; active: string }[] }
+  // v61/v62: o que todos veem: a Suprema do Portador, o Renascer, o escudo do Último Fôlego
+  | { type: 'fase3_fx'; kind: 'supreme' | 'revive' | 'shield'; playerId: string; titan?: number; x: number; y: number; ms?: number }
   // v60: o que todos no mapa veem do Vínculo: a fumaça da invocação, a aura do Primal, a esquiva, a teia, o crítico, o gato some
   | { type: 'vinculo_fx'; kind: 'summon' | 'primal' | 'primal_end' | 'cancel' | 'dodge' | 'web' | 'crit' | 'stealth' | 'reveal' | 'pool' | 'taunt'; playerId?: string; id?: string; creature?: Creature; x?: number; y?: number; r?: number; ms?: number; on?: boolean }
   /** v41: o Torneio da Temporada para quem recebe: aberto agora, até quando, se ele pode jogar e os pontos dele na era. */

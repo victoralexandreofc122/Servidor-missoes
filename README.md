@@ -240,6 +240,31 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v61/v62: Fase 3: Titãs, Progressão de Mundo e Loot (migrações v36 e v37)
+
+- **Titãs Ancestrais, o "Cinturão da Era" (v36):** 10 Titãs (Chama Eterna, Maré de Sangue, Trovão Ancestral, Vento
+  Cortante, Rocha Antiga, Noite Eterna, Pesadelo, Corpo Fechado, Mil Lâminas, Vida) acordam um por dia nos 10 primeiros
+  dias da Era, na Clareira Queimada. Vida global (gravada a cada 15 s; reinício não enche de novo). Quem não cai até o dia
+  seguinte volta a dormir. O MVP (mais dano) vira o Portador até o fim da Era (título; um Titã por ninja por Era: se o MVP
+  já porta outro, vai para o 2º em dano).
+- **Portadores:** passiva e Habilidade Suprema em TODOS os modos. Botão 🔱 no HUD (efeito de 1 min, recarga de 20 min,
+  gravada no banco). Passivas: queimadura no Básico; Água cura 20%; 10% de paralisar; +20% de velocidade e -10% de
+  recarga; escudo de 15% que volta a cada 10 s; x1,5 de costas; controles +20%; +30% no Básico e Taijutsu; +1 de alcance
+  nas Armas; 1% de vida por segundo fora de combate. Supremas: explosão, cura total e limpeza, atordoar em área e raio em
+  cadeia, invisível e +100% de velocidade (5 s), imune a controle e escudo de 50%, execução abaixo de 20%, inverter os
+  controles em volta, golpe em cone, 16 lâminas em volta, cura total dos aliados na tela.
+- **Progressão de Mundo (v37):** a população dos últimos 7 dias abre os marcos (30 Floresta e Rei Lodo; 60 Zona de
+  Conflito e PvP Livre; 100 Refúgio e Eleição de Kage; 150 Terra Sem Lei e Titãs; 250 expansão). Mapa trancado some do
+  Posto de Viagem e a saída vira névoa (a mesma regra no servidor e na predição). O marco não volta atrás. **Começa forçado
+  em 250 (tudo aberto)** para o Teste Alpha não perder a Floresta: `/admin mundo auto` liga a regra.
+- **O Cronista (Academia):** conta a Crônica das Eras capítulo por capítulo, até o marco do mundo; o resto está borrado.
+  O painel também mostra os 10 Titãs e os Portadores da Era.
+- **Loot (v37):** os chefes (Rei Lodo, Titãs) rolam uma relíquia para cada ninja que tirou 5% da vida: Lendário 0,05%,
+  Épico 0,5%, Raro 3%, Comum 10%. 11 relíquias (valem só de ter na mochila; nomes provisórios, ver
+  `docs/fase3-propostas.md`), entre elas "renasce com 30% uma vez por Era" e "Básico sempre queima".
+- **Admin:** `/admin mundo <0|30|60|100|150|250|auto>`, `/admin tita <1-10>` (acorda agora), `/admin portador <nome|eu> <1-10>`.
+- Sem a v36/v37 o jogo sobe igual (sem Titãs, sem trava de mapas, sem loot).
+
 ### v60: Vínculo Ancestral e Estado Primal (migração v35, `db/schema_v35_vinculo.sql`)
 
 - **Aba "🐾 Vínculo" no menu:** as 8 criaturas (Sapo, Lobo, Águia, Gato, Lesma, Aranha, Tartaruga, Tigre), cada uma com o

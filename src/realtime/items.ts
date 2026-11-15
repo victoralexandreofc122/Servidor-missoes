@@ -16,6 +16,7 @@
  * com a Sandália Ninja calçada; sem sapato, o pé fica descalço. `look` diz o desenho (sandália ou bota) e as 3 cores
  * (public/sprites.js tem a mesma tabela; o teste confere).
  */
+import { RARITY, RELICS } from './loot.js';
 import { CLASSES, CLASS_INFO, type ClassCode } from './jutsus.js';
 
 export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
@@ -23,7 +24,9 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
 export interface ItemDef {
   code: string;
   name: string;
-  kind: 'weapon' | 'scroll' | 'cape' | 'shoes' | 'accessory' | 'consumable';
+  kind: 'weapon' | 'scroll' | 'cape' | 'shoes' | 'accessory' | 'consumable' | 'relic';
+  /** v62: relíquia (loot dos chefes): o efeito, mostrado na mochila (vale só de ter). */
+  effect?: string;
   icon: string;
   /** Arma: dano somado ao Ataque Básico (escala com o atributo Armas). */
   damage?: number;
@@ -103,6 +106,8 @@ export const ITEMS: readonly ItemDef[] = [
   // v53 (migração v32): a Shuriken de mão, consumível. Qualquer classe usa: o botão ✴️ lança uma (Ataque Básico à
   // distância, escala com Armas) e gasta uma do inventário. Vende na loja de armas (10 ryō cada, de 10 em 10) e cai dos monstros.
   { code: 'shuriken', name: 'Shuriken', kind: 'consumable', icon: '✴️', price: 10, shop: 'weapons', hold: 'hand' },
+  // v62 (migração v37): relíquias, o loot dos chefes (loot.ts); valem só de ter na mochila
+  ...RELICS.map((r): ItemDef => ({ code: r.code, name: r.name, kind: 'relic', icon: RARITY[r.rarity].icon, price: null, shop: null, hold: 'body', effect: `${RARITY[r.rarity].name}: ${r.effect}` })),
   // v34 (migração v24): um pergaminho só, que serve para a Extração de qualquer classe sua. Os de classe ficam no catálogo, sem venda
   // (a v24 somou todos no pergaminho novo).
   { code: 'scroll_liso', name: 'Pergaminho', kind: 'scroll', icon: '📜', price: 150, shop: 'scrolls', hold: 'back' },

@@ -111,14 +111,20 @@ export function priceFactor(v: Village | null, d: Diplomacy, now: number): numbe
 export interface MapAccess {
   village: Village | null;
   allies: readonly Village[];
+  /** v62: mapas que o marco do mundo ainda tranca (a saída para eles vira névoa). */
+  locked?: readonly string[];
+  /** v62: o módulo de vilas está desligado (só a trava do mundo vale). */
+  villagesOff?: boolean;
 }
 
 /**
  * Pode entrar no mapa? Vila: só quem é dela ou de vila aliada. Refúgio: só renegado. O resto: todos.
  * Sem `access` (módulo de vilas desligado), tudo aberto.
  */
-export function mapAllowed(layout: { village?: string; refuge?: boolean } | undefined, access: MapAccess | undefined): boolean {
+export function mapAllowed(layout: { id?: string; village?: string; refuge?: boolean } | undefined, access: MapAccess | undefined): boolean {
   if (!layout || !access) return true;
+  if (layout.id && access.locked?.includes(layout.id)) return false;   // v62: trancado pelo marco do mundo (névoa)
+  if (access.villagesOff) return true;
   if (layout.refuge) return access.village === null;
   if (layout.village) return layout.village === access.village || access.allies.includes(layout.village as Village);
   return true;

@@ -1323,3 +1323,28 @@ Sem a v35 o jogo sobe igual: a aba Vínculo avisa que ainda não está ligado.
 1. ☰ → 🐾 Vínculo → Equipar uma criatura. Na Floresta, o botão da criatura aparece à esquerda dos jutsus: Invocar.
 2. Entre no Vale (Rankeado): a criatura some e os botões somem.
 3. Conferência no Neon: `SELECT creature_type, affinity_level, xp, equipped FROM game.player_vinculo LIMIT 10;`
+
+## Passo 51 — Titãs Ancestrais e Portadores (SQL v36)
+
+Rode `db/schema_v36_titas.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v35**. Pode rodar de novo
+sem erro.
+
+- `game.titan_awakenings` (vida global de cada Titã na Era), `game.titan_damage` (dano de cada ninja),
+  `game.titan_bearers` (o Portador e a recarga da Suprema) e os 10 títulos `TITA_*`.
+- Funções `game.titan_add_damage`, `game.titan_crown` e `game.titan_expire`.
+
+## Passo 52 — Progressão de Mundo e Loot (SQL v37)
+
+Rode `db/schema_v37_mundo_loot.sql` inteiro, **depois da v36**, e só então mescle o código. Pode rodar de novo sem erro.
+
+- `game.world_progression` (começa forçado no marco 250: tudo aberto). Para o mundo seguir a população, no jogo:
+  `/admin mundo auto`.
+- O tipo `relic` no catálogo, as 11 relíquias, `game.loot_drops` (registro) e `game.loot_revives` (Renascer por Era).
+
+### Testar no celular
+
+1. `/admin tita 1` e vá à Clareira Queimada (Floresta, ao sul): o Titã Chama Eterna, com a barra de chefe.
+2. `/admin portador eu 1`: o botão 🔱 aparece no HUD; toque: explosão em volta.
+3. Academia: fale com O Cronista (perto da entrada da sala 4).
+4. `/admin mundo 0`: a saída sul da Aldeia vira névoa. Volte com `/admin mundo 250` (ou `auto`).
+5. Conferência no Neon: `SELECT * FROM game.world_progression;` e `SELECT * FROM game.titan_bearers;`

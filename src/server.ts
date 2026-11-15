@@ -11,6 +11,7 @@ import { ENDGAME_SQL, makeEndgameStore } from './realtime/endgameStore.js';
 import { RANKED_SQL, makeRankedStore } from './realtime/rankedStore.js';
 import { makeSeasonStore } from './realtime/seasonStore.js';
 import { makeChampionStore } from './realtime/championStore.js';
+import { makeFase3Store } from './realtime/fase3Store.js';
 import { makeXpBonusStore } from './realtime/xpBonus.js';
 import { CHAT_SQL, makeChatLog } from './realtime/chatLog.js';
 import { attachGameGateway } from './realtime/gateway.js';
@@ -143,6 +144,7 @@ const gateway = attachGameGateway(publicApp.server, {
   xpBonus: makeXpBonusStore(db),                                  // bônus de XP do admin (v29, opcional)
   season: makeSeasonStore(db),                                    // eras e Torneio da Temporada (v27, opcional)
   champion: makeChampionStore(db),                                // Torneio dos Heróis e dos Vilões (v33, opcional)
+  fase3: makeFase3Store(db),                                      // Titãs, Progressão de Mundo e Loot (v36 e v37, opcionais)
   ranked: makeRankedStore(db),                                    // pontos e temporadas do rankeado (v15, opcional)
   watch: sentinel,                                                // site do jogo: tempo do loop, bugs, suspeitas
   log: gameLog,

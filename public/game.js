@@ -657,6 +657,7 @@ function handleMessage(msg) {
       if (msg.ninja) state.ninja = msg.ninja;
       renderShurikenButton();   // v59: a contagem do ✴️ já vem na entrada (antes ficava 0 até o próximo inventário)
       send({ type: 'vinculo', action: 'state' });   // v60: a aba Vínculo Ancestral e os botões do HUD
+      send({ type: 'fase3', action: 'state' });     // v61/v62: o marco do mundo e os Titãs
       manualUI.refreshBadge();                       // v38: capítulo do Pergaminho do Mestre ainda não lido: o ☰ pisca
       renderDisplayBoxes();
       pred.gates.tutorial = state.ninja.tutorialStep;   // portas da Academia: o MESMO passo do servidor
@@ -860,6 +861,23 @@ function handleMessage(msg) {
       break;
     case 'vinculo_fx':
       vinculoFx(msg, now);
+      break;
+    case 'world_state':
+      state.world3 = msg;
+      updateAccess();
+      if (!f3Ui.panel.hidden) renderChronicle();
+      break;
+    case 'titan_state':
+      state.titan = { ...msg, at: performance.now() };
+      renderSupreme();
+      if (!f3Ui.panel.hidden) renderTitans();
+      break;
+    case 'chronicle':
+      f3Ui.panel.hidden = false;
+      renderChronicle(msg);
+      break;
+    case 'fase3_fx':
+      fase3Fx(msg, now);
       break;
     case 'cast_interrupted': {
       castSounds.get(msg.playerId)?.stop(true);   // v57: interrompido, o som corta na hora
@@ -3083,7 +3101,10 @@ const npcVisible = (n) => n.role !== 'travel' || egOn(state.endgame, 'vilas');
 
 /** Acesso aos mapas na PREDIÇÃO: a mesma regra do servidor (vila proibida = parede). */
 function updateAccess() {
-  pred.gates.access = mapAccess(state.endgame, state.players.get(state.meId)?.faction);
+  const access = mapAccess(state.endgame, state.players.get(state.meId)?.faction);
+  const locked = state.world3?.locked ?? [];
+  // v62: o mundo ainda não abriu estes mapas: a saída vira névoa (a mesma regra do servidor)
+  pred.gates.access = locked.length ? { ...(access ?? { village: null, allies: [], villagesOff: true }), locked } : access;
 }
 
 /** O efeito na tela de cada poder da Akatsuki (os mesmos desenhos dos jutsus). Argila e Papel: o projétil já é o efeito. */
@@ -3815,7 +3836,8 @@ ui.equipInfo.addEventListener('click', () => {
       : def?.kind === 'cape' ? ' · capa (todos veem; dá para esconder no ⚙️)'
         : def?.kind === 'shoes' ? ' · sapato (vai nos pés; todos veem)'
           : def?.kind === 'accessory' ? ' · acessório (por cima da roupa; todos veem)'
-            : def?.kind === 'consumable' ? ` · ×${qty} · lance com o botão ✴️ (qualquer classe; gasta 1 por lançamento)` : ` · ×${qty}`;
+            : def?.kind === 'consumable' ? ` · ×${qty} · lance com o botão ✴️ (qualquer classe; gasta 1 por lançamento)`
+              : def?.kind === 'relic' ? ` · relíquia · ${def.effect ?? ''} (vale só de ter na mochila)` : ` · ×${qty}`;
   ui.equipDetail.replaceChildren(name, document.createTextNode(more));
 });
 ui.equipTurn.addEventListener('click', () => { eqDir = [0, 1, 3, 2][([0, 1, 3, 2].indexOf(eqDir) + 1) % 4]; drawEquipFigure(performance.now(), true); });
@@ -4384,8 +4406,8 @@ function vinculoFx(msg, now) {
 }
 
 /** Aura do Estado Primal: chamas da cor da criatura subindo em volta do boneco. */
-function drawPrimalAura(sx, sy, r, T, now, kind) {
-  const color = PRIMAL_COLOR[kind] || '#ffb347';
+function drawPrimalAura(sx, sy, r, T, now, kind, override) {
+  const color = (kind ? PRIMAL_COLOR[kind] : override) || '#ffb347';
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   const g = ctx.createRadialGradient(sx, sy, r * 0.3, sx, sy, r * 2.1);
@@ -4528,6 +4550,159 @@ function drawCreature(m, sx, sy, T, now) {
   // vida (só a sua e a de quem é inimigo; ícone em cima)
   const top = sy - T * (kind === 'aguia' ? 1.2 : 0.75);
   if (m.hp !== undefined && m.maxHp) drawHpBar(sx, top, T * 0.7, m.hp / m.maxHp, mine ? '#8fd18a' : '#e8737a');
+}
+
+// ---------------------------------------------------------------- v61/v62: Fase 3 (Titãs, Progressão de Mundo, Crônica)
+
+const f3Ui = {
+  supreme: $('supreme-btn'), supremeLabel: $('supreme-label'),
+  panel: $('chronicle-panel'), close: $('chronicle-close'), list: $('chronicle-list'), world: $('chronicle-world'), titans: $('titan-list'),
+};
+f3Ui.close.addEventListener('click', () => { f3Ui.panel.hidden = true; });
+onTap(f3Ui.supreme, () => send({ type: 'fase3', action: 'supreme' }));
+
+/** O botão da Habilidade Suprema: só para quem porta um Titã nesta Era (vale em todos os modos). */
+function renderSupreme() {
+  const mine = state.titan?.mine;
+  f3Ui.supreme.hidden = !mine;
+  if (!mine) return;
+  const pass = performance.now() - (state.titan.at || 0);
+  const info = state.titan.titans.find((x) => x.index === mine.titan);
+  const cd = Math.max(0, mine.cdMs - pass), active = Math.max(0, mine.activeMs - pass);
+  f3Ui.supreme.querySelector('.ico').textContent = info?.icon ?? '🔱';
+  f3Ui.supreme.classList.toggle('active', active > 0);
+  f3Ui.supreme.classList.toggle('locked', active <= 0 && cd > 0);
+  f3Ui.supremeLabel.textContent = active > 0 ? secs(active) : cd > 0 ? secs(cd) : '';
+  f3Ui.supreme.setAttribute('aria-label', `Habilidade Suprema: ${info?.active ?? ''}`);
+}
+setInterval(() => { if (state.titan) renderSupreme(); }, 500);
+
+/** O painel do Cronista: a Crônica (borrada onde o mundo ainda não chegou) e os 10 Titãs com os Portadores. */
+function renderChronicle(msg) {
+  if (msg) state.chronicle = msg;
+  const c = state.chronicle;
+  if (!c) return;
+  const w = state.world3;
+  f3Ui.world.textContent = w ? `O mundo: ${w.active} ninjas ativos (7 dias) · marco ${w.stage}${w.forced ? ' (forçado pelo admin)' : ''}${w.next ? ` · próximo: ${w.next}` : ''}.` : '';
+  f3Ui.list.textContent = '';
+  for (const ch of c.chapters) {
+    const box = document.createElement('div');
+    box.className = `chapter${ch.open ? '' : ' blur'}`;
+    const b = document.createElement('b'); b.textContent = ch.title;
+    const p = document.createElement('p'); p.textContent = ch.text;
+    box.append(b, p);
+    f3Ui.list.appendChild(box);
+  }
+  renderTitans();
+}
+
+function renderTitans() {
+  const ts = state.titan;
+  f3Ui.titans.textContent = '';
+  for (const t of ts?.titans ?? []) {
+    const card = document.createElement('div');
+    const awake = ts.awake?.index === t.index;
+    card.className = `tcard${awake ? ' awake' : ''}`;
+    const bearer = ts.bearers.find((b) => b.titan === t.index);
+    const line = (cls, text) => { const d = document.createElement('div'); d.className = cls; d.textContent = text; card.appendChild(d); };
+    line('tname', `${t.icon} ${t.index}. ${t.name}${awake ? ` · ACORDADO (${Math.round((ts.awake.hp / ts.awake.maxHp) * 100)}%)` : ''}`);
+    line('', `Passiva: ${t.passive}`);
+    line('', `Suprema: ${t.active}`);
+    line('tbearer', bearer ? `Portador: ${bearer.username}` : 'Sem Portador nesta Era');
+    card.querySelector('.tname').style.color = t.color;
+    f3Ui.titans.appendChild(card);
+  }
+}
+
+/** Efeitos que todos veem: a Suprema do Portador, o Renascer e o escudo do Último Fôlego. */
+function fase3Fx(msg, now) {
+  const p = state.players.get(msg.playerId);
+  if (msg.kind === 'supreme') {
+    const info = state.titan?.titans.find((x) => x.index === msg.titan);
+    if (p) {
+      addFloater(p.x, p.y - 1.4, `${info?.icon ?? '🔱'} ${info?.name ?? 'Suprema'}!`, info?.color ?? '#e0b0ff', 1.3);
+      p.primalUntil = now + Math.min(msg.ms ?? 60_000, 60_000); p.primalKind = null; p.titanColor = info?.color;
+      if (msg.titan === 4 && msg.playerId !== state.meId) p.invisUntil = now + (msg.ms ?? 5000);
+    }
+    particles.burst(['fire', 'water', 'lightning', 'wind', 'stone', 'shadow', 'illusion', 'taijutsu', 'weapons', 'heal'][(msg.titan ?? 1) - 1] || 'neutral', msg.x, msg.y, 3, 2.5);
+    sfxAt('announce', msg.x, msg.y, 0.8);
+    hitShake(160);
+  } else if (msg.kind === 'revive') {
+    if (p) addFloater(p.x, p.y - 1.2, 'Renasceu!', '#ffd23f', 1.3);
+    particles.burst('heal', msg.x, msg.y, 2.5, 1.2);
+    sfxAt('levelup', msg.x, msg.y, 0.9);
+  } else if (msg.kind === 'shield') {
+    state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 1.1, color: '#b57bff', start: now });
+  }
+}
+
+/**
+ * v62: névoa nas saídas para mapas que o mundo ainda não abriu (a mesma regra trava a passagem: movement.ts). Um muro
+ * de nuvens cinzentas que se mexem, na borda (passagem) ou na porta.
+ */
+function drawWorldFog(toScreenX, toScreenY, T, now) {
+  const locked = state.world3?.locked;
+  const lay = state.maps[state.mapId];
+  if (!locked?.length || !lay) return;
+  const puffs = (x0, y0, x1, y1) => {
+    const n = Math.max(3, Math.round(Math.hypot(x1 - x0, y1 - y0) * 1.6));
+    for (let i = 0; i < n; i++) {
+      const k = (i + 0.5) / n;
+      const wob = Math.sin(now / 900 + i * 1.7);
+      const x = toScreenX(x0 + (x1 - x0) * k) + wob * T * 0.15, y = toScreenY(y0 + (y1 - y0) * k) + Math.cos(now / 1100 + i) * T * 0.12;
+      const r = T * (0.7 + 0.2 * Math.sin(now / 700 + i * 2.3));
+      const g = ctx.createRadialGradient(x, y, r * 0.1, x, y, r);
+      g.addColorStop(0, 'rgba(232, 235, 244, 0.95)');
+      g.addColorStop(1, 'rgba(200, 205, 220, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+  };
+  for (const e of lay.exits || []) {
+    if (!locked.includes(e.map)) continue;
+    for (const d of [0.6, 1.4, 2.2]) {                 // três fileiras: um muro de névoa grosso
+      if (e.edge === 'north') puffs(e.from - 0.5, d, e.to + 0.5, d);
+      else if (e.edge === 'south') puffs(e.from - 0.5, lay.height - d, e.to + 0.5, lay.height - d);
+      else if (e.edge === 'west') puffs(d, e.from - 0.5, d, e.to + 0.5);
+      else puffs(lay.width - d, e.from - 0.5, lay.width - d, e.to + 0.5);
+    }
+  }
+  for (const door of lay.doors || []) if (locked.includes(door.map)) puffs(door.x, door.y + door.h / 2, door.x + door.w, door.y + door.h / 2);
+}
+
+/** v61: o Titã (desenhado por código): um colosso de pedra e energia da cor dele, olhos acesos, 2,6x o tamanho. */
+function drawTitan(m, sx, sy, T, now) {
+  const index = Number(m.type.slice(5));
+  const info = state.titan?.titans.find((x) => x.index === index);
+  const color = info?.color || '#ff6a2a';
+  const born = Math.max(0.05, Math.min(1, (now - m.bornAt) / 600));
+  const dying = m.diedAt ? Math.max(0, Math.min(1, (now - m.diedAt) / 900)) : 0;
+  const s = T * 0.78 * born * (1 - dying * 0.6);
+  const breath = Math.sin(now / 500) * s * 0.05;
+  const furious = m.hp > 0 && m.maxHp && m.hp / m.maxHp < 0.4;
+  ctx.save();
+  ctx.globalAlpha = 1 - dying;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(sx, sy + s * 0.9, s * 2.4, s * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+  // aura
+  const g = ctx.createRadialGradient(sx, sy - s * 2, s * 0.5, sx, sy - s * 2, s * 4);
+  g.addColorStop(0, `${color}${furious ? 'aa' : '66'}`); g.addColorStop(1, `${color}00`);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy - s * 2, s * 4, 0, Math.PI * 2); ctx.fill();
+  // pele de pedra tingida da cor do Titã (3 tons: sombra, corpo, luz), contorno escuro como o resto do jogo
+  const mix = (hex, k, base) => { const n = parseInt(hex.slice(1), 16); const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v, i) => Math.round(v * k + base[i] * (1 - k))); return `rgb(${c.join(',')})`; };
+  const ink = '#120c0a', body = mix(color, 0.45, [60, 52, 54]), light = mix(color, 0.7, [120, 110, 110]);
+  const box = (x, y, w, h, fill) => { ctx.fillStyle = fill; ctx.fillRect(Math.round(sx + x * s), Math.round(sy + y * s + breath), Math.round(w * s), Math.round(h * s)); ctx.strokeStyle = ink; ctx.lineWidth = Math.max(2, s * 0.12); ctx.strokeRect(Math.round(sx + x * s) + 0.5, Math.round(sy + y * s + breath) + 0.5, Math.round(w * s), Math.round(h * s)); };
+  box(-1.4, -0.4, 1.1, 1.3, body); box(0.3, -0.4, 1.1, 1.3, body);                 // pernas
+  box(-1.9, -3.4, 3.8, 3.1, body); box(-1.6, -3.1, 1.4, 1.2, light);              // tronco
+  box(-2.9, -3.2, 1, 2.6, body); box(1.9, -3.2, 1, 2.6, body);                    // braços
+  box(-1.1, -4.9, 2.2, 1.6, body);                                                  // cabeça
+  ctx.fillStyle = color;                                                            // runas e olhos acesos
+  ctx.fillRect(Math.round(sx - 0.15 * s), Math.round(sy - 2.8 * s + breath), Math.max(2, s * 0.3), Math.round(1.8 * s));
+  ctx.fillRect(Math.round(sx - 0.8 * s), Math.round(sy - 2.0 * s + breath), Math.round(1.6 * s), Math.max(2, s * 0.25));
+  ctx.fillRect(Math.round(sx - 0.7 * s), Math.round(sy - 4.4 * s + breath), Math.max(3, s * 0.4), Math.max(3, s * 0.3));
+  ctx.fillRect(Math.round(sx + 0.3 * s), Math.round(sy - 4.4 * s + breath), Math.max(3, s * 0.4), Math.max(3, s * 0.3));
+  ctx.restore();
+  if (m.hp !== undefined && m.maxHp && !m.diedAt) drawHpBar(sx, sy - s * 5.4, T * 1.6, m.hp / m.maxHp, color);
 }
 
 function renderShurikenButton() {
@@ -6927,6 +7102,7 @@ function draw(now) {
   state.effects.length = alive;
   drawDecals(toScreenX, toScreenY, T, now);           // v48: crateras e marcas de queimado
   drawGround(toScreenX, toScreenY, T, now);           // v29: zonas no chão e avisos de golpe
+  drawWorldFog(toScreenX, toScreenY, T, now);         // v62: névoa nas saídas para mapas que o mundo não abriu
   drawBarriers(toScreenX, toScreenY, T, now);         // v30: muros dos jutsus
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   vfx.draw(ctx, 'ground', toScreenX, toScreenY, T, dpr, now);
@@ -8289,6 +8465,7 @@ function drawMonster(m, sx, sy, T, now) {
   if (m.type === 'dummy' || m.type === 'sparring') return drawDummyMonster(m, sx, sy, T, now);
   if (SUMMON_TYPES.has(m.type)) return drawSummon(m, sx, sy, T, now);   // v30/v53: invocações
   if (isCreature(m)) return drawCreature(m, sx, sy, T, now);              // v60: Vínculo Ancestral
+  if (/^tita_\d+$/.test(m.type)) return drawTitan(m, sx, sy, T, now);     // v61: os Titãs Ancestrais
   const born = Math.max(0.05, Math.min(1, (now - m.bornAt) / 250));
   const art = monsterArtReady(m.type);
   // Com sprite, a morte é a animação dela (monsterSprites.js); sem, o slime encolhe e some em 0,45 s.
@@ -8802,6 +8979,7 @@ function drawBasicBuff(sx, sy, r, T, now, kind = 'fire') {
 }
 
 function drawPlayer(p, sx, sy, T, isMe, now) {
+  if (!isMe && now < (p.invisUntil || 0)) return;   // v61: Suprema do Vento Cortante (invisível para os outros)
   if (p.dead) ctx.globalAlpha = 0.45;
   const r = T * 0.38;
   const look = isMe && state.me.look ? state.me.look : p.look;
@@ -8841,7 +9019,7 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
     }
   }
   if (!p.dead && now < (p.basicBuffUntil || 0)) drawBasicBuff(sx, sy, r, T, now, p.basicBuffColor);   // v29: Lâmina de Fogo; v30: os outros buffs de Básico
-  if (!p.dead && now < (p.primalUntil || 0)) drawPrimalAura(sx, sy, r, T, now, p.primalKind);        // v60: Estado Primal
+  if (!p.dead && now < (p.primalUntil || 0)) drawPrimalAura(sx, sy, r, T, now, p.primalKind, p.titanColor);   // v60: Estado Primal; v61: Suprema
   if (!p.dead && p.casting && now < p.casting.end + 120) drawCastBar(p, sx, headTop, r, T, now);   // v29: selos
   if (isMe) {                         // marquinha para achar o próprio boneco no meio dos outros
     ctx.fillStyle = '#ffe2a8';

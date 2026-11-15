@@ -1,6 +1,7 @@
 import type { RankedStore } from './rankedStore.js';
 import type { SeasonStore } from './seasonStore.js';
 import type { ChampionStore } from './championStore.js';
+import type { Fase3Store } from './fase3Store.js';
 import type { XpBonusStore } from './xpBonus.js';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
@@ -56,6 +57,8 @@ export interface GatewayDeps {
   ranked?: RankedStore;
   season?: SeasonStore;
   champion?: ChampionStore;
+  /** v61/v62: Titãs, Progressão de Mundo e Loot (migrações v36 e v37, opcionais). */
+  fase3?: Fase3Store;
   xpBonus?: XpBonusStore;
   /** Quem vigia o servidor (site do jogo: saúde, bugs e comportamento suspeito). */
   watch?: WorldWatch;
@@ -113,6 +116,7 @@ export function attachGameGateway(server: Server, deps: GatewayDeps): Gateway {
     ...(deps.ranked ? { ranked: deps.ranked } : {}),
     ...(deps.season ? { season: deps.season } : {}),
     ...(deps.champion ? { champion: deps.champion } : {}),
+    ...(deps.fase3 ? { fase3: deps.fase3 } : {}),
     ...(deps.xpBonus ? { xpBonus: deps.xpBonus } : {}),
     ...(deps.watch ? { watch: deps.watch } : {}),
   });

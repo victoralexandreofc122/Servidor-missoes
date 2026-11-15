@@ -1197,3 +1197,20 @@ body.tut-bag #inv-toggle { animation: ready-glow 1.4s ease-in-out infinite; bord
 .vcard .vbar i { display: block; height: 100%; background: linear-gradient(90deg, #6fcf74, #ffd36b); }
 .vcard .vlvl { font-size: 12px; color: #d8cdb8; display: flex; justify-content: space-between; }
 .vcard button { justify-self: start; }
+
+/* ------------------------------------------------------------ v61/v62: Titãs e a Crônica */
+.cbtn.supreme { --x: 262; --y: 50; --c: rgba(70, 30, 90, 0.94); border-color: #e0b0ff; }
+.cbtn.supreme.locked { opacity: 0.45; filter: grayscale(0.8); }
+.cbtn.supreme.active { box-shadow: 0 0 16px 5px rgba(224, 176, 255, 0.8); }
+.chronicle-panel { width: min(620px, 95vw); }
+.chronicle-list { display: grid; gap: 8px; max-height: 38vh; overflow-y: auto; }
+.chapter { border-left: 3px solid #ffd36b; padding: 4px 10px; background: rgba(20, 24, 40, 0.5); border-radius: 6px; }
+.chapter b { color: #ffe2a8; display: block; margin-bottom: 2px; }
+.chapter p { margin: 0; font-size: 13px; color: #e9e0cc; line-height: 1.4; }
+.chapter.blur { border-left-color: #6b6b7a; }
+.chapter.blur p { color: #8a8a98; filter: blur(0.6px); font-style: italic; }
+.chronicle-sub { margin: 12px 0 6px; font-size: 14px; color: #e0b0ff; }
+.tcard { border: 1px solid rgba(224, 176, 255, 0.3); border-radius: 10px; padding: 6px 8px; background: rgba(30, 20, 40, 0.55); font-size: 12.5px; color: #e9e0cc; display: grid; gap: 2px; }
+.tcard .tname { font-weight: 700; }
+.tcard .tbearer { color: #ffd36b; }
+.tcard.awake { border-color: #ff7a5a; box-shadow: 0 0 0 1px #ff7a5a inset; }

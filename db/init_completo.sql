@@ -1,5 +1,5 @@
 -- =====================================================================================================================
--- Herança do Fogo: banco completo (base até a v35), na ordem. Gerado por scripts/gerar-init.sh.
+-- Herança do Fogo: banco completo (base até a v37), na ordem. Gerado por scripts/gerar-init.sh.
 -- SÓ PARA UM BANCO NOVO E VAZIO. Num banco que já roda, NÃO rode isto: a base (schema_ranks_missoes_sensei) e a v8 dão erro
 -- se repetidas ("already exists"); rode só as migrações que faltam (DEPLOY.md). As de v9 em diante podem ser repetidas.
 -- Cada arquivo tem o seu BEGIN/COMMIT.
@@ -2991,7 +2991,7 @@ END $$;
 -- ---------------------------------------------------------------- 8. capas e o que mostrar no boneco
 
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
-ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable'));   -- 'shoes': v12, 'accessory': v14, 'consumable': v32 (rodar a v11 de novo não quebra)
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable', 'relic'));   -- 'shoes': v12, 'accessory': v14, 'consumable': v32, 'relic': v37 (rodar a v11 de novo não quebra)
 INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
   ('capa_viagem',    'Capa de Viagem',    'cape', NULL, NULL, 400,  'clothes'),
   ('capa_vila',      'Capa da Vila',      'cape', NULL, NULL, 900,  'clothes'),
@@ -3259,7 +3259,7 @@ BEGIN;
 -- ---------------------------------------------------------------- 1. sapatos no catálogo
 
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
-ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable'));   -- 'accessory': v14, 'consumable': v32 (rodar a v12 de novo não quebra)
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable', 'relic'));   -- 'accessory': v14, 'consumable': v32 (rodar a v12 de novo não quebra)
 INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
   ('sandalia_ninja', 'Sandália Ninja',    'shoes', NULL, NULL, 80,  'clothes'),
   ('sandalia_couro', 'Sandália de Couro', 'shoes', NULL, NULL, 250, 'clothes'),
@@ -3398,7 +3398,7 @@ BEGIN;
 -- ---------------------------------------------------------------- 1. acessórios no catálogo
 
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
-ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable'));   -- 'consumable': v32 (rodar de novo não quebra)
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable', 'relic'));   -- 'consumable': v32 (rodar de novo não quebra)
 INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
   ('casaco_petroleo', 'Casaco com Capuz (petróleo)', 'accessory', NULL, NULL, 1200, 'clothes'),
   ('casaco_preto',    'Casaco com Capuz (preto)',    'accessory', NULL, NULL, 1200, 'clothes'),
@@ -5567,7 +5567,7 @@ UPDATE game.players
 
 -- 2. a Shuriken
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
-ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable'));
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable', 'relic'));
 
 INSERT INTO game.items (code, name, kind, class_code, damage, price_ryo, shop) VALUES
   ('shuriken', 'Shuriken', 'consumable', NULL, NULL, 10, 'weapons')
@@ -5906,6 +5906,222 @@ LANGUAGE sql AS $$
     SET xp = LEAST(v.xp + GREATEST(0, p_xp), 1000000), affinity_level = game.vinculo_level(LEAST(v.xp + GREATEST(0, p_xp), 1000000))
   RETURNING v.affinity_level, v.xp;
 $$;
+
+COMMIT;
+
+
+-- ################################################################################################
+-- ## schema_v36_titas.sql
+-- ################################################################################################
+-- =====================================================================================================================
+-- v36: Os Titãs Ancestrais e os Portadores, o evento "Cinturão da Era" (v61 do jogo). Rode no SQL Editor do Neon, no
+-- branch `production`, DEPOIS da v35. Pode rodar de novo sem erro. Nada é apagado.
+--
+--  1. game.titan_awakenings: cada Titã de cada Era (1 a 10, um por dia nos 10 primeiros dias): a vida GLOBAL (a mesma
+--     para todo o servidor, gravada para não voltar cheia num reinício), quando acordou, quando volta a dormir, quando
+--     caiu e quem foi o MVP.
+--  2. game.titan_damage: quanto cada ninja tirou de cada Titã (o MVP sai daqui).
+--  3. game.titan_bearers: o Portador de cada Titã na Era (até o fim dela) e a recarga da Habilidade Suprema (20 min).
+--     Um ninja porta no máximo um Titã por Era: se o MVP já é Portador, o título vai para o 2º em dano (e assim por diante).
+--  4. Os 10 títulos "Portador ..." e as funções game.titan_add_damage, game.titan_crown e game.titan_expire.
+-- =====================================================================================================================
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS game.titan_awakenings (
+  era_id        integer     NOT NULL,
+  titan         smallint    NOT NULL CHECK (titan BETWEEN 1 AND 10),
+  max_hp        integer     NOT NULL CHECK (max_hp > 0),
+  hp            integer     NOT NULL CHECK (hp >= 0),
+  spawned_at    timestamptz NOT NULL DEFAULT now(),
+  sleeps_at     timestamptz NOT NULL,
+  defeated_at   timestamptz,
+  mvp_player_id uuid        REFERENCES game.players(id) ON DELETE SET NULL,
+  PRIMARY KEY (era_id, titan)
+);
+
+CREATE TABLE IF NOT EXISTS game.titan_damage (
+  era_id    integer  NOT NULL,
+  titan     smallint NOT NULL,
+  player_id uuid     NOT NULL REFERENCES game.players(id) ON DELETE CASCADE,
+  damage    bigint   NOT NULL DEFAULT 0 CHECK (damage >= 0),
+  PRIMARY KEY (era_id, titan, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS game.titan_bearers (
+  era_id          integer     NOT NULL,
+  titan           smallint    NOT NULL CHECK (titan BETWEEN 1 AND 10),
+  player_id       uuid        NOT NULL REFERENCES game.players(id) ON DELETE CASCADE,
+  granted_at      timestamptz NOT NULL DEFAULT now(),
+  active_cd_until timestamptz,
+  PRIMARY KEY (era_id, titan),
+  UNIQUE (era_id, player_id)
+);
+
+-- os 10 títulos (mesma ordem de src/realtime/titans.ts)
+INSERT INTO game.titles (code, name, description) VALUES
+  ('TITA_CHAMA_ETERNA', 'Portador da Chama Eterna', 'MVP do Titã Chama Eterna nesta Era.'),
+  ('TITA_MARE_DE_SANGUE', 'Portador da Maré de Sangue', 'MVP do Titã Maré de Sangue nesta Era.'),
+  ('TITA_TROVAO_ANCESTRAL', 'Portador do Trovão Ancestral', 'MVP do Titã Trovão Ancestral nesta Era.'),
+  ('TITA_VENTO_CORTANTE', 'Portador do Vento Cortante', 'MVP do Titã Vento Cortante nesta Era.'),
+  ('TITA_ROCHA_ANTIGA', 'Portador da Rocha Antiga', 'MVP do Titã Rocha Antiga nesta Era.'),
+  ('TITA_NOITE_ETERNA', 'Portador da Noite Eterna', 'MVP do Titã Noite Eterna nesta Era.'),
+  ('TITA_PESADELO', 'Portador do Pesadelo', 'MVP do Titã Pesadelo nesta Era.'),
+  ('TITA_CORPO_FECHADO', 'Portador do Corpo Fechado', 'MVP do Titã Corpo Fechado nesta Era.'),
+  ('TITA_MIL_LAMINAS', 'Portador das Mil Lâminas', 'MVP do Titã Mil Lâminas nesta Era.'),
+  ('TITA_VIDA', 'Portador da Vida', 'MVP do Titã Vida nesta Era.')
+ON CONFLICT (code) DO NOTHING;
+
+-- Soma o dano de vários ninjas de uma vez (o servidor junta e manda a cada 15 s).
+CREATE OR REPLACE FUNCTION game.titan_add_damage(p_era integer, p_titan smallint, p_players uuid[], p_damage bigint[])
+RETURNS void LANGUAGE sql AS $$
+  INSERT INTO game.titan_damage AS d (era_id, titan, player_id, damage)
+  SELECT p_era, p_titan, x.player, GREATEST(0, x.dmg) FROM unnest(p_players, p_damage) AS x(player, dmg)
+  ON CONFLICT (era_id, titan, player_id) DO UPDATE SET damage = d.damage + EXCLUDED.damage;
+$$;
+
+-- O Titã caiu: o maior dano que ainda não porta outro Titã nesta Era vira o Portador (título junto). Devolve quem.
+CREATE OR REPLACE FUNCTION game.titan_crown(p_era integer, p_titan smallint, p_title text) RETURNS uuid
+LANGUAGE sql AS $$
+  WITH pick AS (
+    SELECT d.player_id FROM game.titan_damage d
+     WHERE d.era_id = p_era AND d.titan = p_titan AND d.damage > 0
+       AND NOT EXISTS (SELECT 1 FROM game.titan_bearers b WHERE b.era_id = p_era AND b.player_id = d.player_id)
+       AND NOT EXISTS (SELECT 1 FROM game.titan_bearers b WHERE b.era_id = p_era AND b.titan = p_titan)
+     ORDER BY d.damage DESC, d.player_id LIMIT 1
+  ), bearer AS (
+    INSERT INTO game.titan_bearers (era_id, titan, player_id) SELECT p_era, p_titan, player_id FROM pick
+    ON CONFLICT DO NOTHING RETURNING player_id
+  ), titled AS (
+    INSERT INTO game.player_titles (player_id, title_id)
+    SELECT b.player_id, t.id FROM bearer b JOIN game.titles t ON t.code = p_title
+    ON CONFLICT (player_id, title_id) DO NOTHING RETURNING player_id
+  ), done AS (
+    UPDATE game.titan_awakenings SET defeated_at = COALESCE(defeated_at, now()), hp = 0,
+           mvp_player_id = COALESCE((SELECT player_id FROM bearer), mvp_player_id)
+     WHERE era_id = p_era AND titan = p_titan RETURNING 1
+  )
+  SELECT player_id FROM bearer;
+$$;
+
+-- A Era acabou: os títulos de Portador de Eras passadas saem (a passiva já deixa de valer pelo servidor).
+CREATE OR REPLACE FUNCTION game.titan_expire(p_current_era integer) RETURNS integer
+LANGUAGE sql AS $$
+  WITH gone AS (
+    DELETE FROM game.player_titles pt USING game.titles t
+     WHERE pt.title_id = t.id AND t.code LIKE 'TITA\_%'
+       AND NOT EXISTS (SELECT 1 FROM game.titan_bearers b WHERE b.era_id = p_current_era AND b.player_id = pt.player_id
+                         AND t.code = 'TITA_' || upper(replace((ARRAY['chama_eterna','mare_de_sangue','trovao_ancestral','vento_cortante','rocha_antiga','noite_eterna','pesadelo','corpo_fechado','mil_laminas','vida'])[b.titan], ' ', '_')))
+    RETURNING 1
+  )
+  SELECT count(*)::int FROM gone;
+$$;
+
+COMMIT;
+
+
+-- ################################################################################################
+-- ## schema_v37_mundo_loot.sql
+-- ################################################################################################
+-- =====================================================================================================================
+-- v37: Progressão de Mundo e Loot dos chefes (v62 do jogo). Rode no SQL Editor do Neon, no branch `production`, DEPOIS
+-- da v36. Pode rodar de novo sem erro. Nada é apagado.
+--
+--  1. game.world_progression (uma linha): a população ativa (7 dias, game.active_population), o marco alcançado (0, 30,
+--     60, 100, 150 ou 250; nunca volta atrás) e o marco forçado pelo admin (override_stage; NULL = segue a população).
+--     COMEÇA EM 250 (tudo aberto) para o Teste Alpha não perder a Floresta com poucos jogadores: o admin liga a regra com
+--     "/admin mundo auto" quando quiser.
+--  2. game.world_progression_refresh(dias) e game.world_progression_override(admin, marco).
+--  3. Relíquias (loot dos chefes): o tipo 'relic' no catálogo e as 11 relíquias (nomes provisórios, ver
+--     docs/fase3-propostas.md); game.loot_drops (o registro de cada drop) e game.loot_revives (o Renascer usado na Era).
+-- =====================================================================================================================
+BEGIN;
+
+-- A população ativa (igual à v11: a v37 não depende dela; banco sem a v11 também roda)
+ALTER TABLE game.players ADD COLUMN IF NOT EXISTS last_seen_at timestamptz;
+CREATE OR REPLACE FUNCTION game.active_population(p_days integer DEFAULT 7) RETURNS integer
+LANGUAGE sql STABLE SET search_path = game AS $$
+  SELECT count(*)::int FROM players
+   WHERE last_seen_at > now() - make_interval(days => p_days) AND tutorial_step >= 4 AND NOT is_admin
+$$;
+
+CREATE TABLE IF NOT EXISTS game.world_progression (
+  id             smallint    PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  active_players integer     NOT NULL DEFAULT 0,
+  stage          smallint    NOT NULL DEFAULT 0 CHECK (stage IN (0, 30, 60, 100, 150, 250)),
+  override_stage smallint    CHECK (override_stage IN (0, 30, 60, 100, 150, 250)),
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO game.world_progression (id, override_stage) VALUES (1, 250) ON CONFLICT (id) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION game.world_stage(p_population integer) RETURNS smallint
+LANGUAGE sql IMMUTABLE AS $$
+  SELECT (CASE WHEN p_population >= 250 THEN 250 WHEN p_population >= 150 THEN 150 WHEN p_population >= 100 THEN 100
+               WHEN p_population >= 60 THEN 60 WHEN p_population >= 30 THEN 30 ELSE 0 END)::smallint
+$$;
+
+-- A cada minuto: conta a população e sobe o marco (nunca desce). Devolve a população, o marco e o forçado.
+CREATE OR REPLACE FUNCTION game.world_progression_refresh(p_days integer DEFAULT 7)
+RETURNS TABLE (active_players integer, stage smallint, override_stage smallint)
+LANGUAGE sql AS $$
+  INSERT INTO game.world_progression (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+  UPDATE game.world_progression w
+     SET active_players = game.active_population(p_days),
+         stage = GREATEST(w.stage, game.world_stage(game.active_population(p_days))),
+         updated_at = now()
+   WHERE w.id = 1
+  RETURNING w.active_players, w.stage, w.override_stage;
+$$;
+
+-- /admin mundo <marco|auto>: força um marco (NULL volta para a população).
+CREATE OR REPLACE FUNCTION game.world_progression_override(p_admin uuid, p_stage smallint) RETURNS void
+LANGUAGE plpgsql SET search_path = game AS $$
+BEGIN
+  PERFORM assert_admin(p_admin);
+  UPDATE world_progression SET override_stage = p_stage, updated_at = now() WHERE id = 1;
+  PERFORM admin_log(p_admin, 'mundo', NULL, jsonb_build_object('stage', p_stage), true, NULL);
+END $$;
+
+-- Relíquias: o tipo novo e o catálogo
+ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
+ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable', 'relic'));
+INSERT INTO game.items (code, name, kind) VALUES
+  ('reliquia_c_vida', 'Relíquia Comum de Vida', 'relic'),
+  ('reliquia_c_chakra', 'Relíquia Comum de Chakra', 'relic'),
+  ('reliquia_c_golpe', 'Relíquia Comum de Golpe', 'relic'),
+  ('reliquia_r_firmeza', 'Relíquia Rara de Firmeza', 'relic'),
+  ('reliquia_r_couraca', 'Relíquia Rara de Couraça', 'relic'),
+  ('reliquia_r_vigor', 'Relíquia Rara de Vigor', 'relic'),
+  ('reliquia_e_sangue', 'Relíquia Épica do Sangue', 'relic'),
+  ('reliquia_e_ultimo', 'Relíquia Épica do Último Fôlego', 'relic'),
+  ('reliquia_e_fluxo', 'Relíquia Épica do Fluxo', 'relic'),
+  ('reliquia_l_renascer', 'Relíquia Lendária do Renascer', 'relic'),
+  ('reliquia_l_brasa', 'Relíquia Lendária da Brasa', 'relic')
+ON CONFLICT (code) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS game.loot_drops (
+  id         bigserial   PRIMARY KEY,
+  player_id  uuid        NOT NULL REFERENCES game.players(id) ON DELETE CASCADE,
+  item_code  text        NOT NULL REFERENCES game.items(code),
+  source     text        NOT NULL,
+  dropped_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_loot_drops_player ON game.loot_drops (player_id, dropped_at DESC);
+
+-- Entrega o drop (mochila + registro) numa transação só. Devolve a quantidade que ele tem agora.
+CREATE OR REPLACE FUNCTION game.loot_grant(p_player uuid, p_item text, p_source text) RETURNS integer
+LANGUAGE sql AS $$
+  INSERT INTO game.loot_drops (player_id, item_code, source) VALUES (p_player, p_item, p_source);
+  INSERT INTO game.player_items AS i (player_id, item_code, quantity) VALUES (p_player, p_item, 1)
+  ON CONFLICT (player_id, item_code) DO UPDATE SET quantity = i.quantity + 1
+  RETURNING quantity;
+$$;
+
+CREATE TABLE IF NOT EXISTS game.loot_revives (
+  player_id uuid        NOT NULL REFERENCES game.players(id) ON DELETE CASCADE,
+  era_id    integer     NOT NULL,
+  used_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, era_id)
+);
 
 COMMIT;
 
