@@ -3,7 +3,7 @@
 //
 // Cada texto tem um ID: é a mesma chave da planilha de diálogos (docs/lore/dialogos.csv, gerada por
 // scripts/gerar-dialogos.ts; o teste test/lore.test.ts confere que a planilha está igual ao jogo).
-// Nenhum nome próprio novo: só o que já existe no jogo (regra do Victor, 09/11/2026).
+// Nomes próprios: só os que já existem no jogo e os que o Victor escolheu em 15/11/2026 (docs/lore/propostas-de-nomes.md).
 
 /**
  * Fragmentos da Crônica: objetos e documentos achados pelo mundo. `x`, `y` = onde brilham (chão livre, conferido no
@@ -11,16 +11,16 @@
  */
 export const FRAGMENTS = [
   { id: 'FRG_01', map: 'academy_interior', lugar: 'Academia', x: 60, y: 6, title: 'Regimento da Academia (cópia na parede)', por: 'O Diretor da Academia',
-    text: 'Artigo 7. Na noite de cada formatura, o Diretor reacenderá as pedras do selo com o pergaminho que arde. Onde ficam as pedras não será escrito, ensinado nem perguntado. Parágrafo único: o cadete que perguntar será lembrado de que perguntar também é uma forma de procurar.' },
+    text: 'Artigo 7. Na Noite das Lanternas, a cada formatura, o Diretor reacenderá as Pedras da Vigília com o Pergaminho em Chamas. Onde ficam as pedras não será escrito, ensinado nem perguntado. Parágrafo único: o cadete que perguntar será lembrado de que perguntar também é uma forma de procurar.' },
   { id: 'FRG_02', map: 'academy_interior', lugar: 'Academia', x: 38, y: 13.5, title: 'Bilhete na mesa da Sala de Jutsus', por: 'Professor Kenji',
     text: 'Lembrete para mim mesmo: gritar "Olha onde vai pousar!" ANTES do aluno saltar o vão, não depois. A Aya ainda está brava comigo por causa da semana passada. Ninguém se machucou. Quase ninguém. K.' },
   { id: 'FRG_03', map: 'map_1', lugar: 'Aldeia da Chama Eterna', x: 33, y: 25.6, title: 'Placa junto à grade do canal', por: 'A guarda da aldeia',
-    text: 'AVISO. A água deste canal vem da Floresta, por baixo da terra. Não beber. Não pescar. Não descer. A grade é verificada toda manhã. (Embaixo, riscado à mão: hoje ninguém verificou.)' },
+    text: 'AVISO. A água deste canal vem do Rio das Raízes, por baixo da Floresta. Não beber. Não pescar. Não descer. A grade é verificada toda manhã. (Embaixo, riscado à mão: hoje ninguém verificou.)' },
   { id: 'FRG_04', map: 'interior_weapons', lugar: 'Armaria', x: 12, y: 8.5, title: 'Recibo esquecido no balcão', por: 'Ferreiro Tetsu',
     text: 'Saída: 30 kunais de treino, para a Academia. Assinatura: ilegível. Papel: de pergaminho, do bom, coisa que a Academia nunca usou para recibo. Anotação do ferreiro: conferir com a Professora Mei. Conferir DE NOVO.' },
   { id: 'FRG_05', map: 'interior_scrolls', lugar: 'Casa dos Pergaminhos', x: 12, y: 8, title: 'Anotação sobre o pergaminho liso', por: 'Sábio Ren',
     text: 'O pergaminho liso não ensina: ele lê. A fibra guarda o formato da brasa de quem o abre e devolve o jutsu que essa brasa já sabia fazer sem saber. Por isso não sai jutsu de outra classe. E por isso quem erra e tenta de novo acerta mais: o papel aprende.' },
-  { id: 'FRG_06', map: 'map_2', lugar: 'Floresta', x: 32, y: 46, title: 'Marcas no velho carvalho', por: 'O próprio lugar',
+  { id: 'FRG_06', map: 'map_2', lugar: 'Floresta', x: 32, y: 42.5, title: 'Marcas no velho carvalho', por: 'O próprio lugar',
     text: 'No tronco, uma chama entalhada há muito tempo, quase fechada pela casca. Embaixo, riscos de patrulha, um por noite. Os riscos param no meio de uma fileira, como se a última pessoa a contar tivesse ido embora e não voltado.' },
   { id: 'FRG_07', map: 'map_2', lugar: 'Floresta', x: 20, y: 56, title: 'Bilhete chamuscado no acampamento', por: 'Alguém de capa cinza',
     text: 'Três noites aqui. Fogueira pequena, ninguém da aldeia vem tão fundo. O chefe quer o mapa até a lua cheia. Diz que a gente vai devolver a Chama a quem ela pertence. Eu só quero a minha bandana de volta. Queimem este papel.' },
@@ -86,7 +86,7 @@ export function personalize(text, gender) {
  * (o código que dispara está em game.js, com o mesmo ID).
  */
 export const HINTS = [
-  { id: 'DCA_FLORESTA', quando: 'Primeira vez na Floresta', text: 'Floresta! Os lodos verdes ficam perto do portão; os escuros, na beira do rio. Fique perto da saída até o nível 5.' },
+  { id: 'DCA_FLORESTA', quando: 'Primeira vez na Floresta', text: 'Floresta! Os Lodos Verdes ficam perto do portão; os Escuros, na beira do rio. Fique perto da saída até o nível 5.' },
   { id: 'DCA_VIDA_BAIXA', quando: 'Vida abaixo de 35% fora da zona segura', text: 'Vida baixa! Afaste-se e medite 🧘 (apanhar corta a meditação) ou volte para a aldeia.' },
   { id: 'DCA_SEM_CHAKRA', quando: 'Jutsu recusado por falta de chakra', text: 'Sem chakra para esse jutsu. Medite 🧘: é bem mais rápido do que esperar.' },
   { id: 'DCA_PONTOS', quando: 'Subiu de nível com pontos para gastar', text: 'Você tem pontos de atributo! Gaste no Perfil (botão do seu retrato).' },

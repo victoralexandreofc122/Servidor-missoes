@@ -8,12 +8,12 @@
   Academia, para não interromper o tutorial.
 * **Regra de voz:** cada documento reflete o autor: o que ele sabe, o que esconde, o jeito de escrever. O texto exato
   está em `dialogos.csv` (linhas `FRG_*`).
-* **Sem nome próprio novo:** os textos usam só o que já existe no jogo. "O pergaminho que arde" e "as pedras do selo"
-  ficam em minúsculas até o Victor aprovar os nomes do Arco 1 ("Pergaminho em Chamas", "Pedras-Selo").
+* **Nomes:** os textos usam só o que existe no jogo e os nomes escolhidos pelo Victor em 15/11/2026 (Pergaminho em
+  Chamas, Pedras da Vigília, Noite das Lanternas, Rio das Raízes...; ver `propostas-de-nomes.md`).
 
 | ID | Onde | Artefato | Autor (voz) | O que revela | O que esconde |
 |---|---|---|---|---|---|
-| FRG_01 | Academia, sala do Diretor | Regimento da Academia | O Diretor (jurídico, formal) | A Cerimônia reacende as pedras; ninguém pode perguntar onde ficam | Onde ficam |
+| FRG_01 | Academia, sala do Diretor | Regimento da Academia | O Diretor (jurídico, formal) | A Noite das Lanternas reacende as pedras; ninguém pode perguntar onde ficam | Onde ficam |
 | FRG_02 | Academia, Sala de Jutsus | Bilhete na mesa | Professor Kenji (brincalhão) | O bordão verdadeiro dele ("Olha onde vai pousar!") | Nada: é a pista para o Arco 1 |
 | FRG_03 | Praça da Chama Eterna, junto ao canal | Placa junto à grade | A guarda (aviso seco) | O canal vem da Floresta por baixo da terra | Que alguém mexeu na grade |
 | FRG_04 | Armaria | Recibo esquecido | Ferreiro Tetsu (contas) | Sumiram 30 kunais, recibo em papel de pergaminho | Quem assinou |

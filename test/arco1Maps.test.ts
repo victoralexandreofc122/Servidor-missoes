@@ -58,7 +58,7 @@ describe('Arco 1: a Floresta por regiões (em imagem)', () => {
     assert.ok(!reach({ x: 49, y: 72 }), 'a passagem sul está lacrada pelos troncos');
   });
 
-  it('as três Pedras-Selo: a 1 apagada (no lago), a 2 acesa nas raízes do Carvalho, a 3 acesa na abertura do paredão', () => {
+  it('as três Pedras da Vigília: a 1 apagada (no lago), a 2 acesa nas raízes do Carvalho, a 3 acesa na abertura do paredão', () => {
     const seals = F.walls.filter((w) => w.k === 'seal');
     assert.deepEqual(seals.map((w) => w.s), ['out', 'lit', 'lit']);
     const inside = (p: { x: number; y: number; r: number }, w: { x: number; y: number; w: number; h: number }) => Math.hypot(w.x + w.w / 2 - p.x, w.y + w.h / 2 - p.y) <= p.r + 1.5;

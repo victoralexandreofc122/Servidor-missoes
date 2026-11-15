@@ -289,6 +289,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('admin_catalog') }),
   // v38: Pergaminho do Mestre (fechou um capítulo), Feedback do jogador e a aba Feedback do admin
   z.object({ type: z.literal('manual_read'), chapter: z.enum(MANUAL_CHAPTERS) }),
+  z.object({ type: z.literal('tutorial_skip') }),   // v65: Pular a Academia
+  z.object({ type: z.literal('fragment'), id: z.string().regex(/^FRG_\d{2}$/) }),   // v65: achou um fragmento da Crônica
   z.object({
     type: z.literal('feedback'), category: z.enum(FEEDBACK_CATEGORIES), content: z.string().max(1500),
     screen: z.record(z.string().max(24), z.union([z.string().max(60), z.number().finite()])).refine((o) => Object.keys(o).length <= 10).optional(),
@@ -438,6 +440,8 @@ export interface NinjaView {
   riteProgress?: number | null;
   /** v38: Pergaminho do Mestre (capítulos abertos e lidos). */
   manual?: { unlocked: ManualChapter[]; read: ManualChapter[] };
+  /** v65: fragmentos achados (só com a v39 no banco; sem ela, o cliente guarda no aparelho). */
+  fragments?: string[];
   /** Passo do tutorial da Academia: 0 a 3 = na sala 1 a 4; 4 = concluído (pode sair). */
   tutorialStep: number;
   ryo: number;
@@ -612,6 +616,8 @@ export interface WorldInfo {
   /** v38: a versão do jogo (nota do Pré-Alpha) e o prêmio de cada capítulo novo do Pergaminho do Mestre. */
   version: string;
   manualReward: { ryo: number; xp: number };
+  /** v65: o prêmio de cada fragmento da Crônica. */
+  fragmentReward: { ryo: number; xp: number };
 }
 
 export type CastFailReason = 'NO_CHAKRA' | 'COOLDOWN' | 'NO_TARGET' | 'OUT_OF_RANGE' | 'FULL_HP' | 'ALREADY_ACTIVE' | 'DEAD' | 'NOT_EQUIPPED' | 'SAFE_ZONE' | 'NOT_LEARNED' | 'NOT_YOUR_CLASS' | 'BLOCKED' | 'TUTORIAL_LOCKED' | 'STUNNED' | 'SILENCED' | 'ASLEEP' | 'CASTING' | 'NO_SUMMON';
@@ -637,6 +643,8 @@ export type ServerMessage =
   | { type: 'admin_catalog'; players: { username: string; map: string; level: number }[]; monsters: { code: string; name: string }[]; maps: { id: string; name: string }[]; villages: { code: string; name: string }[] }
   | { type: 'admin_pvp'; report: PvpReport; db: { days: number; rows: PvpClassRow[] } | null }
   | { type: 'manual'; unlocked: ManualChapter[]; read: ManualChapter[]; fresh?: ManualChapter[] }
+  // v65 (migração v39): os fragmentos da Crônica que o servidor gravou (`fresh` = o que acabou de entrar)
+  | { type: 'fragments'; found: string[]; fresh?: string }
   | { type: 'feedback_sent'; id: number }
   | { type: 'admin_feedback'; items: FeedbackRow[]; error?: string }
   | { type: 'monster_aggro'; id: string; targetId: string | null }

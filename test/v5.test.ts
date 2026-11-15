@@ -368,7 +368,7 @@ describe('v5: missões entre jogadores (sensei Chunin+)', () => {
     await flush();
     assert.deepEqual(calls, [['create', sensei.id, trainee.id, 'BASIC', 3]]);
     assert.equal(trainee.conn.last('mission').reason, 'assigned');
-    assert.match(trainee.conn.last('notice').text, /O sensei obito te passou uma missão: Derrotar 3 slimes/);
+    assert.match(trainee.conn.last('notice').text, /O sensei obito te passou uma missão: Derrotar 3 Lodos Verdes/);
     assert.match(sensei.conn.last('notice').text, /Missão criada para naruto/);
     clock.advance(1000);
   });

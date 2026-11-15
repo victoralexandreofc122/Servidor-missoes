@@ -165,6 +165,14 @@ export function mountManualUI(api) {
   }
 
   const codex = loadCodex();
+  /** v65: com a v39 no banco, a lista do servidor é a verdade (e ele paga o prêmio); sem ela, vale o aparelho. */
+  let serverMode = false;
+  function syncServer(list) {
+    serverMode = true;
+    codex.clear();
+    for (const id of list || []) if (FRAGMENT_BY_ID.has(id)) codex.add(id);
+    saveCodex(codex);
+  }
 
   /** v64: a folha de controles (referência rápida, sempre aberta). */
   function openControls() {
@@ -318,10 +326,13 @@ export function mountManualUI(api) {
       if (codex.has(id) || !FRAGMENT_BY_ID.has(id)) return false;
       codex.add(id);
       saveCodex(codex);
+      api.onFragment?.(id);   // v65: o servidor confere, grava e paga (migração v39)
       openFragment(id, true, () => api.hints?.fire('DCA_FRAGMENTO'));
       return true;
     },
     hasFragment: (id) => codex.has(id),
+    syncServer,
+    get serverFragments() { return serverMode; },
     openCodex,
     openControls,
     close: hide,
@@ -339,6 +350,10 @@ export function mountManualUI(api) {
         pendingFeedback.status.textContent = msg.text;   // recusado (pressa, texto curto, fora do ar): pode tentar de novo
         pendingFeedback.sendBtn.disabled = false;
         return false;
+      }
+      if (msg.type === 'fragments') {   // v65: o servidor gravou (a lista dele vale)
+        syncServer(msg.found);
+        return true;
       }
       if (msg.type === 'feedback_sent') {
         if (pendingFeedback && !overlay.hidden) hide();

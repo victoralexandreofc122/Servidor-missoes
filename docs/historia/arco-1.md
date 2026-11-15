@@ -27,7 +27,7 @@ rosto de um dos seus professores.
 - **Falas curtas.** No máximo 3 linhas na caixa de diálogo, cerca de 120 caracteres.
 - **Ritmo alternado.** Investigação, luta, respiro (humor, amizade) e revelação. Duas missões seguidas nunca
   têm o mesmo ritmo.
-- **MMO.** A história é **por jogador**, em fase. Cada um vê a própria Cerimônia, o próprio roubo e o próprio
+- **MMO.** A história é **por jogador**, em fase. Cada um vê a própria Noite das Lanternas, o próprio roubo e o próprio
   falso Kenji, e os outros jogadores na Vila não são afetados. Os NPCs normais (lojas, Sala de Missões)
   continuam iguais para todos.
 
@@ -37,11 +37,11 @@ rosto de um dos seus professores.
 
 - **O Lodo Ancestral.** Há cinquenta anos, os fundadores da Vila prenderam uma criatura de chakra derretido
   debaixo da Floresta.
-- **As Pedras-Selo.** O selo são **cinco Pedras-Selo**, acesas pela chama do **Pergaminho em Chamas**, a
+- **As Pedras da Vigília.** O selo são **cinco Pedras da Vigília**, acesas pela chama do **Pergaminho em Chamas**, a
   relíquia da Vila (é o logo do login do jogo).
 - **Os slimes.** Os slimes da Floresta, os **lodos**, são gotas de chakra que vazam pelo selo. Sempre houve
   poucos; é por isso que hoje existem só alguns na Floresta.
-- **A Cerimônia da Chama.** A cada formatura, o Diretor reacende as pedras com o pergaminho.
+- **A Noite das Lanternas.** A cada formatura, o Diretor reacende as pedras com o pergaminho.
 - **Os Cinzas.** São ninjas expulsos da Vila; na expulsão, a bandana deles é queimada. O líder deles neste arco
   é **Kagerō**, um ex-aluno da Academia. Ele quer o chakra do Lodo e quer vingança contra o Diretor, que
   queimou a bandana dele.
@@ -63,7 +63,7 @@ rosto de um dos seus professores.
 | **Ferreiro Tetsu** (Armaria) | Ferreiro rabugento e honesto | Resmunga, chama o jogador de "garoto" ou "garota" | Pista: kunais e papel de pergaminho |
 | **Costureira Hana** (Alfaiataria) | Sabe de tudo na Vila | Fofoqueira simpática, fala rápido | Pista: as capas cinzentas |
 | **Sábio Ren** (Casa dos Pergaminhos) | Guarda o saber dos selos | Erudito, sussurra quando o assunto é sério | Explica as pedras; é a pista falsa (inocente) |
-| **Tsubaki** (nova) | Colega de turma, rival amigável | Impulsiva, provocadora, corajosa | Some no meio do arco e é resgatada no clímax |
+| **Akane** (nova) | Colega de turma, rival amigável | Impulsiva, provocadora, corajosa | Some no meio do arco e é resgatada no clímax |
 | **Kagerō** (novo) | Ninja expulso, líder dos Cinzas | Calmo, educado e irônico; bordão: *"Ninguém olha para o tronco."* | Vilão; usa Ilusão e Substituição |
 
 ---
@@ -75,7 +75,7 @@ rosto de um dos seus professores.
 | Como um lodo entrou na Vila, se lodo não passa do portão? | M1 | M12 e M13: subiu pelo poço da quinta pedra, debaixo da Praça |
 | Quem está apagando as pedras? | M5 | M11: os Cinzas, com Kagerō |
 | Por que o Professor Kenji está estranho? (só quem presta atenção nota) | M7 | M11: o verdadeiro está preso; o outro é Kagerō |
-| Onde está a Tsubaki? | M9 | M14 |
+| Onde está a Akane? | M9 | M14 |
 | O que o Diretor esconde? | M5 | Meia resposta em M12; o resto fica para o Arco 2 |
 
 ### Pistas plantadas e onde elas pagam
@@ -88,7 +88,7 @@ rosto de um dos seus professores.
 | A grade do canal torta e suja de lodo | M2 | M12 e M13: o canal desce até o poço da quinta pedra |
 | O papel de pergaminho no recibo das kunais (pista falsa: aponta para o Sábio Ren) | M6 | M11: Kagerō roubou o papel da Casa dos Pergaminhos |
 | Um tronco caído ao lado da Pedra 3 | M8 | M9 e M12: a marca de Kagerō |
-| A promessa à Tsubaki | M3 (escolha) | M14 |
+| A promessa à Akane | M3 (escolha) | M14 |
 | Contar ao "Kenji" onde ficam as pedras | M8 (escolha) | M10, M11 e M14 |
 
 ---
@@ -99,7 +99,7 @@ rosto de um dos seus professores.
 |---|---|---|---|
 | Prólogo | Academia (já existe) | 1 | O cadete aprende o básico; as pistas do Kenji são plantadas |
 | Ato I: A Chama Apagada | M1 a M5 | 1 a 6 | De "um lodo na Praça" a "alguém de dentro está apagando o selo" |
-| Ato II: Cinzas na Floresta | M6 a M9 | 6 a 11 | Os Cinzas aparecem; o pergaminho é roubado na Cerimônia; a Tsubaki some |
+| Ato II: Cinzas na Floresta | M6 a M9 | 6 a 11 | Os Cinzas aparecem; o pergaminho é roubado na Noite das Lanternas; a Akane some |
 | Ato III: A Quinta Pedra | M10 a M15 | 11 a 15 | A virada do Kenji, a quinta pedra, o chefe Kagerō e o gancho do Arco 2 |
 
 O XP das missões do arco soma **15.050**, cerca de 45% do caminho até o nível 15. O resto vem da caça e da
@@ -130,7 +130,7 @@ As 4 salas continuam como estão. Só sugiro três falas novas, para plantar as 
 - **Professor Kenji**, ao ensinar o Teleporte: *"Olha onde vai pousar!"*
 - **Professor Kenji**, ao ensinar a Substituição: *"O melhor truque do mundo: deixar um tronco no seu lugar e
   ninguém perceber."*
-- **Diretor**, na saída: *"Hoje à noite tem a Cerimônia da Chama. Não se atrase, cadete."*
+- **Diretor**, na saída: *"Hoje à noite tem a Noite das Lanternas. Não se atrase, cadete."*
 
 ---
 
@@ -174,26 +174,26 @@ Mestre: A água desse canal vem da Floresta. Por baixo da terra.
 **Gancho:** *"Lodo nasce na Floresta. Se está subindo por baixo, alguma coisa lá embaixo mudou."*
 
 ### M3 · Quem Chega Primeiro
-Uma missão de respiro: apresenta a Tsubaki com humor e rivalidade.
+Uma missão de respiro: apresenta a Akane com humor e rivalidade.
 
 - **Nível:** 3 a 4 · **Onde:** Floresta
 - **Objetivo:**
-  1. DERROTAR 8 lodos (é uma corrida contra a Tsubaki; o contador dela aparece na tela).
+  1. DERROTAR 8 lodos (é uma corrida contra a Akane; o contador dela aparece na tela).
   2. IR ATÉ a pedra que ela achou.
   3. ESCOLHA.
-- **Recompensa:** 200 XP, Fragmento de Pedra-Selo (item de missão)
+- **Recompensa:** 200 XP, Fragmento de Pedra da Vigília (item de missão)
 
 ```text
-CHAR Tsubaki right provocando
-Tsubaki: Você é o cadete que o Mestre escolheu? Hm.
-Tsubaki: Aposto que derrubo oito lodos antes de você.
+CHAR Akane right provocando
+Akane: Você é o cadete que o Mestre escolheu? Hm.
+Akane: Aposto que derrubo oito lodos antes de você.
 -- corrida --
-CHAR Tsubaki right seria
-Tsubaki: Ei... vem ver. Essa pedra brilhava ontem. Eu juro.
+CHAR Akane right seria
+Akane: Ei... vem ver. Essa pedra brilhava ontem. Eu juro.
 (uma pedra com uma chama gravada; apagada e fria)
-Tsubaki: Se você descobrir o que é isso... me chama?
+Akane: Se você descobrir o que é isso... me chama?
 CHOICE
-- "Prometo." -> flag promessa_tsubaki
+- "Prometo." -> flag promessa_akane
 - "Cada um cuida da sua missão." -> (sem flag)
 ```
 
@@ -201,12 +201,12 @@ CHOICE
 
 ### M4 · O Sábio e a Pedra
 - **Nível:** 4 a 5 · **Onde:** Casa dos Pergaminhos
-- **Objetivo:** ENTREGAR o Fragmento de Pedra-Selo ao Sábio Ren.
+- **Objetivo:** ENTREGAR o Fragmento de Pedra da Vigília ao Sábio Ren.
 - **Recompensa:** 300 XP, 100 ryō
 
 ```text
 CHAR Ren center serio
-Ren: Uma Pedra-Selo. Apagada.
+Ren: Uma Pedra da Vigília. Apagada.
 Ren: Há cinquenta anos, os fundadores prenderam algo debaixo da Floresta.
 Ren: Cinco pedras. Uma chama. A chama vem do Pergaminho em Chamas.
 Ren: Onde ficam as outras? Só o Diretor sabe. E ele não gosta de perguntas.
@@ -312,14 +312,14 @@ CHOICE
 
 **Gancho, nos dois casos:** *"Um tronco caído ao lado da pedra. Bem no lugar onde alguém estava há pouco."*
 
-### M9 · A Cerimônia da Chama (Missão de Genin)
+### M9 · A Noite das Lanternas (Missão de Genin)
 Este é o ponto da virada no meio do arco. A **Missão de Genin** já existe: o jogador escolhe a classe Primária
-com o Diretor e ganha um pergaminho dela. Aqui ela ganha a cena da Cerimônia.
+com o Diretor e ganha um pergaminho dela. Aqui ela ganha a cena da Noite das Lanternas.
 
 - **Nível:** 11 (regra atual) · **Onde:** Academia, depois a Praça (evento)
 - **Objetivo:**
   1. A Missão de Genin (como é hoje).
-  2. FALAR com o Diretor na Praça (a Cerimônia).
+  2. FALAR com o Diretor na Praça (a Noite das Lanternas).
 - **Recompensa:** rank Genin, classe e pergaminho (como hoje) e mais 1.200 XP
 
 ```text
@@ -330,26 +330,26 @@ Diretor: Com esta chama, os fundadores prenderam o que dorme sob a Floresta.
 Diretor: Hoje, ela passa para as mãos de vocês. Genin.
 SFX estalo_fumaca
 (fumaça branca; quando ela some, o Diretor segura... um TRONCO)
-CHAR Tsubaki left gritando
-Tsubaki: Ali! Na fumaça, indo para o portão!
-Mestre: Tsubaki, espera!
+CHAR Akane left gritando
+Akane: Ali! Na fumaça, indo para o portão!
+Mestre: Akane, espera!
 (ela corre e some no portão)
 CHAR Diretor center close
 Diretor (baixo): Sem o pergaminho, as pedras não reacendem. E sem as pedras...
 ```
 
-**Gancho:** *"A Tsubaki não voltou naquela noite."*
+**Gancho:** *"A Akane não voltou naquela noite."*
 
 ---
 
 ## Ato III: A Quinta Pedra
 
-### M10 · O Rastro da Tsubaki
+### M10 · O Rastro da Akane
 - **Nível:** 11 a 12 · **Onde:** Floresta
 - **Objetivo:**
   1. IR ATÉ os 3 pontos do rastro.
   2. DERROTAR 6 Lodos Escuros (que nascem perto de pedra apagada).
-  3. Achar a Bandana Rasgada da Tsubaki.
+  3. Achar a Bandana Rasgada da Akane.
 - **Recompensa:** 1.500 XP
 
 O Kenji **não** aparece desta vez. A ausência dele é uma pista.
@@ -440,7 +440,7 @@ Mestre: A Pedra 4. Ninguém foi ver a Pedra 4.
 - **Nível:** 15 · **Onde:** Clareira Queimada (mapa novo, o coração da Floresta, onde fica a Pedra 4)
 - **Objetivo:**
   1. CHEFE: derrotar Kagerō.
-  2. Libertar a Tsubaki.
+  2. Libertar a Akane.
   3. Reacender a Pedra 4.
 - **Recompensa:** 2.500 XP, título **Guardião da Chama**, o Pergaminho em Chamas devolvido (chamuscado)
 
@@ -453,7 +453,7 @@ Mestre: A Pedra 4. Ninguém foi ver a Pedra 4.
    jogador precisa pegar o pergaminho e **meditar 5 segundos junto da Pedra 4** para reacendê-la, enquanto o
    braço ataca.
 
-**A Tsubaki, conforme a escolha da M3:**
+**A Akane, conforme a escolha da M3:**
 - **Prometeu:** *"Você veio. Você prometeu."* Ela entra na luta já na fase 1 e cura o jogador de tempos em tempos.
 - **Não prometeu:** *"Achei que você não viria."* Ela só entra na fase 2.
 
@@ -466,12 +466,12 @@ Mestre: A Pedra 4. Ninguém foi ver a Pedra 4.
 ### M15 · Cinzas e Brasas (epílogo)
 - **Nível:** 15 · **Onde:** Vila (Hospital, Praça, Casa dos Pergaminhos, Academia)
 - **Objetivo:**
-  1. FALAR com a Tsubaki (no Hospital), o Mestre, o Sábio Ren e o Diretor.
-  2. A Cerimônia: receber a bandana oficial.
+  1. FALAR com a Akane (no Hospital), o Mestre, o Sábio Ren e o Diretor.
+  2. A Noite das Lanternas: receber a bandana oficial.
 - **Recompensa:** 500 XP, 1.000 ryō, item cosmético **Bandana Chamuscada** (opcional)
 
 ```text
-Tsubaki: Na próxima, a corrida é até o fim da Floresta. E eu ganho.
+Akane: Na próxima, a corrida é até o fim da Floresta. E eu ganho.
 Ren: A borda queimada do pergaminho... tem metade de um mapa.
 Ren: E este símbolo... não é o nosso.
 Diretor: Descanse, Genin. Amanhã a gente fala da quinta pedra.
@@ -488,7 +488,7 @@ CONTINUA NO ARCO 2
 
 | Flag | Escolhida em | Muda |
 |---|---|---|
-| `promessa_tsubaki` | M3 | M14: a Tsubaki entra na fase 1 e cura (ou só entra na fase 2); a fala dela |
+| `promessa_akane` | M3 | M14: a Akane entra na fase 1 e cura (ou só entra na fase 2); a fala dela |
 | `contou_ao_kenji` | M8 | M8: a Pedra 3 já apagada e luta mais dura; falas em M10, M11 e M14 |
 | `contou_segredo` / `guardou_segredo` | M12 | Arco 2: a confiança do Mestre e do Diretor no jogador |
 
@@ -498,7 +498,7 @@ Nenhuma escolha bloqueia o arco: todas levam ao mesmo fim, mas o caminho e as fa
 ## O fim e o gancho do Arco 2
 
 - **A recompensa** é maior do que a promessa do começo: o jogador começa limpando um lodo na Praça e termina
-  salvando a Vila, com título, bandana e a Tsubaki a salvo.
+  salvando a Vila, com título, bandana e a Akane a salvo.
 - **As perguntas abertas para o Arco 2:**
   - o que a quinta pedra prende;
   - o que o Diretor fez com Kagerō (e por quê);
@@ -516,7 +516,7 @@ Nenhuma escolha bloqueia o arco: todas levam ao mesmo fim, mas o caminho e as fa
   um efeito sonoro.
 - Os tipos de objetivo novos: IR ATÉ, COLETAR, ENTREGAR, MEDITAR EM, USAR JUTSU, DEFENDER, CHEFE, ESCOLHA.
 - Um evento de combate dentro da zona segura (só na M1, só para quem está na missão).
-- Um NPC que luta junto: o Mestre na M13 e a Tsubaki na M14.
+- Um NPC que luta junto: o Mestre na M13 e a Akane na M14.
 
 **Inimigos:**
 
@@ -531,16 +531,16 @@ Nenhuma escolha bloqueia o arco: todas levam ao mesmo fim, mas o caminho e as fa
 
 **Áreas:**
 - Na Vila, que já existe: a grade do canal e o portão sul (M2).
-- Na Floresta, que já existe: as Pedras-Selo 1 a 3, o velho carvalho, a cachoeira seca, o Acampamento Queimado
+- Na Floresta, que já existe: as Pedras da Vigília 1 a 3, o velho carvalho, a cachoeira seca, o Acampamento Queimado
   e o rastro.
 - Mapas novos: o abismo e a Caverna do Lodo; o Poço sob a Praça; a Clareira Queimada.
 
-**Itens de missão:** Fragmento de Pedra-Selo, Kunai Marcada, Bandana Queimada, Bandana Rasgada da Tsubaki e o
+**Itens de missão:** Fragmento de Pedra da Vigília, Kunai Marcada, Bandana Queimada, Bandana Rasgada da Akane e o
 Pergaminho em Chamas (chamuscado).
 
 **Títulos:** Rastreador (M7) e Guardião da Chama (M14). O sistema de títulos já existe.
 
-**Personagens novos:** Tsubaki e Kagerō. O Kenji usa o mesmo NPC de hoje; o verdadeiro e o falso só mudam as
+**Personagens novos:** Akane e Kagerō. O Kenji usa o mesmo NPC de hoje; o verdadeiro e o falso só mudam as
 falas.
 
 **Balanceamento:** hoje um slime dá 20 XP, e o nível 11 pede 13.750. Os inimigos novos (Batedores, Lodos
@@ -552,7 +552,7 @@ Escuros) podem dar mais XP para o arco não depender só de caçar slimes.
 
 - [x] Cada missão muda alguma coisa na história e termina com uma pergunta nova.
 - [x] Cada personagem fala diferente: o Diretor seco, o Mestre direto, o Kenji brincalhão, a Hana tagarela, o
-  Ren sussurrando, a Tsubaki provocando, o Kagerō educado e irônico.
+  Ren sussurrando, a Akane provocando, o Kagerō educado e irônico.
 - [x] Nada importante fica só no subentendido: a virada do Kenji tem três pistas antes (o bordão que muda, a
   ausência na M10, o tronco na M8) e uma confirmação clara (M11).
 - [x] Toda escolha tem consequência visível depois (M3 → M14, M8 → M10/M11/M14, M12 → Arco 2).

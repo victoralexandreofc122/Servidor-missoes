@@ -98,7 +98,7 @@ const ui = {
   // v7: progressão
   invToggle: $('inv-toggle'), invBadge: $('inv-badge'), invPanel: $('inv-panel'), invClose: $('inv-close'), invRyo: $('inv-ryo'),
   invClass: $('inv-class'), invItems: $('inv-items'), invEmpty: $('inv-empty'),
-  tutorialCard: $('tutorial-card'), tutorialTitle: $('tutorial-title'), tutorialText: $('tutorial-text'),
+  tutorialCard: $('tutorial-card'), tutorialTitle: $('tutorial-title'), tutorialText: $('tutorial-text'), tutorialSkip: $('tutorial-skip'),
   shopRyo: $('shop-ryo'), shopNote: $('shop-note'), extractBox: $('extract-box'), extractClass: $('extract-class'),
   extractLevel: $('extract-level'), extractInfo: $('extract-info'), extractGo: $('extract-go'), extractResult: $('extract-result'), extractCatalog: $('extract-catalog'), extractCatalogTitle: $('extract-catalog-title'),
   tabJutsus: $('tab-jutsus'), paneJutsus: $('pane-jutsus'), jutsuList: $('jutsu-list'), kitList: $('kit-list'),
@@ -685,6 +685,7 @@ function handleMessage(msg) {
       if (msg.progress) state.progress = msg.progress;
       if (msg.kit) state.kit = msg.kit;
       if (msg.ninja) state.ninja = msg.ninja;
+      if (Array.isArray(msg.ninja?.fragments)) manualUI.syncServer(msg.ninja.fragments);   // v65: fragmentos do banco (v39)
       renderShurikenButton();   // v59: a contagem do ✴️ já vem na entrada (antes ficava 0 até o próximo inventário)
       send({ type: 'vinculo', action: 'state' });   // v60: a aba Vínculo Ancestral e os botões do HUD
       send({ type: 'fase3', action: 'state' });     // v61/v62: o marco do mundo e os Titãs
@@ -1690,7 +1691,7 @@ ui.buffs.addEventListener('click', (e) => {
 });
 
 /** Nome de cada monstro na janela do alvo. */
-const MONSTER_NAMES = { slime: 'Slime', lodo_escuro: 'Lodo Escuro', lodo_sombrio: 'Lodo Sombrio', dummy: 'Boneco de Treino', sparring: 'Boneco de Treino',
+const MONSTER_NAMES = { slime: 'Lodo Verde', lodo_escuro: 'Lodo Escuro', lodo_sombrio: 'Lodo Sombrio', dummy: 'Boneco de Treino', sparring: 'Boneco de Treino',
   // v53: as invocações (o nome do jutsu que chama cada uma)
   golem: 'Golem de Terra Titânico', sentinela_sombra: 'Sentinela de Sombra', arsenal: 'Arsenal Vivo', clone_agua: 'Duplo de Água',
   serpente_aspide: 'Áspide', fera_garra: 'Fera da Matilha', fera_rei: 'Rei da Matilha' };   // v63
@@ -1897,7 +1898,7 @@ function renderTracker() {
   const level = state.progress?.level ?? 1;
   if (step < 4) {
     const [title, text] = TUTORIAL_STEPS[step];
-    main.push({ label: `${title}:`, text });
+    main.push({ label: `${title}:`, text, skip: true });   // v65: com o botão Pular a Academia
   } else if (!state.ninja.classes?.primary) {
     if (level < 11) main.push({ label: 'Rumo a Genin:', text: `treine até o nível 11 (você está no ${level}) e fale com o Diretor da Academia.`, meter: level / 11 });
     else main.push({ label: 'Missão de Genin:', text: 'fale com o Diretor da Academia.', ready: true });
@@ -1931,6 +1932,7 @@ function renderTracker() {
       bar.append(fill);
       li.append(bar);
     }
+    if (it.skip) li.append(document.createElement('br'), skipButton());
     return li;
   });
   ui.trackerMain.replaceChildren(...items(main));
@@ -2041,7 +2043,7 @@ function enterMap(id, announce) {
   const deco = visibleDeco(state.places).filter((d) => !d.art);
   state.deco = deco.filter((d) => d.k !== 'gate_roof' && d.k !== 'door' && d.k !== 'oak_canopy');
   state.overhead = deco.filter((d) => d.k === 'gate_roof' || d.k === 'oak_canopy');
-  // Pedras-Selo acesas: o halo que respira é desenhado a cada quadro (o resto da pedra fica no bloco do chão).
+  // Pedras da Vigília acesas: o halo que respira é desenhado a cada quadro (o resto da pedra fica no bloco do chão).
   state.glows = drawn.filter((w) => w.k === 'seal' && w.s !== 'out');
   // Luzes quentes que tremem a cada quadro: as lanternas da mureta da arena (a lanterna fica no bloco do chão) e as
   // tochas e lanternas desenhadas na arte dos mapas em imagem (layout.lights: a chama; a poça de luz fica embaixo).
@@ -3232,7 +3234,7 @@ onTap(ui.meditateBtn, toggleMeditation);
 
 // ------------------------------------------------------------------ missões (NPC Mestre e Sala de Missões)
 
-const TARGET_NAMES = { slime: ['slime', 'slimes'] };
+const TARGET_NAMES = { slime: ['Lodo Verde', 'Lodos Verdes'] };   // v65: o slime se chama Lodo Verde (escolha do Victor)
 const targetName = (code, n) => (TARGET_NAMES[code] ? TARGET_NAMES[code][n === 1 ? 0 : 1] : code);
 
 function missionTitle(m) {
@@ -3439,8 +3441,10 @@ const SHOPKEEPER_LOOK = {
 const ACADEMY_LOOK = {
   tutor_dummies: npcLook({ gender: 'f', hairStyle: 'longo_lateral', eyeStyle: 'cilios', hairColor: 'vermelho', eyeColor: 'verde', outfit: 'vila', bandana: true }),
   tutor_meditation: npcLook({ skin: 'canela', hairColor: 'branco', shirtColor: 'amarelo', pantsColor: 'marrom' }),
-  tutor_jutsu: npcLook({ gender: 'f', hairStyle: 'longo_lateral', eyeStyle: 'cilios', skin: 'mel', hairColor: 'preto', eyeColor: 'roxo', shirtColor: 'roxo', pantsColor: 'azul_marinho', bandana: true }),
-  tutor_weapons: npcLook({ hairColor: 'preto', outfit: 'vila', bandana: true }),
+  // v65: os visuais do Professor Kenji e da Professora Mei estavam trocados (decisão do Victor, 15/11/2026): cada um com o
+  // corpo do seu nome, mantendo as cores de cada um (Kenji de roxo, Mei com o uniforme da vila).
+  tutor_jutsu: npcLook({ skin: 'mel', hairColor: 'preto', eyeColor: 'roxo', shirtColor: 'roxo', pantsColor: 'azul_marinho', bandana: true }),
+  tutor_weapons: npcLook({ gender: 'f', hairStyle: 'longo_lateral', eyeStyle: 'cilios', hairColor: 'preto', outfit: 'vila', bandana: true }),
   director: npcLook({ hairColor: 'branco', eyeColor: 'cinza', shirtColor: 'vinho', pantsColor: 'marrom', bandana: true }),
 };
 /** A Professora da Sala de Armas mostra a Kunai na mão; o Ferreiro, a Espada Longa nas costas. */
@@ -3981,6 +3985,7 @@ const hints = mountHints({
 const manualUI = mountManualUI({
   send,
   hints,
+  onFragment: (id) => send({ type: 'fragment', id }),   // v65: achou um fragmento (o servidor confere e paga)
   ninja: () => state.ninja,
   world: () => state.world,
   toast: (text) => showToast(text, 5000),
@@ -4077,6 +4082,34 @@ const TUTORIAL_STEPS = [
   ['Etapa 3/4 · Sala de Jutsus', 'Salte o vão com o 💨 Teleporte Curto. Depois arme a 🪵 Substituição e deixe a armadilha te pegar: o tronco leva o golpe.'],
   ['Etapa 4/4 · Sala de Armas', 'Abra a mochila 🎒, equipe a Kunai de Treino e acerte o boneco com o 🗡️ Ataque Básico. Um golpe basta.'],
 ];
+/**
+ * v65: Pular a Academia (decisão do Victor, 15/11/2026): para quem já sabe jogar. Toque duas vezes (a 1ª pergunta); o
+ * servidor avança as etapas e dá as mesmas recompensas (Kunai de Treino, +100 ryō, +50 XP).
+ */
+let skipArmedUntil = 0;
+function armSkip(b) {
+  const now = performance.now();
+  if (now > skipArmedUntil) {
+    skipArmedUntil = now + 4000;
+    b.textContent = 'Toque de novo para pular (você recebe tudo)';
+    setTimeout(() => { if (performance.now() >= skipArmedUntil) b.textContent = '⏭ Pular a Academia'; }, 4100);
+    return;
+  }
+  skipArmedUntil = 0;
+  b.textContent = '⏭ Pular a Academia';
+  send({ type: 'tutorial_skip' });
+}
+ui.tutorialSkip?.addEventListener('click', () => armSkip(ui.tutorialSkip));
+/** O mesmo botão na Missão Principal (no celular deitado a etapa aparece na aba Missões do chat, não no cartão). */
+function skipButton() {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'tutorial-skip';
+  b.textContent = '⏭ Pular a Academia';
+  b.addEventListener('click', () => armSkip(b));
+  return b;
+}
+
 function renderTutorial() {
   const step = state.ninja.tutorialStep ?? 4;
   const inAcademy = state.mapId === 'academy_interior';
@@ -4091,6 +4124,7 @@ function renderTutorial() {
   if (inAcademy && step < 4 && !chatTabTouched) showChatMissions(true);
   if (!inAcademy) return;
   const done = step >= 4;
+  ui.tutorialSkip.hidden = done;   // v65: Pular a Academia (só enquanto ela não acabou)
   ui.tutorialCard.classList.toggle('done', done);
   if (done) {
     ui.tutorialTitle.textContent = 'Academia · Tutorial concluído';
@@ -5483,7 +5517,7 @@ function renderMissionForm() {
     b.addEventListener('click', onClick);
     return b;
   };
-  ui.pmQty.replaceChildren(...opts.quantities.map((q) => chip(`${q} slimes`, q === menuChoice.quantity, () => { menuChoice.quantity = q; renderMissionForm(); })));
+  ui.pmQty.replaceChildren(...opts.quantities.map((q) => chip(`${q} Lodos Verdes`, q === menuChoice.quantity, () => { menuChoice.quantity = q; renderMissionForm(); })));
   ui.pmDiff.replaceChildren(...opts.difficulties.map((d) => chip(
     `${d.name} · ${d.xp} XP${d.title ? ` + título` : ''}`, d.code === menuChoice.difficulty,
     () => { menuChoice.difficulty = d.code; renderMissionForm(); },
@@ -7865,7 +7899,7 @@ function announceSky(changed) {
 /**
  * O céu na tela (só ao ar livre): o tom quente do dia quente, o cinza da chuva com as gotas, os respingos e um
  * relâmpago de vez em quando, a neblina passando, o laranja do amanhecer e do entardecer, e a noite: uma camada
- * escura com buracos de luz em volta do jogador, dos outros, das lanternas, dos postes e das Pedras-Selo acesas.
+ * escura com buracos de luz em volta do jogador, dos outros, das lanternas, dos postes e das Pedras da Vigília acesas.
  */
 const nightLayer = document.createElement('canvas');
 function drawSky(toScreenX, toScreenY, T, now, me) {

@@ -1246,3 +1246,6 @@ body.tut-bag #inv-toggle { animation: ready-glow 1.4s ease-in-out infinite; bord
 @keyframes hint-in { from { opacity: 0; transform: translate(-50%, 12px); } }
 @media (prefers-reduced-motion: reduce) { .hint-card { animation: none; } }
 @media (max-height: 500px) { .hint-card { bottom: calc(var(--safe-bottom, 0px) + 8px); left: calc(50% - 40px); width: min(350px, calc(100vw - 480px)); min-width: 260px; } }
+/* v65: Pular a Academia, no cartão do tutorial */
+.tutorial-skip { align-self: flex-start; margin-top: 4px; min-height: 30px; padding: 3px 10px; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; pointer-events: auto; color: #f4ecd8; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(155, 232, 138, 0.6); }
+.tutorial-skip[hidden] { display: none; }

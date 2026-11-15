@@ -6,6 +6,8 @@
 //
 // Abas: Jogador (ryō, nível, pontos, patente, efeito, vila, renegado, Akatsuki, Kage) · Itens · Jutsus · Monstros · Mundo (ir,
 // clima, hora) · Fim de jogo (módulos, eleição, evento, temporada) · PvP (números por classe e por golpe) · Feedback (v38).
+// v65 (pedido do Victor: todo comando no painel): Rito e Portador (Jogador), Progressão do Mundo e Titãs (Mundo), Torneio da
+// Temporada (Fim de jogo) e a lista de todos os comandos.
 
 const TABS = [
   ['jogador', 'Jogador'], ['itens', 'Itens'], ['jutsus', 'Jutsus'], ['monstros', 'Monstros'], ['mundo', 'Mundo'], ['fim', 'Fim de jogo'], ['pvp', 'PvP'], ['feedback', 'Feedback'],
@@ -20,6 +22,10 @@ const MODULES = [['vilas', 'Vilas e Kage'], ['pvp', 'Zona de Conflito'], ['reneg
 const KIND_NAME = { weapon: 'Arma', scroll: 'Pergaminho', cape: 'Capa', shoes: 'Sapato', accessory: 'Acessório' };
 const CLASS_ORDER = ['fire', 'water', 'lightning', 'stone', 'taijutsu', 'illusion', 'shadow', 'heal', 'weapons', 'wind'];
 const CONFIRM_MS = 3000;
+/** v65: os 10 Titãs (a mesma ordem de src/realtime/titans.ts; o teste confere). */
+const TITAN_NAMES = ['Chama Eterna', 'Maré de Sangue', 'Trovão Ancestral', 'Vento Cortante', 'Rocha Antiga', 'Noite Eterna', 'Pesadelo', 'Corpo Fechado', 'Mil Lâminas', 'Vida'];
+const TITAN_OPTS = TITAN_NAMES.map((n, i) => [String(i + 1), `${i + 1}. ${n}`]);
+const WORLD_STAGES = [['0', '0 · só a Aldeia'], ['30', '30 · Floresta e Rei Lodo'], ['60', '60 · Zona de Conflito'], ['100', '100 · Refúgio e Kage'], ['150', '150 · Titãs'], ['250', '250 · tudo aberto']];
 
 export function mountAdminUI(api) {
   const $ = (id) => document.getElementById(id);
@@ -103,6 +109,7 @@ export function mountAdminUI(api) {
     const patente = pick([['academia', 'Academia'], ['genin', 'Genin'], ['chunin', 'Chunin'], ['jounin', 'Jonin'], ['anbu', 'ANBU'], ['kage', 'Kage']], 'Patente', 'genin');
     const vil = pick(villageOpts(), 'Vila', villages()[0]?.code);
     const kage = pick(villageOpts(), 'Vila do Kage', villages()[0]?.code);
+    const titan = pick(TITAN_OPTS, 'Titã', '1');
     return [
       section('Recursos',
         row('Dar ryō', ryo, btn('Dar ryō', forWho((n) => `ryo ${n} ${ryo.value}`))),
@@ -110,7 +117,10 @@ export function mountAdminUI(api) {
         row('Atributos', danger('Zerar pontos', forWho((n) => `zerarpontos ${n}`)))),
       section('Patente (só o título; sobe ou desce, e vale para "eu")',
         row('Patente', patente, btn('Mudar patente', forWho((n) => `patente ${n} ${patente.value}`))),
-        row('Classes', danger('Resetar classes (só conta de admin)', forWho((n) => `resetarclasses ${n}`)))),
+        row('Classes', danger('Resetar classes (só conta de admin)', forWho((n) => `resetarclasses ${n}`))),
+        row('Rito do Despertar', btn('Completar o Rito (10/10)', forWho((n) => `rito ${n}`)))),
+      section('Portador de Titã (até o fim da Era)',
+        row('Titã', titan, btn('Tornar Portador', forWho((n) => `portador ${n} ${titan.value}`)))),
       section('Efeito (para testar; só até reiniciar)',
         row('Efeito', fx, fxSec, btn('Aplicar', forWho((n) => `efeito ${n} ${fx.value}${fxSec.value > 0 ? ` ${fxSec.value}` : ''}`)))),
       section('Fim de jogo',
@@ -200,7 +210,14 @@ export function mountAdminUI(api) {
     percent.addEventListener('input', () => (s.xpPercent = percent.value));
     xpMin.addEventListener('input', () => (s.xpMinutes = xpMin.value));
     const xpTarget = () => (scope.value === 'global' ? 'global' : `${scope.value} ${target.value}`);
+    const titan = pick(TITAN_OPTS, 'Titã', '1');
     return [
+      section('Progressão do Mundo (marco forçado; Auto = segue a população dos últimos 7 dias)',
+        el('div', { class: 'adm-chips' }, ...WORLD_STAGES.map(([code, text]) => btn(text, () => run(`mundo ${code}`), 'chip')),
+          btn('Auto', () => run('mundo auto'), 'chip'))),
+      section('Titãs Ancestrais',
+        row('Titã', titan, btn('Acordar agora', () => run(`tita ${titan.value}`))),
+        hint('Acorda na Clareira Queimada com a vida cheia, fora do dia dele.')),
       section('Bônus de XP',
         row('Onde vale', scope, target),
         row('Bônus (%)', percent),
@@ -219,6 +236,7 @@ export function mountAdminUI(api) {
         el('div', { class: 'adm-chips' }, ...WEATHERS.map(([code, text]) => btn(text, () => run(`clima ${code} ${minutes.value}`), 'chip')))),
       section('Hora do dia (para todos)',
         el('div', { class: 'adm-chips' }, ...PHASES.map(([code, text]) => btn(text, () => run(`hora ${code}`), 'chip')))),
+      section('Todos os comandos', el('div', { class: 'adm-bar' }, btn('Ver a lista no chat', () => run('ajuda')))),
     ];
   }
 
@@ -232,6 +250,7 @@ export function mountAdminUI(api) {
     const a = pick([['todas', 'Todas (só trégua)'], ...villageOpts()], 'Vila A', villages()[0]?.code);
     const b = pick([['', '—'], ...villageOpts()], 'Vila B', villages()[1]?.code);
     const hours = num(24, 1, 720, 'Horas');
+    const tDays = num(10, 1, 60, 'Dias da fase de pontos');
     const event = () => {
       if (a.value === 'todas') return run(`evento ${kind.value} todas ${hours.value}`);
       run(`evento ${kind.value} ${a.value} ${b.value} ${hours.value}`);
@@ -241,6 +260,11 @@ export function mountAdminUI(api) {
       section('Eleição do Kage', row('Vila', elect, danger('Fechar eleição agora', () => run(`eleicao ${elect.value}`)))),
       section('Evento global', row('Evento', kind, a, b), row('Horas', hours, btn('Começar', event))),
       section('Temporada PvP', row('Temporada', danger('Fechar temporada agora', () => run('temporada fechar')))),
+      section('Torneio da Temporada (o calendário faz sozinho; aqui é para forçar)',
+        row('Ver', btn('Status', () => run('torneio status'))),
+        row('Fase de pontos', tDays, btn('Abrir', () => run(`torneio abrir ${tDays.value}`)), danger('Fechar e montar grupos', () => run('torneio fechar'))),
+        row('Fase final', danger('Montar as chaves', () => run('torneio chaves')), danger('Encerrar e premiar', () => run('torneio encerrar'))),
+        row('W.O.', danger('Dar W.O. ao jogador alvo', forWho((n) => `torneio wo ${n}`)))),
     ];
   }
 

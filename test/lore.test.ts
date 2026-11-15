@@ -113,9 +113,10 @@ describe('v64: tutorial (método em 3 etapas) e falas dos professores', () => {
     assert.equal(lore.personalize('Oi, {garoto}', 'm'), 'Oi, garoto');
   });
 
-  it('a Crônica (capítulo II) combina com o Arco 1: o rio envenenado e o selo de cinco pedras há 50 anos', () => {
-    assert.match(CHRONICLE[1]!.text, /envenenou o rio/);
-    assert.match(CHRONICLE[1]!.text, /cinquenta anos/);
-    assert.match(CHRONICLE[1]!.text, /cinco pedras/);
+  it('a Crônica (capítulo II) combina com o Arco 1, com os nomes escolhidos (v65): Primeira Guerra, Rio das Raízes, Noite das Cinco Pedras', () => {
+    assert.match(CHRONICLE[1]!.text, /Primeira Guerra.*envenenou o Rio das Raízes/);
+    assert.match(CHRONICLE[1]!.text, /cinquenta anos, na Noite das Cinco Pedras/);
+    assert.match(CHRONICLE[1]!.text, /Pedras da Vigília/);
+    assert.match(CHRONICLE[1]!.text, /Lodo Ancestral/);
   });
 });

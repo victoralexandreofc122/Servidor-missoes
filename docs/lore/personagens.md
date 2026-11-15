@@ -37,9 +37,8 @@
 - **Nunca diz:** "Ninguém olha para o tronco." (é a frase do impostor no Arco 1: a pista depende disso).
 - **Sabe:** o truque do tronco melhor do que ninguém.
 - **Falas:** `TUT_KENJI_*`; o bilhete do fragmento `FRG_02`.
-- **Inconsistência a corrigir (arte):** o NPC "Professor Kenji" está desenhado com o visual feminino e a "Professora Mei"
-  com o masculino (`public/game.js`, a lista de visuais da Academia: `tutor_jutsu` tem `gender: 'f'`, `tutor_weapons` usa
-  o padrão masculino). Parece uma troca. Não mexi: arte é do Victor. Trocar os dois visuais resolve sem mudar nome.
+- **Visual (corrigido na v65, com o OK do Victor em 15/11):** estava trocado com o da Mei; agora o Kenji é masculino
+  (cabelo espetado, camisa roxa) e a Mei, feminina (cabelo longo de lado).
 
 ### Professora Mei (Sala de Armas)
 - **Histórico:** cuida do estoque de armas da Academia; conta tudo duas vezes.
@@ -50,7 +49,7 @@
 - **Falas:** `TUT_MEI_*`.
 
 ### Diretor da Academia
-- **Histórico:** velho; guarda a Academia, a Cerimônia e o segredo das cinco pedras. Queimou a bandana do melhor aluno que
+- **Histórico:** velho; guarda a Academia, a Noite das Lanternas e o segredo das cinco pedras. Queimou a bandana do melhor aluno que
   já teve (Arco 1).
 - **Motivação:** manter o selo de pé, mesmo que isso custe a verdade.
 - **Como fala:** frases curtas, formais. **Nunca responde "por quê".**
@@ -72,7 +71,7 @@
 - **Motivação:** formar ninjas úteis, não heróis.
 - **Como fala:** direto, humor seco, chama todo mundo de "cadete" (no jogo hoje: "jovem ninja").
 - **Falas no jogo:** `npcLine` em `gameWorld.ts` (missões).
-- **Proposta:** trocar "slime" por "lodo verde" nas falas dele (nome de monstro: precisa do OK, ver `propostas-de-nomes.md`).
+- **v65:** as falas dele já dizem **Lodo Verde** (antes "slime"; escolha do Victor).
 
 ### Ferreiro Tetsu (Armaria)
 - **Histórico:** ferreiro há trinta anos; o metal vem da Rocha Antiga.

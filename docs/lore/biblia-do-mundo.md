@@ -2,9 +2,9 @@
 
 * **Status:** fonte única de verdade da lore (15/11/2026). Quando um texto do jogo, um roteiro (`docs/historia/`) ou um
   documento de design disser outra coisa, vale o que está aqui; a contradição vai para a seção 9 até ser corrigida.
-* **Regra de nomes (CLAUDE.md, 09/11/2026):** esta bíblia **não cria nome próprio novo**. Onde o mundo precisa de um nome
-  que ainda não existe, ele aparece descrito ("a guerra dos fundadores") e entra em `propostas-de-nomes.md`, com 3
-  opções, para o Victor escolher.
+* **Regra de nomes (CLAUDE.md, 09/11/2026):** esta bíblia **não cria nome próprio novo** sem a escolha do Victor. Os
+  nomes que faltavam foram escolhidos por ele em 15/11/2026 (`propostas-de-nomes.md`) e já estão aplicados aqui, no jogo e
+  no roteiro do Arco 1. Nome novo daqui para a frente: 3 opções, o Victor escolhe.
 * **Base:** o que já está no jogo (mapas, NPCs, classes, clãs, Titãs, Vínculo, relíquias, a Crônica das Eras do
   Cronista), o roteiro do Arco 1 (`docs/historia/arco-1.md`) e o endgame canônico (`docs/endgame-visao.md`).
 * **Método:** o "Manual Definitivo de Design Narrativo" enviado pelo Victor: as 8 seções da Bíblia de Mundo, causa e
@@ -45,20 +45,20 @@ renegados. A lore existe para dar sentido ao que os jogadores fazem uns com os o
 
 ## 2. Geografia e meio ambiente
 
-O mundo conhecido é uma bacia de terra fértil cortada por um rio que corre por baixo da Floresta. As quatro aldeias
+O mundo conhecido é uma bacia de terra fértil cortada pelo Rio das Raízes, que corre por baixo da Floresta. As quatro aldeias
 ficam nas bordas da bacia, cada uma na paisagem que combina com a sua herança; o meio é a terra que ninguém aceitou
 dividir.
 
 | Região | Onde e como é | O que a geografia causa |
 |---|---|---|
-| **Aldeia da Chama Eterna** | Ao norte da Floresta. Praça com lanternas, Academia, Armaria, Alfaiataria, Casa dos Pergaminhos, campo de treino com arena. Um canal leva água da Floresta por baixo da Praça. | É a aldeia mais perto da Floresta e do selo: por isso guarda a Academia e a Cerimônia. O canal é o caminho por onde o perigo sobe (Arco 1). |
+| **Aldeia da Chama Eterna** | Ao norte da Floresta. Praça com lanternas, Academia, Armaria, Alfaiataria, Casa dos Pergaminhos, campo de treino com arena. Um canal leva água da Floresta por baixo da Praça. | É a aldeia mais perto da Floresta e do selo: por isso guarda a Academia e a Noite das Lanternas. O canal é o caminho por onde o perigo sobe (Arco 1). |
 | **Aldeia da Maré Oculta** | Litoral de névoa, casas sobre a água. | Névoa e maré escondem quem chega: a aldeia vive de informação (passiva Corrente Silenciosa). |
 | **Aldeia do Vento Cortante** | Planalto alto e aberto, ventos fortes o ano inteiro. | Distâncias grandes e nada para se esconder: a aldeia valoriza velocidade (passiva Passo do Vendaval). |
 | **Aldeia da Rocha Antiga** | Desfiladeiro de pedra antiga, muralhas talhadas na rocha. | Fácil de defender, difícil de abastecer: a aldeia valoriza resistência e cerco (passiva Muralha). |
-| **Floresta** | Ao sul da Chama Eterna, 100 x 100 casas. Lago, velho carvalho, acampamento antigo, leito seco e a beira do rio. | O rio subterrâneo carrega o chakra derretido do Lodo: os lodos brotam onde a água aflora (beira, leito). |
+| **Floresta** | Ao sul da Chama Eterna, 100 x 100 casas. Lago, velho carvalho, acampamento antigo, leito seco e a beira do rio. | O Rio das Raízes carrega o chakra derretido do Lodo: os lodos brotam onde a água aflora (beira, leito). |
 | **Caverna do Lodo** | Uma boca de caverna além de um abismo da Floresta. | Fica perto do selo: lá os Lodos Escuros são mais densos. |
 | **Clareira Queimada** | O coração da Floresta, um círculo de terra queimada onde nada cresce. | É o lugar mais perto da superfície do que dorme embaixo: é onde os Titãs acordam a cada Era. |
-| **Poço sob a Praça** | Debaixo da Praça da Chama Eterna, ligado ao canal. | Guarda a quinta Pedra-Selo, que não prende o Lodo (Arco 1, gancho do Arco 2). |
+| **Poço sob a Praça** | Debaixo da Praça da Chama Eterna, ligado ao canal. | Guarda a quinta Pedra da Vigília, que não prende o Lodo (Arco 1, gancho do Arco 2). |
 | **Zona de Conflito** | Entre as quatro aldeias, com um acampamento de cada uma. | Terra sem dono: ali a lei das aldeias não chega e só a lâmina decide (PvP livre, MMR, temporadas). |
 | **Refúgio dos Renegados** | Longe das quatro aldeias, abrigo dos que riscaram a bandana. | Ninguém manda ali: quem não é renegado entra como intruso. |
 | **Arena das Quatro Heranças** | Um vale com as estátuas das quatro heranças em volta de um campo de duelo. | O único lugar onde as aldeias aceitam se medir sem guerra: duelos de honra, rankeado e torneios. |
@@ -82,14 +82,14 @@ Academia) conta a mesma linha em seis capítulos, abertos pela Progressão de Mu
 |---|---|---|---|
 | Antes de tudo | **A Primeira Chama** | Só havia a Chama, uma força viva sem forma. | Quem tocava a Chama ganhava poder, mas ela não tinha dono. |
 | Séculos atrás | **A divisão** | Quatro clãs fundadores dividiram a Chama em quatro heranças e ergueram as quatro aldeias. Dez forças antigas, os Titãs, lutaram contra a divisão. | Os fundadores prenderam os Titãs sob a terra para fazer o mundo como ele é. Quem chegou mais perto deles na luta ficou marcado no sangue: são as linhagens (seção 4). |
-| Logo depois | **A guerra dos fundadores** | A paz entre as quatro heranças não durou: as aldeias guerrearam pela terra do meio. | O sangue e o chakra derramados envenenaram o rio que corre sob a Floresta. Do rio envenenado nasceu o Lodo Ancestral. A terra do meio ficou sem dono: é a Zona de Conflito. |
+| Logo depois | **A Primeira Guerra** | A paz entre as quatro heranças não durou: as aldeias dos fundadores guerrearam pela terra do meio. | O sangue e o chakra derramados envenenaram o **Rio das Raízes**, que corre sob a Floresta. Do rio envenenado nasceu o Lodo Ancestral. A terra do meio ficou sem dono: é a Zona de Conflito. |
 | Gerações de paz armada | **As aldeias crescem** | Cada aldeia se fechou na sua herança. A Chama Eterna fundou a Academia e guardou a brasa que sobrou da Primeira Chama no Pergaminho em Chamas. | A Arena das Quatro Heranças vira o lugar dos duelos de honra, no lugar da guerra aberta. |
-| Há 50 anos | **O selamento** | O Lodo Ancestral acordou sob a Floresta. A geração que fundou a Academia o prendeu com cinco Pedras-Selo, acesas pela chama do Pergaminho em Chamas. | Nasce a Cerimônia da Chama: a cada formatura, o Diretor reacende as pedras. Os lodos da Floresta são as gotas de chakra que vazam pelo selo; o Rei Lodo é o maior pedaço que escapou. |
+| Há 50 anos | **A Noite das Cinco Pedras** | O Lodo Ancestral acordou sob a Floresta. A geração que fundou a Academia o prendeu com cinco Pedras da Vigília, acesas pela chama do Pergaminho em Chamas. | Nasce a Noite das Lanternas: a cada formatura, o Diretor reacende as pedras. Os lodos da Floresta são as gotas de chakra que vazam pelo selo; o Rei Lodo é o maior pedaço que escapou. |
 | Uma geração atrás | **As primeiras bandanas queimadas** | A aldeia passou a expulsar quem matava aliados ou traía a herança, queimando a bandana na expulsão. Outros saíram por conta própria, riscando a bandana. | Os expulsos se juntam como **Os Cinzas**; os que saíram por escolha vivem no **Refúgio dos Renegados**. A aldeia passa a eleger um Kage por Era, e toda eleição faz descontentes. |
 | Hoje (a Era Fundadora, Temporada 1) | **O jogador** | Um cadete entra na Academia da Chama Eterna. Na noite da formatura, um lodo aparece dentro da Vila, onde lodo nenhum entra. | Começa o Arco 1 (`docs/historia/arco-1.md`). Ao mesmo tempo, as Eras de 60 dias começam a girar: Kage, torneios, guerras, e os Titãs acordando um por dia nos 10 primeiros dias de cada Era. |
 | O que vem | **Além do mar e abaixo da pedra** | Os Titãs caídos abrem passagens fechadas desde a Primeira Chama. | Ilhas e cavernas profundas (marco 250). |
 
-**O que o jogador sabe e quando.** O cadete sabe o que a Academia ensina (seção 4: o juramento da formatura). O resto chega
+**O que o jogador sabe e quando.** O cadete sabe o que a Academia ensina (seção 4: a Promessa da Chama). O resto chega
 em pedaços: o Cronista conta a Crônica até o marco do mundo; os fragmentos achados pelo mapa mostram o que os livros não
 contam; o Arco 1 revela o selo e a quinta pedra.
 
@@ -103,20 +103,19 @@ As quatro aldeias acreditam na mesma coisa de jeitos diferentes: a Chama é a or
 uma brasa dela. Não há deuses com rosto; há a Chama, os fundadores (lembrados como antepassados, não como divindades) e
 os Titãs (temidos como forças da natureza, não adorados).
 
-- **O juramento da formatura** (nome próprio em aberto, ver `propostas-de-nomes.md`): o cadete promete guardar a brasa
-  que recebeu e passá-la adiante.
-- **A Cerimônia da Chama:** a cada formatura, o Diretor reacende as Pedras-Selo com o Pergaminho em Chamas. Só o Diretor
+- **A Promessa da Chama** (dita na formatura): o cadete promete guardar a brasa que recebeu e passá-la adiante.
+- **A Noite das Lanternas:** a cada formatura, o Diretor reacende as Pedras da Vigília com o Pergaminho em Chamas. Só o Diretor
   sabe onde ficam as cinco.
 - **A bandana:** é o corpo da promessa. Queimar a bandana é a pena máxima (expulsão); riscar a bandana é renunciar.
 - **Heresias e costumes:** os Cinzas dizem que a Chama nunca devia ter sido dividida e que os fundadores roubaram o que
-  era de todos. No cotidiano: acender uma lanterna na janela na noite da Cerimônia; não dizer o nome de um Titã em voz
+  era de todos. No cotidiano: acender uma lanterna na janela na Noite das Lanternas; não dizer o nome de um Titã em voz
   alta no dia em que ele acorda; tocar o chão antes de um duelo na Arena.
 
 ### As quatro aldeias
 
 | Aldeia | Valor que ensina | Rito de passagem | Como o povo é |
 |---|---|---|---|
-| Chama Eterna | Coragem e dever | A formatura na Academia e a Cerimônia | Calorosa, barulhenta, orgulhosa da Academia; conta histórias na Praça. |
+| Chama Eterna | Coragem e dever | A formatura na Academia e a Noite das Lanternas | Calorosa, barulhenta, orgulhosa da Academia; conta histórias na Praça. |
 | Maré Oculta | Paciência e segredo | Passar uma noite inteira na névoa sem ser visto | Educada e reservada; fala pouco, escuta muito, escreve tudo em cifra. |
 | Vento Cortante | Liberdade e rapidez | Atravessar o planalto de uma ponta à outra antes do sol se pôr | Direta, inquieta, canta enquanto trabalha; despreza muros. |
 | Rocha Antiga | Paciência e resistência | Gravar o próprio nome na muralha depois do primeiro cerco | Lenta para confiar, leal para sempre; mede tudo em gerações. |
@@ -132,7 +131,7 @@ Primária no Genin, a Secundária no Chunin): a brasa de uma pessoa não aliment
 
 As linhagens são famílias marcadas no sangue desde a divisão: os antepassados delas lutaram perto dos Titãs, e um pouco
 daquela força ficou. Por isso a linhagem **desperta** (Rito do Despertar), não se aprende. O vínculo de cada linhagem com
-os Titãs é a leitura canônica, e o Cronista pode contá-la em um capítulo futuro:
+os Titãs foi **confirmado pelo Victor em 15/11/2026**, e o Cronista pode contá-lo em um capítulo futuro:
 
 | Linhagem | Herança no sangue | De onde vem (cânone) |
 |---|---|---|
@@ -161,14 +160,14 @@ nas brigas das aldeias.
   ninguém a guarda duas vezes.
 - **A hierarquia:** Academia, Genin (nível 11, a 1ª classe), Chunin (nível 40, a 2ª classe), Jounin (o Torneio da
   Temporada), ANBU (indicação do Kage, de 1 a 10), Kage. O Diretor da Academia não é Kage: guarda a Academia, a
-  Cerimônia e o segredo das pedras, acima das eleições.
+  Noite das Lanternas e o segredo das pedras, acima das eleições.
 - **Lei e punição:** matar aliado, quebrar as regras ou desafiar o Kage leva à expulsão (bandana queimada). Renegados
   podem voltar duas vezes por Era, só no fim dela, com o aval do Maior Vilão e do Kage.
 - **Entre as aldeias:** guerra, aliança ou trégua, decididas pelo Kage (diplomacia do endgame). A guerra semanal 20v20 e
   a Guerra Final são o jeito "civilizado" de disputar a terra do meio.
 - **Fora das aldeias:** na Terra Sem Lei manda o **Maior Vilão**, eleito no Torneio dos Renegados, que escolhe a lei da
   Era ("Todos por si" ou "Paz armada"). O nome que o jogador vê para a organização de elite deles é **Os Cinzas**.
-- **Tensões ativas quando o jogador começa:** as Pedras-Selo estão sendo apagadas por alguém de dentro (Arco 1); os
+- **Tensões ativas quando o jogador começa:** as Pedras da Vigília estão sendo apagadas por alguém de dentro (Arco 1); os
   Titãs voltam a acordar a cada Era; as aldeias disputam a Zona de Conflito; a primeira Era (a Era Fundadora) ainda não
   tem Jounin nem Kage.
 
@@ -254,8 +253,15 @@ Convenções para qualquer nome novo (que só entra depois da escolha do Victor)
 | Títulos | Fórmula fixa | "Portador da/do ...", "Jounin da Era N", "Herói da Vila X" |
 | Organizações | Plural com artigo | Os Cinzas |
 
-Ainda sem padrão definido (pedem a escolha do Victor): nomes de pessoas das outras três aldeias (sugestão em
-`propostas-de-nomes.md`: cada aldeia com a sua sonoridade) e nomes dos fundadores.
+**Pessoas das outras três aldeias** (escolha do Victor, 15/11/2026: cada aldeia com o seu som):
+
+| Aldeia | Som dos nomes | Exemplos |
+|---|---|---|
+| Maré Oculta | Nomes que lembram água, macios, terminando em vogal | Mio, Nami |
+| Vento Cortante | Curtos e duros, uma ou duas sílabas | Kaze, Jin |
+| Rocha Antiga | Longos e lentos, com sílaba fechada | Gendou, Iwata |
+
+Ainda sem nome (pedem 3 opções e a escolha do Victor quando precisarem aparecer): os quatro fundadores.
 
 ---
 

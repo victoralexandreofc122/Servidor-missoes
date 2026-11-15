@@ -44,15 +44,15 @@ export const NPC_MISSION = {
 export const NPC_OFFERS: readonly Omit<MissionOffer, 'reward'>[] = [
   {
     code: 'NPC_EASY', title: 'Limpar a Trilha', difficulty: 'Fácil', target: { code: 'slime', quantity: 3 },
-    description: 'Slimes estão bloqueando a trilha que sai do portão sul. Afaste 3 deles da Floresta.',
+    description: 'Lodos Verdes estão bloqueando a trilha que sai do portão sul. Afaste 3 deles da Floresta.',
   },
   {
     code: NPC_MISSION.difficulty, title: 'Treino do Mestre', difficulty: 'Normal', target: { code: 'slime', quantity: NPC_MISSION.targetQuantity },
-    description: `O treino clássico da Vila: derrote ${NPC_MISSION.targetQuantity} slimes na Floresta e volte para entregar o pergaminho.`,
+    description: `O treino clássico da Vila: derrote ${NPC_MISSION.targetQuantity} Lodos Verdes na Floresta e volte para entregar o pergaminho.`,
   },
   {
     code: 'NPC_HARD', title: 'Caçada na Mata Fechada', difficulty: 'Difícil', target: { code: 'slime', quantity: 10 },
-    description: 'Os slimes do fundo da Floresta estão agitados. Derrote 10 deles e prove que está pronto para mais.',
+    description: 'Os Lodos Verdes do fundo da Floresta estão agitados. Derrote 10 deles e prove que está pronto para mais.',
   },
 ];
 export const NPC_OFFER_CODES: readonly string[] = NPC_OFFERS.map((o) => o.code);

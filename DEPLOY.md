@@ -1366,3 +1366,21 @@ mescle o código. Pode rodar de novo sem erro. Nada é apagado.
 2. Um Genin de nível 11 com um clã novo marcado faz o Rito do Despertar com o Diretor e recebe o 1º jutsu do clã.
 3. Conferência no Neon: `SELECT clan_code, count(*) FROM game.jutsus WHERE clan_code IS NOT NULL GROUP BY 1;` (4 em cada
    clã) e `SELECT code, name FROM game.items WHERE kind = 'relic';`.
+
+## Passo 54 — Fragmentos da Crônica no banco (SQL v39)
+
+Rode `db/schema_v39_fragmentos.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v38**, e só então
+mescle o código. Pode rodar de novo sem erro. Nada é apagado.
+
+- Cria `game.player_fragments` (quem achou qual fragmento e quando). O servidor paga +30 ryō e +60 XP só no 1º achado de
+  cada um.
+- Sem a v39 o jogo segue como na v64: o fragmento fica só no aparelho, sem prêmio.
+
+### Testar no celular
+
+1. Saia da Academia e ande até um brilho dourado: o aviso "Fragmento da Crônica guardado! +30 ryō e +60 XP (1/17)".
+2. Abra o jogo em outro aparelho: o Manual → Fragmentos mostra o mesmo fragmento.
+3. Fale com O Cronista (Academia): ele conta quantos você achou.
+4. Conta nova: na 1ª sala da Academia, toque em "⏭ Pular a Academia" duas vezes: você vai para a Praça com a Kunai de
+   Treino, +100 ryō e +50 XP.
+5. Conferência no Neon: `SELECT fragment_code, count(*) FROM game.player_fragments GROUP BY 1 ORDER BY 1;`

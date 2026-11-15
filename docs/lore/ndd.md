@@ -45,8 +45,8 @@ preço que ninguém conta, e precisa decidir, Era após Era, o que fazer com a p
 | Momento | O que é fixo | Onde está |
 |---|---|---|
 | Prólogo | A Academia: 4 salas, 4 professores, a primeira promessa da história (o tronco da Substituição) | Jogo (tutorial) e `docs/lore/tutorial.md` |
-| Ato I do Arco 1 | Um lodo dentro da Vila; as Pedras-Selo; "quem apagou conhece o selo" | `docs/historia/arco-1.md` |
-| Ato II | Os Cinzas; o pergaminho roubado na Cerimônia (Missão de Genin) | idem |
+| Ato I do Arco 1 | Um lodo dentro da Vila; as Pedras da Vigília; "quem apagou conhece o selo" | `docs/historia/arco-1.md` |
+| Ato II | Os Cinzas; o pergaminho roubado na Noite das Lanternas (Missão de Genin) | idem |
 | Ato III | O falso professor; a quinta pedra; o chefe; o olho sob a Praça | idem |
 | A cada Era (60 dias) | Kage, torneios, Titãs nos 10 primeiros dias, guerras, a Era vira história | Jogo (endgame) |
 | Marcos do mundo (30, 60, 100, 150, 250 jogadores) | Um capítulo novo da Crônica e regiões novas | Jogo (Progressão de Mundo) |
@@ -63,7 +63,7 @@ decisão. Classificação de cada escolha:
 
 | Escolha | Onde | Tipo | O que muda | Reconverge em |
 |---|---|---|---|---|
-| "Prometo." / "Cada um cuida da sua missão." | Arco 1, M3 | **Real** | A Tsubaki entra na luta final já na fase 1 e cura (ou só na fase 2); a fala dela | M14 (o chefe acontece igual) |
+| "Prometo." / "Cada um cuida da sua missão." | Arco 1, M3 | **Real** | A Akane entra na luta final já na fase 1 e cura (ou só na fase 2); a fala dela | M14 (o chefe acontece igual) |
 | Contar ou não ao "Kenji" onde fica a Pedra 3 | Arco 1, M8 | **Real** | Pedra 3 apagada e luta mais dura; falas em M10, M11 e M14 | M10 (o rastro segue igual) |
 | "Vou contar ao Mestre." / "Fica entre nós." | Arco 1, M12 | **Real (adiada)** | A confiança do Mestre e do Diretor no Arco 2 | Arco 2 |
 | Classe Primária e Secundária | Missão de Genin, nível 40 | **Real (sistêmica)** | Jutsus, kit, papel no grupo | Toda a progressão |
@@ -82,7 +82,7 @@ curta; o brilho dourado é a luz como ponto focal (princípio 2 da orientação 
 
 | Região | O que o espaço deve mostrar | Fragmento |
 |---|---|---|
-| Academia | A ordem e a promessa: a sala do Diretor é a mais alta e a mais iluminada | Regimento da Cerimônia; Bilhete na mesa do Professor Kenji |
+| Academia | A ordem e a promessa: a sala do Diretor é a mais alta e a mais iluminada | Regimento da Noite das Lanternas; Bilhete na mesa do Professor Kenji |
 | Praça da Chama Eterna | O canal que vem da Floresta passa por baixo da Praça; a grade é o único ponto sujo da aldeia | Placa junto à grade do canal |
 | Armaria | Ordem e contagem (kunais numeradas) | Recibo de kunais |
 | Casa dos Pergaminhos | Papel e silêncio | Anotação do Sábio Ren sobre o pergaminho liso |
@@ -132,9 +132,8 @@ está no mundo:
 | Portador por uma Era | **Carregar** e devolver | A brasa não aguenta dois Titãs; a Era acaba e o pedaço volta a dormir. |
 | Mapas trancados por população | **Abrir caminho** juntos | O mundo cresce quando há gente bastante carregando a Chama; a névoa é a Crônica ainda borrada. |
 
-**Risco que continua aberto:** o Mestre dá "Prove seu valor, jovem ninja: derrote 5 slimes". O jogo chama os monstros de
-slime e de lodo; o cânone é **lodo**. Proposta: trocar "slime" por "lodo verde" nos textos (é um nome de monstro: precisa
-do OK do Victor, ver `propostas-de-nomes.md`).
+**Risco resolvido (v65):** o jogo chamava o monstro de caça de "slime" e o cânone é **lodo**. Por escolha do Victor, ele
+agora se chama **Lodo Verde** em tudo que o jogador vê (falas do Mestre, missões, janela do alvo, painel do admin).
 
 ---
 

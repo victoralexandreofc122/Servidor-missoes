@@ -32,7 +32,8 @@ import {
   BASE_SKILLS, FORM_OF_MECHANIC, type JutsuForm, jutsuLevel, MASTERY, type MasteryGain, masteryBonus, masteryUseLevel, withMastery, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
 import { CLAN_PASSIVE, CLAN_TIER_LEVEL, clanJutsusFor, type Clan } from './jutsusClasses.js';
-import { tutorFala } from './falas.js';
+import { cronistaFala, tutorFala } from './falas.js';
+import { FRAGMENT_BY_ID, FRAGMENT_REWARD, FRAGMENT_SERVER_REACH, FRAGMENT_SPOTS } from './fragmentos.js';
 
 /**
  * v35 (#11): o Rito do Despertar. Genin de nível 11 com a linhagem marcada no Criador fala com o Diretor, derrota estes
@@ -241,6 +242,8 @@ export interface JoiningPlayer {
   riteProgress?: number | null;
   /** v38 (migração v26): capítulos do Pergaminho do Mestre desbloqueados e lidos. */
   manual?: { unlocked: string[]; read: string[] };
+  /** v65 (migração v39): os fragmentos da Crônica achados (undefined = banco sem a v39). */
+  fragments?: string[];
   /** Jutsu -> usos já gravados no banco. */
   jutsus?: Record<string, number>;
   kageCandidate?: boolean;
@@ -350,6 +353,8 @@ interface Session {
   lastMissionAt: number;
   /** v64: rodízio das falas dos professores depois da Academia. */
   talkTurn: number;
+  /** v65: pulando a Academia (as etapas avançam sozinhas, sem aviso nem viagem, até a Praça). */
+  skipAcademy: boolean;
   /** Aceitar/entregar que chegou dentro da janela: vai uma vez quando ela abrir. */
   missionRetry: ((missions: Missions) => Promise<void>) | undefined;
   /** Posição mudou desde o último envio. */
@@ -383,6 +388,9 @@ interface Session {
   manual: ManualState;
   /** O banco tem a tabela do Pergaminho (migração v26): só então grava capítulos e paga prêmios. */
   manualDb: boolean;
+  /** v65: os fragmentos da Crônica achados e se o banco os guarda (migração v39). */
+  fragments: Set<string>;
+  fragmentsDb: boolean;
   feedbackAt: number;
   /** Substituição armada até este instante (anula o próximo golpe). */
   substituteUntil: number;
@@ -1091,6 +1099,7 @@ export class GameWorld {
       maxLevel: MAX_LEVEL,
       version: GAME_VERSION,                   // v38: a nota do Pré-Alpha mostra a versão
       manualReward: { ...MANUAL_REWARD },
+      fragmentReward: { ...FRAGMENT_REWARD },
     };
   }
 
@@ -1099,6 +1108,7 @@ export class GameWorld {
       tutorialStep: s.tutorial, ryo: s.ryo, items: { ...s.items }, equipped: s.equipped, equippedScroll: s.equippedScroll,
       equippedShoes: s.equippedShoes, equippedAccessory: s.equippedAccessory, classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin, clan: s.clan, clanMark: s.clanMark, riteProgress: s.riteProgress,
       manual: manualView(s.manual),
+      ...(s.fragmentsDb || !this.store ? { fragments: [...s.fragments] } : {}),
       villageSwitches: s.villageSwitches, cape: s.cape, display: { ...s.display },
     };
   }
@@ -1212,6 +1222,8 @@ export class GameWorld {
       riteProgress: player.riteProgress !== undefined ? player.riteProgress : previous?.riteProgress ?? null,
       manual: player.manual ? manualFrom(player.manual) : previous?.manual ?? manualFrom(undefined),
       manualDb: player.manual !== undefined || (previous?.manualDb ?? false),
+      fragments: new Set(player.fragments ?? (previous ? [...previous.fragments] : [])),
+      fragmentsDb: player.fragments !== undefined || (previous?.fragmentsDb ?? false),
       feedbackAt: previous?.feedbackAt ?? 0,
       substituteUntil: previous?.substituteUntil ?? 0,
       stunnedUntil: 0,
@@ -1272,6 +1284,7 @@ export class GameWorld {
       lastBreathAt: previous?.lastBreathAt ?? 0,
       thorns: null, retort: null, oath: null, evadeUntil: 0, dodgeBuff: null, echoTrail: [],
       talkTurn: previous?.talkTurn ?? 0,
+      skipAcademy: false,
       revives: player.revives ?? previous?.revives ?? [],
       lastPanelAt: 0,
     };
@@ -1525,7 +1538,8 @@ export class GameWorld {
   /** O Cronista (Academia): a Crônica das Eras, aberta até o marco do mundo; o resto, borrado. */
   private talkChronicler(s: Session): void {
     const stage = this.worldStage();
-    this.sendTo(s, { type: 'npc_say', npcId: 'cronista', text: 'Sente-se, ninja. A Crônica das Eras cresce junto com o mundo.' });
+    // v65: o Cronista conta os fragmentos achados (docs/lore/personagens.md; falas.ts)
+    this.sendTo(s, { type: 'npc_say', npcId: 'cronista', text: cronistaFala(s.fragments.size, FRAGMENT_SPOTS.length).text });
     this.sendTo(s, {
       type: 'chronicle', stage,
       chapters: CHRONICLE.map((c) => (stage >= c.min ? { title: c.title, text: c.text, open: true } : { title: c.title, text: BLURRED, open: false })),
@@ -2439,6 +2453,8 @@ export class GameWorld {
     else if (parsed.type === 'admin') this.adminPanel(session, parsed.command, t);
     else if (parsed.type === 'admin_catalog') this.adminCatalog(session);
     else if (parsed.type === 'manual_read') this.readManual(session, parsed.chapter);
+    else if (parsed.type === 'tutorial_skip') this.skipAcademy(session);   // v65: Pular a Academia
+    else if (parsed.type === 'fragment') this.findFragment(session, parsed.id);   // v65: fragmento da Crônica
     else if (parsed.type === 'feedback') this.feedback(session, parsed, t);
     else if (parsed.type === 'admin_feedback') this.adminFeedback(session, parsed.action, parsed.id);
     else if (parsed.type === 'power') this.power(session, t, parsed.targetId, parsed.dir);
@@ -5402,6 +5418,28 @@ export class GameWorld {
     this.storeTask(s, (store) => store.readChapter!(id, chapter).then((first) => { if (first) pay(); }), true);
   }
 
+  /**
+   * v65 (migração v39): achou um fragmento da Crônica. O SERVIDOR confere (depois da Academia, no mapa certo, perto do
+   * brilho, ainda não achado), grava e paga o prêmio uma vez só. Sem a v39 no banco: anota na sessão, sem prêmio.
+   */
+  private findFragment(s: Session, code: string): void {
+    const spot = FRAGMENT_BY_ID.get(code);
+    if (!spot || s.tutorial < 4 || s.dead || s.watching || s.map !== spot.map || s.fragments.has(code)) return;
+    if (distance(s, spot) > FRAGMENT_SERVER_REACH) return;
+    s.fragments.add(code);
+    this.sendTo(s, { type: 'fragments', found: [...s.fragments], fresh: code });
+    const { id } = s;
+    const pay = () => {
+      const current = this.sessions.get(id);
+      if (!current) return;
+      this.awardXp(current, FRAGMENT_REWARD.xp, FRAGMENT_REWARD.ryo);
+      this.sendTo(current, { type: 'notice', text: `Fragmento da Crônica guardado! +${FRAGMENT_REWARD.ryo} ryō e +${FRAGMENT_REWARD.xp} XP (${current.fragments.size}/${FRAGMENT_SPOTS.length}).`, tone: 'good' });
+    };
+    if (!this.store) return pay();                               // sem banco (testes): paga direto
+    if (!this.store.findFragment || !s.fragmentsDb) return;       // banco antes da v39: fica no aparelho, sem prêmio
+    this.storeTask(s, (store) => store.findFragment!(id, code).then((first) => { if (first) pay(); }), true);
+  }
+
   /** Feedback (Menu > Enviar Feedback): grava o relato com o que o servidor sabe do jogador e o que o cliente viu. */
   private feedback(s: Session, msg: { category: string; content: string; screen?: Record<string, string | number> }, t: number): void {
     const say = (text: string, tone: 'good' | 'bad') => this.sendTo(s, { type: 'notice', text, tone });
@@ -5479,6 +5517,14 @@ export class GameWorld {
     const done = (current: Session) => {
       current.tutorial = to;
       this.sendTo(current, { type: 'tutorial', step: to });
+      // v65: pulando a Academia: as etapas do meio passam sem aviso e sem viagem; no fim, um aviso só e a Praça
+      if (current.skipAcademy && to < 4) return;
+      if (current.skipAcademy) {
+        current.skipAcademy = false;
+        this.sendTo(current, { type: 'notice', text: 'Academia pulada! Você ganhou a Kunai de Treino (equipe na mochila 🎒), +100 ryō e +50 XP. O mundo está aberto.', tone: 'good' });
+        this.moveToStage(current, 4);
+        return;
+      }
       const lines = [
         '',
         'Etapa 1 concluída! Na Sala de Controle, um campo drena o seu chakra: medite 🧘 até a barra encher.',
@@ -5500,6 +5546,7 @@ export class GameWorld {
       if (to === 3) s.items.kunai_training = Math.max(1, s.items.kunai_training ?? 0);
       done(s);
       if (to === 3) this.sendInventory(s);
+      if (s.skipAcademy && s.tutorial < 4) this.advanceTutorial(s, s.tutorial + 1);   // v65: pulando, a próxima etapa
       return;
     }
     s.tutorialBusy = true;
@@ -5525,7 +5572,20 @@ export class GameWorld {
       if (current) current.tutorialBusy = false;
       s.tutorialBusy = false;
       this.flushKicks();
+      if (current?.skipAcademy && current.tutorial < 4) this.advanceTutorial(current, current.tutorial + 1);   // v65: a próxima etapa
     });
+  }
+
+  /**
+   * v65: Pular a Academia (decisão do Victor, 15/11/2026; o guia de design narrativo: quem já sabe jogar não precisa do
+   * tutorial longo). Só dentro da Academia, antes do fim. As etapas avançam uma a uma no banco (a mesma regra de sempre:
+   * a Kunai de Treino no passo 3, +100 ryō e +50 XP no 4) e o jogador vai para a Praça.
+   */
+  private skipAcademy(s: Session): void {
+    if (s.tutorial >= 4 || s.map !== 'academy_interior' || s.skipAcademy || s.dead) return;
+    s.skipAcademy = true;
+    this.stopMeditation(s, 'manual');
+    this.advanceTutorial(s, s.tutorial + 1);
   }
 
   /** Leva o jogador para a sala da etapa `step` (0 a 3) ou, no passo 4, para a Praça da Vila. */
@@ -9246,14 +9306,14 @@ export class GameWorld {
 }
 
 
-/** Nome do alvo para as falas: "slime" -> "slimes". */
-const TARGET_NAMES: Record<string, [string, string]> = { slime: ['slime', 'slimes'] };
+/** Nome do alvo para as falas (v65: o slime se chama Lodo Verde, escolha do Victor em 15/11/2026). */
+const TARGET_NAMES: Record<string, [string, string]> = { slime: ['Lodo Verde', 'Lodos Verdes'] };
 export function targetLabel(code: string, quantity: number): string {
   const names = TARGET_NAMES[code];
   return names ? names[quantity === 1 ? 0 : 1] : code;
 }
 
-/** "Derrotar 5 slimes" (texto curto da missão para os avisos). */
+/** "Derrotar 5 Lodos Verdes" (texto curto da missão para os avisos). */
 export function npcTitle(m: MissionView): string {
   return m.type.code === 'DEFEAT_MONSTER' ? `Derrotar ${m.target.quantity} ${targetLabel(m.target.code, m.target.quantity)}` : `${m.type.name} (${m.target.quantity})`;
 }
@@ -9341,7 +9401,7 @@ const FEEDBACK_EVERY_MS = 20_000;
 
 /** Nome do monstro no painel do admin. */
 const MONSTER_NAMES: Readonly<Record<string, string>> = {
-  slime: 'Slime', dummy: 'Boneco de treino', sparring: 'Armadilha de lâminas', lodo_escuro: 'Lodo Escuro', lodo_sombrio: 'Lodo Sombrio',
+  slime: 'Lodo Verde', dummy: 'Boneco de treino', sparring: 'Armadilha de lâminas', lodo_escuro: 'Lodo Escuro', lodo_sombrio: 'Lodo Sombrio',
   rei_lodo: 'Rei Lodo (chefe)',
 };
 const monsterName = (code: string): string => MONSTER_NAMES[code] ?? code;

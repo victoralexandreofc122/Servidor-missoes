@@ -21,6 +21,8 @@ export const FIND_PLAYER_SQL = `
    WHERE p.id = $1`;
 
 export const MANUAL_SQL = `SELECT chapter, read_at IS NOT NULL AS read FROM game.player_tutorial WHERE player_id = $1`;
+/** v65 (migração v39): os fragmentos da Crônica achados. */
+export const FRAGMENTS_SQL = `SELECT fragment_code FROM game.player_fragments WHERE player_id = $1 ORDER BY fragment_code`;
 /** v60 (migração v35): as criaturas do Vínculo Ancestral e o Estado Primal. */
 export const VINCULO_SQL = `SELECT creature_type, affinity_level, xp, equipped FROM game.player_vinculo WHERE player_id = $1`;
 export const PRIMAL_SQL = `SELECT active_until, cooldown_until FROM game.player_primal_state WHERE player_id = $1`;
@@ -88,11 +90,15 @@ export function makeFindPlayer(db: Queryable) {
         };
       })
       .catch((err: { code?: string }) => { if (err?.code === '42P01') return undefined; throw err; });
+    // v65 (migração v39): sem a tabela, os fragmentos ficam no aparelho (como na v64)
+    const fragments = await db.query<{ fragment_code: string }>(FRAGMENTS_SQL, [playerId]).then((r) => r.rows.map((x) => x.fragment_code))
+      .catch((err: { code?: string }) => { if (err?.code === '42P01') return undefined; throw err; });
     // v62 (migração v37): as Eras em que a Relíquia do Renascer já foi usada
     const revives = await db.query<{ era_id: number }>(REVIVES_SQL, [playerId]).then((r) => r.rows.map((x) => Number(x.era_id)))
       .catch((err: { code?: string }) => { if (err?.code === '42P01') return undefined; throw err; });
     return {
       ...(manual ? { manual } : {}),
+      ...(fragments ? { fragments } : {}),
       ...(lastPosition ? { lastPosition } : {}),
       ...(revives ? { revives } : {}),
       ...(vinculo ? { vinculo } : {}),
