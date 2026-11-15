@@ -1,7 +1,9 @@
 # Fase 3: propostas para o Victor escolher (15/11/2026)
 
-Regra do CLAUDE.md (09/11/2026): nome novo só entra depois que o Victor escolhe entre 3 opções. Nada daqui está no código
-ainda, salvo os nomes PROVISÓRIOS das relíquias (seção 2), que são só descrições e trocam assim que a escolha vier.
+Regra do CLAUDE.md (09/11/2026): nome novo só entra depois que o Victor escolhe entre 3 opções.
+
+**Escolhido pelo Victor em 15/11/2026 e aplicado na v63 (migração v38):** Bastião 1A, 2A, 3A, 4C; Áspide 1B, 2A, 3B, 4B;
+Garra 1A, 2A, 3C, 4A; Zéfiro 1A, 2B, 3A, 4B; relíquias: todas da opção A.
 
 Para responder, basta a letra de cada item, por exemplo: "Bastião 1A, 2C, 3B, 4A".
 

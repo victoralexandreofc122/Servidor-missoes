@@ -31,7 +31,7 @@ import {
   ACADEMY_JUTSUS, CAST_RULES, CLASSES, CLASS_INFO, EXTRACTION, castSlowOf, EXTRACTION_PITY_STEP, JUTSUS, JUTSU_BY_CODE, JUTSU_LEVEL_USES, LEGACY_JUTSUS,
   BASE_SKILLS, FORM_OF_MECHANIC, type JutsuForm, jutsuLevel, MASTERY, type MasteryGain, masteryBonus, masteryUseLevel, withMastery, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
-import { CLAN_TIER_LEVEL, clanJutsusFor, type Clan } from './jutsusClasses.js';
+import { CLAN_PASSIVE, CLAN_TIER_LEVEL, clanJutsusFor, type Clan } from './jutsusClasses.js';
 
 /**
  * v35 (#11): o Rito do Despertar. Genin de nível 11 com a linhagem marcada no Criador fala com o Diretor, derrota estes
@@ -40,12 +40,21 @@ import { CLAN_TIER_LEVEL, clanJutsusFor, type Clan } from './jutsusClasses.js';
 export const RITE = { monster: 'lodo_escuro', count: 10, monsterName: 'Lodos Escuros' } as const;
 
 /** v30: nomes e o que cada linhagem dá. */
-const CLAN_NAMES: Readonly<Record<Clan, string>> = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' };
+const CLAN_NAMES: Readonly<Record<Clan, string>> = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho',
+  bastiao: 'Clã Bastião', aspide: 'Clã Áspide', garra: 'Clã Garra', zefiro: 'Clã Zéfiro' };
 const CLAN_HINT: Readonly<Record<Clan, string>> = {
   rubro: 'O Olhar Rubro já é seu; os outros jutsus do clã chegam nos níveis 20, 40 e 60.',
   umbra: 'A Possessão da Sombra já é sua; os outros chegam nos níveis 20, 40 e 60, e os jutsus de sombra alcançam 10% mais longe.',
   andarilho: 'Sem clã, a Substituição volta 15% mais rápido.',
+  // v63 (Fase 3, Etapa 4)
+  bastiao: 'A Muralha Interior já é sua; os outros chegam nos níveis 20, 40 e 60. Controles em você duram 15% menos e os seus escudos duram 2 s a mais.',
+  aspide: 'O Cuspe da Áspide já é seu; os outros chegam nos níveis 20, 40 e 60. O seu veneno pulsa já no 1º segundo e quem ele envenena recebe 30% menos cura.',
+  garra: 'O Chamado da Matilha já é seu; os outros chegam nos níveis 20, 40 e 60. As suas invocações têm 30% mais vida e você anda 10% mais rápido.',
+  zefiro: 'O Passo do Vento já é seu; os outros chegam nos níveis 20, 40 e 60. Você esquiva 5% dos golpes e os jutsus de mobilidade voltam 15% mais rápido.',
 };
+
+/** v63: jutsus de mobilidade (o Clã Zéfiro os recarrega 15% mais rápido). */
+const MOBILITY_FORMS: ReadonlySet<JutsuForm> = new Set<JutsuForm>(['teleporte', 'recuo', 'retorno', 'eco', 'mil_passos', 'troca']);
 import { CC_BUDGET, CC_WEIGHT, PVP_BALANCE_VERSION, PVP_SHIELD, SAFETY_NET, ccAllow, safetyNet, type NetHit, pvpBurnPerTick, pvpCostCooldown, pvpHeal, pvpHitDamage, pvpHitRaw, type CcEntry, type CcKind, type HitInfo } from './pvpBalance.js';
 import { ITEMS, ITEM_BY_CODE, KILL_RYO, ROLE_CAPES, SCROLL_DROP_CHANCE, SHURIKEN, SHURIKEN_DAMAGE, SHURIKEN_DROP, SHURIKEN_THROW, gearOf, SCROLL, type Gear } from './items.js';
 import { DEFAULT_APPEARANCE, OPEN_VILLAGES, VILLAGES, villageAllowed, type Village } from './appearance.js';
@@ -362,7 +371,7 @@ interface Session {
   usagePending: Map<string, number>;
   lastUsageFlush: number;
   kageCandidate: boolean;
-  /** v30: linhagem (Clã Rubro, Clã Umbra ou Andarilho); null = ainda não despertou. */
+  /** v30: linhagem (Clã Rubro, Clã Umbra, Andarilho; v63: Bastião, Áspide, Garra, Zéfiro); null = ainda não despertou. */
   clan: Clan | null;
   /** v35: linhagem marcada no Criador e o Rito do Despertar (null = não começou). */
   clanMark: Clan | null;
@@ -467,6 +476,13 @@ interface Session {
   /** v62: Relíquia do Último Fôlego (recarga) e as Eras em que o Renascer já foi usado. */
   lastBreathAt: number;
   revives: number[];
+  /** v63 (clãs novos): espinhos (Muralha Interior), resposta (Muro que Responde), juramento, esquiva total e extra, o eco. */
+  thorns: { until: number; pct: number; range: number } | null;
+  retort: { until: number; push: number; slowMs: number } | null;
+  oath: { until: number; share: number; range: number } | null;
+  evadeUntil: number;
+  dodgeBuff: { until: number; pct: number } | null;
+  echoTrail: { t: number; x: number; y: number }[];
   /** Último pedido de painel (vila, ranking, viagem): toque repetido não vira enxurrada no banco. */
   lastPanelAt: number;
 }
@@ -490,7 +506,7 @@ interface Monster {
   echo?: number;
   /** v30: provocado: persegue e bate nesta invocação (Golem, Clone) enquanto ela existir. */
   tauntId?: string;
-  punch?: { damage: number; hit: HitInfo; liftMs: number; everyMs: number; nextAt: number; radius: number };
+  punch?: { damage: number; hit: HitInfo; liftMs: number; everyMs: number; nextAt: number; radius: number; poison?: { amount: number; max: number; ms: number } };
   /** v53: em quem a invocação está indo (monstro ou ninja inimigo do dono). */
   summonTargetId?: string;
   /** v61: Titã Ancestral (1 a 10). */
@@ -560,6 +576,8 @@ interface GroundZone {
   cut?: number;
   /** v54: quem lançou perde este dano fixo em cada golpe enquanto está dentro (Santuário Vital). */
   cutFlat?: number;
+  /** v63: Névoa Tóxica: uma carga de veneno a cada pulso em quem está dentro. */
+  poison?: { amount: number; max: number; ms: number };
 }
 /** Golpe avisado: o círculo aparece no chão e o dano cai em `at` (dá tempo de sair). */
 interface GroundStrike { id: number; map: MapId; x: number; y: number; r: number; ownerId: string; at: number; damage: number; label: string; stunMs: number; hit?: HitInfo; slowMs?: number; rootMs?: number; woundMs?: number }
@@ -672,7 +690,8 @@ const SUMMON_FOCUS_MS = 10_000;
 const SUMMON_FOCUS_RANGE = 10;
 const SUMMON_FOLLOW = 2.5;
 /** O golpe de cada invocação conta como o jutsu que a chamou (maestria, recarga do PvP, nome no registro). */
-const SUMMON_SKILL: Readonly<Record<string, Skill>> = { golem: 'stone_golem', sentinela_sombra: 'shadow_sentinela', arsenal: 'weapons_arsenal', clone_agua: 'water_clone' };
+const SUMMON_SKILL: Readonly<Record<string, Skill>> = { golem: 'stone_golem', sentinela_sombra: 'shadow_sentinela', arsenal: 'weapons_arsenal', clone_agua: 'water_clone',
+  serpente_aspide: 'aspide_ninho', fera_garra: 'garra_matilha', fera_rei: 'garra_rei' };   // v63
 
 /** v55: as arenas, na ordem em que recebem lutas: a principal (com arquibancada) e as extras, para as lutas em paralelo. */
 const ARENAS: readonly MapId[] = ['vale_estatuas', 'arena_2', 'arena_3', 'arena_4'];
@@ -997,7 +1016,7 @@ export class GameWorld {
   private speedOf(s: Session): number {
     const base = s.running ? s.stats.runSpeed : s.stats.walkSpeed;
     const slow = s.effects.size > 0 ? speedFactor(s.effects, this.now()) : 1;   // Lentidão
-    return round2(base * (s.hasteUntil > 0 ? 1 + s.haste : 1) * slow * (s.casting ? s.casting.slow : 1) * this.bearerSpeed(s, this.now()));   // v61: Vento Cortante
+    return round2(base * (s.hasteUntil > 0 ? 1 + s.haste : 1) * slow * (s.casting ? s.casting.slow : 1) * this.bearerSpeed(s, this.now()) * (s.clan === 'garra' ? CLAN_PASSIVE.garra.speed : 1));   // v61: Vento Cortante; v63: Clã Garra
   }
 
   monsterList(): MonsterView[] {
@@ -1248,6 +1267,7 @@ export class GameWorld {
       windUntil: previous?.windUntil ?? 0,
       invisUntil: previous?.invisUntil ?? 0,
       lastBreathAt: previous?.lastBreathAt ?? 0,
+      thorns: null, retort: null, oath: null, evadeUntil: 0, dodgeBuff: null, echoTrail: [],
       revives: player.revives ?? previous?.revives ?? [],
       lastPanelAt: 0,
     };
@@ -1429,6 +1449,7 @@ export class GameWorld {
     let out = ms;
     if (source && this.bears(source, 7)) out *= BEARER.nightmareCc;
     if (target.kind === 'player' && relicOn(target.session.items, 'reliquia_r_firmeza')) out *= 1 - RELIC.ccCut;
+    if (target.kind === 'player' && target.session.clan === 'bastiao') out *= 1 - CLAN_PASSIVE.bastiao.ccCut;   // v63
     return Math.round(out);
   }
 
@@ -2551,6 +2572,7 @@ export class GameWorld {
     s.y = y;
     if (from !== to) {
       s.trail.length = 0;                       // o rastro é do mapa antigo: ninguém do mapa novo o viu lá
+      s.echoTrail.length = 0;                   // v63: o Eco do Vento não volta para outro mapa
       this.mapPlayers.get(from)?.delete(s);
       this.broadcastMap(from, { type: 'player_left', playerId: s.id });
       s.map = to;
@@ -3271,7 +3293,8 @@ export class GameWorld {
     if (price.cost > 0) session.calmSince = t;
     if (cfg.hpCost) session.hp = Math.max(1, session.hp - Math.round(session.hp * cfg.hpCost));   // v30: custo em vida (nunca mata)
     // v30: Andarilho (sem clã): a Substituição volta 15% mais rápido
-    session.cooldowns[skill] = t + (mechanic === 'substitution' ? Math.round(substitutionCooldownMs(level) * (session.clan === 'andarilho' ? 0.85 : 1)) : price.cooldownMs);
+    session.cooldowns[skill] = t + (mechanic === 'substitution' ? Math.round(substitutionCooldownMs(level) * (session.clan === 'andarilho' ? 0.85 : 1))
+      : session.clan === 'zefiro' && MOBILITY_FORMS.has(form) ? Math.round(price.cooldownMs * CLAN_PASSIVE.zefiro.mobilityCd) : price.cooldownMs);   // v63: Zéfiro
     this.broadcastMap(session.map, {
       type: 'cast', playerId: session.id, skill, x: round2(session.x), y: round2(session.y), fx: round2(session.fx), fy: round2(session.fy),
       ...(to ? { tx: round2(to.x), ty: round2(to.y) } : {}),
@@ -3522,7 +3545,7 @@ export class GameWorld {
   spawnZone(owner: Session, z: {
     x: number; y: number; r: number; kind: GroundZone['kind']; ms: number; tickMs?: number; damage?: number; slowMs?: number; heal?: number; label?: string;
     follow?: boolean; pull?: number; firstRootMs?: number; endDamage?: number; endStunMs?: number; hit?: HitInfo; endHit?: HitInfo;
-    dark?: boolean; trap?: boolean; cut?: number; cutFlat?: number;
+    dark?: boolean; trap?: boolean; cut?: number; cutFlat?: number; poison?: { amount: number; max: number; ms: number };
   }, t: number = this.now()): number {
     const id = ++this.groundSeq;
     const tickMs = z.tickMs ?? 1000;
@@ -3533,6 +3556,7 @@ export class GameWorld {
       ...(z.endDamage ? { endDamage: z.endDamage } : {}), ...(z.endStunMs ? { endStunMs: z.endStunMs } : {}),
       ...(z.hit ? { hit: z.hit } : {}), ...(z.endHit ? { endHit: z.endHit } : {}),
       ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(z.cut ? { cut: z.cut } : {}), ...(z.cutFlat ? { cutFlat: z.cutFlat } : {}),
+      ...(z.poison ? { poison: z.poison } : {}),
     });
     this.broadcastMap(owner.map, { type: 'ground', id, kind: z.kind, x: round2(z.x), y: round2(z.y), r: z.r, ms: z.ms, ...(z.label ? { skill: z.label } : {}), ...(z.follow ? { follow: owner.id } : {}) });
     return id;
@@ -3598,13 +3622,14 @@ export class GameWorld {
       }
       if (t < z.next) continue;
       z.next += z.tickMs;
-      if (z.damage > 0 || z.slowMs > 0 || z.pull || z.dark) {
+      if (z.damage > 0 || z.slowMs > 0 || z.pull || z.dark || z.poison) {
         for (const x of this.targetsFor(owner)) {
           if (!inside(x, z)) continue;
           // v54: a Cegueira é um estado: quem pisa fica cego até o fim da zona, mesmo que saia dela
           if (z.dark && x.kind === 'player') this.applyEffect(x, 'escuridao', t, Math.max(z.tickMs + 150, z.until - t), undefined, owner);
           if (z.damage > 0) this.hitTarget(x, z.damage, owner, t, 'skill', z.label, z.hit);
           if (z.slowMs > 0 && this.stillThere(x)) this.applyEffect(x, 'lentidao', t, z.slowMs, undefined, owner);
+          if (z.poison && this.stillThere(x)) this.poisonOn(x, owner, z.poison.amount, z.poison.max, z.poison.ms, t);   // v63
           if (z.pull && this.stillThere(x)) this.pullToCenter(x, owner, z, z.pull, t);
         }
       }
@@ -3891,8 +3916,30 @@ export class GameWorld {
         this.faceTo(s, pick);
         return { hits: [pick], to: { x: pick.x, y: pick.y } };
       }
-      case 'forma_sombra':
+      case 'forma_sombra': case 'postura': case 'eco':
         return { hits: [] };
+      case 'comando': {
+        // v63: Uivo de Comando: o alvo focado (ou o mais perto) no alcance
+        const ok = (x: Target) => distance(o, x) <= reach && !(x.kind === 'player' && t < x.session.umbraHideUntil);
+        const pick = (targetId !== undefined ? targets.find((x) => x.id === targetId && ok(x)) : undefined) ?? targets.filter(ok).sort((a, b) => distance(o, a) - distance(o, b))[0];
+        if (!pick) return { hits: [], fail: 'NO_TARGET' };
+        this.faceTo(s, pick);
+        return { hits: [pick], to: { x: pick.x, y: pick.y } };
+      }
+      case 'troca': {
+        // v63: Troca Instintiva: a invocação mais perto no alcance
+        const m = this.summonsOf(s).filter((x) => distance(o, x) <= reach).sort((a, b) => distance(o, a) - distance(o, b))[0];
+        if (!m) return { hits: [], fail: 'NO_SUMMON' };
+        return { hits: [], to: { x: m.x, y: m.y } };
+      }
+      case 'mil_passos': {
+        // v63: Mil Passos: até `targets` inimigos em volta (do mais perto para o mais longe)
+        const near = targets.filter((x) => distance(o, x) <= (cfg.radius ?? 5) && !(x.kind === 'player' && t < x.session.umbraHideUntil))
+          .sort((a, b) => distance(o, a) - distance(o, b)).slice(0, Math.max(1, cfg.targets ?? 5));
+        if (near.length === 0) return { hits: [], fail: 'NO_TARGET' };
+        this.faceTo(s, near[0]!);
+        return { hits: near, to: { x: near[0]!.x, y: near[0]!.y } };
+      }
       case 'recuo': {
         const d = cfg.dash ?? 3;
         const sign = d < 0 ? -1 : 1;
@@ -4004,7 +4051,83 @@ export class GameWorld {
         // v35: Deslize Noturno
         if (cfg.stealthMs) s.umbraHideUntil = t + cfg.stealthMs;
         if (cfg.nextHitBonus) s.umbraNext = { bonus: cfg.nextHitBonus, until: t + (cfg.nextHitMs ?? 4000) };
+        if (cfg.evadeMs) s.evadeUntil = t + cfg.evadeMs;   // v63: Passo do Vento
         break;
+      case 'postura': {
+        // v63: em guarda por um tempo (a redução de dano do Juramento já entrou no começo: cfg.dr)
+        const ms = cfg.durationMs ?? 2000;
+        if (cfg.retortPush) s.retort = { until: t + ms, push: cfg.retortPush, slowMs: cfg.retortSlowMs ?? 1500 };
+        if (cfg.oathShare) {
+          s.oath = { until: t + ms, share: cfg.oathShare, range: cfg.range || 6 };
+          this.broadcastMap(s.map, { type: 'clan_fx', kind: 'juramento', playerId: s.id, x: round2(s.x), y: round2(s.y), ms });
+        }
+        if (cfg.dodgePct) s.dodgeBuff = { until: t + ms, pct: cfg.dodgePct };
+        this.sendTo(s, { type: 'notice', text: `${JUTSU_BY_CODE.get(skill)?.name ?? 'Guarda'} por ${Math.round(ms / 100) / 10} s.`, tone: 'good' });
+        break;
+      }
+      case 'comando': {
+        // v63: Uivo de Comando: o uivo atordoa; cada invocação salta colada no alvo e morde
+        for (const x of hits) {
+          if (this.stillThere(x) && cfg.stunMs) this.applyStatus(x, 'stunned', cfg.stunMs, t, s);
+          const pack = this.summonsOf(s);
+          const moved: [string, number, number][] = [];
+          pack.forEach((m, i) => {
+            if (!this.stillThere(x)) return;
+            const a = Math.atan2(m.y - x.y, m.x - x.x) + i * 0.6;
+            const at = { x: x.x + Math.cos(a) * 0.9, y: x.y + Math.sin(a) * 0.9 };
+            const layout = this.layout(s.map);
+            if (!blocked(at.x, at.y, layout.walls)) { m.x = q3(at.x); m.y = q3(at.y); moved.push([m.id, m.x, m.y]); }
+            m.summonTargetId = x.id;
+            strike(x);
+          });
+          if (moved.length) this.broadcastMap(s.map, { type: 'monsters_moved', m: moved });
+          this.broadcastMap(s.map, { type: 'clan_fx', kind: 'uivo', playerId: s.id, x: round2(x.x), y: round2(x.y) });
+        }
+        break;
+      }
+      case 'troca': {
+        // v63: Troca Instintiva: você e a invocação trocam de lugar
+        if (!to) break;
+        const m = this.summonsOf(s).sort((a, b) => distance(to, a) - distance(to, b))[0];
+        if (!m) break;
+        const was = { x: s.x, y: s.y };
+        this.hop(s, { x: m.x, y: m.y }, t);
+        m.x = q3(was.x);
+        m.y = q3(was.y);
+        this.broadcastMap(s.map, { type: 'monsters_moved', m: [[m.id, m.x, m.y]] });
+        this.broadcastMap(s.map, { type: 'clan_fx', kind: 'troca', playerId: s.id, pts: [[round2(was.x), round2(was.y)], [round2(s.x), round2(s.y)]] });
+        break;
+      }
+      case 'eco': {
+        // v63: Eco do Vento: volta para onde estava `echoMs` atrás (o ponto mais velho do rastro, se ele for mais novo)
+        const back = t - (cfg.echoMs ?? 3000);
+        const trail = s.echoTrail;
+        let at = trail[0];
+        for (const p of trail) { if (p.t <= back) at = p; else break; }
+        const from = { x: s.x, y: s.y };
+        if (at && Math.hypot(at.x - s.x, at.y - s.y) > 0.2) this.hop(s, at, t);
+        this.broadcastMap(s.map, { type: 'clan_fx', kind: 'eco', playerId: s.id, pts: [[round2(from.x), round2(from.y)], [round2(s.x), round2(s.y)]] });
+        break;
+      }
+      case 'mil_passos': {
+        // v63: Mil Passos: salta colado em cada um e golpeia; termina ao lado do último (0,4 s sem levar golpe direto)
+        const pts: [number, number][] = [[round2(o.x), round2(o.y)]];
+        const layout = this.layout(s.map);
+        let end: Point | undefined;
+        for (const x of hits) {
+          if (!this.stillThere(x)) continue;
+          const [ux, uy] = unit(o.x - x.x || 0.01, o.y - x.y);
+          const at = { x: x.x + ux * 0.8, y: x.y + uy * 0.8 };
+          if (!blocked(at.x, at.y, layout.walls)) end = at;
+          pts.push([round2(x.x), round2(x.y)]);
+          strike(x);
+          if (this.stillThere(x)) this.applyExtras(x, s, cfg, t, o);
+        }
+        s.evadeUntil = Math.max(s.evadeUntil, t + 400);
+        if (end) this.hop(s, end, t);
+        this.broadcastMap(s.map, { type: 'clan_fx', kind: 'mil_passos', playerId: s.id, pts });
+        break;
+      }
       case 'marca':
         for (const x of hits) {
           s.umbraMark = { targetId: x.id, until: t + (cfg.markMs ?? 6000), bonus: cfg.markBonus ?? 0.25, slowMs: cfg.markSlowMs ?? 1000 };
@@ -4065,6 +4188,7 @@ export class GameWorld {
           ...(z.follow ? { follow: true } : {}), ...(z.pull ? { pull: z.pull } : {}), ...(z.firstRootMs ? { firstRootMs: z.firstRootMs } : {}),
           ...((z.endHit || z.trap) && dmg > 0 ? { endDamage: dmg, endHit: hit } : {}), ...(z.endStunMs ? { endStunMs: z.endStunMs } : {}),
           ...(z.dark ? { dark: true } : {}), ...(z.trap ? { trap: true } : {}), ...(cfg.zoneDamageCut ? { cut: cfg.zoneDamageCut } : {}), ...(cfg.zoneDamageFlat ? { cutFlat: cfg.zoneDamageFlat } : {}),
+          ...(z.poison ? { poison: { amount: z.poison, max: z.poisonMax ?? 4, ms: z.poisonMs ?? 3000 } } : {}),
         }, t);
         break;
       }
@@ -4082,25 +4206,34 @@ export class GameWorld {
       }
       case 'invocacao': {
         // à frente de quem invoca; a vida é uma parte da vida máxima dele; some no fim
-        const at = to ?? ahead(o, s.fx, s.fy, 1.5);
-        const view = this.spawnMonster(at, t, s.map, cfg.summonType ?? 'clone_agua', true);
-        const m = this.monsters.get(view.id);
-        if (!m) break;
-        const hp = Math.max(1, Math.round(s.stats.maxHp * (cfg.summonHp ?? 0.15)));
-        (m as { maxHp: number }).maxHp = hp;
-        m.hp = hp;
-        m.ownerId = s.id;
-        m.summonUntil = t + (cfg.durationMs ?? 6000);
-        if (cfg.echo) m.echo = cfg.echo;   // v52: Segunda Voz
-        if (cfg.punchEveryMs && dmg > 0) {
-          m.punch = { damage: dmg, hit, liftMs: cfg.liftMs ?? 0, everyMs: cfg.punchEveryMs, nextAt: t + cfg.punchEveryMs, radius: cfg.radius ?? 1.5 };
+        // v63: várias de uma vez (Ninho de Áspides: em volta do ponto); Clã Garra: +30% de vida
+        const at0 = to ?? ahead(o, s.fx, s.fy, 1.5);
+        const count = Math.max(1, cfg.summonCount ?? 1);
+        const layout = this.layout(s.map);
+        for (let i = 0; i < count; i++) {
+          const a = (i * Math.PI * 2) / count;
+          const spot = count > 1 ? { x: at0.x + Math.cos(a) * 0.8, y: at0.y + Math.sin(a) * 0.8 } : at0;
+          const at = count > 1 && blocked(spot.x, spot.y, layout.walls) ? at0 : spot;
+          const view = this.spawnMonster(at, t, s.map, cfg.summonType ?? 'clone_agua', true);
+          const m = this.monsters.get(view.id);
+          if (!m) continue;
+          const hp = Math.max(1, Math.round(s.stats.maxHp * (cfg.summonHp ?? 0.15) * (s.clan === 'garra' ? CLAN_PASSIVE.garra.summonHp : 1)));
+          (m as { maxHp: number }).maxHp = hp;
+          m.hp = hp;
+          m.ownerId = s.id;
+          m.summonUntil = t + (cfg.durationMs ?? 6000);
+          if (cfg.echo) m.echo = cfg.echo;   // v52: Segunda Voz
+          if (cfg.punchEveryMs && dmg > 0) {
+            m.punch = { damage: dmg, hit, liftMs: cfg.liftMs ?? 0, everyMs: cfg.punchEveryMs, nextAt: t + cfg.punchEveryMs, radius: cfg.radius ?? 1.5,
+              ...(cfg.poison ? { poison: { amount: cfg.poison, max: cfg.poisonMax ?? 3, ms: cfg.poisonMs ?? 4000 } } : {}) };
+          }
+          this.broadcastMap(s.map, { type: 'summon', id: m.id, ownerId: s.id, kind: m.type, hp, maxHp: hp, ms: cfg.durationMs ?? 6000 });
         }
-        this.broadcastMap(s.map, { type: 'summon', id: m.id, ownerId: s.id, kind: m.type, hp, maxHp: hp, ms: cfg.durationMs ?? 6000 });
         break;
       }
       case 'transformacao': {
         // Colosso Espectral: escudo + Básico mais forte agora; a onda à frente cai no fim
-        s.absorb = { hp: this.shieldOf(s, skill, cfg, 85), until: t + (cfg.durationMs ?? 5000) };   // v54: escudo fixo (não % da vida)
+        s.absorb = { hp: this.shieldOf(s, skill, cfg, 85), until: t + (cfg.durationMs ?? 5000) + (s.clan === 'bastiao' ? CLAN_PASSIVE.bastiao.shieldMs : 0) };   // v54: escudo fixo (não % da vida); v63: Bastião
         s.basicBuff = { until: t + (cfg.durationMs ?? 5000), bonus: cfg.basicBuff ?? 0.15 };
         if (cfg.speedBuff) { s.haste = cfg.speedBuff; s.hasteUntil = t + (cfg.durationMs ?? 5000); }   // v49: Olho da Tempestade
         const at = ahead(o, fx, fy, cfg.range ?? 2.5);
@@ -4110,10 +4243,19 @@ export class GameWorld {
       }
       case 'escudo_vida': {
         // escudo único: até 25% da vida máxima; o novo troca o anterior (na Casca de Chakra, vale para o aliado em foco)
-        const who = buddy();
-        who.absorb = { hp: this.shieldOf(s, skill, cfg, 40), until: t + (cfg.durationMs ?? 3000) };   // v54: escudo fixo de quem lança
-        this.sendTo(who, { type: 'notice', text: `Escudo: ${who.absorb.hp} de vida por ${Math.round((cfg.durationMs ?? 3000) / 1000)} s.`, tone: 'good' });
-        if (who !== s) this.sendTo(s, { type: 'notice', text: `Escudo em ${who.username}.`, tone: 'good' });
+        // v63: Clã Bastião: +2 s; Guarda Compartilhada: em você E no aliado mirado; Muralha Interior: espinhos de perto
+        const ms = (cfg.durationMs ?? 3000) + (s.clan === 'bastiao' ? CLAN_PASSIVE.bastiao.shieldMs : 0);
+        const give = (p: Session) => {
+          p.absorb = { hp: this.shieldOf(s, skill, cfg, 40), until: t + ms };   // v54: escudo fixo de quem lança
+          this.sendTo(p, { type: 'notice', text: `Escudo: ${p.absorb.hp} de vida por ${Math.round(ms / 1000)} s.`, tone: 'good' });
+          if (p !== s) this.sendTo(s, { type: 'notice', text: `Escudo em ${p.username}.`, tone: 'good' });
+        };
+        if (cfg.shareShield) {
+          give(s);
+          const ally = this.allyNear(s, targetId, cfg.range || 6, t);
+          if (ally) give(ally);
+        } else give(buddy());
+        if (cfg.thornsPct) s.thorns = { until: t + ms, pct: cfg.thornsPct, range: cfg.thornsRange ?? 1.8 };
         for (const x of hits) strike(x);
         break;
       }
@@ -4239,14 +4381,7 @@ export class GameWorld {
         this.sendTo(v, { type: 'notice', text: `Roubaram de você: ${got.join(', ')}.`, tone: 'bad' });
       }
     }
-    if (cfg.poison && this.stillThere(x)) {
-      // v50: veneno que acumula: cada acerto soma uma carga (até `poisonMax`) e renova o tempo; o dano por segundo é o das cargas
-      const bag = this.effectsOf(x), cur = bag.get('veneno');
-      const stacks = cur && cur.until > t ? Math.min(cfg.poisonMax ?? 5, (cur.stacks ?? 1) + 1) : 1;
-      this.applyEffect(x, 'veneno', t, cfg.poisonMs ?? 6000, cfg.poison * stacks, by);
-      const e = bag.get('veneno');
-      if (e) { e.stacks = stacks; e.amount = cfg.poison * stacks; e.until = t + (cfg.poisonMs ?? 6000); }
-    }
+    if (cfg.poison && this.stillThere(x)) this.poisonOn(x, by, cfg.poison, cfg.poisonMax ?? 5, cfg.poisonMs ?? 6000, t);
     if (cfg.chakraBurn && this.stillThere(x)) {
       // v50: queima de chakra (Selo dos Meridianos): tira chakra e causa dano pelo que tirou (monstro não tem chakra: metade do máximo)
       let got = cfg.chakraBurn * 0.5;
@@ -4264,6 +4399,85 @@ export class GameWorld {
       if (got > 0) { x.session.calmSince = t; this.sendStats(x.session, t); }
     }
     if (cfg.push && this.stillThere(x)) this.pushAway(x, by, from, cfg.push, t);
+  }
+
+  /**
+   * v50: veneno que acumula: cada acerto soma uma carga (até `max`) e renova o tempo; o dano por segundo é o das cargas.
+   * v63 (Clã Áspide): o veneno novo pulsa já no 1º segundo (o dano dele dobra) e o alvo recebe 30% menos cura enquanto dura.
+   */
+  private poisonOn(x: Target, by: Session, perStack: number, max: number, ms: number, t: number): void {
+    const bag = this.effectsOf(x), cur = bag.get('veneno');
+    const fresh = !(cur && cur.until > t);
+    const stacks = fresh ? 1 : Math.min(max, (cur!.stacks ?? 1) + 1);
+    this.applyEffect(x, 'veneno', t, ms, perStack * stacks, by);
+    const e = bag.get('veneno');
+    if (!e) return;
+    e.stacks = stacks;
+    e.amount = perStack * stacks;
+    e.until = t + ms;
+    if (by.clan === 'aspide') {
+      e.healCut = CLAN_PASSIVE.aspide.healCut;
+      if (fresh) e.nextTickAt = t;
+    }
+  }
+
+  /** v63: as invocações de um ninja no mapa (sem as criaturas do Vínculo, que têm regra própria). */
+  private summonsOf(s: Session): Monster[] {
+    return [...this.monsters.values()].filter((m) => m.ownerId === s.id && m.map === s.map && m.hp > 0 && !m.creature);
+  }
+
+  /** v63: o aliado focado (ou o mais perto) a até `reach` casas: a Guarda Compartilhada. */
+  private allyNear(s: Session, targetId: string | undefined, reach: number, t: number): Session | undefined {
+    const allies = [...(this.mapPlayers.get(s.map) ?? [])].filter((p) => p !== s && !p.dead && !p.closed && !this.canHurt(s, p, t) && distance(s, p) <= reach);
+    return allies.find((p) => p.id === targetId) ?? allies.sort((a, b) => distance(s, a) - distance(s, b))[0];
+  }
+
+  /** v63: move o ninja para um ponto (todos veem o salto). */
+  private hop(s: Session, to: Point, t: number): void {
+    const from = { x: s.x, y: s.y };
+    s.x = q3(to.x);
+    s.y = q3(to.y);
+    s.lastUpdate = t;
+    s.dirty = true;
+    this.broadcastMap(s.map, { type: 'teleport', playerId: s.id, fromX: round3(from.x), fromY: round3(from.y), x: round3(s.x), y: round3(s.y), a: s.ackSeq });
+  }
+
+  /** v63 (Clã Zéfiro): esquiva do golpe direto: o Passo do Vento (total), o Véu de Ar e a esquiva natural do clã. */
+  private evades(s: Session, t: number): boolean {
+    if (t < s.evadeUntil) return true;
+    let chance = s.clan === 'zefiro' ? CLAN_PASSIVE.zefiro.dodge : 0;
+    if (s.dodgeBuff && t < s.dodgeBuff.until) chance += s.dodgeBuff.pct;
+    return chance > 0 && this.random() < chance;
+  }
+
+  /** v63 (Clã Bastião): quem bateu leva a resposta (Muro que Responde: empurrão e lentidão) e os espinhos (Muralha Interior). */
+  private bastiaoAnswer(s: Session, attacker: Point, by: Session | undefined, amount: number, t: number): void {
+    const retort = s.retort && t < s.retort.until ? s.retort : null;
+    const thorns = s.thorns && t < s.thorns.until ? s.thorns : null;
+    if (!retort && !thorns) return;
+    const id = (attacker as { id?: string }).id;
+    const m = !by && id ? this.monsters.get(id) : undefined;
+    const src: Target | undefined = by && by !== s ? { kind: 'player', id: by.id, x: by.x, y: by.y, session: by }
+      : m && m.map === s.map && m.hp > 0 ? { kind: 'monster', id: m.id, x: m.x, y: m.y, monster: m } : undefined;
+    if (!src) return;
+    if (thorns && distance(s, src) <= thorns.range) {
+      this.hitTarget(src, Math.max(1, Math.round(amount * thorns.pct)), s, t, 'skill', 'espinhos');
+      this.broadcastMap(s.map, { type: 'clan_fx', kind: 'espinhos', playerId: s.id, x: round2(src.x), y: round2(src.y) });
+    }
+    if (retort && this.stillThere(src)) {
+      this.pushAway(src, s, { x: s.x, y: s.y }, retort.push, t);
+      if (this.stillThere(src)) this.applyEffect(src, 'lentidao', t, retort.slowMs, undefined, s);
+      this.broadcastMap(s.map, { type: 'clan_fx', kind: 'resposta', playerId: s.id, x: round2(s.x), y: round2(s.y) });
+    }
+  }
+
+  /** v63 (Juramento do Escudo): o Bastião aliado mais perto, com o juramento valendo, a até o alcance dele. */
+  private oathGuard(s: Session, t: number): Session | undefined {
+    for (const p of this.mapPlayers.get(s.map) ?? []) {
+      if (p === s || p.dead || p.closed || !p.oath || t >= p.oath.until || distance(s, p) > p.oath.range || this.canHurt(p, s, t)) continue;
+      return p;
+    }
+    return undefined;
   }
 
   /** v30: a invocação mais perto de um monstro, no raio (só as de ninjas; o monstro não provoca a si mesmo). */
@@ -4361,6 +4575,7 @@ export class GameWorld {
         for (const x of hits) {
           this.hitTarget(x, p.damage, owner, t, 'skill', SUMMON_SKILL[m.type] ?? 'stone_golem', p.hit);
           if (p.liftMs && this.stillThere(x)) this.applyStatus(x, 'stunned', p.liftMs, t, owner);
+          if (p.poison && this.stillThere(x)) this.poisonOn(x, owner, p.poison.amount, p.poison.max, p.poison.ms, t);   // v63: Ninho de Áspides
         }
         return false;                                            // socando, não anda
       }
@@ -5959,6 +6174,11 @@ export class GameWorld {
         return;
       }
     }
+    // v63 (Clã Zéfiro): esquiva o golpe direto (quem bateu; o veneno e a queimadura que pulsam não se esquivam)
+    if (amount > 0 && attacker && label !== 'juramento' && this.evades(session, t)) {
+      this.broadcastMap(session.map, { type: 'clan_fx', kind: 'esquiva', playerId: session.id, x: round2(session.x), y: round2(session.y) });
+      return;
+    }
     // v35: Noite Fechada: dentro da própria zona, o Umbra leva menos dano
     const cutZone = amount > 0 ? this.zones.find((z) => (z.cut || z.cutFlat) && z.ownerId === session.id && z.map === session.map && t < z.until && Math.hypot(session.x - z.x, session.y - z.y) <= z.r) : undefined;
     if (cutZone?.cut) amount = Math.round(amount * (1 - cutZone.cut));
@@ -5993,6 +6213,8 @@ export class GameWorld {
       }
       return;
     }
+    // v63 (Clã Bastião): os espinhos e a resposta em quem bateu (o golpe dele entra do mesmo jeito)
+    if (amount > 0 && attacker && label !== 'espinhos' && label !== 'juramento') this.bastiaoAnswer(session, attacker, by, amount, t);
     let dmg = amount;
     let shielded = false;
     if (session.shield > 0) {
@@ -6027,6 +6249,15 @@ export class GameWorld {
     if (slug) {
       const share = Math.min(slug.hp, Math.round(dmg * CREATURE_NUMBERS.slugShare));
       if (share > 0) { dmg -= share; this.hurtSummon(slug, share, t); }
+    }
+    // v63: Juramento do Escudo: metade do dano do aliado vai para o Bastião perto (com a redução dele)
+    if (dmg > 0 && label !== 'juramento') {
+      const guard = this.oathGuard(session, t);
+      const share = guard ? Math.round(dmg * guard.oath!.share) : 0;
+      if (guard && share > 0) {
+        dmg -= share;
+        this.damagePlayer(guard, share, t, undefined, undefined, 'juramento');
+      }
     }
     const before = session.hp;
     session.hp = Math.max(0, session.hp - dmg);
@@ -6463,6 +6694,12 @@ export class GameWorld {
     s.umbraMark = null;
     s.umbraNext = null;
     s.umbraHideUntil = 0;
+    s.thorns = null;
+    s.retort = null;
+    s.oath = null;
+    s.evadeUntil = 0;
+    s.dodgeBuff = null;
+    s.echoTrail = [];
     s.substituteUntil = 0;
     if (s.hasteUntil > 0) { s.hasteUntil = 0; s.haste = 0; }
     s.ccLog = [];
@@ -8042,6 +8279,10 @@ export class GameWorld {
       if (s.closed) continue;
       s.trail.push({ t, x: s.x, y: s.y });
       while (s.trail.length > 1 && s.trail[0]!.t < t - lc.trailMs) s.trail.shift();
+      // v63: Eco do Vento: onde ele esteve nos últimos 4 s (um ponto a cada 200 ms)
+      const echo = s.echoTrail;
+      if (echo.length === 0 || t - echo[echo.length - 1]!.t >= 200) echo.push({ t, x: s.x, y: s.y });
+      while (echo.length > 1 && echo[0]!.t < t - 4000) echo.shift();
       if (t >= s.nextSyncAt) {
         s.nextSyncAt = t + lc.syncEveryMs;
         s.sync = { id: ++this.syncSeq, at: t };

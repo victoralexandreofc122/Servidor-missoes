@@ -7,8 +7,8 @@
 --     COMEÇA EM 250 (tudo aberto) para o Teste Alpha não perder a Floresta com poucos jogadores: o admin liga a regra com
 --     "/admin mundo auto" quando quiser.
 --  2. game.world_progression_refresh(dias) e game.world_progression_override(admin, marco).
---  3. Relíquias (loot dos chefes): o tipo 'relic' no catálogo e as 11 relíquias (nomes provisórios, ver
---     docs/fase3-propostas.md); game.loot_drops (o registro de cada drop) e game.loot_revives (o Renascer usado na Era).
+--  3. Relíquias (loot dos chefes): o tipo 'relic' no catálogo e as 11 relíquias (nomes da opção A; a v38 acerta os
+--     nomes de quem já rodou esta); game.loot_drops (o registro de cada drop) e game.loot_revives (o Renascer usado na Era).
 -- =====================================================================================================================
 BEGIN;
 
@@ -61,17 +61,17 @@ END $$;
 ALTER TABLE game.items DROP CONSTRAINT IF EXISTS items_kind_check;
 ALTER TABLE game.items ADD CONSTRAINT items_kind_check CHECK (kind IN ('weapon', 'scroll', 'cape', 'shoes', 'accessory', 'consumable', 'relic'));
 INSERT INTO game.items (code, name, kind) VALUES
-  ('reliquia_c_vida', 'Relíquia Comum de Vida', 'relic'),
-  ('reliquia_c_chakra', 'Relíquia Comum de Chakra', 'relic'),
-  ('reliquia_c_golpe', 'Relíquia Comum de Golpe', 'relic'),
-  ('reliquia_r_firmeza', 'Relíquia Rara de Firmeza', 'relic'),
-  ('reliquia_r_couraca', 'Relíquia Rara de Couraça', 'relic'),
-  ('reliquia_r_vigor', 'Relíquia Rara de Vigor', 'relic'),
-  ('reliquia_e_sangue', 'Relíquia Épica do Sangue', 'relic'),
-  ('reliquia_e_ultimo', 'Relíquia Épica do Último Fôlego', 'relic'),
-  ('reliquia_e_fluxo', 'Relíquia Épica do Fluxo', 'relic'),
-  ('reliquia_l_renascer', 'Relíquia Lendária do Renascer', 'relic'),
-  ('reliquia_l_brasa', 'Relíquia Lendária da Brasa', 'relic')
+  ('reliquia_c_vida', 'Amuleto do Fôlego', 'relic'),
+  ('reliquia_c_chakra', 'Amuleto da Corrente', 'relic'),
+  ('reliquia_c_golpe', 'Amuleto do Punho', 'relic'),
+  ('reliquia_r_firmeza', 'Selo da Firmeza', 'relic'),
+  ('reliquia_r_couraca', 'Selo da Couraça', 'relic'),
+  ('reliquia_r_vigor', 'Selo do Vigor', 'relic'),
+  ('reliquia_e_sangue', 'Presa Rubra', 'relic'),
+  ('reliquia_e_ultimo', 'Último Fôlego', 'relic'),
+  ('reliquia_e_fluxo', 'Fluxo Sereno', 'relic'),
+  ('reliquia_l_renascer', 'Coração da Fênix Cinza', 'relic'),
+  ('reliquia_l_brasa', 'Punho da Chama Antiga', 'relic')
 ON CONFLICT (code) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS game.loot_drops (

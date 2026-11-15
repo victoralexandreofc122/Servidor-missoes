@@ -11,8 +11,7 @@
  * As relíquias valem SÓ DE TER na mochila (não ocupam espaço do equipamento); várias iguais não somam. O servidor
  * confere a mochila (relicOn) nos ganchos do combate.
  *
- * NOMES: provisórios e descritivos. A regra do Victor (09/11/2026) pede 3 opções por item antes de aplicar nome: as
- * propostas estão em docs/fase3-propostas.md.
+ * NOMES: os da opção A, escolhidos pelo Victor em 15/11/2026 (docs/fase3-propostas.md; migração v38).
  */
 
 export type Rarity = 'comum' | 'raro' | 'epico' | 'lendario';
@@ -29,17 +28,17 @@ export const RARITY_ORDER: readonly Rarity[] = ['lendario', 'epico', 'raro', 'co
 export interface Relic { code: string; rarity: Rarity; name: string; effect: string }
 
 export const RELICS: readonly Relic[] = [
-  { code: 'reliquia_c_vida', rarity: 'comum', name: 'Relíquia Comum de Vida', effect: '+8% de vida máxima.' },
-  { code: 'reliquia_c_chakra', rarity: 'comum', name: 'Relíquia Comum de Chakra', effect: '+8% de chakra máximo.' },
-  { code: 'reliquia_c_golpe', rarity: 'comum', name: 'Relíquia Comum de Golpe', effect: '+5% de dano no Ataque Básico.' },
-  { code: 'reliquia_r_firmeza', rarity: 'raro', name: 'Relíquia Rara de Firmeza', effect: 'Controles que você sofre duram 15% menos.' },
-  { code: 'reliquia_r_couraca', rarity: 'raro', name: 'Relíquia Rara de Couraça', effect: '-8% de dano recebido.' },
-  { code: 'reliquia_r_vigor', rarity: 'raro', name: 'Relíquia Rara de Vigor', effect: '+15% de vida máxima.' },
-  { code: 'reliquia_e_sangue', rarity: 'epico', name: 'Relíquia Épica do Sangue', effect: 'O Ataque Básico devolve 5% do dano como vida.' },
-  { code: 'reliquia_e_ultimo', rarity: 'epico', name: 'Relíquia Épica do Último Fôlego', effect: 'Abaixo de 30% de vida: escudo de 20% da vida (1 vez por minuto).' },
-  { code: 'reliquia_e_fluxo', rarity: 'epico', name: 'Relíquia Épica do Fluxo', effect: 'Jutsus gastam 10% menos chakra.' },
-  { code: 'reliquia_l_renascer', rarity: 'lendario', name: 'Relíquia Lendária do Renascer', effect: 'Se morrer, renasce na hora com 30% da vida (uma vez por Era).' },
-  { code: 'reliquia_l_brasa', rarity: 'lendario', name: 'Relíquia Lendária da Brasa', effect: 'Todo Ataque Básico queima o alvo, mesmo sem a classe Fogo.' },
+  { code: 'reliquia_c_vida', rarity: 'comum', name: 'Amuleto do Fôlego', effect: '+8% de vida máxima.' },
+  { code: 'reliquia_c_chakra', rarity: 'comum', name: 'Amuleto da Corrente', effect: '+8% de chakra máximo.' },
+  { code: 'reliquia_c_golpe', rarity: 'comum', name: 'Amuleto do Punho', effect: '+5% de dano no Ataque Básico.' },
+  { code: 'reliquia_r_firmeza', rarity: 'raro', name: 'Selo da Firmeza', effect: 'Controles que você sofre duram 15% menos.' },
+  { code: 'reliquia_r_couraca', rarity: 'raro', name: 'Selo da Couraça', effect: '-8% de dano recebido.' },
+  { code: 'reliquia_r_vigor', rarity: 'raro', name: 'Selo do Vigor', effect: '+15% de vida máxima.' },
+  { code: 'reliquia_e_sangue', rarity: 'epico', name: 'Presa Rubra', effect: 'O Ataque Básico devolve 5% do dano como vida.' },
+  { code: 'reliquia_e_ultimo', rarity: 'epico', name: 'Último Fôlego', effect: 'Abaixo de 30% de vida: escudo de 20% da vida (1 vez por minuto).' },
+  { code: 'reliquia_e_fluxo', rarity: 'epico', name: 'Fluxo Sereno', effect: 'Jutsus gastam 10% menos chakra.' },
+  { code: 'reliquia_l_renascer', rarity: 'lendario', name: 'Coração da Fênix Cinza', effect: 'Se morrer, renasce na hora com 30% da vida (uma vez por Era).' },
+  { code: 'reliquia_l_brasa', rarity: 'lendario', name: 'Punho da Chama Antiga', effect: 'Todo Ataque Básico queima o alvo, mesmo sem a classe Fogo.' },
 ];
 export const RELIC_BY_CODE: ReadonlyMap<string, Relic> = new Map(RELICS.map((r) => [r.code, r]));
 

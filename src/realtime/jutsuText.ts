@@ -12,7 +12,7 @@ import { MEC_TEXT } from './jutsusMecanicas.js';
 
 export interface JutsuText { icon: string; text: string }
 
-const PERCENT = new Set(['basicBuff', 'speedBuff', 'hpCost', 'dr', 'reduction', 'markBonus', 'nextHitBonus', 'zoneDamageCut', 'summonHp', 'wallHpShare', 'lifesteal', 'lowHpBonus', 'brandBonus', 'echo']);
+const PERCENT = new Set(['basicBuff', 'speedBuff', 'hpCost', 'dr', 'reduction', 'markBonus', 'nextHitBonus', 'zoneDamageCut', 'summonHp', 'wallHpShare', 'lifesteal', 'lowHpBonus', 'brandBonus', 'echo', 'thornsPct', 'dodgePct', 'oathShare']);
 
 export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   // ------------------------------------------------------------------ Academia
@@ -129,6 +129,23 @@ export const JUTSU_TEXT: Readonly<Record<string, JutsuText>> = {
   umbra_noite: { icon: '🌃', text: 'Noite em volta de você (raio {radius}) por {zone.ms}: os inimigos dentro quase não enxergam e você leva {zoneDamageCut} menos dano.' },
   ...FASE25_TEXT,   // v49 (Fase 2.5): os 74 novos
   ...MEC_TEXT,      // v50: mecânicas inéditas
+  // ------------------------------------------------------------------ v63: os clãs novos
+  bastiao_muralha: { icon: '🏯', text: 'Escudo de {shield} de dano por {durationMs}; quem te bater de perto leva {thornsPct} do golpe de volta.' },
+  bastiao_guarda: { icon: '🤝', text: 'Escudo de {shield} de dano por {durationMs} em você e no aliado mirado (até {range} casas).' },
+  bastiao_resposta: { icon: '🔰', text: 'Por {durationMs}, quem te acertar é empurrado {retortPush} casas e fica lento por {retortSlowMs}.' },
+  bastiao_juramento: { icon: '⚜️', text: 'Por {durationMs} você leva {dr} menos dano, e {oathShare} do dano dos aliados a até {range} casas vem para você.' },
+  aspide_cuspe: { icon: '🦎', text: 'Cuspe em linha ({range} casas): envenena ({poison} por segundo por carga, até {poisonMax} cargas, por {poisonMs}) e deixa lento por {slowMs}.' },
+  aspide_nevoa: { icon: '☣️', text: 'Névoa de raio {radius} por {zone.ms} onde você mirar: quem fica dentro ganha uma carga de veneno a cada segundo (até {zone.poisonMax}).' },
+  aspide_constricao: { icon: '🪱', text: 'Enrola o alvo (até {range} casas): preso por {rootMs} e envenenado com {poison} por segundo por {poisonMs}.' },
+  aspide_ninho: { icon: '🦷', text: '{summonCount} serpentes por {durationMs}: correm no inimigo, mordem e envenenam ({poison} por segundo por carga).' },
+  garra_matilha: { icon: '🦊', text: 'Invoca uma fera por {durationMs} (com {summonHp} da sua vida) que corre no alvo e morde.' },
+  garra_uivo: { icon: '📯', text: 'Uivo no alvo (até {range} casas): atordoa por {stunMs}, e as suas invocações saltam nele e mordem.' },
+  garra_troca: { icon: '🔄', text: 'Troca de lugar com a sua invocação mais perto (até {range} casas).' },
+  garra_rei: { icon: '🐯', text: 'Invoca o Rei da Matilha por {durationMs}: uma fera grande, com {summonHp} da sua vida, que bate forte.' },
+  zefiro_passo: { icon: '🪽', text: 'Avança {dash} casas e esquiva de todo golpe direto por {evadeMs}.' },
+  zefiro_veu: { icon: '🫧', text: 'Véu de ar por {durationMs}: você esquiva {dodgePct} dos golpes diretos.' },
+  zefiro_eco: { icon: '🔙', text: 'O vento te devolve para onde você estava {echoMs} atrás.' },
+  zefiro_mil: { icon: '🥷', text: 'Salta em até {targets} inimigos a até {radius} casas em volta, golpeando cada um, e termina ao lado do último.' },
   umbra_forma: { icon: '👤', text: 'Vira sombra por {durationMs}: projéteis atravessam você, anda {speedBuff} mais rápido, e quem você atravessa leva dano e fica lento.' },
 };
 

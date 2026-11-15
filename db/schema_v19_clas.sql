@@ -11,11 +11,11 @@ BEGIN;
 
 ALTER TABLE game.players ADD COLUMN IF NOT EXISTS clan text;
 ALTER TABLE game.players DROP CONSTRAINT IF EXISTS ck_players_clan;
-ALTER TABLE game.players ADD CONSTRAINT ck_players_clan CHECK (clan IS NULL OR clan IN ('rubro', 'umbra', 'andarilho'));
+ALTER TABLE game.players ADD CONSTRAINT ck_players_clan CHECK (clan IS NULL OR clan IN ('rubro', 'umbra', 'andarilho', 'bastiao', 'aspide', 'garra', 'zefiro'));
 
 ALTER TABLE game.jutsus ADD COLUMN IF NOT EXISTS clan_code text;
 ALTER TABLE game.jutsus DROP CONSTRAINT IF EXISTS ck_jutsus_clan;
-ALTER TABLE game.jutsus ADD CONSTRAINT ck_jutsus_clan CHECK (clan_code IS NULL OR clan_code IN ('rubro', 'umbra'));
+ALTER TABLE game.jutsus ADD CONSTRAINT ck_jutsus_clan CHECK (clan_code IS NULL OR clan_code IN ('rubro', 'umbra', 'bastiao', 'aspide', 'garra', 'zefiro'));
 ALTER TABLE game.jutsus DROP CONSTRAINT IF EXISTS ck_jutsus_academy;
 ALTER TABLE game.jutsus ADD CONSTRAINT ck_jutsus_academy CHECK ((class_code IS NULL AND clan_code IS NULL) = (tier = 0));
 

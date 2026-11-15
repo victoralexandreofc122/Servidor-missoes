@@ -26,9 +26,9 @@ export const CHAPTERS = [
   {
     code: 'rito', title: 'O Rito do Despertar', lock: 'Abre no nível 11',
     pages: [
-      { h: 'O seu sangue', p: ['Todo ninja tem uma linhagem: Clã Rubro, Clã Umbra ou Andarilho.', 'Você marca a sua no Criador de Personagem: Menu ☰ → Config. → Mudar visual do personagem.'] },
+      { h: 'O seu sangue', p: ['Todo ninja tem uma linhagem: Clã Rubro, Umbra, Bastião, Áspide, Garra, Zéfiro ou Andarilho.', 'Você marca a sua no Criador de Personagem: Menu ☰ → Config. → Mudar visual do personagem.'] },
       { h: 'O Rito', p: ['Já Genin, fale com o Diretor sobre o Rito do Despertar.', 'Derrote 10 Lodos Escuros: eles vivem na beira do rio da Floresta e na Caverna do Lodo. Pode sair do jogo no meio: o progresso fica salvo.'] },
-      { h: 'O Despertar', p: ['Volte ao Diretor e a linhagem desperta, com o primeiro jutsu do clã.', 'Os outros chegam nos níveis 20, 40 e 60. Todos veem a sua linhagem: olho vermelho, névoa nos pés ou a faixa no braço.'] },
+      { h: 'O Despertar', p: ['Volte ao Diretor e a linhagem desperta, com o primeiro jutsu do clã.', 'Os outros chegam nos níveis 20, 40 e 60. O Rubro, o Umbra e o Andarilho têm marca no corpo: olho vermelho, névoa nos pés ou a faixa no braço.'] },
     ],
   },
   {

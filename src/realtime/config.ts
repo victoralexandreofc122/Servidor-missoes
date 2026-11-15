@@ -65,6 +65,19 @@ export interface SkillConfig {
   poison?: number;
   poisonMax?: number;
   poisonMs?: number;
+  /** v63 (clãs novos): espinhos (Muralha Interior), escudo dividido (Guarda), resposta (Muro que Responde), juramento,
+   * várias invocações, precisa de invocação (Troca), esquiva total (Passo do Vento), esquiva extra (Véu de Ar), eco. */
+  thornsPct?: number;
+  thornsRange?: number;
+  shareShield?: boolean;
+  retortPush?: number;
+  retortSlowMs?: number;
+  oathShare?: number;
+  summonCount?: number;
+  needsSummon?: boolean;
+  evadeMs?: number;
+  dodgePct?: number;
+  echoMs?: number;
   /** v50: bate mais com a vida baixa: bônus inteiro com 25% da vida ou menos, crescendo desde a vida cheia. */
   lowHpBonus?: number;
   /** v50: tira até este chakra do alvo e causa `chakraBurnRatio` de dano por ponto tirado. */
@@ -166,7 +179,9 @@ export interface SkillConfig {
   returnBase?: number;
   /** Zona no chão: dura `ms`; `split` = em quantos pulsos o dano do jutsu se divide; `endHit` = o dano cai no fim. */
   zone?: {
-    ms: number; tickMs?: number; kind: 'fogo' | 'lama' | 'cura' | 'agua' | 'sombra' | 'ilusao' | 'armas' | 'raio' | 'vento';
+    ms: number; tickMs?: number; kind: 'fogo' | 'lama' | 'cura' | 'agua' | 'sombra' | 'ilusao' | 'armas' | 'raio' | 'vento' | 'veneno';
+    /** v63: Névoa Tóxica: quem está dentro ganha uma carga de veneno a cada pulso. */
+    poison?: number; poisonMax?: number; poisonMs?: number;
     slow?: boolean; heal?: number; follow?: boolean; self?: boolean; pull?: number; split?: number;
     endHit?: boolean; endStunMs?: number; firstRootMs?: number;
     /** v30: escurece quem está dentro (Véu de Bruma); armadilha: dispara no 1º que pisar e some. */
@@ -494,6 +509,10 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       // v53: Sentinela de Sombra e Arsenal Vivo têm o tipo (e o desenho) próprio: antes saíam como o Golem de Terra
       sentinela_sombra: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 3.4, leashRange: 12 } },
       arsenal: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 3.2, leashRange: 12 } },
+      // v63: as invocações dos clãs novos (Áspide e Garra)
+      serpente_aspide: { maxHp: 40, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 4.2, leashRange: 12 } },
+      fera_garra: { maxHp: 60, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 4.6, leashRange: 12 } },
+      fera_rei: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 3.8, leashRange: 12 } },
       // v61 (Fase 3): os 10 Titãs Ancestrais (chefes do evento "Cinturão da Era"; a vida de verdade vem do banco, global)
       ...Object.fromEntries(TITANS.map((ti) => [`tita_${ti.index}`, {
         maxHp: TITAN_EVENT.hp(ti.index), xp: 2500, attackRange: 2.4, attackDamage: 40 + ti.index * 3, attackEveryMs: 1500, stationary: false, respawnMs: 1e12,

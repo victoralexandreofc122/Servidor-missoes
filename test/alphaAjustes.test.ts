@@ -83,7 +83,7 @@ describe('v53: a Agilidade saiu; Taijutsu, Chakra, Ninjutsu e Armas', () => {
       if ((cfg.scaling ?? 'ninjutsu') !== want) wrong.push(`${code} (${cls}): ${cfg.scaling ?? 'ninjutsu'}, devia ${want}`);
     }
     assert.deepEqual(wrong, []);
-    assert.equal(Object.keys(REALTIME.combat.skills).length, 186);
+    assert.equal(Object.keys(REALTIME.combat.skills).length, 202);   // v63: + 16 dos clãs novos
   });
 });
 

@@ -1348,3 +1348,21 @@ Rode `db/schema_v37_mundo_loot.sql` inteiro, **depois da v36**, e só então mes
 3. Academia: fale com O Cronista (perto da entrada da sala 4).
 4. `/admin mundo 0`: a saída sul da Aldeia vira névoa. Volte com `/admin mundo 250` (ou `auto`).
 5. Conferência no Neon: `SELECT * FROM game.world_progression;` e `SELECT * FROM game.titan_bearers;`
+
+## Passo 53 — Os 4 clãs novos e os nomes das relíquias (SQL v38)
+
+Rode `db/schema_v38_clas_novos.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v37**, e só então
+mescle o código. Pode rodar de novo sem erro. Nada é apagado.
+
+- As linhagens aceitam `bastiao`, `aspide`, `garra` e `zefiro` (`game.players.clan` e `clan_mark`, `game.jutsus.clan_code`).
+- Os 16 jutsus dos clãs novos em `game.jutsus`; `game.valid_kit` aceita os 202 códigos.
+- As 11 relíquias com os nomes da opção A.
+- As migrações antigas (v16, v18, v19, v20, v25, v30, v31) também foram atualizadas com os clãs e os códigos novos: rodar
+  uma delas de novo depois da v38 não desfaz nada.
+
+### Testar no celular
+
+1. Menu ☰ → Config. → Mudar visual do personagem: a linha "Linhagem" mostra os 7.
+2. Um Genin de nível 11 com um clã novo marcado faz o Rito do Despertar com o Diretor e recebe o 1º jutsu do clã.
+3. Conferência no Neon: `SELECT clan_code, count(*) FROM game.jutsus WHERE clan_code IS NOT NULL GROUP BY 1;` (4 em cada
+   clã) e `SELECT code, name FROM game.items WHERE kind = 'relic';`.

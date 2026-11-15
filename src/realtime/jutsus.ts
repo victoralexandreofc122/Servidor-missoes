@@ -11,7 +11,7 @@
  *  - Nível do jutsu por USO (contado só pelo servidor): 100 usos = Nv 2, 500 = Nv 3, 2000 = Nv 4.
  */
 import type { SkillConfig } from './config.js';
-import { CAST_OF_EXISTING, CLAN_CODES, CLAN_JUTSUS, CLASS_V2, CLASS_V2_CODES } from './jutsusClasses.js';
+import { CAST_OF_EXISTING, CLAN_CODES, CLAN_JUTSUS, CLAN_NOVOS_CODES, CLASS_V2, CLASS_V2_CODES, type TreeClan } from './jutsusClasses.js';
 import { FASE25, FASE25_CODES, FASE25_MASTERY } from './jutsusFase25.js';
 import { MEC, MEC_CODES, MEC_MASTERY } from './jutsusMecanicas.js';
 
@@ -84,6 +84,12 @@ export type JutsuForm =
   | 'contra'          // v51: guarda de contra-ataque: anula o próximo golpe e devolve dano e atordoamento (Resposta da Montanha)
   | 'retorno'         // v52: dois toques: o 1º marca o lugar; o 2º (na janela) teleporta de volta (Ida e Volta)
   | 'reflexo'         // v51: devolve o primeiro projétil que bater (Espelho de Ar)
+  // v63 (clãs novos)
+  | 'postura'         // fica em guarda por um tempo (Muro que Responde, Juramento do Escudo, Véu de Ar)
+  | 'comando'         // as invocações saltam no alvo (Uivo de Comando)
+  | 'troca'           // troca de lugar com a própria invocação (Troca Instintiva)
+  | 'eco'             // volta para onde estava uns segundos atrás (Eco do Vento)
+  | 'mil_passos'      // salta de inimigo em inimigo em volta, golpeando cada um (Mil Passos)
   | 'muro';           // muro à frente: bloqueia passagem e projéteis, tem vida (Muralha de Terra, Muro de Água)
 
 export const FORM_OF_MECHANIC: Readonly<Record<Mechanic, JutsuForm>> = {
@@ -103,7 +109,7 @@ export interface JutsuDef {
   /** Como ele sai (v29). Os de hoje seguem a forma da mecânica. */
   form: JutsuForm;
   /** v30: jutsu de clã (linhagem): não sai na Extração, chega pelo nível depois do despertar. */
-  clan?: 'rubro' | 'umbra';
+  clan?: TreeClan;
   /**
    * Números próprios deste jutsu (v29). Sem eles, o tier 2 a 4 é o tier 1 da classe mais forte (`skillConfig`).
    * Com eles, valem estes (os jutsus novos do docs/jutsus-v2.md).
@@ -127,7 +133,7 @@ const NAMES: Readonly<Record<ClassCode, readonly [string, string, string, string
 
 export const ACADEMY_JUTSUS = ['teleport', 'substitution'] as const;
 /** Código de jutsu: os 2 da Academia, o tier 1 de cada classe ('fire') e os tiers 2 a 4 ('fire_2'). */
-export type JutsuCode = (typeof ACADEMY_JUTSUS)[number] | ClassCode | `${ClassCode}_${2 | 3 | 4}` | (typeof V2_CODES)[number] | (typeof CLASS_V2_CODES)[number] | (typeof CLAN_CODES)[number] | (typeof FASE25_CODES)[number] | (typeof MEC_CODES)[number];
+export type JutsuCode = (typeof ACADEMY_JUTSUS)[number] | ClassCode | `${ClassCode}_${2 | 3 | 4}` | (typeof V2_CODES)[number] | (typeof CLASS_V2_CODES)[number] | (typeof CLAN_CODES)[number] | (typeof FASE25_CODES)[number] | (typeof MEC_CODES)[number] | (typeof CLAN_NOVOS_CODES)[number];
 
 /** v29 (Jutsus v2): jutsus novos (códigos novos). Os de hoje mantêm os códigos (o banco e os kits guardam). */
 export const V2_CODES = ['fire_endan', 'fire_kasumi', 'fire_hibashiri', 'fire_ryuka', 'fire_haiseki', 'fire_lamina', 'fire_hotan'] as const;
@@ -228,6 +234,11 @@ export const JUTSUS: readonly JutsuDef[] = [
   ...MEC_CODES.map((code): JutsuDef => {
     const v = MEC[code]!;
     return { code, name: v.name, class: v.class, tier: v.tier, mechanic: v.class, form: v.form, numbers: v.numbers };
+  }),
+  // v63 (Fase 3, Etapa 4): os 16 dos clãs novos (sem classe: vêm da linhagem; a mecânica dá a cor e o custo)
+  ...CLAN_NOVOS_CODES.map((code): JutsuDef => {
+    const v = CLAN_JUTSUS[code]!;
+    return { code, name: v.name, class: null, tier: v.tier, mechanic: v.class, form: v.form, numbers: v.numbers, clan: v.clan };
   }),
 ];
 
@@ -390,6 +401,23 @@ export const MASTERY: Readonly<Record<string, readonly MasteryGain[]>> = {
   umbra_faminta: ['efeito'],              // Sombra Faminta: a marca dura mais
   umbra_noite: ['duracao', 'recarga'],    // Noite Fechada
   umbra_forma: ['dano', 'duracao'],       // Forma Umbral: a forma dura mais
+  // v63: os clãs novos
+  bastiao_muralha: ['protecao', 'recarga'],   // Muralha Interior: escudo maior
+  bastiao_guarda: ['protecao', 'recarga'],    // Guarda Compartilhada
+  bastiao_resposta: ['duracao', 'recarga'],   // Muro que Responde: responde por mais tempo
+  bastiao_juramento: ['duracao', 'recarga'],  // Juramento do Escudo
+  aspide_cuspe: ['efeito', 'recarga'],        // Cuspe da Áspide: o veneno e a lentidão duram mais (o dano é quase todo do veneno)
+  aspide_nevoa: ['duracao', 'recarga'],       // Névoa Tóxica
+  aspide_constricao: ['efeito', 'recarga'],   // Constrição: prende e envenena por mais tempo
+  aspide_ninho: ['duracao', 'recarga'],       // Ninho de Áspides: as serpentes ficam mais
+  garra_matilha: ['duracao', 'protecao'],     // Chamado da Matilha
+  garra_uivo: ['efeito', 'recarga'],          // Uivo de Comando: atordoa mais
+  garra_troca: ['alcance', 'recarga'],        // Troca Instintiva
+  garra_rei: ['dano', 'protecao'],            // Rei da Matilha
+  zefiro_passo: ['alcance', 'recarga'],       // Passo do Vento: avança mais
+  zefiro_veu: ['duracao', 'recarga'],         // Véu de Ar
+  zefiro_eco: ['recarga'],                    // Eco do Vento
+  zefiro_mil: ['dano', 'recarga'],            // Mil Passos
   ...FASE25_MASTERY,                      // v49 (Fase 2.5)
   ...MEC_MASTERY,                         // v50 (mecânicas inéditas)
 };

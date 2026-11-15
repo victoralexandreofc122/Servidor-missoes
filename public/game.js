@@ -605,7 +605,7 @@ const CAST_FAIL_TEXT = {
   NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum alvo perto', SILENCED: 'Silenciado!', ASLEEP: 'Dormindo…',
   FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
   NOT_EQUIPPED: 'Fora do kit ativo', SAFE_ZONE: 'Zona segura: sem combate',
-  NOT_LEARNED: 'Jutsu não aprendido', BLOCKED: 'Caminho bloqueado', TUTORIAL_LOCKED: 'Primeiro, o Ataque Básico',
+  NOT_LEARNED: 'Jutsu não aprendido', BLOCKED: 'Caminho bloqueado', NO_SUMMON: 'Sem invocação por perto', TUTORIAL_LOCKED: 'Primeiro, o Ataque Básico',
   STUNNED: 'Atordoado!', CASTING: 'Fazendo os selos…',
 };
 
@@ -809,7 +809,8 @@ function handleMessage(msg) {
       const hx = msg.x + (msg.fx ?? 0) * msg.r * 0.6, hy = msg.y + (msg.fy ?? 0) * msg.r * 0.6;
       const at = now + SUMMON_PUNCH_MS * 0.45;
       const look = isCreature(sm) ? [PRIMAL_COLOR[sm.type.slice(8)] || '#ffffff', 'neutral']   // v60: criatura do Vínculo
-        : { golem: ['#c9a678', 'stone'], sentinela_sombra: ['#b07cff', 'shadow'], arsenal: ['#dfe6ee', 'weapons'], clone_agua: ['#8fd6ff', 'water'] }[sm?.type] || ['#c9a678', 'stone'];
+        : { golem: ['#c9a678', 'stone'], sentinela_sombra: ['#b07cff', 'shadow'], arsenal: ['#dfe6ee', 'weapons'], clone_agua: ['#8fd6ff', 'water'],
+          serpente_aspide: ['#8fe05a', 'poison'], fera_garra: ['#e8954a', 'taijutsu'], fera_rei: ['#ffc46b', 'taijutsu'] }[sm?.type] || ['#c9a678', 'stone'];
       state.effects.push({ skill: 'jutsu_ring', x: hx, y: hy, fx: 0, fy: 0, r: msg.r * 0.8, color: look[0], start: at });
       if (particles.quality !== 'off' && sm?.type === 'golem') decals.push({ kind: 'cratera', x: hx, y: hy, r: msg.r * 0.6, start: at, ms: 2200, seed: seedOf(msg.id) });   // v48: o soco do Golem racha o chão
       setTimeout(() => particles.burst(look[1], hx, hy, 1.8, msg.r * 0.8), SUMMON_PUNCH_MS * 0.45);
@@ -826,7 +827,7 @@ function handleMessage(msg) {
     case 'clan':
       // v30: a linhagem despertou (o aviso com o que ela dá vem em seguida)
       state.ninja.clan = msg.clan;
-      addSystemLine(`🩸 Linhagem: ${{ rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' }[msg.clan] || msg.clan}.`);
+      addSystemLine(`🩸 Linhagem: ${LINEAGE_NAMES[msg.clan] || msg.clan}.`);
       break;
     case 'barrier': {
       // v30: muro de jutsu: vira parede (a previsão do movimento esbarra nele) e aparece no chão
@@ -861,6 +862,9 @@ function handleMessage(msg) {
       break;
     case 'vinculo_fx':
       vinculoFx(msg, now);
+      break;
+    case 'clan_fx':
+      clanFx(msg, now);
       break;
     case 'world_state':
       state.world3 = msg;
@@ -1286,7 +1290,7 @@ function handleMessage(msg) {
       // v29 (Jutsus v2): as formas novas do Fogo têm desenho próprio (cone, linha, buff); o resto pela mecânica.
       const info = state.world.skills?.[msg.skill] || {};
       const form = formOf(msg.skill);
-      const color = CAST_COLOR[fxKind] || '#f4ecd8';
+      const color = CLAN_COLOR[info.clan] || CAST_COLOR[fxKind] || '#f4ecd8';   // v63: os clãs novos têm a cor própria
       const lineEnd = { tx: msg.tx ?? msg.x + msg.fx * (info.range ?? 5), ty: msg.ty ?? msg.y + msg.fy * (info.range ?? 5) };
       if (castSprites(msg, form, info, lineEnd, now)) { /* v56: o sprite desenhado (Fogo, Sopro, Linha) */ }
       else if (form === 'cone_fogo') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 3, cone: info.coneDeg ?? 90, start: now });
@@ -1300,11 +1304,11 @@ function handleMessage(msg) {
       // v45: formas que caíam no desenho da classe e enganavam (o Muro de Água mostrava o cone do Jato d'Água, a Sombra
       // Faminta a linha que prende) ou não mostravam nada (Olhar Rubro, Sentinela e Colosso Espectral)
       else if (form === 'marca' && msg.tx !== undefined) state.effects.push({ skill: 'jutsu_burst', x: msg.tx, y: msg.ty, fx: 0, fy: 0, r: 0.9, color: CAST_COLOR.shadow || color, start: now });
-      else if (form === 'escudo_vida' || form === 'transformacao' || form === 'forma_sombra' || form === 'contra' || form === 'reflexo' || form === 'retorno' || (form === 'escudo' && fxKind !== 'stone')) {
+      else if (form === 'escudo_vida' || form === 'transformacao' || form === 'forma_sombra' || form === 'contra' || form === 'reflexo' || form === 'retorno' || form === 'postura' || form === 'eco' || form === 'mil_passos' || (form === 'escudo' && fxKind !== 'stone')) {
         state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 1.1, color, start: now });
         // Sentinela Espectral: o corte em cone na frente
         if (form === 'escudo_vida' && info.coneDeg) state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 1.5, cone: info.coneDeg, color, start: now });
-      } else if (form === 'muro' || form === 'invocacao') state.effects.push({ skill: 'jutsu_burst', x: msg.tx ?? msg.x, y: msg.ty ?? msg.y, fx: 0, fy: 0, r: 0.9, color, start: now });
+      } else if (form === 'muro' || form === 'invocacao' || form === 'comando' || form === 'troca') state.effects.push({ skill: 'jutsu_burst', x: msg.tx ?? msg.x, y: msg.ty ?? msg.y, fx: 0, fy: 0, r: 0.9, color, start: now });
       else if (['zona', 'aviso', 'recuo', 'limpeza', 'cura_tempo', 'projetil', 'investida', 'buff_basico', 'leque', 'palma'].includes(form) && fxKind !== 'fire' && fxKind !== 'weapons') {
         // o efeito vem da zona, do aviso, do projétil ou do avanço; só um brilho em quem lançou
         state.effects.push({ skill: 'jutsu_burst', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 0.6, color, start: now });
@@ -1658,7 +1662,8 @@ ui.buffs.addEventListener('click', (e) => {
 /** Nome de cada monstro na janela do alvo. */
 const MONSTER_NAMES = { slime: 'Slime', lodo_escuro: 'Lodo Escuro', lodo_sombrio: 'Lodo Sombrio', dummy: 'Boneco de Treino', sparring: 'Boneco de Treino',
   // v53: as invocações (o nome do jutsu que chama cada uma)
-  golem: 'Golem de Terra Titânico', sentinela_sombra: 'Sentinela de Sombra', arsenal: 'Arsenal Vivo', clone_agua: 'Duplo de Água' };
+  golem: 'Golem de Terra Titânico', sentinela_sombra: 'Sentinela de Sombra', arsenal: 'Arsenal Vivo', clone_agua: 'Duplo de Água',
+  serpente_aspide: 'Áspide', fera_garra: 'Fera da Matilha', fera_rei: 'Rei da Matilha' };   // v63
 
 /** Busto do boneco (cabeça e ombros, de frente) num canvas quadrado: a célula 64x96 em escala 2, sem borrar. */
 function drawBust(c, look) {
@@ -2400,7 +2405,7 @@ function castParticles(msg, form, info) {
     case 'anel': case 'anel_golpe': case 'aviso_em_volta':
       particles.ring(el, msg.x, msg.y, r);
       break;
-    case 'impacto': case 'alvo': case 'marca':
+    case 'impacto': case 'alvo': case 'marca': case 'comando':
       particles.burst(el, end.x, end.y, 1.4, form === 'impacto' ? r : 0.4);
       break;
     case 'investida': case 'avanco':
@@ -2414,6 +2419,7 @@ function castParticles(msg, form, info) {
       particles.burst('heal', msg.tx ?? msg.x, msg.ty ?? msg.y, 1.2, 0.5);
       break;
     case 'escudo': case 'escudo_vida': case 'transformacao': case 'forma_sombra': case 'buff_basico': case 'limpeza': case 'cura_tempo': case 'substituicao': case 'contra': case 'reflexo': case 'retorno':
+    case 'postura': case 'eco': case 'mil_passos': case 'troca':   // v63: clãs novos
       particles.ring(el, msg.x, msg.y, 0.8);
       if (form === 'escudo_vida' && info.coneDeg) particles.cone(el, msg.x, msg.y, msg.fx, msg.fy, range || 1.5, info.coneDeg);
       break;
@@ -3030,6 +3036,7 @@ const GROUND_COLORS = {
   aviso: ['rgba(230, 40, 40, 0.18)', 'rgba(255, 70, 60, 0.95)'],
   raio: ['rgba(255, 242, 122, 0.18)', 'rgba(255, 242, 122, 0.9)'],     // v49 (Fase 2.5)
   vento: ['rgba(159, 232, 200, 0.16)', 'rgba(216, 255, 240, 0.9)'],
+  veneno: ['rgba(110, 200, 60, 0.30)', 'rgba(170, 240, 90, 0.9)'],      // v63: Névoa Tóxica
 };
 
 /** Zona: círculo pulsando com borda tracejada. Aviso: círculo vermelho que vai enchendo até o golpe cair. */
@@ -4615,6 +4622,43 @@ function renderTitans() {
 }
 
 /** Efeitos que todos veem: a Suprema do Portador, o Renascer e o escudo do Último Fôlego. */
+/** v63: a cor dos jutsus dos clãs novos (o Rubro e o Umbra seguem a cor da mecânica). */
+const CLAN_COLOR = { bastiao: '#e0c48a', aspide: '#8fe05a', garra: '#e8954a', zefiro: '#bff7ea' };
+
+/** v63: os efeitos dos clãs novos (Mil Passos, Troca, Eco, Uivo, espinhos, resposta, esquiva, juramento). */
+function clanFx(msg, now) {
+  const p = state.players.get(msg.playerId);
+  const pts = msg.pts || [];
+  const line = (a, b, color) => state.effects.push({ skill: 'jutsu_line', x: a[0], y: a[1], fx: 0, fy: 0, tx: b[0], ty: b[1], color, start: now });
+  if (msg.kind === 'mil_passos') {
+    for (let i = 1; i < pts.length; i++) {
+      line(pts[i - 1], pts[i], '#d8fff0');
+      state.effects.push({ skill: 'jutsu_burst', x: pts[i][0], y: pts[i][1], fx: 0, fy: 0, r: 0.8, color: '#9fe8d8', start: now + i * 60 });
+      setTimeout(() => particles.burst('wind', pts[i][0], pts[i][1], 1.2, 0.6), i * 60);
+    }
+    hitShake(90);
+  } else if ((msg.kind === 'troca' || msg.kind === 'eco') && pts.length === 2) {
+    const color = msg.kind === 'eco' ? '#bff7ea' : '#e8954a';
+    line(pts[0], pts[1], color);
+    for (const q of pts) state.effects.push({ skill: 'jutsu_ring', x: q[0], y: q[1], fx: 0, fy: 0, r: 0.9, color, start: now });
+    particles.burst(msg.kind === 'eco' ? 'wind' : 'taijutsu', pts[1][0], pts[1][1], 1.4, 0.8);
+  } else if (msg.kind === 'uivo') {
+    state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 1.4, color: '#e8954a', start: now });
+    if (p) addFloater(p.x, p.y - 1.2, 'Auuu!', '#ffc187', 1);
+  } else if (msg.kind === 'espinhos') {
+    state.effects.push({ skill: 'jutsu_burst', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 0.7, color: '#c9a678', start: now });
+    particles.burst('stone', msg.x, msg.y, 1, 0.5);
+  } else if (msg.kind === 'resposta') {
+    state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 1.6, color: '#e0c48a', start: now });
+  } else if (msg.kind === 'esquiva') {
+    if (p) addFloater(p.x, p.y - 1, 'Esquiva!', '#bff7ea', 0.9);
+    particles.burst('wind', msg.x, msg.y, 0.8, 0.5);
+  } else if (msg.kind === 'juramento' && p) {
+    p.primalUntil = now + (msg.ms ?? 10_000); p.primalKind = null; p.titanColor = '#ffd36b';   // a aura dourada do Juramento
+    addFloater(p.x, p.y - 1.3, '⚜️ Juramento!', '#ffd36b', 1.1);
+  }
+}
+
 function fase3Fx(msg, now) {
   const p = state.players.get(msg.playerId);
   if (msg.kind === 'supreme') {
@@ -5063,6 +5107,7 @@ function usableJutsu(code) {
   if (sk.tier === 0) return true;
   const cls = sk.class !== undefined ? sk.class : sk.mechanic;
   const clan = state.ninja.clan;
+  if (sk.clan) return sk.clan === clan;   // v63: jutsu de clã: só da própria linhagem (Rubro, Umbra e os 4 novos)
   if (cls === null) return clan === 'rubro';
   if (clan === 'umbra' && UMBRA_TREE.includes(code)) return true;
   const own = state.ninja.classes || {};
@@ -5482,12 +5527,18 @@ function setCreator(field, value) {
   renderCreatorOptions();
 }
 /** v35: nomes e frase de cada linhagem (o Criador marca; o Rito do Despertar desperta). */
-const LINEAGE_NAMES = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho' };
+const LINEAGE_NAMES = { rubro: 'Clã Rubro', umbra: 'Clã Umbra', andarilho: 'Andarilho',
+  bastiao: 'Clã Bastião', aspide: 'Clã Áspide', garra: 'Clã Garra', zefiro: 'Clã Zéfiro' };   // v63: os 4 clãs novos
 const LINEAGE_HINT = {
   rubro: 'Olhos que leem o golpe e chamas que não se apagam.',
   umbra: 'Some nas sombras, marca a presa e vira noite.',
   andarilho: 'Sem sangue antigo: a Substituição volta mais rápido.',
+  bastiao: 'Escudos que duram mais e devolvem o golpe; controle pega menos em você.',
+  aspide: 'Veneno que morde já no 1º segundo e corta a cura de quem envenena.',
+  garra: 'Feras ao seu lado, com mais vida; você corre mais rápido.',
+  zefiro: 'Esquiva no vento e volta no tempo; a mobilidade recarrega mais rápido.',
 };
+const LINEAGE_ORDER = ['rubro', 'umbra', 'bastiao', 'aspide', 'garra', 'zefiro', 'andarilho'];
 let creatorLineage = null;
 
 /** v35: a linha "Linhagem" no Criador (só marca o sangue; quem já despertou vê a dele, travada). */
@@ -5498,10 +5549,10 @@ function lineageRow() {
   name.className = 'opt-title';
   name.textContent = 'Linhagem';
   const box = document.createElement('div');
-  box.className = 'seg';
+  box.className = 'seg lineage-seg';
   const awakened = state.ninja.clan;
   const picked = awakened || creatorLineage || state.ninja.clanMark || null;
-  for (const value of ['rubro', 'umbra', 'andarilho']) {
+  for (const value of LINEAGE_ORDER) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'seg-btn';
@@ -8343,7 +8394,7 @@ function drawCrown(g, sx, top, r) {
 }
 
 /** v53: as invocações desenhadas por código (sem sprite): o tipo de monstro de cada uma. */
-const SUMMON_TYPES = new Set(['golem', 'clone_agua', 'sentinela_sombra', 'arsenal']);
+const SUMMON_TYPES = new Set(['golem', 'clone_agua', 'sentinela_sombra', 'arsenal', 'serpente_aspide', 'fera_garra', 'fera_rei']);   // v63: + Áspide e Garra
 const SUMMON_PUNCH_MS = 460;
 
 /**
@@ -8352,11 +8403,14 @@ const SUMMON_PUNCH_MS = 460;
  *   sentinela_sombra Sentinela de Sombra: vulto roxo-escuro sem pernas (fumaça embaixo), olhos violeta, garra
  *   arsenal          Arsenal Vivo: núcleo de aço com 3 lâminas girando em volta; no golpe as lâminas vão no alvo
  *   clone_agua       Duplo de Água / Reflexo Vazio / Segunda Voz: o ninja d'água translúcido
+ *   serpente_aspide  v63, Ninho de Áspides: serpente verde em S, rasteja ondulando; no bote estica a cabeça com as presas
+ *   fera_garra       v63, Chamado da Matilha: fera laranja de 4 patas (orelhas, cauda); no golpe salta mordendo
+ *   fera_rei         v63, Rei da Matilha: a fera grande, juba dourada e marcas de guerra; no golpe dá a patada
  * Andando: balança (passo). Socando (`summon_punch`): prepara (braço para trás) e bate na direção do alvo.
  */
 function drawSummon(m, sx, sy, T, now) {
   const kind = m.type;
-  const big = kind === 'golem' ? 1.5 : kind === 'clone_agua' ? 1 : 1.3;
+  const big = kind === 'golem' ? 1.5 : kind === 'clone_agua' ? 1 : kind === 'serpente_aspide' ? 0.75 : kind === 'fera_garra' ? 1.05 : kind === 'fera_rei' ? 1.7 : 1.3;
   const w = T * 0.62 * big, h = T * 0.95 * big;
   const born = Math.max(0.1, Math.min(1, (now - (m.bornAt || now)) / 300));
   const walking = now - (m.walkAt || 0) < 260;
@@ -8438,6 +8492,71 @@ function drawSummon(m, sx, sy, T, now) {
       ctx.fillStyle = '#6b4423'; ctx.fillRect(T * 0.12, -2, T * 0.07, 4);
       ctx.restore();
     }
+  } else if (kind === 'serpente_aspide') {
+    // corpo em S rente ao chão (ondula andando), cabeça na frente; no bote ela estica para o alvo
+    const ext = punching ? Math.max(0, reach) : 0;
+    const baseY = sy + T * 0.22;
+    const seg = 7;
+    const pts = [];
+    for (let i = 0; i <= seg; i++) {
+      const k = i / seg;
+      const wave = Math.sin(now / 120 + k * 5) * T * 0.08 * (walking ? 1 : 0.4);
+      pts.push([cx - face * w * (0.55 - k * 1.1) + (k > 0.7 ? dx * ext * w * 0.9 * (k - 0.7) / 0.3 : 0), baseY - k * h * 0.35 + wave + (k > 0.7 ? dy * ext * h * 0.4 * (k - 0.7) / 0.3 : 0)]);
+    }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const stroke = (lw, col) => { ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke(); };
+    stroke(T * 0.24, ink); stroke(T * 0.17, '#3f8a2c'); stroke(T * 0.07, '#8fe05a');
+    const [hx, hy] = pts[seg];
+    ctx.fillStyle = '#3f8a2c'; ctx.strokeStyle = ink; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(hx, hy, T * 0.15, T * 0.11, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffe14a'; ctx.fillRect(hx + face * T * 0.03, hy - T * 0.05, 3, 3);                       // olho
+    if (punching) { ctx.fillStyle = '#ffffff'; ctx.fillRect(hx + face * T * 0.1, hy + T * 0.04, 2, 5); ctx.fillRect(hx + face * T * 0.05, hy + T * 0.04, 2, 5); }   // presas
+    else { ctx.strokeStyle = '#d8263a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(hx + face * T * 0.14, hy); ctx.lineTo(hx + face * T * 0.24, hy + Math.sin(now / 80) * 2); ctx.stroke(); }   // língua
+  } else if (kind === 'fera_garra' || kind === 'fera_rei') {
+    // quadrúpede DE LADO (como um lobo): corpo comprido, 4 patas no passo, cabeça na frente (orelhas, focinho), cauda
+    // atrás. O Rei é maior, tem juba escura e as marcas de guerra vermelhas. No golpe: salta para o alvo e morde.
+    const king = kind === 'fera_rei';
+    const [furD, fur, furL] = king ? ['#7a4a1a', '#c98a3a', '#f3cf86'] : ['#93491a', '#e08a3c', '#ffc890'];
+    const sc = king ? 1.55 : 1;
+    const L = T * 0.95 * sc, H = T * 0.62 * sc;                       // comprimento e altura
+    const jump = punching ? Math.max(0, reach) : 0;
+    const gy = sy + T * 0.3;                                           // o chão
+    const bx = cx + dx * jump * L * 0.35, by = gy - H * 0.62 - jump * T * 0.22;   // centro do corpo
+    for (const [lx, back] of [[-0.34, 1], [-0.2, 0], [0.2, 1], [0.34, 0]]) {    // patas: as de trás mais escuras
+      const swing = (back ? step : -step) * L * 0.05;
+      const x = bx + face * L * lx + swing;
+      box(x - L * 0.055, by + H * 0.12, L * 0.11, gy - (by + H * 0.12) - (jump ? H * 0.12 : 0), back ? furD : fur);
+    }
+    ctx.lineCap = 'round';
+    const tx0 = bx - face * L * 0.44, ty0 = by - H * 0.05;              // cauda
+    const tailTo = [bx - face * L * 0.66, by - H * 0.42 + Math.sin(now / 140) * H * 0.06];
+    ctx.strokeStyle = ink; ctx.lineWidth = Math.max(4, L * 0.1);
+    ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.quadraticCurveTo(bx - face * L * 0.7, by, tailTo[0], tailTo[1]); ctx.stroke();
+    ctx.strokeStyle = fur; ctx.lineWidth = Math.max(2, L * 0.06); ctx.stroke();
+    ctx.fillStyle = fur; ctx.strokeStyle = ink; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(bx, by, L * 0.45, H * 0.27, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // corpo
+    ctx.fillStyle = furD; ctx.beginPath(); ctx.ellipse(bx - face * L * 0.05, by - H * 0.15, L * 0.33, H * 0.08, 0, 0, Math.PI * 2); ctx.fill();   // dorso (sombra)
+    ctx.fillStyle = furL; ctx.beginPath(); ctx.ellipse(bx + face * L * 0.05, by + H * 0.13, L * 0.3, H * 0.09, 0, 0, Math.PI * 2); ctx.fill();   // barriga clara
+    if (king) {                                                          // marcas de guerra no flanco
+      ctx.fillStyle = '#c8243c';
+      for (const k of [-0.12, 0, 0.12]) ctx.fillRect(Math.round(bx + face * L * k - 2), Math.round(by - H * 0.12), 4, Math.round(H * 0.2));
+    }
+    const hx = bx + face * L * 0.46, hy = by - H * 0.32 - jump * H * 0.1, hr = H * 0.25;
+    if (king) {                                                          // juba
+      ctx.fillStyle = '#5a3412';
+      for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; ctx.beginPath(); ctx.arc(hx - face * hr * 0.2 + Math.cos(a) * hr * 0.95, hy + Math.sin(a) * hr * 0.95, hr * 0.42, 0, Math.PI * 2); ctx.fill(); }
+    }
+    ctx.fillStyle = fur; ctx.strokeStyle = ink; ctx.lineWidth = 2;
+    for (const side of [-0.45, 0.25]) {                                 // orelhas
+      ctx.beginPath(); ctx.moveTo(hx + face * hr * side - hr * 0.22, hy - hr * 0.6); ctx.lineTo(hx + face * hr * (side + 0.1), hy - hr * 1.45); ctx.lineTo(hx + face * hr * side + hr * 0.3, hy - hr * 0.55); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();                         // cabeça
+    const open = punching && reach > 0.3 ? hr * 0.25 : 0;
+    ctx.fillStyle = furL; ctx.beginPath(); ctx.ellipse(hx + face * hr * 0.95, hy + hr * 0.25, hr * 0.55, hr * 0.32 + open * 0.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // focinho
+    if (open) { ctx.fillStyle = '#5a1010'; ctx.fillRect(Math.round(hx + face * hr * 0.75 - (face < 0 ? hr * 0.6 : 0)), Math.round(hy + hr * 0.3), Math.round(hr * 0.6), Math.round(open)); ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(hx + face * hr * 1.1), Math.round(hy + hr * 0.3), 2, 4); }
+    ctx.fillStyle = ink; ctx.fillRect(Math.round(hx + face * hr * 1.42 - 2), Math.round(hy + hr * 0.05), 4, 4);   // nariz
+    ctx.fillStyle = king ? '#ffd23f' : '#1d120a'; ctx.fillRect(Math.round(hx + face * hr * 0.3 - 2), Math.round(hy - hr * 0.25), 4, 4);   // olho
+    if (king) { ctx.fillStyle = '#1d120a'; ctx.fillRect(Math.round(hx + face * hr * 0.3 - 1), Math.round(hy - hr * 0.25), 2, 4); }
   } else {
     const g = ctx.createLinearGradient(0, top, 0, top + h);
     g.addColorStop(0, '#bfe6ff'); g.addColorStop(1, '#3ca6ff');
@@ -8457,7 +8576,7 @@ function drawSummon(m, sx, sy, T, now) {
     ctx.fillStyle = '#d8f2ff'; ctx.beginPath(); ctx.arc(hx, hy, Math.max(3, T * 0.09) * (ext > 0.5 ? 1.5 : 1), 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
-  const bar = { golem: '#c9a678', sentinela_sombra: '#b07cff', arsenal: '#cfd6e0' }[kind] || '#8fd6ff';
+  const bar = { golem: '#c9a678', sentinela_sombra: '#b07cff', arsenal: '#cfd6e0', serpente_aspide: '#8fe05a', fera_garra: '#e8954a', fera_rei: '#ffc46b' }[kind] || '#8fd6ff';
   if (m.hp !== undefined && m.maxHp) drawHpBar(sx, top - 6, w + 6, m.hp / m.maxHp, bar);
 }
 
