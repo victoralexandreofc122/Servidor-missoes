@@ -33,6 +33,10 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v65 (migração v39, decisões do Victor de 15/11):** os 12 nomes da lore aplicados (Lodo Verde, Pedras da Vigília...),
+  Kenji e Mei com os visuais certos, Pular a Academia, fragmentos da Crônica no banco (prêmio e falas do Cronista) e todos
+  os comandos `/admin` no Painel do Admin (o teste `test/decisoes.test.ts` cobra botão para comando novo). Branch
+  `ccr-decisoes` até o Victor rodar a v39.
 - **v64 (lore e tutorial, sem migração):** `docs/lore/` (Bíblia do Mundo, NDD, fichas, artefatos, planilha de diálogos,
   tutorial, propostas de nomes), 17 fragmentos da Crônica no mapa (Manual → Fragmentos), falas com voz dos professores e
   lojistas, dicas na hora e folha de controles. A Bíblia é a fonte única de verdade da lore; os nomes que faltam esperam a

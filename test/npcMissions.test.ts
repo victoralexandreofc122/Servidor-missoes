@@ -103,7 +103,7 @@ describe('NPC Mestre: no mapa e conversa', () => {
     a.send({ type: 'accept_mission', offer: 'NPC_TRAINING' });
     await flush();
     assert.deepEqual(calls.talk, [[a.id, 'NPC_TRAINING']]);
-    assert.deepEqual(a.conn.last('npc_say'), { type: 'npc_say', npcId: 'sensei', text: 'Prove seu valor, jovem ninja: derrote 5 slimes e volte aqui.' });
+    assert.deepEqual(a.conn.last('npc_say'), { type: 'npc_say', npcId: 'sensei', text: 'Prove seu valor, jovem ninja: derrote 5 Lodos Verdes e volte aqui.' });
     assert.deepEqual(a.conn.last('mission'), { type: 'mission', mission: mission(0), reason: 'assigned' });
   });
 
@@ -251,7 +251,7 @@ describe('NPC Mestre: rastreamento e conclusão', () => {
     a.send({ type: 'deliver_npc_mission' });
     await flush();
     assert.deepEqual(calls.talk, [[a.id, null]], 'entregar nunca cria missão (offer null)');
-    assert.equal(a.conn.last('npc_say').text, 'Ainda faltam 3 slimes. Eles rondam em volta da vila.');
+    assert.equal(a.conn.last('npc_say').text, 'Ainda faltam 3 Lodos Verdes. Eles rondam em volta da vila.');
     state.next = { kind: 'none' };
     clock.advance(500);
     a.send({ type: 'deliver_npc_mission' });
@@ -319,8 +319,8 @@ describe('NPC Mestre: rastreamento e conclusão', () => {
   });
 
   it('falas: quanto falta (singular/plural) e missão de outro sensei', () => {
-    assert.equal(npcLine.inProgress(mission(2)), 'Ainda faltam 3 slimes. Eles rondam em volta da vila.');
-    assert.equal(npcLine.inProgress(mission(4)), 'Ainda falta 1 slime. Eles rondam em volta da vila.');
+    assert.equal(npcLine.inProgress(mission(2)), 'Ainda faltam 3 Lodos Verdes. Eles rondam em volta da vila.');
+    assert.equal(npcLine.inProgress(mission(4)), 'Ainda falta 1 Lodo Verde. Eles rondam em volta da vila.');
     assert.equal(npcLine.otherSensei(mission(0, { senseiName: 'obito', fromNpc: false })), 'Você está treinando com o sensei obito. Termine essa missão primeiro.');
     assert.equal(npcLine.otherSensei(mission(5, { status: 'submitted', senseiName: 'obito' })), 'Sua missão está com o sensei obito, esperando a avaliação.');
     assert.equal(npcLine.rewarded([{ xp: 50, title: 'Discípulo do Mestre', titleNew: false }]), 'Excelente! Pergaminho entregue: +50 XP. Fale comigo de novo para outro treino.');

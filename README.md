@@ -240,6 +240,21 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v65: as decisões do Victor de 15/11 (migração v39, `db/schema_v39_fragmentos.sql`)
+
+- **Os 12 nomes da lore** (1A, 2B, 3B, 4B, 5A, 6C, 7C, 8A, 9A, 10A, 11C, 12A, `docs/lore/propostas-de-nomes.md`):
+  Lodo Verde (antes "slime"), Pergaminho em Chamas, Pedras da Vigília, Noite das Lanternas, Rio das Raízes e os demais,
+  no jogo, no Arco 1, na Bíblia e na planilha de diálogos.
+- **Kenji e Mei:** os visuais estavam trocados; agora o Professor Kenji é masculino e a Professora Mei, feminina.
+- **Pular a Academia:** botão "⏭ Pular a Academia" no cartão e na lista de Missões, com um 2º toque para confirmar. O
+  servidor passa as etapas que faltam, dá a Kunai de Treino, +100 ryō e +50 XP (os mesmos prêmios) e leva à Praça.
+- **Fragmentos no banco (v39):** o servidor confere que o ninja está no lugar do fragmento, grava e paga +30 ryō e +60 XP
+  na 1ª vez. A lista vem do servidor na entrada (vale em qualquer aparelho). O Cronista conta quantos você achou. Sem a
+  v39 o jogo segue como na v64 (guardado só no aparelho, sem prêmio).
+- **Painel do Admin com todos os comandos:** aba Mundo com a Progressão do Mundo (marcos e Auto) e os Titãs; aba Jogador
+  com o Rito do Despertar e o Portador de Titã; aba Fim de jogo com o Torneio. Um teste falha se um comando `/admin` novo
+  não tiver botão no painel.
+
 ### v64: lore e tutorial (sem migração; `docs/lore/`)
 
 Feito a partir do "Manual Definitivo de Design Narrativo e Construção de Mundos em Jogos" enviado pelo Victor.

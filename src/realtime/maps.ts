@@ -5,7 +5,7 @@
  *   map_1  Vila      80 x 80   muralha em volta, PORTÃO no sul (x 35..45), sede, hospital,
  *                              academia, lojas, rio com pontes, praça segura e a ARENA (no campo de treino)
  *   map_2  Floresta 100 x 100  grama escura, árvores, monstros por zona (mais longe, mais forte); entrada no NORTE
- *                              (x 35..45); as Pedras-Selo 1 a 3, o Velho Carvalho, a Cachoeira Seca, o Acampamento
+ *                              (x 35..45); as Pedras da Vigília 1 a 3, o Velho Carvalho, a Cachoeira Seca, o Acampamento
  *                              Queimado, o riacho e o abismo do Arco 1 (docs/mapas.md)
  *   caverna_lodo       56 x 44  do outro lado do abismo (só com o Teleporte): túneis e o lago de lodo
  *   clareira_queimada  44 x 40  o coração da Floresta (Pedra 4, chefe); passagem sul LACRADA até a história abrir
@@ -44,7 +44,7 @@ export type ShopKind = 'weapons' | 'clothes' | 'scrolls';
  *  fence = cerca de madeira da arena · pillar = pilar de pedra (cobertura dentro da arena)
  *  gate = portão fechado (vilas sem saída a pé: só pelo Posto de Viagem)
  *  pit com s = chasm: o abismo da Floresta (bordas de pedra, em vez das tábuas da Academia)
- *  seal = Pedra-Selo (s = lit acesa / out apagada) · oak = tronco do Velho Carvalho · cliff = paredão (s = fall: a
+ *  seal = Pedra da Vigília (s = lit acesa / out apagada) · oak = tronco do Velho Carvalho · cliff = paredão (s = fall: a
  *  cachoeira seca) · tent = barraca (s = burnt: queimada) · cave = rocha de caverna · deadtree = árvore morta ·
  *  logs = troncos caídos (passagem lacrada) · sink = sumidouro (onde o riacho some) · pool = lago de lodo
  */
@@ -874,15 +874,15 @@ function forest(): MapLayout {
   ];
   const walls: Wall[] = [
     ...carve(W, H, open),
-    // Pedra-Selo 1 (apagada: a Tsubaki acha na M3) no meio do lago; pedras e moitas da clareira.
+    // Pedra da Vigília 1 (apagada: a Akane acha na M3) no meio do lago; pedras e moitas da clareira.
     wall('seal', 12.3, 9.6, 4.5, 5.7, 'out'),
     wall('rock', 20, 9, 4.5, 3.6), wall('rock', 25, 10, 2.5, 3.5), wall('rock', 6.4, 20.7, 2.7, 3.4), wall('rock', 9, 6, 4, 3),
     wall('rock', 13.5, 6, 3.5, 1.6), wall('rock', 61.5, 4.8, 2, 1.7), wall('furniture', 42.8, 5, 0.8, 1.6), wall('furniture', 49, 37.8, 0.8, 1.3),
     // O sumidouro (o riacho some aqui: é a água do canal da Vila, M2).
     wall('sink', 65, 16, 9, 6.6),
-    // Velho Carvalho: o tronco e as raízes, com a Pedra-Selo 2 acesa na frente.
+    // Velho Carvalho: o tronco e as raízes, com a Pedra da Vigília 2 acesa na frente.
     wall('oak', 23.5, 37, 13, 4.5), wall('seal', 28.8, 38.5, 2.4, 3, 'lit'),
-    // Pedra-Selo 3, acesa, no fundo da abertura do paredão.
+    // Pedra da Vigília 3, acesa, no fundo da abertura do paredão.
     wall('seal', 88.3, 30.2, 2.2, 2.4, 'lit'),
     // Acampamento Queimado: barracas, caixotes, a fogueira e a pedra.
     wall('tent', 8, 48.6, 7.7, 7.6, 'burnt'), wall('tent', 20.5, 47.7, 7.2, 7.3, 'burnt'), wall('tent', 9.5, 61, 6.4, 6.9, 'burnt'), wall('tent', 23.6, 60.6, 7.8, 6.9, 'burnt'),
@@ -985,7 +985,7 @@ export const CLEARING_POI = { pedra4: { x: 22, y: 18, r: 3 }, arena: { x: 22, y:
 
 /**
  * Clareira Queimada (44 x 40): o coração da Floresta, arena do chefe do Arco 1 (docs/mapas.md, seção 5). Árvores
- * mortas em volta, chão queimado e a Pedra-Selo 4 no meio. Sem coluna no meio: o chefe tem ataque em área.
+ * mortas em volta, chão queimado e a Pedra da Vigília 4 no meio. Sem coluna no meio: o chefe tem ataque em área.
  * Entrada pelo norte (x 18..26), que é a passagem sul da Floresta.
  */
 function burnedClearing(): MapLayout {

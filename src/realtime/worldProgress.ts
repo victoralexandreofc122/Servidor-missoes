@@ -56,11 +56,12 @@ export function nextStage(stage: number): StageInfo | undefined {
  * O Cronista (Academia): a Crônica das Eras, contada em capítulos que se abrem com os marcos. Capítulo de marco ainda
  * não alcançado: "os pergaminhos estão borrados".
  */
-// v64: o capítulo II foi alinhado com o Arco 1 (docs/lore/biblia-do-mundo.md, seção 9): a guerra envenenou o rio, do rio
-// nasceu o Lodo, e há 50 anos a geração que fundou a Academia o selou com cinco pedras.
+// v64: o capítulo II foi alinhado com o Arco 1 (docs/lore/biblia-do-mundo.md, seção 9): a Primeira Guerra envenenou o Rio das
+// Raízes, do rio nasceu o Lodo Ancestral, e há 50 anos (a Noite das Cinco Pedras) a geração que fundou a Academia o selou
+// com as cinco Pedras da Vigília. v65: os nomes escolhidos pelo Victor (15/11/2026).
 export const CHRONICLE: readonly { min: Stage; title: string; text: string }[] = [
   { min: 0, title: 'I. A Primeira Chama', text: 'Antes das aldeias, havia só a Chama. Os quatro clãs fundadores a dividiram em quatro heranças, e cada herança virou uma aldeia: a Chama Eterna, a Maré Oculta, o Vento Cortante e a Rocha Antiga. A Academia guarda a brasa que sobrou.' },
-  { min: 30, title: 'II. O Lodo sob as Raízes', text: 'A guerra dos fundadores envenenou o rio que corre sob a Floresta, e do rio envenenado nasceu o Lodo. Há cinquenta anos ele acordou e foi selado por cinco pedras. Os lodos da mata são o chakra que vaza pelo selo; o Rei Lodo, o maior pedaço que escapou.' },
+  { min: 30, title: 'II. O Lodo sob as Raízes', text: 'A Primeira Guerra, entre os fundadores, envenenou o Rio das Raízes, que corre sob a Floresta, e do rio nasceu o Lodo Ancestral. Há cinquenta anos, na Noite das Cinco Pedras, ele foi selado pelas Pedras da Vigília. Os lodos da mata são o chakra que vaza pelo selo; o Rei Lodo, o maior pedaço que escapou.' },
   { min: 60, title: 'III. A Fronteira que Sangra', text: 'Entre as heranças ficou uma terra que ninguém aceitou dividir. Ali, a lei das aldeias não chega: só a lâmina decide. Os antigos a chamaram de Zona de Conflito, e cada Era ela pede o seu preço.' },
   { min: 100, title: 'IV. Os que Riscaram a Bandana', text: 'Nem todos aceitaram a Chama dividida. Os que riscaram a bandana fugiram para o Refúgio, e as aldeias passaram a escolher um Kage para guardar a herança. Toda escolha divide; toda divisão faz renegados.' },
   { min: 150, title: 'V. O Cinturão da Era', text: 'Abaixo da terra dormem dez Titãs, as forças que os fundadores prenderam para fazer o mundo. A cada Era eles acordam, um por dia, e testam os vivos. Quem fere mais um Titã carrega um pedaço dele até a Era acabar: os Portadores.' },

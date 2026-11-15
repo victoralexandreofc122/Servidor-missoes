@@ -73,6 +73,24 @@ export function tutorFala(npcId: string, step: number, turn = 0): Fala {
   return barks.length > 0 ? barks[Math.abs(turn) % barks.length]! : t.done;
 }
 
+/**
+ * v65: o Cronista conta quantos fragmentos da Crônica o ninja já trouxe (os fragmentos gravados no banco, migração v39).
+ * `min` = a partir de quantos achados a fala vale (a de maior `min` que couber).
+ */
+export const CRONISTA_FRAGMENTOS: readonly (Fala & { min: number })[] = [
+  { id: 'CRN_F_00', min: 0, text: 'Sente-se, ninja. Pedaços da Crônica se perderam pelo mundo; um brilho dourado marca cada um. Traga-os na memória.' },
+  { id: 'CRN_F_01', min: 1, text: 'Você já leu {n} dos {total} pedaços perdidos. Cada um conta o que os livros calam.' },
+  { id: 'CRN_F_06', min: 6, text: '{n} de {total}. Poucos leem tanto do mundo. O resto está onde o mapa é mais duro.' },
+  { id: 'CRN_F_12', min: 12, text: '{n} de {total}. Faltam os das outras aldeias e das terras sem dono. A Crônica quase cabe nas suas mãos.' },
+  { id: 'CRN_F_17', min: 17, text: 'Todos os {total}. A Crônica está inteira com você, ninja. Guarde-a melhor do que nós guardamos.' },
+];
+
+/** A fala do Cronista para quem achou `n` de `total` fragmentos. */
+export function cronistaFala(n: number, total: number): Fala {
+  const f = [...CRONISTA_FRAGMENTOS].reverse().find((x) => n >= Math.min(x.min, total)) ?? CRONISTA_FRAGMENTOS[0]!;
+  return { id: f.id, text: f.text.replace('{n}', String(n)).replace('{total}', String(total)) };
+}
+
 /** Todas as falas deste arquivo (a planilha e o teste usam). */
 export function todasAsFalas(): (Fala & { npc: string; quando: string })[] {
   const out: (Fala & { npc: string; quando: string })[] = [];
@@ -80,5 +98,6 @@ export function todasAsFalas(): (Fala & { npc: string; quando: string })[] {
     out.push({ ...t.now, npc, quando: `tutorial == ${t.step}` }, { ...t.done, npc, quando: `${t.step} < tutorial < 4` });
     for (const b of TUTOR_BARKS[npc] ?? []) out.push({ ...b, npc, quando: 'tutorial == 4 (rodízio)' });
   }
+  for (const c of CRONISTA_FRAGMENTOS) out.push({ id: c.id, text: c.text, npc: 'cronista', quando: `fragmentos achados >= ${c.min}` });
   return out;
 }

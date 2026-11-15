@@ -78,6 +78,8 @@ export interface NinjaStore {
   /** v38 (migração v26): capítulos do Pergaminho do Mestre desbloqueados e lidos (true = acabou de ler: paga o prêmio). */
   unlockChapters?(playerId: string, chapters: string[]): Promise<void>;
   readChapter?(playerId: string, chapter: string): Promise<boolean>;
+  /** v65 (migração v39): grava o fragmento da Crônica; true = era a 1ª vez (paga o prêmio). */
+  findFragment?(playerId: string, code: string): Promise<boolean>;
   /** v38 (migração v26): o relato do jogador (Menu > Feedback) com o contexto capturado. Devolve o número do relato. */
   submitFeedback?(playerId: string, category: string, content: string, context: Record<string, unknown>): Promise<number>;
   /** Rank atual (depois do Exame Chunin aprovado). */
@@ -100,6 +102,7 @@ export const NINJA_SQL = {
   // v38 (migração v26): Pergaminho do Mestre e Feedback
   unlockChapters: `INSERT INTO game.player_tutorial (player_id, chapter) SELECT $1, c FROM unnest($2::text[]) AS c ON CONFLICT DO NOTHING`,
   readChapter: `UPDATE game.player_tutorial SET read_at = now() WHERE player_id = $1 AND chapter = $2 AND read_at IS NULL RETURNING chapter`,
+  findFragment: `INSERT INTO game.player_fragments (player_id, fragment_code) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING fragment_code`,
   submitFeedback: `INSERT INTO game.feedback (player_id, category, content, context) VALUES ($1, $2, $3, $4::jsonb) RETURNING id`,
   learnJutsus: `INSERT INTO game.player_jutsus (player_id, jutsu_code) SELECT $1, c FROM unnest($2::text[]) AS c ON CONFLICT DO NOTHING`,
   afterTutorial: `SELECT tutorial_step, total_xp, level, stat_points, ryo, ${INVENTORY} AS items FROM game.players WHERE id = $1`,
@@ -291,6 +294,9 @@ export function makeNinjaStore(db: Db): NinjaStore {
     },
     async readChapter(playerId, chapter) {
       return (await db.query(NINJA_SQL.readChapter, [playerId, chapter])).rows.length > 0;
+    },
+    async findFragment(playerId, code) {
+      return (await db.query(NINJA_SQL.findFragment, [playerId, code])).rows.length > 0;
     },
     async submitFeedback(playerId, category, content, context) {
       return Number((await db.query<{ id: string }>(NINJA_SQL.submitFeedback, [playerId, category, content, JSON.stringify(context)])).rows[0]!.id);

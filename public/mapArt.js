@@ -1479,7 +1479,7 @@ function drawTreeGroup(g, x, y, w, h, seed, tile, style, theme) {
 // ------------------------------------------------------------------ Arco 1: Floresta, Caverna, Clareira (docs/mapas.md)
 
 /**
- * Pedra-Selo: pedra alta com uma chama gravada. Acesa = pedra quente e a chama laranja (o brilho que pulsa é
+ * Pedra da Vigília: pedra alta com uma chama gravada. Acesa = pedra quente e a chama laranja (o brilho que pulsa é
  * desenhado a cada quadro, em drawSealGlow); apagada = cinza-azulada, chama escura e fria.
  */
 function drawSeal(g, x, y, w, h, lit) {
@@ -1509,7 +1509,7 @@ function drawSeal(g, x, y, w, h, lit) {
   }
 }
 
-/** Brilho da Pedra-Selo acesa (a cada quadro, por cima do chão): um halo laranja que respira. Coordenadas de tela. */
+/** Brilho da Pedra da Vigília acesa (a cada quadro, por cima do chão): um halo laranja que respira. Coordenadas de tela. */
 export function drawSealGlow(ctx, x, y, w, h, now) {
   const cx = x + w / 2, cy = y + h * 0.4, r = Math.max(w, h) * 1.4;
   const pulse = 0.55 + 0.45 * Math.sin(now / 520);

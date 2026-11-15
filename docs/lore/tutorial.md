@@ -69,8 +69,8 @@ O guia: "fornecer pistas contextuais na tela que surgem apenas no momento exato 
 
 ## 5. O que fica como proposta (decisão do Victor)
 
-- **Pular a Academia** para quem já jogou (guia: jogadores experientes devem poder ignorar tutoriais longos). Pede uma
-  regra no servidor (dar a Kunai de Treino, o ryō e o XP e levar à Praça) e mexe no prólogo do Arco 1.
-- **Fragmentos gravados no banco** (hoje ficam no aparelho): permitiria prêmio por fragmento e falas do Cronista. Pede
-  migração.
+- ~~Pular a Academia~~: **feito na v65** (OK do Victor em 15/11). Botão no cartão e na lista de Missões, com um 2º toque;
+  o servidor dá a Kunai de Treino, +100 ryō e +50 XP e leva à Praça.
+- ~~Fragmentos gravados no banco~~: **feito na v65** (migração v39). +30 ryō e +60 XP no 1º achado de cada um e as falas
+  do Cronista (`CRN_F_*`).
 - **Uma sala de prática livre** na Academia (um boneco que revida de leve, sem portão), entre a Sala de Armas e a saída.

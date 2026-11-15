@@ -11,7 +11,7 @@ import { todasAsFalas } from '../src/realtime/falas.js';
 import { CHRONICLE } from '../src/realtime/worldProgress.js';
 
 const NPC_NAME: Record<string, string> = {
-  tutor_dummies: 'Professora Aya', tutor_meditation: 'Professor Daichi', tutor_jutsu: 'Professor Kenji', tutor_weapons: 'Professora Mei',
+  tutor_dummies: 'Professora Aya', tutor_meditation: 'Professor Daichi', tutor_jutsu: 'Professor Kenji', tutor_weapons: 'Professora Mei', cronista: 'O Cronista',
 };
 const KEEPER: Record<string, string> = { weapons: 'Ferreiro Tetsu', clothes: 'Costureira Hana', scrolls: 'Sábio Ren' };
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI'];
