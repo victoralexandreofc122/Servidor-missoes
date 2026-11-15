@@ -656,6 +656,7 @@ function handleMessage(msg) {
       if (msg.kit) state.kit = msg.kit;
       if (msg.ninja) state.ninja = msg.ninja;
       renderShurikenButton();   // v59: a contagem do ✴️ já vem na entrada (antes ficava 0 até o próximo inventário)
+      send({ type: 'vinculo', action: 'state' });   // v60: a aba Vínculo Ancestral e os botões do HUD
       manualUI.refreshBadge();                       // v38: capítulo do Pergaminho do Mestre ainda não lido: o ☰ pisca
       renderDisplayBoxes();
       pred.gates.tutorial = state.ninja.tutorialStep;   // portas da Academia: o MESMO passo do servidor
@@ -806,7 +807,8 @@ function handleMessage(msg) {
       if (sm) { sm.punchAt = now; if (msg.fx !== undefined) sm.punchDir = [msg.fx, msg.fy]; }
       const hx = msg.x + (msg.fx ?? 0) * msg.r * 0.6, hy = msg.y + (msg.fy ?? 0) * msg.r * 0.6;
       const at = now + SUMMON_PUNCH_MS * 0.45;
-      const look = { golem: ['#c9a678', 'stone'], sentinela_sombra: ['#b07cff', 'shadow'], arsenal: ['#dfe6ee', 'weapons'], clone_agua: ['#8fd6ff', 'water'] }[sm?.type] || ['#c9a678', 'stone'];
+      const look = isCreature(sm) ? [PRIMAL_COLOR[sm.type.slice(8)] || '#ffffff', 'neutral']   // v60: criatura do Vínculo
+        : { golem: ['#c9a678', 'stone'], sentinela_sombra: ['#b07cff', 'shadow'], arsenal: ['#dfe6ee', 'weapons'], clone_agua: ['#8fd6ff', 'water'] }[sm?.type] || ['#c9a678', 'stone'];
       state.effects.push({ skill: 'jutsu_ring', x: hx, y: hy, fx: 0, fy: 0, r: msg.r * 0.8, color: look[0], start: at });
       if (particles.quality !== 'off' && sm?.type === 'golem') decals.push({ kind: 'cratera', x: hx, y: hy, r: msg.r * 0.6, start: at, ms: 2200, seed: seedOf(msg.id) });   // v48: o soco do Golem racha o chão
       setTimeout(() => particles.burst(look[1], hx, hy, 1.8, msg.r * 0.8), SUMMON_PUNCH_MS * 0.45);
@@ -852,6 +854,13 @@ function handleMessage(msg) {
       if (p) castSounds.set(msg.playerId, sfxAt('charge', p.x, p.y, msg.playerId === state.meId ? 1 : 0.6, { ms: msg.ms, el: elementOfSkill(msg.skill), voiceMs: msg.ms }));
       break;
     }
+    case 'vinculo_state':
+      state.vinculo = { ...msg, at: performance.now() };
+      renderVinculo();
+      break;
+    case 'vinculo_fx':
+      vinculoFx(msg, now);
+      break;
     case 'cast_interrupted': {
       castSounds.get(msg.playerId)?.stop(true);   // v57: interrompido, o som corta na hora
       castSounds.delete(msg.playerId);
@@ -1434,7 +1443,8 @@ function handleMessage(msg) {
     }
     case 'monster_died': {
       const m = state.monsters.get(msg.id);
-      if (m) { m.diedAt = now; m.hp = 0; sfxAt('slime_die', m.x, m.y, 0.9); }   // v58
+      if (m) { m.diedAt = now; m.hp = 0; if (!isCreature(m)) sfxAt('slime_die', m.x, m.y, 0.9); }   // v58
+      if (state.vinculo?.summoned?.includes(msg.id)) { state.vinculo.summoned = state.vinculo.summoned.filter((x) => x !== msg.id); renderVinculo(); }   // v60
       if (state.focusId === msg.id) setFocus(null);
       break;
     }
@@ -1781,7 +1791,10 @@ function drawMinimap(now) {
   if (minimap.mapId !== state.mapId || !minimap.tex) buildMinimap();
   const tex = minimap.tex;
   if (!tex) return;
-  const c = ui.minimapCanvas, g = c.getContext('2d'), W = c.width, R = 20, k = W / (R * 2), S = minimap.S;
+  // v60: a Águia em campo mostra 30 casas; o Estado Primal dela revela o mapa inteiro por 10 s
+  const lay = state.maps[state.mapId];
+  const R = now < (state.revealUntil || 0) && lay ? Math.max(lay.width, lay.height) / 2 + 2 : eagleOut() ? 30 : 20;
+  const c = ui.minimapCanvas, g = c.getContext('2d'), W = c.width, k = W / (R * 2), S = minimap.S;
   g.save();
   g.fillStyle = '#0b1020';
   g.fillRect(0, 0, W, W);
@@ -3002,6 +3015,28 @@ const GROUND_COLORS = {
 };
 
 /** Zona: círculo pulsando com borda tracejada. Aviso: círculo vermelho que vai enchendo até o golpe cair. */
+/** v60: teia da Aranha no chão (fios e anéis); a aura do Estado Primal é uma teia fraca girando em volta. */
+function drawWeb(x, y, r, now, aura) {
+  ctx.save();
+  ctx.strokeStyle = aura ? 'rgba(170, 130, 255, 0.45)' : 'rgba(235, 235, 245, 0.75)';
+  ctx.lineWidth = aura ? 1.5 : 2;
+  const rot = aura ? now / 2000 : 0;
+  for (let i = 0; i < 8; i++) {
+    const a = rot + (i * Math.PI) / 4;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r * 0.9); ctx.stroke();
+  }
+  for (const k of [0.35, 0.65, 0.95]) {
+    ctx.beginPath();
+    for (let i = 0; i <= 8; i++) {
+      const a = rot + (i * Math.PI) / 4;
+      const px = x + Math.cos(a) * r * k, py = y + Math.sin(a) * r * k * 0.9;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawGround(toScreenX, toScreenY, T, now) {
   if (!state.ground || state.ground.size === 0) return;
   for (const [id, z] of state.ground) {
@@ -3011,6 +3046,7 @@ function drawGround(toScreenX, toScreenY, T, now) {
     // v48: zona com desenho próprio (poça, redemoinho, domínio de sombras, santuário, lâminas, cura...)
     if (z.kind !== 'aviso' && ZONE_ART[z.skill] && particles.quality !== 'off'
       && drawZoneArt(ctx, z.skill, x, y, r, T, Math.max(0, Math.min(1, (now - z.start) / Math.max(1, z.end - z.start))), now, seedOf(id))) continue;
+    if (z.skill === 'vinculo_aranha' || z.skill === 'vinculo_aranha_aura') { drawWeb(x, y, r, now, z.skill === 'vinculo_aranha_aura'); continue; }   // v60
     const [fill, edge] = GROUND_COLORS[z.kind] || GROUND_COLORS.fogo;
     ctx.save();
     ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.9, 0, 0, Math.PI * 2);
@@ -4205,6 +4241,295 @@ function throwShuriken() {
   send(state.focusId ? { type: 'attack', targetId: state.focusId, shuriken: true } : { type: 'attack', shuriken: true });
 }
 /** O botão ✴️: quantas Shurikens sobraram (apagado com zero). */
+// ---------------------------------------------------------------- v60: Vínculo Ancestral e Estado Primal
+
+/** Criatura do Vínculo (tipo "vinculo_<bicho>"). */
+function isCreature(m) {
+  return typeof m?.type === 'string' && m.type.startsWith('vinculo_');
+}
+/** A Águia está em campo (o minimapa mostra 30 casas). */
+function eagleOut() {
+  return state.vinculo?.equipped === 'aguia' && (state.vinculo.summoned?.length ?? 0) > 0;
+}
+const vinculoUi = {
+  toggle: $('vinculo-toggle'), panel: $('vinculo-panel'), close: $('vinculo-close'), list: $('vinculo-list'), note: $('vinculo-note'),
+  summon: $('summon-btn'), summonLabel: $('summon-label'), primal: $('primal-btn'), primalLabel: $('primal-label'),
+};
+const PRIMAL_COLOR = { sapo: '#7cd65a', lobo: '#c9d2e0', aguia: '#ffe08a', gato: '#b58bff', lesma: '#ff9ec7', aranha: '#9b6bff', tartaruga: '#6fd1b0', tigre: '#ff8c3a' };
+const secs = (ms) => (ms >= 60_000 ? `${Math.floor(ms / 60_000)}:${String(Math.ceil((ms % 60_000) / 1000)).padStart(2, '0')}` : `${Math.ceil(ms / 1000)}s`);
+
+/** O painel (as 8 criaturas) e os dois botões do HUD. */
+function renderVinculo() {
+  const v = state.vinculo;
+  if (!vinculoUi.panel.hidden) {
+    vinculoUi.note.className = 'vinculo-note';
+    if (!v) vinculoUi.note.textContent = 'Carregando…';
+    else if (!v.available) { vinculoUi.note.textContent = 'O Vínculo Ancestral ainda não está ligado no servidor.'; vinculoUi.note.classList.add('bad'); }
+    else vinculoUi.note.textContent = `Escolha 1 criatura. Invocar gasta ${v.chakraCost} de chakra (40% do máximo), recarga de 2 min. Afinidade 5 libera o Estado Primal (60 s). Só no mapa aberto: no rankeado, torneio e PvP a criatura some.`;
+    vinculoUi.list.textContent = '';
+    for (const c of v?.creatures ?? []) {
+      const card = document.createElement('div');
+      card.className = `vcard${v.equipped === c.code ? ' on' : ''}`;
+      const pct = c.need ? Math.round((c.into / c.need) * 100) : 100;
+      const el = (tag, cls, text, parent = card) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; parent.appendChild(e); return e; };
+      const head = el('div', 'vhead');
+      el('span', 'vicon', c.icon, head);
+      const names = el('div', '', undefined, head);
+      el('div', 'vname', c.name, names);
+      el('div', 'vrole', c.role, names);
+      el('div', 'vdesc', c.desc);
+      el('div', 'vprimal', `Estado Primal: ${c.primal}`);
+      const lvl = el('div', 'vlvl');
+      el('span', '', `Afinidade ${c.level}/5`, lvl);
+      el('span', '', c.need ? `${c.into}/${c.need} XP` : 'Máxima', lvl);
+      el('i', '', undefined, el('div', 'vbar')).style.width = `${pct}%`;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = v.equipped === c.code ? 'secondary' : 'primary';
+      b.textContent = v.equipped === c.code ? 'Equipado' : 'Equipar';
+      b.disabled = v.equipped === c.code || !v.available;
+      b.addEventListener('click', () => send({ type: 'vinculo', action: 'equip', creature: c.code }));
+      card.appendChild(b);
+      vinculoUi.list.appendChild(card);
+    }
+  }
+  renderVinculoButtons();
+}
+
+/** Botões Invocar e Estado Primal: só no mapa aberto e com criatura equipada. */
+function renderVinculoButtons() {
+  const v = state.vinculo;
+  const show = !!v?.available && !!v.equipped && v.allowed && !state.spectating;
+  vinculoUi.summon.hidden = !show;
+  vinculoUi.primal.hidden = !show;
+  if (!show) return;
+  const pass = performance.now() - v.at;
+  const info = v.creatures.find((c) => c.code === v.equipped);
+  const out = v.summoned.length > 0;
+  const cd = Math.max(0, v.cdMs - pass);
+  vinculoUi.summon.querySelector('.ico').textContent = info?.icon ?? '🐾';
+  vinculoUi.summonLabel.textContent = out ? '✕' : cd > 0 ? secs(cd) : '';
+  vinculoUi.summon.classList.toggle('locked', !out && cd > 0);
+  vinculoUi.summon.setAttribute('aria-label', out ? `Dispensar o ${info?.name}` : `Invocar o ${info?.name}`);
+  const active = Math.max(0, v.primal.activeMs - pass);
+  const pcd = Math.max(0, v.primal.cdMs - pass);
+  const tigerDash = active > 0 && v.primal.kind === 'tigre';
+  vinculoUi.primal.querySelector('.ico').textContent = tigerDash ? '💨' : '🔥';
+  vinculoUi.primal.classList.toggle('active', active > 0);
+  vinculoUi.primal.classList.toggle('locked', active <= 0 && (pcd > 0 || (info?.level ?? 1) < 5 || !out));
+  const dashLeft = Math.max(0, v.dashMs - pass);
+  vinculoUi.primalLabel.textContent = active > 0 ? (tigerDash ? (dashLeft > 0 ? secs(dashLeft) : '') : secs(active)) : pcd > 0 ? secs(pcd) : (info?.level ?? 1) < 5 ? `${info?.level ?? 1}/5` : '';
+  vinculoUi.primal.setAttribute('aria-label', tigerDash ? 'Avanço do Tigre' : 'Estado Primal');
+}
+setInterval(() => { if (state.vinculo) renderVinculoButtons(); }, 500);
+
+vinculoUi.toggle.addEventListener('click', () => {
+  vinculoUi.panel.hidden = !vinculoUi.panel.hidden;
+  vinculoUi.toggle.setAttribute('aria-expanded', String(!vinculoUi.panel.hidden));
+  if (!vinculoUi.panel.hidden) send({ type: 'vinculo', action: 'state' });
+  renderVinculo();
+});
+vinculoUi.close.addEventListener('click', () => { vinculoUi.panel.hidden = true; vinculoUi.toggle.setAttribute('aria-expanded', 'false'); });
+onTap(vinculoUi.summon, () => send({ type: 'vinculo', action: (state.vinculo?.summoned?.length ?? 0) > 0 ? 'dismiss' : 'summon' }));
+onTap(vinculoUi.primal, () => {
+  const v = state.vinculo;
+  const active = v && v.primal.kind === 'tigre' && v.primal.activeMs - (performance.now() - v.at) > 0;
+  send({ type: 'vinculo', action: active ? 'dash' : 'primal' });
+});
+
+/** O que todos veem: fumaça da invocação, aura do Primal, esquiva, crítico, gato sumindo, provocação, mapa revelado. */
+function vinculoFx(msg, now) {
+  const p = msg.playerId ? state.players.get(msg.playerId) : null;
+  const mine = msg.playerId === state.meId;
+  switch (msg.kind) {
+    case 'summon':
+      if (jutsuSpritesReady('teleporte')) jfx.show('teleporte_02', msg.x, msg.y, now, 520, { fadeIn: 0, fadeOut: 260, grow: 0.2 });
+      else vfx.play('smoke', msg.x, msg.y, { start: now });
+      particles.burst('wind', msg.x, msg.y, 1, 0.8);
+      sfxAt('teleport', msg.x, msg.y, mine ? 1 : 0.7);
+      break;
+    case 'primal':
+      if (p) { p.primalUntil = now + (msg.ms ?? 60_000); p.primalKind = msg.creature; addFloater(p.x, p.y - 1.3, 'ESTADO PRIMAL!', PRIMAL_COLOR[msg.creature] || '#ffb347', 1.3); }
+      if (p) particles.burst('fire', p.x, p.y, 2, 1);
+      if (p) sfxAt('boss_roar', p.x, p.y, mine ? 0.8 : 0.5);
+      break;
+    case 'primal_end':
+      if (p) { p.primalUntil = 0; p.primalKind = null; }
+      break;
+    case 'cancel':
+      if (p) { p.primalUntil = 0; addFloater(p.x, p.y - 1.1, 'Vínculo desligado (PvP)', '#d8cdb8', 0.85); }
+      break;
+    case 'dodge':
+      if (p) { addFloater(p.x, p.y - 0.9, 'Esquivou!', '#c9b8ff', 1.05); sfxAt('teleport', p.x, p.y, 0.6); }
+      break;
+    case 'crit': {
+      const m = state.monsters.get(msg.id);
+      addFloater(msg.x ?? m?.x ?? 0, (msg.y ?? m?.y ?? 0) - 1, 'Crítico!', '#ffd36b', 1.15);
+      break;
+    }
+    case 'stealth': {
+      const m = state.monsters.get(msg.id);
+      if (m) m.stealth = !!msg.on;
+      break;
+    }
+    case 'taunt':
+      state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: Math.min(3, msg.r ?? 3), color: '#6fd1b0', start: now });
+      break;
+    case 'reveal':
+      state.revealUntil = now + (msg.ms ?? 10_000);
+      minimap.at = 0;
+      break;
+    default:
+  }
+}
+
+/** Aura do Estado Primal: chamas da cor da criatura subindo em volta do boneco. */
+function drawPrimalAura(sx, sy, r, T, now, kind) {
+  const color = PRIMAL_COLOR[kind] || '#ffb347';
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(sx, sy, r * 0.3, sx, sy, r * 2.1);
+  g.addColorStop(0, `${color}99`);
+  g.addColorStop(1, `${color}00`);
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(sx, sy - r * 0.2, r * 2.1, r * 2.4, 0, 0, Math.PI * 2); ctx.fill();
+  // anel no chão girando, da cor da criatura
+  ctx.strokeStyle = color; ctx.lineWidth = Math.max(2, T * 0.06); ctx.globalAlpha = 0.85;
+  ctx.setLineDash([T * 0.22, T * 0.12]); ctx.lineDashOffset = -now / 40;
+  ctx.beginPath(); ctx.ellipse(sx, sy + r * 0.92, r * 1.6, r * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = color;
+  for (let i = 0; i < 16; i++) {
+    const ph = ((now / 700 + i / 16) % 1);
+    const a = i * 2.4 + now / 900;
+    const x = sx + Math.cos(a) * r * (1.1 - ph * 0.3);
+    const y = sy + r * 0.9 - ph * r * 2.8;
+    ctx.globalAlpha = 0.8 * (1 - ph);
+    const z = Math.max(3, T * 0.1 * (1 - ph * 0.5));
+    ctx.fillRect(Math.round(x - z / 2), Math.round(y - z / 2), z, z);
+  }
+  ctx.restore();
+}
+
+/**
+ * As 8 criaturas desenhadas por código (contorno escuro, 2 a 3 tons, como o resto do jogo). Andando: balança; atacando
+ * (`summon_punch`): dá o bote na direção do alvo. O Gato invisível aparece só como vulto para o dono.
+ */
+function drawCreature(m, sx, sy, T, now) {
+  const kind = m.type.slice('vinculo_'.length);
+  const mine = m.ownerId === state.meId;
+  if (m.stealth && !mine) return;
+  const born = Math.max(0.1, Math.min(1, (now - (m.bornAt || now)) / 300));
+  const walking = now - (m.walkAt || 0) < 260;
+  const step = walking ? Math.sin(now / 80) : 0;
+  const pk = m.punchAt ? (now - m.punchAt) / SUMMON_PUNCH_MS : 9;
+  const lunge = pk >= 0 && pk < 1 ? Math.sin(pk * Math.PI) : 0;
+  const [dx, dy] = m.punchDir || [m.face === -1 ? -1 : 1, 0];
+  const face = lunge > 0 ? (dx < 0 ? -1 : 1) : m.face === -1 ? -1 : 1;
+  const big = { tigre: 1.25, tartaruga: 1.1, lobo: 0.95, lesma: 0.95, aranha: 0.9, aguia: 0.95, sapo: 0.85, gato: 0.8 }[kind] || 1;
+  const u = T * 0.1 * big * born;                 // "pixel" da criatura
+  const cx = sx + dx * lunge * T * 0.35, base = sy + T * 0.32 + dy * lunge * T * 0.2;
+  const ink = '#15100c';
+  ctx.save();
+  if (m.stealth) ctx.globalAlpha = 0.32;
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.32, u * 5, u * 1.6, 0, 0, Math.PI * 2); ctx.fill();
+  const ell = (x, y, rx, ry, fill, line = ink) => {
+    ctx.fillStyle = fill; ctx.beginPath(); ctx.ellipse(cx + x * u * face, base + y * u, rx * u, ry * u, 0, 0, Math.PI * 2); ctx.fill();
+    if (line) { ctx.strokeStyle = line; ctx.lineWidth = Math.max(1.5, u * 0.35); ctx.stroke(); }
+  };
+  const rect = (x, y, w, h, fill, line = ink) => {
+    const X = face > 0 ? cx + x * u : cx - (x + w) * u;
+    ctx.fillStyle = fill; ctx.fillRect(Math.round(X), Math.round(base + y * u), Math.round(w * u), Math.round(h * u));
+    if (line) { ctx.strokeStyle = line; ctx.lineWidth = Math.max(1.5, u * 0.3); ctx.strokeRect(Math.round(X) + 0.5, Math.round(base + y * u) + 0.5, Math.round(w * u) - 1, Math.round(h * u) - 1); }
+  };
+  const eye = (x, y, color = '#fff', pupil = ink, s = 0.9) => { ell(x, y, s, s, color, ink); ell(x + 0.25, y, s * 0.45, s * 0.55, pupil, null); };
+  const legs = (xs, len, color) => xs.forEach((x, i) => rect(x, -len + (i % 2 ? step : -step) * 0.4, 1.1, len, color));
+  switch (kind) {
+    case 'sapo': {
+      const hop = walking ? Math.abs(step) * 1.2 : 0;
+      ctx.translate(0, -hop * u);
+      ell(0, -2.4, 4, 2.8, '#4fa83a'); ell(0.4, -1.8, 2.6, 1.6, '#c9e88a', null);
+      ell(-1.6, -5, 1.2, 1.2, '#4fa83a'); ell(1.6, -5, 1.2, 1.2, '#4fa83a');
+      eye(-1.6, -5.1); eye(1.6, -5.1);
+      rect(-4, -1, 2.2, 1, '#3d8a2c'); rect(1.8, -1, 2.2, 1, '#3d8a2c');
+      if (lunge > 0) { ctx.strokeStyle = '#ff7a9a'; ctx.lineWidth = u * 0.6; ctx.beginPath(); ctx.moveTo(cx + face * u * 2, base - 3 * u); ctx.lineTo(cx + dx * lunge * T * 1.6, base - 3 * u + dy * lunge * T); ctx.stroke(); }
+      break;
+    }
+    case 'lobo':
+      legs([-3, -1.5, 1.5, 3], 2.4, '#5d6470');
+      ell(0, -3.6, 4.2, 1.9, '#8b93a1'); ell(-0.5, -3, 3, 1, '#c3c9d3', null);
+      ell(-4.2, -4.6, 0.8, 1.6, '#8b93a1');                                         // rabo
+      ell(4.2, -5, 1.9, 1.6, '#8b93a1'); rect(5.4, -5, 1.8, 1.2, '#8b93a1');           // cabeça e focinho
+      rect(3.4, -7.4, 0.9, 1.6, '#5d6470'); rect(4.6, -7.4, 0.9, 1.6, '#5d6470');      // orelhas
+      eye(4.6, -5.3, '#ffd36b', ink, 0.55);
+      break;
+    case 'aguia': {
+      const fly = Math.sin(now / 160);
+      ctx.translate(0, -T * 0.55);
+      ell(0, -2, 2.4, 2.8, '#6b4a2a'); ell(0, -4.8, 1.7, 1.6, '#f4efe4');
+      rect(1.3, -5.2, 1.4, 0.8, '#ffc23a');
+      eye(0.6, -5.1, '#ffd36b', ink, 0.45);
+      ell(-2.6, -2.6 - fly * 1.2, 3.2, 1.1, '#4e341c'); ell(2.4, -2.6 + fly * 1.2, 3.2, 1.1, '#5b3d22');
+      rect(-0.8, 0.4, 1.6, 1, '#f4efe4');
+      break;
+    }
+    case 'gato':
+      legs([-2, -0.6, 0.8, 2.2], 1.8, '#2b2240');
+      ell(0, -2.8, 3, 1.6, '#3a2f55');
+      ell(-3.4, -4.4, 0.6, 2, '#3a2f55');
+      ell(3, -4.2, 1.7, 1.5, '#3a2f55');
+      rect(2, -6.2, 0.8, 1.2, '#3a2f55'); rect(3.4, -6.2, 0.8, 1.2, '#3a2f55');
+      eye(3.4, -4.3, '#ffe066', ink, 0.45);
+      break;
+    case 'lesma': {
+      const wob = Math.sin(now / 300) * 0.4;
+      ctx.fillStyle = 'rgba(160, 255, 200, 0.18)'; ctx.beginPath(); ctx.ellipse(cx - face * u * 3, base, u * 4, u * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+      ell(0, -1.4, 4.6 + wob, 1.6, '#f2a9c6'); ell(0.4, -1.8, 3, 0.8, '#ffd4e4', null);
+      rect(3.2, -4.6, 0.5, 2.6, '#f2a9c6'); rect(4.4, -4.4, 0.5, 2.4, '#f2a9c6');
+      ell(3.45, -4.8, 0.6, 0.6, '#2a1a22', null); ell(4.65, -4.6, 0.6, 0.6, '#2a1a22', null);
+      break;
+    }
+    case 'aranha': {
+      ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.5, u * 0.45);
+      for (let i = 0; i < 4; i++) for (const sd of [-1, 1]) {
+        const a = (i - 1.5) * 0.45 + (i % 2 ? step : -step) * 0.15;
+        ctx.beginPath(); ctx.moveTo(cx, base - 2.4 * u);
+        ctx.lineTo(cx + sd * Math.cos(a) * 3.2 * u, base - 4.2 * u + Math.sin(a) * 2 * u);
+        ctx.lineTo(cx + sd * Math.cos(a) * 4.6 * u, base - 0.2 * u); ctx.stroke();
+      }
+      ell(-1.2, -2.6, 2.6, 2.2, '#2b2238'); ell(1.6, -2.6, 1.6, 1.4, '#3b2f4c');
+      ell(2.2, -2.9, 0.35, 0.35, '#ff3a4a', null); ell(1.5, -2.9, 0.35, 0.35, '#ff3a4a', null);
+      ell(-1.6, -3.4, 1, 0.5, '#9b6bff', null);
+      break;
+    }
+    case 'tartaruga':
+      legs([-2.6, -1, 1.2, 2.6], 1.4, '#5a9a6a');
+      ell(4, -2.4, 1.5, 1.3, '#6fb07c'); eye(4.4, -2.7, '#fff', ink, 0.4);
+      ell(0, -3, 4, 2.8, '#3f7a48'); ell(0, -3.4, 3, 2, '#5a9a5c', null);
+      ctx.strokeStyle = '#2c5a34'; ctx.lineWidth = Math.max(1, u * 0.3);
+      ctx.beginPath(); ctx.moveTo(cx - 1.6 * u, base - 4.8 * u); ctx.lineTo(cx + 1.6 * u, base - 4.8 * u); ctx.lineTo(cx + 2.4 * u, base - 3 * u); ctx.lineTo(cx - 2.4 * u, base - 3 * u); ctx.closePath(); ctx.stroke();
+      { ctx.strokeStyle = 'rgba(160, 255, 220, 0.5)'; ctx.lineWidth = Math.max(1, u * 0.3); ctx.beginPath(); ctx.ellipse(cx, base - 3 * u, 5.2 * u, 4 * u, 0, 0, Math.PI * 2); ctx.stroke(); }
+      break;
+    case 'tigre':
+      legs([-3.2, -1.6, 1.6, 3.2], 2.6, '#c8611c');
+      ell(0, -3.8, 4.6, 2.1, '#e8822c'); ell(-0.4, -3.1, 3.4, 1, '#ffe2c0', null);
+      ctx.fillStyle = ink;
+      for (const x of [-2.6, -1, 0.6, 2.2]) ctx.fillRect(Math.round(cx + x * u * face), Math.round(base - 5.6 * u), Math.max(2, u * 0.5), Math.round(1.8 * u));
+      ell(-4.8, -4.6, 0.7, 1.8, '#e8822c');
+      ell(4.6, -5.2, 2.2, 1.9, '#e8822c'); ell(5.4, -4.6, 1.2, 0.9, '#ffe2c0', null);
+      rect(3.4, -7.6, 1, 1.2, '#e8822c'); rect(5, -7.6, 1, 1.2, '#e8822c');
+      eye(5, -5.5, '#ffe066', ink, 0.5);
+      break;
+    default:
+      ell(0, -3, 3, 3, '#999');
+  }
+  ctx.restore();
+  // vida (só a sua e a de quem é inimigo; ícone em cima)
+  const top = sy - T * (kind === 'aguia' ? 1.2 : 0.75);
+  if (m.hp !== undefined && m.maxHp) drawHpBar(sx, top, T * 0.7, m.hp / m.maxHp, mine ? '#8fd18a' : '#e8737a');
+}
+
 function renderShurikenButton() {
   const n = (state.ninja.items || {}).shuriken || 0;
   ui.shurikenCount.textContent = n > 99 ? '99+' : String(n);
@@ -7963,6 +8288,7 @@ function drawSummon(m, sx, sy, T, now) {
 function drawMonster(m, sx, sy, T, now) {
   if (m.type === 'dummy' || m.type === 'sparring') return drawDummyMonster(m, sx, sy, T, now);
   if (SUMMON_TYPES.has(m.type)) return drawSummon(m, sx, sy, T, now);   // v30/v53: invocações
+  if (isCreature(m)) return drawCreature(m, sx, sy, T, now);              // v60: Vínculo Ancestral
   const born = Math.max(0.05, Math.min(1, (now - m.bornAt) / 250));
   const art = monsterArtReady(m.type);
   // Com sprite, a morte é a animação dela (monsterSprites.js); sem, o slime encolhe e some em 0,45 s.
@@ -8515,6 +8841,7 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
     }
   }
   if (!p.dead && now < (p.basicBuffUntil || 0)) drawBasicBuff(sx, sy, r, T, now, p.basicBuffColor);   // v29: Lâmina de Fogo; v30: os outros buffs de Básico
+  if (!p.dead && now < (p.primalUntil || 0)) drawPrimalAura(sx, sy, r, T, now, p.primalKind);        // v60: Estado Primal
   if (!p.dead && p.casting && now < p.casting.end + 120) drawCastBar(p, sx, headTop, r, T, now);   // v29: selos
   if (isMe) {                         // marquinha para achar o próprio boneco no meio dos outros
     ctx.fillStyle = '#ffe2a8';

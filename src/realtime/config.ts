@@ -2,6 +2,7 @@
  * Regras do tempo real. Valores conservadores para o plano Free do Render;
  * mudam aqui, num lugar só.
  */
+import { CREATURES, CREATURE_STATS } from './vinculo.js';
 import { buildSkills, type JutsuCode, type Mechanic } from './jutsus.js';
 import type { AttributeRules } from './stats.js';
 import {
@@ -492,6 +493,11 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       // v53: Sentinela de Sombra e Arsenal Vivo têm o tipo (e o desenho) próprio: antes saíam como o Golem de Terra
       sentinela_sombra: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 3.4, leashRange: 12 } },
       arsenal: { maxHp: 200, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12, ai: { aggroRange: 7, chaseSpeed: 3.2, leashRange: 12 } },
+      // v60 (Vínculo Ancestral): as 8 criaturas (a vida de verdade vem do dono e da afinidade; seguem o dono; gameWorld.creatureTick)
+      ...Object.fromEntries(CREATURES.map((c) => [`vinculo_${c}`, {
+        maxHp: 100, xp: 0, attackRange: 0, attackDamage: 0, attackEveryMs: 1e9, stationary: true, respawnMs: 1e12,
+        ai: { aggroRange: 9, chaseSpeed: CREATURE_STATS[c].speed, leashRange: 14 },
+      }])),
       // Sala de Jutsus: ARMADILHA de lâminas que bate (fraco) em quem chega perto: treina a Substituição.
       sparring: { maxHp: 400, xp: 0, attackRange: 1.6, attackDamage: 6, attackEveryMs: 1800, stationary: true, respawnMs: 2500 },
       // Zona de Conflito: lodo sombrio, mais forte que o slime (para quem já é Chunin).

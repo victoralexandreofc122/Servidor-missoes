@@ -2,6 +2,7 @@ import type { DayPhase, SkyEffects, Weather } from './weather.js';
 import type { EffectCode } from './effects.js';
 import type { PvpClassRow, PvpReport } from './pvpStats.js';
 import { z } from 'zod';
+import { CREATURES, type Creature } from './vinculo.js';
 import { ATTRIBUTES, type Attributes, type DerivedStats } from './stats.js';
 import type { MapId, MapLayout, ShopKind } from './maps.js';
 import { CLANS, type Clan } from './jutsusClasses.js';
@@ -249,6 +250,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board', 'sit', 'stand', 'jounin_queue', 'jounin_unqueue', 'jounin_board', 'final_queue', 'final_unqueue', 'final_board', 'champion_join', 'champion_queue', 'champion_unqueue', 'team3_queue', 'team3_unqueue']) }),
   // v55: o trio do 3v3: convidar pelo nome, aceitar o convite de um líder e sair do trio
   z.object({ type: z.literal('trio'), action: z.enum(['invite', 'accept', 'leave']), name: z.string().min(3).max(24).optional(), leaderId: targetId.optional() }),
+  // v60: Vínculo Ancestral (aba do menu e botões do HUD). dash = o avanço extra do Estado Primal do Tigre.
+  z.object({ type: z.literal('vinculo'), action: z.enum(['state', 'equip', 'summon', 'dismiss', 'primal', 'dash']), creature: z.enum(CREATURES).optional() }),
   // v55: espectador: assistir a luta de uma arena como fantasma (null = parar de assistir) e pedir a lista das lutas
   z.object({ type: z.literal('watch'), arena: z.enum(['vale_estatuas', 'arena_2', 'arena_3', 'arena_4']).nullable() }),
   z.object({ type: z.literal('arenas') }),
@@ -668,6 +671,9 @@ export type ServerMessage =
       /** v55: fila do 3v3: se está nela (sozinho ou com o trio) e quantos ninjas esperam (6 = uma partida). */ team3?: { queued: boolean; players: number } }
   /** v55: o trio de quem recebe (para a fila do 3v3 em grupo): o líder, os membros e os convites que ele recebeu. */
   | { type: 'trio_state'; leaderId: string | null; members: { id: string; name: string; level: number }[]; invites: { leaderId: string; name: string }[] }
+  | { type: 'vinculo_state' } & VinculoView
+  // v60: o que todos no mapa veem do Vínculo: a fumaça da invocação, a aura do Primal, a esquiva, a teia, o crítico, o gato some
+  | { type: 'vinculo_fx'; kind: 'summon' | 'primal' | 'primal_end' | 'cancel' | 'dodge' | 'web' | 'crit' | 'stealth' | 'reveal' | 'pool' | 'taunt'; playerId?: string; id?: string; creature?: Creature; x?: number; y?: number; r?: number; ms?: number; on?: boolean }
   /** v41: o Torneio da Temporada para quem recebe: aberto agora, até quando, se ele pode jogar e os pontos dele na era. */
   /** v42: o painel do Torneio: os 10 primeiros da vila, a linha de corte (2x as vagas) e a linha de quem pediu. */
   | { type: 'jounin_board'; available: boolean; open?: boolean; endsAt?: number; village?: string; slots?: number; cut?: number;
@@ -865,4 +871,22 @@ export function sanitizeChat(raw: string, maxLength: number): string | undefined
   const text = raw.replace(/[\p{Cc}\u202A-\u202E\u2066-\u2069]/gu, ' ').replace(/\s+/g, ' ').trim();
   const length = [...text].length;
   return length === 0 || length > maxLength ? undefined : text;
+}
+
+/** v60: a aba "Vínculo Ancestral" e os botões do HUD (Invocar, Estado Primal). */
+export interface VinculoView {
+  /** false: a migração v35 ainda não rodou (a aba avisa). */
+  available: boolean;
+  /** pode usar aqui? (false na arena, no Vale, na Zona de Conflito, no tutorial) */
+  allowed: boolean;
+  equipped: Creature | null;
+  creatures: { code: Creature; name: string; icon: string; role: string; desc: string; primal: string; level: number; xp: number; into: number; need: number | null }[];
+  /** ids das criaturas em campo (o Lobo são 2) */
+  summoned: string[];
+  /** recarga da invocação (ms que faltam) */
+  cdMs: number;
+  primal: { kind: Creature | null; activeMs: number; cdMs: number; ready: boolean };
+  /** Tigre no Estado Primal: recarga do avanço extra (ms que faltam) */
+  dashMs: number;
+  chakraCost: number;
 }

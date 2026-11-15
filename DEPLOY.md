@@ -1307,3 +1307,19 @@ mescle o código. Pode rodar de novo sem erro.
 2. Morra e feche o jogo antes de renascer: ao abrir, você está na praça (morto não guarda o lugar).
 3. Conferência no Neon: `SELECT map_id, x, y, saved_at FROM game.player_positions ORDER BY saved_at DESC LIMIT 5;`
 
+## Passo 50 — Vínculo Ancestral e Estado Primal (SQL v35)
+
+Rode `db/schema_v35_vinculo.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v34**, e só então mescle
+o código. Pode rodar de novo sem erro.
+
+- `game.player_vinculo`: as criaturas de cada ninja (afinidade 1 a 5, XP, qual está equipada; uma por ninja).
+- `game.player_primal_state`: até quando o Estado Primal vale e até quando recarrega (relogar não zera).
+- Funções `game.vinculo_level`, `game.vinculo_equip` e `game.vinculo_add_xp`.
+
+Sem a v35 o jogo sobe igual: a aba Vínculo avisa que ainda não está ligado.
+
+### Testar no celular
+
+1. ☰ → 🐾 Vínculo → Equipar uma criatura. Na Floresta, o botão da criatura aparece à esquerda dos jutsus: Invocar.
+2. Entre no Vale (Rankeado): a criatura some e os botões somem.
+3. Conferência no Neon: `SELECT creature_type, affinity_level, xp, equipped FROM game.player_vinculo LIMIT 10;`
