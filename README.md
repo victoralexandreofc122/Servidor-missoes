@@ -240,6 +240,24 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v64: lore e tutorial (sem migração; `docs/lore/`)
+
+Feito a partir do "Manual Definitivo de Design Narrativo e Construção de Mundos em Jogos" enviado pelo Victor.
+
+- **Documentos (`docs/lore/`):** a Bíblia do Mundo (as 8 seções, fonte única de verdade, com as contradições
+  corrigidas), o Documento de Design Narrativo (premissa, 5 pilares, espinha, escolhas reais e de textura, pontos
+  ambientais, alinhamento entre mecânica e história), as fichas dos NPCs, os artefatos do mundo, a planilha de diálogos
+  (`dialogos.csv`, gerada do jogo por `scripts/gerar-dialogos.ts`), o design do tutorial e as propostas de nomes.
+- **Fragmentos da Crônica:** 17 documentos do mundo espalhados pelos mapas (regimento, bilhete, diário, carta, canção,
+  juramento...). Um brilho dourado marca cada um; quem chega perto lê, e ele fica no **Manual → Fragmentos**. Só depois
+  da Academia; ficam guardados no aparelho.
+- **Falas com voz:** os professores da Academia (método em 3 etapas: apresentar, praticar sem risco, provar no portão;
+  depois da Academia, um rodízio com a voz de cada um) e os lojistas (Tetsu, Hana e Ren, com "garoto/garota" pelo visual).
+- **Tutorial:** dicas na hora (13, uma vez por aparelho, desligáveis), folha de controles no Manual e o cartão de cada
+  sala da Academia reescrito.
+- **Crônica, capítulo II:** alinhado com o Arco 1 (a guerra envenenou o rio, do rio nasceu o Lodo, há 50 anos ele foi
+  selado por cinco pedras).
+
 ### v63: os 4 clãs novos e os nomes das relíquias (migração v38, `db/schema_v38_clas_novos.sql`)
 
 Fase 3, Etapa 4, com as escolhas do Victor (15/11/2026): Bastião 1A 2A 3A 4C, Áspide 1B 2A 3B 4B, Garra 1A 2A 3C 4A,

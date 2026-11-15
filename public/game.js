@@ -20,6 +20,8 @@ import { dirFrom, drawBackItem, drawCharacter, drawHandItem } from './character.
 import { DEFAULT_APPEARANCE, DEFAULT_SHOES, OPTIONS, drawShoeIcon, fallbackColors, normalizeLook, spriteScale, swatchOf } from './sprites.js';
 import { drawFigure, figureCanvas } from './figure.js';
 import { mountManualUI } from './manual.js';
+import { mountHints } from './dicas.js';                                            // v64: dicas na hora
+import { FRAGMENTS, FRAGMENT_REACH, SHOP_BARKS, personalize } from './lore.js';     // v64: lore no jogo
 import { pickAnim } from './rig.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
@@ -609,8 +611,36 @@ const CAST_FAIL_TEXT = {
   STUNNED: 'Atordoado!', CASTING: 'Fazendo os selos…',
 };
 
+/** v64: o momento exato de cada dica (lore.js HINTS; uma vez por aparelho). */
+function hintsFor(msg) {
+  switch (msg.type) {
+    case 'map_changed':
+      if (msg.map === 'map_2' && (state.ninja.tutorialStep ?? 4) >= 4) hints.fire('DCA_FLORESTA');
+      else if (msg.map === 'zona_conflito') hints.fire('DCA_ZONA');
+      else if (String(msg.map).startsWith('vale')) hints.fire('DCA_ARENA');
+      break;
+    case 'stats':
+      if (msg.maxHp > 0 && msg.hp > 0 && msg.hp < msg.maxHp * 0.35 && !state.inSafeZone && state.mapId !== 'academy_interior') hints.fire('DCA_VIDA_BAIXA');
+      break;
+    case 'cast_failed': if (msg.reason === 'NO_CHAKRA') hints.fire('DCA_SEM_CHAKRA'); break;
+    case 'progress': if (state.progress && msg.level > state.progress.level && msg.statPoints > 0) hints.fire('DCA_PONTOS'); break;
+    case 'player_died': if (msg.playerId === state.meId && !msg.arena) hints.fire('DCA_MORTE'); break;
+    case 'inventory': {
+      const items = msg.items || {};
+      if (Object.keys(items).some((k) => k.startsWith('scroll_') && items[k] > 0)) hints.fire('DCA_PERGAMINHO');
+      if (Object.keys(items).some((k) => k.startsWith('reliquia_') && items[k] > 0)) hints.fire('DCA_RELIQUIA');
+      break;
+    }
+    case 'extract_result': if (msg.outcome === 'success') hints.fire('DCA_JUTSU_NOVO'); break;
+    case 'cast_interrupted': if (msg.playerId === state.meId && msg.reason !== 'cancel') hints.fire('DCA_SELOS'); break;
+    case 'travel_options': hints.fire('DCA_VIAGEM'); break;
+    default: break;
+  }
+}
+
 function handleMessage(msg) {
   const now = performance.now();
+  hintsFor(msg);
   if (eg.handle(msg)) return;            // painéis do fim de jogo (endgame.js)
   if (adminUI.handle(msg)) return;       // painel do admin (adminPanel.js)
   if (manualUI.handle(msg)) return;      // v38: Pergaminho do Mestre e Feedback (manual.js)
@@ -3423,6 +3453,16 @@ const ryoText = (n) => `${Number(n || 0).toLocaleString('pt-BR')} ryō`;
 const itemDef = (code) => (state.world.items || []).find((i) => i.code === code);
 
 /** O servidor confirmou (shop_open): mostra o painel da loja. Itens montados com createElement + textContent (nada vira HTML). */
+/** v64: as falas dos lojistas em rodízio, com "garoto/garota" e "querido/querida" do visual do jogador. */
+const shopTurn = {};
+function shopBark(kind) {
+  const list = SHOP_BARKS[kind];
+  if (!list?.length) return '';
+  const i = (shopTurn[kind] = ((shopTurn[kind] ?? -1) + 1) % list.length);
+  const keeper = { weapons: 'Ferreiro Tetsu', clothes: 'Costureira Hana', scrolls: 'Sábio Ren' }[kind];
+  return `${keeper ? `${keeper}: ` : ''}“${personalize(list[i].text, state.me.look?.gender)}”`;
+}
+
 function openShop(kind, npcId) {
   const info = SHOP_INFO[kind];
   if (!info) return;
@@ -3431,7 +3471,7 @@ function openShop(kind, npcId) {
   closeInventory();
   ui.shopIcon.textContent = info.icon;
   ui.shopName.textContent = info.name;
-  ui.shopGreet.textContent = info.greet;
+  ui.shopGreet.textContent = shopBark(kind) || info.greet;   // v64: a fala do lojista (lore.js), em rodízio
   ui.extractResult.textContent = '';
   ui.extractResult.className = 'mission-status';
   renderShopItems();
@@ -3933,8 +3973,14 @@ const adminUI = mountAdminUI({
 });
 
 // v38: Pergaminho do Mestre, Manual do Ninja, nota do Pré-Alpha e Feedback (manual.js).
+// v64: dicas na hora (tutorial contextual): esperam o tutorial da Academia, o Criador e o Manual fechados.
+const hints = mountHints({
+  busy: () => manualUI.open || (state.ninja.tutorialStep ?? 4) < 4 || !ui.creator.hidden,
+  toast: (text) => showToast(text, 5000),
+});
 const manualUI = mountManualUI({
   send,
+  hints,
   ninja: () => state.ninja,
   world: () => state.world,
   toast: (text) => showToast(text, 5000),
@@ -4023,11 +4069,13 @@ ui.kageApply.addEventListener('click', () => {
  * cliente não diz que concluiu nada). Etapas 1 e 2: os botões de jutsu ficam ocultos (e o servidor
  * recusa jutsu com TUTORIAL_LOCKED); na 1, o 🧘 também.
  */
+// v64 (docs/lore/tutorial.md): cada etapa diz o que fazer, que ali é seguro (praticar sem medo) e o que abre a porta: o
+// método em 3 etapas do guia (apresentar, praticar em espaço seguro, provar no portão).
 const TUTORIAL_STEPS = [
-  ['Etapa 1/4 · Sala de Taijutsu', 'Destrua 3 bonecos de treino usando só o 🗡️ Ataque Básico. Chegue perto: é corpo a corpo.'],
-  ['Etapa 2/4 · Sala de Controle', 'Um campo drena o seu chakra! Fique parado e toque em 🧘 Meditar até a barra azul encher.'],
-  ['Etapa 3/4 · Sala de Jutsus', 'Você aprendeu 💨 Teleporte Curto e 🪵 Substituição. Salte o vão com o Teleporte e use a Substituição contra a armadilha.'],
-  ['Etapa 4/4 · Sala de Armas', 'Abra a mochila 🎒, equipe a Kunai de Treino e acerte o boneco com o 🗡️ Ataque Básico.'],
+  ['Etapa 1/4 · Sala de Taijutsu', 'Derrube 3 bonecos com o 🗡️ Ataque Básico, de perto. Eles não revidam: erre à vontade. No 3º, a porta abre.'],
+  ['Etapa 2/4 · Sala de Controle', 'Um campo bebe o seu chakra. Fique parado e 🧘 Medite até a barra azul encher: aqui nada te fere. Cheia, a porta abre.'],
+  ['Etapa 3/4 · Sala de Jutsus', 'Salte o vão com o 💨 Teleporte Curto. Depois arme a 🪵 Substituição e deixe a armadilha te pegar: o tronco leva o golpe.'],
+  ['Etapa 4/4 · Sala de Armas', 'Abra a mochila 🎒, equipe a Kunai de Treino e acerte o boneco com o 🗡️ Ataque Básico. Um golpe basta.'],
 ];
 function renderTutorial() {
   const step = state.ninja.tutorialStep ?? 4;
@@ -4679,6 +4727,52 @@ function fase3Fx(msg, now) {
     state.effects.push({ skill: 'jutsu_ring', x: msg.x, y: msg.y, fx: 0, fy: 0, r: 1.1, color: '#b57bff', start: now });
   }
 }
+
+/** v64: fragmentos da Crônica só depois da Academia (o tutorial não é interrompido). */
+const fragmentsOn = () => (state.ninja.tutorialStep ?? 4) >= 4;
+
+/**
+ * v64: o brilho dourado no chão onde há um fragmento ainda não achado (a luz como ponto focal: o olho vai até ele). Um
+ * ponto de luz que pulsa, com 4 raios que giram devagar.
+ */
+function drawFragments(toScreenX, toScreenY, T, now) {
+  if (!fragmentsOn()) return;
+  for (const f of FRAGMENTS) {
+    if (f.map !== state.mapId || manualUI.hasFragment(f.id)) continue;
+    const x = toScreenX(f.x), y = toScreenY(f.y);
+    if (x < -T || y < -T || x > viewW + T || y > viewH + T) continue;
+    const k = 0.5 + 0.5 * Math.sin(now / 420 + f.x);
+    ctx.save();
+    const g = ctx.createRadialGradient(x, y, 0, x, y, T * 0.7);
+    g.addColorStop(0, `rgba(255, 226, 120, ${0.55 + 0.3 * k})`);
+    g.addColorStop(1, 'rgba(255, 210, 63, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, T * 0.7, 0, Math.PI * 2); ctx.fill();
+    ctx.translate(x, y);
+    ctx.rotate(now / 1600);
+    ctx.fillStyle = '#fff6c8';
+    const r = T * (0.22 + 0.08 * k);
+    for (let i = 0; i < 4; i++) {
+      ctx.rotate(Math.PI / 2);
+      ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(T * 0.05, 0); ctx.lineTo(-T * 0.05, 0); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+/** v64: chegou perto de um fragmento? Ele vai para o Códice (Manual) e abre para ler. */
+function checkFragments() {
+  if (!fragmentsOn() || manualUI.open || !ui.creator.hidden) return;
+  const me = state.players.get(state.meId);
+  if (!me || me.dead || !state.mapId) return;
+  for (const f of FRAGMENTS) {
+    if (f.map !== state.mapId || manualUI.hasFragment(f.id)) continue;
+    if (Math.hypot(me.x - f.x, me.y - f.y) > FRAGMENT_REACH) continue;
+    if (manualUI.discover(f.id)) audio.sfx('notify', 0.9);
+    break;
+  }
+}
+setInterval(checkFragments, 350);
 
 /**
  * v62: névoa nas saídas para mapas que o mundo ainda não abriu (a mesma regra trava a passagem: movement.ts). Um muro
@@ -7154,6 +7248,7 @@ function draw(now) {
   drawDecals(toScreenX, toScreenY, T, now);           // v48: crateras e marcas de queimado
   drawGround(toScreenX, toScreenY, T, now);           // v29: zonas no chão e avisos de golpe
   drawWorldFog(toScreenX, toScreenY, T, now);         // v62: névoa nas saídas para mapas que o mundo não abriu
+  drawFragments(toScreenX, toScreenY, T, now);        // v64: o brilho dos fragmentos da Crônica ainda não achados
   drawBarriers(toScreenX, toScreenY, T, now);         // v30: muros dos jutsus
   for (const fx of state.effects) if (GROUND_FX.has(fx.skill)) drawEffect(fx, toScreenX(fx.x), toScreenY(fx.y), T, now);
   vfx.draw(ctx, 'ground', toScreenX, toScreenY, T, dpr, now);

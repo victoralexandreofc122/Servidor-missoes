@@ -1,4 +1,7 @@
 // v38: Pergaminho do Mestre (tutorial paginado), Manual do Ninja, nota do Pré-Alpha e Feedback.
+// v64: no Manual também ficam a folha de controles, o Códice (os fragmentos da Crônica achados pelo mundo) e o botão das
+// dicas na hora (lore.js, dicas.js; docs/lore/).
+import { CONTROLS, FRAGMENTS } from './lore.js';
 //
 // O SERVIDOR decide quais capítulos estão abertos e paga o prêmio (uma vez por capítulo). Este arquivo só mostra os
 // textos, pede "li o capítulo" ao fechar e manda o Feedback. Tudo montado com createElement (nada de texto vira HTML).
@@ -56,6 +59,16 @@ export const CHAPTERS = [
   },
 ];
 const BY_CODE = new Map(CHAPTERS.map((c) => [c.code, c]));
+const FRAGMENT_BY_ID = new Map(FRAGMENTS.map((f) => [f.id, f]));
+
+/** v64: os fragmentos achados ficam no aparelho (localStorage; pode falhar em aba privada: aí só vale nesta sessão). */
+const CODEX_KEY = 'nin.codex';
+function loadCodex() {
+  try { const v = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]'); return new Set(Array.isArray(v) ? v.filter((id) => FRAGMENT_BY_ID.has(id)) : []); } catch { return new Set(); }
+}
+function saveCodex(set) {
+  try { localStorage.setItem(CODEX_KEY, JSON.stringify([...set])); } catch { /* sem armazenamento */ }
+}
 
 export const FEEDBACK_CATEGORIES = [['bug', 'Bug'], ['sugestao', 'Sugestão'], ['balanceamento', 'Balanceamento'], ['outro', 'Outro']];
 const FEEDBACK_MAX = 1500;
@@ -151,6 +164,56 @@ export function mountManualUI(api) {
     });
   }
 
+  const codex = loadCodex();
+
+  /** v64: a folha de controles (referência rápida, sempre aberta). */
+  function openControls() {
+    const table = el('table', { class: 'controls-table' },
+      el('thead', {}, el('tr', {}, ...['Ação', 'Computador', 'Celular'].map((t) => el('th', { textContent: t })))),
+      el('tbody', {}, ...CONTROLS.map((row) => el('tr', {}, ...row.map((t) => el('td', { textContent: t }))))));
+    const box = el('section', { class: 'scroll-paper' },
+      el('header', { class: 'scroll-head' }, el('span', { class: 'scroll-kicker', textContent: 'Manual do Ninja' }), el('h2', { textContent: 'Folha de controles' })),
+      el('div', { class: 'scroll-body controls-body' }, table),
+      el('div', { class: 'scroll-close-row' }, el('button', { type: 'button', class: 'scroll-btn primary', textContent: 'Voltar', on: { click: () => openManual() } })));
+    show(box);
+  }
+
+  /** v64: um fragmento da Crônica (achado agora ou relido no Códice). */
+  function openFragment(id, fresh, then) {
+    const f = FRAGMENT_BY_ID.get(id);
+    if (!f) return;
+    const box = el('section', { class: 'scroll-paper fragment-paper' },
+      el('header', { class: 'scroll-head' }, el('span', { class: 'scroll-kicker', textContent: fresh ? '📜 Fragmento achado!' : `Fragmento · ${f.lugar}` }), el('h2', { textContent: f.title })),
+      el('div', { class: 'scroll-body' }, el('p', { class: 'fragment-text', textContent: f.text }), el('p', { class: 'fragment-by', textContent: `— ${f.por}` })),
+      fresh ? el('p', { class: 'scroll-prize', textContent: `Guardado no Manual, em Fragmentos (${codex.size} de ${FRAGMENTS.length}).` }) : null,
+      el('div', { class: 'scroll-close-row' }, el('button', { type: 'button', class: 'scroll-btn primary', textContent: fresh ? 'Guardar' : 'Voltar', on: { click: () => (fresh ? hide() : openCodex()) } })));
+    show(box, then);
+  }
+
+  /** v64: o Códice: os fragmentos achados (toque para reler) e, dos que faltam, só onde procurar. */
+  function openCodex() {
+    const list = el('ul', { class: 'manual-list codex-list' }, ...FRAGMENTS.map((f, i) => {
+      const got = codex.has(f.id);
+      const li = el('li', { class: `manual-item${got ? '' : ' locked'}` },
+        el('span', { class: 'manual-num', textContent: String(i + 1) }),
+        el('span', { class: 'manual-name' }, el('b', { textContent: got ? f.title : '???' }),
+          el('small', { textContent: got ? `${f.lugar} · toque para reler` : `🔍 Procure em: ${f.lugar}` })));
+      if (got) {
+        li.tabIndex = 0;
+        li.setAttribute('role', 'button');
+        li.addEventListener('click', () => openFragment(f.id, false));
+        li.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFragment(f.id, false); } });
+      }
+      return li;
+    }));
+    const box = el('section', { class: 'scroll-paper' },
+      el('header', { class: 'scroll-head' }, el('span', { class: 'scroll-kicker', textContent: 'Manual do Ninja' }), el('h2', { textContent: `Fragmentos da Crônica (${codex.size}/${FRAGMENTS.length})` })),
+      el('p', { class: 'scroll-lead', textContent: 'Pedaços da história que os livros não contam, esquecidos pelo mundo. Um brilho dourado no chão marca onde estão.' }),
+      list,
+      el('div', { class: 'scroll-close-row' }, el('button', { type: 'button', class: 'scroll-btn primary', textContent: 'Voltar', on: { click: () => openManual() } })));
+    show(box);
+  }
+
   /** O Manual do Ninja: todos os capítulos; os fechados mostram quando abrem. */
   function openManual() {
     const list = el('ul', { class: 'manual-list' }, ...CHAPTERS.map((ch, i) => {
@@ -171,10 +234,24 @@ export function mountManualUI(api) {
     }));
     const box = el('section', { class: 'scroll-paper' },
       el('header', { class: 'scroll-head' }, el('span', { class: 'scroll-kicker', textContent: 'Menu ☰ → Manual' }), el('h2', { textContent: 'Manual do Ninja' })),
+      extrasRow(),
       el('p', { class: 'scroll-lead', textContent: 'Os capítulos do Pergaminho do Mestre. Releia quando quiser.' }),
       list,
       el('div', { class: 'scroll-close-row' }, el('button', { type: 'button', class: 'scroll-btn primary', textContent: 'Fechar', on: { click: hide } })));
     show(box);
+  }
+
+  /** v64: sempre à mão: a folha de controles, os fragmentos e as dicas na hora (ligar/desligar). */
+  function extrasRow() {
+    const hints = api.hints;
+    const hintBtn = el('button', { type: 'button', class: 'scroll-btn ghost manual-extra' });
+    const paint = () => { hintBtn.textContent = `💡 Dicas na hora: ${hints?.enabled ? 'ligadas' : 'desligadas'}`; hintBtn.setAttribute('aria-pressed', String(!!hints?.enabled)); };
+    hintBtn.addEventListener('click', () => { hints?.setEnabled(!hints.enabled); if (hints?.enabled) hints.reset(); paint(); });
+    paint();
+    return el('div', { class: 'manual-extras' },
+      el('button', { type: 'button', class: 'scroll-btn manual-extra', textContent: '🎮 Folha de controles', on: { click: openControls } }),
+      el('button', { type: 'button', class: 'scroll-btn manual-extra', textContent: `📜 Fragmentos (${codex.size}/${FRAGMENTS.length})`, on: { click: openCodex } }),
+      hints ? hintBtn : null);
   }
 
   /** A nota do Pré-Alpha (logo depois do Criador, antes do Pergaminho). */
@@ -236,6 +313,17 @@ export function mountManualUI(api) {
     /** Primeira chegada (logo depois do Criador): a nota do Pré-Alpha e o primeiro capítulo. */
     firstArrival() { openPreAlpha(() => openChapter('boas_vindas')); },
     get open() { return !overlay.hidden; },
+    /** v64: achou um fragmento (game.js confere a distância). Guarda, mostra e devolve true se era novo. */
+    discover(id) {
+      if (codex.has(id) || !FRAGMENT_BY_ID.has(id)) return false;
+      codex.add(id);
+      saveCodex(codex);
+      openFragment(id, true, () => api.hints?.fire('DCA_FRAGMENTO'));
+      return true;
+    },
+    hasFragment: (id) => codex.has(id),
+    openCodex,
+    openControls,
     close: hide,
     handle(msg) {
       if (msg.type === 'manual') {

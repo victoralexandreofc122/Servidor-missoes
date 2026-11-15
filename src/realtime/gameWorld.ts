@@ -32,6 +32,7 @@ import {
   BASE_SKILLS, FORM_OF_MECHANIC, type JutsuForm, jutsuLevel, MASTERY, type MasteryGain, masteryBonus, masteryUseLevel, withMastery, substitutionCooldownMs, teleportRange, type ClassCode,
 } from './jutsus.js';
 import { CLAN_PASSIVE, CLAN_TIER_LEVEL, clanJutsusFor, type Clan } from './jutsusClasses.js';
+import { tutorFala } from './falas.js';
 
 /**
  * v35 (#11): o Rito do Despertar. Genin de nível 11 com a linhagem marcada no Criador fala com o Diretor, derrota estes
@@ -347,6 +348,8 @@ interface Session {
   /** Pedido ao banco de missões em andamento (dois toques seguidos viram um). */
   missionBusy: boolean;
   lastMissionAt: number;
+  /** v64: rodízio das falas dos professores depois da Academia. */
+  talkTurn: number;
   /** Aceitar/entregar que chegou dentro da janela: vai uma vez quando ela abrir. */
   missionRetry: ((missions: Missions) => Promise<void>) | undefined;
   /** Posição mudou desde o último envio. */
@@ -1268,6 +1271,7 @@ export class GameWorld {
       invisUntil: previous?.invisUntil ?? 0,
       lastBreathAt: previous?.lastBreathAt ?? 0,
       thorns: null, retort: null, oath: null, evadeUntil: 0, dodgeBuff: null, echoTrail: [],
+      talkTurn: previous?.talkTurn ?? 0,
       revives: player.revives ?? previous?.revives ?? [],
       lastPanelAt: 0,
     };
@@ -5856,7 +5860,7 @@ export class GameWorld {
     if (npc.id === 'director' || npc.id.startsWith('tutor_')) {
       if (t - session.lastMissionAt < this.config.missionRequestEveryMs) return;
       session.lastMissionAt = t;
-      return npc.id === 'director' ? this.talkDirector(session) : this.sendTo(session, { type: 'npc_say', npcId: npc.id, text: tutorLine(npc.id, session.tutorial) });
+      return npc.id === 'director' ? this.talkDirector(session) : this.sendTo(session, { type: 'npc_say', npcId: npc.id, text: tutorFala(npc.id, session.tutorial, session.talkTurn++).text });
     }
     // Mestre: abre a Sala de Missões (cartões + a missão atual). Escolher e entregar são pedidos à parte.
     const { id } = session;
@@ -9272,29 +9276,9 @@ export const npcLine = {
   },
 };
 
-/** Professores das etapas da Academia: a dica muda com o passo do jogador. */
-export function tutorLine(npcId: string, step: number): string {
-  if (npcId === 'tutor_dummies') {
-    return step === 0
-      ? 'Etapa 1, Taijutsu: destrua 3 bonecos usando SÓ o Ataque Básico (🗡️). Chegue perto: o golpe é corpo a corpo.'
-      : 'Muito bem! Você já passou desta etapa.';
-  }
-  if (npcId === 'tutor_meditation') {
-    return step <= 1
-      ? 'Etapa 2, Controle: este campo drena o seu chakra. Fique parado e toque em 🧘 Meditar até a barra azul encher.'
-      : 'Seu chakra está em ordem. Siga em frente.';
-  }
-  if (npcId === 'tutor_jutsu') {
-    return step <= 2
-      ? 'Etapa 3, Jutsus: incline o joystick para o vão e use o 💨 Teleporte Curto para saltar por cima. Do outro lado, arme a 🪵 Substituição e deixe a armadilha te atacar!'
-      : 'Ótimo. Na Sala de Armas, a Professora Mei espera você.';
-  }
-  if (npcId === 'tutor_weapons') {
-    return step <= 3
-      ? 'Etapa 4, Armas: abra a mochila 🎒, equipe a Kunai de Treino e acerte o boneco com o 🗡️ Ataque Básico.'
-      : 'Você concluiu a Academia! A saída fica embaixo; no nível 11, fale com o Diretor.';
-  }
-  return 'Continue treinando.';
+/** Professores das etapas da Academia: a dica muda com o passo do jogador (v64: as falas ficam em falas.ts). */
+export function tutorLine(npcId: string, step: number, turn = 0): string {
+  return tutorFala(npcId, step, turn).text;
 }
 
 /**
