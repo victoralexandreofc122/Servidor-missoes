@@ -1214,3 +1214,35 @@ body.tut-bag #inv-toggle { animation: ready-glow 1.4s ease-in-out infinite; bord
 .tcard .tname { font-weight: 700; }
 .tcard .tbearer { color: #ffd36b; }
 .tcard.awake { border-color: #ff7a5a; box-shadow: 0 0 0 1px #ff7a5a inset; }
+
+/* ------------------------------------------------------------ v64: lore no jogo e dicas na hora */
+/* Manual: a linha "sempre à mão" (controles, fragmentos, dicas) */
+.manual-extras { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 0 0 10px; padding-bottom: 10px; border-bottom: 1px dashed rgba(90, 55, 22, 0.45); }
+.manual-extra { font-size: 14px; min-height: 40px; }
+/* folha de controles */
+.controls-body { min-height: 0; }
+.controls-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.controls-table th { text-align: left; color: #7a2d12; border-bottom: 2px solid rgba(90, 55, 22, 0.5); padding: 4px 6px; }
+.controls-table td { padding: 5px 6px; border-bottom: 1px dashed rgba(90, 55, 22, 0.3); vertical-align: top; }
+.controls-table td:first-child { font-weight: 700; }
+/* fragmento da Crônica: um documento do mundo */
+.fragment-text { font-family: Georgia, 'Times New Roman', serif; font-style: italic; white-space: pre-line; }
+.fragment-by { text-align: right; color: #6b4a26; font-size: 14px; }
+/* dica na hora: cartão pequeno embaixo, no meio, que não para o jogo */
+.hint-card {
+  position: fixed; left: 50%; bottom: calc(var(--safe-bottom, 0px) + 92px); transform: translateX(-50%); z-index: 7;
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center;
+  width: min(460px, calc(100vw - 32px)); box-sizing: border-box; padding: 10px 12px; border-radius: 12px;
+  background: var(--panel-solid, #1c1712); border: 2px solid #ffd23f; color: var(--text, #f4ecd8);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); animation: hint-in 0.25s ease-out;
+}
+.hint-card[hidden] { display: none; }
+.hint-icon { font-size: 22px; grid-row: span 2; }
+.hint-text { margin: 0; font-size: 14px; line-height: 1.35; }
+.hint-row { display: flex; gap: 8px; justify-content: flex-end; }
+.hint-row button { min-height: 32px; padding: 4px 10px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.hint-ok { background: #ffd23f; color: #14110d; border: 1px solid #ffd23f; }
+.hint-mute { background: transparent; color: var(--muted, #b9ad98); border: 1px solid var(--line, #5a4a38); }
+@keyframes hint-in { from { opacity: 0; transform: translate(-50%, 12px); } }
+@media (prefers-reduced-motion: reduce) { .hint-card { animation: none; } }
+@media (max-height: 500px) { .hint-card { bottom: calc(var(--safe-bottom, 0px) + 8px); left: calc(50% - 40px); width: min(350px, calc(100vw - 480px)); min-width: 260px; } }

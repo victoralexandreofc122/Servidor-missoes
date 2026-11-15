@@ -33,6 +33,10 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v64 (lore e tutorial, sem migração):** `docs/lore/` (Bíblia do Mundo, NDD, fichas, artefatos, planilha de diálogos,
+  tutorial, propostas de nomes), 17 fragmentos da Crônica no mapa (Manual → Fragmentos), falas com voz dos professores e
+  lojistas, dicas na hora e folha de controles. A Bíblia é a fonte única de verdade da lore; os nomes que faltam esperam a
+  escolha do Victor (`docs/lore/propostas-de-nomes.md`). Branch `ccr-lore` (sobre a `ccr-fase3`).
 - **v63 (migração v38, Fase 3 Etapa 4):** os 4 clãs novos (Bastião, Áspide, Garra, Zéfiro; 16 jutsus e as passivas, escolhas do
   Victor em 15/11) e as relíquias com os nomes da opção A. Branch `ccr-fase3` (junto com a v35 a v37) até o Victor rodar a v38.
 - **v61/v62 (migrações v36 e v37, Fase 3):** Titãs Ancestrais e Portadores (passiva e Suprema em todos os modos), Progressão
@@ -54,6 +58,8 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 - `docs/fase2-plano.md`: plano de arquitetura da Fase 2 (endgame), etapas, migrações previstas e decisões em aberto.
 - `docs/design-do-jogo.md`: design completo (pilares, sistemas, roadmap, decisões e riscos).
 - `docs/historia/arco-1.md`: roteiro do Arco 1 (15 missões); o sistema de história ainda não existe.
+- `docs/lore/`: a lore (Bíblia do Mundo, fonte única de verdade) e o design do tutorial; a planilha `dialogos.csv` é gerada
+  do jogo (`npx tsx scripts/gerar-dialogos.ts`) e o teste confere.
 - `docs/mapas.md`, `docs/endgame.md`, `docs/habilidades.md`, `docs/clima.md`, `docs/netcode.md`.
 - `docs/relatorio-progresso-2026-11.pdf`: relatório de progresso (estado do jogo e próximas atualizações).
 

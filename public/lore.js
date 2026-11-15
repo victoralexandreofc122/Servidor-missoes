@@ -1,0 +1,120 @@
+// v64: lore no jogo (docs/lore/). Fragmentos da Crônica espalhados pelos mapas (narrativa ambiental: quem explora acha),
+// as falas dos lojistas, as dicas que aparecem só na hora (tutorial contextual) e a folha de controles.
+//
+// Cada texto tem um ID: é a mesma chave da planilha de diálogos (docs/lore/dialogos.csv, gerada por
+// scripts/gerar-dialogos.ts; o teste test/lore.test.ts confere que a planilha está igual ao jogo).
+// Nenhum nome próprio novo: só o que já existe no jogo (regra do Victor, 09/11/2026).
+
+/**
+ * Fragmentos da Crônica: objetos e documentos achados pelo mundo. `x`, `y` = onde brilham (chão livre, conferido no
+ * teste); `lugar` = o nome do mapa (igual ao do servidor, conferido); `por` = quem escreveu (a voz; docs/lore/artefatos.md).
+ */
+export const FRAGMENTS = [
+  { id: 'FRG_01', map: 'academy_interior', lugar: 'Academia', x: 60, y: 6, title: 'Regimento da Academia (cópia na parede)', por: 'O Diretor da Academia',
+    text: 'Artigo 7. Na noite de cada formatura, o Diretor reacenderá as pedras do selo com o pergaminho que arde. Onde ficam as pedras não será escrito, ensinado nem perguntado. Parágrafo único: o cadete que perguntar será lembrado de que perguntar também é uma forma de procurar.' },
+  { id: 'FRG_02', map: 'academy_interior', lugar: 'Academia', x: 38, y: 13.5, title: 'Bilhete na mesa da Sala de Jutsus', por: 'Professor Kenji',
+    text: 'Lembrete para mim mesmo: gritar "Olha onde vai pousar!" ANTES do aluno saltar o vão, não depois. A Aya ainda está brava comigo por causa da semana passada. Ninguém se machucou. Quase ninguém. K.' },
+  { id: 'FRG_03', map: 'map_1', lugar: 'Aldeia da Chama Eterna', x: 33, y: 25.6, title: 'Placa junto à grade do canal', por: 'A guarda da aldeia',
+    text: 'AVISO. A água deste canal vem da Floresta, por baixo da terra. Não beber. Não pescar. Não descer. A grade é verificada toda manhã. (Embaixo, riscado à mão: hoje ninguém verificou.)' },
+  { id: 'FRG_04', map: 'interior_weapons', lugar: 'Armaria', x: 12, y: 8.5, title: 'Recibo esquecido no balcão', por: 'Ferreiro Tetsu',
+    text: 'Saída: 30 kunais de treino, para a Academia. Assinatura: ilegível. Papel: de pergaminho, do bom, coisa que a Academia nunca usou para recibo. Anotação do ferreiro: conferir com a Professora Mei. Conferir DE NOVO.' },
+  { id: 'FRG_05', map: 'interior_scrolls', lugar: 'Casa dos Pergaminhos', x: 12, y: 8, title: 'Anotação sobre o pergaminho liso', por: 'Sábio Ren',
+    text: 'O pergaminho liso não ensina: ele lê. A fibra guarda o formato da brasa de quem o abre e devolve o jutsu que essa brasa já sabia fazer sem saber. Por isso não sai jutsu de outra classe. E por isso quem erra e tenta de novo acerta mais: o papel aprende.' },
+  { id: 'FRG_06', map: 'map_2', lugar: 'Floresta', x: 32, y: 46, title: 'Marcas no velho carvalho', por: 'O próprio lugar',
+    text: 'No tronco, uma chama entalhada há muito tempo, quase fechada pela casca. Embaixo, riscos de patrulha, um por noite. Os riscos param no meio de uma fileira, como se a última pessoa a contar tivesse ido embora e não voltado.' },
+  { id: 'FRG_07', map: 'map_2', lugar: 'Floresta', x: 20, y: 56, title: 'Bilhete chamuscado no acampamento', por: 'Alguém de capa cinza',
+    text: 'Três noites aqui. Fogueira pequena, ninguém da aldeia vem tão fundo. O chefe quer o mapa até a lua cheia. Diz que a gente vai devolver a Chama a quem ela pertence. Eu só quero a minha bandana de volta. Queimem este papel.' },
+  { id: 'FRG_08', map: 'map_2', lugar: 'Floresta', x: 80, y: 40, title: 'Diário de um patrulheiro', por: 'Um patrulheiro da Chama Eterna',
+    text: 'Dia 12. Os lodos escuros nascem onde a água aflora. Não são bichos: furei um e ele virou chakra no chão, quente. Disseram que é normal. Normal era um por semana. Hoje contei nove. Pedi reforço. Responderam que é normal.' },
+  { id: 'FRG_09', map: 'caverna_lodo', lugar: 'Caverna do Lodo', x: 28, y: 14.5, title: 'Escrito na pedra da caverna', por: 'Mãos de duas épocas',
+    text: 'Em letra antiga, funda na pedra: AQUI O RIO DESCE. NÃO SIGA O RIO. Embaixo, em letra nova, riscada às pressas: seguimos. Depois disso, ninguém escreveu mais nada.' },
+  { id: 'FRG_10', map: 'clareira_queimada', lugar: 'Clareira Queimada', x: 18.5, y: 19.5, title: 'O círculo de cinzas', por: 'O próprio lugar',
+    text: 'Nada cresce dentro do círculo. As cinzas não esfriam, nem na chuva. Quem encosta a mão no chão sente o pulso de alguma coisa enorme lá embaixo, contando os dias até acordar.' },
+  { id: 'FRG_11', map: 'poco', lugar: 'Poço sob a Praça', x: 12, y: 4.5, title: 'A pedra fria', por: 'O próprio lugar',
+    text: 'No fundo do poço, uma pedra com uma chama gravada. Fria, como as outras ficariam se apagassem. De tempos em tempos ela pisca uma vez só, devagar, como um olho que se fecha.' },
+  { id: 'FRG_12', map: 'zona_conflito', lugar: 'Zona de Conflito', x: 55, y: 40, title: 'O marco derrubado', por: 'O próprio lugar',
+    text: 'Um marco de fronteira caído, com os símbolos das quatro aldeias, cada um riscado por uma mão diferente. Ninguém nunca o pôs de pé: quem levanta o marco aceita a divisão, e ninguém aqui aceita.' },
+  { id: 'FRG_13', map: 'refugio', lugar: 'Refúgio dos Renegados', x: 13, y: 25, title: 'A bandana pregada na parede', por: 'Um renegado',
+    text: 'Uma bandana com um risco fundo de lâmina sobre o símbolo, pregada como troféu. Embaixo, a giz: "Risquei a minha com a minha mão. Ninguém queimou nada meu. Lembre a diferença."' },
+  { id: 'FRG_14', map: 'vila_nevoa', lugar: 'Aldeia da Maré Oculta', x: 30, y: 25.5, title: 'Carta cifrada, já decifrada', por: 'A escuta do porto da Maré Oculta',
+    text: 'Ao Conselho. A névoa trouxe notícias da Chama Eterna: um lodo dentro da aldeia deles, dizem os pescadores. Recomendo silêncio e atenção. Quem guarda um selo sozinho guarda também um segredo sozinho. Respeitosamente.' },
+  { id: 'FRG_15', map: 'vila_nuvem', lugar: 'Aldeia do Vento Cortante', x: 30, y: 25.5, title: 'Canção dos carregadores', por: 'O povo do Vento Cortante',
+    text: 'Corre, que o vento não espera, / corre, que a pedra não te ama. / Quem repartiu a Chama inteira / deixou pra nós só uma brasa. / Corre até o sol cair: / a terra do meio não é de ninguém, / mas é de quem chegar primeiro.' },
+  { id: 'FRG_16', map: 'vila_areia', lugar: 'Aldeia da Rocha Antiga', x: 22, y: 42, title: 'Juramento gravado na muralha', por: 'O povo da Rocha Antiga',
+    text: 'Gravado na pedra, sob centenas de nomes: "Seguramos o que caiu sobre nós. Seguraremos o que cair sobre os nossos filhos. A pedra não esquece, e nós somos a pedra."' },
+  { id: 'FRG_17', map: 'vale_estatuas', lugar: 'Arena das Quatro Heranças', x: 4, y: 11, title: 'Inscrição na base das estátuas', por: 'Quem ergueu a Arena',
+    text: 'Quatro heranças, uma Chama. Aqui se luta para medir, não para tomar. Quem vence leva a honra; quem perde leva a lição; quem mata um aliado leva a bandana queimada.' },
+];
+
+/** Distância (casas) para achar um fragmento. */
+export const FRAGMENT_REACH = 1.6;
+
+/**
+ * Falas dos lojistas (uma por vez, em rodízio, ao abrir a loja). `{garoto}` e `{querido}` seguem o visual do jogador.
+ * As vozes estão em docs/lore/personagens.md.
+ */
+export const SHOP_BARKS = {
+  weapons: [
+    { id: 'LOJ_TETSU_01', text: 'Kunai boa não se escolhe pela cor, {garoto}. Se escolhe pelo peso.' },
+    { id: 'LOJ_TETSU_02', text: 'Trinta kunais de treino sumiram. Com recibo! Desde quando ladrão dá recibo?' },
+    { id: 'LOJ_TETSU_03', text: 'O metal vem da Rocha Antiga. Guerra sobe, preço sobe. Não reclame comigo.' },
+    { id: 'LOJ_TETSU_04', text: 'Quebrou? Volte. Perdeu? Não volte.' },
+  ],
+  clothes: [
+    { id: 'LOJ_HANA_01', text: 'Entra, {querido}! Capa nova e fofoca nova. A fofoca é de graça; a capa, não.' },
+    { id: 'LOJ_HANA_02', text: 'Um homem comprou tecido cinza. MUITO tecido cinza. E cheirava a fumaça, {querido}. Fumaça!' },
+    { id: 'LOJ_HANA_03', text: 'O melhor tecido vem da Maré Oculta. E vem sempre com perguntas junto.' },
+    { id: 'LOJ_HANA_04', text: 'Cinza, {querido}, é a cor de quem foi embora. Escolha outra.' },
+  ],
+  scrolls: [
+    { id: 'LOJ_REN_01', text: 'O pergaminho liso não ensina. Ele lê. Sente-se e deixe que ele leia você.' },
+    { id: 'LOJ_REN_02', text: 'Errou a Extração? O papel aprendeu um pouco do seu formato. Tente de novo.' },
+    { id: 'LOJ_REN_03', text: '(baixinho) Se ouvir falar de pedras que esfriam sozinhas... conte só para mim.' },
+    { id: 'LOJ_REN_04', text: 'Cada tier pede mais papel porque pede mais de você.' },
+  ],
+};
+
+/** Troca o gênero das falas pelo do visual do jogador ('f' = feminino). */
+export function personalize(text, gender) {
+  const f = gender === 'f';
+  return text.replace(/\{garoto\}/g, f ? 'garota' : 'garoto').replace(/\{querido\}/g, f ? 'querida' : 'querido');
+}
+
+/**
+ * Dicas na hora (tutorial contextual: o guia pede pistas que surgem no momento exato da ação, não um tutorial longo).
+ * Cada uma aparece UMA vez por aparelho; o jogador pode desligar todas em Config. `quando` documenta o gatilho
+ * (o código que dispara está em game.js, com o mesmo ID).
+ */
+export const HINTS = [
+  { id: 'DCA_FLORESTA', quando: 'Primeira vez na Floresta', text: 'Floresta! Os lodos verdes ficam perto do portão; os escuros, na beira do rio. Fique perto da saída até o nível 5.' },
+  { id: 'DCA_VIDA_BAIXA', quando: 'Vida abaixo de 35% fora da zona segura', text: 'Vida baixa! Afaste-se e medite 🧘 (apanhar corta a meditação) ou volte para a aldeia.' },
+  { id: 'DCA_SEM_CHAKRA', quando: 'Jutsu recusado por falta de chakra', text: 'Sem chakra para esse jutsu. Medite 🧘: é bem mais rápido do que esperar.' },
+  { id: 'DCA_PONTOS', quando: 'Subiu de nível com pontos para gastar', text: 'Você tem pontos de atributo! Gaste no Perfil (botão do seu retrato).' },
+  { id: 'DCA_MORTE', quando: 'Primeira queda', text: 'Caiu? Acontece. Você volta na praça. A 🪵 Substituição anula um golpe: arme antes do perigo.' },
+  { id: 'DCA_PERGAMINHO', quando: 'Primeiro pergaminho na mochila', text: 'Você tem um pergaminho! Leve à Casa dos Pergaminhos, na aldeia, para a Extração.' },
+  { id: 'DCA_JUTSU_NOVO', quando: 'Aprendeu um jutsu de classe', text: 'Jutsu novo! Ponha no kit: Menu ☰ → Perfil → Kits → Salvar kits.' },
+  { id: 'DCA_SELOS', quando: 'Primeiros selos interrompidos', text: 'Seus selos foram cortados. Lance os jutsus fortes longe de quem atordoa, empurra ou silencia.' },
+  { id: 'DCA_ZONA', quando: 'Primeira vez na Zona de Conflito', text: 'Zona de Conflito: ninjas de outras aldeias podem te atacar. O acampamento da sua aldeia é seguro.' },
+  { id: 'DCA_ARENA', quando: 'Primeira vez na Arena das Quatro Heranças', text: 'Arena das Quatro Heranças: aqui as lutas valem pontos da temporada. Ninguém morre de verdade.' },
+  { id: 'DCA_VIAGEM', quando: 'Primeira vez no Posto de Viagem', text: 'Posto de Viagem: daqui você vai a outras regiões. Lugares em névoa abrem quando o mundo crescer.' },
+  { id: 'DCA_FRAGMENTO', quando: 'Primeiro fragmento achado', text: 'Você achou um fragmento da Crônica! Os achados ficam no Manual, em Fragmentos.' },
+  { id: 'DCA_RELIQUIA', quando: 'Primeira relíquia', text: 'Relíquia! Ela vale só de estar na mochila. Veja o efeito na mochila 🎒.' },
+];
+export const HINT_BY_ID = new Map(HINTS.map((h) => [h.id, h]));
+
+/** Folha de controles (referência rápida, sempre aberta no Manual). [ação, computador, celular] */
+export const CONTROLS = [
+  ['Andar', 'W A S D ou setas', 'Joystick à esquerda'],
+  ['Correr', 'R', 'Botão 🏃'],
+  ['Ataque Básico', 'Espaço', 'Botão da espada 🗡️'],
+  ['Jutsus', '1, 2, 3, 4 (segure para mirar)', 'Botões redondos (arraste para mirar)'],
+  ['Cancelar a mira', 'Esc', 'Volte o dedo para o meio'],
+  ['Trocar o alvo', 'T ou Tab (X tira o foco)', 'Toque no inimigo'],
+  ['Trocar o kit A/B', 'Q', 'Botão de troca de kit'],
+  ['Meditar', 'M', 'Botão 🧘'],
+  ['Falar com quem está perto', 'E', 'Toque no NPC'],
+  ['Mochila', 'I', 'Botão 🎒'],
+  ['Perfil e atributos', 'C', 'Botão do seu retrato'],
+  ['Missões', 'J', 'Aba Missões do chat'],
+  ['Conversar', 'Enter', 'Campo do chat'],
+];
