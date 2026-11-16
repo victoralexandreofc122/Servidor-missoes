@@ -244,6 +244,8 @@ export interface JoiningPlayer {
   manual?: { unlocked: string[]; read: string[] };
   /** v65 (migração v39): os fragmentos da Crônica achados (undefined = banco sem a v39). */
   fragments?: string[];
+  /** v67: a última entrada antes desta (ISO), para o resumo "Enquanto você esteve fora". */
+  lastSeenAt?: string;
   /** Jutsu -> usos já gravados no banco. */
   jutsus?: Record<string, number>;
   kageCandidate?: boolean;
@@ -391,6 +393,8 @@ interface Session {
   /** v65: os fragmentos da Crônica achados e se o banco os guarda (migração v39). */
   fragments: Set<string>;
   fragmentsDb: boolean;
+  /** v67: a última entrada antes desta (o cliente mostra o resumo de quem voltou depois de dias). */
+  lastSeenAt: string | null;
   feedbackAt: number;
   /** Substituição armada até este instante (anula o próximo golpe). */
   substituteUntil: number;
@@ -1109,6 +1113,7 @@ export class GameWorld {
       equippedShoes: s.equippedShoes, equippedAccessory: s.equippedAccessory, classes: { ...s.classes }, jutsus: Object.fromEntries(s.jutsus), kageCandidate: s.kageCandidate, isAdmin: s.isAdmin, clan: s.clan, clanMark: s.clanMark, riteProgress: s.riteProgress,
       manual: manualView(s.manual),
       ...(s.fragmentsDb || !this.store ? { fragments: [...s.fragments] } : {}),
+      ...(s.lastSeenAt ? { lastSeenAt: s.lastSeenAt } : {}),
       villageSwitches: s.villageSwitches, cape: s.cape, display: { ...s.display },
     };
   }
@@ -1224,6 +1229,7 @@ export class GameWorld {
       manualDb: player.manual !== undefined || (previous?.manualDb ?? false),
       fragments: new Set(player.fragments ?? (previous ? [...previous.fragments] : [])),
       fragmentsDb: player.fragments !== undefined || (previous?.fragmentsDb ?? false),
+      lastSeenAt: previous ? previous.lastSeenAt : player.lastSeenAt ?? null,
       feedbackAt: previous?.feedbackAt ?? 0,
       substituteUntil: previous?.substituteUntil ?? 0,
       stunnedUntil: 0,
@@ -2454,6 +2460,7 @@ export class GameWorld {
     else if (parsed.type === 'admin_catalog') this.adminCatalog(session);
     else if (parsed.type === 'manual_read') this.readManual(session, parsed.chapter);
     else if (parsed.type === 'tutorial_skip') this.skipAcademy(session);   // v65: Pular a Academia
+    else if (parsed.type === 'cast_stop') this.stopCast(session);   // v67: ✋ Cancelar selos (sem custo)
     else if (parsed.type === 'fragment') this.findFragment(session, parsed.id);   // v65: fragmento da Crônica
     else if (parsed.type === 'feedback') this.feedback(session, parsed, t);
     else if (parsed.type === 'admin_feedback') this.adminFeedback(session, parsed.action, parsed.id);
@@ -4680,6 +4687,17 @@ export class GameWorld {
    * Os selos acabam sem o jutsu sair: interrompido (controle) ou cancelado (fuga). O chakra ainda não foi cobrado: cobra
    * metade; o jutsu fica numa recarga curta de 1,5 s.
    */
+  /**
+   * v67 (guia de UI, Cancel Cast): o ninja desiste dos selos no botão ✋. Diferente da interrupção (golpe, controle) e da
+   * fuga (Substituição/Teleporte): não perde chakra nem ganha recarga; o jutsu fica pronto para outra hora.
+   */
+  private stopCast(s: Session): void {
+    const c = s.casting;
+    if (!c || s.dead) return;
+    s.casting = null;
+    this.broadcastMap(s.map, { type: 'cast_interrupted', playerId: s.id, skill: c.skill, reason: 'stop' });
+  }
+
   private cancelCast(s: Session, t: number, reason: 'interrupted' | 'cancel'): void {
     const c = s.casting;
     if (!c) return;

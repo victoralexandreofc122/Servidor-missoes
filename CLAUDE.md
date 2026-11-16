@@ -33,6 +33,11 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v68 (sem migração):** no toque longo do jutsu sem mira, o ✕ Cancelar (deslizar até ele e soltar não lança). Branch `ccr-ui-hud`.
+- **v67 (as 8 propostas do guia de UI, sem migração):** joystick fixo, ✋ cancelar selos, retratos no PvP, câmera da mira,
+  toque longo no jutsu, "Enquanto você esteve fora", daltonismo na auditoria, barras escondidas (opção). Branch `ccr-ui-hud`.
+- **v66 (UI, UX e HUD pelo guia, sem migração):** alvos de toque de 44 px, texto de 12 px, HUD de combate, erros com causa
+  e números, avisos de 2 a 5 s, auditoria no navegador. Branch `ccr-ui-hud` (sobre a `ccr-decisoes`).
 - **v65 (migração v39, decisões do Victor de 15/11):** os 12 nomes da lore aplicados (Lodo Verde, Pedras da Vigília...),
   Kenji e Mei com os visuais certos, Pular a Academia, fragmentos da Crônica no banco (prêmio e falas do Cronista) e todos
   os comandos `/admin` no Painel do Admin (o teste `test/decisoes.test.ts` cobra botão para comando novo). Branch
@@ -62,6 +67,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 - `docs/fase2-plano.md`: plano de arquitetura da Fase 2 (endgame), etapas, migrações previstas e decisões em aberto.
 - `docs/design-do-jogo.md`: design completo (pilares, sistemas, roadmap, decisões e riscos).
 - `docs/historia/arco-1.md`: roteiro do Arco 1 (15 missões); o sistema de história ainda não existe.
+- `docs/ui/estrutura-ui-ux-hud.md`: a estrutura de UI, UX e HUD (regra de toda tela nova).
 - `docs/lore/`: a lore (Bíblia do Mundo, fonte única de verdade) e o design do tutorial; a planilha `dialogos.csv` é gerada
   do jogo (`npx tsx scripts/gerar-dialogos.ts`) e o teste confere.
 - `docs/mapas.md`, `docs/endgame.md`, `docs/habilidades.md`, `docs/clima.md`, `docs/netcode.md`.
@@ -82,6 +88,10 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 
 ## Como trabalhar
 
+- **UI, UX e HUD (regra do Victor, 15/11/2026):** o guia de UI que ele enviou é a estrutura da interface:
+  `docs/ui/estrutura-ui-ux-hud.md`. Toda tela, botão ou aviso novo segue o documento (taxonomia, zona do polegar, alvos
+  de 44 px, texto de 12 px, matriz de estados, avisos de 2 a 5 s, erro com causa e números) e passa pela auditoria
+  (`npx tsx scripts/auditar-hud.ts <pasta>`) e pelo `test/uiHud.test.ts`. As 8 propostas da seção 13 foram aceitas e feitas (v67).
 - **Renomeações (regra do Victor, 09/11/2026):** nunca aplicar nome novo sem aprovação. O processo é sempre: **auditar, propor 3 opções por item,
   o Victor escolhe, só então aplicar** (código, banco, testes e docs). "Continuar a partir da sua recomendação" não é escolha: se o Victor
   não disse qual opção, perguntar. Vale para jutsus, clãs, locais, itens, NPCs, títulos e organizações, nesta e nas próximas fases.

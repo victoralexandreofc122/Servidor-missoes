@@ -240,6 +240,34 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v68: ✕ Cancelar no toque longo (sem migração; pedido do Victor em 16/11)
+
+- No jutsu que sai no toque (sem mira), segurar mostra o cartão e o **✕ Cancelar** ao lado do jutsu, para dentro da tela.
+  Deslizar o dedo até o ✕ e soltar ali não lança ("Jutsu cancelado"); soltar em qualquer outro lugar lança.
+
+### v67: as 8 propostas do guia de UI (sem migração; aceitas pelo Victor em 16/11)
+
+- **Joystick fixo** (opção), **✋ Cancelar selos** (colado na barra de selos; sem perder chakra nem recarga), **retratos
+  dos inimigos no PvP** (um toque foca), **câmera que segue a mira**, **toque longo no jutsu** (nome, efeito e números;
+  o jutsu sem mira sai ao soltar), **"Enquanto você esteve fora"** (2 dias ou mais: onde parou e o próximo passo),
+  **daltonismo na auditoria** e **esconder vida e chakra cheios fora da luta** (opção, desligada).
+- Todas em Config. → HUD; detalhes em `docs/ui/estrutura-ui-ux-hud.md`, seção 13. Testes em `test/uiPropostas.test.ts`.
+
+### v66: a estrutura de UI, UX e HUD (sem migração; `docs/ui/estrutura-ui-ux-hud.md`)
+
+Feito a partir do "Guia Definitivo de Game Design, UX, UI e HUD" enviado pelo Victor; o documento é a regra de toda tela
+nova (como a Bíblia é para a lore).
+
+- **Alvos de toque de 44 px** em todo controle do HUD no celular (o chat tinha 4 abaixo disso) e **texto de no mínimo
+  12 px** (o custo dos jutsus era 9 px). A lista de efeitos e o retrato roubavam o toque do "–" do chat: corrigido.
+- **HUD de combate:** na luta, as Missões e o status somem e o chat (e o menu do computador) ficam apagados; 6 s depois,
+  volta tudo. Nunca na zona segura nem na Academia. Config. → HUD desliga.
+- **Respostas diretas:** "Chakra: custa 20, você tem 12", "Recarregando: 2,4 s", "Alvo longe: chegue mais perto"... O
+  motivo "jutsu de outra classe" não tinha texto: agora tem.
+- **Avisos entre 2 e 5 s**, pelo tamanho do texto. O Vínculo ganhou o ícone em círculo dos outros botões do menu.
+- **Auditoria:** `scripts/auditar-hud.ts` mede no navegador (4 telas: celular, celular pequeno, computador, ultrawide) a
+  área de toque, a zona do polegar, a cobertura, o contraste e o texto; `test/uiHud.test.ts` cobra as regras no código.
+
 ### v65: as decisões do Victor de 15/11 (migração v39, `db/schema_v39_fragmentos.sql`)
 
 - **Os 12 nomes da lore** (1A, 2B, 3B, 4B, 5A, 6C, 7C, 8A, 9A, 10A, 11C, 12A, `docs/lore/propostas-de-nomes.md`):

@@ -290,6 +290,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   // v38: Pergaminho do Mestre (fechou um capítulo), Feedback do jogador e a aba Feedback do admin
   z.object({ type: z.literal('manual_read'), chapter: z.enum(MANUAL_CHAPTERS) }),
   z.object({ type: z.literal('tutorial_skip') }),   // v65: Pular a Academia
+  z.object({ type: z.literal('cast_stop') }),       // v67: ✋ Cancelar selos (sem custo)
   z.object({ type: z.literal('fragment'), id: z.string().regex(/^FRG_\d{2}$/) }),   // v65: achou um fragmento da Crônica
   z.object({
     type: z.literal('feedback'), category: z.enum(FEEDBACK_CATEGORIES), content: z.string().max(1500),
@@ -442,6 +443,8 @@ export interface NinjaView {
   manual?: { unlocked: ManualChapter[]; read: ManualChapter[] };
   /** v65: fragmentos achados (só com a v39 no banco; sem ela, o cliente guarda no aparelho). */
   fragments?: string[];
+  /** v67: a última entrada antes desta (ISO): o resumo "Enquanto você esteve fora". */
+  lastSeenAt?: string;
   /** Passo do tutorial da Academia: 0 a 3 = na sala 1 a 4; 4 = concluído (pode sair). */
   tutorialStep: number;
   ryo: number;
@@ -717,7 +720,7 @@ export type ServerMessage =
   | { type: 'summon_punch'; id: string; x: number; y: number; r: number; fx?: number; fy?: number }   // v53: fx/fy = para onde soca
   // v29: conjuração (selos) começou, e foi interrompida
   | { type: 'cast_start'; playerId: string; skill: string; ms: number }
-  | { type: 'cast_interrupted'; playerId: string; skill: string; reason: 'interrupted' | 'cancel' }
+  | { type: 'cast_interrupted'; playerId: string; skill: string; reason: 'interrupted' | 'cancel' | 'stop' }
   // v29: sentou ou levantou da arquibancada do Vale (todos no mapa veem)
   | { type: 'sit'; playerId: string; active: boolean }
   // v29 (migração v15): os pontos de quem lutou depois da partida, e o painel do ranking.

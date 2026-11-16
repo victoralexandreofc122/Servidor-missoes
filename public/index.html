@@ -94,7 +94,7 @@
       <button id="inv-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="inv-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 7V5.5a3.5 3.5 0 0 1 7 0V7"/><path d="M6 7h12a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V9a2 2 0 0 1 2-2z"/><path d="M9 13h6v4H9z"/></svg><span>Mochila</span><b id="inv-badge" class="menu-badge" hidden></b></button>
       <button id="status-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="status-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.4-6 8-6s6.5 2 8 6"/></svg><span>Perfil</span><b id="status-badge" class="menu-badge"></b></button>
       <button id="missions-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="missions-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/><path d="M7 4a2 2 0 0 0-2 2v12a2 2 0 0 0 4 0V6a2 2 0 0 0-2-2z"/><path d="M12 9h4M12 13h4M12 17h2"/></svg><span>Missões</span><b id="missions-badge" class="menu-badge"></b></button>
-      <button id="vinculo-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="vinculo-panel"><span class="ico-emoji" aria-hidden="true">🐾</span><span>Vínculo</span></button>
+      <button id="vinculo-toggle" class="menu-btn" type="button" aria-expanded="false" aria-controls="vinculo-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.5" cy="10" r="1.8"/><circle cx="10" cy="6" r="1.8"/><circle cx="14" cy="6" r="1.8"/><circle cx="17.5" cy="10" r="1.8"/><path d="M12 11.5c-2.8 0-5 3-5 5.2 0 1.8 1.4 2.6 2.9 2.3.9-.2 1.4-.5 2.1-.5s1.2.3 2.1.5c1.5.3 2.9-.5 2.9-2.3 0-2.2-2.2-5.2-5-5.2z"/></svg><span>Vínculo</span></button>
       <button id="settings-toggle" class="menu-btn" type="button" aria-label="Configurações" aria-expanded="false" aria-controls="settings-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Config.</span></button>
       <button id="village-toggle" class="menu-btn" type="button" hidden aria-expanded="false" aria-controls="village-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5c3 .8 15 .8 18 0"/><path d="M4.5 4c4 1 11 1 15 0"/><path d="M5.5 10.5h13"/><path d="M8 6.5V21M16 6.5V21"/></svg><span id="village-badge">Vila</span></button>
       <button id="history-toggle" class="menu-btn" type="button" aria-label="Histórico do chat" aria-expanded="false" aria-controls="history-panel"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><span>Histórico</span></button>
@@ -466,6 +466,8 @@
     -->
     <!-- v29 (Jutsus v2): selos do jutsu que você está conjurando (a barra também aparece sobre a cabeça). -->
     <div id="cast-bar" class="cast-bar" hidden aria-hidden="true"><span class="name"></span><div class="track"><div class="fill"></div></div></div>
+    <!-- v67: ✋ Cancelar selos, colado na barra de selos (só durante os selos) -->
+    <button id="cast-stop-btn" type="button" class="cast-stop" hidden aria-label="Cancelar selos (sem perder chakra nem recarga)"><span aria-hidden="true">✋</span></button>
     <div id="combat" class="combat" aria-label="Combate">
       <button id="attack-btn" type="button" class="cbtn attack" aria-label="Ataque básico (não gasta chakra)"><span class="ico" aria-hidden="true">🗡️</span><i class="cd" aria-hidden="true"></i></button>
       <button type="button" class="cbtn skill" data-slot="0"><span class="ico" aria-hidden="true"></span><b class="cost" aria-hidden="true"></b><i class="cd" aria-hidden="true"></i></button>
@@ -549,6 +551,22 @@
           <option value="off">Desligados (sem partículas nem tremor)</option>
         </select>
       </label>
+      <!-- v66 (guia de UI, regra 4): o HUD muda na luta; o jogador pode desligar -->
+      <fieldset class="display-opts">
+        <legend>HUD</legend>
+        <label><input id="combat-hud-opt" type="checkbox" checked> HUD de combate: na luta, esconde as missões e apaga o chat</label>
+        <!-- v67: as propostas do guia de UI aceitas pelo Victor (docs/ui/estrutura-ui-ux-hud.md, seção 13) -->
+        <label class="slider">Joystick
+          <select id="pref-joystick" aria-label="Joystick">
+            <option value="flutuante">Flutuante (nasce onde o polegar toca)</option>
+            <option value="fixo">Fixo (sempre no mesmo lugar)</option>
+          </select>
+        </label>
+        <label><input id="pref-aim-camera" type="checkbox" checked> Câmera segue a mira dos jutsus</label>
+        <label><input id="pref-hold-info" type="checkbox" checked> Segurar o jutsu mostra o nome e o efeito (sai ao soltar)</label>
+        <label><input id="pref-portraits" type="checkbox" checked> Retratos dos inimigos no PvP (toque para focar)</label>
+        <label><input id="pref-hide-bars" type="checkbox"> Esconder vida e chakra cheios fora da luta</label>
+      </fieldset>
       <fieldset id="display-opts" class="display-opts">
         <legend>O que os outros veem no seu boneco</legend>
         <label><input id="show-cape" type="checkbox" checked> Capa</label>
@@ -640,6 +658,19 @@
     <p id="xp-line" class="xp-line">Academia · 0 XP</p>
 
     <div id="hurt" class="hurt" aria-hidden="true"></div>
+    <!-- v67: segurar o jutsu (nome e efeito), retratos dos inimigos no PvP e o resumo de quem voltou depois de dias -->
+    <div id="skill-tip" class="skill-tip" role="tooltip" hidden></div>
+    <div id="skill-cancel" class="skill-cancel" hidden aria-hidden="true"><b>✕</b><span>Cancelar</span></div>
+    <div id="foe-portraits" class="foe-portraits" aria-label="Inimigos perto: toque para focar" hidden></div>
+    <section id="away-panel" class="mission-panel away-panel" hidden role="dialog" aria-labelledby="away-title">
+      <header class="mission-head">
+        <h2 id="away-title"><span aria-hidden="true">🌅</span> Enquanto você esteve fora</h2>
+        <button id="away-close" class="icon-btn small" type="button" aria-label="Fechar o resumo"><span aria-hidden="true">✕</span></button>
+      </header>
+      <p id="away-days" class="mission-sensei"></p>
+      <ul id="away-list" class="away-list"></ul>
+      <button id="away-go" type="button" class="primary">Continuar</button>
+    </section>
     <p id="toast" class="toast" role="status" hidden></p>
   </div>
 

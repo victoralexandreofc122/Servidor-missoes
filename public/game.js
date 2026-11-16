@@ -604,12 +604,31 @@ function drawFxIcons(e, sx, y, T, now) {
 }
 
 const CAST_FAIL_TEXT = {
-  NO_CHAKRA: 'Chakra insuficiente', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum alvo perto', SILENCED: 'Silenciado!', ASLEEP: 'Dormindo…',
-  FULL_HP: 'Vida cheia', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo fora de alcance',
-  NOT_EQUIPPED: 'Fora do kit ativo', SAFE_ZONE: 'Zona segura: sem combate',
-  NOT_LEARNED: 'Jutsu não aprendido', BLOCKED: 'Caminho bloqueado', NO_SUMMON: 'Sem invocação por perto', TUTORIAL_LOCKED: 'Primeiro, o Ataque Básico',
+  NO_CHAKRA: 'Chakra insuficiente: medite 🧘', COOLDOWN: 'Recarregando…', NO_TARGET: 'Nenhum alvo perto: chegue mais perto', SILENCED: 'Silenciado: espere passar', ASLEEP: 'Dormindo: espere acordar',
+  FULL_HP: 'Vida cheia: guarde a cura', ALREADY_ACTIVE: 'Escudo já ativo', DEAD: 'Você está derrotado', OUT_OF_RANGE: 'Alvo longe: chegue mais perto',
+  NOT_EQUIPPED: 'Fora do kit ativo: troque de kit 🔄', SAFE_ZONE: 'Zona segura 🕊️: sem combate aqui',
+  NOT_LEARNED: 'Jutsu não aprendido: extraia na loja de Pergaminhos', NOT_YOUR_CLASS: 'Jutsu de outra classe: só vale na sua classe', BLOCKED: 'Caminho bloqueado: mire para outro lado', NO_SUMMON: 'Sem invocação por perto', TUTORIAL_LOCKED: 'Primeiro, o Ataque Básico 🗡️',
   STUNNED: 'Atordoado!', CASTING: 'Fazendo os selos…',
 };
+
+/**
+ * v66 (guia de UI: respostas diretas): o aviso de "não deu" diz a causa e o que fazer, com os números quando há.
+ * Ex.: "Chakra: custa 20, você tem 12" em vez de só "Chakra insuficiente".
+ */
+function castFailText(msg) {
+  const r = msg.reason;
+  if (r === 'NO_CHAKRA') {
+    const cost = skillPrice(msg.skill)?.cost;
+    const have = Math.floor(state.me?.chakra ?? 0);
+    return cost !== undefined ? `Chakra: custa ${cost}, você tem ${have}` : 'Chakra insuficiente: medite 🧘';
+  }
+  if (r === 'COOLDOWN') {
+    const cd = cooldowns[msg.skill];
+    const left = cd ? Math.max(0, cd.until - performance.now()) / 1000 : 0;
+    return left > 0.05 ? `Recarregando: ${left.toFixed(1).replace('.', ',')} s` : CAST_FAIL_TEXT.COOLDOWN;
+  }
+  return CAST_FAIL_TEXT[r] || 'Não deu agora';
+}
 
 /** v64: o momento exato de cada dica (lore.js HINTS; uma vez por aparelho). */
 function hintsFor(msg) {
@@ -632,7 +651,7 @@ function hintsFor(msg) {
       break;
     }
     case 'extract_result': if (msg.outcome === 'success') hints.fire('DCA_JUTSU_NOVO'); break;
-    case 'cast_interrupted': if (msg.playerId === state.meId && msg.reason !== 'cancel') hints.fire('DCA_SELOS'); break;
+    case 'cast_interrupted': if (msg.playerId === state.meId && msg.reason === 'interrupted') hints.fire('DCA_SELOS'); break;
     case 'travel_options': hints.fire('DCA_VIAGEM'); break;
     default: break;
   }
@@ -685,12 +704,14 @@ function handleMessage(msg) {
       if (msg.progress) state.progress = msg.progress;
       if (msg.kit) state.kit = msg.kit;
       if (msg.ninja) state.ninja = msg.ninja;
+      if (msg.ninja?.lastSeenAt) state.awayAt = msg.ninja.lastSeenAt;   // v67: guardado à parte (outras mensagens trocam o ninja)
       if (Array.isArray(msg.ninja?.fragments)) manualUI.syncServer(msg.ninja.fragments);   // v65: fragmentos do banco (v39)
       renderShurikenButton();   // v59: a contagem do ✴️ já vem na entrada (antes ficava 0 até o próximo inventário)
       send({ type: 'vinculo', action: 'state' });   // v60: a aba Vínculo Ancestral e os botões do HUD
       send({ type: 'fase3', action: 'state' });     // v61/v62: o marco do mundo e os Titãs
       manualUI.refreshBadge();                       // v38: capítulo do Pergaminho do Mestre ainda não lido: o ☰ pisca
       renderDisplayBoxes();
+      setTimeout(showAwaySummary, 1500);             // v67: voltou depois de dias: o resumo (missão e mundo já chegaram)
       pred.gates.tutorial = state.ninja.tutorialStep;   // portas da Academia: o MESMO passo do servidor
       // Sala compartilhada (loja, Academia): para onde a porta de saída leva (a vila de onde ele entrou).
       pred.gates.back = msg.you.doorBack ? { ...msg.you.doorBack } : undefined;
@@ -920,9 +941,10 @@ function handleMessage(msg) {
       const p = state.players.get(msg.playerId);
       if (p) {
         p.casting = null;
-        addFloater(p.x, p.y - 0.9, msg.reason === 'cancel' ? 'Selos cancelados' : 'Interrompido!', msg.reason === 'cancel' ? '#d8cdb8' : '#ff9a5a', msg.reason === 'cancel' ? 0.75 : 1);
+        const calm = msg.reason === 'cancel' || msg.reason === 'stop';   // v67: 'stop' = o ✋, sem custo
+        addFloater(p.x, p.y - 0.9, calm ? 'Selos cancelados' : 'Interrompido!', calm ? '#d8cdb8' : '#ff9a5a', calm ? 0.75 : 1);
       }
-      if (msg.playerId === state.meId) startCooldown(msg.skill, 1500);   // a recarga curta da interrupção (servidor: CAST_RULES)
+      if (msg.playerId === state.meId && msg.reason !== 'stop') startCooldown(msg.skill, 1500);   // a recarga curta da interrupção (servidor: CAST_RULES)
       break;
     }
     case 'cooldowns_reset':
@@ -1272,13 +1294,13 @@ function handleMessage(msg) {
         const armed = attacker.gear?.hand || attacker.gear?.back;
         attacker.act = { kind: armed ? 'golpe' : attacker.act?.kind === 'soco' ? 'chute' : 'soco', start: now };
       }
-      if (msg.playerId === state.meId) startCooldown('attack', msg.cd);
+      if (msg.playerId === state.meId) { startCooldown('attack', msg.cd); markCombat(); }   // v66: HUD de combate
       sfxAt(msg.throw ? 'shuriken' : attacker?.gear?.hand || attacker?.gear?.back ? 'slash' : 'punch', msg.x, msg.y, msg.playerId === state.meId ? 1 : 0.7);   // v58: com arma corta, sem arma soca
       break;
     }
     case 'attack_failed': {
       const me = state.players.get(state.meId);
-      if (me && msg.reason !== 'COOLDOWN') addFloater(me.x, me.y - 0.9, CAST_FAIL_TEXT[msg.reason] || 'Não deu', '#d8cdb8', 0.75);
+      if (me && msg.reason !== 'COOLDOWN') addFloater(me.x, me.y - 0.9, castFailText(msg), '#d8cdb8', 0.75);
       break;
     }
     case 'player_rank': {
@@ -1300,7 +1322,7 @@ function handleMessage(msg) {
       break;
     case 'notice':
       audio.sfx('notify', 1, { tone: msg.tone });   // v58: info, boa ou ruim (dá para saber pelo som)
-      showToast(msg.text, 4500);
+      showToast(msg.text);
       addSystemLine(msg.text);
       break;
     case 'player_hp': {
@@ -1309,6 +1331,7 @@ function handleMessage(msg) {
       break;
     }
     case 'cast': {
+      if (msg.playerId === state.meId && mechanicOf(msg.skill) !== 'heal') markCombat();   // v66: HUD de combate
       castSounds.get(msg.playerId)?.stop(false);   // v57: o selo terminou: o carregar solta e sai o "whoosh"
       castSounds.delete(msg.playerId);
       {   // v58: cada elemento soa diferente (Teleporte e Substituição têm o som próprio, na mensagem deles)
@@ -1429,7 +1452,7 @@ function handleMessage(msg) {
     }
     case 'cast_failed': {
       const me = state.players.get(state.meId);
-      if (me) addFloater(me.x, me.y - 0.9, CAST_FAIL_TEXT[msg.reason] || 'Não deu', '#d8cdb8', 0.75);
+      if (me) addFloater(me.x, me.y - 0.9, castFailText(msg), '#d8cdb8', 0.75);
       break;
     }
     case 'hit': {
@@ -1439,6 +1462,7 @@ function handleMessage(msg) {
       target.maxHp = msg.maxHp;
       const heal = msg.kind === 'heal';
       const mine = msg.target === 'player' && msg.id === state.meId;
+      if (mine && !heal) markCombat();   // v66: apanhou: HUD de combate
       const color = heal ? '#6cf08a' : msg.target === 'monster' ? '#fff3c4' : '#ff6b5a';
       const text = heal ? `+${msg.amount}` : `-${msg.amount}${msg.shielded ? ' 🛡' : ''}`;
       addFloater(target.x, target.y - 0.6, text, color, mine || msg.target === 'monster' ? 1.15 : 0.9);
@@ -1567,7 +1591,7 @@ function handleMessage(msg) {
     case 'announce':
       audio.sfx('announce', 1);   // v58: gongo
       addSystemLine(msg.message);
-      if (/Torneio da Temporada/.test(msg.message)) showToast(msg.message, 7000);   // v42: aviso na tela, além do chat
+      if (/Torneio da Temporada/.test(msg.message)) showToast(msg.message, 5000);   // v42: aviso na tela, além do chat (v66: no máximo 5 s; o texto fica no chat)
       break;
 
     // ---- missões (o servidor conta os abates e decide a conclusão; aqui só se mostra)
@@ -2105,11 +2129,201 @@ function setStatus(text, kind, detail = '') {
 }
 
 let toastTimer = null;
-function showToast(text, ms = 3500) {
+/**
+ * v66 (guia de UI): um aviso fica na tela entre 2 e 5 s, conforme o tamanho do texto (≈ 40 ms por letra a mais de 1,6 s).
+ * O que passa de 5 s de leitura também vai para o chat/histórico. ms = 0: fica até outro aviso.
+ */
+const TOAST_MIN_MS = 2000, TOAST_MAX_MS = 5000;
+function readMs(text) { return Math.round(Math.min(TOAST_MAX_MS, Math.max(TOAST_MIN_MS, 1600 + 40 * String(text).length))); }
+function showToast(text, ms) {
   ui.toast.textContent = text;
   ui.toast.hidden = false;
   clearTimeout(toastTimer);
-  if (ms > 0) toastTimer = setTimeout(() => { ui.toast.hidden = true; }, ms);
+  if (ms === 0) return;
+  const shown = Math.min(TOAST_MAX_MS, Math.max(TOAST_MIN_MS, ms ?? readMs(text)));
+  toastTimer = setTimeout(() => { ui.toast.hidden = true; }, shown);
+}
+
+// ------------------------------------------------------------------ v66: HUD de combate (guia de UI, regra 4)
+/*
+ * Exibição sob demanda: na luta (bateu, apanhou, lançou jutsu nos últimos 6 s, ou tem alvo focado), o que não é da luta
+ * some (missões, status da conexão) e o chat fica bem apagado (hud.css body.combat-hud). Na zona segura e na Academia
+ * (o passo do tutorial fica nas missões) nunca.
+ * Config. → HUD → "HUD de combate" desliga (guardado no aparelho).
+ */
+const COMBAT_HUD_MS = 6000;
+let combatUntil = 0;
+let combatHudOn = true;
+try { combatHudOn = localStorage.getItem('nin.combatHud') !== '0'; } catch { /* sem armazenamento: fica ligado */ }
+function markCombat() { combatUntil = performance.now() + COMBAT_HUD_MS; updateCombatHud(); }
+function updateCombatHud() {
+  const fighting = combatHudOn && !document.body.classList.contains('editing') && !state.inSafeZone && state.mapId !== 'academy_interior'
+    && (performance.now() < combatUntil || !!state.focusId);
+  document.body.classList.toggle('combat-hud', fighting);
+  // v67: vida e chakra cheios fora da luta (opção): as barras somem; qualquer golpe, gasto ou luta traz de volta
+  const m = state.me;
+  const full = !!m && !m.dead && m.maxHp > 0 && m.hp >= m.maxHp && m.chakra >= m.maxChakra;
+  document.body.classList.toggle('bars-calm', uiPref.hideFullBars && full && !fighting && performance.now() >= combatUntil);
+}
+setInterval(updateCombatHud, 400);
+{
+  const box = $('combat-hud-opt');
+  if (box) {
+    box.checked = combatHudOn;
+    box.addEventListener('change', () => {
+      combatHudOn = box.checked;
+      try { localStorage.setItem('nin.combatHud', combatHudOn ? '1' : '0'); } catch { /* sem armazenamento */ }
+      updateCombatHud();
+    });
+  }
+}
+
+// ------------------------------------------------------------------ v67: opções da interface (guia de UI, seção 13)
+/*
+ * As propostas do guia que o Victor aceitou em 16/11 (docs/ui/estrutura-ui-ux-hud.md, seção 13). Cada uma é uma escolha
+ * em Config. → HUD, guardada no aparelho:
+ *   joystick      'flutuante' (nasce onde o polegar toca) ou 'fixo' (sempre no mesmo lugar: memória da mão)
+ *   aimCamera     a câmera desliza para onde o jutsu está mirando (vê além da borda da tela)
+ *   holdInfo      segurar o botão do jutsu mostra o nome e o efeito (o jutsu sai ao soltar; segurou e leu: não sai)
+ *   portraits     no PvP, os retratos dos inimigos perto do polegar: um toque foca aquele ninja
+ *   hideFullBars  fora da luta, com vida e chakra cheios, as duas barras somem (o retrato fica)
+ */
+const UI_PREF_DEFAULT = { joystick: 'flutuante', aimCamera: true, holdInfo: true, portraits: true, hideFullBars: false };
+const uiPref = (() => {
+  const out = { ...UI_PREF_DEFAULT };
+  try {
+    const raw = JSON.parse(localStorage.getItem('nin.uiPrefs') || '{}');
+    if (raw.joystick === 'fixo' || raw.joystick === 'flutuante') out.joystick = raw.joystick;
+    for (const k of ['aimCamera', 'holdInfo', 'portraits', 'hideFullBars']) if (typeof raw[k] === 'boolean') out[k] = raw[k];
+  } catch { /* sem armazenamento ou dado estragado: o padrão */ }
+  return out;
+})();
+function saveUiPref() {
+  try { localStorage.setItem('nin.uiPrefs', JSON.stringify(uiPref)); } catch { /* vale só até fechar */ }
+}
+{
+  const sel = $('pref-joystick');
+  if (sel) {
+    sel.value = uiPref.joystick;
+    sel.addEventListener('change', () => { uiPref.joystick = sel.value === 'fixo' ? 'fixo' : 'flutuante'; saveUiPref(); });
+  }
+  for (const [id, key] of [['pref-aim-camera', 'aimCamera'], ['pref-hold-info', 'holdInfo'], ['pref-portraits', 'portraits'], ['pref-hide-bars', 'hideFullBars']]) {
+    const box = $(id);
+    if (!box) continue;
+    box.checked = uiPref[key];
+    box.addEventListener('change', () => { uiPref[key] = box.checked; saveUiPref(); updateCombatHud(); });
+  }
+}
+
+/*
+ * v67 (guia de UI, Hero Lock): no PvP (arena, rankeado, Zona de Conflito), os retratos dos até 3 inimigos mais perto
+ * (12 casas) ficam ao lado do 🎯; um toque foca aquele ninja (o atirador lá atrás, não o tanque da frente); outro toque
+ * no mesmo solta.
+ */
+const foePortraits = { el: $('foe-portraits'), key: '' };
+function updateFoePortraits() {
+  const box = foePortraits.el;
+  if (!box) return;
+  const me = state.players.get(state.meId);
+  const near = [];
+  if (uiPref.portraits && me && !state.me.dead && !hud.editing) {
+    for (const p of state.players.values()) {
+      if (p.dead || !isFoe(p)) continue;
+      const d = Math.hypot(p.x - me.x, p.y - me.y);
+      if (d <= 12) near.push([d, p]);
+    }
+    near.sort((a, b) => a[0] - b[0]);
+  }
+  const foes = near.slice(0, 3).map(([, p]) => p);
+  box.hidden = foes.length === 0;
+  const key = foes.map((p) => p.id).join(',');
+  if (key !== foePortraits.key) {
+    foePortraits.key = key;
+    box.replaceChildren(...foes.map((p) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.id = p.id;
+      b.setAttribute('aria-label', `Focar ${p.username}`);
+      const c = document.createElement('canvas');
+      c.width = 64;
+      c.height = 64;
+      if (p.look) drawBust(c, p.look);
+      const hp = document.createElement('span');
+      hp.className = 'hp';
+      hp.append(document.createElement('i'));
+      const nm = document.createElement('span');
+      nm.className = 'nm';
+      nm.textContent = p.username.length > 8 ? `${p.username.slice(0, 7)}…` : p.username;
+      b.append(c, hp, nm);
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setFocus(state.focusId === p.id ? null : p.id);
+        markCombat();
+      });
+      return b;
+    }));
+  }
+  for (const b of box.children) {
+    const p = state.players.get(b.dataset.id);
+    if (!p) continue;
+    b.classList.toggle('on', state.focusId === p.id);
+    b.querySelector('.hp i').style.width = `${Math.round(Math.max(0, Math.min(1, (p.hp ?? 1) / (p.maxHp || 1))) * 100)}%`;
+  }
+}
+setInterval(updateFoePortraits, 250);
+
+/*
+ * v67 (guia de UI: diário para quem volta): quem entra depois de 2 dias ou mais sem jogar vê um resumo: onde parou
+ * (nível e XP), a missão, o mundo e o PRÓXIMO PASSO recomendado. Uma vez por volta (guardado no aparelho).
+ */
+const AWAY_MIN_DAYS = 2;
+function awayDays() {
+  const at = Date.parse(state.awayAt || '');
+  return Number.isFinite(at) ? Math.floor((Date.now() - at) / 86_400_000) : 0;
+}
+function awayNextStep() {
+  const pr = state.progress;
+  const items = state.ninja.items || {};
+  if (pr?.statPoints > 0) return `Distribua ${pr.statPoints} ${pr.statPoints === 1 ? 'ponto' : 'pontos'} de atributo (☰ → Perfil, ou a tecla C).`;
+  if (state.mission?.ready) return 'Entregue a missão pronta ao Mestre, na Praça.';
+  if (!state.ninja.classes?.primary && (pr?.level ?? 1) >= 11) return 'Fale com o Diretor da Academia: a Missão de Genin espera você.';
+  if (Object.keys(items).some((k) => k.startsWith('scroll_') && items[k] > 0)) return 'Você tem pergaminhos: extraia jutsus novos na loja de Pergaminhos.';
+  if (!state.mission) return 'Pegue um treino com o Mestre, na Sala de Missões da Praça.';
+  return 'Continue a missão e explore a Floresta.';
+}
+function showAwaySummary() {
+  const panel = $('away-panel');
+  const at = state.awayAt;
+  const days = awayDays();
+  if (!panel || !at || days < AWAY_MIN_DAYS || (state.ninja.tutorialStep ?? 4) < 4) return;
+  try { if (localStorage.getItem('nin.awaySeen') === at) return; } catch { /* sem armazenamento: mostra */ }
+  const pr = state.progress;
+  const li = (label, text, cls) => {
+    const el = document.createElement('li');
+    if (cls) el.className = cls;
+    const b = document.createElement('b');
+    b.textContent = label;
+    el.append(b, document.createTextNode(` ${text}`));
+    return el;
+  };
+  const rows = [];
+  if (pr) rows.push(li('Você:', `${state.me.rank?.name ? `${state.me.rank.name}, ` : ''}nível ${pr.level}${pr.level < 60 ? `; faltam ${Math.max(0, pr.xpToNext - pr.xpInLevel)} XP para o ${pr.level + 1}` : ''}.`));
+  const m = state.mission;
+  rows.push(li('Missão:', m ? `${missionTitle(m)} (${Math.min(m.progress, m.target.quantity)}/${m.target.quantity})${m.ready ? ', pronta para entregar' : ''}.` : 'nenhuma ativa.'));
+  const w = state.world3;
+  const found = state.ninja.fragments?.length ?? 0;
+  rows.push(li('No mundo:', `${w ? `marco ${w.stage} (${w.active} ninjas ativos na semana). ` : ''}Crônica: ${found} de 17 fragmentos.`));
+  rows.push(li('Próximo passo:', awayNextStep(), 'next'));
+  $('away-days').textContent = `Você ficou ${days} dias longe da aldeia. Aqui está onde parou.`;
+  $('away-list').replaceChildren(...rows);
+  panel.hidden = false;
+  const close = () => {
+    panel.hidden = true;
+    try { localStorage.setItem('nin.awaySeen', at); } catch { /* sem armazenamento */ }
+  };
+  $('away-close').onclick = close;
+  $('away-go').onclick = close;
 }
 
 // ------------------------------------------------------------------ movimento (joystick + teclado)
@@ -2146,6 +2360,7 @@ function layoutJoystick(w, h) {
 
 /** Onde o polegar pode nascer o joystick: metade esquerda de baixo, ou perto de onde ele foi posto. */
 function inJoystickZone(x, y, w, h) {
+  if (uiPref.joystick === 'fixo') return Math.hypot(x - joy.restX, y - joy.restY) < joy.radius * 1.6;   // v67: fixo
   return (x < w * 0.5 && y > h * 0.3) || Math.hypot(x - joy.restX, y - joy.restY) < joy.radius * 1.6;
 }
 
@@ -2171,10 +2386,15 @@ canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   joy.pointerId = e.pointerId;
   canvas.setPointerCapture(e.pointerId);
-  // Base onde o dedo tocou, sem deixar o círculo sair da tela.
+  // Base onde o dedo tocou, sem deixar o círculo sair da tela. v67: no joystick fixo a base nunca sai do lugar.
   const r = joy.radius;
-  joy.baseX = Math.max(safe.left + r + 6, Math.min(w / 2 - 4, e.clientX));
-  joy.baseY = Math.max(h * 0.3 + r * 0.5, Math.min(h - safe.bottom - r - 6, e.clientY));
+  if (uiPref.joystick === 'fixo') {
+    joy.baseX = joy.restX;
+    joy.baseY = joy.restY;
+  } else {
+    joy.baseX = Math.max(safe.left + r + 6, Math.min(w / 2 - 4, e.clientX));
+    joy.baseY = Math.max(h * 0.3 + r * 0.5, Math.min(h - safe.bottom - r - 6, e.clientY));
+  }
   moveKnob(e.clientX, e.clientY);
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -3035,7 +3255,7 @@ function duelAnnounce(msg) {
   if (msg.phase === 'prep' && prev?.phase !== 'prep') {
     if (mine) showToast(`Seu adversário: ${mine === 'a' ? msg.b.name : msg.a.name} (Nv ${mine === 'a' ? msg.b.level : msg.a.level})`, 4000);
     addSystemLine(`⚔️ ${msg.mode === 'jounin' ? 'Torneio da Temporada' : 'Rankeado'}: ${msg.a.name} x ${msg.b.name}.`);
-  } else if (msg.phase === 'round' && prev?.phase !== 'round' && mine) showToast(`Rodada ${msg.round}: lute!`, 1800);
+  } else if (msg.phase === 'round' && prev?.phase !== 'round' && mine) showToast(`Rodada ${msg.round}: lute!`, 2000);
   else if (msg.phase === 'done' && prev?.phase !== 'done') {
     const w = msg.winner ? msg[msg.winner] : null;
     if (msg.voided) addSystemLine(`⚖️ Rankeado: partida anulada (ninguém causou dano).`);
@@ -4923,26 +5143,130 @@ window.addEventListener('pointermove', (e) => {
 // v37: mira pela forma do jutsu (o servidor manda `aim`: linha, cone ou área), em todas as classes
 const isLineSkill = (skill) => !!state.world.skills?.[skill]?.aim;
 
+/*
+ * v67 (guia de UI: rótulos e "smart-seeing"): segurar o botão de um jutsu por HOLD_INFO_MS mostra o nome, o efeito, o
+ * custo e a recarga. Com a opção ligada, o jutsu sem mira sai ao SOLTAR o dedo; segurando, aparece o ✕ Cancelar ao lado
+ * (v68): soltar no ✕ não lança, soltar em outro lugar lança. Os jutsus com mira já saíam ao soltar: segurou até o cartão
+ * sem arrastar = só leu; arrastou para mirar = lança; arrastar e voltar ao meio cancela (como sempre).
+ */
+const HOLD_INFO_MS = 450;
+const skillTip = { el: $('skill-tip'), timer: 0, shown: false };
+function showSkillTip(button, skill) {
+  const info = skillInfo(skill);
+  if (!info || !skillTip.el) return;
+  const price = skillPrice(skill);
+  const secs = (ms) => String(Math.round(ms / 100) / 10).replace('.', ',');
+  const w = state.world.skills?.[skill] || {};
+  skillTip.el.replaceChildren();
+  const b = document.createElement('b');
+  b.textContent = `${info.icon} ${info.name}${info.mark}`;
+  const d = document.createElement('span');
+  d.textContent = info.desc || '';
+  const n = document.createElement('small');
+  n.textContent = [price?.cost !== undefined ? `Chakra ${price.cost}` : '', price?.cooldownMs ? `Recarga ${secs(price.cooldownMs)} s` : '', w.castMs ? `Selos ${secs(w.castMs)} s` : '']
+    .filter(Boolean).join(' · ');
+  skillTip.el.append(b, d, n);
+  skillTip.el.hidden = false;
+  skillTip.shown = true;
+  const r = button.getBoundingClientRect();
+  const tw = skillTip.el.offsetWidth, th = skillTip.el.offsetHeight;
+  skillTip.el.style.left = `${Math.max(8, Math.min(viewW - tw - 8, r.left + r.width / 2 - tw / 2))}px`;
+  skillTip.el.style.top = `${Math.max(8, r.top - th - 10)}px`;
+}
+/*
+ * v68 (pedido do Victor, 16/11): no jutsu que sai no toque (sem mira), segurar mostra o cartão E o botão ✕ Cancelar, ao
+ * lado do jutsu (para dentro da tela). Soltar em qualquer lugar lança; deslizar o dedo até o ✕ e soltar ali não lança.
+ */
+const skillCancel = { el: $('skill-cancel'), hot: false };
+function showSkillCancel(button) {
+  const el = skillCancel.el;
+  if (!el) return;
+  el.hidden = false;
+  el.classList.remove('hot');
+  skillCancel.hot = false;
+  const r = button.getBoundingClientRect();
+  const size = el.offsetWidth || 64;
+  const left = r.left - size - 34;   // para dentro da tela (os jutsus ficam à direita): o polegar desliza para a esquerda
+  el.style.left = `${Math.max(8, left)}px`;
+  el.style.top = `${Math.max(8, Math.min(viewH - size - 8, r.top + r.height / 2 - size / 2))}px`;
+}
+/** O dedo está em cima do ✕ (com 12 px de folga em volta)? Acende o ✕. */
+function trackSkillCancel(x, y) {
+  const el = skillCancel.el;
+  if (!el || el.hidden) return false;
+  const r = el.getBoundingClientRect();
+  const hot = x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 12 && y <= r.bottom + 12;
+  if (hot !== skillCancel.hot) { skillCancel.hot = hot; el.classList.toggle('hot', hot); }
+  return hot;
+}
+function hideSkillCancel() {
+  const hot = skillCancel.hot;
+  skillCancel.hot = false;
+  if (skillCancel.el) { skillCancel.el.hidden = true; skillCancel.el.classList.remove('hot'); }
+  return hot;
+}
+function armSkillTip(button, withCancel = false) {
+  clearTimeout(skillTip.timer);
+  skillTip.shown = false;
+  if (!uiPref.holdInfo) return;
+  skillTip.timer = setTimeout(() => {
+    const s = button.dataset.skill;
+    if (!s) return;
+    showSkillTip(button, s);
+    if (withCancel) showSkillCancel(button);
+  }, HOLD_INFO_MS);
+}
+function hideSkillTip() {
+  clearTimeout(skillTip.timer);
+  if (skillTip.el) skillTip.el.hidden = true;
+  const was = skillTip.shown;
+  skillTip.shown = false;
+  return was;
+}
+
 function bindSkillButton(button, i) {
+  let pending = null;   // v67: jutsu sem mira esperando o soltar (toque longo = só lê)
   button.addEventListener('pointerdown', (e) => {
     if (e.button !== undefined && e.button > 0) return;
     e.preventDefault();
     if (hud.editing) return;          // modo "Editar layout": o toque arrasta, não ataca
     const skill = button.dataset.skill;
-    if (!skill || !isLineSkill(skill) || aim) return castSlot(i);
+    if (skill && !aim) armSkillTip(button, !isLineSkill(skill));   // v68: o ✕ Cancelar só no jutsu que sai no toque
+    if (!skill || !isLineSkill(skill) || aim) {
+      if (!skill || aim || !uiPref.holdInfo) return castSlot(i);
+      pending = e.pointerId;
+      try { button.setPointerCapture(e.pointerId); } catch { /* sem captura: o soltar em cima do botão ainda chega */ }
+      return;
+    }
     try { button.setPointerCapture(e.pointerId); } catch { /* sem captura: o botão ainda recebe o soltar em cima dele */ }
     startAim(skill, button, { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY });
   });
+  // v68: soltou no ✕ Cancelar: não lança; soltou em qualquer outro lugar (leu ou não o cartão): lança.
+  const releasePending = (e, cast) => {
+    if (pending === null || pending !== e.pointerId) return false;
+    pending = null;
+    if (cast) trackSkillCancel(e.clientX, e.clientY);
+    const canceled = hideSkillCancel();
+    hideSkillTip();
+    if (cast && !canceled) castSlot(i);
+    else if (canceled) { const me = state.players.get(state.meId); if (me) addFloater(me.x, me.y - 0.9, 'Jutsu cancelado', '#d8cdb8', 0.75); }
+    return true;
+  };
+  button.addEventListener('pointerup', (e) => { releasePending(e, true); });
+  button.addEventListener('pointercancel', (e) => { releasePending(e, false); });
+  button.addEventListener('lostpointercapture', (e) => { releasePending(e, false); });
   button.addEventListener('pointermove', (e) => {
+    if (pending !== null && pending === e.pointerId) { e.preventDefault(); trackSkillCancel(e.clientX, e.clientY); return; }
     if (!aim || aim.pointerId !== e.pointerId) return;
     e.preventDefault();
     const scale = hud.btnScale || 1;
     moveAim(e.clientX - aim.x0, e.clientY - aim.y0, scale);
   });
-  const release = (e) => { if (aim && aim.pointerId === e.pointerId) endAim(true); };
+  // v67: segurou, leu o cartão e não arrastou para mirar: só leu (não lança). Arrastou: lança na direção escolhida.
+  const release = (e) => { if (aim && aim.pointerId === e.pointerId) { const read = hideSkillTip(); endAim(!(read && !aim.dragged)); } };
   button.addEventListener('pointerup', release);
-  button.addEventListener('pointercancel', (e) => { if (aim && aim.pointerId === e.pointerId) endAim(false); });
-  button.addEventListener('lostpointercapture', (e) => { if (aim && aim.pointerId === e.pointerId) endAim(true); });
+  button.addEventListener('pointercancel', (e) => { if (aim && aim.pointerId === e.pointerId) { hideSkillTip(); endAim(false); } });
+  button.addEventListener('lostpointercapture', (e) => { if (aim && aim.pointerId === e.pointerId) { const read = hideSkillTip(); endAim(!(read && !aim.dragged)); } });
   button.addEventListener('click', (e) => { if (e.detail === 0 && !hud.editing) castSlot(i); });   // teclado / leitor de tela
 }
 
@@ -7116,12 +7440,28 @@ function animateWalk(dt, me) {
   if (me && (dir.x !== 0 || dir.y !== 0) && !state.me.meditating) me.dir = dirFrom(dir.x, dir.y);
 }
 
+/**
+ * v67 (guia de UI, Aim Panning): mirando um jutsu (arrastou ou segurou), a câmera anda até 35% do alcance na direção da
+ * mira, no máximo 3 casas: o alvo além da borda da tela aparece. Soltou ou cancelou: volta suave.
+ */
+function aimPan() {
+  if (!uiPref.aimCamera || !aim || aim.canceled || !aim.dir) return { x: 0, y: 0 };
+  if (!aim.dragged && performance.now() - aim.since < HOLD_MS) return { x: 0, y: 0 };
+  const range = aimInfo(aim.skill)?.range ?? 4;
+  const d = Math.min(3, range * 0.35);
+  const len = Math.hypot(aim.dir[0], aim.dir[1]) || 1;
+  return { x: (aim.dir[0] / len) * d, y: (aim.dir[1] / len) * d };
+}
+
 // Câmera: segue o jogador. Com alvo focado, desliza (lerp) para o meio do caminho entre os dois
 // e afasta o zoom só o necessário para os dois caberem; sem alvo, volta suave para o jogador.
 const cam = { ox: 0, oy: 0, scale: 1 };
 function updateCamera(dt, me) {
   const target = focusEntity();
   const want = frameCamera(me, target, viewW, viewH, tile, CAMERA);
+  const pan = aimPan();   // v67: a câmera desliza para onde o jutsu mira
+  want.ox += pan.x;
+  want.oy += pan.y;
   const k = smoothing(dt, CAMERA.followRate);
   cam.ox += (want.ox - cam.ox) * k;
   cam.oy += (want.oy - cam.oy) * k;
@@ -7178,13 +7518,17 @@ function drawDarkness(me, toScreenX, toScreenY, T, now) {
   ctx.restore();
 }
 
+/** v67 (guia de UI, Cancel Cast): ✋ acima do arco dos jutsus, só durante os selos; desiste sem perder chakra nem recarga. */
+const castStopBtn = $('cast-stop-btn');
+onTap(castStopBtn, () => { if (state.connected) send({ type: 'cast_stop' }); });
+
 /** v29: a barra de selos grande, perto dos botões (só para quem conjura). */
 const castHud = { el: document.getElementById('cast-bar'), fill: document.querySelector('#cast-bar .fill'), name: document.querySelector('#cast-bar .name'), shown: false };
 function updateCastHud(me, now) {
   if (!castHud.el) return;
   const c = me && !me.dead ? me.casting : null;
   const on = !!c && now < c.end + 120;
-  if (on !== castHud.shown) { castHud.el.hidden = !on; castHud.shown = on; }
+  if (on !== castHud.shown) { castHud.el.hidden = !on; castHud.shown = on; castStopBtn.hidden = !on; }   // v67: o ✋ só nos selos
   if (!on) return;
   const k = Math.max(0, Math.min(1, (now - c.start) / Math.max(1, c.end - c.start)));
   castHud.fill.style.width = `${Math.round(k * 100)}%`;
