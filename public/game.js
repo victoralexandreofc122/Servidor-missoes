@@ -5145,8 +5145,9 @@ const isLineSkill = (skill) => !!state.world.skills?.[skill]?.aim;
 
 /*
  * v67 (guia de UI: rótulos e "smart-seeing"): segurar o botão de um jutsu por HOLD_INFO_MS mostra o nome, o efeito, o
- * custo e a recarga. Com a opção ligada, o jutsu sem mira sai ao SOLTAR o dedo (toque rápido = lança; segurou e leu = não
- * lança). Os jutsus com mira já saíam ao soltar: segurou até o cartão sem arrastar = só leu; arrastou para mirar = lança.
+ * custo e a recarga. Com a opção ligada, o jutsu sem mira sai ao SOLTAR o dedo; segurando, aparece o ✕ Cancelar ao lado
+ * (v68): soltar no ✕ não lança, soltar em outro lugar lança. Os jutsus com mira já saíam ao soltar: segurou até o cartão
+ * sem arrastar = só leu; arrastou para mirar = lança; arrastar e voltar ao meio cancela (como sempre).
  */
 const HOLD_INFO_MS = 450;
 const skillTip = { el: $('skill-tip'), timer: 0, shown: false };
@@ -5172,11 +5173,48 @@ function showSkillTip(button, skill) {
   skillTip.el.style.left = `${Math.max(8, Math.min(viewW - tw - 8, r.left + r.width / 2 - tw / 2))}px`;
   skillTip.el.style.top = `${Math.max(8, r.top - th - 10)}px`;
 }
-function armSkillTip(button) {
+/*
+ * v68 (pedido do Victor, 16/11): no jutsu que sai no toque (sem mira), segurar mostra o cartão E o botão ✕ Cancelar, ao
+ * lado do jutsu (para dentro da tela). Soltar em qualquer lugar lança; deslizar o dedo até o ✕ e soltar ali não lança.
+ */
+const skillCancel = { el: $('skill-cancel'), hot: false };
+function showSkillCancel(button) {
+  const el = skillCancel.el;
+  if (!el) return;
+  el.hidden = false;
+  el.classList.remove('hot');
+  skillCancel.hot = false;
+  const r = button.getBoundingClientRect();
+  const size = el.offsetWidth || 64;
+  const left = r.left - size - 34;   // para dentro da tela (os jutsus ficam à direita): o polegar desliza para a esquerda
+  el.style.left = `${Math.max(8, left)}px`;
+  el.style.top = `${Math.max(8, Math.min(viewH - size - 8, r.top + r.height / 2 - size / 2))}px`;
+}
+/** O dedo está em cima do ✕ (com 12 px de folga em volta)? Acende o ✕. */
+function trackSkillCancel(x, y) {
+  const el = skillCancel.el;
+  if (!el || el.hidden) return false;
+  const r = el.getBoundingClientRect();
+  const hot = x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 12 && y <= r.bottom + 12;
+  if (hot !== skillCancel.hot) { skillCancel.hot = hot; el.classList.toggle('hot', hot); }
+  return hot;
+}
+function hideSkillCancel() {
+  const hot = skillCancel.hot;
+  skillCancel.hot = false;
+  if (skillCancel.el) { skillCancel.el.hidden = true; skillCancel.el.classList.remove('hot'); }
+  return hot;
+}
+function armSkillTip(button, withCancel = false) {
   clearTimeout(skillTip.timer);
   skillTip.shown = false;
   if (!uiPref.holdInfo) return;
-  skillTip.timer = setTimeout(() => { const s = button.dataset.skill; if (s) showSkillTip(button, s); }, HOLD_INFO_MS);
+  skillTip.timer = setTimeout(() => {
+    const s = button.dataset.skill;
+    if (!s) return;
+    showSkillTip(button, s);
+    if (withCancel) showSkillCancel(button);
+  }, HOLD_INFO_MS);
 }
 function hideSkillTip() {
   clearTimeout(skillTip.timer);
@@ -5193,7 +5231,7 @@ function bindSkillButton(button, i) {
     e.preventDefault();
     if (hud.editing) return;          // modo "Editar layout": o toque arrasta, não ataca
     const skill = button.dataset.skill;
-    if (skill && !aim) armSkillTip(button);
+    if (skill && !aim) armSkillTip(button, !isLineSkill(skill));   // v68: o ✕ Cancelar só no jutsu que sai no toque
     if (!skill || !isLineSkill(skill) || aim) {
       if (!skill || aim || !uiPref.holdInfo) return castSlot(i);
       pending = e.pointerId;
@@ -5203,17 +5241,22 @@ function bindSkillButton(button, i) {
     try { button.setPointerCapture(e.pointerId); } catch { /* sem captura: o botão ainda recebe o soltar em cima dele */ }
     startAim(skill, button, { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY });
   });
+  // v68: soltou no ✕ Cancelar: não lança; soltou em qualquer outro lugar (leu ou não o cartão): lança.
   const releasePending = (e, cast) => {
     if (pending === null || pending !== e.pointerId) return false;
     pending = null;
-    const read = hideSkillTip();
-    if (cast && !read) castSlot(i);
+    if (cast) trackSkillCancel(e.clientX, e.clientY);
+    const canceled = hideSkillCancel();
+    hideSkillTip();
+    if (cast && !canceled) castSlot(i);
+    else if (canceled) { const me = state.players.get(state.meId); if (me) addFloater(me.x, me.y - 0.9, 'Jutsu cancelado', '#d8cdb8', 0.75); }
     return true;
   };
   button.addEventListener('pointerup', (e) => { releasePending(e, true); });
   button.addEventListener('pointercancel', (e) => { releasePending(e, false); });
   button.addEventListener('lostpointercapture', (e) => { releasePending(e, false); });
   button.addEventListener('pointermove', (e) => {
+    if (pending !== null && pending === e.pointerId) { e.preventDefault(); trackSkillCancel(e.clientX, e.clientY); return; }
     if (!aim || aim.pointerId !== e.pointerId) return;
     e.preventDefault();
     const scale = hud.btnScale || 1;

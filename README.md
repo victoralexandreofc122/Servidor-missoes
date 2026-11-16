@@ -240,6 +240,11 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v68: ✕ Cancelar no toque longo (sem migração; pedido do Victor em 16/11)
+
+- No jutsu que sai no toque (sem mira), segurar mostra o cartão e o **✕ Cancelar** ao lado do jutsu, para dentro da tela.
+  Deslizar o dedo até o ✕ e soltar ali não lança ("Jutsu cancelado"); soltar em qualquer outro lugar lança.
+
 ### v67: as 8 propostas do guia de UI (sem migração; aceitas pelo Victor em 16/11)
 
 - **Joystick fixo** (opção), **✋ Cancelar selos** (colado na barra de selos; sem perder chakra nem recarga), **retratos

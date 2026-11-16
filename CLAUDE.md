@@ -33,6 +33,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v68 (sem migração):** no toque longo do jutsu sem mira, o ✕ Cancelar (deslizar até ele e soltar não lança). Branch `ccr-ui-hud`.
 - **v67 (as 8 propostas do guia de UI, sem migração):** joystick fixo, ✋ cancelar selos, retratos no PvP, câmera da mira,
   toque longo no jutsu, "Enquanto você esteve fora", daltonismo na auditoria, barras escondidas (opção). Branch `ccr-ui-hud`.
 - **v66 (UI, UX e HUD pelo guia, sem migração):** alvos de toque de 44 px, texto de 12 px, HUD de combate, erros com causa

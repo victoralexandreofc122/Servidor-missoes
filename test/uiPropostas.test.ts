@@ -107,10 +107,24 @@ describe('v67: cliente', () => {
     assert.match(game, /const pan = aimPan\(\);/);
   });
 
-  it('toque longo: o cartão aparece em 450 ms; o jutsu sem mira sai ao soltar, e não sai se o cartão foi lido', () => {
+  it('toque longo: o cartão aparece em 450 ms; o jutsu sem mira sai ao soltar', () => {
     assert.match(game, /const HOLD_INFO_MS = 450;/);
-    assert.match(game, /if \(cast && !read\) castSlot\(i\);/);
     assert.match(html, /id="skill-tip" class="skill-tip" role="tooltip" hidden/);
+  });
+
+  it('v68: no jutsu que sai no toque, segurar mostra o ✕ Cancelar; soltar nele não lança, soltar fora lança', () => {
+    assert.match(html, /id="skill-cancel" class="skill-cancel" hidden/);
+    assert.match(game, /armSkillTip\(button, !isLineSkill\(skill\)\)/, 'o ✕ só no jutsu sem mira');
+    assert.match(game, /if \(cast && !canceled\) castSlot\(i\);/);
+    assert.match(game, /if \(pending !== null && pending === e\.pointerId\) \{ e\.preventDefault\(\); trackSkillCancel\(e\.clientX, e\.clientY\); return; \}/);
+    assert.match(css, /\.skill-cancel \{[^}]*width: 64px;[^}]*height: 64px;/, 'alvo grande');
+    // a conta do "em cima do ✕" (12 px de folga)
+    const src = game.slice(game.indexOf('function trackSkillCancel('), game.indexOf('\n}\n', game.indexOf('function trackSkillCancel(')) + 2);
+    const el = { hidden: false, getBoundingClientRect: () => ({ left: 100, right: 164, top: 100, bottom: 164 }), classList: { toggle() {} } };
+    const track = new Function('skillCancel', `${src}; return trackSkillCancel;`)({ el, hot: false });
+    assert.equal(track(130, 130), true);
+    assert.equal(track(90, 175), true, 'na folga');
+    assert.equal(track(60, 130), false);
   });
 
   it('retratos no PvP: até 3 inimigos a 12 casas, um toque foca e outro solta', () => {
