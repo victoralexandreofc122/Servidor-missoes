@@ -7032,11 +7032,15 @@ export class GameWorld {
   private sendQueueTo(s: Session): void {
     const pos = queuePosition(this.rankedQueue, s.id);
     const mine = this.jouninQueue.filter((e) => e.village === s.village);
+    // v69 (revisão de jogabilidade, rodada 5): "Próximo: X × Y" para a plateia e o aviso "você é o próximo"
+    const pick = takeMatch(this.rankedQueue);
+    const name = (id: string) => this.sessions.get(id)?.username ?? '?';
     this.sendTo(s, {
       type: 'duel_queue', queued: pos > 0, position: pos, size: this.rankedQueue.length,
       ...(this.jounin ? { jounin: { position: queuePosition(mine, s.id), size: mine.length } } : {}),
       ...(this.finalStage() ? { final: { position: this.finalQueue.indexOf(s.id) + 1, size: this.finalQueue.length } } : {}),
       ...(this.team3Queue.length > 0 ? { team3: { queued: this.team3Queue.some((e) => e.ids.includes(s.id)), players: this.team3Queue.reduce((n, e) => n + e.ids.length, 0) } } : {}),
+      ...(pick ? { next: { a: name(pick.a), b: name(pick.b), me: s.id === pick.a || s.id === pick.b } } : {}),
     });
   }
 
@@ -7851,7 +7855,9 @@ export class GameWorld {
 
   /** A posição de cada um na fila (e o tamanho dela para quem assiste). */
   private sendQueues(): void {
-    for (const s of this.mapPlayers.get('vale_estatuas') ?? []) this.sendQueueTo(s);
+    // v69: todas as arenas (com as 4 em paralelo, quem foi para a Arena 2 também precisa saber que saiu da fila e quem é o
+    // próximo; antes só o Vale recebia, e o "Próximo: VOCÊ" ficava na tela durante a própria luta)
+    for (const arena of ARENAS) for (const s of this.mapPlayers.get(arena) ?? []) this.sendQueueTo(s);
   }
 
   /** Luta de arena acabou: placar (em memória) e aviso para todos no mapa. Sem XP nem ryō: é treino. */

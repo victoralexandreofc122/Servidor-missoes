@@ -240,6 +240,21 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v69: polimento do rankeado (sem migração; revisões de jogabilidade, estilo e celular da rodada 5)
+
+- **Próximo: X × Y** no placar, para a plateia (com as 4 arenas ocupadas) e, para quem é o próximo, o aviso "Você é o
+  próximo!" com som e vibração. A fila agora vai para todas as arenas (o "Próximo" velho não fica na tela de quem já luta).
+- **Tela do resultado:** fita com entalhe, **selo redondo da faixa** (B, P, O, D, L) e **"Faltam N pontos para OURO"**.
+  No celular deitado a fita fica menor e embaixo do placar (antes cobria o placar inteiro).
+- **Nomes colados** (fila, plateia): contam pela largura da plaquinha e empilham mais de dois.
+- **Status do minimapa** curto: sem "online" (a bolinha já diz) e a zona segura em 🕊️ (antes cortava).
+- **Arte do Vale:** arquibancada em degraus de verdade (topo claro, face escura para a arena, sombra caindo e assentos
+  de madeira em blocos), estátua com borda de volume em cada peça, mechas acesas e sombra sob a bandana, mureta em blocos
+  com contorno, encostas em pedras arredondadas com grama na borda, holofotes mais fracos de dia.
+- **Prova:** partida real no navegador, Kaito (1045) x Mei: "Subiu para PRATA!", +10 pontos, 1055, "Faltam 95 pontos
+  para OURO"; a Mei vê DERROTA com o selo B e "Faltam 60 pontos para PRATA". Testes em `test/rankeadoPolimento.test.ts`.
+- Já resolvidos antes desta versão: a tolerância de reconexão antes do W.O. (v59) e o estandarte azul com X (o mapa mudou).
+
 ### v68: ✕ Cancelar no toque longo (sem migração; pedido do Victor em 16/11)
 
 - No jutsu que sai no toque (sem mira), segurar mostra o cartão e o **✕ Cancelar** ao lado do jutsu, para dentro da tela.
