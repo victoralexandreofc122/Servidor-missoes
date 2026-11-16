@@ -228,7 +228,7 @@ describe('combate: habilidades', () => {
     world.spawnMonster({ x: S.x + 1, y: S.y });
     run(2100);
     const hits = a.conn.of('hit').filter((h) => h.target === 'player');
-    assert.deepEqual(hits.map((h) => [h.amount, h.shielded ?? false]), [[5, true], [10, false]]);
+    assert.deepEqual(hits.map((h) => [h.amount, h.shielded ?? false]), [[4, true], [8, false]]);   // v70: o Lodo Verde bate 8
     assert.equal(a.conn.last('stats').shield, false);
   });
 
@@ -312,9 +312,10 @@ describe('combate: morte, renascimento e autoridade do servidor', () => {
     assert.equal(a.conn.last('error').code, 'RESPAWN_NOT_READY', 'vivo não "renasce" de novo');
   });
 
-  it('monstro morto: XP e ryō para o ÚLTIMO golpe (gravados antes de avisar), outro nasce na hora; promoção vinda do banco é anunciada', async () => {
+  it('monstro morto: XP e ryō para o ÚLTIMO golpe (gravados antes de avisar), outro nasce na hora (respawnMs 0); promoção vinda do banco é anunciada', async () => {
     const fake = fakeProgression(100);
-    const { world, connect } = setupWorld({ ...config(), combat: { ...config().combat, monsters: { ...config().combat.monsters, count: 1 } } }, fake.progression);
+    // v70: o padrão agora é 1 minuto (test/ajustesV70.test.ts); aqui, 0 para matar 5 em seguida
+    const { world, connect } = setupWorld({ ...config(), combat: { ...config().combat, monsters: { ...config().combat.monsters, count: 1, respawnMs: 0 } } }, fake.progression);
     const a = connect('kaito');
     const b = connect('mei');
     const F = { x: 51, y: 10 };                                // clareira da Floresta (onde nascem os monstros)

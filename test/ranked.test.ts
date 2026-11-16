@@ -109,7 +109,7 @@ describe('modo rankeado (v29): Arena das Quatro Heranças, fila e partida', () =
     const b = join('mei');
     for (const p of [a, b]) { p.send({ type: 'ranked', action: 'enter' }); p.send({ type: 'ranked', action: 'queue' }); }
     run(REALTIME.tickMs + DUEL.prepMs);
-    session(w, a.id).hp = 10;
+    Object.assign(session(w, a.id), { hp: 10, chakra: 0 });   // v70: sem o chakra cheio a vida não volta sozinha (regen de 2/s)
     run(DUEL.roundMs + REALTIME.tickMs);
     assert.deepEqual(a.conn.last('duel_state').wins, { a: 0, b: 1 });
   });

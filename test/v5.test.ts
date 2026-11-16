@@ -71,7 +71,7 @@ describe('v5: energia', () => {
     const s = sess(world, a.id);
     s.hp = 50;
     run(2000);
-    assert.ok(Math.abs(s.hp - 52) < 0.01, `chakra cheio: +1/s (${s.hp})`);
+    assert.ok(Math.abs(s.hp - 54) < 0.01, `chakra cheio: +2/s (v70; ${s.hp})`);
     a.send({ type: 'cast', skill: 'fire' });                     // chakra 80
     const hp = s.hp;
     run(3000);
@@ -80,21 +80,19 @@ describe('v5: energia', () => {
     a.send({ type: 'meditate', active: true });
     run(1400);                                                    // 15/s: 80 -> 100 em ~1,33 s
     assert.equal(s.chakra, 100);
-    run(2000);                                                    // 6,4 s desde o golpe: ainda não
-    assert.equal(s.hp, hp, 'v29: a vida espera 7 s sem gastar chakra');
-    run(1600);
-    assert.ok(s.hp > hp + 0.5, 'chakra cheio e 7 s de calma: a vida volta a subir');
+    run(1000);                                                    // v70: já passou de 3 s desde o golpe
+    assert.ok(s.hp > hp + 0.5, 'chakra cheio e 3 s de calma (v70): a vida volta a subir');
   });
 
-  it('v29: apanhar também segura a vida por 7 s (com o chakra cheio)', () => {
+  it('v29: apanhar também segura a vida (v70: por 3 s, com o chakra cheio)', () => {
     const { world, connect, run, clock } = setupWorld(config);
     const a = connect('kaito');
     const s = sess(world, a.id);
     s.hp = 50;
     s.calmSince = clock.now();                                    // acabou de apanhar
-    run(6500);
+    run(2500);
     assert.equal(s.hp, 50);
-    run(1500);
+    run(1000);
     assert.ok(s.hp > 50.5);
   });
 

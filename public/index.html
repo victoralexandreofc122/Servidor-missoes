@@ -35,13 +35,15 @@
     -->
     <!-- Você: retrato, nível, vida, chakra, ryō e os efeitos ativos. Arrastável no "Editar layout". -->
     <div id="vitals" class="hud-me" aria-label="Você">
-      <div class="portrait">
+      <!-- v70 (pedido do Victor, 17/11): tocar no retrato abre os atributos (o "+N" mostra os pontos para distribuir) -->
+      <div id="portrait-btn" class="portrait" role="button" tabindex="0" aria-label="Atributos: distribuir pontos">
         <canvas id="portrait" width="128" height="128" aria-hidden="true"></canvas>
         <b id="level-badge" class="level-badge" aria-label="Nível">1</b>
+        <b id="portrait-points" class="portrait-points" hidden></b>
       </div>
       <div class="me-info">
         <div class="me-row">
-          <span class="me-label">Vida</span>
+          <span id="me-name" class="me-label">Ninja</span>   <!-- v70: o nome do jogador no lugar de "Vida" -->
           <span class="money" aria-label="ryō"><i class="coin" aria-hidden="true"></i><b id="ryo-text">0</b> ryō</span>
         </div>
         <div class="bar bar-hp" role="meter" aria-label="Vida" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
@@ -137,10 +139,23 @@
       <!-- v55: as lutas de todas as arenas (painel de espectador) -->
       <button id="arenas-btn" class="duel-btn duel-board-btn" type="button" aria-controls="arenas-panel">📺 Lutas</button>
       <button id="duel-board-btn" class="duel-btn duel-board-btn" type="button" aria-controls="ranked-panel" aria-label="Ranking" title="Ranking">🏆</button>
+      <button id="mode-switch-btn" class="duel-btn duel-board-btn" type="button">⇄ 3v3</button>   <!-- v70: troca de arena -->
     </div>
 
     <!-- v29 (migração v15): o ranking do rankeado. -->
     <!-- v55: painel de espectador: as lutas acontecendo agora; tocar numa leva você para assistir como fantasma -->
+    <!-- v70 (pedido do Victor, 17/11): ao apertar Rankeado, escolher 1v1 ou 3v3 -->
+    <section id="mode-panel" class="mission-panel mode-panel" hidden role="dialog" aria-labelledby="mode-title">
+      <header class="mission-head">
+        <h2 id="mode-title"><span aria-hidden="true">⚔️</span> Rankeado</h2>
+        <button id="mode-close" class="icon-btn small" type="button" aria-label="Fechar"><span aria-hidden="true">✕</span></button>
+      </header>
+      <p class="mission-sensei">Escolha como quer lutar:</p>
+      <div class="mode-choices">
+        <button id="mode-1v1" type="button" class="mode-choice"><b>⚔️ 1v1</b><span>Arena das Quatro Heranças: você contra um, melhor de 3.</span></button>
+        <button id="mode-3v3" type="button" class="mode-choice"><b>👥 3v3</b><span>Arena 3v3, maior: três contra três, sozinho ou com o seu trio.</span></button>
+      </div>
+    </section>
     <section id="arenas-panel" class="mission-panel ranked-panel arenas-panel" hidden role="dialog" aria-labelledby="arenas-title">
       <header class="mission-head">
         <h2 id="arenas-title"><span aria-hidden="true">📺</span> Lutas agora</h2>

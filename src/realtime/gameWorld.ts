@@ -84,7 +84,7 @@ import {
 import { NO_CLASS, PvpStats, reportText, toClassRows } from './pvpStats.js';
 import { DUEL, TEAM3, takeTeamMatch, type TeamEntry, leavePenalty, addDamage, advance, endRound, fighters, forfeit, newMatch, other, queuePosition, sideOf, takeMatch, takeVillageMatch, type VillageEntry, timeoutWinner, type DuelMatch, type DuelMode, type QueueEntry, type Side } from './duel.js';
 import {
-  VALE, ACADEMY, REFUGE, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
+  VALE, ACADEMY, REFUGE, arenaGeo, academySpawn, arenaAt, conflictCamp, crossedGap, inSafeZone, villagePlan, type Arena, type CampOwner, type HuntZone, type MapId,
   type MapLayout, type Wall,
 } from './maps.js';
 import { TokenBucket } from './tokenBucket.js';
@@ -710,6 +710,14 @@ const SUMMON_SKILL: Readonly<Record<string, Skill>> = { golem: 'stone_golem', se
 
 /** v55: as arenas, na ordem em que recebem lutas: a principal (com arquibancada) e as extras, para as lutas em paralelo. */
 const ARENAS: readonly MapId[] = ['vale_estatuas', 'arena_2', 'arena_3', 'arena_4'];
+/**
+ * v70 (pedido do Victor, 17/11): o rankeado 3v3 tem a arena dele (`vale_trio`, maior), que é também a praça de quem escolheu
+ * 3v3. As 4 de cima são do 1v1 (e dos torneios); ALL_ARENAS = todas (filas, plateia, fantasma, guarda de reconexão).
+ */
+const TRIO_ARENA: MapId = 'vale_trio';
+const ALL_ARENAS: readonly MapId[] = [...ARENAS, TRIO_ARENA];
+/** A praça de cada arena: a do 3v3 é ela mesma; as do 1v1 voltam para a Arena das Quatro Heranças. */
+const plazaOf = (map: MapId | string): MapId => (map === TRIO_ARENA ? TRIO_ARENA : 'vale_estatuas');
 
 /**
  * v59: a conexão caiu (o celular corta ao trocar de app ou de aba, a rede oscilou): o servidor guarda o ninja onde
@@ -837,6 +845,8 @@ export class GameWorld {
   private readonly pvpStats: PvpStats;
   /** Densidade: quando cada mapa de caça pode ganhar ou perder o próximo monstro. */
   private readonly densityAt = new Map<MapId, number>();
+  /** v70: por mapa de caça, quando cada monstro morto pode voltar (contam como "já existe" até lá). */
+  private readonly huntDue = new Map<MapId, number[]>();
   // ------------------------------------------------ fim de jogo (v16)
   private readonly endgame: EndgameStore | undefined;
   private readonly watch: WorldWatch;
@@ -1332,7 +1342,7 @@ export class GameWorld {
     this.duelRejoin(session);                  // v29: caiu no meio da partida do rankeado e voltou a tempo
     if (this.layout(session.map).ranked) {
       // v55: reconectou numa arena extra sem luta (ou assistindo): volta para a praça da Arena das Quatro Heranças
-      if (session.map !== 'vale_estatuas' && !this.duelOf(session.id)) { session.watching = undefined; const at = this.valeArrival(); this.transfer(session, 'vale_estatuas', at.x, at.y, 'travel'); }
+      if (session.map !== plazaOf(session.map) && !this.duelOf(session.id)) { session.watching = undefined; const at = this.valeArrival(); this.transfer(session, 'vale_estatuas', at.x, at.y, 'travel'); }
       this.sendDuelState(session);
       this.sendJouninState(session);   // v43: reconectou já na Arena: o placar, as filas e o Torneio
       this.sendChampionState(session);
@@ -1874,7 +1884,7 @@ export class GameWorld {
   private vinculoAllowed(s: Session): boolean {
     const layout = this.layout(s.map);
     if (s.tutorial < 4 || s.watching || s.dead) return false;
-    if (ARENAS.includes(s.map) || layout.ranked || layout.conflict) return false;
+    if (ALL_ARENAS.includes(s.map) || layout.ranked || layout.conflict) return false;
     if (arenaAt(layout, s.x, s.y)) return false;
     if (this.duelOf(s.id)) return false;
     return true;
@@ -2337,7 +2347,7 @@ export class GameWorld {
 
   /** v59: o lugar que vale gravar; null = nascer na praça (morto, na arena/Vale, fantasma, ainda no tutorial). */
   private positionOf(s: Session): { map: string; x: number; y: number } | null {
-    if (s.dead || s.watching || s.tutorial < 4 || ARENAS.includes(s.map)) return null;
+    if (s.dead || s.watching || s.tutorial < 4 || ALL_ARENAS.includes(s.map)) return null;
     return { map: s.map, x: Math.round(s.x * 100) / 100, y: Math.round(s.y * 100) / 100 };
   }
 
@@ -2345,7 +2355,7 @@ export class GameWorld {
   private savedSpot(pos: JoiningPlayer['lastPosition']): { map: MapId; x: number; y: number } | undefined {
     if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return undefined;
     const layout = this.config.maps[pos.map as MapId];
-    if (!layout || ARENAS.includes(pos.map as MapId) || pos.map === 'academy_interior') return undefined;
+    if (!layout || ALL_ARENAS.includes(pos.map as MapId) || pos.map === 'academy_interior') return undefined;
     if (pos.x < 0.5 || pos.y < 0.5 || pos.x > layout.width - 0.5 || pos.y > layout.height - 0.5 || blocked(pos.x, pos.y, layout.walls)) return undefined;
     return { map: pos.map as MapId, x: pos.x, y: pos.y };
   }
@@ -2381,7 +2391,7 @@ export class GameWorld {
   private park(session: Session): void {
     const t = this.now();
     for (const [id, p] of this.parked) if (p.until <= t) this.parked.delete(id);   // limpa as vencidas
-    if (session.watching || ARENAS.includes(session.map)) return;
+    if (session.watching || ALL_ARENAS.includes(session.map)) return;
     session.meditating = false;
     session.sitting = false;
     this.parked.set(session.id, { session, until: t + RECONNECT_GRACE_MS });
@@ -2467,7 +2477,7 @@ export class GameWorld {
     else if (parsed.type === 'power') this.power(session, t, parsed.targetId, parsed.dir);
     else if (parsed.type === 'set_display') this.setDisplay(session, { cape: parsed.cape, weapon: parsed.weapon, scroll: parsed.scroll });
     else if (parsed.type === 'travel') this.travel(session, parsed.to, t);
-    else if (parsed.type === 'ranked') this.rankedAction(session, parsed.action, t);
+    else if (parsed.type === 'ranked') this.rankedAction(session, parsed.action, t, parsed.mode);
     else if (parsed.type === 'watch') this.watchArena(session, parsed.arena);
     else if (parsed.type === 'trio') this.trioAction(session, parsed.action, parsed.name, parsed.leaderId);
     else if (parsed.type === 'vinculo') this.vinculoAction(session, parsed.action, parsed.creature, t);
@@ -5267,7 +5277,10 @@ export class GameWorld {
       this.respawns.push({ type: m.type, map: m.map, home: m.home, at: t + type.respawnMs, ...(m.zone ? { zone: m.zone } : {}) });
     } else if (!m.admin && !m.summonedBy) {
       const layout = this.layout(m.map);
-      if (!layout.safe && layout.hunt && this.huntCount(m.map) < this.densityTarget(m.map)) this.spawnMonster(undefined, t, m.map);
+      // v70 (pedido do Victor, 17/11): o monstro de caça morto volta depois de `respawnMs` (1 min), não na hora
+      const wait = this.config.combat.monsters.respawnMs ?? 0;
+      if (wait > 0 && !layout.safe && layout.hunt) this.huntDue.set(m.map, [...(this.huntDue.get(m.map) ?? []), t + wait]);
+      else if (!layout.safe && layout.hunt && this.huntCount(m.map) < this.densityTarget(m.map)) this.spawnMonster(undefined, t, m.map);
     }
     // Invocado pelo admin: nada de XP, ryō, drop, missão nem tutorial (e não renasce).
     if (m.admin) return;
@@ -5330,7 +5343,9 @@ export class GameWorld {
     for (const layout of this.huntingMaps()) {
       if ((this.densityAt.get(layout.id) ?? 0) > t) continue;
       const want = this.densityTarget(layout.id);
-      const have = this.huntCount(layout.id);
+      const due = (this.huntDue.get(layout.id) ?? []).filter((at) => at > t);   // v70: os mortos ainda esperando a vez
+      this.huntDue.set(layout.id, due);
+      const have = this.huntCount(layout.id) + due.length;
       if (have === want) continue;
       this.densityAt.set(layout.id, t + (cfg.spawnEveryMs ?? 1000));
       if (have < want) {
@@ -6398,7 +6413,7 @@ export class GameWorld {
   // ---------------------------------------------------------------- modo rankeado (v29, duel.ts)
 
   /** Botões do modo rankeado: entrar no Vale, sair dele, entrar e sair da fila do Desafio. */
-  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand' | 'jounin_queue' | 'jounin_unqueue' | 'jounin_board' | 'final_queue' | 'final_unqueue' | 'final_board' | 'champion_join' | 'champion_queue' | 'champion_unqueue' | 'team3_queue' | 'team3_unqueue', t: number): void {
+  private rankedAction(s: Session, action: 'enter' | 'leave' | 'queue' | 'unqueue' | 'board' | 'sit' | 'stand' | 'jounin_queue' | 'jounin_unqueue' | 'jounin_board' | 'final_queue' | 'final_unqueue' | 'final_board' | 'champion_join' | 'champion_queue' | 'champion_unqueue' | 'team3_queue' | 'team3_unqueue', t: number, mode?: '1v1' | '3v3'): void {
     if (action === 'jounin_board') return this.jouninBoard(s, t);
     if (action === 'champion_join' || action === 'champion_queue' || action === 'champion_unqueue') return this.championAction(s, action, t);
     if (action === 'team3_queue' || action === 'team3_unqueue') return this.team3Action(s, action, t);
@@ -6408,7 +6423,7 @@ export class GameWorld {
     if (action === 'sit') {
       // só em cima da arquibancada do Vale, fora da partida
       if (s.dead || s.sitting || s.watching || !this.layout(s.map).ranked || this.duelOf(s.id)) return;
-      if (!VALE.stands.some((b) => s.x >= b.x && s.x <= b.x + b.w && s.y >= b.y && s.y <= b.y + b.h)) return;
+      if (!arenaGeo(s.map).stands.some((b) => s.x >= b.x && s.x <= b.x + b.w && s.y >= b.y && s.y <= b.y + b.h)) return;
       this.stopMeditation(s, 'manual');
       s.dx = 0;
       s.dy = 0;
@@ -6418,20 +6433,29 @@ export class GameWorld {
     }
     if (s.dead || s.closed) return;
     const inVale = s.map === 'vale_estatuas';
+    const inArena = this.layout(s.map).ranked === true;   // v70: o Vale (1v1) ou a arena do 3v3
     if (action === 'enter') {
-      if (inVale) return;
+      // v70 (pedido do Victor, 17/11): ao apertar Rankeado, o jogador escolhe 1v1 ou 3v3; dá para trocar estando numa delas
+      const target: MapId = mode === '3v3' ? TRIO_ARENA : 'vale_estatuas';
+      if (s.map === target) return;
       if (s.tutorial < 4) return this.notice(s.id, 'Termine a Academia para jogar o rankeado.', 'bad');
-      this.rankedReturn.set(s.id, { map: s.map, x: s.x, y: s.y });
+      const fighting = this.duelOf(s.id);
+      if (fighting && fighting.phase !== 'done') return this.notice(s.id, 'A luta já começou: vá até o fim!', 'bad');
+      if (inArena) {
+        if (s.watching) this.unwatch(s, false);
+        this.rankedGone(s);                                  // trocou de modo: sai das filas do outro
+      } else this.rankedReturn.set(s.id, { map: s.map, x: s.x, y: s.y });
       this.stopMeditation(s, 'manual');
-      const at = this.valeArrival();
-      this.transfer(s, 'vale_estatuas', at.x, at.y, 'travel');
+      const at = this.valeArrival(target);
+      this.transfer(s, target, at.x, at.y, 'travel');
       this.sendDuelState(s);
       this.sendJouninState(s);
       this.sendChampionState(s);
       this.sendTo(s, { type: 'arenas', list: this.arenasView(), watching: null });
       return;
     }
-    if (!inVale) return;
+    if (!inArena) return;
+    if (!inVale && action !== 'leave' && action !== 'unqueue') return;   // v70: fila do 1v1 e torneios só no Vale
     if (action === 'jounin_queue') return this.jouninEnqueue(s, t);
     if (action === 'final_queue') return this.finalEnqueue(s, t);
     if (action === 'final_unqueue') {
@@ -6554,11 +6578,12 @@ export class GameWorld {
   }
 
   /** v29 (revisão EGM): onde se chega no Vale, espalhado pela praça de baixo (longe de quem já está lá). */
-  private valeArrival(): { x: number; y: number } {
-    const others = [...(this.mapPlayers.get('vale_estatuas') ?? [])];
-    let best: { x: number; y: number } = { x: VALE.spawn.x, y: VALE.spawn.y }, bestD = -1;
+  private valeArrival(map: MapId = 'vale_estatuas'): { x: number; y: number } {
+    const geo = arenaGeo(map);   // v70: a praça do Vale ou a do 3v3
+    const others = [...(this.mapPlayers.get(map) ?? [])];
+    let best: { x: number; y: number } = { x: geo.spawn.x, y: geo.spawn.y }, bestD = -1;
     for (let i = 0; i < 8; i++) {
-      const p = { x: 13 + Math.random() * 18, y: 25 + Math.random() * 6 };
+      const p = { x: geo.spawn.x - 9 + Math.random() * 18, y: geo.spawn.y - 2 + Math.random() * 6 };
       const dmin = Math.min(99, ...others.map((o) => Math.hypot(o.x - p.x, o.y - p.y)));
       if (dmin > bestD) { bestD = dmin; best = p; }
       if (dmin >= 2) break;
@@ -6589,7 +6614,7 @@ export class GameWorld {
     const side = sideOf(d, id) ?? 'a';
     const team = d.teams[side];
     const i = Math.max(0, team.indexOf(id));
-    const at = VALE.start[side];
+    const at = arenaGeo(d.arena).start[side];   // v70: a arena do 3v3 é maior
     return { x: at.x, y: at.y + (i - (team.length - 1) / 2) * 2 };
   }
 
@@ -6655,6 +6680,11 @@ export class GameWorld {
    */
   private matchmake(t: number): void {
     if ([...this.duels.values()].some((d) => d.big)) return;
+    // v70: o 3v3 luta só na arena dele (a maior)
+    if (!this.duels.has(TRIO_ARENA)) {
+      const team = this.team3Pick();
+      if (team) this.startMatch(team, TRIO_ARENA, t);
+    }
     for (;;) {
       if (this.nextBig(false)) {
         if (this.duels.size > 0) return;            // espera as outras lutas acabarem (a dupla continua na fila)
@@ -6691,8 +6721,6 @@ export class GameWorld {
     }
     const champ = this.championPick(false, true);
     if (champ) return champ;
-    const team = this.team3Pick();
-    if (team) return team;
     // entre o rankeado e o Torneio, luta primeiro a dupla de quem espera há mais tempo
     const ranked = takeMatch(this.rankedQueue);
     const tourney = takeVillageMatch(this.jouninQueue);
@@ -6906,8 +6934,9 @@ export class GameWorld {
       const s = this.duelSession(id);
       if (!s) continue;
       const wasDead = this.duelRefresh(s, t);
-      const at = this.valeArrival();
-      this.transfer(s, 'vale_estatuas', at.x, at.y, 'respawn');
+      const plaza = plazaOf(d.arena);   // v70: quem lutou no 3v3 fica na praça do 3v3
+      const at = this.valeArrival(plaza);
+      this.transfer(s, plaza, at.x, at.y, 'respawn');
       if (wasDead) this.broadcastMap(s.map, { type: 'player_respawned', playerId: s.id, x: s.x, y: s.y, hp: s.hp, maxHp: s.stats.maxHp });
       this.sendStats(s, t);
     }
@@ -6961,7 +6990,7 @@ export class GameWorld {
   /** v55: as lutas de agora, para o painel "Assistir". */
   private arenasView(): ArenaFightView[] {
     const name = (id: string) => this.sessions.get(id)?.username ?? '?';
-    return ARENAS.flatMap((arena) => {
+    return ALL_ARENAS.flatMap((arena) => {
       const d = this.duels.get(arena);
       if (!d) return [];
       return [{ arena, arenaName: this.layout(arena).name, label: d.label, mode: d.mode, big: d.big, a: d.teams.a.map(name), b: d.teams.b.map(name),
@@ -6972,7 +7001,7 @@ export class GameWorld {
   /** v55: manda a lista de lutas para quem está nas arenas (inclusive os fantasmas). */
   private broadcastArenas(): void {
     const list = this.arenasView();
-    for (const arena of ARENAS) {
+    for (const arena of ALL_ARENAS) {
       for (const s of this.mapPlayers.get(arena) ?? []) this.sendTo(s, { type: 'arenas', list, watching: s.watching ?? null });
       for (const s of this.watchers.get(arena) ?? []) this.sendTo(s, { type: 'arenas', list, watching: s.watching ?? null });
     }
@@ -6986,8 +7015,8 @@ export class GameWorld {
   private watchArena(s: Session, arena: MapId | null): void {
     if (s.dead || s.closed || !this.layout(s.map).ranked) return;
     if (this.duelOf(s.id)) return this.notice(s.id, 'Você está lutando: assista depois da sua partida.', 'bad');
-    if (arena === null || arena === 'vale_estatuas') { if (s.watching) this.unwatch(s); return; }
-    if (!ARENAS.includes(arena) || s.watching === arena) return;
+    if (arena === null || arena === 'vale_estatuas' || arena === s.map) { if (s.watching) this.unwatch(s); return; }
+    if (!ALL_ARENAS.includes(arena) || s.watching === arena) return;
     if (!this.duels.has(arena)) return this.notice(s.id, 'Essa arena está vazia agora.', 'info');
     this.standUp(s);
     this.stopMeditation(s, 'manual');
@@ -6998,7 +7027,7 @@ export class GameWorld {
     }
     s.watching = arena;
     s.map = arena;
-    const f = VALE.fence;
+    const f = arenaGeo(arena).fence;
     s.x = f.x + f.w / 2;
     s.y = f.y + f.h / 2;
     s.dx = 0;
@@ -7442,7 +7471,7 @@ export class GameWorld {
       }
     }
     this.champPending = phase === 'chaves' ? await store.pending(era.id) : [];
-    if (was !== phase) for (const arena of ARENAS) for (const s of this.mapPlayers.get(arena) ?? []) this.sendChampionState(s);
+    if (was !== phase) for (const arena of ALL_ARENAS) for (const s of this.mapPlayers.get(arena) ?? []) this.sendChampionState(s);
   }
 
   /** v55: aviso do campeão para o servidor inteiro (o título já foi gravado pelo banco). */
@@ -7566,6 +7595,8 @@ export class GameWorld {
   private team3Action(s: Session, action: 'team3_queue' | 'team3_unqueue', t: number): void {
     if (action === 'team3_unqueue') { this.team3Leave(s.id); this.sendQueues(); return; }
     if (this.duelOf(s.id)) return;
+    // v70: a fila do 3v3 é na arena do 3v3 (Rankeado → 3v3)
+    if (s.map !== TRIO_ARENA) return this.notice(s.id, 'A fila do 3v3 é na Arena 3v3: aperte Rankeado e escolha 3v3.', 'bad');
     if (s.level < DUEL.minLevel) return this.notice(s.id, `O rankeado abre no nível ${DUEL.minLevel}.`, 'bad');
     const pen = this.rankedLeaves.get(s.id);
     if (pen && t < pen.until) return this.notice(s.id, `Você saiu de uma partida: espere ${Math.ceil((pen.until - t) / 1000)} s para entrar na fila de novo.`, 'bad');
@@ -7576,7 +7607,7 @@ export class GameWorld {
       const members = this.trios.get(leader)!;
       if (leader !== s.id) return this.notice(s.id, 'Quem põe o trio na fila é o líder.', 'bad');
       if (members.length !== TEAM3.size) return this.notice(s.id, `O trio está com ${members.length} de ${TEAM3.size}: convide mais ou entre sozinho saindo do trio.`, 'bad');
-      if (!members.every((id) => this.inArenaWorld(id) && !this.duelOf(id))) return this.notice(s.id, 'O trio todo precisa estar na Arena (e fora de luta).', 'bad');
+      if (!members.every((id) => this.sessions.get(id)?.map === TRIO_ARENA && !this.duelOf(id))) return this.notice(s.id, 'O trio todo precisa estar na Arena 3v3 (e fora de luta).', 'bad');
       ids = [...members];
     }
     // uma fila por vez
@@ -7857,7 +7888,7 @@ export class GameWorld {
   private sendQueues(): void {
     // v69: todas as arenas (com as 4 em paralelo, quem foi para a Arena 2 também precisa saber que saiu da fila e quem é o
     // próximo; antes só o Vale recebia, e o "Próximo: VOCÊ" ficava na tela durante a própria luta)
-    for (const arena of ARENAS) for (const s of this.mapPlayers.get(arena) ?? []) this.sendQueueTo(s);
+    for (const arena of ALL_ARENAS) for (const s of this.mapPlayers.get(arena) ?? []) this.sendQueueTo(s);
   }
 
   /** Luta de arena acabou: placar (em memória) e aviso para todos no mapa. Sem XP nem ryō: é treino. */
