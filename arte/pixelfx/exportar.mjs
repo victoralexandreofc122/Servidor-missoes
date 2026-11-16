@@ -5,8 +5,8 @@
 // Para cada efeito da lista EFEITOS: renderiza com as cores do jogo, monta a folha com os quadros numa
 // linha só (o formato que public/vfx.js lê) em public/assets/vfx/<nome>.png e escreve os números de
 // todos em public/vfxPixelfx.js. Não edite os arquivos gerados à mão: mude aqui e rode de novo.
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const pixelfx = process.argv[2];
@@ -17,17 +17,18 @@ if (!pixelfx) {
 const lib = await import(pathToFileURL(resolve(pixelfx, 'tools/lib/fxlib.mjs')).href);
 
 // Tinta preta com brasa, como o sprite do Rei Lodo (public/assets/monsters/rei_lodo.webp).
-const LODO = ['#08070c', '#17141f', '#2b2533', '#4a3f52', '#e0703a', '#ffd08a'];
+const LODO = ['#08070c', '#141119', '#221c26', '#3a2626', '#a8482a', '#e0703a'];
 
 /**
  * nome: como o jogo chama o efeito. id: o efeito no PixelFX. fps: quadros por segundo da folha.
  * pular: segundos cortados do começo. opcoes: as do efeito (cores...). px: pixels do boneco por pixel do efeito.
+ * remix: um efeito nosso em arte/pixelfx/efeitos/ (copiado para src/fx/heranca/ do PixelFX; o id vira heranca/<nome>).
  */
 const EFEITOS = [
   // A morte do Rei Lodo: o corpo estoura num "puf" de bolhas de lodo com brilhos...
   {
-    nome: 'rei_lodo_puf', id: 'spawn/poof', fps: 15, px: 2,
-    opcoes: { palette: LODO, stars: ['#ff8a3a', '#ffc070', '#fff0c0'] },
+    nome: 'rei_lodo_puf', remix: 'arte/pixelfx/efeitos/poof-tinta.js', fps: 15, px: 2,
+    opcoes: { palette: LODO, stars: ['#ff8a3a', '#ffc070', '#fff0c0'], highlight: '#e0703a' },
   },
   // ...e deixa no chão uma poça que ferve e some. Sem a gota caindo do começo (0,37 s).
   {
@@ -41,6 +42,11 @@ mkdirSync(saida, { recursive: true });
 const dados = {};
 
 for (const e of EFEITOS) {
+  if (e.remix) {
+    mkdirSync(join(pixelfx, 'src', 'fx', 'heranca'), { recursive: true });
+    copyFileSync(e.remix, join(pixelfx, 'src', 'fx', 'heranca', basename(e.remix)));
+    e.id = `heranca/${basename(e.remix, '.js')}`;
+  }
   const fx = await lib.loadEffect(e.id);
   const r = lib.renderFrames(fx, { fps: e.fps, bg: 'none', options: e.opcoes });
   const quadros = r.frames.filter((f) => f.t >= (e.pular ?? 0) - 1e-6);
