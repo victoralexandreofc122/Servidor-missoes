@@ -89,6 +89,9 @@ const FILES = [
   // Efeitos dos golpes e armas em pixel art (arte/armas-vfx): o código, os dados e as folhas (abaixo, em VFX_SHEETS/WEAPON_SHEETS).
   { route: '/vfx.js', file: 'vfx.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/vfxData.js', file: 'vfxData.js', contentType: 'text/javascript; charset=utf-8' },
+  // v66: efeitos do PixelFX (arte/pixelfx/exportar.mjs, licença MIT): os dados e as folhas (abaixo)
+  { route: '/vfxPixelfx.js', file: 'vfxPixelfx.js', contentType: 'text/javascript; charset=utf-8' },
+  ...sheets('vfx', ['rei_lodo_puf', 'rei_lodo_poca']),
   // v56: os sprites desenhados pelo Victor (3 quadros por jutsu: lançamento, ativo, fim)
   { route: '/vfxJutsus.js', file: 'vfxJutsus.js', contentType: 'text/javascript; charset=utf-8' },
   // v57: áudio (o gerenciador e as músicas)

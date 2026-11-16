@@ -11,7 +11,11 @@
  * - Projéteis: andam sozinhos na tela (velocidade e alcance do servidor) até chegar o `impact`.
  */
 import { VFX } from './vfxData.js';
+import { VFX_PIXELFX } from './vfxPixelfx.js';
 import { spriteScale } from './sprites.js';
+
+/** Os efeitos de arte/armas-vfx (vfxData.js) e os do PixelFX (vfxPixelfx.js, arte/pixelfx), juntos. */
+const EFEITOS = { ...VFX.efeitos, ...VFX_PIXELFX };
 
 const sheets = {};
 let loading = null;
@@ -19,7 +23,7 @@ let loading = null;
 /** Carrega todas as folhas (uma vez). Falhou alguma: o jogo usa os efeitos desenhados à mão. */
 export function loadVfx() {
   if (loading) return loading;
-  loading = Promise.all(Object.entries(VFX.efeitos).map(([name, e]) => new Promise((resolve) => {
+  loading = Promise.all(Object.entries(EFEITOS).map(([name, e]) => new Promise((resolve) => {
     const img = new Image();
     img.onload = () => { sheets[name] = img; resolve(); };
     img.onerror = () => resolve();
@@ -31,7 +35,7 @@ export function loadVfx() {
 export const vfxReady = (name) => Boolean(sheets[name]);
 
 /** Duração de um efeito (ms): quadros x tempo de cada quadro. */
-export const vfxDuration = (name) => (VFX.efeitos[name] ? VFX.efeitos[name].quadros * VFX.efeitos[name].ms : 0);
+export const vfxDuration = (name) => (EFEITOS[name] ? EFEITOS[name].quadros * EFEITOS[name].ms : 0);
 
 /** Pés do boneco: meia casa abaixo do centro (efeitos de chão: poeira, cura, pedra, amarra). */
 const FEET = 0.42;
@@ -55,7 +59,7 @@ export class VFXManager {
    * Devolve false se a folha não carregou (quem chamou desenha o efeito antigo).
    */
   play(name, x, y, opts = {}) {
-    const e = VFX.efeitos[name];
+    const e = EFEITOS[name];
     if (!e || !sheets[name]) return false;
     const start = (opts.start ?? performance.now()) + (opts.delay ?? 0);
     this.list.push({
@@ -85,7 +89,7 @@ export class VFXManager {
       if (now >= fx.end) continue;
       this.list[alive++] = fx;
       if (fx.layer !== layer || now < fx.start) continue;
-      const e = VFX.efeitos[fx.name];
+      const e = EFEITOS[fx.name];
       const frame = Math.min(e.quadros - 1, Math.floor((now - fx.start) / e.ms));
       drawFrame(g, sheets[fx.name], e, frame, toX(fx.x), toY(fx.y), s * e.px * fx.scale, fx.angle, dpr, fx.length);
     }
@@ -93,7 +97,7 @@ export class VFXManager {
     if (layer !== 'top') return;
     for (const [id, p] of this.shots) {
       if (now > p.until) { this.shots.delete(id); continue; }
-      const e = VFX.efeitos[p.name];
+      const e = EFEITOS[p.name];
       const d = Math.min(p.range, (p.speed * Math.max(0, now - p.start)) / 1000);
       const frame = Math.floor(Math.max(0, now - p.start) / e.ms) % e.quadros;
       drawFrame(g, sheets[p.name], e, frame, toX(p.x + p.fx * d), toY(p.y + p.fy * d), s * e.px * (p.scale ?? 1), Math.atan2(p.fy, p.fx), dpr);

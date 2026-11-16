@@ -1497,6 +1497,7 @@ function handleMessage(msg) {
     case 'monster_died': {
       const m = state.monsters.get(msg.id);
       if (m) { m.diedAt = now; m.hp = 0; if (!isCreature(m)) sfxAt('slime_die', m.x, m.y, 0.9); }   // v58
+      if (m?.type === 'rei_lodo') playReiLodoDeath(m, now);   // v66: o chefe estoura em lodo (PixelFX)
       if (state.vinculo?.summoned?.includes(msg.id)) { state.vinculo.summoned = state.vinculo.summoned.filter((x) => x !== msg.id); renderVinculo(); }   // v60
       if (state.focusId === msg.id) setFocus(null);
       break;
@@ -8412,6 +8413,16 @@ const MONSTER_LOOK = {
 const DARK_MONSTERS = new Set(['rei_lodo', 'lodo_sombrio']);
 /** Tamanho de cada tipo (1 = o slime). */
 const MONSTER_SCALE = { rei_lodo: 2.3 };
+
+/**
+ * v66: a morte do Rei Lodo (PixelFX, arte/pixelfx): o corpo estoura num "puf" de bolhas verdes por cima e deixa
+ * uma poça que ferve no chão. Os dois têm a âncora no pé; o pé do Rei fica 0,82 do raio abaixo do centro.
+ */
+function playReiLodoDeath(m, now) {
+  const feet = m.y + 0.4 * MONSTER_SCALE.rei_lodo * 0.82;
+  vfx.play('rei_lodo_poca', m.x, feet, { start: now, layer: 'ground', scale: 1.2 });
+  vfx.play('rei_lodo_puf', m.x, feet, { start: now, scale: 1.4 });
+}
 
 /**
  * Slime chibi: corpo em gota (base achatada, topo redondo) que respira, degradê de cima para baixo, contorno escuro,

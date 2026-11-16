@@ -9,6 +9,7 @@ import { JUTSU_SPRITE_FRAMES, loadPublicFiles } from '../src/web/staticFiles.js'
  * servido pela lista fechada, e toda arma da loja tem arte no boneco.
  */
 const { VFX } = await import(new URL('../public/vfxData.js', import.meta.url).href);
+const { VFX_PIXELFX } = await import(new URL('../public/vfxPixelfx.js', import.meta.url).href);
 const { ARMAS } = await import(new URL('../public/weaponData.js', import.meta.url).href);
 const RIG = await import(new URL('../public/rig.js', import.meta.url).href);
 const ART = await import(new URL('../public/rigArt.js', import.meta.url).href);
@@ -122,13 +123,13 @@ describe('lista fechada de arquivos (staticFiles)', () => {
     // (os atlas dos monstros, em /assets/monsters, têm o próprio teste: test/monstros.test.ts)
     const served = new Set(files.filter((f) => f.route.startsWith('/assets/') && !f.route.startsWith('/assets/monsters/') && !f.route.startsWith('/assets/audio/')).map((f) => f.route));
     const weaponSheets = Object.values<any>(ARMAS.armas).flatMap((a) => ['mao', 'costas', 'bainha'].filter((k) => a[k]).map((k) => a[k]));
-    const wanted = new Set([...[...Object.values<any>(VFX.efeitos), ...weaponSheets].map((x) => `/${x.arquivo}`), ...JUTSU_SPRITE_FRAMES.map((n) => `/assets/vfx/${n}.png`)]);
+    const wanted = new Set([...[...Object.values<any>(VFX.efeitos), ...Object.values<any>(VFX_PIXELFX), ...weaponSheets].map((x) => `/${x.arquivo}`), ...JUTSU_SPRITE_FRAMES.map((n) => `/assets/vfx/${n}.png`)]);
     assert.deepEqual([...served].sort(), [...wanted].sort());
     for (const f of files.filter((x) => x.route.startsWith('/assets/') && !x.route.startsWith('/assets/monsters/') && !x.route.startsWith('/assets/audio/'))) {
       assert.equal(f.contentType, 'image/png', f.route);
       assert.ok(Buffer.isBuffer(f.body), f.route);
     }
-    for (const route of ['/vfx.js', '/vfxData.js', '/weapons.js', '/weaponData.js']) {
+    for (const route of ['/vfx.js', '/vfxData.js', '/vfxPixelfx.js', '/weapons.js', '/weaponData.js']) {
       assert.equal(files.find((f) => f.route === route)?.contentType, 'text/javascript; charset=utf-8', route);
     }
   });
