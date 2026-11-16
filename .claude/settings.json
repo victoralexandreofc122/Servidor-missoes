@@ -1,6 +1,7 @@
 {
   "extraKnownMarketplaces": {
-    "egm": { "source": { "source": "github", "repo": "google/elephant-goldfish-model" } }
+    "egm": { "source": { "source": "github", "repo": "google/elephant-goldfish-model" } },
+    "pixelfx": { "source": { "source": "github", "repo": "patch-gg/pixelfx" } }
   },
-  "enabledPlugins": { "egm@egm": true }
+  "enabledPlugins": { "egm@egm": true, "pixelfx@pixelfx": true }
 }
