@@ -3167,7 +3167,7 @@ function tickDuelClock() {
   if (idle) {
     if (state.mapId === 'vale_trio') {   // v70: a arena do 3v3 (6 ninjas = uma partida)
       const n = state.duelQueue?.team3?.players || 0;
-      ui.duelPhase.textContent = n > 0 ? `${n} de 6 na fila do 3v3` : 'Arena 3v3 livre';
+      ui.duelPhase.textContent = n > 0 ? `${n} de 6 na fila do 3v3` : 'Arena dos Três Juramentos livre';
       ui.duelClock.textContent = state.duelQueue?.team3?.queued ? 'Aguardando' : 'Aperte 3v3';
       return;
     }

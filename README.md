@@ -253,7 +253,7 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   325 XP (Difícil) com a migração v40.
 - **Rankeado:** ao apertar Rankeado, o jogador escolhe **1v1** (Arena das Quatro Heranças) ou **3v3** (arena nova, maior:
   luta de 25 x 16 casas, a do Vale tem 19 x 13). O 3v3 só acontece nela; o botão ⇄ troca de arena. Nome provisório
-  "Arena 3v3" (3 opções em `docs/lore/propostas-de-nomes.md`, item 13).
+  "Arena dos Três Juramentos" (3 opções em `docs/lore/propostas-de-nomes.md`, item 13).
 
 ### v69: polimento do rankeado (sem migração; revisões de jogabilidade, estilo e celular da rodada 5)
 

@@ -1318,8 +1318,8 @@ export interface ArenaGeo {
 
 /**
  * v70 (pedido do Victor, 17/11): a arena do rankeado 3v3. O mesmo Vale (estátuas, arquibancadas dos lados, praça), mas a
- * cerca maior: 25 x 16 casas de luta (o Vale tem 19 x 13), para 6 ninjas e as invocações. Nome provisório: "Arena 3v3"
- * (o nome de verdade espera a escolha do Victor, docs/lore/propostas-de-nomes.md).
+ * cerca maior: 25 x 16 casas de luta (o Vale tem 19 x 13), para 6 ninjas e as invocações. Nome: "Arena dos Três Juramentos"
+ * (escolha 13A do Victor, 17/11; docs/lore/propostas-de-nomes.md).
  */
 export const VALE_TRIO: ArenaGeo = {
   width: 50, height: 39,
@@ -1390,7 +1390,7 @@ export function buildMaps(): Record<MapId, MapLayout> {
     interior_weapons: interior(weapons), interior_clothes: interior(clothes), interior_scrolls: interior(scrolls),
     academy_interior: academy(), vale_estatuas: vale(),
     arena_2: vale('arena_2', 'Arena 2'), arena_3: vale('arena_3', 'Arena 3'), arena_4: vale('arena_4', 'Arena 4'),
-    vale_trio: vale('vale_trio', 'Arena 3v3', VALE_TRIO),
+    vale_trio: vale('vale_trio', 'Arena dos Três Juramentos', VALE_TRIO),
   };
 }
 
