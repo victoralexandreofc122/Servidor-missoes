@@ -57,14 +57,14 @@ function world() {
     const id = randomUUID();
     const h = w.world.join({ id, username, appearance: { ...DEFAULT_APPEARANCE, village: 'vila_1' } }, conn);
     const send = (msg: unknown) => h.receive(JSON.stringify(msg));
-    send({ type: 'ranked', action: 'enter' });
+    send({ type: 'ranked', action: 'enter', mode: '3v3' });   // v70: o 3v3 tem a arena dele (Rankeado → 3v3)
     return { id, conn, send };
   };
   return { ...w, join };
 }
 
-describe('v55: 3v3 no servidor', () => {
-  it('6 solos na fila do 3v3: partida 3 contra 3 numa arena, cada um no seu lado; sem fogo amigo', () => {
+describe('v55: 3v3 no servidor (v70: na arena do 3v3)', () => {
+  it('6 solos na fila do 3v3: partida 3 contra 3 na arena do 3v3, cada um no seu lado; sem fogo amigo', () => {
     const { world: w, join, run } = world();
     const ps = ['ana', 'bia', 'caio', 'davi', 'eva', 'fabi'].map((n) => join(n));
     for (const p of ps.slice(0, 5)) p.send({ type: 'ranked', action: 'team3_queue' });
@@ -75,7 +75,7 @@ describe('v55: 3v3 no servidor', () => {
     assert.equal(st.label, 'Rankeado 3v3');
     assert.equal(st.teamA.length, 3);
     assert.equal(st.teamB.length, 3);
-    const d = (w as any).duels.get('vale_estatuas');
+    const d = (w as any).duels.get('vale_trio');
     run(DUEL.prepMs);
     const [a1, a2] = d.teams.a.map((id: string) => session(w, id));
     const b1 = session(w, d.teams.b[0]);
@@ -89,7 +89,7 @@ describe('v55: 3v3 no servidor', () => {
     const ps = ['ana', 'bia', 'caio', 'davi', 'eva', 'fabi'].map((n) => join(n));
     for (const p of ps) p.send({ type: 'ranked', action: 'team3_queue' });
     run(REALTIME.tickMs + DUEL.prepMs);
-    const d = (w as any).duels.get('vale_estatuas');
+    const d = (w as any).duels.get('vale_trio');
     const atk = session(w, d.teams.a[0]);
     const ko = (id: string) => { const x = session(w, id); x.hp = 1; (w as any).damagePlayer(x, 10, (w as any).now(), atk, atk); };
     ko(d.teams.b[0]);
@@ -117,7 +117,7 @@ describe('v55: 3v3 no servidor', () => {
     l!.send({ type: 'ranked', action: 'team3_queue' });
     for (const p of [x!, y!, z!]) p.send({ type: 'ranked', action: 'team3_queue' });
     run(REALTIME.tickMs);
-    const d = (w as any).duels.get('vale_estatuas');
+    const d = (w as any).duels.get('vale_trio');
     const team = d.teams.a.includes(l!.id) ? d.teams.a : d.teams.b;
     assert.deepEqual(new Set(team), new Set([l!.id, m1!.id, m2!.id]));
   });

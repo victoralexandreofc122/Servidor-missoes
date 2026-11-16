@@ -33,6 +33,10 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v70 (migração v40, pedidos do Victor de 17/11):** bug da conexão morta ao voltar ao navegador (vigia que reconecta),
+  retrato abre os atributos, nome no lugar de "Vida", chat menor no meio (celular) e missões à esquerda, regen 2/s após 3 s,
+  Lodo Verde 8, respawn de 1 min, XP das missões 50/150/325 (v40), arena própria e maior do 3v3 com a escolha 1v1/3v3.
+  Branch `ccr-ajustes` (sobre a `ccr-rankeado`) até o Victor rodar a v40. Nome da arena do 3v3: espera a escolha (item 13).
 - **v69 (sem migração):** polimento do rankeado: "Próximo: X × Y" e "você é o próximo", selo redondo e "faltam N" no
   resultado, nomes colados, arquibancada em degraus, estátua com volume, mureta, rochas e holofote. Branch `ccr-rankeado`.
 - **v68 (sem migração):** no toque longo do jutsu sem mira, o ✕ Cancelar (deslizar até ele e soltar não lança). Branch `ccr-ui-hud`.

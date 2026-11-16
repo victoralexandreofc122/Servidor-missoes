@@ -91,6 +91,10 @@ são a decisão do segundo seguinte (o modelo de Red Dead e The Last of Us, que 
   fica separada do arco dos jutsus para não sair num toque de pânico.
 - **Vermelha** (cantos de cima): ☰ menu, minimapa, status. **Sair do jogo** e as ações sem volta ficam dentro do menu e
   pedem confirmação.
+- **v70 (pedido do Victor, 17/11):** no celular deitado, o **chat** fica no **meio, embaixo**, logo acima do cargo
+  ("GENIN · NV 60"), entre o joystick e os botões; as **Missões** ficam à **esquerda**, embaixo do retrato (onde estava o
+  chat), e a aba "Missões" do chat some. A barra dos selos e o ✋ sobem para não ficar atrás do chat. O **retrato** é um
+  botão: abre os atributos (o "+N" verde mostra os pontos para distribuir), e o **nome do jogador** fica no lugar de "Vida".
 - **Alvo de toque:** no mínimo **44 x 44 px** em todo controle do HUD (WCAG 2.5.5). Onde o desenho é menor (o "–" do
   chat), a área de toque cresce em volta dele.
 - **Margens seguras:** tudo respeita `env(safe-area-inset-*)` (entalhe da câmera e barra de gestos).
@@ -103,7 +107,7 @@ são a decisão do segundo seguinte (o modelo de Red Dead e The Last of Us, que 
 | Regra | Como o jogo cumpre |
 | --- | --- |
 | 1. Estética e atmosfera | Moldura bronze e dourada, fundo azul-noite, ícones em círculo (o mesmo para todos os botões do menu: o Vínculo ganhou o seu na v66) |
-| 2. Legibilidade absoluta | Texto do HUD com **no mínimo 12 px**; contorno escuro (`--text-outline`) em todo texto sobre o mapa; contraste de pelo menos **4,5:1** onde há fundo |
+| 2. Legibilidade absoluta | Texto do HUD com **no mínimo 12 px** (exceção pedida pelo Victor na v70: as linhas e o título do chat em 11 px); contorno escuro (`--text-outline`) em todo texto sobre o mapa; contraste de pelo menos **4,5:1** onde há fundo |
 | 3. Posicionamento lógico | Retrato, vida e efeitos juntos; minimapa, status e menu juntos; combate num cacho só |
 | 4. Exibição sob demanda | HUD de combate (4.1); botões que só aparecem quando valem; painéis só pelo menu |
 | 5. Personalização | Editar layout, tamanho, opacidade, câmera, efeitos, HUD de combate (seção 5) |

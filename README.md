@@ -240,6 +240,21 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v70: pedidos do Victor de 17/11 (migração v40, `db/schema_v40_xp_missoes.sql`)
+
+- **Bug corrigido:** sair do navegador e voltar deixava os monstros "ignorando" o ninja e sem levar dano. No celular,
+  a conexão morria em silêncio e o jogo achava que estava online. Agora o jogo vigia a conexão (o servidor manda um sinal
+  a cada 2 s) e, com 5 s de silêncio e a tela à vista, reconecta sozinho. Conferido no navegador: antes nenhum golpe
+  chegava ao servidor; agora reconecta e os golpes contam.
+- **HUD:** tocar no retrato abre os atributos (o "+N" mostra os pontos); o nome do jogador no lugar de "Vida"; chat com
+  a letra menor e, no celular, no meio da tela, acima do cargo; as missões à esquerda.
+- **Números:** a vida volta a 2/s (era 1/s) depois de 3 s sem apanhar (eram 7 s), com o chakra cheio; o Lodo Verde bate 8
+  (era 10); os monstros comuns voltam 1 minuto depois de mortos (antes, na hora); as missões dão 50 (Fácil), 150 (Normal) e
+  325 XP (Difícil) com a migração v40.
+- **Rankeado:** ao apertar Rankeado, o jogador escolhe **1v1** (Arena das Quatro Heranças) ou **3v3** (arena nova, maior:
+  luta de 25 x 16 casas, a do Vale tem 19 x 13). O 3v3 só acontece nela; o botão ⇄ troca de arena. Nome provisório
+  "Arena 3v3" (3 opções em `docs/lore/propostas-de-nomes.md`, item 13).
+
 ### v69: polimento do rankeado (sem migração; revisões de jogabilidade, estilo e celular da rodada 5)
 
 - **Próximo: X × Y** no placar, para a plateia (com as 4 arenas ocupadas) e, para quem é o próximo, o aviso "Você é o

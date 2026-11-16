@@ -21,6 +21,12 @@ do Arco 1, Bíblia e testes). A coluna "Escolhido" mostra o nome que vale.
 | 11 | A rival do Arco 1 | — | **Tsubaki** (manter) | Sayuri | Akane | **Akane** |
 | 12 | Som dos nomes das outras aldeias (padrão para NPCs futuros) | — | Maré Oculta: nomes que lembram água (Mio, Nami); Vento: nomes curtos e duros (Kaze, Jin); Rocha: nomes longos e lentos (Gendou, Iwata) | As quatro aldeias com o mesmo padrão da Chama Eterna (2 sílabas, suave) | Maré Oculta e Rocha Antiga com nomes em português (Marina, Pedro); Vento com apelidos (Ligeiro, Brisa) | **Cada aldeia com o seu som (A)** |
 
+## Nomes novos da v70 (esperando o Victor)
+
+| # | O que precisa de nome | Hoje (provisório) | Opção A | Opção B | Opção C |
+|---|---|---|---|---|---|
+| 13 | A arena do rankeado 3v3 (a maior, ao lado da Arena das Quatro Heranças) | "Arena 3v3" | Arena dos Três Juramentos | Pátio das Três Chamas | Círculo da Tríade |
+
 **Já aprovado e usado:** os nomes dos clãs, jutsus, Titãs, relíquias, criaturas do Vínculo, aldeias, mapas e NPCs que
 estão no jogo. Os da coluna "Opção A" em negrito são os que o roteiro do Arco 1 já usa (escritos antes da regra de
 09/11); escolher A confirma o roteiro como está.

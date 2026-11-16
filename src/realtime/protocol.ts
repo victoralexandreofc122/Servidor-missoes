@@ -247,7 +247,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('cast'), skill: z.enum(SKILLS), targetId: targetId.optional(), dir: z.tuple([axis, axis]).optional() }),
   z.object({ type: z.literal('meditate'), active: z.boolean() }),
   // v29: modo rankeado: entrar no Arena das Quatro Heranças, sair dele, entrar na fila do Desafio e sair da fila.
-  z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board', 'sit', 'stand', 'jounin_queue', 'jounin_unqueue', 'jounin_board', 'final_queue', 'final_unqueue', 'final_board', 'champion_join', 'champion_queue', 'champion_unqueue', 'team3_queue', 'team3_unqueue']) }),
+  z.object({ type: z.literal('ranked'), action: z.enum(['enter', 'leave', 'queue', 'unqueue', 'board', 'sit', 'stand', 'jounin_queue', 'jounin_unqueue', 'jounin_board', 'final_queue', 'final_unqueue', 'final_board', 'champion_join', 'champion_queue', 'champion_unqueue', 'team3_queue', 'team3_unqueue']),
+    /** v70: ao entrar, 1v1 (Arena das Quatro Heranças) ou 3v3 (a arena do 3v3). Sem: 1v1. */ mode: z.enum(['1v1', '3v3']).optional() }),
   // v55: o trio do 3v3: convidar pelo nome, aceitar o convite de um líder e sair do trio
   z.object({ type: z.literal('trio'), action: z.enum(['invite', 'accept', 'leave']), name: z.string().min(3).max(24).optional(), leaderId: targetId.optional() }),
   // v60: Vínculo Ancestral (aba do menu e botões do HUD). dash = o avanço extra do Estado Primal do Tigre.
@@ -255,7 +256,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('fase3'), action: z.enum(['state', 'supreme']) }),
   z.object({ type: z.literal('vinculo'), action: z.enum(['state', 'equip', 'summon', 'dismiss', 'primal', 'dash']), creature: z.enum(CREATURES).optional() }),
   // v55: espectador: assistir a luta de uma arena como fantasma (null = parar de assistir) e pedir a lista das lutas
-  z.object({ type: z.literal('watch'), arena: z.enum(['vale_estatuas', 'arena_2', 'arena_3', 'arena_4']).nullable() }),
+  z.object({ type: z.literal('watch'), arena: z.enum(['vale_estatuas', 'arena_2', 'arena_3', 'arena_4', 'vale_trio']).nullable() }),
   z.object({ type: z.literal('arenas') }),
   z.object({ type: z.literal('respawn') }),
   z.object({ type: z.literal('talk'), npcId: z.string().regex(/^[a-z][a-z_]{0,23}$/) }),

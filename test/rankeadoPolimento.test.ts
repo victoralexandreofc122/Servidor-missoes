@@ -76,7 +76,7 @@ describe('v69: cliente', () => {
   });
 
   it('"Próximo" no placar só para quem não está lutando; "você é o próximo" com som e vibração', () => {
-    assert.match(game, /const showNext = !!nx && !!d && d\.phase !== 'idle' && !inFight && !duelFighting\(\);/);
+    assert.match(game, /const showNext = !!nx && !!d && d\.phase !== 'idle' && !inFight && !duelFighting\(\) && state\.mapId !== 'vale_trio';/);
     assert.match(game, /showToast\('⚔️ Você é o próximo! Fique perto da arena\.'\);/);
     assert.match(game, /navigator\.vibrate\?\.\(150\)/);
   });

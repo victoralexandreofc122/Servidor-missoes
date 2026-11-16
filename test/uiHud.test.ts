@@ -59,7 +59,9 @@ describe('v66: guia de UI, UX e HUD', () => {
     const v66 = css.slice(css.indexOf('v66: o guia de UI'));
     assert.match(v66, /@media \(pointer: coarse\) \{[^}]*height: 44px/);
     assert.match(v66, /\.chat-min::after \{ content: ""; position: absolute; inset: -12px -9px; \}/);
-    for (const [, size] of v66.matchAll(/font-size: (\d+)px/g)) assert.ok(Number(size) >= 12, `${size}px`);
+    // a única exceção é a do Victor (v70, 17/11): as linhas e o título do chat em 11 px (docs/ui, seção 6)
+    const rest = v66.replace(/\.chat-box \.chat-feed li \{ font-size: 11px;[^}]*\}|\.chat-title \{ font-size: 11px; \}/g, '');
+    for (const [, size] of rest.matchAll(/font-size: (\d+)px/g)) assert.ok(Number(size) >= 12, `${size}px`);
   });
 
   it('HUD de combate: some o que não é da luta, nunca na zona segura nem na Academia, e dá para desligar', () => {

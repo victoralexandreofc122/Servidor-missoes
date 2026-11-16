@@ -1384,3 +1384,18 @@ mescle o código. Pode rodar de novo sem erro. Nada é apagado.
 4. Conta nova: na 1ª sala da Academia, toque em "⏭ Pular a Academia" duas vezes: você vai para a Praça com a Kunai de
    Treino, +100 ryō e +50 XP.
 5. Conferência no Neon: `SELECT fragment_code, count(*) FROM game.player_fragments GROUP BY 1 ORDER BY 1;`
+
+## Passo 55 — O XP das missões da Sala de Missões (SQL v40)
+
+Rode `db/schema_v40_xp_missoes.sql` inteiro no SQL Editor do Neon (branch `production`), **depois da v39**, e só então
+mescle o código da v70. Pode rodar de novo sem erro. Nada é apagado.
+
+- Fácil (`NPC_EASY`) 50 XP, Normal (`NPC_TRAINING`) 150 XP, Difícil (`NPC_HARD`) 325 XP.
+- A missão já aceita guarda o XP de quando foi criada; o novo vale para as próximas.
+
+### Testar no celular
+
+1. Fale com o Mestre na Praça: os cartões da Sala de Missões mostram 50, 150 e 325 XP.
+2. Saia do navegador por 1 minuto e volte: o jogo reconecta sozinho (os monstros voltam a reagir e a levar dano).
+3. Rankeado → 3v3: você vai para a arena nova, maior; o ⇄ leva ao 1v1.
+4. Conferência no Neon: `SELECT code, xp_reward FROM game.mission_difficulties WHERE code LIKE 'NPC_%' ORDER BY xp_reward;`

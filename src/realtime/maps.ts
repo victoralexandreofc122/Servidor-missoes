@@ -29,7 +29,9 @@ export type MapId = 'map_1' | 'map_2' | 'interior_weapons' | 'interior_clothes' 
   | 'vila_nevoa' | 'vila_nuvem' | 'vila_areia' | 'zona_conflito' | 'refugio'
   | 'caverna_lodo' | 'clareira_queimada' | 'poco' | 'vale_estatuas'
   /** v55: as arenas extras, cópias da Arena das Quatro Heranças, para as lutas em paralelo (só se chega levado pelo servidor). */
-  | 'arena_2' | 'arena_3' | 'arena_4';
+  | 'arena_2' | 'arena_3' | 'arena_4'
+  // v70 (pedido do Victor, 17/11): a arena só do rankeado 3v3, parecida com o Vale e com a área de luta maior
+  | 'vale_trio';
 /** Tema de cores do mapa (chão, telhados e enfeites; ver public/mapArt.js). */
 export type MapTheme = 'folha' | 'nevoa' | 'nuvem' | 'areia' | 'conflito' | 'refugio';
 /** As 3 lojas com interior (o NPC lojista manda `shop_open` com isto). */
@@ -1304,15 +1306,44 @@ export const VALE = {
   start: { a: { x: 18, y: 15 }, b: { x: 26, y: 15 } },   // espelhados, um em cada ponta (revisão EGM)
 } as const;
 
-export function valeFightBox(): Box {
-  const f = VALE.fence, t = VALE.thickness;
+/** A geometria de uma arena do rankeado (o Vale e a do 3v3 usam o mesmo desenho, em tamanhos diferentes). */
+export interface ArenaGeo {
+  width: number; height: number;
+  fence: { x: number; y: number; w: number; h: number };
+  thickness: number;
+  spawn: { x: number; y: number };
+  stands: readonly { x: number; y: number; w: number; h: number }[];
+  start: { a: { x: number; y: number }; b: { x: number; y: number } };
+}
+
+/**
+ * v70 (pedido do Victor, 17/11): a arena do rankeado 3v3. O mesmo Vale (estátuas, arquibancadas dos lados, praça), mas a
+ * cerca maior: 25 x 16 casas de luta (o Vale tem 19 x 13), para 6 ninjas e as invocações. Nome provisório: "Arena 3v3"
+ * (o nome de verdade espera a escolha do Victor, docs/lore/propostas-de-nomes.md).
+ */
+export const VALE_TRIO: ArenaGeo = {
+  width: 50, height: 39,
+  fence: { x: 12, y: 8, w: 26, h: 17 },
+  thickness: 0.5,
+  spawn: { x: 25, y: 30 },
+  stands: [{ x: 7.6, y: 8.5, w: 4, h: 16 }, { x: 38.4, y: 8.5, w: 4, h: 16 }],
+  start: { a: { x: 18, y: 16.5 }, b: { x: 32, y: 16.5 } },
+};
+
+/** A geometria da arena de cada mapa do rankeado (o 3v3 tem a sua; as outras são o Vale). */
+export function arenaGeo(map: MapId | string): ArenaGeo {
+  return map === 'vale_trio' ? VALE_TRIO : VALE;
+}
+
+export function valeFightBox(geo: ArenaGeo = VALE): Box {
+  const f = geo.fence, t = geo.thickness;
   return { x: f.x + t, y: f.y + t, w: f.w - 2 * t, h: f.h - 2 * t };
 }
 
 /** v55: a Arena das Quatro Heranças (`vale_estatuas`) e as arenas extras, iguais a ela (só o nome muda). */
-function vale(id: MapId = 'vale_estatuas', name = 'Arena das Quatro Heranças'): MapLayout {
-  const { width: W, height: H } = VALE;
-  const f = VALE.fence, t = VALE.thickness;
+function vale(id: MapId = 'vale_estatuas', name = 'Arena das Quatro Heranças', geo: ArenaGeo = VALE): MapLayout {
+  const { width: W, height: H } = geo;
+  const f = geo.fence, t = geo.thickness;
   const walls: Wall[] = [
     // o vale: paredão de rocha no fundo, rochas nos lados e embaixo (revisão EGM)
     // v69: as rochas dos lados em pedras arredondadas com grama na borda (desenho próprio do Vale: s = 'vale')
@@ -1323,23 +1354,23 @@ function vale(id: MapId = 'vale_estatuas', name = 'Arena das Quatro Heranças'):
     wall('fence', f.x, f.y, f.w, t), wall('fence', f.x, f.y + f.h - t, f.w, t),
     wall('fence', f.x, f.y + t, t, f.h - 2 * t), wall('fence', f.x + f.w - t, f.y + t, t, f.h - 2 * t),
     // as estátuas das 4 vilas nos cantos da praça (colidem só no pedestal)
-    wall('statue', 2.6, 8.5, 3.2, 1.6, 'vila_1'), wall('statue', 37.6, 8.5, 3.2, 1.6, 'vila_3'),
-    wall('statue', 2.6, 27.5, 3.2, 1.6, 'vila_4'), wall('statue', 37.6, 27.5, 3.2, 1.6, 'vila_5'),
+    wall('statue', 2.6, 8.5, 3.2, 1.6, 'vila_1'), wall('statue', W - 6.4, 8.5, 3.2, 1.6, 'vila_3'),
+    wall('statue', 2.6, H - 8.5, 3.2, 1.6, 'vila_4'), wall('statue', W - 6.4, H - 8.5, 3.2, 1.6, 'vila_5'),
   ];
-  const fight = valeFightBox();
+  const fight = valeFightBox(geo);
   return {
     id, name, kind: 'wild', theme: 'folha', ranked: true, width: W, height: H, safe: true, walls,
     exits: [], doors: [],
     areas: [area('slab', 0, 0, W, H), area('arena', f.x, f.y, f.w, f.h)],
     deco: [
       // a arquibancada: dos dois lados da cerca (pedido do Victor). Dá para andar nela e SENTAR para assistir.
-      ...VALE.stands.map((b) => deco('stands', b.x, b.y, b.w, b.h)),
+      ...geo.stands.map((b) => deco('stands', b.x, b.y, b.w, b.h)),
       // lanternas de pedra em cima e embaixo da arena (acendem de noite)
       deco('toro', f.x + 2, f.y - 2.2, 1, 1.4), deco('toro', f.x + f.w - 3, f.y - 2.2, 1, 1.4),
       deco('toro', f.x + 2, f.y + f.h + 0.6, 1, 1.4), deco('toro', f.x + f.w - 3, f.y + f.h + 0.6, 1, 1.4),
 
     ],
-    arenas: [{ ...fight, village: 'vila_1', respawn: { ...VALE.spawn }, ranked: true }],
+    arenas: [{ ...fight, village: 'vila_1', respawn: { ...geo.spawn }, ranked: true }],
     // zona segura: tudo, menos dentro da cerca
     safeZones: [
       { x: 0, y: 0, w: W, h: f.y }, { x: 0, y: f.y + f.h, w: W, h: H - f.y - f.h },
@@ -1359,6 +1390,7 @@ export function buildMaps(): Record<MapId, MapLayout> {
     interior_weapons: interior(weapons), interior_clothes: interior(clothes), interior_scrolls: interior(scrolls),
     academy_interior: academy(), vale_estatuas: vale(),
     arena_2: vale('arena_2', 'Arena 2'), arena_3: vale('arena_3', 'Arena 3'), arena_4: vale('arena_4', 'Arena 4'),
+    vale_trio: vale('vale_trio', 'Arena 3v3', VALE_TRIO),
   };
 }
 

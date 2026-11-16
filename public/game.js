@@ -113,7 +113,7 @@ const ui = {
   boardTitle: $('board-mission-title'), boardProgress: $('board-mission-progress'), boardDeliver: $('board-deliver'), boardHint: $('board-hint'),
   resetAttrs: $('reset-attrs'),
   // HUD do desenho: retrato, efeitos, alvo, minimapa, menu, missões em andamento, chat em painel e XP
-  portrait: $('portrait'), levelBadge: $('level-badge'), ryoText: $('ryo-text'), buffs: $('buffs'),
+  portrait: $('portrait'), levelBadge: $('level-badge'), portraitBtn: $('portrait-btn'), portraitPoints: $('portrait-points'), meName: $('me-name'), ryoText: $('ryo-text'), buffs: $('buffs'),
   targetWindow: $('target-window'), targetPortrait: $('target-portrait'), targetName: $('target-name'),
   bossBar: $('boss-bar'), bossName: $('boss-name'), bossTrack: $('boss-track'), bossFill: $('boss-fill'), bossHp: $('boss-hp'),
   targetFill: $('target-fill'), targetHp: $('target-hp'),
@@ -308,9 +308,20 @@ function showLogin(message = '') {
 }
 
 // v29: modo rankeado. O botão do menu vai ao Vale (lá, volta); o Desafio entra e sai da fila.
+// v70 (pedido do Victor, 17/11): fora da arena, Rankeado pergunta 1v1 ou 3v3; dentro, Voltar (e ⇄ troca de arena)
+const modeUi = { panel: $('mode-panel'), close: $('mode-close'), one: $('mode-1v1'), three: $('mode-3v3'), switchBtn: $('mode-switch-btn') };
+function enterRanked(mode) {
+  modeUi.panel.hidden = true;
+  send({ type: 'ranked', action: 'enter', mode });
+}
 ui.rankedToggle.addEventListener('click', () => {
-  send({ type: 'ranked', action: isArenaMap() ? 'leave' : 'enter' });
+  if (isArenaMap()) return send({ type: 'ranked', action: 'leave' });
+  modeUi.panel.hidden = !modeUi.panel.hidden;
 });
+modeUi.close.addEventListener('click', () => { modeUi.panel.hidden = true; });
+modeUi.one.addEventListener('click', () => enterRanked('1v1'));
+modeUi.three.addEventListener('click', () => enterRanked('3v3'));
+modeUi.switchBtn.addEventListener('click', () => enterRanked(state.mapId === 'vale_trio' ? '1v1' : '3v3'));
 ui.duelBtn.addEventListener('click', () => {
   send({ type: 'ranked', action: state.duelQueue?.queued ? 'unqueue' : 'queue' });
 });
@@ -408,6 +419,7 @@ function connect() {
   });
 
   ws.addEventListener('message', (event) => {
+    state.lastMsgAt = performance.now();   // v70: o vigia da conexão (connWatchdog)
     let msg;
     try { msg = JSON.parse(event.data); } catch { return; }
     handleMessage(msg);
@@ -441,6 +453,34 @@ function connect() {
   ws.addEventListener('close', onEnd);
   ws.addEventListener('error', () => { if (!state.everOpened) onEnd({ code: 0 }); });
 }
+
+/*
+ * v70 (bug do Victor, 17/11: "saí do navegador e voltei; os monstros me ignoravam, eu não dava dano e eles não me
+ * batiam"): no celular, pôr o navegador em segundo plano pode matar a conexão EM SILÊNCIO (sem o aviso de "fechou"). O
+ * jogo achava que estava online: os golpes iam para uma conexão morta e o mundo na tela parava. O servidor manda o
+ * "sync" a cada 2 s; com a tela à vista e nada chegando por CONN_DEAD_MS, a conexão é dada como morta e o jogo reconecta
+ * sozinho (o servidor devolve a mesma sessão: a guarda de 2 minutos da v59). Ao voltar para a aba, o prazo recomeça.
+ */
+const CONN_DEAD_MS = 5000;
+state.lastMsgAt = performance.now();
+state.visibleAt = performance.now();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) state.visibleAt = performance.now(); });
+window.addEventListener('pageshow', () => { state.visibleAt = performance.now(); });
+function connWatchdog() {
+  if (!state.connected || !state.ws || document.hidden) return;
+  const quiet = performance.now() - Math.max(state.lastMsgAt || 0, state.visibleAt || 0);
+  if (quiet < CONN_DEAD_MS) return;
+  const dead = state.ws;
+  state.ws = null;                       // o "fechou" atrasado dela é ignorado (onEnd confere state.ws)
+  state.connected = false;
+  setDirection(0, 0);
+  try { dead.close(4001, 'sem resposta'); } catch { /* já morta */ }
+  setStatus('reconectando…', 'bad');
+  clearTimeout(state.reconnectTimer);
+  state.lastMsgAt = performance.now();
+  connect();
+}
+setInterval(connWatchdog, 1000);
 
 function disconnect() {
   clearTimeout(state.reconnectTimer);
@@ -637,7 +677,7 @@ function hintsFor(msg) {
     case 'map_changed':
       if (msg.map === 'map_2' && (state.ninja.tutorialStep ?? 4) >= 4) hints.fire('DCA_FLORESTA');
       else if (msg.map === 'zona_conflito') hints.fire('DCA_ZONA');
-      else if (String(msg.map).startsWith('vale')) hints.fire('DCA_ARENA');
+      else if (msg.map === 'vale_estatuas') hints.fire('DCA_ARENA');   // v70: a dica fala da Arena das Quatro Heranças
       break;
     case 'stats':
       if (msg.maxHp > 0 && msg.hp > 0 && msg.hp < msg.maxHp * 0.35 && !state.inSafeZone && state.mapId !== 'academy_interior') hints.fire('DCA_VIDA_BAIXA');
@@ -1670,6 +1710,12 @@ function handleMessage(msg) {
 
 function renderVitals() {
   const m = state.me;
+  // v70 (pedido do Victor, 17/11): o nome no lugar de "Vida" e, no retrato, os pontos de atributo para distribuir
+  const myName = state.players.get(state.meId)?.username;
+  if (myName && ui.meName.textContent !== myName) ui.meName.textContent = myName;
+  const pts = state.progress?.statPoints || 0;
+  ui.portraitPoints.hidden = pts <= 0;
+  if (pts > 0) ui.portraitPoints.textContent = `+${pts}`;
   const hpRatio = m.maxHp ? Math.max(0, Math.min(1, m.hp / m.maxHp)) : 0;
   const chRatio = m.maxChakra ? Math.max(0, Math.min(1, m.chakra / m.maxChakra)) : 0;
   ui.hpFill.style.transform = `scaleX(${hpRatio})`;
@@ -3029,10 +3075,14 @@ function renderDuel() {
   const q = state.duelQueue;
   ui.duelBar.hidden = !inVale || !ui.rankedPanel.hidden || !ui.jouninPanel.hidden || !ui.finalPanel.hidden || !ui.arenasPanel.hidden;
   ui.arenasBtn.hidden = fighting;
+  // v70: a arena do 3v3 só tem o 3v3 (e o trio); o Vale, o 1v1 e os torneios. ⇄ troca de uma para a outra.
+  const trioArena = state.mapId === 'vale_trio';
+  modeUi.switchBtn.hidden = fighting || !inVale;
+  modeUi.switchBtn.textContent = trioArena ? '⇄ 1v1' : '⇄ 3v3';
   // v55: 3v3 (a fila mostra quantos esperam; 6 = uma partida) e o trio
   const t3 = q?.team3;
-  ui.team3Btn.hidden = fighting;
-  ui.trioBtn.hidden = fighting;
+  ui.team3Btn.hidden = fighting || !trioArena;
+  ui.trioBtn.hidden = fighting || !trioArena;
   ui.team3Btn.classList.toggle('queued', !!t3?.queued);
   ui.team3Btn.textContent = t3?.queued ? `👥 3v3: ${t3.players}/6 · Cancelar` : t3?.players ? `👥 3v3 (${t3.players} na fila)` : '👥 3v3';
   const trio = state.trio;
@@ -3041,18 +3091,18 @@ function renderDuel() {
   const ch = state.champion;
   const chName = ch?.kind === 'viloes' ? 'Torneio dos Vilões' : 'Torneio dos Heróis';
   const chShow = !fighting && !!ch?.kind && (ch.phase === 'inscricoes' || (ch.phase === 'chaves' && (!!ch.foe || ch.queued)));
-  ui.championBtn.hidden = !chShow;
+  ui.championBtn.hidden = !chShow || trioArena;
   if (chShow) {
     ui.championBtn.textContent = ch.phase === 'inscricoes' ? (ch.joined ? `🦸 Inscrito: ${chName}` : `🦸 Inscrever: ${chName}`)
       : ch.queued ? `🦸 Na fila${ch.foe ? ` (vs ${ch.foe})` : ''} · Cancelar` : `🦸 ${chName}: jogar vs ${ch.foe}`;
     ui.championBtn.classList.toggle('queued', !!ch.queued || (ch.phase === 'inscricoes' && !!ch.joined));
   }
   if (fighting || !inArena) ui.arenasPanel.hidden = true;
-  ui.duelBtn.hidden = fighting;
+  ui.duelBtn.hidden = fighting || trioArena;
   // v42: Torneio da Temporada: aberto = botão dourado (ou a posição na fila); fechado = cadeado
   const jq = q?.jounin?.position || 0;
   const jOpen = !!state.jounin?.open;
-  ui.jouninBtn.hidden = fighting;
+  ui.jouninBtn.hidden = fighting || trioArena;
   ui.jouninBtn.classList.toggle('closed', !jOpen);
   ui.jouninBtn.classList.toggle('queued', jq > 0);
   ui.jouninBtn.textContent = !jOpen ? '🔒 Torneio Fechado' : jq > 0 ? `🏆 Torneio: ${jq}º na fila` : '🏆 Torneio da Temporada';
@@ -3102,7 +3152,7 @@ function tickDuelClock() {
   const nx = state.duelQueue?.next;
   // não mostra se quem está lutando agora é a própria dupla do "próximo", nem para quem está lutando
   const inFight = !!nx && !!d && [d.a?.name, d.b?.name].some((x) => x === nx.a || x === nx.b);
-  const showNext = !!nx && !!d && d.phase !== 'idle' && !inFight && !duelFighting();
+  const showNext = !!nx && !!d && d.phase !== 'idle' && !inFight && !duelFighting() && state.mapId !== 'vale_trio';   // v70: o "Próximo" é do 1v1
   if (ui.duelNext.hidden === showNext) ui.duelNext.hidden = !showNext;
   if (showNext) {
     const myName = state.players.get(state.meId)?.username;
@@ -3115,6 +3165,12 @@ function tickDuelClock() {
   if (!idle && (!d || d.phase === 'idle')) return;
   ui.duelHud.classList.toggle('duel-idle', idle);
   if (idle) {
+    if (state.mapId === 'vale_trio') {   // v70: a arena do 3v3 (6 ninjas = uma partida)
+      const n = state.duelQueue?.team3?.players || 0;
+      ui.duelPhase.textContent = n > 0 ? `${n} de 6 na fila do 3v3` : 'Arena 3v3 livre';
+      ui.duelClock.textContent = state.duelQueue?.team3?.queued ? 'Aguardando' : 'Aperte 3v3';
+      return;
+    }
     const q = d?.queue || state.duelQueue?.size || 0;
     ui.duelPhase.textContent = q === 1 ? '1 esperando adversário' : q > 1 ? `${q} na fila` : 'Arena livre';
     ui.duelClock.textContent = q === 1 && !state.duelQueue?.queued ? 'Aperte Desafio!' : q ? 'Aguardando' : 'Aperte Desafio';
@@ -7558,6 +7614,18 @@ function drawDarkness(me, toScreenX, toScreenY, T, now) {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
   ctx.restore();
+}
+
+// v70 (pedido do Victor, 17/11): tocar no retrato abre a ficha na aba Atributos (para distribuir os pontos)
+{
+  const openAttrs = (e) => {
+    if (hud.editing) return;
+    e.preventDefault();
+    openStatus();
+    showTab('attrs');
+  };
+  ui.portraitBtn.addEventListener('click', openAttrs);
+  ui.portraitBtn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') openAttrs(e); });
 }
 
 /** v67 (guia de UI, Cancel Cast): ✋ acima do arco dos jutsus, só durante os selos; desiste sem perder chakra nem recarga. */

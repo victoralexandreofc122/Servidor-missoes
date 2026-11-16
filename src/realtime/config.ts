@@ -316,6 +316,8 @@ export interface CombatConfig {
      * nasce 1 a cada `spawnEveryMs`; sobrando (gente saiu), some 1 a cada `spawnEveryMs`, longe de todo mundo.
      */
     perPlayer: number;
+    /** v70 (pedido do Victor, 17/11): o monstro de caça morto volta depois disso (antes voltava na hora). */
+    respawnMs?: number;
     maxCount: number;
     spawnEveryMs: number;
   };
@@ -461,7 +463,9 @@ export const REALTIME: Readonly<RealtimeConfig> = {
   /** Combate PvE. O servidor decide tudo: dano, acerto, morte e XP. */
   combat: {
     // Chakra só volta meditando: 5 x 3 = 15/s. Vida volta 1/s só com o chakra cheio.
-    player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 1, hpRegenCalmMs: 7000, chakraRegenPerSec: 5, respawnMs: 5000, meditationRegenMultiplier: 3 },
+    // v70 (pedido do Victor, 17/11): com o chakra cheio, a vida volta mais rápido (2/s, era 1/s) e começa depois de 3 s sem
+    // apanhar (eram 7 s)
+    player: { maxHp: 100, maxChakra: 100, hpRegenPerSec: 2, hpRegenCalmMs: 3000, chakraRegenPerSec: 5, respawnMs: 5000, meditationRegenMultiplier: 3 },
     basicAttack: { damage: 12, range: 1.6, arcDeg: 90, cooldownMs: 600 },
     damageScale: { jutsu: 0.4, basic: 0.5 },
     pvp: false,
@@ -492,8 +496,9 @@ export const REALTIME: Readonly<RealtimeConfig> = {
     },
     monsters: {
       // 10 slimes na Floresta (+3 por jogador lá, até 40); a Vila é área segura (nenhum monstro).
+      // v70 (pedido do Victor, 17/11): o Lodo Verde bate 8 (era 10) e o morto volta depois de 1 minuto
       count: 10, type: 'slime', maxHp: 60, xp: 20, stepMs: 1000,
-      attackRange: 1.2, attackDamage: 10, attackEveryMs: 2000,
+      attackRange: 1.2, attackDamage: 8, attackEveryMs: 2000, respawnMs: 60_000,
       // Nota quem chega a 3,5 casas (ou quem bate nele) e persegue a 2,5 casas/s; mais de 8 casas fora da zona, volta.
       ai: { aggroRange: 3.5, chaseSpeed: 2.5, leashRange: 8 },
       minPlayerDistance: 3,
@@ -533,12 +538,12 @@ export const REALTIME: Readonly<RealtimeConfig> = {
       sparring: { maxHp: 400, xp: 0, attackRange: 1.6, attackDamage: 6, attackEveryMs: 1800, stationary: true, respawnMs: 2500 },
       // Zona de Conflito: lodo sombrio, mais forte que o slime (para quem já é Chunin).
       lodo_sombrio: {
-        maxHp: 150, xp: 60, attackRange: 1.3, attackDamage: 18, attackEveryMs: 1800, stationary: false, respawnMs: 0,
+        maxHp: 150, xp: 60, attackRange: 1.3, attackDamage: 18, attackEveryMs: 1800, stationary: false, respawnMs: 60_000,   // v70: 1 min
         ai: { aggroRange: 6, chaseSpeed: 3.4, leashRange: 12 },
       },
       // Floresta (o fundo, perto das pedras) e a Caverna do Lodo: o Lodo Escuro do Arco 1, para os níveis 8 a 13.
       lodo_escuro: {
-        maxHp: 110, xp: 45, attackRange: 1.25, attackDamage: 14, attackEveryMs: 1900, stationary: false, respawnMs: 0,
+        maxHp: 110, xp: 45, attackRange: 1.25, attackDamage: 14, attackEveryMs: 1900, stationary: false, respawnMs: 60_000,   // v70: 1 min
         ai: { aggroRange: 5, chaseSpeed: 3, leashRange: 10 },
         // Pancada: marca o chão (1,6 casa) onde o alvo está e pula ali 1 s depois (28 de dano); de 8 em 8 s.
         slam: { everyMs: 8000, windupMs: 1000, range: 4.5, radius: 1.6, damage: 28 },

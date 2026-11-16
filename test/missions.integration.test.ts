@@ -48,7 +48,7 @@ describe('Missões do NPC Mestre no banco (PostgreSQL real)', { skip: noDatabase
       {
         id: 'x', status: 'active', senseiName: 'Mestre', senseiId: NPC_SENSEI_ID, fromNpc: true,
         type: { code: 'DEFEAT_MONSTER', name: 'Derrotar monstros' }, target: { code: 'slime', quantity: 5 },
-        progress: 0, reward: { xp: 50, title: 'Discípulo do Mestre' }, expiresAt: null, ready: false,
+        progress: 0, reward: { xp: 150, title: 'Discípulo do Mestre' }, expiresAt: null, ready: false,   // v40: Normal = 150 XP
       },
     );
     // Gravada no ciclo de sensei_missions: o NPC é o sensei (FK para game.players).
@@ -67,9 +67,9 @@ describe('Missões do NPC Mestre no banco (PostgreSQL real)', { skip: noDatabase
     assert.equal(done.kind, 'rewarded');
     if (done.kind !== 'rewarded') return;
     assert.deepEqual(done.rewards.map(({ missionId: _, ...r }) => r), [
-      { senseiName: 'Mestre', fromNpc: true, xp: 50, title: 'Discípulo do Mestre', titleNew: true },
+      { senseiName: 'Mestre', fromNpc: true, xp: 150, title: 'Discípulo do Mestre', titleNew: true },   // v40
     ]);
-    assert.equal(done.totalXp, 50);
+    assert.equal(done.totalXp, 150);   // v40
     assert.equal(done.mission, null);
 
     // O banco registrou o ciclo inteiro: entrega, avaliação do NPC, pergaminho, resgate e título.
@@ -90,7 +90,7 @@ describe('Missões do NPC Mestre no banco (PostgreSQL real)', { skip: noDatabase
     const second = await missions.talk(id);
     assert.ok(second.kind === 'rewarded');
     assert.equal(second.rewards[0]!.titleNew, false);
-    assert.equal(second.totalXp, 100);
+    assert.equal(second.totalXp, 300);   // 2 x 150 (v40)
   });
 
   it('o cliente não forja a conclusão: com 2/5, falar com o Mestre não entrega e o banco recusa o submit', async () => {
@@ -114,7 +114,7 @@ describe('Missões do NPC Mestre no banco (PostgreSQL real)', { skip: noDatabase
     await killSlimes(id, 5);
     const done = await missions.talk(id);
     assert.ok(done.kind === 'rewarded');
-    assert.deepEqual([done.totalXp, done.rank.code, done.promoted], [130, 'ACADEMY', false]);
+    assert.deepEqual([done.totalXp, done.rank.code, done.promoted], [230, 'ACADEMY', false]);   // 80 + 150 (v40)
   });
 
   it('missão de um sensei jogador: o Mestre não avalia, os abates contam e o pergaminho aprovado é entregue na Sala', async () => {
@@ -163,7 +163,7 @@ describe('Missões do NPC Mestre no banco (PostgreSQL real)', { skip: noDatabase
     const turnIns = await Promise.all([missions.talk(id), missions.talk(id)]);
     assert.equal(turnIns.filter((o) => o.kind === 'rewarded').length, 1, 'só um toque entrega o pergaminho');
     const xp = await row('SELECT total_xp FROM game.players WHERE id = $1', [id]);
-    assert.equal(xp.total_xp, '50');
+    assert.equal(xp.total_xp, '150');   // v40: Normal = 150 XP
   });
 });
 

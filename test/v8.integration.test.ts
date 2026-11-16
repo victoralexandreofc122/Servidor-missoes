@@ -237,18 +237,18 @@ describe('v8 no banco: atributos, redefinição, chat, missões e equipamento', 
     const missions = makeMissions(t.db);
     const board = await missions.board();
     assert.deepEqual(board.map((o) => [o.code, o.difficulty, o.target.quantity, o.reward.xp, o.reward.title]), [
-      ['NPC_EASY', 'Fácil', 3, 30, null], ['NPC_TRAINING', 'Normal', 5, 50, 'Discípulo do Mestre'], ['NPC_HARD', 'Difícil', 10, 150, null],
+      ['NPC_EASY', 'Fácil', 3, 50, null], ['NPC_TRAINING', 'Normal', 5, 150, 'Discípulo do Mestre'], ['NPC_HARD', 'Difícil', 10, 325, null],   // v40
     ]);
     const id = await t.createPlayer('cartoes');
     assert.deepEqual(await missions.talk(id, null), { kind: 'none' });
     const got = await missions.talk(id, 'NPC_EASY');
     assert.ok(got.kind === 'assigned');
-    assert.deepEqual([got.mission.target.quantity, got.mission.reward.xp], [3, 30]);
+    assert.deepEqual([got.mission.target.quantity, got.mission.reward.xp], [3, 50]);
     const again = await missions.talk(id, 'NPC_HARD');
     assert.equal(again.kind, 'in_progress', 'uma missão por vez');
     for (let i = 0; i < 3; i++) await missions.recordKill(id, 'slime');
     const done = await missions.talk(id, null);
-    assert.ok(done.kind === 'rewarded' && done.rewards[0]!.xp === 30);
+    assert.ok(done.kind === 'rewarded' && done.rewards[0]!.xp === 50);
     const senseiOptions = await missions.senseiOptions();
     assert.ok(!senseiOptions.some((d) => d.code.startsWith('NPC_')), 'os treinos do Mestre não aparecem para sensei jogador');
   });
