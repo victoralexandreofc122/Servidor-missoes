@@ -113,13 +113,16 @@
     <!-- v29: modo rankeado. O placar da arena (no alto) e o botão do Desafio (embaixo, no meio, translúcido). -->
     <div id="duel-hud" class="duel-hud" hidden aria-live="polite">
       <div class="duel-side duel-a"><b id="duel-a-name">?</b><span id="duel-a-info"></span><i class="duel-hp"><i id="duel-a-hp"></i></i><i id="duel-a-wins" class="duel-wins"></i></div>
-      <div class="duel-mid"><span id="duel-phase">Arena livre</span><b id="duel-clock"></b></div>
+      <div class="duel-mid"><span id="duel-phase">Arena livre</span><b id="duel-clock"></b><small id="duel-next" class="duel-next" hidden></small></div>
       <div class="duel-side duel-b"><b id="duel-b-name">?</b><span id="duel-b-info"></span><i class="duel-hp"><i id="duel-b-hp"></i></i><i id="duel-b-wins" class="duel-wins"></i></div>
     </div>
     <div id="duel-banner" class="duel-banner" hidden aria-live="assertive">
+      <!-- v69: o selo redondo da faixa à esquerda (aparece quando os pontos chegam) -->
+      <i id="duel-banner-seal" class="tier-seal" hidden aria-hidden="true"></i>
       <b id="duel-banner-title">VITÓRIA</b>
       <span id="duel-banner-score"></span>
       <span id="duel-banner-points"></span>
+      <small id="duel-banner-next" class="duel-banner-next" hidden></small>
       <button id="duel-again" class="duel-btn duel-again" type="button">⚔️ Jogar de novo</button>
     </div>
     <div id="duel-bar" class="duel-bar" hidden>

@@ -62,6 +62,7 @@ const ui = {
   duelAgain: $('duel-again'), duelWatchBtn: $('duel-watch-btn'), duelAHp: $('duel-a-hp'), duelBHp: $('duel-b-hp'),
   rankedProgress: $('ranked-progress'), rankedProgressBar: $('ranked-progress-bar'), rankedProgressText: $('ranked-progress-text'),
   duelBanner: $('duel-banner'), duelBannerTitle: $('duel-banner-title'), duelBannerScore: $('duel-banner-score'), duelBannerPoints: $('duel-banner-points'),
+  duelBannerSeal: $('duel-banner-seal'), duelBannerNext: $('duel-banner-next'), duelNext: $('duel-next'),   // v69
   duelPhase: $('duel-phase'), duelClock: $('duel-clock'),
   duelA: { name: $('duel-a-name'), info: $('duel-a-info'), wins: $('duel-a-wins') },
   duelB: { name: $('duel-b-name'), info: $('duel-b-info'), wins: $('duel-b-wins') },
@@ -1007,6 +1008,10 @@ function handleMessage(msg) {
         if (!ui.duelBanner.hidden) {
           ui.duelBannerPoints.textContent = `${sign}${msg.delta} pontos · ${msg.mmr}${msg.ryo ? ` · +${msg.ryo} ryō` : ''} `;
           ui.duelBannerPoints.appendChild(tierBadge(msg.mmr));
+          // v69 (revisões de estilo e de jogabilidade, rodada 5): o selo redondo da faixa e quanto falta para a próxima
+          paintTierSeal(ui.duelBannerSeal, msg.mmr);
+          ui.duelBannerNext.textContent = tierGapText(msg.mmr);
+          ui.duelBannerNext.hidden = !ui.duelBannerNext.textContent;
           // subiu ou caiu de faixa: aviso grande com o selo
           const before = rankTier(msg.mmr - msg.delta).name, now = rankTier(msg.mmr).name;
           if (before !== now) {
@@ -1024,12 +1029,20 @@ function handleMessage(msg) {
     case 'ranked_board':
       renderRankedBoard(msg);
       break;
-    case 'duel_queue':
+    case 'duel_queue': {
+      // v69 (revisão de jogabilidade, rodada 5): "você é o próximo": aviso, som e vibração, uma vez, com a arena ocupada
+      const wasNext = !!state.duelQueue?.next?.me;
+      if (msg.next?.me && !wasNext && state.duel && state.duel.phase !== 'idle') {
+        showToast('⚔️ Você é o próximo! Fique perto da arena.');
+        audio.sfx('notify', 1, { tone: 'good' });
+        try { navigator.vibrate?.(150); } catch { /* sem vibração */ }
+      }
       state.duelQueue = msg;
       renderDuel();
       if (!ui.jouninPanel.hidden) renderJouninBoard();
       if (!ui.finalPanel.hidden) renderFinalBoard();
       break;
+    }
     case 'arena_result': {
       // Luta de treino na arena: todo mundo no mapa vê no chat; quem lutou vê o placar.
       const line = `⚔️ Arena: ${msg.winner} venceu ${msg.loser}.`;
@@ -2040,9 +2053,10 @@ function updateOnline() {
   for (const p of state.players.values()) if (p.map === state.mapId || p.id === state.meId) n += 1;
   const where = mapName(state.maps, state.mapId);
   const rec = state.arenaRecord;
-  const zone = state.inSafeZone ? 'zona segura · ' : state.inArena ? `⚔️ arena${rec ? ` ${rec.wins}V ${rec.losses}D` : ''} · ` : '';
+  // v69 (revisão de celular, rodada 5: o texto cortava): sem o "online" (a bolinha verde já diz) e a zona segura em 🕊️
+  const zone = state.inSafeZone ? '🕊️ · ' : state.inArena ? `⚔️ ${rec ? `${rec.wins}V ${rec.losses}D` : 'arena'} · ` : '';
   const ping = state.pingMs ? ` · ${state.pingMs} ms` : '';
-  setStatus(`${n} ${n === 1 ? 'jogador' : 'jogadores'}${ping}`, 'ok', `online · ${where ? `${where} · ` : ''}${zone}`);
+  setStatus(`${n} ${n === 1 ? 'jogador' : 'jogadores'}${ping}`, 'ok', `${where ? `${where} · ` : ''}${zone}`);
 }
 
 /**
@@ -2790,6 +2804,20 @@ function rankTier(mmr) {
   const t = RANK_TIERS.find(([min]) => mmr >= min);
   return { name: t[1], cls: `tier-${t[2]}` };
 }
+/** v69: "Faltam 37 pontos para OURO" (vazio na Lenda, a última faixa). */
+function tierGapText(mmr) {
+  const up = [...RANK_TIERS].reverse().find(([min]) => min > mmr);
+  return up ? `Faltam ${up[0] - mmr} pontos para ${String(up[1]).toUpperCase()}` : '';
+}
+/** v69: o selo redondo da faixa (contorno escuro, 2 tons da cor da faixa e a inicial). */
+function paintTierSeal(el, mmr) {
+  if (!el) return;
+  const t = rankTier(mmr);
+  el.className = `tier-seal ${t.cls}`;
+  el.textContent = t.name.slice(0, 1);
+  el.title = t.name;
+  el.hidden = false;
+}
 function tierBadge(mmr) {
   const b = document.createElement('span');
   const t = rankTier(mmr);
@@ -2963,6 +2991,8 @@ function showDuelBanner(won, score, points, voided = false) {
   ui.duelBannerTitle.textContent = voided ? 'PARTIDA ANULADA' : won ? 'VITÓRIA' : 'DERROTA';
   ui.duelBannerScore.textContent = score;
   ui.duelBannerPoints.textContent = points || '';
+  ui.duelBannerSeal.hidden = true;   // v69: o selo e o "faltam N" chegam com os pontos (duel_rating)
+  ui.duelBannerNext.hidden = true;
   clearTimeout(bannerTimer);
   bannerTimer = setTimeout(() => { ui.duelBanner.hidden = true; }, 6000);
 }
@@ -3068,6 +3098,18 @@ function renderDuel() {
 function tickDuelClock() {
   const d = state.duel;
   if (ui.duelHud.hidden) return;
+  // v69: para a plateia (e a fila), quem luta depois desta partida
+  const nx = state.duelQueue?.next;
+  // não mostra se quem está lutando agora é a própria dupla do "próximo", nem para quem está lutando
+  const inFight = !!nx && !!d && [d.a?.name, d.b?.name].some((x) => x === nx.a || x === nx.b);
+  const showNext = !!nx && !!d && d.phase !== 'idle' && !inFight && !duelFighting();
+  if (ui.duelNext.hidden === showNext) ui.duelNext.hidden = !showNext;
+  if (showNext) {
+    const myName = state.players.get(state.meId)?.username;
+    const txt = nx.me ? `Próximo: VOCÊ × ${nx.a === myName ? nx.b : nx.a}` : `Próximo: ${nx.a} × ${nx.b}`;
+    if (ui.duelNext.textContent !== txt) ui.duelNext.textContent = txt;
+    ui.duelNext.classList.toggle('me', nx.me);
+  }
   // revisão EGM: enquanto a faixa de vitória/derrota está na tela, o placar segura o "Fim"
   const idle = (!d || d.phase === 'idle') && ui.duelBanner.hidden;
   if (!idle && (!d || d.phase === 'idle')) return;
@@ -9358,7 +9400,9 @@ function drawLights(toScreenX, toScreenY, T, viewW, viewH, now) {
     const x0 = toScreenX(b.x), y0 = toScreenY(b.y), w = b.w * T, h = b.h * T;
     if (x0 + w < -T * 4 || x0 > viewW + T * 4 || y0 + h < -T * 4 || y0 > viewH + T * 4) continue;
     // Holofotes: só dentro da mureta (não vazam para a rua). Três cones um dentro do outro: a borda sai macia.
+    // v69 (revisão de estilo, rodada 5: "o cone estoura em branco de dia"): de dia, bem mais fracos.
     ctx.save();
+    if (skyClock()?.phase === 'dia') ctx.globalAlpha = 0.25;
     ctx.beginPath(); ctx.rect(x0 - T * 0.5, y0 - T * 0.5, w + T, h + T); ctx.clip();
     const cx = x0 + w / 2, cy = y0 + h / 2;
     for (const [k, [sx, sy]] of [[x0 - T * 2, y0 - T * 3], [x0 + w + T * 2, y0 - T * 3], [x0 - T * 2, y0 + h + T], [x0 + w + T * 2, y0 + h + T]].entries()) {
@@ -9630,9 +9674,17 @@ function drawPlayer(p, sx, sy, T, isMe, now) {
   const foe = !isMe && (state.inArena || inConflict()) && isFoe(p);   // arena e Zona de Conflito: adversário em vermelho
   // Fim de jogo: 👑 Kage, ☁ Akatsuki, renegado em violeta, aliado em verde na Zona e a recompensa pela cabeça.
   const style = factionStyle(state.endgame, state.players.get(state.meId), p, inConflict());
-  // revisão EGM: dois ninjas colados (rankeado) não escondem o nome um do outro: o segundo sobe uma linha
-  const crowd = [...state.players.values()].some((q) => q !== p && q.map === p.map && !q.dead && q.id < p.id
-    && Math.abs(q.x - p.x) < 1 && Math.abs(q.y - p.y) < 0.9) ? fontSize + 6 : 0;
+  // revisão EGM: dois ninjas colados (rankeado) não escondem o nome um do outro: o segundo sobe uma linha.
+  // v69 (revisões de jogabilidade e celular, rodada 5): conta pela LARGURA das plaquinhas (um nome é mais largo que uma
+  // casa) e empilha quantos estiverem colados (3 na fila: 3 linhas), não só dois.
+  const myW = ctx.measureText(`${style.prefix}${p.username}`).width;
+  let stack = 0;
+  for (const q of state.players.values()) {
+    if (q === p || q.map !== p.map || q.dead || !(q.id < p.id) || Math.abs(q.y - p.y) >= 0.9) continue;
+    const qw = ctx.measureText(q.username).width;
+    if (Math.abs(q.x - p.x) * T < (myW + qw) / 2 + 14) stack += 1;
+  }
+  const crowd = stack * (fontSize + 6);
   const nameY = headTop - 5 - (isMe ? 2 : 7) - crowd;
   const label = `${style.prefix}${p.username}`;
   const tw = ctx.measureText(label).width;

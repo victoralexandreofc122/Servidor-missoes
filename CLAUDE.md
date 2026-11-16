@@ -33,6 +33,8 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v69 (sem migração):** polimento do rankeado: "Próximo: X × Y" e "você é o próximo", selo redondo e "faltam N" no
+  resultado, nomes colados, arquibancada em degraus, estátua com volume, mureta, rochas e holofote. Branch `ccr-rankeado`.
 - **v68 (sem migração):** no toque longo do jutsu sem mira, o ✕ Cancelar (deslizar até ele e soltar não lança). Branch `ccr-ui-hud`.
 - **v67 (as 8 propostas do guia de UI, sem migração):** joystick fixo, ✋ cancelar selos, retratos no PvP, câmera da mira,
   toque longo no jutsu, "Enquanto você esteve fora", daltonismo na auditoria, barras escondidas (opção). Branch `ccr-ui-hud`.
@@ -80,7 +82,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
    clãs (v19), a provocação de monstros e a Fase 0 (Extração e maestria, v20) feitos; a linhagem no Criador e o Rito do
    Despertar (v25) e a maestria em todos os jutsus (Fase 1.5, v36) feitos. A Fase 2.5 (74 jutsus novos,
    4 por classe por tier, nomes da opção B) foi feita na v49 (migração v30, `src/realtime/jutsusFase25.ts`).
-2. Rankeado, polimento (`revisao_egm/rankeado/`): arquibancada em degraus, estátua, selo de faixa, aviso de próximo.
+2. Rankeado, polimento (`revisao_egm/rankeado/`): feito na v69 (arquibancada em degraus, estátua, selo de faixa, aviso de próximo).
 3. Cabeça (rosto e cabelo) desenhada à mão em pixel art: o Victor reprovou o rosto e o cabelo gerados por formas 3D.
 4. Site no Floot (páginas, login com a conta do jogo, admin, notificações).
 5. Salas com imagem: aguardando as imagens do Victor (Areia, Alfaiataria, Academia, Caverna, Clareira, Refúgio).

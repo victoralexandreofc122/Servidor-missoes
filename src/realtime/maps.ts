@@ -1315,7 +1315,8 @@ function vale(id: MapId = 'vale_estatuas', name = 'Arena das Quatro Heranças'):
   const f = VALE.fence, t = VALE.thickness;
   const walls: Wall[] = [
     // o vale: paredão de rocha no fundo, rochas nos lados e embaixo (revisão EGM)
-    wall('cliff', 0, 0, W, 3.2), wall('rock', 0, 3.2, 2, H - 3.2), wall('rock', W - 2, 3.2, 2, H - 3.2),
+    // v69: as rochas dos lados em pedras arredondadas com grama na borda (desenho próprio do Vale: s = 'vale')
+    wall('cliff', 0, 0, W, 3.2), wall('rock', 0, 3.2, 2, H - 3.2, 'vale'), wall('rock', W - 2, 3.2, 2, H - 3.2, 'vale'),
     // embaixo: uma mureta de pedra oliva (revisão EGM: a rocha de triângulos não combinava com as lajes)
     wall('pillar', 2, H - 1.6, W - 4, 1.6, 'vale'),
     // a cerca fechada: ninguém entra nem sai andando (o servidor leva os dois da partida)

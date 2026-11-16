@@ -1222,3 +1222,49 @@ body.bars-calm .hud-me .bar { opacity: 0; transition: opacity 0.5s ease; }
 .skill-cancel b { font: 700 22px / 1 var(--ui-font); }
 .skill-cancel span { font: 700 12px / 1 var(--ui-font); letter-spacing: 0.02em; }
 .skill-cancel.hot { transform: scale(1.14); background: #c8261e; color: #fff; border-color: #fff; }
+
+/* =====================================================================================================================
+ * v69: polimento do rankeado (revisões de estilo, jogabilidade e celular, rodada 5)
+ * ===================================================================================================================== */
+
+/* A faixa de VITÓRIA/DERROTA em forma de fita (entalhe nas laterais) e um pouco mais baixa: não cobre o placar. */
+.duel-banner {
+  top: calc(24% + 14px);
+  padding-left: 76px; padding-right: 64px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 50%, 100% 100%, 0 100%, 18px 50%);
+  border-radius: 0;
+}
+/* O selo redondo da faixa (48 px): contorno escuro, 2 tons da cor da faixa, a inicial no meio. */
+.tier-seal {
+  position: absolute; left: 26px; top: 50%; translate: 0 -50%;
+  width: 48px; height: 48px; border-radius: 50%;
+  display: grid; place-items: center;
+  font: 800 22px / 1 var(--ui-font); font-style: normal; color: #1a140c; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+  border: 3px solid #1a140c;
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.22), inset 0 4px 0 rgba(255, 255, 255, 0.35), 0 0 0 2px rgba(255, 215, 106, 0.55);
+}
+.tier-seal[hidden] { display: none; }
+.tier-seal.tier-bronze { background: radial-gradient(circle at 38% 32%, #e0aa78, #a06a3a 70%); }
+.tier-seal.tier-prata { background: radial-gradient(circle at 38% 32%, #f0f2f5, #9aa0a8 70%); }
+.tier-seal.tier-ouro { background: radial-gradient(circle at 38% 32%, #ffe28a, #c89a2a 70%); }
+.tier-seal.tier-diamante { background: radial-gradient(circle at 38% 32%, #d6f4ff, #58a8c8 70%); }
+.tier-seal.tier-lenda { background: radial-gradient(circle at 38% 32%, #ffd0a0, #b88af0 70%); }
+.duel-banner.tier-up .tier-seal { animation: seal-pop 0.6s ease-out; }
+@keyframes seal-pop { 0% { scale: 1.8; opacity: 0; } 60% { scale: 0.92; opacity: 1; } 100% { scale: 1; } }
+/* "Faltam N pontos para OURO" na própria tela do resultado (antes só no Ranking). */
+.duel-banner-next { font-size: 13px; color: #f2d58c; letter-spacing: 0.04em; }
+.duel-banner-next[hidden] { display: none; }
+
+/* "Próximo: X × Y" no placar, para a plateia e para quem espera; "VOCÊ" em dourado. */
+.duel-next { display: block; margin-top: 2px; font-size: 12px; line-height: 1.2; color: #d8cdb8; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.duel-next[hidden] { display: none; }
+.duel-next.me { color: #ffd76a; font-weight: 700; }
+
+@media (max-height: 430px) {   /* celular deitado: a fita menor e mais baixa, embaixo do placar (que acaba em ~90 px) */
+  .duel-banner { top: 58%; gap: 2px; padding: 8px 44px 10px 62px; min-width: 260px; }
+  .duel-banner b { font-size: 30px; letter-spacing: 4px; }
+  .duel-banner span { font-size: 13px; }
+  .duel-banner .rank-tier { font-size: 12px; line-height: 18px; }
+  .duel-banner .duel-again { margin-top: 4px; font-size: 13px; padding: 6px 16px; }
+  .tier-seal { width: 40px; height: 40px; left: 16px; font-size: 18px; }
+}

@@ -1092,6 +1092,7 @@ export function drawWall(g, wall, x, y, w, h, tile) {
     case 'wall': return wall.t === 'areia' ? drawCanyonWall(g, x, y, w, h, Math.abs(seed)) : drawRampart(g, x, y, w, h);
     case 'gatepost': return wall.t === 'areia' ? drawSandPost(g, x, y, w, h) : drawGatePost(g, x, y, w, h);
     case 'rock':
+      if (wall.s === 'vale') return drawValeRocks(g, x, y, w, h, Math.abs(seed), wall.x < 10);   // v69
       if (wall.s !== 'mountain') return drawRock(g, x, y, w, h, seed);
       if (wall.t === 'areia') return drawMesa(g, x, y, w, h, Math.abs(seed));
       drawMountain(g, x, y, w, h, Math.abs(seed), tile);
@@ -1201,10 +1202,27 @@ function statueBody(g, x, y, w, h, C) {
   // com a placa e o cachecol na cor da vila esvoaçando. Cada parte com contorno escuro e 3 tons (luz à esquerda).
   const base = foot - ph;
   const P = (pts) => { g.beginPath(); pts.forEach(([u, v], i) => (i ? g.lineTo(cx + u, base - v) : g.moveTo(cx + u, base - v))); g.closePath(); };
+  // v69 (revisão de estilo, rodada 5: "a estátua continua chapada"): além da luz/sombra por lado, cada peça ganha a
+  // BORDA de volume: faixa clara de RIM unidades na esquerda e escura na direita e embaixo (a luz vem da esquerda).
+  const RIM = 1.3;
+  /** A peça menos ela mesma deslocada (dx, dy): sobra só a borda do lado oposto ao deslocamento (dentro do recorte). */
+  const band = (pts, dx, dy, color) => {
+    g.beginPath();
+    pts.forEach(([u, v], i) => (i ? g.lineTo(cx + u, base - v) : g.moveTo(cx + u, base - v))); g.closePath();
+    pts.forEach(([u, v], i) => (i ? g.lineTo(cx + u + dx, base - v + dy) : g.moveTo(cx + u + dx, base - v + dy))); g.closePath();
+    g.fillStyle = color; g.fill('evenodd');
+  };
+  const rims = (pts, fill) => {
+    g.save(); P(pts); g.clip();
+    band(pts, -RIM, -RIM, fill === STATUE.dark ? '#3a3a30' : STATUE.dark);         // escuro na direita e embaixo
+    band(pts, RIM, 0, fill === STATUE.hi || fill === STATUE.light ? '#e2dfc6' : STATUE.hi);   // claro na esquerda
+    g.restore();
+  };
   const shape = (pts, fill, light, shade) => {
     P(pts); g.lineWidth = 1.6; g.strokeStyle = STATUE.out; g.stroke(); g.fillStyle = fill; g.fill();
     if (shade) { g.save(); P(pts); g.clip(); g.fillStyle = STATUE.dark; g.fillRect(cx + shade, base - 80, 40, 80); g.restore(); }
     if (light) { g.save(); P(pts); g.clip(); g.fillStyle = STATUE.light; g.fillRect(cx - 40, base - 80, 40 + light, 80); g.restore(); }
+    rims(pts, light ? STATUE.light : fill);
   };
   // cachecol atrás (a ponta voa para a direita)
   g.fillStyle = STATUE.out;
@@ -1239,6 +1257,9 @@ function statueBody(g, x, y, w, h, C) {
   g.save(); g.beginPath(); g.arc(cx, base - 39.5, 6.8, 0, Math.PI * 2); g.clip();
   g.fillStyle = STATUE.dark; g.fillRect(cx + 2.5, base - 47, 6, 14);
   g.fillStyle = STATUE.light; g.fillRect(cx - 7, base - 47, 4, 14);
+  // v69: borda de volume da cabeça (clara à esquerda, escura à direita e embaixo)
+  g.fillStyle = '#3a3a30'; g.beginPath(); g.arc(cx, base - 39.5, 6.8, 0, Math.PI * 2); g.arc(cx - RIM, base - 39.5 - RIM, 6.8, 0, Math.PI * 2, true); g.fill();
+  g.fillStyle = STATUE.hi; g.beginPath(); g.arc(cx, base - 39.5, 6.8, 0, Math.PI * 2); g.arc(cx + RIM, base - 39.5, 6.8, 0, Math.PI * 2, true); g.fill();
   g.restore();
   // cabelo espetado
   g.fillStyle = STATUE.out;
@@ -1249,11 +1270,15 @@ function statueBody(g, x, y, w, h, C) {
   g.lineTo(cx + 3.2, base - 50); g.lineTo(cx + 4, base - 45); g.lineTo(cx + 8.2, base - 46.4); g.lineTo(cx + 7, base - 41.5); g.closePath(); g.fill();
   fr(g, STATUE.hi, cx - 4.5, base - 46, 2, FINE * 3);
   fr(g, STATUE.hi, cx - 8.4, base - 45.6, 1, 1); fr(g, STATUE.hi, cx - 3.9, base - 49, 1, 1); fr(g, STATUE.light, cx + 3.1, base - 49.5, 1, 1);   // pontas do cabelo
+  // v69: cada mecha com 1 unidade clara na ponta do lado esquerdo, e a sombra das mechas à direita
+  for (const [u, v] of [[-8.6, 46], [-3.6, 49.4], [3.2, 50], [8.2, 46.4]]) fr(g, '#e2dfc6', cx + u - 0.2, base - v + 0.4, FINE * 3, 1.6);
+  for (const [u, v] of [[-5.2, 44.6], [0.6, 46.5], [4.6, 45.4]]) fr(g, STATUE.dark, cx + u, base - v, FINE * 3, 2.4);
   // bandana com a placa na cor da vila; olhos em fenda
   fr(g, STATUE.out, cx - 7.2, base - 43.2, 14.4, 3.2);
   fr(g, STATUE.dark, cx - 6.8, base - 42.8, 13.6, 2.4);
   fr(g, STATUE.out, cx - 2.8, base - 43.4, 5.6, 3.6);
   fr(g, C.band[2], cx - 2.3, base - 43, 4.6, 2.8);
+  fr(g, '#3a3a30', cx - 6.2, base - 40, 12.4, 1.1);                                  // v69: a sombra sob a bandana
   fr(g, STATUE.out, cx - 4, base - 38.5, 2.4, 0.9); fr(g, STATUE.out, cx + 1.6, base - 38.5, 2.4, 0.9);
 }
 
@@ -1298,33 +1323,44 @@ function drawStands(g, x, y, w, h) {
  * arena) é mais alta e mais escura. `left`: fica à esquerda da arena (a frente dá para a direita).
  */
 function drawStandsSide(g, x, y, w, h, left) {
-  const rows = 3, rw = w / rows;
+  // v69 (revisão de estilo, rodada 5): cada fileira é um DEGRAU de pedra: o topo claro (oliva +15%), a face que dá para a
+  // arena 2 tons mais escura (5 unidades) e, logo depois dela, a sombra caindo sobre a fileira de baixo. Em cima de cada
+  // degrau, assentos de madeira curtos (1 casa, com contorno), não mais uma tira marrom contínua. A de trás é a mais alta.
+  const rows = 3, rw = w / rows, FACE = 5, SHADE = 3.5;
   g.fillStyle = 'rgba(0, 0, 0, 0.3)';
   g.fillRect(x - 1, y - 1, w + 2, h + 3);
   for (let i = 0; i < rows; i++) {
-    const back = left ? i : rows - 1 - i;                 // 0 = fileira de trás
-    const rx = x + i * rw, seat = rw * 0.55, riser = rw - seat;
-    // revisão EGM: degrau de pedra oliva (topo claro, frente 2 tons mais escura) e só o assento em madeira apagada
-    const wood = [['#3e3226', '#4e4032', '#625240'], ['#463a2c', '#584838', '#6e5c48'], ['#4e4032', '#625040', '#7a6650']][back];
-    const stone = [['#3e3e33', '#56564a'], ['#4a4a3e', '#626254'], ['#55554a', '#6e6d5e']][back];
+    const back = left ? i : rows - 1 - i;                 // 0 = fileira de trás (a mais alta)
+    const rx = x + i * rw;
+    const stone = [['#5a5a4c', '#76755f', '#8e8c74'], ['#626253', '#7e7d66', '#97957c'], ['#6a6a5a', '#86856d', '#a09e84']][back];   // [face, topo, aresta]
+    const wood = [['#3e3226', '#5a4834', '#74604a'], ['#463a2c', '#62503c', '#7e6a52'], ['#4e4032', '#6a5844', '#86725a']][back];
     fr(g, STATUE.out, rx, y, rw, h);
-    const sx = left ? rx + 0.5 : rx + riser, fx = left ? rx + seat : rx + 0.5;
-    fr(g, stone[1], sx, y + 0.5, seat - 0.5, h - 1);                      // topo do degrau (pedra)
-    fr(g, '#8a8874', sx, y + 0.5, FINE * 3, h - 1);
-    const pad = seat * 0.22;
-    fr(g, STATUE.out, sx + pad - 0.5, y + 2, seat - 2 * pad + 0.5, h - 4);   // assento de madeira em cima
-    fr(g, wood[1], sx + pad, y + 2.5, seat - 2 * pad - 0.5, h - 5);
-    fr(g, wood[2], sx + pad, y + 2.5, FINE * 3, h - 5);
-    for (let by = y + 9; by < y + h - 3; by += 12) fr(g, wood[0], sx + pad, by, seat - 2 * pad - 0.5, FINE * 2);   // tábuas
-    fr(g, stone[1], fx, y + 0.5, riser - 0.5, h - 1);                     // espelho de pedra (a frente)
-    for (let by = y + 4; by < y + h - 4; by += 8) fr(g, stone[0], fx, by, riser - 0.5, FINE * 2);
-    // emendas suaves (sombra da pedra + 1 px claro embaixo), desencontradas meia casa entre as fileiras
+    // topo do degrau (a parte larga, longe da arena) e a face (estreita, do lado da arena)
+    const tx = left ? rx + 0.5 : rx + FACE, tw = rw - FACE - 0.5;
+    const fx = left ? rx + rw - FACE : rx + 0.5;
+    fr(g, stone[1], tx, y + 0.5, tw, h - 1);
+    fr(g, stone[2], left ? tx : tx + tw - FINE * 3, y + 0.5, FINE * 3, h - 1);          // aresta de trás clara
+    fr(g, stone[0], fx, y + 0.5, FACE - 0.5, h - 1);                                    // face: 2 tons mais escura
+    fr(g, STATUE.dark, left ? fx : fx + FACE - 0.5 - FINE * 3, y + 0.5, FINE * 3, h - 1); // a dobra da face
+    fr(g, stone[2], left ? fx - FINE * 2 : fx + FACE - 0.5, y + 0.5, FINE * 2, h - 1);  // a quina do topo, acesa
+    // juntas das lajes do topo, desencontradas meia casa entre as fileiras
     for (let by = y + 16 + (i % 2) * 8; by < y + h - 2; by += 16) {
-      fr(g, stone[0], rx + 0.5, by, rw - 1, FINE * 2);
-      fr(g, '#8a8874', rx + 0.5, by + FINE * 2, rw - 1, FINE);
+      fr(g, stone[0], tx, by, tw, FINE * 2);
+      fr(g, stone[2], tx, by + FINE * 2, tw, FINE);
     }
-    // sombra do degrau caindo para o lado da arena (o degrau de baixo fica na sombra do de cima)
-    fr(g, 'rgba(0, 0, 0, 0.35)', left ? rx + rw - 0.5 : rx - 3.5, y + 1, 4, h - 2);
+    // assentos de madeira: blocos de 1 casa com contorno, um vão entre eles
+    const sw = tw * 0.56, sx0 = tx + (tw - sw) / 2;
+    for (let by = y + 3; by + 12 < y + h - 2; by += 16) {
+      fr(g, STATUE.out, sx0 - 0.5, by - 0.5, sw + 1, 13);
+      fr(g, wood[1], sx0, by, sw, 12);
+      fr(g, wood[2], sx0, by, sw, FINE * 3);                                           // a borda de cima, clara
+      fr(g, wood[0], sx0, by + 12 - FINE * 3, sw, FINE * 3);                           // a de baixo, escura
+      fr(g, wood[0], sx0 + sw / 2 - FINE, by + 1, FINE * 2, 10);                       // a emenda das duas tábuas
+    }
+    // a sombra do degrau caindo para o lado da arena, sobre a fileira de baixo (ou o chão, na última)
+    const shx = left ? rx + rw : rx - SHADE;
+    g.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    g.fillRect(Math.round(shx * ART) / ART, y + 1, SHADE, h - 2);
   }
   const colors = [['#5a8a34', '#9ac25a'], ['#3f6f8f', '#8cc0d8'], ['#b8962e', '#f0d46a'], ['#b0642e', '#e8a66a']];
   const px = left ? x + 1.5 : x + w - 1.5;
@@ -1343,17 +1379,62 @@ function drawStandsSide(g, x, y, w, h, left) {
   }
 }
 
+/**
+ * v69 (revisão de estilo, rodada 5: "triângulos cinza com corte reto para a grama"): as encostas dos lados do Vale em
+ * pedras arredondadas empilhadas (contorno, 3 tons, luz na esquerda de cima) e uma faixa de tufos de grama na borda de
+ * fora, onde a rocha encontra o mato. `outerLeft`: a borda de fora fica à esquerda.
+ */
+function drawValeRocks(g, x, y, w, h, seed, outerLeft) {
+  const R = rng(seed);
+  fr(g, '#2c2c24', x, y, w, h);                                                  // o fundo entre as pedras
+  for (let by = y - 4, row = 0; by < y + h + 4; by += 11, row++) {
+    for (let bx = x + (row % 2 ? 4 : -2); bx < x + w + 6; bx += 15) {
+      const rx = 7 + R() * 3.5, ry = 5.5 + R() * 2.5, px = bx + R() * 3, py = by + R() * 3;
+      g.fillStyle = STATUE.out; g.beginPath(); g.ellipse(px, py, rx + 0.8, ry + 0.8, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#3e3e34'; g.beginPath(); g.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#56564a'; g.beginPath(); g.ellipse(px - 1.2, py - 1.2, rx - 1.6, ry - 1.6, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#6e6d5e'; g.beginPath(); g.ellipse(px - rx * 0.35, py - ry * 0.4, rx * 0.42, ry * 0.3, -0.4, 0, Math.PI * 2); g.fill();
+      if (R() < 0.35) fr(g, '#5f7a36', px - 2, py - ry + 0.5, 4 + R() * 3, 1.2);   // musgo em cima de algumas
+    }
+  }
+  // tufos de grama na borda de fora (a rocha não termina num corte reto)
+  const ex = outerLeft ? x : x + w;
+  for (let ty = y + 2; ty < y + h - 2; ty += 5 + R() * 3) {
+    const tx = ex + (outerLeft ? 1 : -1) * (R() * 3);
+    for (let k = 0; k < 3; k++) {
+      const bx = tx + (outerLeft ? 1 : -1) * k * 1.6, hgt = 3 + R() * 3;
+      g.fillStyle = STATUE.out; g.fillRect(bx - 0.8, ty - hgt - 0.4, 1.6, hgt + 0.8);
+      g.fillStyle = k === 1 ? '#7a9a46' : '#5f7a36'; g.fillRect(bx - 0.5, ty - hgt, 1, hgt);
+    }
+  }
+}
+
 /** v29: a mureta de pedra oliva na borda de baixo do Vale (blocos com topo claro, frente mais escura e musgo). */
 function drawValeWall(g, x, y, w, h) {
+  // v69 (revisão de estilo, rodada 5: "faixa cinza lisa, sem contorno nem blocos"): blocos de 1 casa com contorno, a
+  // aresta de cima acesa e uma linha escura embaixo de cada um; o topo da mureta em lajes, com musgo de vez em quando.
   const H = 10;
   fr(g, STATUE.out, x - 0.5, y - H - 0.5, w + 1, h + H + 1);
-  fr(g, STATUE.light, x, y - H, w, h);                                         // topo
-  fr(g, STATUE.hi, x, y - H, w, FINE * 2);
-  fr(g, STATUE.mid, x, y + h - H, w, H);                                       // frente
-  for (let bx = x, i = 0; bx < x + w; bx += 18 + (i % 3) * 4, i++) {
-    fr(g, STATUE.out, bx, y + h - H, FINE * 2, H);                             // juntas dos blocos
-    fr(g, STATUE.dark, bx + 1, y + h - 3, 16, 3);
-    if (i % 3 === 0) fr(g, '#5f7a36', bx + 3, y - H, 6, 1.5);                  // musgo no topo
+  // o topo (lajes de 1 casa, alternando o tom de leve)
+  for (let bx = x, i = 0; bx < x + w; bx += 16, i++) {
+    const bw = Math.min(16, x + w - bx);
+    fr(g, i % 2 ? STATUE.light : '#a3a18c', bx, y - H, bw - FINE * 2, h);
+    fr(g, STATUE.hi, bx, y - H, bw - FINE * 2, FINE * 3);                        // a quina acesa
+    fr(g, STATUE.out, bx + bw - FINE * 2, y - H, FINE * 2, h);                   // junta
+    if (i % 3 === 1) fr(g, '#5f7a36', bx + 4, y - H + 0.5, 6, 1.5);              // musgo
+  }
+  // a frente: duas fiadas de blocos desencontrados, cada um com contorno, luz em cima e sombra embaixo
+  const fy = y + h - H, rowH = H / 2;
+  for (let r = 0; r < 2; r++) {
+    const ry = fy + r * rowH;
+    for (let bx = x - (r ? 8 : 0); bx < x + w; bx += 16) {
+      const l = Math.max(bx, x), rr = Math.min(bx + 16, x + w);
+      if (rr - l < 1) continue;
+      fr(g, STATUE.out, l, ry, rr - l, rowH);
+      fr(g, STATUE.mid, l + FINE * 2, ry + FINE * 2, rr - l - FINE * 4, rowH - FINE * 4);
+      fr(g, STATUE.light, l + FINE * 2, ry + FINE * 2, rr - l - FINE * 4, FINE * 2);   // aresta de cima clara
+      fr(g, STATUE.dark, l + FINE * 2, ry + rowH - FINE * 4, rr - l - FINE * 4, FINE * 2);   // linha escura embaixo
+    }
   }
 }
 

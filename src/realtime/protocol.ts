@@ -681,7 +681,8 @@ export type ServerMessage =
   | { type: 'duel_queue'; queued: boolean; position: number; size: number;
       /** v41: fila do Torneio da Temporada (só a da vila de quem recebe): posição (0 = fora) e tamanho. */ jounin?: { position: number; size: number };
       /** v43: fila da Fase Final (0 = fora). */ final?: { position: number; size: number };
-      /** v55: fila do 3v3: se está nela (sozinho ou com o trio) e quantos ninjas esperam (6 = uma partida). */ team3?: { queued: boolean; players: number } }
+      /** v55: fila do 3v3: se está nela (sozinho ou com o trio) e quantos ninjas esperam (6 = uma partida). */ team3?: { queued: boolean; players: number };
+      /** v69: a próxima dupla do rankeado (a que a fila tiraria agora) e se quem recebe está nela ("você é o próximo"). */ next?: { a: string; b: string; me: boolean } }
   /** v55: o trio de quem recebe (para a fila do 3v3 em grupo): o líder, os membros e os convites que ele recebeu. */
   | { type: 'trio_state'; leaderId: string | null; members: { id: string; name: string; level: number }[]; invites: { leaderId: string; name: string }[] }
   | { type: 'vinculo_state' } & VinculoView
