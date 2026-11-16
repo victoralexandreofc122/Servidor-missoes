@@ -7596,7 +7596,7 @@ export class GameWorld {
     if (action === 'team3_unqueue') { this.team3Leave(s.id); this.sendQueues(); return; }
     if (this.duelOf(s.id)) return;
     // v70: a fila do 3v3 é na arena do 3v3 (Rankeado → 3v3)
-    if (s.map !== TRIO_ARENA) return this.notice(s.id, 'A fila do 3v3 é na Arena 3v3: aperte Rankeado e escolha 3v3.', 'bad');
+    if (s.map !== TRIO_ARENA) return this.notice(s.id, 'A fila do 3v3 é na Arena dos Três Juramentos: aperte Rankeado e escolha 3v3.', 'bad');
     if (s.level < DUEL.minLevel) return this.notice(s.id, `O rankeado abre no nível ${DUEL.minLevel}.`, 'bad');
     const pen = this.rankedLeaves.get(s.id);
     if (pen && t < pen.until) return this.notice(s.id, `Você saiu de uma partida: espere ${Math.ceil((pen.until - t) / 1000)} s para entrar na fila de novo.`, 'bad');
@@ -7607,7 +7607,7 @@ export class GameWorld {
       const members = this.trios.get(leader)!;
       if (leader !== s.id) return this.notice(s.id, 'Quem põe o trio na fila é o líder.', 'bad');
       if (members.length !== TEAM3.size) return this.notice(s.id, `O trio está com ${members.length} de ${TEAM3.size}: convide mais ou entre sozinho saindo do trio.`, 'bad');
-      if (!members.every((id) => this.sessions.get(id)?.map === TRIO_ARENA && !this.duelOf(id))) return this.notice(s.id, 'O trio todo precisa estar na Arena 3v3 (e fora de luta).', 'bad');
+      if (!members.every((id) => this.sessions.get(id)?.map === TRIO_ARENA && !this.duelOf(id))) return this.notice(s.id, 'O trio todo precisa estar na Arena dos Três Juramentos (e fora de luta).', 'bad');
       ids = [...members];
     }
     // uma fila por vez

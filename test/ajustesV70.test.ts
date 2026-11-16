@@ -117,7 +117,7 @@ describe('v70: o rankeado 3v3 numa arena própria, maior', () => {
     const p = join('kiba');
     p.send({ type: 'ranked', action: 'enter', mode: '1v1' });
     p.send({ type: 'ranked', action: 'team3_queue' });
-    assert.match(p.conn.last('notice').text, /Arena 3v3/);
+    assert.match(p.conn.last('notice').text, /Arena dos Três Juramentos/);
     p.send({ type: 'ranked', action: 'enter', mode: '3v3' });
     p.send({ type: 'ranked', action: 'queue' });
     assert.equal((w as any).rankedQueue.length, 0, 'Desafio (1v1) não vale na arena do 3v3');
