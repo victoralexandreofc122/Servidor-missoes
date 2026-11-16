@@ -95,7 +95,8 @@ são a decisão do segundo seguinte (o modelo de Red Dead e The Last of Us, que 
   chat), a área de toque cresce em volta dele.
 - **Margens seguras:** tudo respeita `env(safe-area-inset-*)` (entalhe da câmera e barra de gestos).
 - **Personalização (regra 5):** Config. → Editar layout (arrastar cada botão e o bloco do retrato), tamanho e opacidade
-  dos botões e das barras, distância da câmera, efeitos dos jutsus, HUD de combate. "Restaurar layout padrão" desfaz.
+  dos botões e das barras, distância da câmera, efeitos dos jutsus, HUD de combate e, desde a v67, joystick fixo ou
+  flutuante, câmera da mira, toque longo, retratos no PvP e barras escondidas (seção 13). "Restaurar layout padrão" desfaz.
 
 ## 6. As cinco regras de ouro do HUD, aplicadas
 
@@ -184,21 +185,21 @@ Achado na auditoria: a lista de efeitos (🌙🌧🕊) e o bloco do retrato fica
 5. **Teste com 3 a 5 jogadores** por tela principal (no Teste Alpha, pelo botão Feedback e pela observação).
 6. **Integração:** `hud.css` e `game.js`, auditoria da seção 11, `npm run verify` e imagens para o Victor.
 
-## 13. Propostas que esperam o Victor
+## 13. As propostas do guia (aceitas pelo Victor em 16/11/2026; feitas na v67)
 
-Do guia, ainda não feitas (cada uma muda o jeito de jogar; nada entra sem o OK):
+Cada uma é uma escolha em **Config. → HUD**, guardada no aparelho (`nin.uiPrefs`), com o padrão indicado.
 
-1. **Joystick fixo como opção.** Hoje ele nasce onde o polegar toca (flutuante). O guia diz que o fixo cria memória
-   muscular e os jogadores competitivos preferem. Proposta: escolha em Config., com o flutuante como padrão.
-2. **Botão "Cancelar selos".** Hoje só a Substituição ou o Teleporte cancelam a conjuração. Proposta: um ✋ acima do
-   arco, que aparece só durante os selos (sem gastar a recarga).
-3. **Trava de alvo por retrato (PvP).** Retratos dos inimigos perto do polegar direito para focar o atirador e ignorar o
-   tanque; hoje o 🎯 foca o mais perto.
-4. **Câmera que segue a mira.** Ao mirar um jutsu de longe, a câmera desliza na direção da mira.
-5. **Toque longo no jutsu mostra o nome e o efeito** (sem lançar). Pede lançar ao soltar o dedo, e isso muda a sensação
-   do toque.
-6. **"Enquanto você esteve fora":** quem volta depois de dias vê um resumo (nível, missão atual, próximo passo
-   recomendado, o que mudou no mundo).
-7. **Simulação de daltonismo** (deuteranopia, protanopia, tritanopia) na auditoria, com imagens.
-8. **Esconder vida e chakra cheios fora da luta** (o modelo Red Dead e The Last of Us). Recomendo **não**: é um jogo de
-   ação com PvP aberto, e o golpe pode vir a qualquer momento.
+| # | Proposta | Como ficou | Padrão |
+| --- | --- | --- | --- |
+| 1 | **Joystick fixo** | "Joystick: Fixo" deixa a base sempre no mesmo lugar (só o círculo dele pega o toque), para a memória da mão; "Flutuante" nasce onde o polegar toca | Flutuante |
+| 2 | **✋ Cancelar selos** | Aparece colado na ponta direita da barra de selos, só durante os selos (no celular deitado não há espaço livre acima do arco: lá ficava sob o minimapa). Desiste **sem perder chakra nem ganhar recarga** (servidor: `cast_stop`, motivo `stop`); o golpe que interrompe e a fuga continuam como antes | Sempre |
+| 3 | **Retratos dos inimigos (PvP)** | Na arena, no rankeado e na Zona de Conflito, os até 3 inimigos mais perto (12 casas) aparecem em retratos de 48 px ao lado do 🎯, com a vida; um toque foca aquele ninja, outro solta | Ligado |
+| 4 | **Câmera que segue a mira** | Mirando (arrastou ou segurou), a câmera anda até 35% do alcance na direção da mira, no máximo 3 casas; soltou, volta suave | Ligado |
+| 5 | **Toque longo no jutsu** | Segurar 0,45 s mostra o cartão: nome, efeito, chakra, recarga e selos. O jutsu sem mira passa a sair ao **soltar** (toque rápido lança; segurou e leu, não lança). No jutsu com mira: segurou e leu sem arrastar, não lança; arrastou, lança | Ligado |
+| 6 | **"Enquanto você esteve fora"** | Quem volta depois de **2 dias** ou mais vê: nível e XP que faltam, a missão, o marco do mundo, os fragmentos e o **próximo passo** recomendado (pontos para distribuir, missão pronta, Missão de Genin, pergaminhos para extrair, pegar um treino). Uma vez por volta. A data vem de `game.players.last_seen_at` (da v11: sem migração) | Sempre |
+| 7 | **Daltonismo na auditoria** | `scripts/auditar-hud.ts` grava a tela do celular na Floresta normal e com deuteranopia, protanopia e tritanopia (matrizes de Machado, Oliveira e Fernandes, 2009) | Na auditoria |
+| 8 | **Esconder vida e chakra cheios fora da luta** | Com a opção, as duas barras somem quando estão cheias e não há luta; qualquer golpe, gasto ou luta traz de volta. Ficou **desligada por padrão**, pelo motivo da seção 4.1 (o golpe no PvP aberto pode vir a qualquer momento) | Desligado |
+
+**Achado da simulação de daltonismo:** na tritanopia, a barra de vida e a de chakra ficam do mesmo ciano. Continuam
+distinguíveis porque cada uma tem o rótulo ("Vida", "Chakra"), o número e um tamanho diferente: nada depende só da cor.
+Se um dia uma barra perder o rótulo, este achado volta a valer.

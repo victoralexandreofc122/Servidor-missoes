@@ -466,6 +466,8 @@
     -->
     <!-- v29 (Jutsus v2): selos do jutsu que você está conjurando (a barra também aparece sobre a cabeça). -->
     <div id="cast-bar" class="cast-bar" hidden aria-hidden="true"><span class="name"></span><div class="track"><div class="fill"></div></div></div>
+    <!-- v67: ✋ Cancelar selos, colado na barra de selos (só durante os selos) -->
+    <button id="cast-stop-btn" type="button" class="cast-stop" hidden aria-label="Cancelar selos (sem perder chakra nem recarga)"><span aria-hidden="true">✋</span></button>
     <div id="combat" class="combat" aria-label="Combate">
       <button id="attack-btn" type="button" class="cbtn attack" aria-label="Ataque básico (não gasta chakra)"><span class="ico" aria-hidden="true">🗡️</span><i class="cd" aria-hidden="true"></i></button>
       <button type="button" class="cbtn skill" data-slot="0"><span class="ico" aria-hidden="true"></span><b class="cost" aria-hidden="true"></b><i class="cd" aria-hidden="true"></i></button>
@@ -553,6 +555,17 @@
       <fieldset class="display-opts">
         <legend>HUD</legend>
         <label><input id="combat-hud-opt" type="checkbox" checked> HUD de combate: na luta, esconde as missões e apaga o chat</label>
+        <!-- v67: as propostas do guia de UI aceitas pelo Victor (docs/ui/estrutura-ui-ux-hud.md, seção 13) -->
+        <label class="slider">Joystick
+          <select id="pref-joystick" aria-label="Joystick">
+            <option value="flutuante">Flutuante (nasce onde o polegar toca)</option>
+            <option value="fixo">Fixo (sempre no mesmo lugar)</option>
+          </select>
+        </label>
+        <label><input id="pref-aim-camera" type="checkbox" checked> Câmera segue a mira dos jutsus</label>
+        <label><input id="pref-hold-info" type="checkbox" checked> Segurar o jutsu mostra o nome e o efeito (sai ao soltar)</label>
+        <label><input id="pref-portraits" type="checkbox" checked> Retratos dos inimigos no PvP (toque para focar)</label>
+        <label><input id="pref-hide-bars" type="checkbox"> Esconder vida e chakra cheios fora da luta</label>
       </fieldset>
       <fieldset id="display-opts" class="display-opts">
         <legend>O que os outros veem no seu boneco</legend>
@@ -645,6 +658,18 @@
     <p id="xp-line" class="xp-line">Academia · 0 XP</p>
 
     <div id="hurt" class="hurt" aria-hidden="true"></div>
+    <!-- v67: segurar o jutsu (nome e efeito), retratos dos inimigos no PvP e o resumo de quem voltou depois de dias -->
+    <div id="skill-tip" class="skill-tip" role="tooltip" hidden></div>
+    <div id="foe-portraits" class="foe-portraits" aria-label="Inimigos perto: toque para focar" hidden></div>
+    <section id="away-panel" class="mission-panel away-panel" hidden role="dialog" aria-labelledby="away-title">
+      <header class="mission-head">
+        <h2 id="away-title"><span aria-hidden="true">🌅</span> Enquanto você esteve fora</h2>
+        <button id="away-close" class="icon-btn small" type="button" aria-label="Fechar o resumo"><span aria-hidden="true">✕</span></button>
+      </header>
+      <p id="away-days" class="mission-sensei"></p>
+      <ul id="away-list" class="away-list"></ul>
+      <button id="away-go" type="button" class="primary">Continuar</button>
+    </section>
     <p id="toast" class="toast" role="status" hidden></p>
   </div>
 

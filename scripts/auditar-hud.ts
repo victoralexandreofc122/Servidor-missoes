@@ -4,7 +4,9 @@
  *   - área de toque de cada controle (o dedo a 22 px do centro ainda acerta?): mínimo 44 x 44 px no toque;
  *   - zona do polegar de cada controle (verde, amarela, vermelha);
  *   - quanto da tela o HUD intercepta (teste de espremer os olhos);
- *   - contraste do texto (mínimo 4,5:1) e texto abaixo de 12 px.
+ *   - contraste do texto (mínimo 4,5:1) e texto abaixo de 12 px;
+ *   - v67: daltonismo: a tela do celular na Floresta como a veem quem tem deuteranopia, protanopia e tritanopia
+ *     (matrizes de Machado, Oliveira e Fernandes, 2009, severidade total), para conferir que nada depende só da cor.
  * Precisa do servidor local rodando (npm run dev) e de uma conta de admin no banco local. O token é feito aqui com o
  * JWT_SECRET do ambiente e nunca é impresso.
  *
@@ -84,6 +86,43 @@ for (const v of VIEWS) {
   }, { w: v.w, h: v.h, touch: v.touch });
   await ctx.close();
 }
+// v67 (checklist do guia: daltonismo): a mesma tela com o filtro de cada tipo, aplicado à página inteira (o canvas também).
+const CVD: Record<string, string> = {
+  deuteranopia: '0.367322 0.860646 -0.227968 0 0  0.280085 0.672501 0.047413 0 0  -0.011820 0.042940 0.968881 0 0  0 0 0 1 0',
+  protanopia: '0.152286 1.052583 -0.204868 0 0  0.114503 0.786281 0.099216 0 0  -0.003882 -0.048116 1.051998 0 0  0 0 0 1 0',
+  tritanopia: '1.255528 -0.076749 -0.178779 0 0  -0.078411 0.930809 0.147602 0 0  0.004733 0.691367 0.303900 0 0  0 0 0 1 0',
+};
+{
+  const { token } = await issue(id);
+  const ctx = await br.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 1, hasTouch: true, isMobile: true });
+  await ctx.addInitScript('window.__name = (f) => f');
+  await ctx.addInitScript(`localStorage.setItem('nin.token', ${JSON.stringify(token)})`);
+  const p = await ctx.newPage();
+  await p.goto(URL_);
+  await wait(4500);
+  for (const sel of ['text=Entendi', 'text=Fechar (já entendi)', 'text=Guardar', 'text=Continuar']) { try { await p.click(sel, { timeout: 800 }); } catch {} }
+  await p.fill('#chat-input', '/admin ir map_2 50 50'); await p.press('#chat-input', 'Enter'); await wait(2500);
+  await p.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+  for (const sel of ['text=Guardar', 'text=Entendi']) { try { await p.click(sel, { timeout: 800 }); } catch {} }
+  await wait(800);
+  await p.screenshot({ path: `${OUT}/${TAG}_daltonismo_normal.png` });
+  for (const [kind, matrix] of Object.entries(CVD)) {
+    await p.evaluate(({ kind, matrix }) => {
+      document.getElementById('cvd-svg')?.remove();
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.id = 'cvd-svg';
+      svg.setAttribute('style', 'position:absolute;width:0;height:0');
+      svg.innerHTML = `<filter id="cvd-${kind}" color-interpolation-filters="linearRGB"><feColorMatrix type="matrix" values="${matrix}"/></filter>`;
+      document.body.append(svg);
+      document.documentElement.style.filter = `url(#cvd-${kind})`;
+    }, { kind, matrix });
+    await wait(300);
+    await p.screenshot({ path: `${OUT}/${TAG}_daltonismo_${kind}.png` });
+  }
+  await ctx.close();
+}
+
 const fs = await import('node:fs');
 fs.writeFileSync(`${OUT}/${TAG}_auditoria.json`, JSON.stringify(report, null, 1));
 for (const [k, r] of Object.entries<any>(report)) console.log(k, 'controles', r.controles, 'abaixo44', r.abaixoDe44.length, 'cobertura%', r.cobertura, 'contraste<4.5', r.contrasteBaixo.length, 'texto<12px', r.textoPequeno.length);

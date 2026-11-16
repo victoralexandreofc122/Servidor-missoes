@@ -27,6 +27,8 @@ export const FRAGMENTS_SQL = `SELECT fragment_code FROM game.player_fragments WH
 export const VINCULO_SQL = `SELECT creature_type, affinity_level, xp, equipped FROM game.player_vinculo WHERE player_id = $1`;
 export const PRIMAL_SQL = `SELECT active_until, cooldown_until FROM game.player_primal_state WHERE player_id = $1`;
 export const REVIVES_SQL = `SELECT era_id FROM game.loot_revives WHERE player_id = $1`;
+/** v67: a última entrada (antes desta), para o resumo "Enquanto você esteve fora" (coluna da v11; sem ela, sem resumo). */
+export const LAST_SEEN_SQL = `SELECT last_seen_at FROM game.players WHERE id = $1`;
 /** v59 (migração v34): o último lugar onde o ninja estava. */
 export const POSITION_SQL = `SELECT map_id, x, y FROM game.player_positions WHERE player_id = $1`;
 
@@ -96,7 +98,10 @@ export function makeFindPlayer(db: Queryable) {
     // v62 (migração v37): as Eras em que a Relíquia do Renascer já foi usada
     const revives = await db.query<{ era_id: number }>(REVIVES_SQL, [playerId]).then((r) => r.rows.map((x) => Number(x.era_id)))
       .catch((err: { code?: string }) => { if (err?.code === '42P01') return undefined; throw err; });
+    const lastSeenAt = await db.query<{ last_seen_at: Date | null }>(LAST_SEEN_SQL, [playerId]).then((r) => r.rows[0]?.last_seen_at ?? null)
+      .catch((err: { code?: string }) => { if (err?.code === '42703') return null; throw err; });
     return {
+      ...(lastSeenAt ? { lastSeenAt: new Date(lastSeenAt).toISOString() } : {}),
       ...(manual ? { manual } : {}),
       ...(fragments ? { fragments } : {}),
       ...(lastPosition ? { lastPosition } : {}),
