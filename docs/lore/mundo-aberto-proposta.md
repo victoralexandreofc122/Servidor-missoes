@@ -206,7 +206,7 @@ renegado. O roteiro das 15 missões de cada um vem depois da escolha dos nomes 2
 | Aldeia | Título de trabalho | A história | O vilão (nível 15) | Pista do chefe regional |
 |---|---|---|---|---|
 | Maré Oculta | A Primeira Cifra | No rito da noite na névoa, um colega some de verdade. O cadete descobre uma rede de contrabando que vende as cifras da aldeia para os Cinzas. | Umiko, a Voz da Névoa (escolha 26C): contrabandista que se esconde na névoa e troca de lugar com reflexos na água. | Uma escama vermelha no barco do contrabandista: Namiko. |
-| Vento Cortante | A Corrida do Sol | No rito de cruzar o planalto, as pipas de mensagem são cortadas e uma caravana some. Quem rouba é um bando liderado por um instrutor expulso. | Instrutor expulso, rápido, que ataca em investidas e foge no vento (item 27). | O vento falha por um instante na última corrida: Jinra. |
+| Vento Cortante | A Corrida do Sol | No rito de cruzar o planalto, as pipas de mensagem são cortadas e uma caravana some. Quem rouba é um bando liderado por um instrutor expulso. | Jinto, o Instrutor Caído (escolha 27C): instrutor expulso, rápido, que ataca em investidas e foge no vento. | O vento falha por um instante na última corrida: Jinra. |
 | Rocha Antiga | A Primeira Pedra | No cerco de treino, uma parte da muralha cai de verdade. Um engenheiro traidor enfraquecia a pedra para os Cinzas entrarem. | Engenheiro que levanta muros de pedra e faz o chão desabar (item 28). | O nome de um cadete some da muralha: O Colosso dos Nomes. |
 
 ## 6. Ordem de construção (escolhida pelo Victor em 17/11/2026)
@@ -221,8 +221,8 @@ Cada etapa abre num marco da Progressão de Mundo (`src/realtime/worldProgress.t
 
 ## 7. Nomes para escolher (regra das 3 opções)
 
-**Escolhido pelo Victor em 17/11/2026 (comentários no Atlas): 21B, 22C com ajuste ("Namiko", no lugar de "Namikoro"), 23B, 24A, 25C e 26C (Umiko, a Voz da Névoa).**
-Os itens 14 a 20, 27 e 28 esperam a escolha.
+**Escolhido pelo Victor em 17/11/2026 (comentários no Atlas): 21B, 22C com ajuste ("Namiko", no lugar de "Namikoro"), 23B, 24A, 25C, 26C (Umiko, a Voz da Névoa) e 27C (Jinto, o Instrutor Caído).**
+Os itens 14 a 20 e 28 esperam a escolha.
 
 | # | O que precisa de nome | Rótulo de trabalho | Opção A | Opção B | Opção C |
 |---|---|---|---|---|---|
@@ -239,7 +239,7 @@ Os itens 14 a 20, 27 e 28 esperam a escolha.
 | 24 | Chefe da Rocha Antiga | — | **O Colosso dos Nomes (escolhido)** | Gendouro, a Muralha que Anda | O Guardião da Mina Velha |
 | 25 | Chefe dos Renegados | — | O Primeiro Riscado | O Caçador de Bandanas | **Senhor das Cinzas (escolhido)** |
 | 26 | Vilão do Arco 1 da Maré Oculta | — | Suiren da Maré Baixa | O Barqueiro sem Rosto | **Umiko, a Voz da Névoa (escolhido)** |
-| 27 | Vilão do Arco 1 do Vento Cortante | — | Raiga, o Ladrão de Caravanas | Kaze Negro | Jinto, o Instrutor Caído |
+| 27 | Vilão do Arco 1 do Vento Cortante | — | Raiga, o Ladrão de Caravanas | Kaze Negro | **Jinto, o Instrutor Caído (escolhido)** |
 | 28 | Vilão do Arco 1 da Rocha Antiga | — | Gendoumaru, o Engenheiro | Iwatarō da Muralha Rachada | Mestre Kurogane |
 
 Depois da escolha destes, vêm (também em 3 opções): os títulos dos arcos, os NPCs de cada arco, os bichos de cada
