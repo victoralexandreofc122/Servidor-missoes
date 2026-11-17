@@ -207,3 +207,15 @@ Cada uma é uma escolha em **Config. → HUD**, guardada no aparelho (`nin.uiPre
 **Achado da simulação de daltonismo:** na tritanopia, a barra de vida e a de chakra ficam do mesmo ciano. Continuam
 distinguíveis porque cada uma tem o rótulo ("Vida", "Chakra"), o número e um tamanho diferente: nada depende só da cor.
 Se um dia uma barra perder o rótulo, este achado volta a valer.
+
+## 14. A caixa de conversa (v71, pedido do Victor de 17/11/2026)
+
+- Toda fala de NPC aparece na caixa de conversa, embaixo e no meio da tela, nunca em balão sobre a cabeça.
+- Página de no máximo 3 linhas; a cena tem quantas páginas precisar. No texto, uma linha em branco força página nova.
+- O nome de quem fala fica sempre visível numa plaqueta; o contador "1/3" mostra quanto falta; ▼ quando a página
+  terminou, ■ na última.
+- O toque (zona do polegar: a caixa inteira é o alvo) termina a página, passa para a próxima e fecha na última. O ✕
+  tem 44 px. No teclado: Espaço, Enter ou E; Esc fecha.
+- Enquanto a conversa está aberta, os botões de luta ficam apagados e sem toque; o joystick continua livre e se afastar
+  do NPC fecha a conversa. Só se fala com NPC em zona segura, então ninguém apanha lendo.
+- O retrato de quem fala, à esquerda, é uma opção no ⚙️ (em teste).

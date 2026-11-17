@@ -240,6 +240,15 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v71: caixa de conversa (sem migração; pedido do Victor de 17/11)
+
+- **A fala do NPC sai do balão e vai para uma caixa** embaixo, no meio da tela, com o nome de quem fala numa plaqueta, o
+  texto aparecendo aos poucos e páginas de até 3 linhas (a conversa pode ter quantas páginas precisar). Um toque termina a
+  página, outro passa para a próxima e, na última, fecha; no PC, Espaço, Enter ou E (Esc fecha). A fala continua no chat.
+- **Retrato ao lado** (opção no ⚙️, ligada para testar): o busto do NPC, o mesmo desenho do mapa.
+- No celular deitado a caixa começa depois do joystick, que continua livre: se afastar do NPC fecha a conversa. Enquanto
+  ela está aberta, os botões de luta ficam apagados e sem toque, e o chat some.
+
 ### v70: pedidos do Victor de 17/11 (migração v40, `db/schema_v40_xp_missoes.sql`)
 
 - **Bug corrigido:** sair do navegador e voltar deixava os monstros "ignorando" o ninja e sem levar dano. No celular,

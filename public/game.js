@@ -1670,8 +1670,9 @@ function handleMessage(msg) {
     }
     case 'npc_say': {
       const npc = state.npcs.find((n) => n.id === msg.npcId);
-      if (npc) npc.bubble = { text: msg.text, until: now + 4000 + msg.text.length * 45 };
-      addChatLine(npc ? npc.name : 'NPC', msg.text, false, 'npc');
+      // v71: a fala abre a caixa de conversa (páginas separadas por linha em branco); fica também no chat, em uma linha.
+      if (npc) openDialog(npc, msg.text);
+      addChatLine(npc ? npc.name : 'NPC', msg.text.replace(/\s*\n+\s*/g, ' '), false, 'npc');
       // Diretor, nível 60 e ainda sem candidatura: o botão de Kage aparece.
       const kageAt = state.world.rankLevels?.kage ?? 60;
       if (msg.npcId === 'director' && (state.progress?.level ?? 1) >= kageAt && !state.ninja.kageCandidate) openKage();
@@ -2248,13 +2249,13 @@ setInterval(updateCombatHud, 400);
  *   portraits     no PvP, os retratos dos inimigos perto do polegar: um toque foca aquele ninja
  *   hideFullBars  fora da luta, com vida e chakra cheios, as duas barras somem (o retrato fica)
  */
-const UI_PREF_DEFAULT = { joystick: 'flutuante', aimCamera: true, holdInfo: true, portraits: true, hideFullBars: false };
+const UI_PREF_DEFAULT = { joystick: 'flutuante', aimCamera: true, holdInfo: true, portraits: true, hideFullBars: false, dlgPortrait: true };
 const uiPref = (() => {
   const out = { ...UI_PREF_DEFAULT };
   try {
     const raw = JSON.parse(localStorage.getItem('nin.uiPrefs') || '{}');
     if (raw.joystick === 'fixo' || raw.joystick === 'flutuante') out.joystick = raw.joystick;
-    for (const k of ['aimCamera', 'holdInfo', 'portraits', 'hideFullBars']) if (typeof raw[k] === 'boolean') out[k] = raw[k];
+    for (const k of ['aimCamera', 'holdInfo', 'portraits', 'hideFullBars', 'dlgPortrait']) if (typeof raw[k] === 'boolean') out[k] = raw[k];
   } catch { /* sem armazenamento ou dado estragado: o padrão */ }
   return out;
 })();
@@ -2267,7 +2268,7 @@ function saveUiPref() {
     sel.value = uiPref.joystick;
     sel.addEventListener('change', () => { uiPref.joystick = sel.value === 'fixo' ? 'fixo' : 'flutuante'; saveUiPref(); });
   }
-  for (const [id, key] of [['pref-aim-camera', 'aimCamera'], ['pref-hold-info', 'holdInfo'], ['pref-portraits', 'portraits'], ['pref-hide-bars', 'hideFullBars']]) {
+  for (const [id, key] of [['pref-aim-camera', 'aimCamera'], ['pref-hold-info', 'holdInfo'], ['pref-portraits', 'portraits'], ['pref-hide-bars', 'hideFullBars'], ['pref-dlg-portrait', 'dlgPortrait']]) {
     const box = $(id);
     if (!box) continue;
     box.checked = uiPref[key];
@@ -2515,6 +2516,12 @@ function keyDirection() {
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
   if (hud.editing || !ui.creator.hidden) return;   // editando o layout ou criando o personagem: sem combate
+  // v71: com a conversa aberta, Espaço, Enter e E passam a página; Esc fecha. Andar continua valendo.
+  if (dialog.npc && (e.key === ' ' || e.key === 'Enter' || e.key === 'e' || e.key === 'E' || e.key === 'Escape')) {
+    e.preventDefault();
+    if (!e.repeat) (e.key === 'Escape' ? closeDialog() : advanceDialog());
+    return;
+  }
   if (manualUI.open) return;                         // v38: lendo o Pergaminho ou escrevendo o Feedback: sem combate
   if (KEYMAP[e.code]) { keys.add(e.code); keyDirection(); e.preventDefault(); }
   if (e.key >= '1' && e.key <= '4' && !e.repeat) {
@@ -3716,6 +3723,130 @@ function talkToNpc() {
 }
 onTap(ui.talkBtn, talkToNpc);
 
+/*
+ * v71 (pedido do Victor, 17/11): a conversa com o NPC num quadro embaixo, no meio da tela, no lugar do balão sobre a
+ * cabeça. O texto vem em páginas de até 3 linhas (uma linha em branco no texto do servidor força página nova), vai
+ * aparecendo letra a letra e avança com um toque no quadro (ou Espaço, Enter, E). Na última página, o toque fecha.
+ * O retrato de quem fala, ao lado, é uma opção no ⚙️ para testar com e sem. Enquanto a conversa está aberta, os botões
+ * de luta ficam apagados por baixo do quadro; o joystick continua livre e se afastar do NPC fecha a conversa.
+ */
+const dialog = { npc: null, pages: [], i: 0, shown: 0, timer: 0 };
+const DIALOG_CPS = 45;                       // letras por segundo
+const DIALOG_LINES = 3;
+const dlgEl = {
+  box: $('dialog'), face: $('dialog-face'), name: $('dialog-name'), text: $('dialog-text'),
+  page: $('dialog-page'), next: $('dialog-next'), close: $('dialog-close'),
+};
+
+/** O visual do NPC (o mesmo que o mapa desenha), para o retrato. */
+function npcLookOf(n) {
+  if (n.shop && SHOPKEEPER_LOOK[n.shop]) return SHOPKEEPER_LOOK[n.shop];
+  if (ACADEMY_LOOK[n.id]) return ACADEMY_LOOK[n.id];
+  const role = ROLE_LOOK[n.role] || ROLE_LOOK.sensei;
+  const village = state.maps[state.mapId]?.village || 'vila_1';
+  return npcLook({ ...role.look, village });
+}
+
+/** Quebra o texto em páginas de até 3 linhas, medindo com a fonte do quadro. */
+function paginateDialog(text) {
+  const width = Math.max(120, dlgEl.text.clientWidth || 300);
+  const cs = getComputedStyle(dlgEl.text);
+  const m = document.createElement('canvas').getContext('2d');
+  m.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const pages = [];
+  for (const block of String(text).split(/\n\s*\n/)) {
+    const lines = [];
+    for (const para of block.split('\n')) {
+      let line = '';
+      for (const word of para.trim().split(/\s+/)) {
+        if (!word) continue;
+        const tryLine = line ? `${line} ${word}` : word;
+        if (line && m.measureText(tryLine).width > width) { lines.push(line); line = word; } else line = tryLine;
+      }
+      if (line) lines.push(line);
+    }
+    for (let k = 0; k < lines.length; k += DIALOG_LINES) pages.push(lines.slice(k, k + DIALOG_LINES).join(' '));
+  }
+  return pages.length ? pages : [''];
+}
+
+function renderDialogPage() {
+  const page = dialog.pages[dialog.i] ?? '';
+  dlgEl.text.textContent = page.slice(0, dialog.shown);
+  const done = dialog.shown >= page.length;
+  dlgEl.next.hidden = !done;
+  dlgEl.next.textContent = done && dialog.i >= dialog.pages.length - 1 ? '■' : '▼';
+  dlgEl.page.textContent = dialog.pages.length > 1 ? `${dialog.i + 1}/${dialog.pages.length}` : '';
+}
+
+function typeDialog() {
+  clearInterval(dialog.timer);
+  dialog.shown = 0;
+  renderDialogPage();
+  const page = dialog.pages[dialog.i] ?? '';
+  const step = Math.max(1, Math.round(DIALOG_CPS / 40));
+  dialog.timer = setInterval(() => {
+    dialog.shown = Math.min(page.length, dialog.shown + step);
+    renderDialogPage();
+    if (dialog.shown >= page.length) clearInterval(dialog.timer);
+  }, 1000 / 40);
+}
+
+/** Abre (ou continua) a conversa com o NPC. Uma fala nova do mesmo NPC entra como páginas seguintes. */
+function openDialog(npc, text) {
+  const same = dialog.npc && dialog.npc.id === npc.id && !dlgEl.box.hidden;
+  dlgEl.box.hidden = false;
+  document.body.classList.add('dialog-open');
+  dlgEl.box.classList.toggle('with-face', !!uiPref.dlgPortrait);
+  dlgEl.face.hidden = !uiPref.dlgPortrait;
+  if (uiPref.dlgPortrait) drawBust(dlgEl.face, npcLookOf(npc));
+  dlgEl.name.textContent = npc.name;
+  const pages = paginateDialog(text);
+  if (same && dialog.i < dialog.pages.length) {
+    dialog.pages.push(...pages);
+    renderDialogPage();
+    return;
+  }
+  dialog.npc = npc;
+  dialog.pages = pages;
+  dialog.i = 0;
+  typeDialog();
+}
+
+/** Toque no quadro: termina a página que está aparecendo; se já terminou, vai para a próxima ou fecha. */
+function advanceDialog() {
+  if (!dialog.npc) return;
+  const page = dialog.pages[dialog.i] ?? '';
+  if (dialog.shown < page.length) {
+    clearInterval(dialog.timer);
+    dialog.shown = page.length;
+    renderDialogPage();
+    return;
+  }
+  if (dialog.i < dialog.pages.length - 1) {
+    dialog.i++;
+    typeDialog();
+    return;
+  }
+  closeDialog();
+}
+
+function closeDialog() {
+  clearInterval(dialog.timer);
+  dialog.npc = null;
+  dialog.pages = [];
+  dlgEl.box.hidden = true;
+  document.body.classList.remove('dialog-open');
+}
+
+dlgEl.box.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('#dialog-close')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  advanceDialog();
+});
+dlgEl.close.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); closeDialog(); });
+
 /** Mostra/esconde o 💬 Falar. Margem de 0,15 casa: a posição prevista pode estar à frente da do servidor. */
 function updateNpcProximity(me) {
   let near = null;
@@ -3728,6 +3859,11 @@ function updateNpcProximity(me) {
     // Lojista: o botão vira 🛒 (abre a loja); o Mestre continua 💬 (conversa e missões).
     ui.talkBtn.querySelector('.ico').textContent = near && near.shop ? '🛒' : '💬';
     ui.talkBtn.setAttribute('aria-label', near && near.shop ? 'Abrir a loja' : 'Falar');
+  }
+  // v71: conversa aberta e o jogador se afastou do NPC (ou mudou de mapa): fecha.
+  if (dialog.npc) {
+    const n = state.npcs.find((x) => x.id === dialog.npc.id);
+    if (!me || state.me.dead || !n || Math.hypot(me.x - n.x, me.y - n.y) > n.range + 1.5) closeDialog();
   }
   // Sala de Missões aberta e o jogador se afastou do Mestre: fecha.
   if (!ui.boardPanel.hidden) {
@@ -7479,6 +7615,9 @@ try {
       map: () => ({ predicted: pred.map, drawn: state.mapId, server: state.serverMap }),
       fade: () => ({ alpha: mapFade.alpha, fading: !!mapFade.to }),
       npcs: () => state.npcs.map((n) => n.id),
+      /** v71: abre a caixa de conversa com um texto qualquer (testar páginas longas). */
+      dialog: (npcId, text) => { const n = state.npcs.find((x) => x.id === npcId); if (n) openDialog(n, text); return !!n; },
+      dialogState: () => ({ open: !!dialog.npc, pages: dialog.pages.length, i: dialog.i }),
       monsters: () => [...state.monsters.values()].map((m) => [m.type, Math.round(m.x * 10) / 10, Math.round(m.y * 10) / 10]),
       shop: () => (state.shop ? { ...state.shop } : null),
       /** O mapa inteiro numa imagem (16 px por casa), montado com os mesmos blocos do jogo. */

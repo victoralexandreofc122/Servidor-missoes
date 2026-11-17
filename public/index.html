@@ -506,6 +506,18 @@
       <button id="primal-btn" type="button" class="cbtn small vprimal" hidden aria-label="Estado Primal"><span class="ico" aria-hidden="true">🔥</span><b class="kit-label" id="primal-label"></b><i class="cd" aria-hidden="true"></i></button>
     </div>
 
+    <!-- v71 (pedido do Victor, 17/11): a conversa com o NPC num quadro embaixo, no meio da tela, no lugar do balão.
+         Páginas de até 3 linhas, texto que vai aparecendo, toque para continuar; o retrato é opcional (⚙️). -->
+    <section id="dialog" class="dialog" hidden role="dialog" aria-live="polite" aria-labelledby="dialog-name">
+      <canvas id="dialog-face" class="dialog-face" width="96" height="96" aria-hidden="true"></canvas>
+      <div class="dialog-body">
+        <div id="dialog-name" class="dialog-name"></div>
+        <p id="dialog-text" class="dialog-text"></p>
+        <div class="dialog-foot"><span id="dialog-page" class="dialog-page"></span><span id="dialog-next" class="dialog-next" aria-hidden="true">▼</span></div>
+      </div>
+      <button id="dialog-close" type="button" class="dialog-close" aria-label="Fechar a conversa"><span aria-hidden="true">✕</span></button>
+    </section>
+
     <!-- Configurações: layout da HUD (só muda no modo "Editar layout", nunca sem querer), tamanho e transparência. -->
     <!-- v62: O Cronista (Academia): a Crônica das Eras e os Titãs/Portadores da Era -->
     <section id="chronicle-panel" class="mission-panel chronicle-panel" hidden role="dialog" aria-labelledby="chronicle-title">
@@ -584,6 +596,7 @@
         <label><input id="pref-hold-info" type="checkbox" checked> Segurar o jutsu mostra o nome e o efeito (sai ao soltar)</label>
         <label><input id="pref-portraits" type="checkbox" checked> Retratos dos inimigos no PvP (toque para focar)</label>
         <label><input id="pref-hide-bars" type="checkbox"> Esconder vida e chakra cheios fora da luta</label>
+        <label><input id="pref-dlg-portrait" type="checkbox" checked> Retrato de quem fala na caixa de conversa</label>
       </fieldset>
       <fieldset id="display-opts" class="display-opts">
         <legend>O que os outros veem no seu boneco</legend>

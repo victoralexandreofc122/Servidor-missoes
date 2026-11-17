@@ -33,6 +33,9 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v71 (sem migração, pedido do Victor de 17/11):** a fala do NPC numa caixa embaixo, no meio da tela (nome, páginas de
+  até 3 linhas, texto aparecendo aos poucos, toque para continuar), no lugar do balão; retrato opcional no ⚙️. Regra no
+  guia de UI, seção 14. Branch `ccr-2afc1981-eq01zm`.
 - **v70 (migração v40, pedidos do Victor de 17/11):** bug da conexão morta ao voltar ao navegador (vigia que reconecta),
   retrato abre os atributos, nome no lugar de "Vida", chat menor no meio (celular) e missões à esquerda, regen 2/s após 3 s,
   Lodo Verde 8, respawn de 1 min, XP das missões 50/150/325 (v40), arena própria e maior do 3v3 com a escolha 1v1/3v3.
