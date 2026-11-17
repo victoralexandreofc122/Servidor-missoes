@@ -53,7 +53,7 @@ Bichos da borda de cada região (descrições; os nomes vêm depois, com 3 opç�
 
 1. **Uma estrada por aldeia** (aceita pelo Victor em 17/11/2026), do portão até o acampamento na Zona. Na estrada só andam patrulhas, que passam de tempos
    em tempos. Fora dela, os monstros ficam parados esperando presa: quem é paciente passa driblando.
-2. **O chefe fica ao lado da estrada**, na passagem da borda para o anel do meio. O covil dele fica a 36 casas da
+2. **O chefe fica ao lado da estrada** (aceita pelo Victor em 17/11/2026), na passagem da borda para o anel do meio. O covil dele fica a 36 casas da
    estrada: dá para contornar em silêncio ou derrotar com uma equipe de nível 40.
 3. **Elites só em grupo** no anel interno (nível 50 a 60, 3 a 5 ninjas). Área de alerta grande, mas não saem da área deles.
 4. **Escolta:** o nível baixo que anda colado num nível 50+ do mesmo grupo é ignorado pelos monstros mais fracos que o
