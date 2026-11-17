@@ -1,64 +1,242 @@
 ID,Personagem,Texto,Gatilho / Condição,Arquivo de Áudio,Status de Produção
-TUT_AYA_01,Professora Aya,"Olha só: golpe curto, de perto! 🗡️ Ataque Básico. O boneco não revida, erre à vontade. Derrube 3 e a porta abre!",Falar com Professora Aya; tutorial == 0,vo_tut_aya_01.ogg,No jogo (texto); voz pendente
-TUT_AYA_02,Professora Aya,Já passou daqui! Agora é ir em frente. E não corra no corredor.,Falar com Professora Aya; 0 < tutorial < 4,vo_tut_aya_02.ogg,No jogo (texto); voz pendente
-TUT_AYA_10,Professora Aya,"Voltou para treinar? É assim que se fala! De novo, de novo, de novo!",Falar com Professora Aya; tutorial == 4 (rodízio),vo_tut_aya_10.ogg,No jogo (texto); voz pendente
-TUT_AYA_11,Professora Aya,Na Floresta os lodos revidam. Aqui não. Aproveite enquanto é de graça!,Falar com Professora Aya; tutorial == 4 (rodízio),vo_tut_aya_11.ogg,No jogo (texto); voz pendente
-TUT_AYA_12,Professora Aya,Ganhei da turma do Vento Cortante na corrida do ano passado. Eles ainda negam.,Falar com Professora Aya; tutorial == 4 (rodízio),vo_tut_aya_12.ogg,No jogo (texto); voz pendente
-TUT_DAICHI_01,Professor Daichi,"Esta sala bebe chakra, como a raiz bebe a chuva. Pare e respire: 🧘 Meditar. Aqui nada te fere. Com a barra cheia, a porta abre.",Falar com Professor Daichi; tutorial == 1,vo_tut_daichi_01.ogg,No jogo (texto); voz pendente
-TUT_DAICHI_02,Professor Daichi,Sua brasa está em ordem. O caminho segue para o leste.,Falar com Professor Daichi; 1 < tutorial < 4,vo_tut_daichi_02.ogg,No jogo (texto); voz pendente
-TUT_DAICHI_10,Professor Daichi,"A brasa volta para quem para. Na luta, medite onde ninguém te alcança.",Falar com Professor Daichi; tutorial == 4 (rodízio),vo_tut_daichi_10.ogg,No jogo (texto); voz pendente
-TUT_DAICHI_11,Professor Daichi,O rio não briga com a pedra: contorna. Seu chakra também pode.,Falar com Professor Daichi; tutorial == 4 (rodízio),vo_tut_daichi_11.ogg,No jogo (texto); voz pendente
-TUT_DAICHI_12,Professor Daichi,O chão anda mais frio esta semana. Deve ser o inverno. Deve ser.,Falar com Professor Daichi; tutorial == 4 (rodízio),vo_tut_daichi_12.ogg,No jogo (texto); voz pendente
-TUT_KENJI_01,Professor Kenji,"Olha onde vai pousar! 💨 Teleporte por cima do vão. Lá, arme a 🪵 Substituição e deixe a armadilha te pegar: o tronco leva o golpe.",Falar com Professor Kenji; tutorial == 2,vo_tut_kenji_01.ogg,No jogo (texto); voz pendente
-TUT_KENJI_02,Professor Kenji,Saltou bonito! A Professora Mei espera na Sala de Armas. Ela não ri das minhas piadas.,Falar com Professor Kenji; 2 < tutorial < 4,vo_tut_kenji_02.ogg,No jogo (texto); voz pendente
-TUT_KENJI_10,Professor Kenji,O melhor truque do mundo: deixar um tronco no seu lugar e ninguém perceber.,Falar com Professor Kenji; tutorial == 4 (rodízio),vo_tut_kenji_10.ogg,No jogo (texto); voz pendente
-TUT_KENJI_11,Professor Kenji,Olha onde vai pousar! Sempre. Inclusive na vida.,Falar com Professor Kenji; tutorial == 4 (rodízio),vo_tut_kenji_11.ogg,No jogo (texto); voz pendente
-TUT_KENJI_12,Professor Kenji,"A Substituição anula um golpe. Um! Arme na hora certa, não na hora do medo.",Falar com Professor Kenji; tutorial == 4 (rodízio),vo_tut_kenji_12.ogg,No jogo (texto); voz pendente
-TUT_MEI_01,Professora Mei,Kunai de Treino na mochila 🎒. Equipe. Um golpe no boneco com o 🗡️ Ataque Básico. Só isso.,Falar com Professora Mei; tutorial == 3,vo_tut_mei_01.ogg,No jogo (texto); voz pendente
-TUT_MEI_02,Professora Mei,Academia concluída. Saída embaixo. Nível 11: Diretor.,Falar com Professora Mei; 3 < tutorial < 4,vo_tut_mei_02.ogg,No jogo (texto); voz pendente
-TUT_MEI_10,Professora Mei,Trinta kunais sumiram do estoque. Contei duas vezes.,Falar com Professora Mei; tutorial == 4 (rodízio),vo_tut_mei_10.ogg,No jogo (texto); voz pendente
-TUT_MEI_11,Professora Mei,Arma equipada conta no golpe. Arma na mochila não conta.,Falar com Professora Mei; tutorial == 4 (rodízio),vo_tut_mei_11.ogg,No jogo (texto); voz pendente
-TUT_MEI_12,Professora Mei,Na Arena ninguém fica parado como o boneco. Treine o alvo que se mexe.,Falar com Professora Mei; tutorial == 4 (rodízio),vo_tut_mei_12.ogg,No jogo (texto); voz pendente
-CRN_F_00,O Cronista,"Sente-se, ninja. Pedaços da Crônica se perderam pelo mundo; um brilho dourado marca cada um. Traga-os na memória.",Falar com O Cronista; fragmentos achados >= 0,vo_crn_f_00.ogg,No jogo (texto); voz pendente
-CRN_F_01,O Cronista,Você já leu {n} dos {total} pedaços perdidos. Cada um conta o que os livros calam.,Falar com O Cronista; fragmentos achados >= 1,vo_crn_f_01.ogg,No jogo (texto); voz pendente
-CRN_F_06,O Cronista,{n} de {total}. Poucos leem tanto do mundo. O resto está onde o mapa é mais duro.,Falar com O Cronista; fragmentos achados >= 6,vo_crn_f_06.ogg,No jogo (texto); voz pendente
-CRN_F_12,O Cronista,{n} de {total}. Faltam os das outras aldeias e das terras sem dono. A Crônica quase cabe nas suas mãos.,Falar com O Cronista; fragmentos achados >= 12,vo_crn_f_12.ogg,No jogo (texto); voz pendente
-CRN_F_17,O Cronista,"Todos os {total}. A Crônica está inteira com você, ninja. Guarde-a melhor do que nós guardamos.",Falar com O Cronista; fragmentos achados >= 17,vo_crn_f_17.ogg,No jogo (texto); voz pendente
-LOJ_TETSU_01,Ferreiro Tetsu,"Kunai boa não se escolhe pela cor, {garoto}. Se escolhe pelo peso.",Abrir a loja (Ferreiro Tetsu); rodízio,vo_loj_tetsu_01.ogg,No jogo (texto); voz pendente
-LOJ_TETSU_02,Ferreiro Tetsu,Trinta kunais de treino sumiram. Com recibo! Desde quando ladrão dá recibo?,Abrir a loja (Ferreiro Tetsu); rodízio,vo_loj_tetsu_02.ogg,No jogo (texto); voz pendente
-LOJ_TETSU_03,Ferreiro Tetsu,"O metal vem da Rocha Antiga. Guerra sobe, preço sobe. Não reclame comigo.",Abrir a loja (Ferreiro Tetsu); rodízio,vo_loj_tetsu_03.ogg,No jogo (texto); voz pendente
-LOJ_TETSU_04,Ferreiro Tetsu,Quebrou? Volte. Perdeu? Não volte.,Abrir a loja (Ferreiro Tetsu); rodízio,vo_loj_tetsu_04.ogg,No jogo (texto); voz pendente
-LOJ_HANA_01,Costureira Hana,"Entra, {querido}! Capa nova e fofoca nova. A fofoca é de graça; a capa, não.",Abrir a loja (Costureira Hana); rodízio,vo_loj_hana_01.ogg,No jogo (texto); voz pendente
-LOJ_HANA_02,Costureira Hana,"Um homem comprou tecido cinza. MUITO tecido cinza. E cheirava a fumaça, {querido}. Fumaça!",Abrir a loja (Costureira Hana); rodízio,vo_loj_hana_02.ogg,No jogo (texto); voz pendente
-LOJ_HANA_03,Costureira Hana,O melhor tecido vem da Maré Oculta. E vem sempre com perguntas junto.,Abrir a loja (Costureira Hana); rodízio,vo_loj_hana_03.ogg,No jogo (texto); voz pendente
-LOJ_HANA_04,Costureira Hana,"Cinza, {querido}, é a cor de quem foi embora. Escolha outra.",Abrir a loja (Costureira Hana); rodízio,vo_loj_hana_04.ogg,No jogo (texto); voz pendente
-LOJ_REN_01,Sábio Ren,O pergaminho liso não ensina. Ele lê. Sente-se e deixe que ele leia você.,Abrir a loja (Sábio Ren); rodízio,vo_loj_ren_01.ogg,No jogo (texto); voz pendente
-LOJ_REN_02,Sábio Ren,Errou a Extração? O papel aprendeu um pouco do seu formato. Tente de novo.,Abrir a loja (Sábio Ren); rodízio,vo_loj_ren_02.ogg,No jogo (texto); voz pendente
-LOJ_REN_03,Sábio Ren,(baixinho) Se ouvir falar de pedras que esfriam sozinhas... conte só para mim.,Abrir a loja (Sábio Ren); rodízio,vo_loj_ren_03.ogg,No jogo (texto); voz pendente
-LOJ_REN_04,Sábio Ren,Cada tier pede mais papel porque pede mais de você.,Abrir a loja (Sábio Ren); rodízio,vo_loj_ren_04.ogg,No jogo (texto); voz pendente
+TUT_AYA_01,Professora Aya,"Ei, cadete novo! Chega mais perto. Mais! Aqui ninguém morde... ainda.
+
+Golpe curto, de perto: é o 🗡️ Ataque Básico. Esses bonecos não revidam, então erre à vontade. Errar aqui é de graça.
+
+Derrube 3 e a porta abre. Eu já fui a mais rápida das quatro aldeias, sabia? Quero ver você me alcançar um dia!",Falar com Professora Aya; tutorial == 0,vo_tut_aya_01.ogg,No jogo (texto); voz pendente
+TUT_AYA_02,Professora Aya,"Já passou daqui! Agora é ir em frente.
+
+E não corra no corredor. Quer dizer... corra. Mas não conte ao Diretor que eu deixei.",Falar com Professora Aya; 0 < tutorial < 4,vo_tut_aya_02.ogg,No jogo (texto); voz pendente
+TUT_AYA_10,Professora Aya,"Voltou para treinar? É assim que se fala!
+
+De novo, de novo, de novo! Até o corpo fazer sozinho, sem você precisar pensar.",Falar com Professora Aya; tutorial == 4 (rodízio),vo_tut_aya_10.ogg,No jogo (texto); voz pendente
+TUT_AYA_11,Professora Aya,"Na Floresta os lodos revidam. Aqui não.
+
+Sabe por que eu treino vocês nesta sala, e não lá fora? Porque lá fora o único professor é o erro. E ele cobra caro.",Falar com Professora Aya; tutorial == 4 (rodízio),vo_tut_aya_11.ogg,No jogo (texto); voz pendente
+TUT_AYA_12,Professora Aya,"Ganhei a corrida das quatro aldeias quatro anos seguidos. A turma do Vento Cortante até hoje jura que eu cortei caminho.
+
+(mais baixo) Na quinta corrida eu cortei caminho de verdade. Caí numa ravina. O joelho nunca mais foi o mesmo.",Falar com Professora Aya; tutorial == 4 (rodízio),vo_tut_aya_12.ogg,No jogo (texto); voz pendente
+TUT_AYA_13,Professora Aya,"Sabe quem me tirou da cama depois da queda? O Daichi. Todo dia, uma xícara de chá e nenhuma palavra.
+
+Não conte para ele que eu falei. Ele vai fazer aquela cara de raiz velha satisfeita.",Falar com Professora Aya; tutorial == 4 (rodízio),vo_tut_aya_13.ogg,No jogo (texto); voz pendente
+TUT_AYA_14,Professora Aya,"Um dia você vai correr no planalto do Vento. Promete uma coisa?
+
+Sem atalho. Atalho é para quem tem medo de chegar atrasado. Ninja de verdade chega na hora pelo caminho certo.",Falar com Professora Aya; tutorial == 4 (rodízio),vo_tut_aya_14.ogg,No jogo (texto); voz pendente
+TUT_DAICHI_01,Professor Daichi,"Entre devagar. Esta sala não tem pressa nenhuma, e você também não deveria ter.
+
+O chão daqui bebe chakra, como a raiz bebe a chuva. Pare e respire: 🧘 Meditar. Aqui nada te fere.
+
+Quando a barra encher, a porta abre. Fui patrulheiro por vinte anos. Aprendi que quem para a tempo volta para casa.",Falar com Professor Daichi; tutorial == 1,vo_tut_daichi_01.ogg,No jogo (texto); voz pendente
+TUT_DAICHI_02,Professor Daichi,"Sua brasa está em ordem. O caminho segue para o leste.
+
+Vá com calma. O corredor não vai fugir, e o resto da vida também não.",Falar com Professor Daichi; 1 < tutorial < 4,vo_tut_daichi_02.ogg,No jogo (texto); voz pendente
+TUT_DAICHI_10,Professor Daichi,"A brasa volta para quem para.
+
+Na luta, medite onde ninguém te alcança. Um ninja cansado é só um alvo bem treinado.",Falar com Professor Daichi; tutorial == 4 (rodízio),vo_tut_daichi_10.ogg,No jogo (texto); voz pendente
+TUT_DAICHI_11,Professor Daichi,"O rio não briga com a pedra: contorna.
+
+Seu chakra também pode. Quem força a passagem gasta a brasa; quem contorna chega com ela inteira.",Falar com Professor Daichi; tutorial == 4 (rodízio),vo_tut_daichi_11.ogg,No jogo (texto); voz pendente
+TUT_DAICHI_12,Professor Daichi,"O chão anda mais frio esta semana. Deve ser o inverno. Deve ser.
+
+(ele olha para baixo, como quem escuta) Da outra vez que o chão esfriou assim, eu também disse que devia ser o inverno.",Falar com Professor Daichi; tutorial == 4 (rodízio),vo_tut_daichi_12.ogg,No jogo (texto); voz pendente
+TUT_DAICHI_13,Professor Daichi,"Fui patrulheiro da Floresta por vinte anos. No meu tempo se via um lodo por semana, se tanto.
+
+Hoje os patrulheiros novos contam nove numa noite e dizem que é normal. (silêncio) Não é.",Falar com Professor Daichi; tutorial == 4 (rodízio),vo_tut_daichi_13.ogg,No jogo (texto); voz pendente
+TUT_DAICHI_14,Professor Daichi,"Na Noite das Cinco Pedras eu estava de ronda. Senti a terra prender a respiração e avisei. Ninguém acreditou a tempo.
+
+Perdi alguém naquela noite. Se um dia você sentir o chão frio, cadete, não espere ninguém acreditar. Corra e avise.",Falar com Professor Daichi; tutorial == 4 (rodízio),vo_tut_daichi_14.ogg,No jogo (texto); voz pendente
+TUT_KENJI_01,Professor Kenji,"Olha onde vai pousar! Eu sempre digo isso ANTES do salto. Aprendi do jeito difícil. A Aya ainda está brava comigo.
+
+💨 Teleporte por cima do vão. Do outro lado, arme a 🪵 Substituição e deixe a armadilha te pegar: o tronco leva o golpe por você.
+
+É o melhor truque do mundo. Use bem. Use para voltar, não para sumir.",Falar com Professor Kenji; tutorial == 2,vo_tut_kenji_01.ogg,No jogo (texto); voz pendente
+TUT_KENJI_02,Professor Kenji,"Saltou bonito! A Professora Mei espera na Sala de Armas.
+
+Dica de amigo: ela não ri das minhas piadas, então não conte nenhuma. E conte as kunais duas vezes, que ela gosta.",Falar com Professor Kenji; 2 < tutorial < 4,vo_tut_kenji_02.ogg,No jogo (texto); voz pendente
+TUT_KENJI_10,Professor Kenji,"O melhor truque do mundo: deixar um tronco no seu lugar e ninguém perceber.
+
+Guarde essa frase. Ela serve para a luta... e serve para entender as pessoas também.",Falar com Professor Kenji; tutorial == 4 (rodízio),vo_tut_kenji_10.ogg,No jogo (texto); voz pendente
+TUT_KENJI_11,Professor Kenji,"Olha onde vai pousar! Sempre. Inclusive na vida.
+
+Metade dos meus alunos pousou num poço. A outra metade pousou em mim. Você vai ser da terceira metade.",Falar com Professor Kenji; tutorial == 4 (rodízio),vo_tut_kenji_11.ogg,No jogo (texto); voz pendente
+TUT_KENJI_12,Professor Kenji,"A Substituição anula um golpe. Um! Arme na hora certa, não na hora do medo.
+
+Quem arma com medo arma cedo. E o golpe de verdade chega quando o tronco já foi embora.",Falar com Professor Kenji; tutorial == 4 (rodízio),vo_tut_kenji_12.ogg,No jogo (texto); voz pendente
+TUT_KENJI_13,Professor Kenji,"Já tive um aluno melhor que todos. Aprendia qualquer jutsu na primeira tentativa e treinava a Substituição até de madrugada.
+
+Ele foi pousar longe demais. (ele ri, mas não é engraçado) Olha onde vai pousar, tá? Promete?",Falar com Professor Kenji; tutorial == 4 (rodízio),vo_tut_kenji_13.ogg,No jogo (texto); voz pendente
+TUT_KENJI_14,Professor Kenji,"Sabe o pote na minha mesa? Tem um tronco dentro. O primeiro que um aluno meu trocou de lugar com ele mesmo.
+
+Não, não vou dizer quem. Tem coisa que a gente guarda para lembrar de não esquecer.",Falar com Professor Kenji; tutorial == 4 (rodízio),vo_tut_kenji_14.ogg,No jogo (texto); voz pendente
+TUT_MEI_01,Professora Mei,"Kunai de Treino na mochila 🎒. Equipe. Um golpe no boneco com o 🗡️ Ataque Básico. Só isso.
+
+Arma na mochila não conta. Arma na mão conta. Respire. Mire. Solte. Nessa ordem.",Falar com Professora Mei; tutorial == 3,vo_tut_mei_01.ogg,No jogo (texto); voz pendente
+TUT_MEI_02,Professora Mei,"Academia concluída. Saída embaixo. Nível 11: Diretor.
+
+Um número a mais, já que você acertou: 4 salas, 3 bonecos, 1 Diretor. O Diretor é o mais difícil dos três.",Falar com Professora Mei; 3 < tutorial < 4,vo_tut_mei_02.ogg,No jogo (texto); voz pendente
+TUT_MEI_10,Professora Mei,"Trinta kunais sumiram do estoque. Contei duas vezes.
+
+Contei três. Trinta. Com recibo assinado. Ninguém da Academia assina com aquela letra.",Falar com Professora Mei; tutorial == 4 (rodízio),vo_tut_mei_10.ogg,No jogo (texto); voz pendente
+TUT_MEI_11,Professora Mei,"Arma equipada conta no golpe. Arma na mochila não conta.
+
+Parece óbvio. Você não imagina quantos ninjas caíram por causa do óbvio.",Falar com Professora Mei; tutorial == 4 (rodízio),vo_tut_mei_11.ogg,No jogo (texto); voz pendente
+TUT_MEI_12,Professora Mei,"Na Arena ninguém fica parado como o boneco. Treine o alvo que se mexe.
+
+O boneco perdoa. O inimigo não.",Falar com Professora Mei; tutorial == 4 (rodízio),vo_tut_mei_12.ogg,No jogo (texto); voz pendente
+TUT_MEI_13,Professora Mei,"Minha família é de ferreiros da Rocha Antiga. Lá se diz: quem conta duas vezes não perde nada.
+
+Numa patrulha, contei uma vez só e errei um lançamento. Um colega carrega a cicatriz até hoje. Conte duas vezes.",Falar com Professora Mei; tutorial == 4 (rodízio),vo_tut_mei_13.ogg,No jogo (texto); voz pendente
+TUT_MEI_14,Professora Mei,"Você melhorou. 11% mais preciso que na semana passada. Não perguntei a ninguém: eu medi.
+
+Isso foi um elogio. Não se acostume.",Falar com Professora Mei; tutorial == 4 (rodízio),vo_tut_mei_14.ogg,No jogo (texto); voz pendente
+CRN_F_00,O Cronista,"Sente-se, ninja. Não, aí não: essa cadeira range, e esta sala detesta barulho.
+
+Pedaços da Crônica se perderam pelo mundo. Um brilho dourado marca cada um: um bilhete, uma pedra riscada, uma canção.
+
+Traga-os na memória. Toda página perdida é alguém que tentou ser lembrado.",Falar com O Cronista; fragmentos achados >= 0,vo_crn_f_00.ogg,No jogo (texto); voz pendente
+CRN_F_01,O Cronista,"Você já leu {n} dos {total} pedaços perdidos.
+
+Cada um conta o que os livros da Academia calam. Os livros falam de heróis. Os pedaços falam de gente com medo, e isso é mais verdadeiro.",Falar com O Cronista; fragmentos achados >= 1,vo_crn_f_01.ogg,No jogo (texto); voz pendente
+CRN_F_06,O Cronista,"{n} de {total}. Poucos leem tanto do mundo.
+
+O resto está onde o mapa é mais duro: nas outras aldeias e na terra que ninguém quis dividir.
+
+Cuidado. Há páginas que não querem ser achadas.",Falar com O Cronista; fragmentos achados >= 6,vo_crn_f_06.ogg,No jogo (texto); voz pendente
+CRN_F_12,O Cronista,"{n} de {total}. Faltam os das terras sem dono.
+
+A Crônica quase cabe nas suas mãos. Sinto a pena escrever mais rápido quando você entra. Não sei se isso me alegra ou me assusta.",Falar com O Cronista; fragmentos achados >= 12,vo_crn_f_12.ogg,No jogo (texto); voz pendente
+CRN_F_17,O Cronista,"Todos os {total}. A Crônica está inteira com você, ninja.
+
+Nenhum de nós guardou tão bem o que aconteceu. Nem eu, e eu estava lá em quase tudo.
+
+Guarde-a melhor do que nós guardamos.",Falar com O Cronista; fragmentos achados >= 17,vo_crn_f_17.ogg,No jogo (texto); voz pendente
+LOJ_TETSU_01,Ferreiro Tetsu,"Hmpf. Kunai boa não se escolhe pela cor, {garoto}. Se escolhe pelo peso.
+
+Pega essa. Sente? Teimosa. Vai te obedecer quando você parar de brigar com ela. Igual a mim.",Abrir a loja (Ferreiro Tetsu); rodízio,vo_loj_tetsu_01.ogg,No jogo (texto); voz pendente
+LOJ_TETSU_02,Ferreiro Tetsu,"Trinta kunais de treino sumiram. Com recibo! Desde quando ladrão dá recibo?
+
+E em papel de pergaminho, {garoto}. Do bom. Alguém de dentro, ouve o que eu digo. Alguém de dentro.",Abrir a loja (Ferreiro Tetsu); rodízio,vo_loj_tetsu_02.ogg,No jogo (texto); voz pendente
+LOJ_TETSU_03,Ferreiro Tetsu,"O metal vem da Rocha Antiga. Aprendi a bater ferro lá, com meu pai, antes de vir atrás de uma moça que vendia flores na Praça.
+
+Casei com ela. (ele olha para a flor no balcão) Guerra sobe, preço sobe. Não reclame comigo.",Abrir a loja (Ferreiro Tetsu); rodízio,vo_loj_tetsu_03.ogg,No jogo (texto); voz pendente
+LOJ_TETSU_04,Ferreiro Tetsu,"Quebrou? Volte. Perdeu? Não volte.
+
+Brincadeira. Volte. Ninja sem arma é ninja que eu não vejo mais. E eu já não vejo gente demais, {garoto}.",Abrir a loja (Ferreiro Tetsu); rodízio,vo_loj_tetsu_04.ogg,No jogo (texto); voz pendente
+LOJ_HANA_01,Costureira Hana,"Entra, {querido}! Não repara a bagunça. Capa nova e fofoca nova: a fofoca é de graça, a capa não.
+
+Agora me diz: você quer uma capa que assuste ou uma que encante?",Abrir a loja (Costureira Hana); rodízio,vo_loj_hana_01.ogg,No jogo (texto); voz pendente
+LOJ_HANA_02,Costureira Hana,"Um homem comprou tecido cinza. MUITO tecido cinza. Pagou com moeda novinha e cheirava a fumaça, {querido}. Fumaça!
+
+Quem é que precisa de tanto cinza? Gente triste ou gente que quer sumir. E triste não paga adiantado.",Abrir a loja (Costureira Hana); rodízio,vo_loj_hana_02.ogg,No jogo (texto); voz pendente
+LOJ_HANA_03,Costureira Hana,"O melhor tecido vem da Maré Oculta, e vem sempre com perguntas junto. Meu filho do meio mora lá, sabia?
+
+Os três viraram ninjas, cada um numa aldeia. Escrevem pouco. Se você for para lá, diz que a mãe mandou escrever.",Abrir a loja (Costureira Hana); rodízio,vo_loj_hana_03.ogg,No jogo (texto); voz pendente
+LOJ_HANA_04,Costureira Hana,"Cinza, {querido}, é a cor de quem foi embora. Escolha outra.
+
+(ela baixa a voz) Se faltar dinheiro para a bandana, me avisa. Eu erro no troco. Erro muito no troco.",Abrir a loja (Costureira Hana); rodízio,vo_loj_hana_04.ogg,No jogo (texto); voz pendente
+LOJ_REN_01,Sábio Ren,"Ah, um leitor. Raro, hoje em dia.
+
+O pergaminho liso não ensina: ele lê. Sente-se e deixe que ele leia você. Nenhum pergaminho é liso, só está esperando a pergunta certa.",Abrir a loja (Sábio Ren); rodízio,vo_loj_ren_01.ogg,No jogo (texto); voz pendente
+LOJ_REN_02,Sábio Ren,"Errou a Extração? O papel aprendeu um pouco do seu formato. Tente de novo.
+
+Eu nunca consegui fazer a Substituição, sabia? Troquei a luta pelos livros. O papel nunca riu de mim.",Abrir a loja (Sábio Ren); rodízio,vo_loj_ren_02.ogg,No jogo (texto); voz pendente
+LOJ_REN_03,Sábio Ren,"(baixinho) Se ouvir falar de pedras que esfriam sozinhas... conte só para mim.
+
+Uma vez achei um mapa com cinco pontos. O Diretor tirou da minha mão. Faz trinta anos que eu tento lembrar onde ficavam.",Abrir a loja (Sábio Ren); rodízio,vo_loj_ren_03.ogg,No jogo (texto); voz pendente
+LOJ_REN_04,Sábio Ren,"Cada tier pede mais papel porque pede mais de você.
+
+O papel não é caro. Caro é o que ele te pede de volta: atenção. A Extração é fazer a pergunta certa a um papel.",Abrir a loja (Sábio Ren); rodízio,vo_loj_ren_04.ogg,No jogo (texto); voz pendente
 CRN_I,O Cronista,"I. A Primeira Chama. Antes das aldeias, havia só a Chama. Os quatro clãs fundadores a dividiram em quatro heranças, e cada herança virou uma aldeia: a Chama Eterna, a Maré Oculta, o Vento Cortante e a Rocha Antiga. A Academia guarda a brasa que sobrou.",Falar com O Cronista; marco do mundo >= 0,vo_crn_i.ogg,No jogo (texto); voz pendente
 CRN_II,O Cronista,"II. O Lodo sob as Raízes. A Primeira Guerra, entre os fundadores, envenenou o Rio das Raízes, que corre sob a Floresta, e do rio nasceu o Lodo Ancestral. Há cinquenta anos, na Noite das Cinco Pedras, ele foi selado pelas Pedras da Vigília. Os lodos da mata são o chakra que vaza pelo selo; o Rei Lodo, o maior pedaço que escapou.",Falar com O Cronista; marco do mundo >= 30,vo_crn_ii.ogg,No jogo (texto); voz pendente
 CRN_III,O Cronista,"III. A Fronteira que Sangra. Entre as heranças ficou uma terra que ninguém aceitou dividir. Ali, a lei das aldeias não chega: só a lâmina decide. Os antigos a chamaram de Zona de Conflito, e cada Era ela pede o seu preço.",Falar com O Cronista; marco do mundo >= 60,vo_crn_iii.ogg,No jogo (texto); voz pendente
 CRN_IV,O Cronista,"IV. Os que Riscaram a Bandana. Nem todos aceitaram a Chama dividida. Os que riscaram a bandana fugiram para o Refúgio, e as aldeias passaram a escolher um Kage para guardar a herança. Toda escolha divide; toda divisão faz renegados.",Falar com O Cronista; marco do mundo >= 100,vo_crn_iv.ogg,No jogo (texto); voz pendente
 CRN_V,O Cronista,"V. O Cinturão da Era. Abaixo da terra dormem dez Titãs, as forças que os fundadores prenderam para fazer o mundo. A cada Era eles acordam, um por dia, e testam os vivos. Quem fere mais um Titã carrega um pedaço dele até a Era acabar: os Portadores.",Falar com O Cronista; marco do mundo >= 150,vo_crn_v.ogg,No jogo (texto); voz pendente
 CRN_VI,O Cronista,VI. Além do Mar e Abaixo da Pedra. Os Titãs caídos abriram passagens que estavam fechadas desde a Primeira Chama: ilhas que surgiram da maré e cavernas que descem até onde a pedra ainda é quente. O mundo é maior do que as aldeias contaram.,Falar com O Cronista; marco do mundo >= 250,vo_crn_vi.ogg,No jogo (texto); voz pendente
-FRG_01,O Diretor da Academia,"Regimento da Academia (cópia na parede): Artigo 7. Na Noite das Lanternas, a cada formatura, o Diretor reacenderá as Pedras da Vigília com o Pergaminho em Chamas. Onde ficam as pedras não será escrito, ensinado nem perguntado. Parágrafo único: o cadete que perguntar será lembrado de que perguntar também é uma forma de procurar.","Chegar perto do brilho em Academia (60, 6); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_02,Professor Kenji,"Bilhete na mesa da Sala de Jutsus: Lembrete para mim mesmo: gritar ""Olha onde vai pousar!"" ANTES do aluno saltar o vão, não depois. A Aya ainda está brava comigo por causa da semana passada. Ninguém se machucou. Quase ninguém. K.","Chegar perto do brilho em Academia (38, 13.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_03,A guarda da aldeia,"Placa junto à grade do canal: AVISO. A água deste canal vem do Rio das Raízes, por baixo da Floresta. Não beber. Não pescar. Não descer. A grade é verificada toda manhã. (Embaixo, riscado à mão: hoje ninguém verificou.)","Chegar perto do brilho em Aldeia da Chama Eterna (33, 25.6); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_04,Ferreiro Tetsu,"Recibo esquecido no balcão: Saída: 30 kunais de treino, para a Academia. Assinatura: ilegível. Papel: de pergaminho, do bom, coisa que a Academia nunca usou para recibo. Anotação do ferreiro: conferir com a Professora Mei. Conferir DE NOVO.","Chegar perto do brilho em Armaria (12, 8.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_05,Sábio Ren,Anotação sobre o pergaminho liso: O pergaminho liso não ensina: ele lê. A fibra guarda o formato da brasa de quem o abre e devolve o jutsu que essa brasa já sabia fazer sem saber. Por isso não sai jutsu de outra classe. E por isso quem erra e tenta de novo acerta mais: o papel aprende.,"Chegar perto do brilho em Casa dos Pergaminhos (12, 8); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_06,O próprio lugar,"Marcas no velho carvalho: No tronco, uma chama entalhada há muito tempo, quase fechada pela casca. Embaixo, riscos de patrulha, um por noite. Os riscos param no meio de uma fileira, como se a última pessoa a contar tivesse ido embora e não voltado.","Chegar perto do brilho em Floresta (32, 42.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_07,Alguém de capa cinza,"Bilhete chamuscado no acampamento: Três noites aqui. Fogueira pequena, ninguém da aldeia vem tão fundo. O chefe quer o mapa até a lua cheia. Diz que a gente vai devolver a Chama a quem ela pertence. Eu só quero a minha bandana de volta. Queimem este papel.","Chegar perto do brilho em Floresta (20, 56); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_08,Um patrulheiro da Chama Eterna,"Diário de um patrulheiro: Dia 12. Os lodos escuros nascem onde a água aflora. Não são bichos: furei um e ele virou chakra no chão, quente. Disseram que é normal. Normal era um por semana. Hoje contei nove. Pedi reforço. Responderam que é normal.","Chegar perto do brilho em Floresta (80, 40); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_09,Mãos de duas épocas,"Escrito na pedra da caverna: Em letra antiga, funda na pedra: AQUI O RIO DESCE. NÃO SIGA O RIO. Embaixo, em letra nova, riscada às pressas: seguimos. Depois disso, ninguém escreveu mais nada.","Chegar perto do brilho em Caverna do Lodo (28, 14.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_10,O próprio lugar,"O círculo de cinzas: Nada cresce dentro do círculo. As cinzas não esfriam, nem na chuva. Quem encosta a mão no chão sente o pulso de alguma coisa enorme lá embaixo, contando os dias até acordar.","Chegar perto do brilho em Clareira Queimada (18.5, 19.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_11,O próprio lugar,"A pedra fria: No fundo do poço, uma pedra com uma chama gravada. Fria, como as outras ficariam se apagassem. De tempos em tempos ela pisca uma vez só, devagar, como um olho que se fecha.","Chegar perto do brilho em Poço sob a Praça (12, 4.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_12,O próprio lugar,"O marco derrubado: Um marco de fronteira caído, com os símbolos das quatro aldeias, cada um riscado por uma mão diferente. Ninguém nunca o pôs de pé: quem levanta o marco aceita a divisão, e ninguém aqui aceita.","Chegar perto do brilho em Zona de Conflito (55, 40); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_13,Um renegado,"A bandana pregada na parede: Uma bandana com um risco fundo de lâmina sobre o símbolo, pregada como troféu. Embaixo, a giz: ""Risquei a minha com a minha mão. Ninguém queimou nada meu. Lembre a diferença.""","Chegar perto do brilho em Refúgio dos Renegados (13, 25); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_14,A escuta do porto da Maré Oculta,"Carta cifrada, já decifrada: Ao Conselho. A névoa trouxe notícias da Chama Eterna: um lodo dentro da aldeia deles, dizem os pescadores. Recomendo silêncio e atenção. Quem guarda um selo sozinho guarda também um segredo sozinho. Respeitosamente.","Chegar perto do brilho em Aldeia da Maré Oculta (30, 25.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_15,O povo do Vento Cortante,"Canção dos carregadores: Corre, que o vento não espera, / corre, que a pedra não te ama. / Quem repartiu a Chama inteira / deixou pra nós só uma brasa. / Corre até o sol cair: / a terra do meio não é de ninguém, / mas é de quem chegar primeiro.","Chegar perto do brilho em Aldeia do Vento Cortante (30, 25.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_16,O povo da Rocha Antiga,"Juramento gravado na muralha: Gravado na pedra, sob centenas de nomes: ""Seguramos o que caiu sobre nós. Seguraremos o que cair sobre os nossos filhos. A pedra não esquece, e nós somos a pedra.""","Chegar perto do brilho em Aldeia da Rocha Antiga (22, 42); depois da Academia",—,"No jogo (texto; documento, sem voz)"
-FRG_17,Quem ergueu a Arena,"Inscrição na base das estátuas: Quatro heranças, uma Chama. Aqui se luta para medir, não para tomar. Quem vence leva a honra; quem perde leva a lição; quem mata um aliado leva a bandana queimada.","Chegar perto do brilho em Arena das Quatro Heranças (4, 11); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_01,O Diretor da Academia,"Regimento da Academia (cópia na parede): Artigo 7. Na Noite das Lanternas, a cada formatura, o Diretor reacenderá as Pedras da Vigília com o Pergaminho em Chamas. Onde ficam as pedras não será escrito, ensinado nem perguntado.
+
+Parágrafo único: o cadete que perguntar será lembrado de que perguntar também é uma forma de procurar.
+
+Na margem, a lápis, numa letra de criança que alguém tentou apagar: ""E se a pedra apagar quando o Diretor estiver dormindo?"" Embaixo, em tinta, na letra firme do Diretor: ""Então alguém terá de estar acordado.""","Chegar perto do brilho em Academia (60, 6); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_02,Professor Kenji,"Bilhete na mesa da Sala de Jutsus: Lembrete para mim mesmo: gritar ""Olha onde vai pousar!"" ANTES do aluno saltar o vão, não depois. A Aya ainda está brava comigo por causa da semana passada. Ninguém se machucou. Quase ninguém.
+
+Outro lembrete: parar de olhar para o pote. O tronco lá dentro não vai responder, e o menino que o deixou ali também não.
+
+Último lembrete: comprar flores para a Aya. Dizer que são do Daichi. Ela aceita mais fácil. K.","Chegar perto do brilho em Academia (38, 13.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_03,A guarda da aldeia,"Placa junto à grade do canal: AVISO. A água deste canal vem do Rio das Raízes, por baixo da Floresta. Não beber. Não pescar. Não descer. A grade é verificada toda manhã pela guarda do portão sul.
+
+Embaixo, riscado à mão, com pressa: ""Hoje ninguém verificou. A grade está torta. Do lado de dentro.""
+
+E mais embaixo ainda, numa letra trêmula: ""Do lado de DENTRO. Alguém me escute.""","Chegar perto do brilho em Aldeia da Chama Eterna (33, 25.6); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_04,Ferreiro Tetsu,"Recibo esquecido no balcão: Saída: 30 kunais de treino, para a Academia. Assinatura: ilegível. Papel: de pergaminho, do bom, coisa que a Academia nunca usou para recibo.
+
+Anotação do ferreiro, em letra grossa: conferir com a Professora Mei. Conferir DE NOVO. A Mei conta tudo duas vezes; se ela não sabe dessas trinta, ninguém sabe.
+
+No verso, um borrão de cera de vela e o desenho de uma flor, apagado com o polegar.","Chegar perto do brilho em Armaria (12, 8.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_05,Sábio Ren,"Anotação sobre o pergaminho liso: O pergaminho liso não ensina: ele lê. A fibra guarda o formato da brasa de quem o abre e devolve o jutsu que essa brasa já sabia fazer sem saber. Por isso não sai jutsu de outra classe. E por isso quem erra e tenta de novo acerta mais: o papel aprende.
+
+Pergunta que ninguém me deixa fazer em voz alta: se o papel lê a brasa de quem o abre, o que leria se alguém o abrisse em cima de uma Pedra da Vigília?
+
+(Riscado com força) Não escrever isso. O Diretor lê tudo o que eu escrevo.","Chegar perto do brilho em Casa dos Pergaminhos (12, 8); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_06,O próprio lugar,"Marcas no velho carvalho: No tronco do velho carvalho, uma chama entalhada há muito tempo, quase fechada pela casca, como uma ferida que a árvore tentou esconder.
+
+Embaixo, riscos de patrulha, um por noite, em fileiras de dez. Centenas. Anos de gente passando ali no escuro e deixando a marca de que voltou.
+
+Os riscos param no meio de uma fileira, como se a última pessoa a contar tivesse ido embora e não voltado. O chão em volta está frio, mesmo ao meio-dia.","Chegar perto do brilho em Floresta (32, 42.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_07,Alguém de capa cinza,"Bilhete chamuscado no acampamento: Três noites aqui. Fogueira pequena, ninguém da aldeia vem tão fundo. O chefe quer o mapa até a lua cheia. Diz que a gente vai devolver a Chama a quem ela pertence.
+
+Eu não sei a quem ela pertence. Sei que me pagam em moeda nova e que me deram uma capa cinza que cheira a fumaça. Fui expulso da Maré por roubar redes. Roubava para comer.
+
+Eu só quero a minha bandana de volta. Queimem este papel. Se alguém achar, não fui eu que escrevi.","Chegar perto do brilho em Floresta (20, 56); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_08,Um patrulheiro da Chama Eterna,"Diário de um patrulheiro: Dia 12. Mãe, a Hana lê isto para a senhora, então não chore na frente dela, que ela conta para a aldeia inteira.
+
+Os lodos escuros nascem onde a água aflora. Não são bichos: furei um e ele virou chakra no chão, quente, como sangue. Disseram que é normal. Normal era um por semana. Hoje contei nove.
+
+Pedi reforço. Responderam que é normal. O velho Daichi foi o único que não riu. Ele ficou olhando para o chão, mãe, como quem escuta alguém que a gente não ouve.","Chegar perto do brilho em Floresta (80, 40); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_09,Mãos de duas épocas,"Escrito na pedra da caverna: Em letra antiga, funda na pedra, feita com ferramenta e paciência: AQUI O RIO DESCE. NÃO SIGA O RIO.
+
+Embaixo, em letra nova, riscada às pressas com a ponta de uma kunai: ""seguimos"".
+
+Do lado, três marcas de mão em lodo seco, de tamanhos diferentes. A menor é de criança. Depois disso, ninguém escreveu mais nada, e a pedra está quente ao toque.","Chegar perto do brilho em Caverna do Lodo (28, 14.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_10,O próprio lugar,"O círculo de cinzas: Nada cresce dentro do círculo. As cinzas não esfriam, nem na chuva. Os pássaros contornam a clareira no ar, como se houvesse uma parede que só eles veem.
+
+Quem encosta a mão no chão sente um pulso, lento, de alguma coisa enorme lá embaixo. Uma batida a cada muitos segundos, como quem dorme fundo.
+
+No centro, uma pedra com uma chama gravada, rachada ao meio. Alguém deixou ao lado dela uma flor de papel, nova.","Chegar perto do brilho em Clareira Queimada (18.5, 19.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_11,O próprio lugar,"A pedra fria: No fundo do poço, uma pedra com uma chama gravada, maior que as outras. Fria, como as outras ficariam se apagassem. Embaixo da chama há um segundo símbolo, uma espiral que não é de nenhuma das quatro aldeias.
+
+De tempos em tempos ela pisca uma vez só, devagar, como um olho que se fecha.
+
+Quem fica muito tempo ali jura ouvir, por baixo da pedra, um som de respiração. Não de lodo. De outra coisa.","Chegar perto do brilho em Poço sob a Praça (12, 4.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_12,O próprio lugar,"O marco derrubado: Um marco de fronteira caído, com os símbolos das quatro aldeias: a chama, a onda, o redemoinho de vento, a montanha. Cada um foi riscado por uma mão diferente, com uma arma diferente.
+
+Ninguém nunca o pôs de pé. Quem levanta o marco aceita a divisão, e ninguém aqui aceita. Mas também ninguém o quebra: quebrar seria admitir que não há nada a dividir.
+
+Embaixo dele, a terra está mais fria. Os mais velhos dizem que é porque o meio do mundo guarda o que os fundadores prenderam.","Chegar perto do brilho em Zona de Conflito (55, 40); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_13,Um renegado,"A bandana pregada na parede: Uma bandana com um risco fundo de lâmina sobre o símbolo, pregada na parede como troféu.
+
+Embaixo, a giz: ""Risquei a minha com a minha mão. Ninguém queimou nada meu. Lembre a diferença.""
+
+Mais embaixo, a giz mais apagado, de outro dia: ""Risquei por alguém de outra aldeia. Vinte anos. Ela nunca veio. Mesmo assim, foi a única coisa que eu escolhi sozinho na vida. Não me arrependo. Quase nunca.""","Chegar perto do brilho em Refúgio dos Renegados (13, 25); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_14,A escuta do porto da Maré Oculta,"Carta cifrada, já decifrada: Ao Conselho. A névoa trouxe notícias da Chama Eterna: um lodo dentro da aldeia deles, dizem os pescadores. Recomendo silêncio e atenção. Quem guarda um selo sozinho guarda também um segredo sozinho.
+
+Anotação pessoal, fora da cifra, depois apagada (mas não o bastante): moro aqui há seis anos vendendo chá. As crianças da Praça me chamam de tia. Se o Conselho mandar eu fazer mal a esta aldeia, não sei se obedeço.
+
+Respeitosamente.","Chegar perto do brilho em Aldeia da Maré Oculta (30, 25.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_15,O povo do Vento Cortante,"Canção dos carregadores: Corre, que o vento não espera, / corre, que a pedra não te ama. / Quem repartiu a Chama inteira / deixou pra nós só uma brasa.
+
+Corre até o sol cair: / a terra do meio não é de ninguém, / mas é de quem chegar primeiro, / e quem chega primeiro não volta mais.
+
+(Verso que as crianças cantam e os adultos mandam calar): / lá no alto, onde o vento nasce, / um grito dorme num ninho de pedra. / Quando ele acordar, / o vento vai parar.","Chegar perto do brilho em Aldeia do Vento Cortante (30, 25.5); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_16,O povo da Rocha Antiga,"Juramento gravado na muralha: Gravado na pedra, sob centenas de nomes: ""Seguramos o que caiu sobre nós. Seguraremos o que cair sobre os nossos filhos. A pedra não esquece, e nós somos a pedra.""
+
+Ao lado, no meio dos nomes mais antigos, um trecho liso, raspado. A pedra ali é mais clara, como pele onde ficou um anel por muitos anos.
+
+Alguém passou a mão tantas vezes nesse trecho que ele ficou polido.","Chegar perto do brilho em Aldeia da Rocha Antiga (22, 42); depois da Academia",—,"No jogo (texto; documento, sem voz)"
+FRG_17,Quem ergueu a Arena,"Inscrição na base das estátuas: Quatro heranças, uma Chama. Aqui se luta para medir, não para tomar. Quem vence leva a honra; quem perde leva a lição; quem mata um aliado leva a bandana queimada.
+
+Em cada estátua, alguém deixou uma oferenda: uma lanterna apagada na da Chama, uma concha na da Maré, uma pena na do Vento, uma lasca de pedra na da Rocha.
+
+Na base, quase apagado: ""Que um dia as quatro voltem a ser uma. Mas não à força.""","Chegar perto do brilho em Arena das Quatro Heranças (4, 11); depois da Academia",—,"No jogo (texto; documento, sem voz)"
 DCA_FLORESTA,Dica na hora (interface),"Floresta! Os Lodos Verdes ficam perto do portão; os Escuros, na beira do rio. Fique perto da saída até o nível 5.",Primeira vez na Floresta; uma vez por aparelho,—,"No jogo (texto; interface, sem voz)"
 DCA_VIDA_BAIXA,Dica na hora (interface),Vida baixa! Afaste-se e medite 🧘 (apanhar corta a meditação) ou volte para a aldeia.,Vida abaixo de 35% fora da zona segura; uma vez por aparelho,—,"No jogo (texto; interface, sem voz)"
 DCA_SEM_CHAKRA,Dica na hora (interface),Sem chakra para esse jutsu. Medite 🧘: é bem mais rápido do que esperar.,Jutsu recusado por falta de chakra; uma vez por aparelho,—,"No jogo (texto; interface, sem voz)"

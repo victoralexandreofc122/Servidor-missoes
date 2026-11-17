@@ -1398,3 +1398,5 @@ body.dialog-open .skill-tip { display: none; }
   .dialog-face { width: 76px; height: 76px; }
   .dialog-text { font-size: 15px; }
 }
+/* v71: a fala do lojista com parágrafos (linha em branco no texto vira parágrafo; o fragmento já usa pre-line) */
+.shop-panel .shop-greet { white-space: pre-line; }

@@ -246,6 +246,10 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   texto aparecendo aos poucos e páginas de até 3 linhas (a conversa pode ter quantas páginas precisar). Um toque termina a
   página, outro passa para a próxima e, na última, fecha; no PC, Espaço, Enter ou E (Esc fecha). A fala continua no chat.
 - **Retrato ao lado** (opção no ⚙️, ligada para testar): o busto do NPC, o mesmo desenho do mapa.
+- **Falas reescritas com as fichas novas** (`docs/lore/personagens.md`: passado, o que quer, o que teme, como fala):
+  os professores ganham 5 conversas cada, em sequência, que vão contando a história deles; o Diretor, o Mestre, o Rito,
+  o Cronista e os lojistas falam com mais contexto e emoção, em 2 ou 3 páginas; os 17 fragmentos viram documentos de
+  verdade, com parágrafos. A regra é por página (até 160 caracteres), não por fala.
 - No celular deitado a caixa começa depois do joystick, que continua livre: se afastar do NPC fecha a conversa. Enquanto
   ela está aberta, os botões de luta ficam apagados e sem toque, e o chat some.
 

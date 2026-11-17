@@ -108,9 +108,9 @@ describe('v65: fragmentos da Crônica no servidor (migração v39)', () => {
 
   it('o Cronista conta os fragmentos achados (até 160 caracteres)', () => {
     assert.match(cronistaFala(0, 17).text, /brilho dourado/);
-    assert.equal(cronistaFala(3, 17).text, 'Você já leu 3 dos 17 pedaços perdidos. Cada um conta o que os livros calam.');
+    assert.match(cronistaFala(3, 17).text, /^Você já leu 3 dos 17 pedaços perdidos\.\n\nCada um conta o que os livros da Academia calam\./);
     assert.match(cronistaFala(17, 17).text, /^Todos os 17\./);
-    for (const f of CRONISTA_FRAGMENTOS) assert.ok(f.text.length <= 160, f.id);
+    for (const f of CRONISTA_FRAGMENTOS) for (const pg of f.text.split('\n\n')) assert.ok(pg.length <= 160, f.id);   // v71: por página
     const w = setupWorld();
     const a = w.connect('ouvinte');
     const npc = REALTIME.npcs.find((n) => n.id === 'cronista')!;
