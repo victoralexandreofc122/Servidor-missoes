@@ -37,11 +37,11 @@ def fundo(a, corte=45):
     return alfa
 
 
-def fundo_cor(sub, modo='magenta', limiar_m=None):
+def fundo_cor(sub, modo='magenta', limiar_m=None, cor=None):
     """Fundo de cor lisa (o magenta): a cor dos cantos do painel; o alfa pela distância a ela; a franja sem o tom do fundo."""
     c = 14
     cantos = np.concatenate([sub[:c, :c].reshape(-1, 3), sub[:c, -c:].reshape(-1, 3), sub[-c:, :c].reshape(-1, 3), sub[-c:, -c:].reshape(-1, 3)])
-    bg = np.median(cantos, axis=0)
+    bg = np.median(cantos, axis=0) if cor is None else np.array(cor, dtype=float)   # cor fixa: o desenho encosta nos cantos
     f = sub.astype(float)
     d = np.sqrt(((f - bg) ** 2).sum(axis=2))
     # quanto de magenta tem o pixel (vermelho e azul juntos acima do verde), comparado com o fundo: o brilho verde
@@ -211,7 +211,7 @@ def recorta(nome, debug=None):
         sub = a[y0 + m:y1 - m, x0 + m:x1 - m].copy()
         magenta = ajuste.get('fundo') in ('magenta', 'escuro')
         if magenta:
-            alfa, sub = fundo_cor(sub, ajuste.get('fundo'), ajuste.get('limiar_m'))
+            alfa, sub = fundo_cor(sub, ajuste.get('fundo'), ajuste.get('limiar_m'), ajuste.get('cor_fundo'))
         else:
             alfa = fundo(sub, ajuste.get('verde', 45))
         if str(k) in ajuste.get('circulo', {}):

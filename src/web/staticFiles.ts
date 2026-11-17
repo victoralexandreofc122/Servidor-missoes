@@ -36,7 +36,7 @@ export const MUSIC_TRACKS = ['musica_calma_1', 'musica_calma_2', 'musica_pvp', '
 /** v56: os quadros de public/assets/vfx/<jutsu>_0N.png (a lista bate com vfxJutsus.js: test/vfx.test.ts confere). */
 export const JUTSU_SPRITES = ['fogo', 'sopro', 'nevoa', 'linha', 'teleporte', 'substituicao'] as const;
 /** v73/v74: os quadros dos jutsus desenhados (Fogo e Cura) (a lista sai de public/vfxFogo.js, gerado por arte/jutsus-vfx/recortar.py). */
-export const FOGO_SPRITE_FRAMES = [...readFileSync(new URL('../../public/vfxFogo.js', import.meta.url), 'utf8').matchAll(/^ {2}((?:fire|heal)\w*): \{/gm)].map((m) => m[1] ?? '');
+export const FOGO_SPRITE_FRAMES = [...readFileSync(new URL('../../public/vfxFogo.js', import.meta.url), 'utf8').matchAll(/^ {2}((?:fire|heal|lightning)\w*): \{/gm)].map((m) => m[1] ?? '');
 export const JUTSU_SPRITE_FRAMES = [...JUTSU_SPRITES.flatMap((n) => [1, 2, 3].map((i) => `${n}_0${i}`)), ...FOGO_SPRITE_FRAMES];
 
 /** Folhas PNG de public/assets/<pasta>/ (a lista bate com vfxData.js e weaponData.js: test/static.test.ts confere). */

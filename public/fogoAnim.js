@@ -9,6 +9,8 @@
 import { jutsuSpritesReady } from './vfxJutsus.js';
 
 const ready = (skill) => jutsuSpritesReady(skill);
+/** Ida e Volta: a runa marcada de cada ninja (até usar de novo ou acabar o tempo). */
+const VOLTA = new Map();
 /** Um pouco à frente da mão de quem lançou (em casas). */
 const hand = (msg, d = 0.35) => ({ x: msg.x + msg.fx * d, y: msg.y + msg.fy * d - 0.15 });
 
@@ -18,7 +20,7 @@ function seq(jfx, base, x, y, now, steps, common = {}) {
 }
 
 /** O jutsu foi lançado (mensagem `cast`). whoAt(x, y): quem está ali (o aliado curado, o alvo da agulha). */
-export function fogoCast(jfx, msg, info, lineEnd, now, follow, whoAt = () => null) {
+export function fogoCast(jfx, msg, info, lineEnd, now, follow, whoAt = () => null, near = () => []) {
   const s = msg.skill;
   if (!s || !ready(s)) return false;
   const angle = Math.atan2(msg.fy, msg.fx);
@@ -84,6 +86,86 @@ export function fogoCast(jfx, msg, info, lineEnd, now, follow, whoAt = () => nul
       for (let t = 360, i = 0; t < dur - 250; t += 420, i++) steps.push([i % 3 === 2 ? '05' : '04', t, 460]);
       steps.push(['06', dur - 250, 500, { fadeOut: 350 }]);
       seq(jfx, s, 0, -0.55, now, steps, o);
+      return true;
+    }
+    // ------------------------------------------------------------------ Relâmpago (v76)
+    case 'lightning_corrente': {   // Corrente Rasteira: a marca no chão, o raio corre rente até o fim da linha, estoura, chão queimado
+      seq(jfx, s, h.x, h.y + 0.2, now, [['01', 0, 110, { layer: 'ground' }], ['02', 90, 120, { angle, len }],
+        ['03', 190, 150, { angle, len, flicker: true }], ['04', 320, 150, { angle, len, flicker: true }]]);
+      seq(jfx, s, lineEnd.tx, lineEnd.ty, now, [['05', 450, 240, { angle }], ['06', 660, 800, { layer: 'ground', fadeOut: 550 }]]);
+      return true;
+    }
+    case 'lightning_impulso': {   // Impulso Estático: faísca nos pés, o clarão, o raio leva o ninja à frente, faíscas na chegada
+      const d = info.dash ?? 4;
+      const end = { x: msg.x + msg.fx * d, y: msg.y + msg.fy * d };
+      seq(jfx, s, msg.x, msg.y + 0.3, now, [['01', 0, 90], ['02', 60, 110]]);
+      // o raio desenhado cai do alto até o ponto do impacto (a ponta de baixo): o impacto fica na CHEGADA, o raio volta até a saída
+      const back = angle + Math.PI;
+      seq(jfx, s, end.x, end.y - 0.2, now, [['03', 120, 110, { angle: back, len: d }], ['04', 210, 120, { angle: back, len: d }], ['05', 310, 140, { angle: back, len: d }]]);
+      seq(jfx, s, end.x, end.y - 0.3, now, [['06', 420, 480, { fadeOut: 330 }]]);
+      return true;
+    }
+    case 'lightning_shuriken': {   // Shuriken do Trovão: a estrela nasce na mão e gira; voa com o `projectile`
+      seq(jfx, s, h.x, h.y - 0.1, now, [['01', 0, 90], ['02', 70, 110, { flicker: true }]]);
+      return true;
+    }
+    case 'lightning_fluxo': {   // Descarga Envolvente: o ponto, o anel acende, espinhos, a descarga em volta, se desfaz
+      const sc = (info.radius ?? 2) / 2;
+      seq(jfx, s, msg.x, msg.y, now, [['01', 0, 80], ['02', 60, 120], ['03', 160, 150, { flicker: true }], ['04', 290, 220, { flicker: true }],
+        ['05', 490, 220], ['06', 690, 450, { fadeOut: 300 }]], { scale: sc });
+      return true;
+    }
+    case 'lightning_2': {   // Farpas de Trovão: faíscas em leque na mão, os raios se abrem; voam com o `projectile`
+      seq(jfx, s, h.x, h.y + 0.1, now, [['01', 0, 90], ['02', 70, 120], ['04', 170, 140, { flicker: true }]], { angle });
+      return true;
+    }
+    case 'lightning_volta': {   // Ida e Volta: 1º uso marca a runa no chão; 2º uso (até 4 s) o raio leva de volta a ela
+      const tag = `volta:${msg.playerId}`;
+      const mark = VOLTA.get(msg.playerId);
+      if (mark && now < mark.until) {
+        VOLTA.delete(msg.playerId);
+        jfx.drop(tag);
+        const a = Math.atan2(msg.y - mark.y, msg.x - mark.x);
+        seq(jfx, s, mark.x, mark.y, now, [['03', 0, 160, { angle: a, flicker: true }]]);
+        seq(jfx, s, msg.x, msg.y - 0.4, now, [['04', 40, 200]]);
+        seq(jfx, s, mark.x, mark.y - 0.3, now, [['05', 180, 320, { flicker: true }], ['06', 480, 500, { fadeOut: 330 }]]);
+      } else {
+        const ms = info.returnMs ?? 4000;
+        VOLTA.set(msg.playerId, { x: msg.x, y: msg.y + 0.2, until: now + ms });
+        const steps = [['01', 0, 260, { fadeIn: 120 }]];
+        for (let t = 240, i = 0; t < ms - 200; t += 260, i++) steps.push([i % 2 ? '01' : '02', t, 300]);
+        seq(jfx, s, msg.x, msg.y + 0.2, now, steps, { layer: 'ground', tag });
+      }
+      return true;
+    }
+    case 'lightning_raio': {   // Lança Saltadora: a lança voa até o 1º alvo, estoura, salta em arco para o mais perto dele
+      const t1 = { x: lineEnd.tx, y: lineEnd.ty };
+      const d1 = Math.max(0.6, Math.hypot(t1.x - h.x, t1.y - h.y));
+      seq(jfx, s, h.x, h.y, now, [['01', 0, 100, { angle, len: d1 * 0.5 }], ['02', 80, 120, { angle, len: d1 }]]);
+      seq(jfx, s, t1.x, t1.y - 0.4, now, [['03', 190, 200, { angle, flicker: true }]]);
+      const first = whoAt(t1.x, t1.y);
+      const second = first ? near(t1.x, t1.y, t1.x, t1.y, 4.5, [first, msg.playerId])[0] : null;
+      const p2 = second ? follow(second) : null;
+      if (p2) {
+        const a2 = Math.atan2(p2.y - t1.y, p2.x - t1.x), d2 = Math.max(0.6, Math.hypot(p2.x - t1.x, p2.y - t1.y));
+        seq(jfx, s, t1.x, t1.y - 0.4, now, [['04', 380, 140, { angle: a2, len: d2 }], ['05', 500, 180, { angle: a2, len: d2 }]]);
+        seq(jfx, s, p2.x, p2.y - 0.4, now, [['06', 680, 600, { fadeOut: 400 }]]);
+      } else {
+        seq(jfx, s, t1.x, t1.y - 0.4, now, [['06', 380, 600, { fadeOut: 400 }]]);
+      }
+      return true;
+    }
+    case 'lightning_correntes': {   // Correntes de Raio: as faíscas, a corrente sai, se divide e amarra até 2 alvos na linha
+      const hit = near(h.x, h.y, lineEnd.tx, lineEnd.ty, 1.2, [msg.playerId]).slice(0, info.targets ?? 2);
+      seq(jfx, s, h.x, h.y, now, [['01', 0, 120], ['02', 100, 140, { angle, len: Math.min(len, 3) }], ['03', 220, 160, { angle }]]);
+      const root = info.rootMs ?? 1300;
+      for (const id of hit) {
+        const o = { follow: () => follow(id), tag: `correntes:${id}` };
+        const steps = [['04', 360, 240, { flicker: true }]];
+        for (let t = 580, i = 0; t < 360 + root; t += 220, i++) steps.push([i % 2 ? '04' : '05', t, 260, { flicker: true }]);
+        steps.push(['06', 360 + root, 450, { fadeOut: 300 }]);
+        seq(jfx, s, 0, -0.45, now, steps, o);
+      }
       return true;
     }
     case 'heal_2': {   // Punho Sísmico: a brasa verde no chão, o anel rachando, a erupção com pedras e a poeira
@@ -229,6 +311,8 @@ export function fogoCastStart(jfx, msg, p, now, follow) {
 
 /** Um projétil saiu: devolve o quadro que voa (ou null). */
 export function fogoProjectileFrame(msg) {
+  if (msg.skill === 'lightning_shuriken' && ready('lightning_shuriken')) return 'lightning_shuriken_03';
+  if (msg.skill === 'lightning_2' && ready('lightning_2')) return 'lightning_2_02b';
   if (msg.skill === 'heal_septica' && ready('heal_septica')) return 'heal_septica_03';
   if (msg.skill === 'fire_2' && ready('fire_2')) return 'fire_2_04b';
   if (msg.skill === 'fire_hotan' && ready('fire_hotan')) return 'fire_hotan_03';
@@ -239,6 +323,14 @@ export function fogoProjectileFrame(msg) {
 export function fogoImpact(jfx, msg, skill, now) {
   if (skill === 'fire_2' && ready('fire_2')) {
     seq(jfx, 'fire_2', msg.x, msg.y, now, [['05b', 0, 260, { flicker: true }], ['06b', 220, 560, { fadeOut: 380, grow: 0.2 }]]);
+    return true;
+  }
+  if (skill === 'lightning_shuriken' && ready('lightning_shuriken')) {
+    seq(jfx, 'lightning_shuriken', msg.x, msg.y - 0.3, now, [['05', 0, 260, { flicker: true }], ['06', 230, 450, { fadeOut: 300 }]]);
+    return true;
+  }
+  if (skill === 'lightning_2' && ready('lightning_2')) {
+    seq(jfx, 'lightning_2', msg.x, msg.y - 0.3, now, [['05b', 0, 220, { flicker: true }], ['06', 180, 450, { scale: 0.3, fadeOut: 300 }]]);
     return true;
   }
   if (skill === 'heal_septica' && ready('heal_septica')) {
@@ -257,6 +349,14 @@ export function fogoImpact(jfx, msg, skill, now) {
 
 /** Aviso ou zona no chão (mensagem `ground`): Cinzas Detonantes, Chão Incandescente, cada meteoro e a Coluna Infernal. */
 export function fogoGround(jfx, msg, now, follow = () => null) {
+  if (msg.skill === 'lightning_rede' && msg.kind !== 'aviso' && ready('lightning_rede')) {
+    // Rede de Faíscas: a rede elétrica no chão, tremendo enquanto a zona dura
+    const ms = msg.ms ?? 3000, sc = (msg.r ?? 2.5) / 2.5;
+    // duas camadas: a rede firme no chão e a mesma por cima piscando (as faíscas correndo)
+    seq(jfx, 'lightning_rede', msg.x, msg.y, now, [['01', 0, ms, { layer: 'ground', fadeIn: 200, fadeOut: 350, scale: sc }]]);
+    for (let t = 0; t < ms - 150; t += 300) seq(jfx, 'lightning_rede', msg.x, msg.y, now, [['01', t, 180, { flicker: true, fadeIn: 40, fadeOut: 120, scale: sc }]]);
+    return true;
+  }
   // zonas de Cura: em volta de quem lançou (o Santuário anda com ele)
   if (['heal_3', 'heal_milagre', 'heal_santuario'].includes(msg.skill) && msg.kind !== 'aviso' && ready(msg.skill)) {
     const ms = msg.ms ?? 4000, s = msg.skill;

@@ -240,6 +240,16 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v76: animações desenhadas de 9 jutsus de Relâmpago (sem migração)
+
+- Corrente Rasteira (o raio corre rente até o fim da linha, estoura e queima o chão), Impulso Estático (o clarão e o raio
+  que leva o ninja 4 casas à frente, com o impacto na chegada), Shuriken do Trovão e Farpas de Trovão (voam desenhadas,
+  sem o rastro antigo), Descarga Envolvente (o anel em volta), Ida e Volta (1º uso: a runa fica marcada no chão por 4 s;
+  2º uso: o raio leva de volta a ela), Lança Saltadora (acerta o 1º alvo e salta em arco para o mais perto dele), Rede de
+  Faíscas (a rede no chão, piscando enquanto dura) e Correntes de Raio (a corrente se divide e amarra até 2 alvos na linha).
+- "Correntes de Raio" veio duas vezes (a mesma imagem); usei uma.
+- Recorte: cor de fundo fixa quando o desenho encosta nos cantos do painel (o clarão do Impulso).
+
 ### v75: animações desenhadas dos outros 10 jutsus de Cura (sem migração)
 
 - Punho Sísmico (anel rachando e erupção com pedras), Banho de Chakra (a coluna cai no aliado, chafariz e poças), Lâmina

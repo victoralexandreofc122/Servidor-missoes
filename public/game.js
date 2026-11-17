@@ -1405,7 +1405,7 @@ function handleMessage(msg) {
       const form = formOf(msg.skill);
       const color = CLAN_COLOR[info.clan] || CAST_COLOR[fxKind] || '#f4ecd8';   // v63: os clãs novos têm a cor própria
       const lineEnd = { tx: msg.tx ?? msg.x + msg.fx * (info.range ?? 5), ty: msg.ty ?? msg.y + msg.fy * (info.range ?? 5) };
-      const fogoDrawn = fogoCast(jfx, msg, info, lineEnd, now, posOf, whoAt);
+      const fogoDrawn = fogoCast(jfx, msg, info, lineEnd, now, posOf, whoAt, whoNear);
       if (fogoDrawn) { /* v73: os 10 jutsus de Fogo desenhados (fogoAnim.js) */ }
       else if (castSprites(msg, form, info, lineEnd, now)) { /* v56: o sprite desenhado (Fogo, Sopro, Linha) */ }
       else if (form === 'cone_fogo') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 3, cone: info.coneDeg ?? 90, start: now });
@@ -1458,7 +1458,7 @@ function handleMessage(msg) {
         && jfx.launch(msg.id, 'fogo_02', msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now);
       if (!drawn) vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now, msg.weapon === 'shuriken' ? 0.42 : 1);
       // v47: o rastro no elemento do jutsu
-      flying.set(msg.id, { x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, speed: msg.speed, range: msg.range, start: now, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 300,
+      flying.set(msg.id, { drawnArt: !!fogoFrame && drawn, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, speed: msg.speed, range: msg.range, start: now, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 300,
         el: msg.skill ? elementOfSkill(msg.skill) : msg.power === 'blast' ? 'fire' : 'weapons', skill: msg.skill });
       {   // v58: o projétil faz barulho enquanto voa (fogo ruge e crepita); o volume segue a distância (audioTick)
         const el = msg.skill ? elementOfSkill(msg.skill) : msg.power === 'blast' ? 'fire' : 'weapons';
@@ -1484,7 +1484,7 @@ function handleMessage(msg) {
         // v47: estouro no elemento do projétil; a explosão (raio > 0) treme de leve a tela de quem está perto
         const el = flying.get(msg.id)?.el ?? (msg.skill ? elementOfSkill(msg.skill) : 'weapons');
         flying.delete(msg.id);
-        particles.burst(el, msg.x, msg.y, msg.r > 0 ? 2.4 : 0.8, msg.r || 0);
+        if (!(spriteShot && el === 'lightning')) particles.burst(el, msg.x, msg.y, msg.r > 0 ? 2.4 : 0.8, msg.r || 0);   // v76: o estouro desenhado já está no quadro
         const meP = state.players.get(state.meId);
         if (msg.r > 0 && meP && Math.hypot(meP.x - msg.x, meP.y - msg.y) <= msg.r + 1.5) hitShake(140);
       }
@@ -2610,6 +2610,18 @@ const jfx = new JutsuSprites();
 /** v73: onde está alguém agora (o selo da Marca e a Lâmina de Fogo acompanham o boneco); morto ou fora do mapa = null. */
 const posOf = (id) => { const e = state.players.get(id) || state.monsters.get(id); return e && !e.dead ? { x: e.x, y: e.y } : null; };
 /** v74: quem está em (x, y) (o aliado curado, o alvo da agulha): o mais perto a até 1,5 casa, ou null. */
+/** v76: quem está perto do segmento (x0,y0)-(x1,y1) (até r casas), do mais perto do começo ao mais longe; sem os de `skip`. */
+function whoNear(x0, y0, x1, y1, r, skip = []) {
+  const dx = x1 - x0, dy = y1 - y0, L2 = Math.max(1e-6, dx * dx + dy * dy);
+  const out = [];
+  for (const e of [...state.players.values(), ...state.monsters.values()]) {
+    if (e.dead || skip.includes(e.id)) continue;
+    const t = Math.max(0, Math.min(1, ((e.x - x0) * dx + (e.y - y0) * dy) / L2));
+    const d = Math.hypot(e.x - (x0 + dx * t), e.y - (y0 + dy * t));
+    if (d <= r) out.push([t + d * 0.01, e.id]);
+  }
+  return out.sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+}
 function whoAt(x, y) {
   let best = null, bd = 1.5;
   for (const e of [...state.players.values(), ...state.monsters.values()]) {
@@ -2793,7 +2805,8 @@ function drawParticles(toScreenX, toScreenY, T, viewW, viewH, now) {
   for (const [id, p] of flying) {
     if (now > p.until) { flying.delete(id); continue; }
     const d = Math.min(p.range, (p.speed * Math.max(0, now - p.start)) / 1000);
-    particles.trail(p.el, p.x + p.fx * d, p.y + p.fy * d, p.fx, p.fy, dt, `t${id}`);
+    // v76: o projétil com rastro desenhado (a shuriken, as farpas, a brasa) não ganha o rastro antigo do Relâmpago
+    if (!(p.drawnArt && p.el === 'lightning')) particles.trail(p.el, p.x + p.fx * d, p.y + p.fy * d, p.fx, p.fy, dt, `t${id}`);
   }
   for (const [id, z] of state.ground || []) {
     if (now > z.end) continue;
