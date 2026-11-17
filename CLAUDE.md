@@ -32,6 +32,8 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v77 (sem migração):** mais 7 de Relâmpago desenhados (Investida Elétrica, Mãos de Trovão, Rugido do Trovão, Julgamento
+  do Trovão, Céu em Fúria, Armadura Relampejante, Risco de Luz).
 - **v76 (sem migração):** 9 jutsus de Relâmpago desenhados (Corrente Rasteira, Impulso Estático, Shuriken do Trovão,
   Descarga Envolvente, Farpas de Trovão, Ida e Volta, Lança Saltadora, Rede de Faíscas, Correntes de Raio).
 - **v75 (sem migração):** os outros 10 jutsus de Cura desenhados (toda a classe Cura tem animação própria).

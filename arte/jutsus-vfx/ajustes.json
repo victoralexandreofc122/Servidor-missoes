@@ -1637,5 +1637,466 @@
         }
       }
     }
+  },
+  "lightning_3": {
+    "pixel": 5,
+    "fundo": "magenta",
+    "detector_texto": false,
+    "grao": 0.6,
+    "topo": 118,
+    "roer": {
+      "5": [
+        "dir",
+        0.1
+      ]
+    },
+    "jogo": {
+      "pxCasa": 0.03,
+      "arte": 0,
+      "ancora": "direita",
+      "blend": "glow",
+      "quadros": {
+        "01": {
+          "arte": null,
+          "ancora": "centro",
+          "pxCasa": 0.02
+        },
+        "02": {
+          "eixo": true
+        },
+        "03": {
+          "eixo": true
+        },
+        "04": {
+          "eixo": true
+        },
+        "05": {
+          "ancora": "cabeca"
+        },
+        "06": {
+          "arte": null,
+          "ancora": "centro",
+          "blend": "normal"
+        }
+      }
+    }
+  },
+  "lightning_maos": {
+    "pixel": 5,
+    "fundo": "magenta",
+    "detector_texto": false,
+    "grao": 0.6,
+    "topo": 92,
+    "alfa_suave": true,
+    "jogo": {
+      "pxCasa": 0.011,
+      "ancora": "centro",
+      "blend": "glow",
+      "quadros": {
+        "01": {
+          "pxCasa": 0.02
+        }
+      }
+    }
+  },
+  "lightning_rugido": {
+    "pixel": 5,
+    "fundo": "magenta",
+    "detector_texto": false,
+    "grao": 0.6,
+    "margem": 10,
+    "paineis": [
+      [
+        43,
+        139,
+        815,
+        676
+      ],
+      [
+        901,
+        139,
+        1674,
+        676
+      ],
+      [
+        1761,
+        139,
+        2533,
+        676
+      ],
+      [
+        43,
+        858,
+        815,
+        1400
+      ],
+      [
+        901,
+        858,
+        1674,
+        1400
+      ],
+      [
+        1761,
+        858,
+        2533,
+        1400
+      ]
+    ],
+    "roer": {
+      "3": [
+        "dir",
+        0.12
+      ],
+      "4": [
+        "dir",
+        0.12
+      ],
+      "5": [
+        "dir",
+        0.1
+      ],
+      "6": [
+        "cima",
+        0.1
+      ]
+    },
+    "jogo": {
+      "pxCasa": 0.042,
+      "arte": 0,
+      "ancora": "esquerda",
+      "eixo": true,
+      "blend": "glow",
+      "quadros": {
+        "01": {
+          "arte": null,
+          "eixo": null,
+          "ancora": "centro",
+          "pxCasa": 0.03
+        },
+        "02": {
+          "eixo": null,
+          "ancora": "esquerda",
+          "pxCasa": 0.03
+        },
+        "06": {
+          "arte": null,
+          "eixo": null,
+          "ancora": "centro",
+          "blend": "normal"
+        },
+        "05": {
+          "pxCasa": 0.03,
+          "ancora": "direita"
+        }
+      }
+    }
+  },
+  "lightning_4": {
+    "pixel": 5.25,
+    "fundo": "magenta",
+    "detector_texto": false,
+    "grao": 0.6,
+    "alfa_suave": true,
+    "margem": 8,
+    "paineis": [
+      [
+        22,
+        166,
+        429,
+        1255
+      ],
+      [
+        451,
+        166,
+        853,
+        1255
+      ],
+      [
+        875,
+        166,
+        1277,
+        1255
+      ],
+      [
+        1298,
+        166,
+        1700,
+        1255
+      ],
+      [
+        1722,
+        166,
+        2125,
+        1255
+      ],
+      [
+        2147,
+        166,
+        2554,
+        1255
+      ]
+    ],
+    "roer": {
+      "3": [
+        "cima",
+        0.12
+      ],
+      "4": [
+        "cima",
+        0.12
+      ],
+      "5": [
+        "cima",
+        0.12
+      ]
+    },
+    "jogo": {
+      "pxCasa": 0.1,
+      "ancora": "centro",
+      "blend": "glow",
+      "quadros": {
+        "03": {
+          "ancora": "anel:1.0",
+          "pxCasa": 0.065
+        },
+        "04": {
+          "ancora": "anel:0.85",
+          "pxCasa": 0.065
+        },
+        "05": {
+          "ancora": "anel:0.85",
+          "pxCasa": 0.065
+        },
+        "06": {
+          "ancora": "base",
+          "blend": "normal",
+          "pxCasa": 0.065
+        }
+      }
+    }
+  },
+  "lightning_ceu": {
+    "pixel": 5,
+    "fundo": "magenta",
+    "detector_texto": false,
+    "grao": 0.6,
+    "topo": 0,
+    "partes": {
+      "1": {
+        "b": [
+          0.36,
+          0,
+          0.64,
+          0.42
+        ]
+      },
+      "2": {
+        "b": [
+          0.36,
+          0,
+          0.64,
+          0.42
+        ]
+      },
+      "3": {
+        "b": [
+          0.4,
+          0,
+          0.62,
+          0.42
+        ]
+      },
+      "5": {
+        "b": [
+          0,
+          0,
+          0.3,
+          0.92
+        ]
+      },
+      "6": {
+        "b": [
+          0,
+          0,
+          0.38,
+          0.72
+        ]
+      }
+    },
+    "jogo": {
+      "pxCasa": 0.07,
+      "ancora": "centro",
+      "blend": "glow",
+      "quadros": {
+        "01b": {
+          "blend": "normal"
+        },
+        "03b": {
+          "arte": 1.5707963267948966,
+          "ancora": "base"
+        },
+        "05b": {
+          "ancora": "base"
+        },
+        "06b": {
+          "ancora": "base",
+          "blend": "normal"
+        }
+      }
+    }
+  },
+  "lightning_armadura": {
+    "pixel": 5,
+    "fundo": "magenta",
+    "detector_texto": false,
+    "grao": 0.6,
+    "topo": 150,
+    "alfa_suave": true,
+    "paineis": [
+      [
+        9,
+        4,
+        854,
+        713
+      ],
+      [
+        865,
+        4,
+        1711,
+        713
+      ],
+      [
+        1722,
+        4,
+        2567,
+        713
+      ],
+      [
+        9,
+        725,
+        854,
+        1434
+      ],
+      [
+        865,
+        725,
+        1711,
+        1434
+      ],
+      [
+        1722,
+        725,
+        2567,
+        1434
+      ]
+    ],
+    "cantos": [
+      [
+        0,
+        0,
+        140,
+        150
+      ]
+    ],
+    "jogo": {
+      "pxCasa": 0.027,
+      "ancora": "centro",
+      "blend": "glow",
+      "quadros": {
+        "05": {
+          "pxCasa": 0.03
+        },
+        "06": {
+          "pxCasa": 0.03,
+          "blend": "screen"
+        }
+      }
+    }
+  },
+  "lightning_risco": {
+    "pixel": 5,
+    "fundo": "magenta",
+    "detector_texto": false,
+    "grao": 0.6,
+    "alfa_suave": true,
+    "margem": 10,
+    "paineis": [
+      [
+        70,
+        90,
+        620,
+        630
+      ],
+      [
+        680,
+        90,
+        1258,
+        630
+      ],
+      [
+        1318,
+        90,
+        1897,
+        630
+      ],
+      [
+        1955,
+        90,
+        2508,
+        630
+      ],
+      [
+        295,
+        812,
+        858,
+        1362
+      ],
+      [
+        1003,
+        812,
+        1570,
+        1362
+      ],
+      [
+        1711,
+        812,
+        2280,
+        1362
+      ]
+    ],
+    "jogo": {
+      "pxCasa": 0.03,
+      "arte": -0.785,
+      "ancora": "esquerda",
+      "blend": "glow",
+      "quadros": {
+        "01": {
+          "arte": null,
+          "ancora": "centro"
+        },
+        "02": {
+          "arte": -1.5707963267948966,
+          "ancora": "base"
+        },
+        "03": {
+          "eixo": 117
+        },
+        "04": {
+          "eixo": 151
+        },
+        "05": {
+          "eixo": 137
+        },
+        "06": {
+          "eixo": 154
+        },
+        "07": {
+          "arte": null,
+          "ancora": "centro",
+          "blend": "screen"
+        }
+      }
+    }
   }
 }

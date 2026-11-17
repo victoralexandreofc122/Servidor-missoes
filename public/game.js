@@ -871,7 +871,7 @@ function handleMessage(msg) {
       if (z?.kind === 'aviso' && particles.quality !== 'off') {
         // v48: o meteoro deixa a cratera; o Julgamento do Trovão cai como um raio do céu e deixa a marca
         if (z.skill === 'fire_4' && !jutsuSpritesReady('fire_4')) decals.push({ kind: 'cratera', x: z.x, y: z.y, r: z.r * 0.8, start: now, ms: 2600, seed: seedOf(msg.id) });
-        if (z.skill === 'lightning_4') {
+        if (z.skill === 'lightning_4' && !jutsuSpritesReady('lightning_4')) {
           for (let i = 0; i < 3; i++) arts.push({ kind: 'bolt', x0: z.x + (i - 1) * 0.6, y0: z.y - 9, x1: z.x + (i - 1) * z.r * 0.4, y1: z.y, start: now + i * 60, ms: 420, seed: seedOf(msg.id) + i * 13, power: i === 1 ? 2.2 : 1.3 });
           decals.push({ kind: 'queimado', x: z.x, y: z.y, r: z.r * 0.7, start: now, ms: 2200, seed: 1 });
           hitShake(160);
@@ -2699,6 +2699,7 @@ function drawArtTop(toScreenX, toScreenY, T, now) {
   for (const [id, z] of state.ground || []) {
     if (z.kind !== 'aviso' || !STRIKE_ART[z.skill] || now > z.end) continue;
     if (z.skill === 'fire_4' && jutsuSpritesReady('fire_4')) continue;   // v74: o meteoro desenhado pelo Victor (fogoAnim.js)
+    if (z.skill === 'lightning_4' && jutsuSpritesReady('lightning_4')) continue;   // v77: o Julgamento desenhado
     const k = Math.max(0, Math.min(1, (now - z.start) / Math.max(1, z.end - z.start)));
     drawStrikeArt(ctx, z.skill, toScreenX(z.x), toScreenY(z.y), z.r * T, T, k, now, seedOf(id));
   }

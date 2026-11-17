@@ -168,6 +168,55 @@ export function fogoCast(jfx, msg, info, lineEnd, now, follow, whoAt = () => nul
       }
       return true;
     }
+    case 'lightning_3':   // Investida Elétrica: o redemoinho na saída, o cometa elétrico até onde parou, o estouro, as faíscas
+    case 'lightning_risco': {   // Risco de Luz: o ponto, a faísca sobe, o risco atravessa tudo até o fim e estoura lá
+      if (msg.tx === undefined) return false;
+      const ex = msg.tx, ey = msg.ty;
+      const d = Math.max(0.8, Math.hypot(ex - msg.x, ey - msg.y));
+      const a = Math.atan2(ey - msg.y, ex - msg.x);
+      if (s === 'lightning_3') {
+        seq(jfx, s, msg.x, msg.y - 0.3, now, [['01', 0, 140, { flicker: true }]]);
+        seq(jfx, s, ex, ey - 0.3, now, [['02', 60, 90, { angle: a, len: d * 0.5 }], ['03', 130, 110, { angle: a, len: d }], ['04', 230, 140, { angle: a, len: d, flicker: true }],
+          ['05', 360, 240, { angle: a }], ['06', 580, 450, { fadeOut: 300 }]]);
+      } else {
+        seq(jfx, s, msg.x, msg.y - 0.2, now, [['01', 0, 80], ['02', 60, 90]]);
+        seq(jfx, s, msg.x, msg.y - 0.3, now, [['03', 130, 90, { angle: a, len: d * 0.6 }], ['05', 210, 110, { angle: a, len: d }], ['04', 310, 160, { angle: a, len: d }],
+          ['06', 460, 180, { angle: a, len: d }]]);
+        seq(jfx, s, (msg.x + ex) / 2, (msg.y + ey) / 2 - 0.3, now, [['07', 620, 500, { fadeOut: 330 }]]);
+      }
+      return true;
+    }
+    case 'lightning_maos': {   // Mãos de Trovão: o estalo, a bola de raio, as garras elétricas ficam nas mãos durante o buff
+      const dur = info.durationMs ?? 5000;
+      const tag = `maos:${msg.playerId}`;
+      jfx.drop(tag);
+      const o = { follow: () => follow(msg.playerId), tag };
+      const steps = [['01', 0, 100], ['02', 80, 150, { flicker: true }], ['03', 220, 200]];
+      for (let t = 400, i = 0; t < dur - 200; t += 260, i++) steps.push([['04', '05', '03'][i % 3], t, 300, { flicker: true }]);
+      steps.push(['06', dur - 200, 450, { fadeOut: 300 }]);
+      seq(jfx, s, msg.fx * 0.35, msg.fy * 0.35 - 0.35, now, steps, o);
+      return true;
+    }
+    case 'lightning_rugido': {   // Rugido do Trovão (a carga junta na conjuração): o feixe largo sai até o alcance, treme e se desfaz
+      jfx.drop(`rugidoT:${msg.playerId}`);
+      seq(jfx, s, h.x, h.y, now, [['03', 0, 380, { angle, len, flicker: true }]]);
+      seq(jfx, s, lineEnd.tx, lineEnd.ty, now, [['05', 300, 260, { angle }]]);   // a parede de raios no fim do feixe
+      seq(jfx, s, lineEnd.tx, lineEnd.ty, now, [['06', 560, 600, { fadeOut: 400 }]]);
+      return true;
+    }
+    case 'lightning_armadura': {   // Armadura Relampejante: a faísca, o anel fecha em volta, a descarga estoura no raio e a armadura fica
+      const dur = info.durationMs ?? 5000;
+      const tag = `armadura:${msg.playerId}`;
+      jfx.drop(tag);
+      const o = { follow: () => follow(msg.playerId), tag };
+      const sc = (info.radius ?? 2.5) / 2.5;
+      const steps = [['02', 0, 140], ['03', 120, 180]];
+      for (let t = 600, i = 0; t < dur - 250; t += 300, i++) steps.push([i % 2 ? '03' : '04', t, 340, { flicker: true }]);
+      steps.push(['06', dur - 250, 600, { fadeOut: 400 }]);
+      seq(jfx, s, 0, -0.3, now, steps, o);
+      seq(jfx, s, 0, -0.3, now, [['05', 280, 360, { scale: sc, flicker: true }]], o);
+      return true;
+    }
     case 'heal_2': {   // Punho Sísmico: a brasa verde no chão, o anel rachando, a erupção com pedras e a poeira
       const p = msg.tx !== undefined ? at : { x: h.x + msg.fx, y: h.y + msg.fy };
       const sc = (info.radius ?? 1.5) / 1.5;
@@ -298,6 +347,12 @@ export function fogoCastStart(jfx, msg, p, now, follow) {
     jfx.show('fire_rugido_01', 0.3, -0.45, now, msg.ms, { ...o('rugido'), flicker: true, fadeIn: 200, grow: 0.5 });
   } else if (msg.skill === 'fire_coroa') {
     jfx.show('fire_coroa_01', 0, 0.1, now, msg.ms + 60, { ...o('coroa'), flicker: true, fadeIn: 120, grow: 0.8, layer: 'ground' });
+  } else if (msg.skill === 'lightning_3') {
+    jfx.show('lightning_3_01', 0.3, -0.35, now, msg.ms + 60, { ...o('investida'), flicker: true, fadeIn: 100, grow: 0.15 });
+  } else if (msg.skill === 'lightning_rugido') {
+    seq(jfx, 'lightning_rugido', 0.35, -0.35, now, [['01', 0, msg.ms * 0.55], ['02', msg.ms * 0.5, msg.ms * 0.5 + 60]], o('rugidoT'));
+  } else if (msg.skill === 'lightning_armadura') {
+    jfx.show('lightning_armadura_01', 0, -0.3, now, msg.ms + 60, { ...o('armadura'), flicker: true, fadeIn: 100, grow: 1 });
   } else if (msg.skill === 'heal_colosso') {
     jfx.show('heal_colosso_01', 0.4, -0.6, now, msg.ms + 60, { ...o('colosso'), flicker: true, fadeIn: 120, grow: 0.3 });
   } else if (msg.skill === 'heal_4') {
@@ -388,6 +443,21 @@ export function fogoGround(jfx, msg, now, follow = () => null) {
     seq(jfx, 'fire_4', msg.x, msg.y, now, [['01b', 0, ms, { layer: 'ground', fadeIn: 120 }]]);
     jfx.launch(`met:${msg.id}`, 'fire_4_04b', msg.x, msg.y - h, 0, 1, h / (fall / 1000), h, now + ms - fall, 0);
     seq(jfx, 'fire_4', msg.x, msg.y, now, [['05b', ms, 300, { scale: sc, flicker: true }], ['06b', ms + 240, 1100, { scale: sc, layer: 'ground', fadeOut: 700 }]]);
+    return true;
+  }
+  if (msg.skill === 'lightning_ceu' && msg.kind === 'aviso' && ready('lightning_ceu')) {
+    // um raio por aviso: a marca vermelha, o anel azul acende, o raio cai do céu no fim, o estouro e a fumaça
+    const ms = msg.ms ?? 800, sc = (msg.r ?? 1.3) / 1.3, fall = Math.min(220, ms * 0.35), h = 5;
+    seq(jfx, 'lightning_ceu', msg.x, msg.y, now, [['01b', 0, ms, { layer: 'ground', fadeIn: 120 }], ['02b', ms * 0.45, ms * 0.55, { layer: 'ground', flicker: true }]]);
+    jfx.launch(`ceu:${msg.id}`, 'lightning_ceu_03b', msg.x, msg.y - h, 0, 1, h / (fall / 1000), h, now + ms - fall, 0);
+    seq(jfx, 'lightning_ceu', msg.x, msg.y + 0.2, now, [['05b', ms, 260, { scale: sc, flicker: true }], ['06b', ms + 220, 800, { scale: sc, fadeOut: 500 }]]);
+    return true;
+  }
+  if (msg.skill === 'lightning_4' && msg.kind === 'aviso' && ready('lightning_4')) {
+    // Julgamento do Trovão: o anel vermelho avisa, a faísca junta, no fim o raio do céu cai, estoura em domo e deixa a cratera
+    const ms = msg.ms ?? 1000, sc = (msg.r ?? 3.5) / 3.5;
+    seq(jfx, 'lightning_4', msg.x, msg.y, now, [['01', 0, ms * 0.55, { layer: 'ground', fadeIn: 120 }], ['02', ms * 0.5, ms * 0.5, { layer: 'ground', flicker: true }],
+      ['03', ms - 120, 200, { flicker: true }], ['04', ms + 60, 220, { flicker: true }], ['05', ms + 260, 300], ['06', ms + 540, 1100, { fadeOut: 700 }]], { scale: sc });
     return true;
   }
   if (msg.skill === 'fire_coluna' && msg.kind === 'aviso' && ready('fire_coluna')) {

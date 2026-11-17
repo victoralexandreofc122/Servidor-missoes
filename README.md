@@ -240,6 +240,15 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v77: animações desenhadas de mais 7 jutsus de Relâmpago (sem migração)
+
+- Investida Elétrica (o redemoinho na mão durante os selos e o cometa elétrico até onde parou), Mãos de Trovão (as garras
+  elétricas ficam nas mãos durante o buff), Rugido do Trovão (a carga junta nos selos, o feixe vai até o alcance e bate
+  numa parede de raios), Julgamento do Trovão (o anel vermelho do tamanho da área, o raio do céu, o domo e a cratera),
+  Céu em Fúria (cada aviso ganha o seu raio caindo), Armadura Relampejante (o anel fecha, a descarga estoura no raio e a
+  armadura fica em volta durante os 5 s) e Risco de Luz (o risco atravessa tudo até o fim e estoura lá).
+- O Julgamento e o Céu em Fúria desenhados tiram o raio antigo feito por código.
+
 ### v76: animações desenhadas de 9 jutsus de Relâmpago (sem migração)
 
 - Corrente Rasteira (o raio corre rente até o fim da linha, estoura e queima o chão), Impulso Estático (o clarão e o raio
