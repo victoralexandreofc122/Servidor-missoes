@@ -80,6 +80,25 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   rankeado 3v3 (solo e Trio), calendário automático da Era e do Torneio, Torneio dos Heróis e dos Vilões. Mesclado
   (PR #35); a v33 rodou no Neon.
 
+## Animações dos jutsus (folhas do Victor): como continuar numa aba nova
+
+O Victor manda folhas de 6 quadros (fundo verde ou magenta) e cada uma vira a animação de um jutsu. **Feitos 50** (todo o
+Fogo, toda a Cura e 16 de Relâmpago, v56 e v73 a v77); **faltam 149** (Água, Vento, Pedra, Sombra, Ilusão, Taijutsu,
+Armas, Relâmpago e Aura de Regeneração, e os clãs). A lista completa, com o id e a forma de cada um, e o passo a passo
+estão em **`arte/jutsus-vfx/LEIAME.md`**: ler antes de mexer.
+
+- **Começo da sessão:** `bash scripts/ambiente-local.sh` (Postgres local na 5433, banco `jogo` com todas as migrações,
+  segredos locais aleatórios em `/var/tmp/jogo.env`, servidor na 3000 e o ninja admin `rin`). Rodar de novo religa o
+  que caiu (o container pode reiniciar o Postgres).
+- **Por folha:** achar o id pelo nome → `arte/jutsus-vfx/folhas/<id>.jpg` → `ajustes.json` → `recortar.py --debug`
+  → conferir o recorte → `public/fogoAnim.js` (o momento de cada quadro) → `capturar.ts` + `folha.py` → conferir no jogo
+  → `test/vfxJutsus.test.ts` → README/CLAUDE.md → `npm run verify` → commit e push → mandar as folhas ao Victor.
+- **Skill de animação:** se esta sessão tiver uma skill de banco de habilidades, efeitos ou animação (veja a lista de
+  skills), use-a para complementar: mais quadros intermediários, partículas e brilho por cima dos quadros desenhados,
+  ou para propor ao Victor como animar os jutsus que ainda não têm folha. A arte do Victor é a base: a skill
+  complementa, não troca o desenho dele.
+- Nada disso muda o servidor (só visual), salvo um aviso visual quando faltar informação (ex.: o `combo` 'marca').
+
 ## Documentos
 
 - `README.md`: o que entrou em cada versão (v5 a v27) e se precisa de migração.
@@ -92,6 +111,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 - `docs/lore/mundo-aberto-proposta.md`: o mundo aberto em anéis (17 x 17 blocos), aprovado pelo Victor em 17/11; os
   arcos regionais, os chefes, as regras de passagem e a ordem de construção.
 - `docs/ui/estrutura-ui-ux-hud.md`: a estrutura de UI, UX e HUD (regra de toda tela nova).
+- `arte/jutsus-vfx/LEIAME.md`: as animações desenhadas dos jutsus (como recortar, tocar e conferir; o que falta).
 - `docs/lore/`: a lore (Bíblia do Mundo, fonte única de verdade) e o design do tutorial; a planilha `dialogos.csv` é gerada
   do jogo (`npx tsx scripts/gerar-dialogos.ts`) e o teste confere.
 - `docs/mapas.md`, `docs/endgame.md`, `docs/habilidades.md`, `docs/clima.md`, `docs/netcode.md`.

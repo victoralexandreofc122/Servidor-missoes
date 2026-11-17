@@ -240,6 +240,12 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### Ferramentas: continuar as animações em outra sessão
+
+- `scripts/ambiente-local.sh` prepara o jogo num container novo (Postgres, banco com todas as migrações, segredos locais,
+  servidor e o ninja admin `rin`); `arte/jutsus-vfx/capturar.ts` e `folha.py` conferem as animações dentro do jogo;
+  `arte/jutsus-vfx/LEIAME.md` tem o passo a passo e a lista dos 149 jutsus que faltam.
+
 ### v77: animações desenhadas de mais 7 jutsus de Relâmpago (sem migração)
 
 - Investida Elétrica (o redemoinho na mão durante os selos e o cometa elétrico até onde parou), Mãos de Trovão (as garras
