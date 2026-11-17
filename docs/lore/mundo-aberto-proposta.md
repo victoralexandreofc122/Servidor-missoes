@@ -4,9 +4,9 @@ Pedido do Victor (17/11/2026): um mapa global bem maior, com as quatro aldeias n
 Titã no centro (perto da Zona de Conflito, para nenhuma aldeia chegar antes das outras), uma floresta fraca perto da
 primeira aldeia, níveis que sobem do canto para o centro e, em cada região, um chefe com uma história própria.
 
-**Estado: proposta. Nada disto está no jogo.** Os nomes marcados com * são rótulos de trabalho; pela regra do CLAUDE.md,
-cada um tem 3 opções (tabela no fim) e só entra no jogo depois da escolha do Victor. A mudança de lore (os Titãs no centro)
-só entra na Bíblia do Mundo com o OK dele.
+**Estado: proposta. Nada disto está no jogo.** Já escolhidos (17/11/2026): os cinco chefes (itens 21 a 25) e a mudança
+de lore da seção 4. Os nomes marcados com * são rótulos de trabalho; pela regra do CLAUDE.md,
+cada um tem 3 opções (tabela no fim) e só entra no jogo depois da escolha do Victor.
 
 Página visual: o Atlas da Herança do Fogo (artifact no claude.ai, versão 2).
 
@@ -59,7 +59,7 @@ Bichos da borda de cada região (descrições; os nomes vêm depois, com 3 opç�
    vez.
 6. **Abrigos no caminho:** cada estrada tem um abrigo com fogueira no anel do meio, onde não se luta, com renascimento.
 
-## 4. O que muda na lore (precisa do OK do Victor)
+## 4. O que muda na lore (aprovado pelo Victor em 17/11/2026; já está na Bíblia do Mundo)
 
 - **Os Titãs dormem sob a terra do meio.** Os fundadores prenderam os dez Titãs bem no meio da bacia. É por isso que as
   aldeias brigaram pela terra do meio na Primeira Guerra, e por isso ela ficou sem dono: a Zona de Conflito.
@@ -120,7 +120,7 @@ depois. Os títulos dos arcos são de trabalho.
 | 7 | 36 | Gruta da maré | USAR JUTSU de Água para baixar a maré e abrir o caminho |
 | 8 | 40 | Santuário afogado | CHEFE |
 
-- **Chefe (item 22):** a maré sobe e desce. Na cheia, só as ilhotas não afogam (na água se perde chakra). A névoa esconde
+- **Chefe: Namiko, a Enguia da Névoa** (item 22, escolha do Victor): a maré sobe e desce. Na cheia, só as ilhotas não afogam (na água se perde chakra). A névoa esconde
   os filhotes. O veneno corta a cura, como o do Clã Áspide.
 - **Gancho:** as mensagens em cifra continuam depois da luta, agora vindas do centro do mapa.
 
@@ -142,7 +142,7 @@ depois. Os títulos dos arcos são de trabalho.
 | 7 | 36 | Dentro da tempestade | MEDITAR EM o olho da tempestade para achar o ninho |
 | 8 | 40 | Olho da tempestade | CHEFE |
 
-- **Chefe (item 23):** rajadas empurram todo mundo numa direção (quem cai do platô leva dano). Mergulhos marcados no
+- **Chefe: Jinra, o Grito do Céu** (item 23, escolha 23B): rajadas empurram todo mundo numa direção (quem cai do platô leva dano). Mergulhos marcados no
   chão. Nas correntes de ar, quem está dentro anda mais rápido para esquivar.
 - **Gancho:** quando o vento volta, ele sopra sempre para o centro.
 
@@ -165,7 +165,7 @@ depois. Os títulos dos arcos são de trabalho.
 | 7 | 36 | Mina velha | USAR JUTSU de Terra para abrir o salão fundo |
 | 8 | 40 | Salão do colosso | CHEFE |
 
-- **Chefe (item 24):** couraça de pedra que só racha nos pontos brilhantes (golpe pesado ou jutsu de Terra). Pedras caem do
+- **Chefe: O Colosso dos Nomes** (item 24, escolha 24A): couraça de pedra que só racha nos pontos brilhantes (golpe pesado ou jutsu de Terra). Pedras caem do
   teto: quem fica atrás das colunas não toma dano.
 - **Gancho:** atrás do colosso há uma passagem para baixo: as Cavernas Profundas (marco 250).
 
@@ -189,7 +189,7 @@ depois. Os títulos dos arcos são de trabalho.
 | 7 | 36 | Desfiladeiro sem nome | MEDITAR EM a sombra: aprender a ver qual cópia é a verdadeira |
 | 8 | 40 | Covil do caçador | CHEFE |
 
-- **Chefe (item 25):** ele se divide em cópias de ilusão; só a verdadeira tem sombra. A cada fase marca um jogador como
+- **Chefe: Senhor das Cinzas** (item 25, escolha 25C): ele se divide em cópias de ilusão; só a verdadeira tem sombra. A cada fase marca um jogador como
   "caçado", e as cópias vão atrás dele.
 - **Gancho:** no covil há uma lista de nomes com a letra do Maior Vilão.
 
@@ -204,7 +204,8 @@ Cada etapa abre num marco da Progressão de Mundo (`src/realtime/worldProgress.t
 
 ## 7. Nomes para escolher (regra das 3 opções)
 
-**Escolhido pelo Victor em 17/11/2026: 21B (Mãe-Lodo)**, num comentário no Atlas. Os outros itens esperam a escolha.
+**Escolhido pelo Victor em 17/11/2026 (comentários no Atlas): 21B, 22C com ajuste ("Namiko", no lugar de "Namikoro"), 23B, 24A e 25C.**
+Os itens 14 a 20 esperam a escolha.
 
 | # | O que precisa de nome | Rótulo de trabalho | Opção A | Opção B | Opção C |
 |---|---|---|---|---|---|
@@ -216,10 +217,10 @@ Cada etapa abre num marco da Progressão de Mundo (`src/realtime/worldProgress.t
 | 19 | O anel do meio (níveis 30 a 45) | Anel do meio | Terras Partidas | Marcos da Fronteira | Campos de Ninguém |
 | 20 | O anel interno (níveis 45 a 60) | Anel interno | Terras Ermas | Cinturão Sombrio | Orla dos Titãs |
 | 21 | Chefe da Chama Eterna | — | O Senhor das Raízes | **Mãe-Lodo (escolhido)** | O Que Bebe o Rio |
-| 22 | Chefe da Maré Oculta | — | Mãe-Maré | O Faroleiro Afogado | Namikoro, a Enguia da Névoa |
-| 23 | Chefe do Vento Cortante | — | Rei-Gavião da Tempestade | Jinra, o Grito do Céu | O Olho do Vendaval |
-| 24 | Chefe da Rocha Antiga | — | O Colosso dos Nomes | Gendouro, a Muralha que Anda | O Guardião da Mina Velha |
-| 25 | Chefe dos Renegados | — | O Primeiro Riscado | O Caçador de Bandanas | Senhor das Cinzas |
+| 22 | Chefe da Maré Oculta | — | Mãe-Maré | O Faroleiro Afogado | **Namiko, a Enguia da Névoa (escolhido, com o ajuste do Victor)** |
+| 23 | Chefe do Vento Cortante | — | Rei-Gavião da Tempestade | **Jinra, o Grito do Céu (escolhido)** | O Olho do Vendaval |
+| 24 | Chefe da Rocha Antiga | — | **O Colosso dos Nomes (escolhido)** | Gendouro, a Muralha que Anda | O Guardião da Mina Velha |
+| 25 | Chefe dos Renegados | — | O Primeiro Riscado | O Caçador de Bandanas | **Senhor das Cinzas (escolhido)** |
 
 Depois da escolha destes 12, vêm (também em 3 opções): os títulos dos arcos, os NPCs de cada arco, os bichos de cada
 região, as elites e os títulos de recompensa.

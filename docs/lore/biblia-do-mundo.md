@@ -57,9 +57,10 @@ dividir.
 | **Aldeia da Rocha Antiga** | Desfiladeiro de pedra antiga, muralhas talhadas na rocha. | Fácil de defender, difícil de abastecer: a aldeia valoriza resistência e cerco (passiva Muralha). |
 | **Floresta** | Ao sul da Chama Eterna, 100 x 100 casas. Lago, velho carvalho, acampamento antigo, leito seco e a beira do rio. | O Rio das Raízes carrega o chakra derretido do Lodo: os lodos brotam onde a água aflora (beira, leito). |
 | **Caverna do Lodo** | Uma boca de caverna além de um abismo da Floresta. | Fica perto do selo: lá os Lodos Escuros são mais densos. |
-| **Clareira Queimada** | O coração da Floresta, um círculo de terra queimada onde nada cresce. | É o lugar mais perto da superfície do que dorme embaixo: é onde os Titãs acordam a cada Era. |
+| **Clareira Queimada** | O coração da Floresta, um círculo de terra queimada onde nada cresce. | Guarda a Pedra 4; é onde o Kagerō espera no fim do Arco 1. No jogo de hoje o evento dos Titãs ainda acontece aqui; ele passa para o centro da bacia quando o mundo aberto for construído (decisão do Victor, 17/11/2026). |
 | **Poço sob a Praça** | Debaixo da Praça da Chama Eterna, ligado ao canal. | Guarda a quinta Pedra da Vigília, que não prende o Lodo (Arco 1, gancho do Arco 2). |
 | **Zona de Conflito** | Entre as quatro aldeias, com um acampamento de cada uma. | Terra sem dono: ali a lei das aldeias não chega e só a lâmina decide (PvP livre, MMR, temporadas). |
+| **A floresta do centro** (nome em aberto, item 14 de `mundo-aberto-proposta.md`) | No meio da bacia, cercada pela Zona de Conflito. | Cresceu sem sol em cima da prisão dos Titãs, alimentada pelo chakra deles. No centro fica a fenda (nome em aberto, item 15) por onde um Titã escapa por dia nos 10 primeiros dias de cada Era. Aprovado pelo Victor em 17/11/2026; entra no jogo com o mundo aberto. |
 | **Refúgio dos Renegados** | Longe das quatro aldeias, abrigo dos que riscaram a bandana. | Ninguém manda ali: quem não é renegado entra como intruso. |
 | **Arena das Quatro Heranças** | Um vale com as estátuas das quatro heranças em volta de um campo de duelo. | O único lugar onde as aldeias aceitam se medir sem guerra: duelos de honra, rankeado e torneios. |
 | **Terra Sem Lei, ilhas, cavernas profundas** | Ainda não alcançadas (marcos 150 e 250 da Progressão de Mundo). | Só abrem quando há gente bastante para carregar a Chama até lá (ver seção 6). |
@@ -81,8 +82,8 @@ Academia) conta a mesma linha em seis capítulos, abertos pela Progressão de Mu
 | Quando | Era | O que aconteceu | O que isso causou |
 |---|---|---|---|
 | Antes de tudo | **A Primeira Chama** | Só havia a Chama, uma força viva sem forma. | Quem tocava a Chama ganhava poder, mas ela não tinha dono. |
-| Séculos atrás | **A divisão** | Quatro clãs fundadores dividiram a Chama em quatro heranças e ergueram as quatro aldeias. Dez forças antigas, os Titãs, lutaram contra a divisão. | Os fundadores prenderam os Titãs sob a terra para fazer o mundo como ele é. Quem chegou mais perto deles na luta ficou marcado no sangue: são as linhagens (seção 4). |
-| Logo depois | **A Primeira Guerra** | A paz entre as quatro heranças não durou: as aldeias dos fundadores guerrearam pela terra do meio. | O sangue e o chakra derramados envenenaram o **Rio das Raízes**, que corre sob a Floresta. Do rio envenenado nasceu o Lodo Ancestral. A terra do meio ficou sem dono: é a Zona de Conflito. |
+| Séculos atrás | **A divisão** | Quatro clãs fundadores dividiram a Chama em quatro heranças e ergueram as quatro aldeias. Dez forças antigas, os Titãs, lutaram contra a divisão. | Os fundadores prenderam os Titãs sob a terra do meio da bacia para fazer o mundo como ele é. Quem chegou mais perto deles na luta ficou marcado no sangue: são as linhagens (seção 4). |
+| Logo depois | **A Primeira Guerra** | A paz entre as quatro heranças não durou: as aldeias dos fundadores guerrearam pela terra do meio. | O sangue e o chakra derramados envenenaram o **Rio das Raízes**, que corre sob a Floresta. Do rio envenenado nasceu o Lodo Ancestral. A terra do meio, que guarda a prisão dos Titãs, ficou sem dono: é a Zona de Conflito. |
 | Gerações de paz armada | **As aldeias crescem** | Cada aldeia se fechou na sua herança. A Chama Eterna fundou a Academia e guardou a brasa que sobrou da Primeira Chama no Pergaminho em Chamas. | A Arena das Quatro Heranças vira o lugar dos duelos de honra, no lugar da guerra aberta. |
 | Há 50 anos | **A Noite das Cinco Pedras** | O Lodo Ancestral acordou sob a Floresta. A geração que fundou a Academia o prendeu com cinco Pedras da Vigília, acesas pela chama do Pergaminho em Chamas. | Nasce a Noite das Lanternas: a cada formatura, o Diretor reacende as pedras. Os lodos da Floresta são as gotas de chakra que vazam pelo selo; o Rei Lodo é o maior pedaço que escapou. |
 | Uma geração atrás | **As primeiras bandanas queimadas** | A aldeia passou a expulsar quem matava aliados ou traía a herança, queimando a bandana na expulsão. Outros saíram por conta própria, riscando a bandana. | Os expulsos se juntam como **Os Cinzas**; os que saíram por escolha vivem no **Refúgio dos Renegados**. A aldeia passa a eleger um Kage por Era, e toda eleição faz descontentes. |
@@ -209,7 +210,7 @@ se gasta em cada jutsu.
 
 **As forças maiores.**
 - **Os Titãs** (Chama Eterna, Maré de Sangue, Trovão Ancestral, Vento Cortante, Rocha Antiga, Noite Eterna, Pesadelo,
-  Corpo Fechado, Mil Lâminas, Vida): acordam um por dia nos 10 primeiros dias da Era, na Clareira Queimada, com uma vida
+  Corpo Fechado, Mil Lâminas, Vida): acordam um por dia nos 10 primeiros dias da Era, na Clareira Queimada (no mundo aberto, no centro da bacia: `mundo-aberto-proposta.md`), com uma vida
   só para o mundo inteiro. Quem mais fere um Titã carrega um pedaço dele até a Era acabar: o **Portador**, com uma passiva
   e uma Habilidade Suprema (1 minuto de efeito, 20 de recarga). Um Titã por ninja por Era: a brasa não aguenta dois.
 - **As relíquias:** pedaços do que os chefes engoliram (o Rei Lodo, os Titãs). Valem só de ter na mochila; várias iguais
