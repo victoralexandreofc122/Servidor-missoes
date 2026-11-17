@@ -4,8 +4,9 @@ Pedido do Victor (17/11/2026): um mapa global bem maior, com as quatro aldeias n
 Titã no centro (perto da Zona de Conflito, para nenhuma aldeia chegar antes das outras), uma floresta fraca perto da
 primeira aldeia, níveis que sobem do canto para o centro e, em cada região, um chefe com uma história própria.
 
-**Estado: proposta. Nada disto está no jogo.** Já escolhidos (17/11/2026): os cinco chefes (itens 21 a 25) e a mudança
-de lore da seção 4. Os nomes marcados com * são rótulos de trabalho; pela regra do CLAUDE.md,
+**Estado: proposta. Nada disto está no jogo.** Já escolhido pelo Victor (17/11/2026): o tamanho (17 × 17), os cinco chefes
+(itens 21 a 25), o chefe novo de nível 40 da Chama, uma Academia e um Arco 1 em cada aldeia, a ordem de construção e a
+mudança de lore da seção 4. Os nomes marcados com * são rótulos de trabalho; pela regra do CLAUDE.md,
 cada um tem 3 opções (tabela no fim) e só entra no jogo depois da escolha do Victor.
 
 Página visual: o Atlas da Herança do Fogo (artifact no claude.ai, versão 2).
@@ -13,12 +14,14 @@ Página visual: o Atlas da Herança do Fogo (artifact no claude.ai, versão 2).
 ## 1. O tamanho e a forma
 
 - Unidade: o bloco de 80 × 80 casas (16 s andando a 5 casas/s, 10 s correndo a 8).
-- Mapa: 15 × 15 blocos (1.200 × 1.200 casas), mais uma ponta ao sul de 3 × 3 blocos (240 × 240) para os renegados.
-  Total: 1.200 × 1.440 casas de ponta a ponta, cerca de 1,5 milhão de casas (34 vezes o mundo de hoje).
+- Mapa (tamanho escolhido pelo Victor em 17/11/2026): 17 × 17 blocos (1.360 × 1.360 casas), mais uma ponta ao sul de
+  3 × 3 blocos (240 × 240) para os renegados. Total: 1.360 × 1.600 casas de ponta a ponta, cerca de 1,9 milhão de casas
+  (44 vezes o mundo de hoje).
 - Pontos de partida: Chama Eterna (canto noroeste), Maré Oculta (nordeste), Vento Cortante (sudoeste), Rocha Antiga
   (sudeste) e o Refúgio dos Renegados (a ponta de baixo). É a mesma posição dos acampamentos da Zona de Conflito de hoje.
-- Distância até o Ninho do Titã, em linha reta: 792 casas de cada aldeia e 800 casas do Refúgio. São 2 min 38 s andando,
-  sem parar para lutar. A diferença entre os cinco é de 1%: a ponta sul existe para isso.
+- Distância até o Ninho do Titã, em linha reta: 905 casas de cada aldeia e do Refúgio. São 3 min 01 s andando (1 min 53 s
+  correndo), sem parar para lutar. O Refúgio fica no fundo da ponta sul (y = 1.585 casas) justamente para dar a mesma
+  distância dos cantos.
 - O território de cada um é a parte do mapa mais perto do seu ponto de partida.
 
 ## 2. Os anéis (de fora para dentro)
@@ -27,14 +30,14 @@ Os anéis são contados pela distância até o centro do mapa, em blocos.
 
 | Anel | Distância do centro | Níveis | Como se joga | O que tem |
 |---|---|---|---|---|
-| Borda | mais de 6,4 blocos | 1 a 30 | Sozinho | Os bichos da região. O chefe regional fica na beira de dentro, ao lado da estrada. |
-| Anel do meio* | 4,8 a 6,4 | 30 a 45 | Sozinho ou em dupla | Bichos maiores e acampamentos dos Cinzas. Um abrigo com fogueira em cada estrada. |
-| Anel interno* | 3,2 a 4,8 | 45 a 60 | Grupo para as elites | Feras marcadas pelos Titãs. Elites de nível 50 a 60 que só caem com 3 a 5 ninjas. Patrulhas na estrada. |
-| Zona de Conflito | 2 a 3,2 | PvP · 55+ | Grupo | PvP livre, MMR e temporadas, lodos sombrios. Os cinco acampamentos (seguros) ficam na beira de fora. |
+| Borda | mais de 7,3 blocos | 1 a 30 | Sozinho | Os bichos da região. O chefe regional fica na beira de dentro, ao lado da estrada. |
+| Anel do meio* | 5,4 a 7,3 | 30 a 45 | Sozinho ou em dupla | Bichos maiores e acampamentos dos Cinzas. Um abrigo com fogueira em cada estrada. |
+| Anel interno* | 3,6 a 5,4 | 45 a 60 | Grupo para as elites | Feras marcadas pelos Titãs. Elites de nível 50 a 60 que só caem com 3 a 5 ninjas. Patrulhas na estrada. |
+| Zona de Conflito | 2 a 3,6 | PvP · 55+ | Grupo | PvP livre, MMR e temporadas, lodos sombrios. Os cinco acampamentos (seguros) ficam na beira de fora. |
 | Floresta Obscura* | até 2 | 55 a 60 | Grupo | Mata sem sol e visão curta. No centro, o Ninho do Titã*. |
 
-O caminho de cada aldeia até o Titã, em linha reta: borda 280 casas (56 s), anel do meio 128 (26 s), anel interno 128
-(26 s), Zona 96 (19 s) e Floresta Obscura 160 (32 s).
+O caminho de cada aldeia até o Titã, em linha reta: borda 321 casas (1 min 04 s), anel do meio 152 (30 s), anel interno
+144 (29 s), Zona 128 (26 s) e Floresta Obscura 160 (32 s).
 
 Bichos da borda de cada região (descrições; os nomes vêm depois, com 3 opções):
 
@@ -50,7 +53,7 @@ Bichos da borda de cada região (descrições; os nomes vêm depois, com 3 opç�
 
 1. **Uma estrada por aldeia**, do portão até o acampamento na Zona. Na estrada só andam patrulhas, que passam de tempos
    em tempos. Fora dela, os monstros ficam parados esperando presa: quem é paciente passa driblando.
-2. **O chefe fica ao lado da estrada**, na passagem da borda para o anel do meio. O covil dele fica a 25 casas da
+2. **O chefe fica ao lado da estrada**, na passagem da borda para o anel do meio. O covil dele fica a 36 casas da
    estrada: dá para contornar em silêncio ou derrotar com uma equipe de nível 40.
 3. **Elites só em grupo** no anel interno (nível 50 a 60, 3 a 5 ninjas). Área de alerta grande, mas não saem da área deles.
 4. **Escolta:** o nível baixo que anda colado num nível 50+ do mesmo grupo é ignorado pelos monstros mais fracos que o
@@ -193,10 +196,24 @@ depois. Os títulos dos arcos são de trabalho.
   "caçado", e as cópias vão atrás dele.
 - **Gancho:** no covil há uma lista de nomes com a letra do Maior Vilão.
 
-## 6. Ordem de construção (proposta)
+### 5.6 Uma Academia e um Arco 1 em cada aldeia (decisão do Victor, 17/11/2026)
+
+A Maré Oculta, o Vento Cortante e a Rocha Antiga ganham uma Academia própria e um Arco 1 (níveis 1 a 15, 15 missões, como
+o `docs/historia/arco-1.md` da Chama). Cada Arco 1 ensina o valor da aldeia pelo rito de passagem dela (Bíblia, seção 4),
+termina num vilão de nível 15 e deixa a primeira pista do chefe regional. Os renegados não têm Arco 1: ninguém nasce
+renegado. O roteiro das 15 missões de cada um vem depois da escolha dos nomes 26 a 28.
+
+| Aldeia | Título de trabalho | A história | O vilão (nível 15) | Pista do chefe regional |
+|---|---|---|---|---|
+| Maré Oculta | A Primeira Cifra | No rito da noite na névoa, um colega some de verdade. O cadete descobre uma rede de contrabando que vende as cifras da aldeia para os Cinzas. | Contrabandista que se esconde na névoa e troca de lugar com reflexos na água (item 26). | Uma escama vermelha no barco do contrabandista: Namiko. |
+| Vento Cortante | A Corrida do Sol | No rito de cruzar o planalto, as pipas de mensagem são cortadas e uma caravana some. Quem rouba é um bando liderado por um instrutor expulso. | Instrutor expulso, rápido, que ataca em investidas e foge no vento (item 27). | O vento falha por um instante na última corrida: Jinra. |
+| Rocha Antiga | A Primeira Pedra | No cerco de treino, uma parte da muralha cai de verdade. Um engenheiro traidor enfraquecia a pedra para os Cinzas entrarem. | Engenheiro que levanta muros de pedra e faz o chão desabar (item 28). | O nome de um cadete some da muralha: O Colosso dos Nomes. |
+
+## 6. Ordem de construção (escolhida pelo Victor em 17/11/2026)
 
 1. A borda das quatro aldeias e da Terra Sem Lei, com as estradas e o Posto de Viagem.
-2. Os cinco chefes regionais e os cinco arcos (o sistema de história do Arco 1 vale para todos).
+2. Os cinco chefes regionais e os cinco arcos (o sistema de história do Arco 1 vale para todos), junto com as Academias e
+   os Arcos 1 da Maré, do Vento e da Rocha (seção 5.6).
 3. Os anéis do meio e interno, com os abrigos, as patrulhas e as elites de grupo.
 4. A Zona de Conflito em anel e a Floresta Obscura com o Ninho (os Titãs saem da Clareira).
 
@@ -205,7 +222,7 @@ Cada etapa abre num marco da Progressão de Mundo (`src/realtime/worldProgress.t
 ## 7. Nomes para escolher (regra das 3 opções)
 
 **Escolhido pelo Victor em 17/11/2026 (comentários no Atlas): 21B, 22C com ajuste ("Namiko", no lugar de "Namikoro"), 23B, 24A e 25C.**
-Os itens 14 a 20 esperam a escolha.
+Os itens 14 a 20 e 26 a 28 esperam a escolha.
 
 | # | O que precisa de nome | Rótulo de trabalho | Opção A | Opção B | Opção C |
 |---|---|---|---|---|---|
@@ -221,6 +238,9 @@ Os itens 14 a 20 esperam a escolha.
 | 23 | Chefe do Vento Cortante | — | Rei-Gavião da Tempestade | **Jinra, o Grito do Céu (escolhido)** | O Olho do Vendaval |
 | 24 | Chefe da Rocha Antiga | — | **O Colosso dos Nomes (escolhido)** | Gendouro, a Muralha que Anda | O Guardião da Mina Velha |
 | 25 | Chefe dos Renegados | — | O Primeiro Riscado | O Caçador de Bandanas | **Senhor das Cinzas (escolhido)** |
+| 26 | Vilão do Arco 1 da Maré Oculta | — | Suiren da Maré Baixa | O Barqueiro sem Rosto | Umiko, a Voz da Névoa |
+| 27 | Vilão do Arco 1 do Vento Cortante | — | Raiga, o Ladrão de Caravanas | Kaze Negro | Jinto, o Instrutor Caído |
+| 28 | Vilão do Arco 1 da Rocha Antiga | — | Gendoumaru, o Engenheiro | Iwatarō da Muralha Rachada | Mestre Kurogane |
 
-Depois da escolha destes 12, vêm (também em 3 opções): os títulos dos arcos, os NPCs de cada arco, os bichos de cada
+Depois da escolha destes, vêm (também em 3 opções): os títulos dos arcos, os NPCs de cada arco, os bichos de cada
 região, as elites e os títulos de recompensa.
