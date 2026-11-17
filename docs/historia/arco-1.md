@@ -24,7 +24,9 @@ rosto de um dos seus professores.
 
 - **Celular, sessões curtas.** Cada missão cabe em 5 a 15 minutos e termina com um gancho: uma pergunta nova
   que faz o jogador querer a próxima.
-- **Falas curtas.** No máximo 3 linhas na caixa de diálogo, cerca de 120 caracteres.
+- **Falas com contexto (v71, pedido do Victor de 17/11).** Cada página da caixa de conversa tem até 3 linhas (160
+  caracteres), mas a cena tem quantas páginas precisar. Cada fala soa como a pessoa (`docs/lore/personagens.md`) e
+  revela um pedaço do passado ou do que ela quer. Uma linha do roteiro é uma página na caixa.
 - **Ritmo alternado.** Investigação, luta, respiro (humor, amizade) e revelação. Duas missões seguidas nunca
   têm o mesmo ritmo.
 - **MMO.** A história é **por jogador**, em fase. Cada um vê a própria Noite das Lanternas, o próprio roubo e o próprio
@@ -145,14 +147,21 @@ As 4 salas continuam como estão. Só sugiro três falas novas, para plantar as 
 
 ```text
 BG praca_noite
+MUSIC festa_lanternas
+(a Praça cheia de lanternas; cadetes recém-formados riem perto da fonte)
+CHAR Akane left provocando
+Akane: Ei, cadete novo! Aposto que a sua lanterna apaga antes da minha.
 SFX sino_alarme
+(a grade do canal range; uma coisa verde e brilhante sobe por ela, devagar)
 CHAR Mestre center bravo
-Mestre: Cadete! Pra trás!
-(um lodo sobe pela grade do canal, no meio da Praça)
+Mestre: Todo mundo para trás da fonte! Agora!
+Mestre: Você não, cadete. Você fica. Mostra o que a Academia te ensinou.
 -- luta --
 CHAR Mestre center serio
-Mestre: Lodo não passa do portão. Nunca passou.
+Mestre: Lodo não passa do portão. Nunca passou. Vinte anos de patrulha, e nunca.
 Mestre: ...Então de onde você saiu, coisinha?
+(ele se abaixa e passa o dedo na grade do canal; o dedo sai verde)
+Mestre: Cadete. O que você viu hoje fica entre nós dois. Por enquanto.
 ```
 
 **Gancho:** *"Não conte isso pra ninguém ainda. Amanhã, no portão. Cedo."*
@@ -166,9 +175,16 @@ Mestre: ...Então de onde você saiu, coisinha?
 - **Recompensa:** 120 XP
 
 ```text
-Mestre: O portão está limpo. Nenhum rastro.
-(na grade do canal) A grade está torta. E coberta de lodo... por dentro.
-Mestre: A água desse canal vem da Floresta. Por baixo da terra.
+BG portao_sul_manha
+CHAR Mestre center serio
+Mestre: Chegou cedo. Bom. Quem chega cedo vê o que os outros pisam depois.
+(no portão sul: terra limpa, nenhum rastro)
+Mestre: Nada. Se tivesse entrado por aqui, a guarda teria visto. E o chão teria contado.
+(na grade do canal: torta, coberta de lodo... por dentro)
+Mestre: Olha a grade. Ela não foi forçada de fora. Foi empurrada de dentro.
+Mestre: A água desse canal vem da Floresta, por baixo da terra. Pelo Rio das Raízes.
+Mestre: Vinte anos de patrulha me ensinaram uma coisa, cadete:
+Mestre: quando o problema vem por baixo, ninguém olha para baixo até ser tarde.
 ```
 
 **Gancho:** *"Lodo nasce na Floresta. Se está subindo por baixo, alguma coisa lá embaixo mudou."*
@@ -184,14 +200,20 @@ Uma missão de respiro: apresenta a Akane com humor e rivalidade.
 - **Recompensa:** 200 XP, Fragmento de Pedra da Vigília (item de missão)
 
 ```text
+BG floresta_dia
 CHAR Akane right provocando
-Akane: Você é o cadete que o Mestre escolheu? Hm.
-Akane: Aposto que derrubo oito lodos antes de você.
+Akane: Você é o cadete que o Mestre escolheu? Hm. Achei que seria alguém mais alto.
+Akane: Aposto que derrubo oito lodos antes de você. Quem perder paga o chá a semana inteira.
 -- corrida --
+CHAR Akane right ofegante
+Akane: ...Empate? Não. Eu ganhei por um. Você viu. Ninguém viu, mas eu ganhei.
+(ela para de rir; está olhando para uma pedra entre as raízes)
 CHAR Akane right seria
-Akane: Ei... vem ver. Essa pedra brilhava ontem. Eu juro.
+Akane: Ei... vem ver. Essa pedra brilhava ontem. Eu juro. Eu passo aqui todo dia.
 (uma pedra com uma chama gravada; apagada e fria)
-Akane: Se você descobrir o que é isso... me chama?
+Akane: Meu pai era patrulheiro. Ele dizia que essas pedras guardam a aldeia.
+Akane: Ele não voltou de uma patrulha. Se as pedras estão apagando... alguém precisa saber por quê.
+Akane: Se você descobrir o que é isso... me chama? Promete?
 CHOICE
 - "Prometo." -> flag promessa_akane
 - "Cada um cuida da sua missão." -> (sem flag)
@@ -205,11 +227,17 @@ CHOICE
 - **Recompensa:** 300 XP, 100 ryō
 
 ```text
+BG casa_pergaminhos
+CHAR Ren center curioso
+Ren: Ah, um leitor! Não... um cadete com uma pedra. Quase tão raro quanto.
+(ele vira o fragmento na mão e para de sorrir)
 CHAR Ren center serio
-Ren: Uma Pedra da Vigília. Apagada.
-Ren: Há cinquenta anos, os fundadores prenderam algo debaixo da Floresta.
-Ren: Cinco pedras. Uma chama. A chama vem do Pergaminho em Chamas.
-Ren: Onde ficam as outras? Só o Diretor sabe. E ele não gosta de perguntas.
+Ren: Uma Pedra da Vigília. Apagada. Eu achava que nunca ia ver uma assim.
+Ren: Há cinquenta anos, os fundadores da Academia prenderam algo debaixo da Floresta.
+Ren: Cinco pedras. Uma chama. A chama vem do Pergaminho em Chamas, a relíquia da aldeia.
+Ren: (baixinho) Onde ficam as outras quatro? Só o Diretor sabe.
+Ren: Uma vez achei um mapa com cinco pontos. Ele tirou da minha mão. Faz trinta anos.
+Ren: E ele não gosta de perguntas. Muito menos das minhas.
 ```
 
 **Gancho** (Ren, sussurrando): *"Se as pedras apagarem, os lodos não serão o problema. O problema é o que eles
@@ -226,15 +254,21 @@ estão tentando acordar."*
 - **Recompensa:** 450 XP
 
 ```text
+BG academia_sala_diretor
 CHAR Diretor center serio
 Diretor: Quem te falou das pedras?
-Diretor: ...Ren. Ren fala demais.
+Diretor: ...Ren. Ren fala demais. Sempre falou.
+Diretor: Você quer saber o que apagou a pedra. Eu também. Mas não por curiosidade.
 Diretor: Medite junto da pedra. Se ela ainda tiver memória, vai te mostrar.
--- visão (tela escurece, só a pedra e uma mão) --
-(uma mão com uma bandana queimada no pulso toca a pedra; a chama apaga)
-(a mão não procura: sabe exatamente onde tocar)
+-- visão (tela escurece; só a pedra e uma mão) --
+(uma mão com uma bandana queimada amarrada no pulso toca a pedra)
+(a mão não procura: sabe exatamente onde tocar. A chama apaga.)
 -- volta --
+CHAR Diretor center close
+Diretor: Uma bandana queimada...
+(ele fica um tempo em silêncio, olhando para a própria mão)
 Diretor: ...Então começou.
+Diretor: Vá descansar, cadete. Amanhã você vai precisar de tudo o que tem.
 ```
 
 **Gancho, fim do Ato I:** *"Quem apagou a pedra conhecia o selo. Ninguém de fora conhece o selo."*
@@ -254,11 +288,19 @@ Diretor: ...Então começou.
 - **Recompensa:** 650 XP; uma Kunai (se o jogador não tiver) ou 300 ryō
 
 ```text
-Mei: Sumiram trinta kunais do estoque da Academia. Com recibo.
-Tetsu: Recibo em papel de pergaminho, garoto. Da Casa dos Pergaminhos.
+BG academia_armas
+CHAR Mei center seria
+Mei: Sumiram trinta kunais do estoque. Contei duas vezes. Contei três.
+Mei: Com recibo assinado. Ninguém da Academia assina com aquela letra.
+BG armaria
+CHAR Tetsu center resmungando
+Tetsu: Hmpf. Recibo em papel de pergaminho, garoto. Do bom. Da Casa dos Pergaminhos.
+Tetsu: A Academia nunca usou papel desse para recibo. Ladrão que dá recibo... é ladrão que se acha esperto.
 -- Floresta: os primeiros ninjas inimigos, de capa cinza --
 Batedor (caindo): As cinzas... sempre voltam...
-Tetsu: São as minhas. Papel do Ren, kunai da Academia...
+CHAR Tetsu center serio
+Tetsu: São as minhas. Eu reconheço cada uma que bati. Papel do Ren, kunai da Academia...
+Tetsu: Alguém de dentro, garoto. Alguém de dentro.
 ```
 
 **Gancho:** *"Alguém de dentro, garoto. Alguém de dentro."* (A suspeita cai, de propósito, sobre o Sábio Ren.)
@@ -273,15 +315,19 @@ Tetsu: São as minhas. Papel do Ren, kunai da Academia...
 - **Recompensa:** 850 XP, título **Rastreador**
 
 ```text
-Hana: Um homem comprou tecido cinza. MUITO tecido cinza.
-Hana: Pagou com moeda novinha... e cheirava a fumaça. Fumaça, querido!
--- no acampamento, depois da luta --
+BG alfaiataria
+CHAR Hana center cochichando
+Hana: Ah, querido, que bom que veio! Fecha a porta. Não, deixa aberta, fica estranho.
+Hana: Um homem comprou tecido cinza. MUITO tecido cinza. Pagou com moeda novinha.
+Hana: E cheirava a fumaça, querido! Fumaça! Gente que cheira a fumaça dorme ao relento.
+-- no Acampamento Queimado, depois da luta --
 CHAR Kenji right sorrindo
 Kenji: Calma, sou eu! O Diretor me mandou te dar uma mão.
 (Kenji usa o Teleporte para ir na frente, sem dizer o bordão de sempre)
-Kenji: Ninguém olha para o tronco... digo, ninguém olha pra trás. Vamos.
+Kenji: Ninguém olha para o tronco... digo, ninguém olha para trás. Vamos.
 (a Bandana Queimada: a placa de metal tem o símbolo da Vila, meio derretido)
-Kenji: Ninjas expulsos. Na expulsão, a bandana é queimada. Os Cinzas.
+Kenji: Ninjas expulsos. Na expulsão, a bandana é queimada. Chamam a si mesmos de Cinzas.
+Kenji: Se eles têm o mapa das pedras... a gente precisa chegar antes.
 ```
 
 **Gancho:** *"Se eles têm o mapa das pedras, precisamos chegar antes. Você sabe onde elas ficam?"*
@@ -296,10 +342,16 @@ Kenji: Ninjas expulsos. Na expulsão, a bandana é queimada. Os Cinzas.
 - **Recompensa:** 1.000 XP
 
 ```text
+BG academia_sala_diretor
+CHAR Diretor center serio
 Diretor: Pedra 2: no velho carvalho. Pedra 3: atrás da cachoeira seca.
-Diretor: Não conte a ninguém. A ninguém.
+Diretor: Não conte a ninguém. A ninguém. Nem aos professores.
+Diretor: Na noite em que prendemos o que dorme ali, eu era o mais novo. Me mandaram guardar o poço.
+Diretor: Até hoje não sei se foi para me proteger ou porque não confiavam em mim. Não repita o meu erro de duvidar.
 -- na saída --
+CHAR Kenji right sorrindo
 Kenji: O Diretor te contou, né? Me diz onde é a 3. Eu cuido dela, você vai na 2.
+Kenji: Somos uma equipe agora. Dois chegam mais rápido que um.
 CHOICE
 - "Atrás da cachoeira seca." -> flag contou_ao_kenji
 - "O Diretor pediu segredo." -> Kenji: "...Claro. Bom ninja." (sorri um pouco demais)
@@ -326,16 +378,19 @@ com o Diretor e ganha um pergaminho dela. Aqui ela ganha a cena da Noite das Lan
 BG praca_noite_lanternas
 MUSIC cerimonia
 CHAR Diretor center solene
-Diretor: Com esta chama, os fundadores prenderam o que dorme sob a Floresta.
+Diretor: Há cinquenta anos, nesta mesma noite, cinco ninjas desceram à Floresta. Eu era um deles.
+Diretor: Com esta chama, eles prenderam o que dorme sob a terra. Dois não voltaram.
 Diretor: Hoje, ela passa para as mãos de vocês. Genin.
+(o Diretor ergue o Pergaminho em Chamas; a Praça inteira fica em silêncio)
 SFX estalo_fumaca
 (fumaça branca; quando ela some, o Diretor segura... um TRONCO)
 CHAR Akane left gritando
 Akane: Ali! Na fumaça, indo para o portão!
-Mestre: Akane, espera!
+Mestre: Akane, espera! É uma ordem!
 (ela corre e some no portão)
 CHAR Diretor center close
 Diretor (baixo): Sem o pergaminho, as pedras não reacendem. E sem as pedras...
+Diretor (baixo): ...cinquenta anos não valeram nada.
 ```
 
 **Gancho:** *"A Akane não voltou naquela noite."*
@@ -353,6 +408,16 @@ Diretor (baixo): Sem o pergaminho, as pedras não reacendem. E sem as pedras...
 - **Recompensa:** 1.500 XP
 
 O Kenji **não** aparece desta vez. A ausência dele é uma pista.
+
+```text
+BG floresta_noite
+(as pegadas da Akane, misturadas com outras, maiores)
+(no segundo ponto, um pedaço da bandana dela preso num galho)
+(no terceiro, a terra está fria; lodos escuros brotam da beira do rio)
+-- luta --
+(o Kenji não aparece desta vez)
+(as pegadas terminam na beira de um abismo; do outro lado, a boca de uma caverna)
+```
 
 **Fala, conforme a escolha da M8:**
 - **Contou:** *"A Pedra 3 está apagada. Você contou a alguém, não contou?"*
@@ -372,13 +437,14 @@ O Kenji **não** aparece desta vez. A ausência dele é uma pista.
 ```text
 BG caverna_escura
 CHAR prisioneiro center fraco (ainda sem nome na tela)
-Prisioneiro: ...Ei. Você aí.
-Prisioneiro: Olha onde vai pousar... sempre falei isso pra vocês.
+Prisioneiro: ...Ei. Você aí. Não precisa ter medo de mim. Eu é que tenho de tudo.
+Prisioneiro: Olha onde vai pousar... sempre falei isso pra vocês. Antes do salto, não depois.
 (nome na tela: Professor Kenji)
-Kenji: Que dia é hoje? Estou aqui desde a noite da formatura.
+Kenji: Que dia é hoje? Estou aqui desde a noite da formatura. Contei os dias pelas gotas.
 (pensamento) Então o Kenji que me ajudou...
-Kenji: Era um tronco. Foi o Kagerō.
-Kenji: E fui eu que ensinei a Substituição pra ele.
+Kenji: Era um tronco. Foi o Kagerō. O melhor aluno que eu já tive.
+Kenji: E fui eu que ensinei a Substituição pra ele. Eu tinha tanto orgulho...
+Kenji: (ele tenta rir; não consegue) Acho que eu ensinei bem demais.
 ```
 
 **Fala, conforme a escolha da M8:**
@@ -397,15 +463,18 @@ Kenji: E fui eu que ensinei a Substituição pra ele.
 - **Recompensa:** 1.900 XP
 
 ```text
+BG academia
 CHAR Kenji(falso) center sorrindo
-Kenji: Ah. Você achou o original.
-Kenji: Ninguém olha para o tronco. Até olhar.
+Kenji: Ah. Você achou o original. Ele está bem? Ele sempre foi frágil para frio.
+Kenji: Ninguém olha para o tronco. Até olhar. E aí já é tarde.
 SFX estalo_fumaca
 (no lugar dele, um tronco; três cópias dele no salão)
 -- luta --
 CHAR Diretor center close
-Diretor: Kagerō foi meu aluno. O melhor que eu tive.
-Diretor: Eu queimei a bandana dele. Com esta mão.
+Diretor: Kagerō foi meu aluno. O melhor que eu tive. Aprendia tudo na primeira vez.
+Diretor: Peguei ele tentando beber o chakra de uma Pedra da Vigília. Achava que podia usar o que dorme ali.
+Diretor: Eu queimei a bandana dele. Com esta mão. Na frente de todos.
+Diretor: Ele me perguntou por quê. Eu disse: "um dia você vai entender".
 Diretor: O porquê... não é hoje.
 CHOICE
 - "Vou contar ao Mestre." -> flag contou_segredo
@@ -426,12 +495,16 @@ M1 e a M2.
 - **Recompensa:** 2.100 XP
 
 ```text
-Mestre: Quatro pedras na Floresta e uma aqui. Ele vai vir aqui.
+BG poco_escuro
+CHAR Mestre center serio
+Mestre: Quatro pedras na Floresta e uma aqui, debaixo dos nossos pés. Ele vai vir aqui.
+Mestre: Perdi dois aprendizes para os Cinzas, cadete. Numa noite de neblina. Não vou perder o terceiro.
 -- 3 ondas --
 Mestre: ...Ele não veio.
 Mestre: Por que ele não veio?
-(silêncio)
+(silêncio; só o pingo da água)
 Mestre: A Pedra 4. Ninguém foi ver a Pedra 4.
+Mestre: Ele não precisava vir aqui. Só precisava que todo mundo estivesse aqui.
 ```
 
 **Gancho:** *"Ele não precisava vir aqui. Só precisava que todo mundo estivesse aqui."*
@@ -471,10 +544,18 @@ Mestre: A Pedra 4. Ninguém foi ver a Pedra 4.
 - **Recompensa:** 500 XP, 1.000 ryō, item cosmético **Bandana Chamuscada** (opcional)
 
 ```text
+BG hospital_manha
+CHAR Akane left enfaixada
 Akane: Na próxima, a corrida é até o fim da Floresta. E eu ganho.
+Akane: ...E obrigada. Não espalha que eu disse isso.
+BG casa_pergaminhos
+CHAR Ren center serio
 Ren: A borda queimada do pergaminho... tem metade de um mapa.
-Ren: E este símbolo... não é o nosso.
+Ren: (baixinho) E este símbolo... não é o nosso.
+BG academia_noite
+CHAR Diretor center cansado
 Diretor: Descanse, Genin. Amanhã a gente fala da quinta pedra.
+Diretor: Você mereceu saber. Mais do que eu mereci guardar sozinho.
 (o Diretor nunca chega a falar)
 -- última cena: debaixo da Praça, no escuro --
 (a Quinta Pedra pisca)
@@ -557,6 +638,6 @@ Escuros) podem dar mais XP para o arco não depender só de caçar slimes.
   ausência na M10, o tronco na M8) e uma confirmação clara (M11).
 - [x] Toda escolha tem consequência visível depois (M3 → M14, M8 → M10/M11/M14, M12 → Arco 2).
 - [x] As flags estão registradas e todas são usadas.
-- [x] Falas de no máximo 3 linhas na caixa.
+- [x] Cada página com até 3 linhas na caixa; as cenas têm várias páginas, com contexto e emoção (v71).
 - [x] As mecânicas que o jogador já conhece viram história: Substituição, Teleporte por cima do vão, meditação
   que drena e meditação que é cortada por dano.

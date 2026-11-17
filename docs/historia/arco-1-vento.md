@@ -25,7 +25,7 @@ um caminho sem regras.
 
 ## Para quem e em que ritmo
 
-As mesmas regras do Arco 1 da Chama: missões de 5 a 15 minutos com gancho no fim, falas de no máximo 3 linhas, ritmo
+As mesmas regras do Arco 1 da Chama: missões de 5 a 15 minutos com gancho no fim, páginas de até 3 linhas na caixa (a cena tem quantas páginas precisar, v71), ritmo
 alternado e história **por jogador, em fase**.
 
 ---
@@ -123,11 +123,15 @@ pistas:
 ```text
 BG planalto_tarde
 SFX vento_forte
+(o planalto inteiro coberto de pipas; cada uma leva um recado de caravana)
 CHAR Mestra center cantando
 Mestra: ♪ Lá vai a pipa, lá vai o recado... ♪ Ué. Cadê a pipa?
 (a pipa está no chão; um gavião a bica)
 -- luta --
-Mestra: Gavião não corta linha. Olha isso: corte limpo.
+CHAR Mestra center seria
+Mestra: Gavião não corta linha. Gavião rasga. Olha isso: corte limpo, de faca.
+Mestra: Nessa pipa ia o aviso de chuva pra caravana do sul. Doze carroças. Sem aviso, atravessam o rio cheio.
+Mestra: ♪ Quem corta a linha não quer o recado... ♪ Quer que alguém se perca. Corre, cadete, leva o aviso a pé.
 ```
 
 **Gancho:** *"Esse recado era pra caravana do leste. Ela saiu sem aviso."*
@@ -140,10 +144,13 @@ Mestra: Gavião não corta linha. Olha isso: corte limpo.
 - **Recompensa:** 120 XP
 
 ```text
+BG pedra_das_pipas
 CHAR Velho center devagar
+Velho: Senta, menino. Pipa não tem pressa, e quem tem pressa não aprende pipa.
 Velho: Linha cortada com faca. E amarrada de novo, num galho, como bandeira.
-Velho: Esse nó... é nó de instrutor, menino. Só professor ensina esse.
-Velho: Faz tempo que eu não vejo ninguém amarrar assim fora da Academia.
+Velho: Esse nó... é nó de instrutor. Só professor ensina esse. Dá três voltas e trava sozinho.
+Velho: Cinquenta anos eu cuido desta pedra. Anoto o vento todo dia, neste caderno. Ninguém lê. Eu leio.
+Velho: Faz tempo que eu não vejo ninguém amarrar assim fora da Academia. Faz uns cinco anos. Desde que alguém saiu de lá.
 ```
 
 **Gancho:** *"Alguém da Academia está deixando bandeiras pelo planalto. Para quem?"*
@@ -159,15 +166,20 @@ Uma missão de respiro: apresenta o Rai com humor e rivalidade.
 - **Recompensa:** 200 XP, Bandeira de Linha (item de missão, achada no marco)
 
 ```text
+BG planalto_trilha
 CHAR Rai right rindo
-Rai: Até o marco. Quem perder carrega a pipa do outro uma semana.
+Rai: Até o marco. Quem perder carrega a pipa do outro uma semana. Pronto? Não importa, eu já fui!
 (os sinos da tornozeleira dele tocam a cada passo)
 -- no meio da corrida, a placa: "DESFILADEIRO: PROIBIDO A CADETES" --
 CHOICE
 - Pegar o atalho pelo desfiladeiro. -> flag pegou_atalho
 - Seguir pela trilha. -> (sem flag)
 -- no marco --
-Rai: Hm. Até que você corre. Ei, olha: mais uma bandeira daquelas.
+CHAR Rai right ofegante
+Rai: Hm. Até que você corre. Pra alguém sem sino nenhum.
+Rai: (ele mexe na tornozeleira) Era do meu avô. O primeiro corredor da família. Meus três irmãos venceram a corrida do planalto.
+Rai: Os três. Lá em casa, tem uma pipa na parede pra cada vencedor. Falta a minha.
+Rai: Ei, olha: mais uma bandeira daquelas. Com o nó esquisito.
 ```
 
 **Conforme a escolha:** pegando o atalho, o jogador chega antes, mas a Mestra vê e dá bronca na M4. Pela trilha, o
@@ -184,9 +196,13 @@ Rai chega antes e se gaba.
 - **Recompensa:** 300 XP, 100 ryō
 
 ```text
+BG caravana_parada
+CHAR Mestra center seria
 Mestra: Levaram o mapa de rota. Só o mapa.
 Mestra: A carga, os cantis, o sal... tudo aqui. Quem rouba e não leva a carga?
-Mestra: ♪ Quem quer o caminho não quer o que carrego... ♪ Isso não é bom, cadete.
+Mestra: Eu perdi uma caravana inteira pra bandidos, aos vinte e cinco anos. Aqueles levaram tudo. Até as rodas.
+Mestra: Estes não querem o que eu carrego. Querem saber por onde eu passo.
+Mestra: ♪ Quem quer o caminho não quer o que carrego... ♪ Isso não é bom, cadete. Isso não é nada bom.
 ```
 
 **Gancho** (Mestra): *"Um mapa de rota diz por onde se chega em qualquer lugar. Até onde ninguém devia ir."*
@@ -201,13 +217,18 @@ Mestra: ♪ Quem quer o caminho não quer o que carrego... ♪ Isso não é bom,
 - **Recompensa:** 450 XP
 
 ```text
+BG academia_vento
 CHAR Diretor center apressado
-Diretor: Nó de instrutor? Na rua? Vai, vai, sobe lá e escuta o vento.
+(o Diretor anda de um lado para o outro; ele nunca para quieto)
+Diretor: Nó de instrutor? Na rua? Vai, vai, sobe lá no alto e escuta o vento.
+Diretor: Eu venci a corrida do planalto com quinze anos. Sabe por quê? Porque o vento me disse por onde ir.
 -- visão (tela clareia, só vento e uma figura) --
 (alguém amarra uma bandeira com o nó do instrutor; o vento PARA de repente)
 (no silêncio, muito longe, no alto: um grito)
 -- volta --
-Diretor: O vento parou? ...Faz trinta anos que o vento não para.
+CHAR Diretor center parado
+Diretor: O vento parou? ...Faz trinta anos que o vento não para. O Velho das Pipas viu. Ninguém acreditou nele.
+Diretor: (ele volta a andar, mais rápido) Eu também não acreditei. Vai, vai. Descansa. Amanhã eu te chamo.
 ```
 
 **Gancho, fim do Ato I:** *"Quem amarrou a bandeira foi ensinado na Academia. Ou ensinava nela."*
@@ -226,10 +247,14 @@ Diretor: O vento parou? ...Faz trinta anos que o vento não para.
 - **Recompensa:** 650 XP; uma Kunai (se o jogador não tiver) ou 300 ryō
 
 ```text
+BG rota_das_caravanas
+-- luta --
 Batedor (caindo): O vento... não tem dono...
 (alguns usam capa cinza por cima da roupa do Vento)
-Mestra: Capas cinzentas. Gente expulsa, cadete. Os Cinzas.
-Mestra: E mapas só das rotas que vão pro meio da bacia.
+CHAR Mestra center
+Mestra: Capas cinzentas. Gente expulsa, cadete. Os Cinzas. Quando expulsam alguém, queimam a bandana.
+Mestra: Olha os mapas que eles levaram. Só as rotas que vão pro meio da bacia. Pro meio. Ninguém vai pro meio.
+Mestra: ♪ E quem vai pro meio, não volta inteiro... ♪ É o que minha mãe cantava. Eu achava que era só canção.
 ```
 
 **Gancho:** *"Os Cinzas querem chegar ao meio. E o bando está mostrando o caminho."*
@@ -243,11 +268,16 @@ Mestra: E mapas só das rotas que vão pro meio da bacia.
 - **Recompensa:** 850 XP, título **Rastreador** (o mesmo título da Chama)
 
 ```text
-(a Faixa de Instrutor: azul, com o símbolo da Academia; velha, remendada)
+BG acampamento_pipas_negras
+(dezenas de pipas pretas presas no chão; de longe, parecem corvos)
+-- luta --
+(a Faixa de Instrutor: azul, com o símbolo da Academia; velha, remendada muitas vezes)
 CHAR Rai right
 Rai: Cheguei tarde? Eu ia limpar isso tudo sozinho.
 Rai: ...Faixa de instrutor? Num acampamento de ladrão?
 (um batedor caído, rindo): O chefe falou de você, garoto rápido. Ele gosta de gente rápida.
+CHAR Rai right serio
+Rai: De mim? (ele ri, mas sem som) Ninguém fala de mim. Falam dos meus irmãos.
 ```
 
 **Gancho:** *"O chefe do bando conhece o Rai. Como?"*
@@ -262,15 +292,20 @@ Rai: ...Faixa de instrutor? Num acampamento de ladrão?
 - **Recompensa:** 1.000 XP
 
 ```text
-Mestra: Preciso de um cadete na escolta. Um só.
-Rai: Me deixa ir. Eu preciso provar que sou mais que rápido.
+BG caravana_partida
+CHAR Mestra center
+Mestra: Preciso de um cadete na escolta. Um só. Carroça cheia não leva peso à toa.
+CHAR Rai right
+Rai: Me deixa ir. Eu preciso provar que sou mais que rápido. Por favor.
+Rai: (baixo) Lá em casa, ninguém me pergunta das missões. Só da corrida.
 CHOICE
 - "Vai você. É sua." -> flag cedeu_lugar (o jogador acompanha de longe)
 - "A Mestra me chamou primeiro." -> (sem flag)
 -- depois da travessia, num penhasco ao longe --
 (um homem de faixa azul, numa asa de pipa, acena)
 Jinto: Belas pernas, Rai! A Academia não te merece!
-(o vento leva o homem embora)
+Jinto: A Academia te ensinou a correr. Um dia eu te ensino a voar!
+(o vento leva o homem embora; o Rai fica muito tempo olhando para o penhasco)
 ```
 
 **Gancho, nos dois casos:** *"As cordas da ponte do rito parecem gastas. Gastas demais para um mês só."*
@@ -288,13 +323,19 @@ um pergaminho dela. Aqui ela ganha o rito do Vento.
 
 ```text
 BG planalto_por_do_sol
+MUSIC corrida_do_sol
 CHAR Diretor center solene
 Diretor: Quem cruzou antes do sol cair? Vocês. A partir de hoje, o planalto é de vocês. Genin.
 SFX corda_rompendo
 (ao longe, a ponte do rito cai, com o Rai no meio dela; ele se agarra na rocha)
-(ele chega depois do pôr do sol, sangrando, sem fôlego)
+(ele chega depois do pôr do sol, sangrando, sem fôlego; os sinos da tornozeleira não tocam mais, amassados)
+CHAR Rai left ofegante
+Rai: A ponte... caiu... eu ia chegar...
+CHAR Diretor center
 Diretor: Tenta no ano que vem, garoto. A regra é a regra. Vai, vai.
-(à noite, na Pedra das Pipas, a bandana de cadete do Rai amarrada com o nó do instrutor)
+(o Rai não responde. Ele só olha para os sinos amassados)
+-- à noite, na Pedra das Pipas --
+(a bandana de cadete do Rai amarrada com o nó do instrutor)
 ```
 
 **Gancho:** *"Os sinos da tornozeleira dele tocaram uma última vez, longe, no planalto."*
@@ -310,6 +351,17 @@ Diretor: Tenta no ano que vem, garoto. A regra é a regra. Vai, vai.
   2. DERROTAR 6 gaviões.
   3. Achar a Manga Rasgada do Rai (item de missão).
 - **Recompensa:** 1.500 XP
+
+```text
+BG planalto_noite
+SFX sinos_distantes
+(o som dos sinos amassados, fraco, levado pelo vento)
+-- luta --
+(presa num espinheiro, a manga do Rai, rasgada)
+CHAR Mestra center
+Mestra: ♪ Lá vai o menino, lá vai sem recado... ♪ (ela para de cantar) Não. Hoje não tem canção.
+Mestra: Os sinos vão pra Fenda do Vento. Nenhum cadete pode ir lá. Nem eu fui, na idade dele.
+```
 
 **Fala da Mestra, conforme a escolha da M8:**
 - **Cedeu o lugar:** *"Ele foi muito bem na escolta. Achei que isso ia segurar ele aqui."*
@@ -327,15 +379,17 @@ Diretor: Tenta no ano que vem, garoto. A regra é a regra. Vai, vai.
 - **Recompensa:** 1.700 XP
 
 ```text
+BG academia_vento
 CHAR Diretor center parado (pela primeira vez, ele não se mexe)
-Diretor: A faixa é do Jinto. Meu melhor instrutor.
-Diretor: Levou três alunos atrás do ninho da lenda. Voltaram dois.
-Diretor: Eu o expulsei. Ele pegou o nome da ave pra si. E a ponte... era ele.
+Diretor: A faixa é do Jinto. O melhor instrutor que eu já tive. Ensinava a correr como quem ensina a respirar.
+Diretor: Ele acreditava na lenda do Grito do Céu. Levou três alunos atrás do ninho da ave. Voltaram dois.
+Diretor: A terceira aluna tinha doze anos. Eu fui contar pra mãe dela. Eu. Não ele.
+Diretor: Eu o expulsei. Ele pegou o nome da ave pra si. E a ponte... era ele. Sempre foi ele.
 -- na Fenda do Vento --
 CHAR Rai center com capa cinza
-Rai: Ele me disse que eu perdi por causa da ponte. Que a Academia não liga.
-Rai: Ele tem razão, não tem? "Tenta no ano que vem."
-Rai: Aqui ninguém me manda esperar.
+Rai: Ele me disse que eu perdi por causa da ponte. Que a Academia não liga. E ele tem razão, não tem?
+Rai: "Tenta no ano que vem." Meus irmãos nunca ouviram isso. Nunca.
+Rai: Aqui ninguém me manda esperar. Aqui eu sou o Rai. Não o irmão que perdeu.
 ```
 
 **Fala, conforme a escolha da M8:**
@@ -354,13 +408,17 @@ Rai: Aqui ninguém me manda esperar.
 - **Recompensa:** 1.900 XP
 
 ```text
+BG fenda_do_vento
 CHAR Rai center
 Rai: Não me olha assim. Eu só corto linha. Linha a gente amarra de novo.
+Rai: (mais baixo) Não fui eu que cortei a ponte. Isso eu não faria. Você sabe que eu não faria.
 -- duelo --
-Rai (caído): Tá. Você é mais rápido. Satisfeito?
-(ele foge pelo vento, numa asa de pipa do bando)
+Rai (caído): Tá. Você é mais rápido. Satisfeito? Agora são dois que eu perdi.
+(ele foge pelo vento, numa asa de pipa do bando; os sinos amassados ficam no chão)
+BG academia_vento
 CHAR Diretor center close
-Diretor: Se ele voltar, a regra diz: expulso. Bandana queimada.
+Diretor: Se ele voltar, a regra diz: expulso. Bandana queimada. Igual ao Jinto.
+Diretor: Eu queimei a bandana do Jinto e ganhei um inimigo. Não sei se quero ganhar outro.
 Diretor: Você estava lá. O que eu faço, Genin?
 CHOICE
 - "A regra é a regra." -> flag denunciou_rival
@@ -383,9 +441,12 @@ CHOICE
 - **Não cedeu:** o Rai assiste do penhasco e vai embora sem lutar.
 
 ```text
+BG ponte_do_rito_noite
+CHAR Mestra center
+Mestra: ♪ Segura a ponte, segura a corda... ♪ Eles vêm pela ponte, cadete. Ninguém passa.
 -- 3 ondas --
 Mestra: A ponte aguentou. Mas cadê o chefe deles?
-Mestra: ...O mapa do meio. Ele nunca quis a ponte. Quis a gente aqui.
+Mestra: ...O mapa do meio. Ele nunca quis a ponte. Quis a gente aqui, segurando a ponte.
 ```
 
 **Gancho:** *"No Mirante dos Ventos, uma pipa preta enorme sobe contra o vento."*
@@ -431,9 +492,14 @@ Mestra: ...O mapa do meio. Ele nunca quis a ponte. Quis a gente aqui.
 - **Acobertou:** ele vai refazer o rito no ano que vem. *"Ano que vem eu ganho de você. Sem atalho."*
 
 ```text
-Mestra: ♪ O caminho do meio... ♪ Olha o canto deste mapa.
+BG caravana_parada
+CHAR Mestra center
+Mestra: ♪ O caminho do meio... ♪ Olha o canto deste mapa, que o Jinto deixou cair.
 Mestra: Tem meio mapa desenhado. E um símbolo que não é nosso. É da Rocha Antiga.
-Velho: Trinta anos atrás o vento parou um dia inteiro. Ninguém acreditou em mim.
+BG pedra_das_pipas
+CHAR Velho center
+Velho: Trinta anos atrás o vento parou um dia inteiro. Ninguém acreditou em mim. Está tudo neste caderno.
+Velho: Agora acreditam, menino. Que pena. Eu preferia continuar sendo o velho maluco.
 -- última cena: o topo do planalto, à noite --
 (o vento para. Um segundo inteiro.)
 (no silêncio, lá no alto, um grito que faz as pedras tremerem)
@@ -498,4 +564,4 @@ Meio.
   cordas gastas na M8, a bandana amarrada com o nó na M9) e uma confirmação clara (M11).
 - [x] Toda escolha tem consequência visível (M3 → M4/M14, M8 → M10/M11/M13/M14, M12 → M15 e arco regional).
 - [x] O rito da aldeia (cruzar o planalto antes do pôr do sol) é a Missão de Genin e vira mecânica (CORRIDA).
-- [x] Falas de no máximo 3 linhas na caixa.
+- [x] Cada página com até 3 linhas na caixa; as cenas têm várias páginas, com contexto e emoção (v71).

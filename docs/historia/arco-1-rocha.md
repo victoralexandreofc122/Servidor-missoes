@@ -25,7 +25,7 @@ procurar o culpado, cumprimentando a pedra com três batidas antes de cada traba
 
 ## Para quem e em que ritmo
 
-As mesmas regras do Arco 1 da Chama: missões de 5 a 15 minutos com gancho no fim, falas de no máximo 3 linhas, ritmo
+As mesmas regras do Arco 1 da Chama: missões de 5 a 15 minutos com gancho no fim, páginas de até 3 linhas na caixa (a cena tem quantas páginas precisar, v71), ritmo
 alternado e história **por jogador, em fase**.
 
 ---
@@ -118,12 +118,15 @@ ambiente:
 
 ```text
 BG muralha_dia
+(a muralha dos nomes: cada pedra tem um nome gravado, de quem ajudou a erguer ou a defender)
 SFX pedra_caindo
 (uma pedra grande cai da muralha. Atrás dela, uma rachadura; dela sai um lagarto)
 -- luta --
 CHAR Guardia center devagar
-Guardia: No tempo da minha avó, essa muralha aguentou três cercos.
+Guardia: No tempo da minha avó, essa muralha aguentou três cercos. Três. Ninguém passou.
 Guardia: Hoje ela racha sozinha. Num dia sem vento. Sem ninguém atacar.
+Guardia: (ela passa a mão na pedra caída, devagar) Esta tinha o nome de um pastor. Viveu oitenta anos. Morreu dormindo.
+Guardia: Pedra que cai sozinha não é pedra velha, cadete. É pedra que alguém ajudou a cair.
 ```
 
 **Gancho:** *"Pedra não cansa, cadete. Alguém está cansando ela."*
@@ -137,11 +140,14 @@ Guardia: Hoje ela racha sozinha. Num dia sem vento. Sem ninguém atacar.
 - **Recompensa:** 120 XP
 
 ```text
+BG muralha_nomes
 (no meio de centenas de nomes, um trecho liso, como se tivessem raspado)
+(a Guardiã passa a mão no trecho liso e não diz nada)
 CHAR Gendoumaru center gentil
 Gendoumaru: Você é o cadete novo? Eu cuido da muralha. Desde antes de você nascer.
 (ele bate três vezes na pedra, de leve)
-Gendoumaru: Pedra gosta de ser cumprimentada. Agora vamos ver essa rachadura juntos.
+Gendoumaru: Pedra gosta de ser cumprimentada. Parece bobagem. Mas quem trata a pedra com pressa, a pedra trata igual.
+Gendoumaru: Agora vamos ver essa rachadura juntos. Eu explico, você pergunta. Pergunte tudo, tá? Ninguém pergunta mais nada.
 ```
 
 **Gancho:** *"Quando você pergunta do trecho liso, ele sorri e muda de assunto."*
@@ -158,11 +164,15 @@ Uma missão de respiro: apresenta o Ganrou com orgulho e rivalidade.
 - **Recompensa:** 200 XP, Lasca da Muralha (item de missão)
 
 ```text
+BG pedreira
 CHAR Ganrou right formal
-Ganrou: Meu avô carregou pedra pra essa muralha. Eu carrego mais que você.
+Ganrou: Meu avô carregou pedra pra essa muralha. O avô dele também. Dez nomes da minha família estão lá.
+Ganrou: Eu ainda não tenho o meu. Tenho que merecer antes. Então eu carrego mais que você.
 -- corrida --
 (o Ganrou tropeça; metade das pedras dele rola pelo desfiladeiro)
+CHAR Ganrou right
 Ganrou: ...Não ria.
+Ganrou: (baixo) Meu avô nunca deixou cair uma pedra. Nunca. É o que meu pai conta, todo jantar.
 CHOICE
 - Dar metade das suas pedras para ele. -> flag ajudou_rival
 - "Regra é regra. Quem carrega mais, ganha." -> (sem flag)
@@ -178,11 +188,15 @@ CHOICE
 - **Recompensa:** 300 XP, 100 ryō
 
 ```text
+BG mina_entrada
 CHAR Chefe center gritando
 Chefe: TIRAMOS O DOBRO DE MINÉRIO ESSE MÊS! (baixo) E sobrou metade.
+Chefe: Fiquei três dias soterrado numa galeria, com dezoito anos. Cantando pra não dormir.
+Chefe: Desde então eu grito. Debaixo da terra, quem fala baixo morre esquecido. (baixo) E alguém está roubando baixinho.
 CHAR Ferreiro center
 Ferreiro: Metade? Então alguém está fazendo kunai sem passar por mim.
-Ferreiro: E kunai sem a minha marca não tem dono. Péssimo para os negócios.
+Ferreiro: Eu vendo para as quatro aldeias, cadete. Para todo mundo. Assim ninguém precisa roubar.
+Ferreiro: E kunai sem a minha marca não tem dono. Kunai sem dono vira guerra. Péssimo para os negócios.
 ```
 
 **Gancho** (Ferreiro): *"Kunai sem dono acaba sempre na mão de quem não tem bandana."*
@@ -197,13 +211,18 @@ Ferreiro: E kunai sem a minha marca não tem dono. Péssimo para os negócios.
 - **Recompensa:** 450 XP
 
 ```text
+BG muralha_noite
 CHAR Guardia center
-Guardia: A muralha lembra de tudo. Escute ela, cadete.
+Guardia: A muralha lembra de tudo. Cada pedra, cada mão que tocou nela. Escute ela, cadete.
+Guardia: Encoste a testa aqui. Isso. Agora fique quieto. Mais quieto que isso.
 -- visão (tela escurece, só a pedra e uma mão) --
 (uma mão bate três vezes na pedra)
 (a pedra amolece como barro onde a mão encosta)
 -- volta --
-Guardia: Quem fez isso conhece a pedra como a palma da mão.
+CHAR Guardia center seria
+Guardia: Três batidas...
+(ela fica um tempo calada; a mão dela treme um pouco)
+Guardia: Quem fez isso conhece a pedra como a palma da mão. Conhece mais do que eu.
 ```
 
 **Gancho, fim do Ato I:** *"Três batidas. Onde você viu alguém bater três vezes na pedra?"* (Só quem prestou atenção
@@ -223,10 +242,14 @@ na M2 percebe agora.)
 - **Recompensa:** 650 XP; uma Kunai (se o jogador não tiver) ou 300 ryō
 
 ```text
+BG galerias_escuras
+-- luta --
 Batedor (caindo): As cinzas... não enferrujam...
 (os lingotes têm uma marca: uma bandana queimada)
-Ferreiro: Os Cinzas. Gente expulsa de todas as aldeias.
-Ferreiro: Eles não minam. Alguém daqui tira o metal e entrega pra eles.
+CHAR Ferreiro center
+Ferreiro: Os Cinzas. Gente expulsa de todas as aldeias. Juntos, numa só capa.
+Ferreiro: Eles não minam. Não sabem. Alguém daqui tira o metal e entrega pra eles.
+Ferreiro: Fui aprendiz do pai do Tetsu, lá na Chama. Ele dizia: o metal não mente, quem mente é a mão. Olhe as mãos, cadete.
 ```
 
 **Gancho:** *"O caminho dos Batedores termina na porta da mina velha. Fechada há quarenta anos."*
@@ -240,11 +263,13 @@ Ferreiro: Eles não minam. Alguém daqui tira o metal e entrega pra eles.
 - **Recompensa:** 850 XP, título **Rastreador** (o mesmo título da Chama)
 
 ```text
+BG mina_velha
 (a porta foi aberta e fechada de novo; a argamassa ainda está úmida)
 CHAR Gendoumaru right preocupado
-Gendoumaru: Você aqui? A mina velha é perigosa, cadete. Desaba à toa.
-Gendoumaru: Deixe comigo. Eu fecho isso direito.
+Gendoumaru: Você aqui? A mina velha é perigosa, cadete. Desaba à toa. Dois mineiros morreram aqui no meu tempo.
+Gendoumaru: Deixe comigo. Eu fecho isso direito. Eu fecho tudo direito. É o meu trabalho.
 (ele bate três vezes na porta antes de passar a colher de pedreiro)
+(pensamento) Três batidas. Como na visão. ...Mas ele bate em tudo. Bate em toda pedra que toca.
 ```
 
 **Gancho:** *"Quem abriu a mina velha sabia fazer argamassa. Bem feita."*
@@ -259,9 +284,13 @@ Gendoumaru: Deixe comigo. Eu fecho isso direito.
 - **Recompensa:** 1.000 XP
 
 ```text
-Guardia: Segunda rachadura: atrás da torre do sino. Não conte a ninguém.
+BG torre_do_sino
+CHAR Guardia center baixo
+Guardia: Segunda rachadura: atrás da torre do sino. Não conte a ninguém. A ninguém, cadete.
+Guardia: No tempo da minha avó, um segredo da muralha durava cem anos. Hoje não dura uma semana.
 -- na saída --
-Gendoumaru: A Guardiã te mostrou outra rachadura? Me diz onde. Eu conserto hoje.
+CHAR Gendoumaru right gentil
+Gendoumaru: A Guardiã te mostrou outra rachadura? Me diz onde. Eu conserto hoje. Antes que alguém se machuque.
 CHOICE
 - "Atrás da torre do sino." -> flag contou_a_rachadura
 - "A Guardiã pediu segredo." -> Gendoumaru: "Claro. Pedra e segredo duram." (bate três vezes na parede)
@@ -288,13 +317,17 @@ um pergaminho dela. Aqui ela ganha o rito da Rocha.
 
 ```text
 BG muralha_cerco
+MUSIC primeiro_cerco
+(bonecos de pedra avançam no treino; os cadetes seguram o portão a noite inteira)
 CHAR Guardia center solene
 Guardia: Quem aguentou o cerco? Vocês. A partir de hoje, a muralha também é de vocês. Genin.
+Guardia: Um dia, os nomes de vocês vão estar nela. Mereçam.
 SFX desabamento
 (um trecho inteiro da muralha desaba, de verdade. Poeira por todo lado)
 CHAR Ganrou left preso
-Ganrou: Aqui! Minha perna...!
+Ganrou: Aqui! Minha perna...! Não consigo... não consigo mexer!
 (o jogador e a Guardiã tiram o Ganrou dos escombros; ele está ferido)
+Ganrou: (olhando a muralha caída) Ela caiu. A muralha caiu. Meu avô dizia que ela nunca ia cair.
 Guardia (baixo): A pedra-chave. Alguém tirou a pedra-chave.
 ```
 
@@ -314,6 +347,17 @@ Guardia (baixo): A pedra-chave. Alguém tirou a pedra-chave.
 
 Gendoumaru **não** aparece para ajudar, pela primeira vez. A ausência dele é uma pista.
 
+```text
+BG escombros
+(a poeira ainda no ar; gente procurando parentes nos escombros)
+-- luta --
+(entre as pedras: um cinzel com um símbolo de família gravado no cabo)
+(pensamento) Gendoumaru não veio hoje. Ele vem em todo desabamento. Ele sempre vem.
+CHAR Guardia center
+Guardia: Me dê isso, cadete.
+(ela fica muito tempo olhando para o cinzel. Muito tempo.)
+```
+
 **Fala da Guardiã, conforme a escolha da M8:**
 - **Contou:** *"A torre do sino ruiu também. Você contou a alguém, não contou?"*
 - **Não contou:** *"A torre do sino aguentou. Quem procurou lá não achou o ponto certo."*
@@ -331,13 +375,16 @@ Gendoumaru **não** aparece para ajudar, pela primeira vez. A ausência dele é 
 - **Recompensa:** 1.700 XP
 
 ```text
+BG muralha_nomes
 CHAR Guardia center devagar
-Guardia: Esse símbolo era de uma família que tinha nome aqui. Bem aqui.
-Guardia: Quarenta anos atrás, acusaram o pai de abrir o portão num cerco. Rasparam o nome.
+Guardia: Esse símbolo era de uma família que tinha nome aqui. Bem aqui. (o trecho liso)
+Guardia: Quarenta anos atrás, acusaram o pai de abrir o portão num cerco. Rasparam o nome. Fui eu que raspei.
+Guardia: Eu era jovem e tinha certeza. Ninguém perguntou nada a ele. Nem eu.
 Guardia: O filho tinha a sua idade. Hoje ele cuida da muralha. Bate três vezes antes de trabalhar.
 -- na mina velha: uma oficina inteira, escondida --
 (plantas da muralha com os pontos fracos marcados; cartas com o símbolo dos Cinzas)
 (numa parede, a mesma lista de nomes da muralha, à mão. No topo, o nome raspado.)
+(embaixo, com letra de criança: "o pai não abriu o portão")
 ```
 
 **Fala, conforme a escolha da M8:**
@@ -356,14 +403,18 @@ Guardia: O filho tinha a sua idade. Hoje ele cuida da muralha. Bate três vezes 
 - **Recompensa:** 1.900 XP
 
 ```text
+BG oficina_secreta
 CHAR Gendoumaru center calmo
-Gendoumaru: Achou a oficina? Eu sabia que seria você. Você escuta a pedra.
+Gendoumaru: Achou a oficina? Eu sabia que seria você. Você escuta a pedra. Eu te ensinei, lembra?
 Gendoumaru: Quarenta anos, cadete. Pedra tem paciência. Eu também.
-Gendoumaru: Meu pai não abriu portão nenhum. E ninguém nunca perguntou.
+Gendoumaru: Meu pai não abriu portão nenhum. Jurou até o último dia. E ninguém nunca perguntou.
+Gendoumaru: Eu consertei cada pedra dessa muralha. Cada uma. A muralha que apagou o nome dele.
+Gendoumaru: Agora ela vai saber como é ser esquecida.
 (ele bate três vezes no chão; os bonecos do cerco se levantam)
 -- luta --
+BG muralha_nomes
 CHAR Guardia center close
-Guardia: Eu raspei aquele nome. Eu era jovem e tinha certeza.
+Guardia: Eu raspei aquele nome. Eu era jovem e tinha certeza. Hoje sou velha e não tenho certeza de nada.
 Guardia: Quando isso acabar, devemos gravar o nome de volta, Genin?
 CHOICE
 - "Grave de volta. O pai não tem culpa do filho." -> flag devolveu_o_nome
@@ -386,9 +437,13 @@ CHOICE
 - **Não contou:** a torre aguenta; a terceira onda vem só pela brecha.
 
 ```text
+BG brecha_noite
+CHAR Chefe center gritando
+Chefe: SEGURA A BRECHA! NINGUÉM ENTRA! (baixo) Ninguém entra.
 -- 3 ondas --
 Chefe: FECHOU! (baixo) Fechou. Mas o engenheiro não veio.
 Chefe: ...A pedra-chave da mina velha. Se ele tirar, o desfiladeiro desce em cima da gente.
+Chefe: (baixo, quase sem voz) Eu já fiquei soterrado uma vez. Não vou deixar ninguém ficar.
 ```
 
 **Gancho:** *"Lá embaixo, na mina velha, três batidas ecoam pelo desfiladeiro."*
@@ -430,12 +485,21 @@ Chefe: ...A pedra-chave da mina velha. Se ele tirar, o desfiladeiro desce em cim
 - **Deixou vazio:** o trecho continua liso. A Guardiã passa a mão nele todo dia.
 
 ```text
+BG muralha_amanhecer
+CHAR Ganrou left com muleta
+Ganrou: Vão gravar o meu nome hoje. O décimo primeiro da família.
 Ganrou: Meu nome vai do lado do seu. Um pouco mais alto, claro.
+Ganrou: (formal) ...Eu não teria saído daqueles escombros. Obrigado. Não conte ao meu pai que eu disse.
+BG forja
+CHAR Ferreiro center
 Ferreiro: Nas plantas do engenheiro há meio mapa. Este símbolo não é nosso.
-Ferreiro: É da Chama Eterna. Péssimo para os negócios.
-Guardia: Amanhã a gente fala do que ele disse. Das coisas lá embaixo.
+Ferreiro: É da Chama Eterna. A aldeia do meu mestre. Péssimo para os negócios.
+BG muralha_nomes
+CHAR Guardia center
+Guardia: Amanhã a gente fala do que ele disse. Das coisas lá embaixo. Que a pedra se mexe sozinha.
+Guardia: No tempo da minha avó, ninguém falava disso. Talvez fosse por isso.
 -- última cena: a muralha, de madrugada --
-(o nome do Ganrou, gravado ontem, some da pedra, letra por letra)
+(o nome do Ganrou, gravado naquele dia, some da pedra, letra por letra)
 (lá no fundo do desfiladeiro, algo enorme se mexe)
 CONTINUA NO ARCO DA ROCHA (níveis 16 a 40)
 ```
@@ -492,4 +556,4 @@ as galerias novas e a porta da mina velha; mapa novo: a mina velha com a oficina
   fresca da M7; a ausência dele na M10) e uma confirmação clara (M11 e M12).
 - [x] Toda escolha tem consequência visível (M3 → M14, M8 → M10/M11/M13/M14, M12 → M15 e arco regional).
 - [x] O rito da aldeia (sobreviver ao primeiro cerco e gravar o nome) é a Missão de Genin e o fim do arco.
-- [x] Falas de no máximo 3 linhas na caixa.
+- [x] Cada página com até 3 linhas na caixa; as cenas têm várias páginas, com contexto e emoção (v71).

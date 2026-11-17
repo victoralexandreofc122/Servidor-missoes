@@ -25,8 +25,8 @@ letra do Mestre das Cifras, dizendo o que fazer. Você obedece. Só no fim desco
 
 ## Para quem e em que ritmo
 
-As mesmas regras do Arco 1 da Chama: missões de 5 a 15 minutos com gancho no fim, falas de no máximo 3 linhas
-(cerca de 120 caracteres), ritmo alternado (investigação, luta, respiro, revelação) e história **por jogador, em fase**.
+As mesmas regras do Arco 1 da Chama: missões de 5 a 15 minutos com gancho no fim, páginas de até 3 linhas na
+caixa de conversa (a cena tem quantas páginas precisar, v71), ritmo alternado (investigação, luta, respiro, revelação) e história **por jogador, em fase**.
 
 ---
 
@@ -123,13 +123,17 @@ As 4 salas do tutorial com a mesma mecânica da Chama, num prédio sobre palafit
 
 ```text
 BG cais_noite_nevoa
+SFX ondas_baixas
+(o cais vazio; a névoa tão grossa que as lanternas parecem flutuar)
 SFX voz_distante
 (uma voz chama, vinda do mangue: "Mana? Mana, cadê você?")
 (no fim do cais, ninguém; só um caranguejo enorme subindo pela escada)
 -- luta --
 CHAR Mestre center serio
-Mestre: Essa voz é do irmão da sua colega.
-Mestre: Ele sumiu na travessia de treino. Há três dias.
+Mestre: Essa voz... (ele desenha no ar uma onda, e outra embaixo) é do irmão da sua colega.
+Mestre: Kai. Sumiu na travessia de treino. Há três dias.
+Mestre: Três dias que ninguém ouve a voz dele. A irmã não dorme. A mãe não fala.
+Mestre: E hoje a névoa resolveu chamar a irmã dele pelo nome. Não gosto disso.
 ```
 
 **Gancho:** *"Há três dias que ninguém ouve a voz dele. Até hoje."*
@@ -143,11 +147,16 @@ Mestre: Ele sumiu na travessia de treino. Há três dias.
 - **Recompensa:** 120 XP
 
 ```text
+BG cais_amanhecer
+(na escada do cais, uma garrafa verde batendo na pedra a cada onda)
+BG casa_das_cifras
 CHAR Mestre center pensativo
-(o Mestre desenha no ar enquanto lê)
-Mestre: É a nossa cifra. Da semana passada.
+(o Mestre desenha no ar enquanto lê, como se as letras precisassem de espaço)
+Mestre: É a nossa cifra. Da semana passada. Só a Academia conhece.
 Mestre: "Na quarta maré, o farol apaga."
-Mestre: Quem escreve isso sabe a cifra e sabe do farol.
+Mestre: Quem escreve isso sabe a cifra e sabe do farol. Duas coisas que não se aprendem na rua.
+Mestre: Eu decifrei cartas na guerra das marés. Uma vírgula fora do lugar quase matou duzentas pessoas.
+Mestre: Por isso eu termino tudo o que escrevo assim. (a onda dupla) Para ninguém confundir a minha letra.
 ```
 
 **Gancho:** *"Alguém de fora tem as nossas cifras. Ou alguém de dentro está entregando."*
@@ -163,12 +172,17 @@ Uma missão de respiro: apresenta a Mio com rivalidade.
 - **Recompensa:** 200 XP, Concha Riscada (item de missão)
 
 ```text
+BG mangue_dia
 CHAR Mio right seria
 Mio: Oito. Antes de você.
 -- corrida --
+CHAR Mio right ofegante
 Mio: ...Empate. Hm.
-(numa concha grande, alguém riscou sinais: é cifra)
+(ela para de falar. Está olhando para uma concha riscada entre as raízes)
+CHAR Mio right
 Mio: É a letra do meu irmão. Ele riscava concha quando estava com medo.
+Mio: A gente trocava bilhete em cifra por baixo da porta do quarto, desde pequenos. Uma cifra só nossa.
+Mio: Ele é o esperto. Eu sou a forte. Sempre foi assim. (a voz falha) Eu devia ter ido junto na travessia.
 Mio: Se você descobrir o que diz... me conta?
 CHOICE
 - "Te conto tudo." -> flag confiou_na_colega
@@ -183,8 +197,12 @@ CHOICE
 - **Recompensa:** 300 XP, 100 ryō
 
 ```text
+BG farol_tarde
 CHAR Guardia center seca
-Guardia: Trinta anos acendo essa luz. Nunca apagou.
+Guardia: Concha riscada. Três marés atrás eu vi uma igual boiando aqui embaixo.
+Guardia: Trinta anos acendo essa luz. Nunca apagou. Nem uma noite.
+Guardia: Meu pai cuidava dela antes de mim. Na única noite em que ela apagou, ele morreu tentando reacender.
+Guardia: Foi a noite em que a Diretora perdeu o olho, num barco que bateu nas pedras.
 Guardia: O código das luzes muda a cada quarta maré. Só eu e a Diretora sabemos.
 Guardia: Se a mensagem diz que vai apagar, alguém sabe o código. Ou vai saber.
 ```
@@ -201,14 +219,19 @@ Guardia: Se a mensagem diz que vai apagar, alguém sabe o código. Ou vai saber.
 - **Recompensa:** 450 XP
 
 ```text
+BG academia_mare
 CHAR Diretora center calma
 Diretora: Quem disse que você está pronto para a névoa?
-Diretora: ...Vá. A ilhota de treino. Sem ser visto.
+Diretora: ...Ninguém disse. Ótimo. Quem precisa que digam ainda não está.
+Diretora: Eu perdi a vista deste olho numa noite de névoa. Desde então, só confio no que ouço.
+Diretora: Vá até a ilhota de treino. Sem ser visto. E escute a névoa: ela fala com quem fica quieto.
 -- na ilhota, presa num galho --
 (uma mensagem na cifra do Mestre: "Bom trabalho. Siga as garrafas. Não conte à Diretora.")
+(no fim, uma onda. Uma só.)
+BG casa_das_cifras
 CHAR Mestre center
-Mestre: Eu? Não escrevi nada hoje.
-Mestre: ...Mas a cifra é a minha. Eu não esqueceria de escrever isso.
+Mestre: Eu? Não escrevi nada hoje. Passei a noite inteira aqui, com a lamparina.
+Mestre: Mas a cifra é a minha. A letra... parece a minha. (ele olha muito tempo para o papel)
 ```
 
 **Gancho, fim do Ato I:** *"A cifra é a dele. A letra é a dele. O Mestre diz que não escreveu."* (O jogador ainda
@@ -228,13 +251,19 @@ não sabe em quem acreditar.)
 - **Recompensa:** 650 XP; uma Kunai (se o jogador não tiver) ou 300 ryō
 
 ```text
+BG cais
 CHAR Vendedora center cochichando
-Vendedora: Os pescadores contam de uma mulher que canta na névoa.
+Vendedora: (baixinho, olhando para os lados) Os pescadores contam de uma mulher que canta na névoa.
 Vendedora: Ela canta, e a névoa obedece. Feito cachorro.
+Vendedora: Meu marido sumiu na névoa faz seis anos. Eu vendo as redes que ele fazia.
+Vendedora: Escuto tudo o que os pescadores contam. Esperando um dia ouvir o nome dele. Nunca ouvi.
 -- nos bancos de areia --
 Contrabandista (caindo): A cinza... não molha...
 (dentro de um pacote, junto com as cifras: uma escama vermelha, do tamanho de uma mão)
+BG casa_das_cifras
+CHAR Mestre center
 Mestre: Cifras desta semana. Alguém está copiando tudo o que eu escrevo.
+Mestre: E isto? (a escama) Nenhum peixe deste mar tem escama vermelha. Nenhum que eu conheça.
 ```
 
 **Gancho:** *"E a escama? Nenhum peixe deste mar tem escama vermelha."* (Não volta no Arco 1. É a Namiko.)
@@ -248,11 +277,15 @@ Mestre: Cifras desta semana. Alguém está copiando tudo o que eu escrevo.
 - **Recompensa:** 850 XP, título **Rastreador** (o mesmo título da Chama)
 
 ```text
+BG banco_de_areia
+(o mercado só existe enquanto a maré está baixa; barracas de lona, gente de capa cinza)
+-- luta --
 (o Livro de Contas: compras pagas com moeda nova)
 (a assinatura de quem compra é uma bandana queimada)
 SFX garrafa_batendo
 (uma garrafa nova chega com a maré: "Bom trabalho. Siga o livro." na cifra do Mestre)
 (no fim da mensagem, uma onda. Uma só.)
+(pensamento) Os Cinzas compram. Mas quem vende? E quem escreve como o Mestre?
 ```
 
 **Gancho:** *"Os Cinzas compram. Mas quem vende?"*
@@ -267,7 +300,11 @@ SFX garrafa_batendo
 - **Recompensa:** 1.000 XP
 
 ```text
-(a mensagem selada está nas suas mãos. A regra da Maré: mensagem selada não se abre.)
+BG casa_das_cifras
+(uma garrafa na porta. Dentro, uma mensagem selada com cera azul)
+(na cifra do Mestre: "Leve ao farol. Não abra.")
+(a regra da Maré, a primeira que se aprende na Academia: mensagem selada não se abre)
+(pensamento) Quem escreveu isso quer que eu obedeça a regra. Ou quer que eu pense que obedeço.
 CHOICE
 - Entregar fechada, como manda a regra. -> flag entregou_selada
 - Abrir. -> flag abriu_selada
@@ -296,12 +333,15 @@ um pergaminho dela. Aqui ela ganha o rito da Maré.
 BG mangue_amanhecer
 CHAR Diretora center solene
 Diretora: Quem passou a noite na névoa sem ser visto?
-Diretora: Vocês. A partir de hoje, a névoa é de vocês. Genin.
+Diretora: Vocês. Eu ouvi cada passo de cada um. Nenhum me enganou. Isso é bom.
+Diretora: A partir de hoje, a névoa é de vocês. Genin. Usem para proteger, nunca para se esconder da aldeia.
 SFX sino_do_farol
 (o farol apaga. É a quarta maré.)
-(do mangue, uma voz: "Mana! Mana, aqui!")
+(do mangue, uma voz: "Mana! Mana, aqui! Me ajuda!")
 CHAR Mio left gritando
-Mio: É ele!
+Mio: É ele! É o Kai!
+CHAR Diretora center
+Diretora: Espere, menina! A névoa mente!
 (ela corre para dentro da névoa antes que alguém a segure)
 ```
 
@@ -321,6 +361,16 @@ Mio: É ele!
 
 Desta vez **nenhuma garrafa chega**. A ausência das mensagens é uma pista.
 
+```text
+BG mangue_mare_baixa
+(a maré está baixa por pouco tempo; o contador na tela)
+(as pegadas da Mio, e outras, de pés descalços, menores)
+(no segundo ponto, a fita de cabelo dela presa numa raiz; molhada, ainda com o laço)
+-- luta --
+(nenhuma garrafa chega desta vez)
+(pensamento) Quem me guiava parou de escrever. Porque já não precisa mais de mim.
+```
+
 **Fala da Guardiã, conforme a escolha da M8:**
 - **Entregou fechada:** *"Apagaram com o código certo. Quem mandou a mensagem por você sabia o caminho dela."*
 - **Abriu:** *"Troquei o código. Mesmo assim, apagaram à força. Quebraram a lente."*
@@ -339,13 +389,13 @@ Desta vez **nenhuma garrafa chega**. A ausência das mensagens é uma pista.
 ```text
 BG gruta_mare
 CHAR prisioneiro center fraco
-Prisioneiro: V-você... veio pelas garrafas?
+Prisioneiro: V-você... veio pelas garrafas? Eu... eu sabia que alguém vinha.
 (nome na tela: Kai, o irmão da Mio)
-Kai: Ela me obriga a copiar as cifras do Mestre. Dia e noite.
-Kai: E escreve mensagens. Pra você. Com a letra dele.
+Kai: Ela me obriga a copiar as cifras do Mestre. Dia e noite. Eu sou bom nisso. Esse é o problema.
+Kai: E ela escreve mensagens. Pra você. Com a letra dele, que eu ensinei a ela.
 (pensamento: todas as mensagens... uma onda só. Nunca a onda dupla.)
-Kai: Ela chama a si mesma de Umiko. E imita qualquer voz.
-Kai: ...Inclusive a minha. Foi assim que levou a minha irmã.
+Kai: Ela chama a si mesma de Umiko. Imita qualquer voz. A minha, a do Mestre, a da Diretora.
+Kai: ...Foi assim que levou a minha irmã. Com a minha voz. (ele não gagueja; ele chora)
 ```
 
 **Fala, conforme a escolha da M8:**
@@ -364,17 +414,19 @@ Kai: ...Inclusive a minha. Foi assim que levou a minha irmã.
 - **Recompensa:** 1.900 XP
 
 ```text
+BG academia_mare
 CHAR Mestre center
-(o Mestre olha as mensagens, uma por uma)
-Mestre: Nenhuma é minha. Nenhuma tem a onda dupla.
+(o Mestre espalha as mensagens na mesa, uma por uma)
+Mestre: Nenhuma é minha. Nenhuma tem a onda dupla. Eu devia ter visto. Eu, de todo mundo.
 (da porta, a voz do próprio Mestre): "Cadete, me dá o livro da Diretora."
 (o Mestre está ao seu lado. A voz vem da névoa lá fora.)
 SFX canto_baixo
 (três reflexos saem das poças do chão)
 -- luta --
 CHAR Diretora center close
-Diretora: Umiko sentava nessa cadeira. A melhor aluna que já tive.
-Diretora: Vendeu uma cifra aos Cinzas. Eu a expulsei. Errei?
+Diretora: Umiko sentava naquela cadeira. A melhor aluna de cifras que já tive.
+Diretora: Vendeu uma cifra velha aos Cinzas para pagar o remédio da mãe. Eu a expulsei na mesma semana.
+Diretora: A mãe dela morreu sete dias depois. Errei? Ainda me pergunto todas as noites.
 Diretora: O livro tem cem anos de cifras. Devemos queimá-lo, Genin?
 CHOICE
 - "Queime. Ninguém mais lê o que está nele." -> flag queimou_cifras
@@ -398,6 +450,9 @@ CHOICE
 - **Abriu:** a terceira onda chega desorganizada (o código mudou), com menos inimigos.
 
 ```text
+BG farol_noite
+CHAR Guardia center
+Guardia: Trinta anos. Ela não vai apagar na minha vez. Não como apagou na vez do meu pai.
 -- 3 ondas --
 (a luz volta. Os barcos lá fora dão meia-volta.)
 Guardia: Ela não subiu. Por que ela não subiu?
@@ -438,10 +493,20 @@ Guardia: ...A gruta. Ela nunca quis o farol. Quis a gente aqui em cima.
 - **Recompensa:** 500 XP, 1.000 ryō, item cosmético **Bandana Encharcada** (opcional)
 
 ```text
+BG hospital_mare
+CHAR Mio left enfaixada
 Mio: Na próxima noite na névoa, eu fico invisível mais tempo que você.
+Mio: ...E obrigada. Por ter vindo. Por ter (ela para) ...só obrigada.
+CHAR Kai right
+Kai: E-eu vou escrever uma cifra nova. Só nossa, de novo. Dessa vez com três pessoas.
+BG casa_das_cifras
+CHAR Mestre center
 Mestre: No Livro de Contas há meio mapa. E este símbolo não é o nosso.
 Mestre: É do Vento Cortante.
+BG academia_mare
+CHAR Diretora center
 Diretora: Descanse, Genin. A maré está calma.
+Diretora: (baixo) Quando a maré está calma demais, é porque alguma coisa grande está debaixo dela.
 -- última cena: o mar, à noite --
 (a maré fica vermelha por um instante)
 (uma escama enorme passa debaixo do cais)
@@ -501,4 +566,4 @@ Selada, Fita da Mio.
   Mestre negando na M5) e uma confirmação clara (M11).
 - [x] Toda escolha tem consequência visível (M3 → M14, M8 → M10/M11/M13/M14, M12 → arco regional).
 - [x] O rito da aldeia (a noite na névoa) é a Missão de Genin e vira mecânica (ESGUEIRAR).
-- [x] Falas de no máximo 3 linhas na caixa.
+- [x] Cada página com até 3 linhas na caixa; as cenas têm várias páginas, com contexto e emoção (v71).
