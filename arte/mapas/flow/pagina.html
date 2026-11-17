@@ -63,6 +63,8 @@ label.chk { display: inline-flex; gap: 6px; align-items: center; min-height: 44p
 .card .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); }
 .card .desc { font-size: 13.5px; }
 .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.layers-note { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 3px; font-size: 13px; line-height: 1.4; }
+.layers-note .lay { margin-right: 4px; }
 button.cp { font: 600 13px/1 var(--font-display); min-height: 44px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 button.cp.main { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 button.cp:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -86,9 +88,9 @@ details summary { cursor: pointer; font-size: 13px; color: var(--muted); min-hei
     <h2>Uma peça por vez, sempre no mesmo jeito</h2>
     <ol class="steps">
       <li><b>Escolha a região</b> no filtro e comece pela Aldeia da Chama Eterna (ela substitui a vila de hoje e vira o padrão de qualidade para o resto).</li>
-      <li><b>Copie o prompt Base</b> do cartão e cole no Flow, em criação de imagem, no formato quadrado. Se o Flow deixar, adicione como imagem de referência a imagem provisória da região (a vila ou a floresta de hoje, em <code>arte/vilas</code> e <code>arte/mapas</code> no repositório). Gere 4 variações e fique com a mais parecida com as referências.</li>
+      <li><b>Copie o prompt</b> do cartão e cole no Flow, em criação de imagem, no formato quadrado. O prompt já descreve tudo (estilo, ângulo, cores, fundo e tamanho dos pixels), sem imagem de referência. Gere 4 variações e fique com a mais parecida com a vila de hoje (as imagens abaixo).</li>
       <li><b>Salve com o id do cartão</b>: <code>chama_casa_pequena.png</code>. Marque o cartão como feito (o progresso fica salvo neste aparelho).</li>
-      <li><b>Camadas.</b> Para Sombra, Luz e Movimento, abra a imagem Base no Flow como imagem de referência e cole o prompt da camada. Salve como <code>id_S.png</code>, <code>id_L.png</code> e <code>id_M2.png</code>, <code>id_M3.png</code>... (o quadro 1 do movimento é a própria Base).</li>
+      <li><b>Só uma imagem por peça.</b> A Sombra, a Luz e o Movimento eu faço a partir dessa imagem, no código; o cartão mostra o que vai brilhar e o que vai se mexer.</li>
       <li><b>Me mande as imagens</b> em lotes. Eu tiro o fundo magenta, acerto a grade de pixels, uno as cores na paleta da região, separo o que passa por cima do ninja (copas e telhados) e encaixo no mapa.</li>
     </ol>
     <p class="muted">Os prompts estão em inglês porque os geradores de imagem seguem instruções técnicas de pixel art com mais precisão nessa língua. O nome e a descrição de cada peça estão em português no cartão.</p>
@@ -97,10 +99,10 @@ details summary { cursor: pointer; font-size: 13px; color: var(--muted); min-hei
   <section>
     <div class="eyebrow">O estilo</div>
     <h2>Fiel às imagens provisórias de hoje</h2>
-    <p>Pixel art de 16 bits, vista de cima em 3/4 (vê-se o telhado e a frente), contorno escuro de 1 pixel, cada material em 2 a 3 tons, luz vindo do alto à esquerda, silhuetas grossas e legíveis. É o que já aparece na vila e na floresta provisórias:</p>
+    <p>Pixel art de 16 bits na vista de cima e de frente das vilas de RPG: a frente da casa é um retângulo reto virado para quem olha, com as linhas retas na horizontal e na vertical, e o telhado aparece por cima. Contorno marrom-escuro de 1 pixel, cada material em 3 a 4 tons com pontilhado leve, luz vindo do alto à esquerda. É o que já aparece na vila e na floresta provisórias:</p>
     <div class="refs" id="refs"></div>
     <div class="plate">
-      <h3>O bloco de estilo (vai dentro de todo prompt)</h3>
+      <h3>O bloco de estilo (abre todo prompt; o ângulo muda no chão e nos efeitos)</h3>
       <pre class="block" id="styleBlock"></pre>
     </div>
   </section>
@@ -119,13 +121,12 @@ details summary { cursor: pointer; font-size: 13px; color: var(--muted); min-hei
       <thead><tr><th>Camada</th><th>O que é</th><th>Baixo</th><th>Médio</th><th>Alto</th></tr></thead>
       <tbody>
         <tr><td><span class="lay B">B</span> Base</td><td>A peça inteira, com cor e volume. Lanternas já aparecem com a cor de acesa, sem brilho em volta.</td><td>Sim</td><td>Sim</td><td>Sim</td></tr>
-        <tr><td><span class="lay S">S</span> Sombra</td><td>A sombra no chão. Nas peças pequenas o jogo faz a sombra sozinho, a partir do contorno; nas grandes (casas, árvores, penhascos) há um prompt de sombra pintada.</td><td>Não</td><td>Sombra fixa</td><td>Sombra que gira e cresce com a hora do dia</td></tr>
-        <tr><td><span class="lay L">L</span> Luz</td><td>Só o que brilha (janelas, lanternas, fogo, cristais, cogumelos), sobre preto. O jogo soma esse brilho por cima e faz o halo.</td><td>Não</td><td>Brilho fixo</td><td>Brilho que ilumina o chão em volta à noite e tremula</td></tr>
-        <tr><td><span class="lay M">M</span> Movimento</td><td>Os quadros da animação: árvores balançando, água correndo, fogo, bandeiras, redes. O quadro 1 é a Base.</td><td>Parado</td><td>Água, fogo e bandeiras</td><td>Tudo se mexe: copas, capim, cipós, redes, pipas</td></tr>
+        <tr><td><span class="lay S">S</span> Sombra</td><td>A sombra no chão, feita por mim a partir do contorno da Base.</td><td>Não</td><td>Sombra fixa</td><td>Sombra que gira e cresce com a hora do dia</td></tr>
+        <tr><td><span class="lay L">L</span> Luz</td><td>Só o que brilha (janelas, lanternas, fogo, cristais, cogumelos). Eu separo esses pixels da Base; o jogo soma o brilho por cima e faz o halo.</td><td>Não</td><td>Brilho fixo</td><td>Brilho que ilumina o chão em volta à noite e tremula</td></tr>
+        <tr><td><span class="lay M">M</span> Movimento</td><td>A animação: árvores balançando, água correndo, fogo, bandeiras, redes. Eu faço os quadros a partir da Base.</td><td>Parado</td><td>Água, fogo e bandeiras</td><td>Tudo se mexe: copas, capim, cipós, redes, pipas</td></tr>
         <tr><td>Efeitos</td><td>Névoa, folhas, pétalas, vaga-lumes, poeira, brasas, chuva (seção Efeitos do catálogo).</td><td>Não</td><td>Chuva e névoa simples</td><td>Névoa em camadas, partículas e reflexo na água</td></tr>
       </tbody>
     </table></div>
-    <p class="muted">Para água, fogo, cascata e névoa, se os quadros de movimento saírem tremidos, use o vídeo do Flow com a Base como imagem inicial (2 segundos, câmera parada) e me mande o vídeo: eu tiro os quadros dele.</p>
   </section>
 
   <section id="catalogo">
@@ -149,6 +150,7 @@ details summary { cursor: pointer; font-size: 13px; color: var(--muted); min-hei
       <li>Reduzo para a grade certa (24 pixels por casa) sem borrar e uno as cores na paleta da região, para todas as peças combinarem.</li>
       <li>Corto as peças altas em duas partes: a de baixo (o ninja passa na frente) e a de cima (copa, telhado: o ninja passa por trás).</li>
       <li>Monto o atlas de cada região e uso as peças para montar os mapas do mundo aberto, seguindo o Atlas e a lore.</li>
+      <li>Faço a Sombra, a Luz e os quadros de Movimento de cada peça a partir da Base.</li>
       <li>Ligo as camadas no jogo e acrescento a escolha Gráfico Baixo, Médio e Alto no ⚙️ (código novo, entra numa versão própria).</li>
     </ol>
   </section>
@@ -158,45 +160,40 @@ details summary { cursor: pointer; font-size: 13px; color: var(--muted); min-hei
 /*__REFS__*/
 /*__ASSETS__*/
 const PX = 24;
-const STYLE = "16-bit pixel art game asset for a top-down 2D ninja MMORPG map, in the style of classic SNES-era JRPG towns and forests with modern indie polish: cozy, detailed, highly readable. Camera: 3/4 top-down view looking down at about 60 degrees, so we see the top (roof, canopy) and the front face of the object; front faces are parallel to the bottom of the image. NOT isometric, NOT a side view, NOT a flat straight-down icon. Crisp hand-placed square pixels, no anti-aliasing, no blur, no smooth gradients (use 2 to 3 flat tones per material and occasional dithering). A clean 1-pixel outline in deep warm dark brown (not pure black) around the silhouette and the main shapes. Light comes from the top-left: brighter top-left edges, darker bottom-right sides. Bold, chunky silhouette that still reads when small. Feudal-Japan-inspired fantasy ninja world, entirely original design.";
-const AVOID = "Avoid: any text, letters, numbers, logos or watermarks; people, characters or animals unless described; photorealism, 3D render, painterly brushwork, blur, glow halos, gradient backgrounds, isometric angle, fisheye or perspective distortion, cropped edges, drop shadows on the background.";
+const STYLE = "16-bit pixel art game asset for a top-down 2D ninja RPG map, matching a cozy, warm, detailed village drawn in modern 16-bit pixel art. Rendering: a fine, even grid of crisp square pixels; a one-pixel outline in deep warm brown around the silhouette and around the main shapes; every material shaded with 3 to 4 close tones blended with light dithering; light comes from the top left, so top surfaces and left edges are brighter, while the right side and the areas under roofs, eaves and canopies are darker; warm, natural, slightly desaturated earthy colors with a gentle sunlit feel. A feudal-Japan-inspired fantasy ninja world with an original design.";
+const CAM_OBJ = "Camera: the oblique top-down front view of classic 16-bit RPG town maps. The front of the object faces the viewer straight on as a flat upright face; every horizontal edge is a perfectly horizontal line across the image and every vertical edge is a perfectly vertical line. The top of the object (roof, canopy, wall top) is seen from above as a band directly above the front face, going straight up the image. The object is centered and drawn symmetrically around a vertical center line.";
+const CAM_FLAT = "Camera: looking straight down from above at the flat ground, the whole surface evenly lit and evenly in focus.";
+const CAM_FX = "Camera: a flat front view of the effect, as an overlay for a top-down 2D map.";
+const KEY_CASA = "The building's front wall faces the viewer straight on, with its doors and windows on it, and fills the lower part of the object; the roof covers the upper part, seen from above, and its lower edge, the eaves, is one straight horizontal line just above the front wall. The building sits on a short strip of its own stone or wooden foundation along the bottom.";
 const KEY = 'flow-texturas-feitos';
 let done = {};
 try { done = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { done = {}; }
 function saveDone() { try { localStorage.setItem(KEY, JSON.stringify(done)); } catch (e) {} }
 
 function dims(a) { return [a.s[0] * PX, a.s[1] * PX]; }
-function scaleText(a) { const [W, H] = dims(a); return `Pixel density: draw it as if on a ${W}x${H} pixel canvas (${a.s[0]}x${a.s[1]} map tiles of 24x24 pixels) and then enlarge it with nearest-neighbor, so every pixel is large, uniform and square. Keep the detail at that density, with no tiny noise.`; }
+function scaleText(a) { const [W, H] = dims(a); return `Pixel density: drawn on a ${W}x${H} pixel canvas (${a.s[0]}x${a.s[1]} map tiles of 24x24 pixels) and enlarged with nearest-neighbor, so every pixel is a large, uniform, crisp square and the detail stays at that density.`; }
 function frameText(a) {
-  if (a.k === 'tile') return "This is a ground texture, not an object: view it straight from above, filling the entire square image edge to edge, with no border and no objects on it. It must tile seamlessly when repeated left-right and top-bottom (the edges must match). " + (a.s[0] === a.s[1] ? "Square image." : `Image proportion ${a.s[0]}:${a.s[1]} (width:height).`);
-  if (a.k === 'fx') return "This is a visual effect layer: draw only the effect, on a perfectly flat pure black background (#000000), so it can be blended additively over the map. No objects, no ground.";
-  if (a.dc) return "Show ONE single flat ground decal seen from above, centered, complete and uncropped, on a perfectly flat solid magenta background (#FF00FF); it lies flat on the ground, so no height and no shadow. No other objects, no frame or border.";
-  return "Show ONE single object, centered, complete and uncropped, with a small empty margin around it, on a perfectly flat solid magenta background (#FF00FF). No ground patch under it, no shadow on the background, no other objects, no frame or border.";
+  if (a.k === 'tile') return "The image is a ground texture that fills the whole image from edge to edge with the same surface everywhere. Its left edge continues seamlessly into its right edge and its top edge into its bottom edge, so it repeats as a seamless tile. " + (a.s[0] === a.s[1] ? "Square image." : `Image proportion ${a.s[0]}:${a.s[1]} (width:height).`);
+  if (a.k === 'fx') return "The image shows only the effect, floating over a perfectly flat pure black background (#000000) that fills the rest of the image, ready for additive blending over the map. The effect is drawn as soft pixel clusters with dithered edges in 3 tones.";
+  if (a.dc) return "One single flat ground decal, centered and complete, lying flat on a perfectly flat solid magenta background (#FF00FF) that fills the rest of the image evenly.";
+  const wide = /connect seamlessly|edges connect/i.test(a.d);
+  return (wide ? "One single object that spans the full width of the image, touching the left and right edges, with an even margin of empty space above and below it, standing on a perfectly flat solid magenta background (#FF00FF) that fills the rest of the image evenly." : "One single object, centered and complete, with an even margin of empty space on all four sides, standing on a perfectly flat solid magenta background (#FF00FF) that fills the rest of the image evenly.") + (a.c === 'casa' && /building|house|hall|shop|shed|hut|tower|academy|forge|cabin|shack|lighthouse|temple|inn|stable|workshop/i.test(a.d) ? ' ' + KEY_CASA : '');
 }
+function camOf(a) { return a.k === 'fx' ? CAM_FX : (a.k === 'tile' || a.dc) ? CAM_FLAT : CAM_OBJ; }
 function basePrompt(a) {
   const reg = REGIONS[a.r];
-  return [STYLE, reg.pal, `Subject: ${a.d}`, frameText(a), scaleText(a), AVOID].filter(Boolean).join('\n\n');
+  return [STYLE, camOf(a), reg.pal, `Subject: ${a.d}`, frameText(a), scaleText(a)].filter(Boolean).join('\n\n');
 }
-function bgOf(a) { return a.k === 'fx' ? 'pure black background' : a.k === 'tile' ? 'full-frame texture' : 'magenta background'; }
-function shadowPrompt(a) { return `Edit the attached image (the base asset already generated). Replace the whole object with only its ground shadow: a flat, solid dark blue-gray (#232838) shape showing how the object's shadow falls on the ground with light from the top-left, so it stretches toward the bottom-right, about 40% as long as the object is tall, starting at the object's base. Sharp pixel edges, no gradient, no blur. Keep the same image size and framing and the same flat magenta background (#FF00FF). Nothing else in the image.`; }
-function lightPrompt(a) { return `Edit the attached image (the base asset already generated). Keep exactly the same size, framing, pixels and outline. Turn every pixel that is not a light source into pure black (#000000), including the background. Keep only these glowing parts, in their original colors, slightly brighter and more saturated: ${a.l}. Do not add halos, glow spill, blur or new details.`; }
-function phase(k, f) {
-  if (f === 2) return 'This is the opposite pose of frame 1 (the two frames alternate).';
-  if (f === 4) return ['', '', 'This frame is a quarter of the way into the motion.', 'This frame is the furthest point of the motion.', 'This frame is on the way back, three quarters through the cycle, so it flows back into frame 1.'][k];
-  return `This frame is step ${k} of ${f}, evenly spaced through the cycle, so frame ${f} flows back into frame 1.`;
-}
-function motionPrompt(a, k) { return `Edit the attached image (frame 1, the rest pose of the base asset). Create frame ${k} of a ${a.f}-frame seamless looping animation: ${a.m}. ${phase(k, a.f)} Move only the parts that should move, by 1 to 3 pixels; everything else must stay pixel-identical: same size, framing, outline, palette and ${bgOf(a)}.`; }
 function layers(a) { const L = ['B']; if (a.k !== 'fx' && a.k !== 'tile' && !a.dc) L.push('S'); if (a.l) L.push('L'); if (a.m) L.push('M'); return L; }
 
 /* ---- cabeçalho ---- */
-const nMov = A.reduce((s, a) => s + (a.m ? (a.f - 1) : 0), 0);
 document.getElementById('facts').innerHTML = [
   [A.length, 'peças no catálogo'],
   [Object.keys(REGIONS).length - 1, 'regiões, mais os efeitos'],
-  [A.filter((a) => a.l).length, 'peças com camada de Luz'],
-  [nMov, 'quadros de Movimento a gerar'],
+  [A.filter((a) => a.l).length, 'peças com Luz (feita por mim)'],
+  [A.filter((a) => a.m).length, 'peças com Movimento (feito por mim)'],
 ].map(([b, s]) => `<div class="fact"><b>${b}</b><span>${s}</span></div>`).join('');
-document.getElementById('styleBlock').textContent = STYLE + '\n\n' + AVOID;
+document.getElementById('styleBlock').textContent = STYLE + '\n\n' + CAM_OBJ;
 const REFCAP = { chama: 'Aldeia da Chama (a provisória de hoje)', floresta: 'Floresta (provisória)', mare: 'Variação Névoa: base da Maré Oculta', vento: 'Variação Nuvem: base do Vento Cortante', zona: 'Zona de Conflito (provisória)' };
 document.getElementById('refs').innerHTML = Object.keys(REFCAP).map((k) => `<figure><img src="${REFS[k]}" alt="${REFCAP[k]}"><figcaption>${REFCAP[k]}</figcaption></figure>`).join('');
 
@@ -208,18 +205,16 @@ fCat.innerHTML = '<option value="">Todas as categorias</option>' + Object.entrie
 const ICON = { B: 'Base', S: 'Sombra', L: 'Luz', M: 'Mov.' };
 function card(a) {
   const [W, H] = dims(a), L = layers(a);
-  const btns = [`<button class="cp main" data-id="${a.id}" data-p="B">Copiar Base</button>`];
-  if (a.sh) btns.push(`<button class="cp" data-id="${a.id}" data-p="S"><span class="lay S">S</span>Sombra</button>`);
-  if (a.l) btns.push(`<button class="cp" data-id="${a.id}" data-p="L"><span class="lay L">L</span>Luz</button>`);
-  if (a.m) for (let k = 2; k <= a.f; k++) btns.push(`<button class="cp" data-id="${a.id}" data-p="M${k}"><span class="lay M">M</span>Quadro ${k}</button>`);
-  const shNote = L.includes('S') && !a.sh ? '<span>sombra feita pelo jogo</span>' : '';
+  const btns = [`<button class="cp main" data-id="${a.id}" data-p="B">Copiar o prompt</button>`];
+  const extra = [a.l ? `<li><span class="lay L">L</span> brilho: ${a.l}</li>` : '', a.m ? `<li><span class="lay M">M</span> movimento (${a.f} quadros): ${a.m}</li>` : ''].join('');
+  const shNote = '';
   return `<article class="card${done[a.id] ? ' done' : ''}" id="card-${a.id}">
     <div class="top"><div><h3>${a.n}</h3><div class="id">${a.id}.png</div></div>
       <label class="donebox"><input type="checkbox" data-done="${a.id}" ${done[a.id] ? 'checked' : ''}> feito</label></div>
     <div class="meta"><span>${a.s[0]}×${a.s[1]} casas · ${W}×${H} px</span>${L.map((x) => `<span class="lay ${x}" title="${ICON[x]}">${x}</span>`).join('')}${shNote}${a.m ? `<span>${a.f} quadros</span>` : ''}</div>
     <p class="desc muted">${a.d}</p>
-    <div class="btns">${btns.join('')}</div>
-    <details><summary>Ver o prompt Base inteiro</summary><pre class="block">${basePrompt(a).replace(/</g, '&lt;')}</pre></details>
+    <div class="btns">${btns.join('')}</div>${extra ? `<ul class="layers-note"><li class="muted">Camadas que eu faço a partir desta imagem:</li>${extra}</ul>` : ''}
+    <details><summary>Ver o prompt inteiro</summary><pre class="block">${basePrompt(a).replace(/</g, '&lt;')}</pre></details>
   </article>`;
 }
 function render() {
@@ -239,13 +234,7 @@ function render() {
 [fRegion, fCat, fPend].forEach((el) => el.addEventListener('change', render));
 fText.addEventListener('input', render);
 
-function promptFor(id, p) {
-  const a = A.find((x) => x.id === id);
-  if (p === 'B') return basePrompt(a);
-  if (p === 'S') return shadowPrompt(a);
-  if (p === 'L') return lightPrompt(a);
-  return motionPrompt(a, Number(p.slice(1)));
-}
+function promptFor(id) { return basePrompt(A.find((x) => x.id === id)); }
 function toast(t) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = t; document.body.appendChild(el); setTimeout(() => el.remove(), 2600); }
 function fallbackCopy(text) {
   const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0';
@@ -256,7 +245,7 @@ function fallbackCopy(text) {
 document.getElementById('list').addEventListener('click', (e) => {
   const b = e.target.closest('button.cp'); if (!b) return;
   const text = promptFor(b.dataset.id, b.dataset.p);
-  const name = b.dataset.p === 'B' ? `${b.dataset.id}.png` : `${b.dataset.id}_${b.dataset.p}.png`;
+  const name = `${b.dataset.id}.png`;
   const okUI = () => { b.classList.add('copied'); setTimeout(() => b.classList.remove('copied'), 1600); toast(`Prompt copiado. Salve a imagem como ${name}`); };
   const fail = () => { if (fallbackCopy(text)) okUI(); else { toast('Não deu para copiar. Abra "Ver o prompt" e copie o texto.'); } };
   try { navigator.clipboard.writeText(text).then(okUI, fail); } catch (err) { fail(); }

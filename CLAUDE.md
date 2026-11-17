@@ -33,6 +33,9 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v72 (sem migração, pedido do Victor de 17/11):** o chat do celular deitado menor (253 x 72 px) e a linha de digitar fina
+  (28 px visíveis, toque de 44 px), sem o ➤. Os prompts do Flow (`arte/mapas/flow/`) sem frases negativas, com o bloco de
+  estilo no começo, a vista de frente e de cima, e uma imagem só por peça (sombra, luz e movimento feitos por código).
 - **v71 (sem migração, pedido do Victor de 17/11):** a fala do NPC numa caixa embaixo, no meio da tela (nome, páginas de
   até 3 linhas, texto aparecendo aos poucos, toque para continuar), no lugar do balão; retrato opcional no ⚙️. Regra no
   guia de UI, seção 14. Branch `ccr-2afc1981-eq01zm`.

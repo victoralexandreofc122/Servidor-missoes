@@ -240,6 +240,12 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v72: chat menor no celular (sem migração; pedido do Victor de 17/11)
+
+- No celular deitado, a caixa do chat ficou menor (de 300 x 97 px para 253 x 72 px) e a linha de digitar ficou fina: a
+  barra visível tem 28 px. A área de toque continua com 44 px (a sobra é transparente e fica por cima da borda da caixa,
+  sem ocupar espaço). O ➤ saiu: o Enviar do teclado manda a mensagem.
+
 ### v71: caixa de conversa (sem migração; pedido do Victor de 17/11)
 
 - **A fala do NPC sai do balão e vai para uma caixa** embaixo, no meio da tela, com o nome de quem fala numa plaqueta, o

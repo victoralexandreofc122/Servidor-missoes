@@ -1400,3 +1400,31 @@ body.dialog-open .skill-tip { display: none; }
 }
 /* v71: a fala do lojista com parágrafos (linha em branco no texto vira parágrafo; o fragmento já usa pre-line) */
 .shop-panel .shop-greet { white-space: pre-line; }
+
+/* =====================================================================================================================
+ * v72: pedido do Victor de 17/11: o chat do celular deitado menor, e a linha de digitar bem mais fina.
+ * A barra visível tem 28 px; o campo continua com 44 px de toque (regra do guia, docs/ui seção 4), só que a sobra é
+ * transparente e fica por cima da borda da caixa (margem negativa), sem ocupar espaço. O Enviar do teclado (enterkeyhint
+ * "send") manda a mensagem, então o ➤ sai daqui.
+ * ===================================================================================================================== */
+@media (max-height: 430px) {
+  .chat-box { width: min(256px, 30vw); max-height: 104px; border-radius: 8px; }
+  .chat-head { min-height: 16px; padding: 2px 8px 0; }
+  .chat-box .chat-feed { padding: 1px 8px 2px; }
+  .chat-foot { padding: 0 6px 5px; }
+  .chat-box .chat-bar button { display: none; }
+  .chat-box .chat-bar input {
+    height: 44px; margin: -8px 0 -8px; padding: 0 8px; font-size: 12px;
+    box-shadow: none;
+    /* a primeira camada fica por cima: o miolo escuro sobre a borda dourada de 1 px */
+    background:
+      linear-gradient(rgba(4, 6, 16, 0.92), rgba(4, 6, 16, 0.92)) center / calc(100% - 2px) 26px no-repeat,
+      linear-gradient(rgba(240, 207, 122, 0.35), rgba(240, 207, 122, 0.35)) center / 100% 28px no-repeat;
+  }
+  .chat-box .chat-bar input:focus { outline: none; }
+  .chat-box .chat-bar input:focus-visible, .chat-box .chat-bar input:focus {
+    background:
+      linear-gradient(rgba(4, 6, 16, 0.95), rgba(4, 6, 16, 0.95)) center / calc(100% - 4px) 24px no-repeat,
+      linear-gradient(#f0cf7a, #f0cf7a) center / 100% 28px no-repeat;
+  }
+}
