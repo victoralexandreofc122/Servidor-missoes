@@ -19,7 +19,7 @@ Página visual: o Atlas da Herança do Fogo (artifact no claude.ai, versão 2).
   (44 vezes o mundo de hoje).
 - Pontos de partida: Chama Eterna (canto noroeste), Maré Oculta (nordeste), Vento Cortante (sudoeste), Rocha Antiga
   (sudeste) e o Refúgio dos Renegados (a ponta de baixo). É a mesma posição dos acampamentos da Zona de Conflito de hoje.
-- Distância até o Ninho do Titã, em linha reta: 905 casas de cada aldeia e do Refúgio. São 3 min 01 s andando (1 min 53 s
+- Distância até o Ninho dos Titãs, em linha reta: 905 casas de cada aldeia e do Refúgio. São 3 min 01 s andando (1 min 53 s
   correndo), sem parar para lutar. O Refúgio fica no fundo da ponta sul (y = 1.585 casas) justamente para dar a mesma
   distância dos cantos.
 - O território de cada um é a parte do mapa mais perto do seu ponto de partida.
@@ -34,7 +34,7 @@ Os anéis são contados pela distância até o centro do mapa, em blocos.
 | Anel do meio* | 5,4 a 7,3 | 30 a 45 | Sozinho ou em dupla | Bichos maiores e acampamentos dos Cinzas. Um abrigo com fogueira em cada estrada. |
 | Anel interno* | 3,6 a 5,4 | 45 a 60 | Grupo para as elites | Feras marcadas pelos Titãs. Elites de nível 50 a 60 que só caem com 3 a 5 ninjas. Patrulhas na estrada. |
 | Zona de Conflito | 2 a 3,6 | PvP · 55+ | Grupo | PvP livre, MMR e temporadas, lodos sombrios. Os cinco acampamentos (seguros) ficam na beira de fora. |
-| Floresta Obscura | até 2 | 55 a 60 | Grupo | Mata sem sol e visão curta. No centro, o Ninho do Titã*. |
+| Floresta Obscura | até 2 | 55 a 60 | Grupo | Mata sem sol e visão curta. No centro, o Ninho dos Titãs. |
 
 O caminho de cada aldeia até o Titã, em linha reta: borda 321 casas (1 min 04 s), anel do meio 152 (30 s), anel interno
 144 (29 s), Zona 128 (26 s) e Floresta Obscura 160 (32 s).
@@ -44,8 +44,8 @@ Bichos da borda de cada região (descrições; os nomes vêm depois, com 3 opç�
 | Região | Bichos da borda |
 |---|---|
 | Chama Eterna: Floresta da Chama (a Floresta de hoje, crescida) | Lodo Verde, lodos escuros, lobos da mata. A Clareira Queimada (Kagerō, Pedra 4) e a Caverna do Lodo (Rei Lodo) continuam aqui. |
-| Maré Oculta: Mangue da névoa* | Caranguejos de casco mole, enguias de lama, garças. |
-| Vento Cortante: Planalto dos ventos* | Lebres-de-vento, gaviões, cabras da serra. |
+| Maré Oculta: Costa das Marés Mortas | Caranguejos de casco mole, enguias de lama, garças. |
+| Vento Cortante: Planalto dos Ventos Altos | Lebres-de-vento, gaviões, cabras da serra. |
 | Rocha Antiga: Desfiladeiro das minas* | Lagartos de pedra, morcegos de mina, besouros de ferro. |
 | Renegados: Terra Sem Lei | Cães sem dono, abutres, bandidos de estrada. |
 
@@ -67,7 +67,7 @@ Bichos da borda de cada região (descrições; os nomes vêm depois, com 3 opç�
 - **Os Titãs dormem sob a terra do meio.** Os fundadores prenderam os dez Titãs bem no meio da bacia. É por isso que as
   aldeias brigaram pela terra do meio na Primeira Guerra, e por isso ela ficou sem dono: a Zona de Conflito.
 - **A Floresta Obscura* cresceu em cima da prisão, sem sol, alimentada pelo chakra dos Titãs. No centro fica o
-  **Ninho\***, a fenda por onde um Titã escapa por dia nos 10 primeiros dias de cada Era.
+  **Ninho dos Titãs**, a fenda por onde um Titã escapa por dia nos 10 primeiros dias de cada Era.
 - **A Clareira Queimada continua** na Floresta da Chama, com a Pedra 4 e o Kagerō (Arco 1, nível 15). Na Bíblia, a frase
   "é onde os Titãs acordam" passa para a Floresta Obscura.
 - **Cada aldeia guarda um segredo da sua borda.** Cada chefe regional é um pedaço do poder de um Titã que vazou pela
@@ -215,21 +215,21 @@ renegado. O roteiro das 15 missões de cada um vem depois da escolha dos nomes 2
 2. Os cinco chefes regionais e os cinco arcos (o sistema de história do Arco 1 vale para todos), junto com as Academias e
    os Arcos 1 da Maré, do Vento e da Rocha (seção 5.6).
 3. Os anéis do meio e interno, com os abrigos, as patrulhas e as elites de grupo.
-4. A Zona de Conflito em anel e a Floresta Obscura com o Ninho (os Titãs saem da Clareira).
+4. A Zona de Conflito em anel e a Floresta Obscura com o Ninho dos Titãs (os Titãs saem da Clareira).
 
 Cada etapa abre num marco da Progressão de Mundo (`src/realtime/worldProgress.ts`).
 
 ## 7. Nomes para escolher (regra das 3 opções)
 
-**Escolhido pelo Victor em 17/11/2026 (comentários no Atlas): 21B, 22C com ajuste ("Namiko", no lugar de "Namikoro"), 23B, 24A, 25C, 26C (Umiko, a Voz da Névoa) 27C (Jinto, o Instrutor Caído) e 28A (Gendoumaru, o Engenheiro). Depois: 14A (Floresta Obscura).**
-Os itens 15 a 20 esperam a escolha.
+**Escolhido pelo Victor em 17/11/2026 (comentários no Atlas): 21B, 22C com ajuste ("Namiko", no lugar de "Namikoro"), 23B, 24A, 25C, 26C (Umiko, a Voz da Névoa) 27C (Jinto, o Instrutor Caído) e 28A (Gendoumaru, o Engenheiro). Depois: 14A (Floresta Obscura), 15A (Ninho dos Titãs), 16C (Costa das Marés
+Mortas) e 17A (Planalto dos Ventos Altos).** Os itens 18 a 20 esperam a escolha.
 
 | # | O que precisa de nome | Rótulo de trabalho | Opção A | Opção B | Opção C |
 |---|---|---|---|---|---|
 | 14 | A floresta do centro, onde o Titã nasce | Floresta Obscura | **Floresta Obscura (escolhido; o termo do Victor)** | Mata do Sono Antigo | Floresta Sem Sol |
-| 15 | O lugar exato onde o Titã sai | Ninho do Titã | Ninho dos Titãs | Fenda da Primeira Chama | Coração Selado |
-| 16 | A caça da Maré Oculta | Mangue da névoa | Mangue da Névoa | Baixios Ocultos | Costa das Marés Mortas |
-| 17 | A caça do Vento Cortante | Planalto dos ventos | Planalto dos Ventos Altos | Campos do Vendaval | Estepe Cortante |
+| 15 | O lugar exato onde o Titã sai | Ninho do Titã | **Ninho dos Titãs (escolhido)** | Fenda da Primeira Chama | Coração Selado |
+| 16 | A caça da Maré Oculta | Mangue da névoa | Mangue da Névoa | Baixios Ocultos | **Costa das Marés Mortas (escolhido)** |
+| 17 | A caça do Vento Cortante | Planalto dos ventos | **Planalto dos Ventos Altos (escolhido)** | Campos do Vendaval | Estepe Cortante |
 | 18 | A caça da Rocha Antiga | Desfiladeiro das minas | Desfiladeiro das Minas | Gargantas de Ferro | Cânion dos Nomes |
 | 19 | O anel do meio (níveis 30 a 45) | Anel do meio | Terras Partidas | Marcos da Fronteira | Campos de Ninguém |
 | 20 | O anel interno (níveis 45 a 60) | Anel interno | Terras Ermas | Cinturão Sombrio | Orla dos Titãs |
