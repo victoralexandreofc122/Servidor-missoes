@@ -1,0 +1,272 @@
+<title>Texturas do Mapa no Flow</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: oficina de produção. Regras do estilo no alto, depois o catálogo filtrável com um cartão por asset e o prompt pronto. */
+:root {
+  --bg: #eceee8; --surface: #f7f8f4; --ink: #1c2320; --muted: #56615b; --line: #c6ccc3; --accent: #b9441d; --ok: #2f7d4a;
+  --mag: #ff00ff; --code: #eef1ea; --b: #6b7570; --s: #3b4a6b; --l: #c98a00; --m: #1d8584;
+  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111513; --surface: #192019; --ink: #e5eae3; --muted: #9ba79f; --line: #2d3731; --accent: #ff7d4a; --ok: #5cc27f;
+  --code: #141a16; --b: #9aa59e; --s: #8ea2d6; --l: #ffc933; --m: #42c4c1; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111513; --surface: #192019; --ink: #e5eae3; --muted: #9ba79f; --line: #2d3731; --accent: #ff7d4a; --ok: #5cc27f;
+  --code: #141a16; --b: #9aa59e; --s: #8ea2d6; --l: #ffc933; --m: #42c4c1; color-scheme: dark }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1100px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 64px; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: clamp(28px, 5vw, 42px); }
+h2 { font-size: 23px; }
+h3 { font-size: 16px; }
+p { margin: 0; max-width: 72ch; }
+.eyebrow { font-family: var(--font-display); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--accent); font-weight: 600; }
+.muted { color: var(--muted); }
+section, header { display: grid; gap: 14px; min-width: 0; }
+.plate { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: grid; gap: 12px; min-width: 0; }
+.steps { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.fact { background: var(--surface); padding: 12px 14px; display: grid; gap: 2px; align-content: start; }
+.fact b { font-family: var(--font-display); font-size: 21px; font-variant-numeric: tabular-nums; }
+.fact span { font-size: 13px; color: var(--muted); }
+.refs { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.refs figure { margin: 0; display: grid; gap: 4px; }
+.refs img { width: 100%; border-radius: 4px; border: 1px solid var(--line); image-rendering: auto; }
+.refs figcaption { font-size: 12.5px; color: var(--muted); }
+pre.block { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); font-size: 12.5px; background: var(--code); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; max-height: 260px; overflow: auto; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { font-family: var(--font-display); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.lay { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 4px; font: 700 12px/1 var(--font-display); color: var(--surface); }
+.lay.B { background: var(--b); } .lay.S { background: var(--s); } .lay.L { background: var(--l); color: #1c2320; } .lay.M { background: var(--m); }
+
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); padding-block: 10px; z-index: 5; border-bottom: 1px solid var(--line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+select, input[type="search"] { font: 500 14px var(--font-body); min-height: 44px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); min-width: 0; }
+input[type="search"] { flex: 1 1 180px; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; min-height: 44px; font-size: 14px; }
+.prog { font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 14px; }
+.regionhead { display: grid; gap: 4px; margin-top: 10px; }
+.regionhead h3 { font-size: 19px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.card.done { opacity: .6; }
+.card .top { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+.card .id { font-family: var(--font-mono); font-size: 12px; color: var(--muted); word-break: break-all; }
+.card .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.card .desc { font-size: 13.5px; }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; }
+button.cp { font: 600 13px/1 var(--font-display); min-height: 44px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+button.cp.main { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+button.cp:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.cp.copied { background: var(--ok); color: #fff; border-color: var(--ok); }
+details summary { cursor: pointer; font-size: 13px; color: var(--muted); min-height: 32px; display: flex; align-items: center; }
+.donebox { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; min-height: 44px; white-space: nowrap; }
+.donebox input { width: 20px; height: 20px; }
+.toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 6px; font-size: 14px; z-index: 20; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Herança do Fogo · arte dos mapas · 17/11/2026</div>
+    <h1>Texturas do Mapa no Flow</h1>
+    <p>Um prompt para cada peça do mundo aberto: árvores, flores, pedras, casas, cabanas, cavernas, pontes, lanternas e efeitos, aldeia por aldeia e região por região, seguindo a lore e o mapa em anéis. Você gera uma peça por vez no Flow e me manda; eu monto os mapas com elas. Cada peça tem as camadas que o jogo usa nos gráficos Baixo, Médio e Alto.</p>
+    <div class="facts" id="facts"></div>
+  </header>
+
+  <section>
+    <div class="eyebrow">Como usar</div>
+    <h2>Uma peça por vez, sempre no mesmo jeito</h2>
+    <ol class="steps">
+      <li><b>Escolha a região</b> no filtro e comece pela Aldeia da Chama Eterna (ela substitui a vila de hoje e vira o padrão de qualidade para o resto).</li>
+      <li><b>Copie o prompt Base</b> do cartão e cole no Flow, em criação de imagem, no formato quadrado. Se o Flow deixar, adicione como imagem de referência a imagem provisória da região (a vila ou a floresta de hoje, em <code>arte/vilas</code> e <code>arte/mapas</code> no repositório). Gere 4 variações e fique com a mais parecida com as referências.</li>
+      <li><b>Salve com o id do cartão</b>: <code>chama_casa_pequena.png</code>. Marque o cartão como feito (o progresso fica salvo neste aparelho).</li>
+      <li><b>Camadas.</b> Para Sombra, Luz e Movimento, abra a imagem Base no Flow como imagem de referência e cole o prompt da camada. Salve como <code>id_S.png</code>, <code>id_L.png</code> e <code>id_M2.png</code>, <code>id_M3.png</code>... (o quadro 1 do movimento é a própria Base).</li>
+      <li><b>Me mande as imagens</b> em lotes. Eu tiro o fundo magenta, acerto a grade de pixels, uno as cores na paleta da região, separo o que passa por cima do ninja (copas e telhados) e encaixo no mapa.</li>
+    </ol>
+    <p class="muted">Os prompts estão em inglês porque os geradores de imagem seguem instruções técnicas de pixel art com mais precisão nessa língua. O nome e a descrição de cada peça estão em português no cartão.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">O estilo</div>
+    <h2>Fiel às imagens provisórias de hoje</h2>
+    <p>Pixel art de 16 bits, vista de cima em 3/4 (vê-se o telhado e a frente), contorno escuro de 1 pixel, cada material em 2 a 3 tons, luz vindo do alto à esquerda, silhuetas grossas e legíveis. É o que já aparece na vila e na floresta provisórias:</p>
+    <div class="refs" id="refs"></div>
+    <div class="plate">
+      <h3>O bloco de estilo (vai dentro de todo prompt)</h3>
+      <pre class="block" id="styleBlock"></pre>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Tamanho</div>
+    <h2>24 pixels de arte por casa</h2>
+    <p>O jogo mostra cada casa com 48 pixels. A arte é desenhada com 24 pixels por casa e ampliada 2 vezes, que é a densidade de detalhe das imagens provisórias. Cada cartão diz o tamanho em casas e em pixels de arte; o prompt pede ao Flow que desenhe "como se fosse num quadro desse tamanho". O Flow entrega a imagem grande, e eu reduzo para a grade certa sem perder a nitidez.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">Gráfico Baixo, Médio e Alto</div>
+    <h2>As camadas de cada peça</h2>
+    <p>Cada peça tem uma camada Base e até três camadas extras. O jogador escolhe o nível no ⚙️; cada nível liga mais camadas. A Base sozinha já precisa ficar bonita, porque é o que o Baixo mostra.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Camada</th><th>O que é</th><th>Baixo</th><th>Médio</th><th>Alto</th></tr></thead>
+      <tbody>
+        <tr><td><span class="lay B">B</span> Base</td><td>A peça inteira, com cor e volume. Lanternas já aparecem com a cor de acesa, sem brilho em volta.</td><td>Sim</td><td>Sim</td><td>Sim</td></tr>
+        <tr><td><span class="lay S">S</span> Sombra</td><td>A sombra no chão. Nas peças pequenas o jogo faz a sombra sozinho, a partir do contorno; nas grandes (casas, árvores, penhascos) há um prompt de sombra pintada.</td><td>Não</td><td>Sombra fixa</td><td>Sombra que gira e cresce com a hora do dia</td></tr>
+        <tr><td><span class="lay L">L</span> Luz</td><td>Só o que brilha (janelas, lanternas, fogo, cristais, cogumelos), sobre preto. O jogo soma esse brilho por cima e faz o halo.</td><td>Não</td><td>Brilho fixo</td><td>Brilho que ilumina o chão em volta à noite e tremula</td></tr>
+        <tr><td><span class="lay M">M</span> Movimento</td><td>Os quadros da animação: árvores balançando, água correndo, fogo, bandeiras, redes. O quadro 1 é a Base.</td><td>Parado</td><td>Água, fogo e bandeiras</td><td>Tudo se mexe: copas, capim, cipós, redes, pipas</td></tr>
+        <tr><td>Efeitos</td><td>Névoa, folhas, pétalas, vaga-lumes, poeira, brasas, chuva (seção Efeitos do catálogo).</td><td>Não</td><td>Chuva e névoa simples</td><td>Névoa em camadas, partículas e reflexo na água</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted">Para água, fogo, cascata e névoa, se os quadros de movimento saírem tremidos, use o vídeo do Flow com a Base como imagem inicial (2 segundos, câmera parada) e me mande o vídeo: eu tiro os quadros dele.</p>
+  </section>
+
+  <section id="catalogo">
+    <div class="eyebrow">Catálogo</div>
+    <h2>Todas as peças</h2>
+    <div class="bar">
+      <select id="fRegion" aria-label="Região"></select>
+      <select id="fCat" aria-label="Categoria"></select>
+      <input type="search" id="fText" placeholder="Buscar (ex.: lanterna, ponte)" aria-label="Buscar">
+      <label class="chk"><input type="checkbox" id="fPend"> Só o que falta</label>
+      <span class="prog" id="prog"></span>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Depois do Flow</div>
+    <h2>O que eu faço com as imagens</h2>
+    <ol class="steps">
+      <li>Tiro o fundo magenta e deixo transparente.</li>
+      <li>Reduzo para a grade certa (24 pixels por casa) sem borrar e uno as cores na paleta da região, para todas as peças combinarem.</li>
+      <li>Corto as peças altas em duas partes: a de baixo (o ninja passa na frente) e a de cima (copa, telhado: o ninja passa por trás).</li>
+      <li>Monto o atlas de cada região e uso as peças para montar os mapas do mundo aberto, seguindo o Atlas e a lore.</li>
+      <li>Ligo as camadas no jogo e acrescento a escolha Gráfico Baixo, Médio e Alto no ⚙️ (código novo, entra numa versão própria).</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+/*__REFS__*/
+/*__ASSETS__*/
+const PX = 24;
+const STYLE = "16-bit pixel art game asset for a top-down 2D ninja MMORPG map, in the style of classic SNES-era JRPG towns and forests with modern indie polish: cozy, detailed, highly readable. Camera: 3/4 top-down view looking down at about 60 degrees, so we see the top (roof, canopy) and the front face of the object; front faces are parallel to the bottom of the image. NOT isometric, NOT a side view, NOT a flat straight-down icon. Crisp hand-placed square pixels, no anti-aliasing, no blur, no smooth gradients (use 2 to 3 flat tones per material and occasional dithering). A clean 1-pixel outline in deep warm dark brown (not pure black) around the silhouette and the main shapes. Light comes from the top-left: brighter top-left edges, darker bottom-right sides. Bold, chunky silhouette that still reads when small. Feudal-Japan-inspired fantasy ninja world, entirely original design.";
+const AVOID = "Avoid: any text, letters, numbers, logos or watermarks; people, characters or animals unless described; photorealism, 3D render, painterly brushwork, blur, glow halos, gradient backgrounds, isometric angle, fisheye or perspective distortion, cropped edges, drop shadows on the background.";
+const KEY = 'flow-texturas-feitos';
+let done = {};
+try { done = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { done = {}; }
+function saveDone() { try { localStorage.setItem(KEY, JSON.stringify(done)); } catch (e) {} }
+
+function dims(a) { return [a.s[0] * PX, a.s[1] * PX]; }
+function scaleText(a) { const [W, H] = dims(a); return `Pixel density: draw it as if on a ${W}x${H} pixel canvas (${a.s[0]}x${a.s[1]} map tiles of 24x24 pixels) and then enlarge it with nearest-neighbor, so every pixel is large, uniform and square. Keep the detail at that density, with no tiny noise.`; }
+function frameText(a) {
+  if (a.k === 'tile') return "This is a ground texture, not an object: view it straight from above, filling the entire square image edge to edge, with no border and no objects on it. It must tile seamlessly when repeated left-right and top-bottom (the edges must match). " + (a.s[0] === a.s[1] ? "Square image." : `Image proportion ${a.s[0]}:${a.s[1]} (width:height).`);
+  if (a.k === 'fx') return "This is a visual effect layer: draw only the effect, on a perfectly flat pure black background (#000000), so it can be blended additively over the map. No objects, no ground.";
+  if (a.dc) return "Show ONE single flat ground decal seen from above, centered, complete and uncropped, on a perfectly flat solid magenta background (#FF00FF); it lies flat on the ground, so no height and no shadow. No other objects, no frame or border.";
+  return "Show ONE single object, centered, complete and uncropped, with a small empty margin around it, on a perfectly flat solid magenta background (#FF00FF). No ground patch under it, no shadow on the background, no other objects, no frame or border.";
+}
+function basePrompt(a) {
+  const reg = REGIONS[a.r];
+  return [STYLE, reg.pal, `Subject: ${a.d}`, frameText(a), scaleText(a), AVOID].filter(Boolean).join('\n\n');
+}
+function bgOf(a) { return a.k === 'fx' ? 'pure black background' : a.k === 'tile' ? 'full-frame texture' : 'magenta background'; }
+function shadowPrompt(a) { return `Edit the attached image (the base asset already generated). Replace the whole object with only its ground shadow: a flat, solid dark blue-gray (#232838) shape showing how the object's shadow falls on the ground with light from the top-left, so it stretches toward the bottom-right, about 40% as long as the object is tall, starting at the object's base. Sharp pixel edges, no gradient, no blur. Keep the same image size and framing and the same flat magenta background (#FF00FF). Nothing else in the image.`; }
+function lightPrompt(a) { return `Edit the attached image (the base asset already generated). Keep exactly the same size, framing, pixels and outline. Turn every pixel that is not a light source into pure black (#000000), including the background. Keep only these glowing parts, in their original colors, slightly brighter and more saturated: ${a.l}. Do not add halos, glow spill, blur or new details.`; }
+function phase(k, f) {
+  if (f === 2) return 'This is the opposite pose of frame 1 (the two frames alternate).';
+  if (f === 4) return ['', '', 'This frame is a quarter of the way into the motion.', 'This frame is the furthest point of the motion.', 'This frame is on the way back, three quarters through the cycle, so it flows back into frame 1.'][k];
+  return `This frame is step ${k} of ${f}, evenly spaced through the cycle, so frame ${f} flows back into frame 1.`;
+}
+function motionPrompt(a, k) { return `Edit the attached image (frame 1, the rest pose of the base asset). Create frame ${k} of a ${a.f}-frame seamless looping animation: ${a.m}. ${phase(k, a.f)} Move only the parts that should move, by 1 to 3 pixels; everything else must stay pixel-identical: same size, framing, outline, palette and ${bgOf(a)}.`; }
+function layers(a) { const L = ['B']; if (a.k !== 'fx' && a.k !== 'tile' && !a.dc) L.push('S'); if (a.l) L.push('L'); if (a.m) L.push('M'); return L; }
+
+/* ---- cabeçalho ---- */
+const nMov = A.reduce((s, a) => s + (a.m ? (a.f - 1) : 0), 0);
+document.getElementById('facts').innerHTML = [
+  [A.length, 'peças no catálogo'],
+  [Object.keys(REGIONS).length - 1, 'regiões, mais os efeitos'],
+  [A.filter((a) => a.l).length, 'peças com camada de Luz'],
+  [nMov, 'quadros de Movimento a gerar'],
+].map(([b, s]) => `<div class="fact"><b>${b}</b><span>${s}</span></div>`).join('');
+document.getElementById('styleBlock').textContent = STYLE + '\n\n' + AVOID;
+const REFCAP = { chama: 'Aldeia da Chama (a provisória de hoje)', floresta: 'Floresta (provisória)', mare: 'Variação Névoa: base da Maré Oculta', vento: 'Variação Nuvem: base do Vento Cortante', zona: 'Zona de Conflito (provisória)' };
+document.getElementById('refs').innerHTML = Object.keys(REFCAP).map((k) => `<figure><img src="${REFS[k]}" alt="${REFCAP[k]}"><figcaption>${REFCAP[k]}</figcaption></figure>`).join('');
+
+/* ---- filtros ---- */
+const fRegion = document.getElementById('fRegion'), fCat = document.getElementById('fCat'), fText = document.getElementById('fText'), fPend = document.getElementById('fPend');
+fRegion.innerHTML = '<option value="">Todas as regiões</option>' + Object.entries(REGIONS).map(([k, r]) => `<option value="${k}">${r.nome}</option>`).join('');
+fCat.innerHTML = '<option value="">Todas as categorias</option>' + Object.entries(CATS).map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
+
+const ICON = { B: 'Base', S: 'Sombra', L: 'Luz', M: 'Mov.' };
+function card(a) {
+  const [W, H] = dims(a), L = layers(a);
+  const btns = [`<button class="cp main" data-id="${a.id}" data-p="B">Copiar Base</button>`];
+  if (a.sh) btns.push(`<button class="cp" data-id="${a.id}" data-p="S"><span class="lay S">S</span>Sombra</button>`);
+  if (a.l) btns.push(`<button class="cp" data-id="${a.id}" data-p="L"><span class="lay L">L</span>Luz</button>`);
+  if (a.m) for (let k = 2; k <= a.f; k++) btns.push(`<button class="cp" data-id="${a.id}" data-p="M${k}"><span class="lay M">M</span>Quadro ${k}</button>`);
+  const shNote = L.includes('S') && !a.sh ? '<span>sombra feita pelo jogo</span>' : '';
+  return `<article class="card${done[a.id] ? ' done' : ''}" id="card-${a.id}">
+    <div class="top"><div><h3>${a.n}</h3><div class="id">${a.id}.png</div></div>
+      <label class="donebox"><input type="checkbox" data-done="${a.id}" ${done[a.id] ? 'checked' : ''}> feito</label></div>
+    <div class="meta"><span>${a.s[0]}×${a.s[1]} casas · ${W}×${H} px</span>${L.map((x) => `<span class="lay ${x}" title="${ICON[x]}">${x}</span>`).join('')}${shNote}${a.m ? `<span>${a.f} quadros</span>` : ''}</div>
+    <p class="desc muted">${a.d}</p>
+    <div class="btns">${btns.join('')}</div>
+    <details><summary>Ver o prompt Base inteiro</summary><pre class="block">${basePrompt(a).replace(/</g, '&lt;')}</pre></details>
+  </article>`;
+}
+function render() {
+  const r = fRegion.value, c = fCat.value, q = fText.value.trim().toLowerCase(), pend = fPend.checked;
+  const sel = A.filter((a) => (!r || a.r === r) && (!c || a.c === c) && (!pend || !done[a.id]) && (!q || (a.n + ' ' + a.id + ' ' + a.d).toLowerCase().includes(q)));
+  let html = '';
+  for (const k of Object.keys(REGIONS)) {
+    const items = sel.filter((a) => a.r === k);
+    if (!items.length) continue;
+    const feitos = A.filter((a) => a.r === k && done[a.id]).length, total = A.filter((a) => a.r === k).length;
+    html += `<div class="regionhead"><h3>${REGIONS[k].nome}</h3><span class="muted" style="font-size:13px">${feitos} de ${total} feitas${REGIONS[k].pal ? ' · paleta (em inglês, vai no prompt): ' + REGIONS[k].pal.replace(/^Palette of [^:]+: /, '') : ''}</span></div><div class="grid">${items.map(card).join('')}</div>`;
+  }
+  document.getElementById('list').innerHTML = html || '<p class="muted">Nada com esse filtro. Limpe a busca ou escolha outra região.</p>';
+  const n = Object.keys(done).filter((k) => done[k]).length;
+  document.getElementById('prog').textContent = `${n} de ${A.length} feitas`;
+}
+[fRegion, fCat, fPend].forEach((el) => el.addEventListener('change', render));
+fText.addEventListener('input', render);
+
+function promptFor(id, p) {
+  const a = A.find((x) => x.id === id);
+  if (p === 'B') return basePrompt(a);
+  if (p === 'S') return shadowPrompt(a);
+  if (p === 'L') return lightPrompt(a);
+  return motionPrompt(a, Number(p.slice(1)));
+}
+function toast(t) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = t; document.body.appendChild(el); setTimeout(() => el.remove(), 2600); }
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+  ta.remove(); return ok;
+}
+document.getElementById('list').addEventListener('click', (e) => {
+  const b = e.target.closest('button.cp'); if (!b) return;
+  const text = promptFor(b.dataset.id, b.dataset.p);
+  const name = b.dataset.p === 'B' ? `${b.dataset.id}.png` : `${b.dataset.id}_${b.dataset.p}.png`;
+  const okUI = () => { b.classList.add('copied'); setTimeout(() => b.classList.remove('copied'), 1600); toast(`Prompt copiado. Salve a imagem como ${name}`); };
+  const fail = () => { if (fallbackCopy(text)) okUI(); else { toast('Não deu para copiar. Abra "Ver o prompt" e copie o texto.'); } };
+  try { navigator.clipboard.writeText(text).then(okUI, fail); } catch (err) { fail(); }
+});
+document.getElementById('list').addEventListener('change', (e) => {
+  const id = e.target.dataset && e.target.dataset.done; if (!id) return;
+  done[id] = e.target.checked; saveDone();
+  document.getElementById('card-' + id).classList.toggle('done', e.target.checked);
+  const n = Object.keys(done).filter((k) => done[k]).length;
+  document.getElementById('prog').textContent = `${n} de ${A.length} feitas`;
+});
+render();
+</script>
