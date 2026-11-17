@@ -1,12 +1,12 @@
-# Arco 1 da Maré Oculta — A Primeira Cifra (título de trabalho, item 36)
+# Arco 1 da Maré Oculta — Maré Baixa
 
 Roteiro e missões do primeiro arco de quem nasce na Aldeia da Maré Oculta. Vai do nível 1 ao 15, de cadete a Genin,
 no mesmo formato do Arco 1 da Chama (`docs/historia/arco-1.md`). Decisão do Victor de 17/11/2026: cada aldeia tem a sua
 Academia e o seu Arco 1 (`docs/lore/mundo-aberto-proposta.md`, seção 5.6).
 
-**Estado: roteiro proposto, nada no jogo.** Os nomes novos de pessoas, títulos e do próprio arco têm 3 opções na tabela
-do fim (itens 29 a 38) e só entram depois da escolha do Victor. Até lá, o roteiro chama as pessoas pelo papel: a
-**Colega** (item 29) e o **Irmão** dela (item 30). Inimigos e itens de missão usam nomes descritivos de trabalho.
+**Estado: roteiro proposto, nada no jogo.** Nomes escolhidos pelo Victor em 17/11/2026: o arco se chama **Maré Baixa**
+(36C), a colega é **Mio** (29A), o irmão gêmeo dela é **Kai** (30B) e o título da M14 é **Olho da Maré** (33C). Inimigos e
+itens de missão usam nomes descritivos de trabalho.
 
 ---
 
@@ -51,8 +51,8 @@ As mesmas regras do Arco 1 da Chama: missões de 5 a 15 minutos com gancho no fi
 | **Mestre das Cifras** | Professor de cifras, dá as missões | Fala pouco; desenha no ar o que pensa | Parceiro de investigação; termina tudo o que escreve com a **onda dupla** |
 | **Guardiã do Farol** | Cuida da luz há trinta anos | Seca, prática, conta tudo em marés | Guarda o código do farol (volta no arco regional) |
 | **Vendedora de Redes** | Tem barraca no cais, ouve as fofocas dos pescadores | Fala rápido e baixinho, olhando para os lados | Pista: a mulher que canta na névoa |
-| **Colega** (item 29) | Colega de turma, rival amigável | Calada e competitiva; responde em uma palavra | Procura o irmão; some no meio do arco |
-| **Irmão** (item 30) | Irmão gêmeo da Colega, um ano à frente na Academia | Gentil, gagueja quando está nervoso | Some no mangue; é encontrado na M11 |
+| **Mio** | Colega de turma, rival amigável | Calada e competitiva; responde em uma palavra | Procura o irmão; some no meio do arco |
+| **Kai** | Irmão gêmeo da Mio, adiantado um ano na Academia | Gentil, gagueja quando está nervoso | Some no mangue; é encontrado na M11 |
 | **Umiko** | Ex-aluna expulsa, contrabandista das Cinzas | Doce, educada; canta baixinho; imita a voz de qualquer um | Vilã; chefe na M14 |
 
 ---
@@ -61,7 +61,7 @@ As mesmas regras do Arco 1 da Chama: missões de 5 a 15 minutos com gancho no fi
 
 | Pergunta | Abre em | Responde em |
 |---|---|---|
-| Onde está o Irmão da Colega? | M1 | M11 |
+| Onde está o Kai? | M1 | M11 |
 | Quem está vendendo as cifras da aldeia? | M2 | M7 (os Cinzas compram) e M11 (Umiko vende) |
 | Quem manda as mensagens que guiam o jogador? | M5 | M11 e M12: nunca foi o Mestre |
 | O que é a escama vermelha? | M6 | Não responde. Fica para o arco regional (Namiko) |
@@ -72,10 +72,10 @@ As mesmas regras do Arco 1 da Chama: missões de 5 a 15 minutos com gancho no fi
 |---|---|---|
 | O Mestre termina tudo o que escreve com a **onda dupla** (dois tracinhos ondulados) | Prólogo | M11: nenhuma mensagem recebida tem a onda dupla |
 | A Diretora: *"Na névoa, desconfie do que a água mostra."* | Prólogo | M14: Umiko troca de lugar com o próprio reflexo |
-| A voz do Irmão chamando no mangue, sem ninguém lá | M1 | M12: Umiko imita vozes |
+| A voz do Kai chamando no mangue, sem ninguém lá | M1 | M12: Umiko imita vozes |
 | A Vendedora: *"Uma mulher que canta, e a névoa obedece."* | M6 | M14: o canto da Umiko chama a névoa |
 | Uma onda só, desenhada na parede do farol | M8 | M11: é a assinatura falsa |
-| Contar à Colega o que a primeira mensagem diz | M3 (escolha) | M14 |
+| Contar à Mio o que a primeira mensagem diz | M3 (escolha) | M14 |
 | Abrir ou não a mensagem selada | M8 (escolha) | M10, M11 e M13 |
 
 ---
@@ -86,7 +86,7 @@ As mesmas regras do Arco 1 da Chama: missões de 5 a 15 minutos com gancho no fi
 |---|---|---|---|
 | Prólogo | Academia da Maré (as 4 salas do tutorial) | 1 | O cadete aprende o básico; a onda dupla e o aviso sobre a água são plantados |
 | Ato I: A Névoa | M1 a M5 | 1 a 6 | De "uma voz no mangue" a "alguém está mandando mensagens na letra do Mestre" |
-| Ato II: Maré Baixa | M6 a M9 | 6 a 11 | O contrabando das cifras; o rito da névoa; a Colega some |
+| Ato II: Maré Baixa | M6 a M9 | 6 a 11 | O contrabando das cifras; o rito da névoa; a Mio some |
 | Ato III: A Voz | M10 a M15 | 11 a 15 | A virada das mensagens, o farol, a chefe Umiko e o gancho do arco regional |
 
 ### Tipos de objetivo usados
@@ -107,7 +107,7 @@ As 4 salas do tutorial com a mesma mecânica da Chama, num prédio sobre palafit
 - **Mestre das Cifras**, ao entregar a primeira lição: *"Toda mensagem minha termina assim."* (desenha a onda dupla)
   *"Se não terminar, não é minha."*
 - **Diretora**, na Sala de Controle: *"Na névoa, desconfie do que a água mostra."*
-- **Colega**, na saída: *"Você é o novo? Hm. Não atrapalha."*
+- **Mio**, na saída: *"Você é o novo? Hm. Não atrapalha."*
 
 ---
 
@@ -153,23 +153,23 @@ Mestre: Quem escreve isso sabe a cifra e sabe do farol.
 **Gancho:** *"Alguém de fora tem as nossas cifras. Ou alguém de dentro está entregando."*
 
 ### M3 · Quem Decifra Primeiro
-Uma missão de respiro: apresenta a Colega com rivalidade.
+Uma missão de respiro: apresenta a Mio com rivalidade.
 
 - **Nível:** 3 a 4 · **Onde:** Costa das Marés Mortas (borda, o mangue perto da aldeia)
 - **Objetivo:**
-  1. DERROTAR 8 caranguejos de casco mole (corrida contra a Colega; o contador dela aparece na tela).
+  1. DERROTAR 8 caranguejos de casco mole (corrida contra a Mio; o contador dela aparece na tela).
   2. IR ATÉ a concha que ela achou.
   3. ESCOLHA.
 - **Recompensa:** 200 XP, Concha Riscada (item de missão)
 
 ```text
-CHAR Colega right seria
-Colega: Oito. Antes de você.
+CHAR Mio right seria
+Mio: Oito. Antes de você.
 -- corrida --
-Colega: ...Empate. Hm.
+Mio: ...Empate. Hm.
 (numa concha grande, alguém riscou sinais: é cifra)
-Colega: É a letra do meu irmão. Ele riscava concha quando estava com medo.
-Colega: Se você descobrir o que diz... me conta?
+Mio: É a letra do meu irmão. Ele riscava concha quando estava com medo.
+Mio: Se você descobrir o que diz... me conta?
 CHOICE
 - "Te conto tudo." -> flag confiou_na_colega
 - "Segredo é segredo. Você conhece a regra." -> (sem flag)
@@ -300,12 +300,12 @@ Diretora: Vocês. A partir de hoje, a névoa é de vocês. Genin.
 SFX sino_do_farol
 (o farol apaga. É a quarta maré.)
 (do mangue, uma voz: "Mana! Mana, aqui!")
-CHAR Colega left gritando
-Colega: É ele!
+CHAR Mio left gritando
+Mio: É ele!
 (ela corre para dentro da névoa antes que alguém a segure)
 ```
 
-**Gancho:** *"A Colega não voltou do mangue."*
+**Gancho:** *"A Mio não voltou do mangue."*
 
 ---
 
@@ -316,7 +316,7 @@ Colega: É ele!
 - **Objetivo:**
   1. IR ATÉ os 3 pontos do rastro (só aparecem na maré baixa; há um contador).
   2. DERROTAR 6 enguias de lama.
-  3. Achar a Fita da Colega (item de missão).
+  3. Achar a Fita da Mio (item de missão).
 - **Recompensa:** 1.500 XP
 
 Desta vez **nenhuma garrafa chega**. A ausência das mensagens é uma pista.
@@ -325,7 +325,7 @@ Desta vez **nenhuma garrafa chega**. A ausência das mensagens é uma pista.
 - **Entregou fechada:** *"Apagaram com o código certo. Quem mandou a mensagem por você sabia o caminho dela."*
 - **Abriu:** *"Troquei o código. Mesmo assim, apagaram à força. Quebraram a lente."*
 
-**Gancho:** *"As pegadas da Colega e outras, de pés descalços, entram juntas numa gruta que só abre na maré baixa."*
+**Gancho:** *"As pegadas da Mio e outras, de pés descalços, entram juntas numa gruta que só abre na maré baixa."*
 
 ### M11 · A Onda Dupla (a virada)
 - **Nível:** 12 a 13 · **Onde:** a Gruta da Maré (mapa novo)
@@ -340,12 +340,12 @@ Desta vez **nenhuma garrafa chega**. A ausência das mensagens é uma pista.
 BG gruta_mare
 CHAR prisioneiro center fraco
 Prisioneiro: V-você... veio pelas garrafas?
-(nome na tela: o Irmão da Colega)
-Irmao: Ela me obriga a copiar as cifras do Mestre. Dia e noite.
-Irmao: E escreve mensagens. Pra você. Com a letra dele.
+(nome na tela: Kai, o irmão da Mio)
+Kai: Ela me obriga a copiar as cifras do Mestre. Dia e noite.
+Kai: E escreve mensagens. Pra você. Com a letra dele.
 (pensamento: todas as mensagens... uma onda só. Nunca a onda dupla.)
-Irmao: Ela chama a si mesma de Umiko. E imita qualquer voz.
-Irmao: ...Inclusive a minha. Foi assim que levou a minha irmã.
+Kai: Ela chama a si mesma de Umiko. E imita qualquer voz.
+Kai: ...Inclusive a minha. Foi assim que levou a minha irmã.
 ```
 
 **Fala, conforme a escolha da M8:**
@@ -410,18 +410,18 @@ Guardia: ...A gruta. Ela nunca quis o farol. Quis a gente aqui em cima.
 - **Nível:** 15 · **Onde:** o Santuário Afogado, no fundo da Gruta da Maré (água pela canela, poças por toda parte)
 - **Objetivo:**
   1. CHEFE: derrotar Umiko.
-  2. Libertar a Colega.
-- **Recompensa:** 2.500 XP, título da Maré (item 33), o Livro de Contas dos Cinzas
+  2. Libertar a Mio.
+- **Recompensa:** 2.500 XP, título **Olho da Maré**, o Livro de Contas dos Cinzas
 
 **Fases da chefe:**
 
 1. **Umiko e os reflexos.** Ela troca de lugar com o próprio reflexo em qualquer poça. **Só a verdadeira não tem
    reflexo na água** (paga a fala da Diretora no Prólogo). Bater num reflexo levanta névoa.
-2. **Com 50% da vida,** ela canta e a névoa cobre tudo. Ela imita a voz da Colega chamando de três lados. O jogador
+2. **Com 50% da vida,** ela canta e a névoa cobre tudo. Ela imita a voz da Mio chamando de três lados. O jogador
    precisa acender 3 lanternas de pedra (MEDITAR 3 s em cada) para afastar a névoa, enquanto ela ataca do escuro.
 
-**A Colega, conforme a escolha da M3:**
-- **Confiou:** *"Você me contou tudo. Agora eu te conto: ela está à esquerda."* A Colega entra na fase 1 e, a cada 15 s,
+**A Mio, conforme a escolha da M3:**
+- **Confiou:** *"Você me contou tudo. Agora eu te conto: ela está à esquerda."* A Mio entra na fase 1 e, a cada 15 s,
   marca qual é a Umiko verdadeira.
 - **Não confiou:** *"Segredo é segredo. Eu sei."* Ela só entra na fase 2.
 
@@ -433,12 +433,12 @@ Guardia: ...A gruta. Ela nunca quis o farol. Quis a gente aqui em cima.
 ### M15 · Maré Cheia (epílogo)
 - **Nível:** 15 · **Onde:** Aldeia (Hospital, Casa das Cifras, Farol, Academia)
 - **Objetivo:**
-  1. FALAR com a Colega e o Irmão (no Hospital), o Mestre, a Guardiã e a Diretora.
+  1. FALAR com a Mio e o Kai (no Hospital), o Mestre, a Guardiã e a Diretora.
   2. Receber a bandana oficial no cais, ao pôr do sol.
 - **Recompensa:** 500 XP, 1.000 ryō, item cosmético **Bandana Encharcada** (opcional)
 
 ```text
-Colega: Na próxima noite na névoa, eu fico invisível mais tempo que você.
+Mio: Na próxima noite na névoa, eu fico invisível mais tempo que você.
 Mestre: No Livro de Contas há meio mapa. E este símbolo não é o nosso.
 Mestre: É do Vento Cortante.
 Diretora: Descanse, Genin. A maré está calma.
@@ -454,7 +454,7 @@ CONTINUA NO ARCO DA MARÉ (níveis 16 a 40)
 
 | Flag | Escolhida em | Muda |
 |---|---|---|
-| `confiou_na_colega` | M3 | M14: a Colega entra na fase 1 e mostra a Umiko verdadeira (ou só entra na fase 2) |
+| `confiou_na_colega` | M3 | M14: a Mio entra na fase 1 e mostra a Umiko verdadeira (ou só entra na fase 2) |
 | `entregou_selada` / `abriu_selada` | M8 | Falas em M8, M10, M11 e M14; a força da terceira onda na M13 |
 | `queimou_cifras` / `guardou_cifras` | M12 | Arco da Maré: se o livro antigo ainda existe para ser roubado de novo |
 
@@ -488,7 +488,7 @@ ao último marco) e a maré que sobe e desce num mapa (bancos de areia e gruta q
 ilhota de treino, os bancos de areia e o mercado da maré baixa; mapa novo: a Gruta da Maré com o Santuário Afogado.
 
 **Itens de missão:** Mensagem na Garrafa, Concha Riscada, Mensagem Dobrada, Pacote de Cifra, Livro de Contas, Mensagem
-Selada, Fita da Colega.
+Selada, Fita da Mio.
 
 ---
 
@@ -496,7 +496,7 @@ Selada, Fita da Colega.
 
 - [x] Cada missão muda alguma coisa e termina com uma pergunta nova.
 - [x] Cada personagem fala diferente: a Diretora pergunta, o Mestre desenha no ar, a Guardiã conta em marés, a
-  Vendedora cochicha, a Colega responde em uma palavra, a Umiko é doce e canta.
+  Vendedora cochicha, a Mio responde em uma palavra, a Umiko é doce e canta.
 - [x] A virada das mensagens tem três pistas antes (a onda dupla no Prólogo, a onda única na M7 e no farol na M8, o
   Mestre negando na M5) e uma confirmação clara (M11).
 - [x] Toda escolha tem consequência visível (M3 → M14, M8 → M10/M11/M13/M14, M12 → arco regional).

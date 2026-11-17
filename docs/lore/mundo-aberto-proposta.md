@@ -203,10 +203,10 @@ o `docs/historia/arco-1.md` da Chama). Cada Arco 1 ensina o valor da aldeia pelo
 termina num vilão de nível 15 e deixa a primeira pista do chefe regional. Os renegados não têm Arco 1: ninguém nasce
 renegado. O roteiro das 15 missões de cada um vem depois da escolha dos nomes 26 a 28.
 
-| Aldeia | Título de trabalho | A história | O vilão (nível 15) | Pista do chefe regional |
+| Aldeia | Título | A história | O vilão (nível 15) | Pista do chefe regional |
 |---|---|---|---|---|
-| Maré Oculta | A Primeira Cifra | No rito da noite na névoa, um colega some de verdade. O cadete descobre uma rede de contrabando que vende as cifras da aldeia para os Cinzas. | Umiko, a Voz da Névoa (escolha 26C): contrabandista que se esconde na névoa e troca de lugar com reflexos na água. | Uma escama vermelha no barco do contrabandista: Namiko. |
-| Vento Cortante | A Corrida do Sol | No rito de cruzar o planalto, as pipas de mensagem são cortadas e uma caravana some. Quem rouba é um bando liderado por um instrutor expulso. | Jinto, o Instrutor Caído (escolha 27C): instrutor expulso, rápido, que ataca em investidas e foge no vento. | O vento falha por um instante na última corrida: Jinra. |
+| Maré Oculta | Maré Baixa | No rito da noite na névoa, um colega some de verdade. O cadete descobre uma rede de contrabando que vende as cifras da aldeia para os Cinzas. | Umiko, a Voz da Névoa (escolha 26C): contrabandista que se esconde na névoa e troca de lugar com reflexos na água. | Uma escama vermelha no barco do contrabandista: Namiko. |
+| Vento Cortante | Livre como o Vento | No rito de cruzar o planalto, as pipas de mensagem são cortadas e uma caravana some. Quem rouba é um bando liderado por um instrutor expulso. | Jinto, o Instrutor Caído (escolha 27C): instrutor expulso, rápido, que ataca em investidas e foge no vento. | O vento falha por um instante na última corrida: Jinra. |
 | Rocha Antiga | A Primeira Pedra | No cerco de treino, uma parte da muralha cai de verdade. Um engenheiro traidor enfraquecia a pedra para os Cinzas entrarem. | Gendoumaru, o Engenheiro (escolha 28A): levanta muros de pedra e faz o chão desabar. | O nome de um cadete some da muralha: O Colosso dos Nomes. |
 
 **Roteiros escritos (17/11/2026):** `docs/historia/arco-1-mare.md`, `docs/historia/arco-1-vento.md` e
@@ -265,20 +265,22 @@ Titãs).** Todos os itens de 14 a 28 estão escolhidos.
 
 ### Nomes dos Arcos 1 novos (itens 29 a 38)
 
+**Escolhidos pelo Victor em 17/11/2026 (comentários na página dos Arcos 1): 29A, 30B, 31A, 32B, 33C, 34B, 35C, 36C, 37C, 38A.**
+
 Seguem a regra 12A do som de cada aldeia (Maré: nomes que lembram água; Vento: curtos e duros; Rocha: longos e lentos).
 
 | # | O que precisa de nome | Rótulo de trabalho | Opção A | Opção B | Opção C |
 |---|---|---|---|---|---|
-| 29 | A Colega da Maré (rival; o irmão some no mangue) | Colega | Mio | Nami | Uruha |
-| 30 | O Irmão gêmeo da Colega | Irmão | Nagi | Kai | Tomo |
-| 31 | O Rival do Vento (perde o rito por sabotagem) | Rival | Rai | Toki | Sen |
-| 32 | O Rival da Rocha (dez nomes da família na muralha) | Rival | Iwata | Ganrou | Daigorou |
-| 33 | Título ao vencer a Umiko (M14 da Maré) | título da Maré | Guardião da Névoa | Voz Calada | Olho da Maré |
-| 34 | Título ao vencer o Jinto (M14 do Vento) | título do Vento | Corredor do Sol | Asa do Planalto | Guardião do Vento |
-| 35 | Título ao vencer o Gendoumaru (M14 da Rocha) | título da Rocha | Guardião da Muralha | Nome na Pedra | Pedra-Chave |
-| 36 | Nome do Arco 1 da Maré | A Primeira Cifra | A Primeira Cifra | A Névoa que Mente | Maré Baixa |
-| 37 | Nome do Arco 1 do Vento | A Corrida do Sol | A Corrida do Sol | Pipas Cortadas | Livre como o Vento |
-| 38 | Nome do Arco 1 da Rocha | A Primeira Pedra | A Primeira Pedra | Três Batidas | O Nome que Faltava |
+| 29 | A Colega da Maré (rival; o irmão some no mangue) | Colega | **Mio (escolhido)** | Nami | Uruha |
+| 30 | O Irmão gêmeo da Colega | Irmão | Nagi | **Kai (escolhido)** | Tomo |
+| 31 | O Rival do Vento (perde o rito por sabotagem) | Rival | **Rai (escolhido)** | Toki | Sen |
+| 32 | O Rival da Rocha (dez nomes da família na muralha) | Rival | Iwata | **Ganrou (escolhido)** | Daigorou |
+| 33 | Título ao vencer a Umiko (M14 da Maré) | título da Maré | Guardião da Névoa | Voz Calada | **Olho da Maré (escolhido)** |
+| 34 | Título ao vencer o Jinto (M14 do Vento) | título do Vento | Corredor do Sol | **Asa do Planalto (escolhido)** | Guardião do Vento |
+| 35 | Título ao vencer o Gendoumaru (M14 da Rocha) | título da Rocha | Guardião da Muralha | Nome na Pedra | **Pedra-Chave (escolhido)** |
+| 36 | Nome do Arco 1 da Maré | A Primeira Cifra | A Primeira Cifra | A Névoa que Mente | **Maré Baixa (escolhido)** |
+| 37 | Nome do Arco 1 do Vento | A Corrida do Sol | A Corrida do Sol | Pipas Cortadas | **Livre como o Vento (escolhido)** |
+| 38 | Nome do Arco 1 da Rocha | A Primeira Pedra | **A Primeira Pedra (escolhido)** | Três Batidas | O Nome que Faltava |
 
 Depois da escolha destes, vêm (também em 3 opções): os títulos dos arcos, os NPCs de cada arco, os bichos de cada
 região, as elites e os títulos de recompensa.

@@ -1,11 +1,12 @@
-# Arco 1 da Rocha Antiga — A Primeira Pedra (título de trabalho, item 38)
+# Arco 1 da Rocha Antiga — A Primeira Pedra
 
 Roteiro e missões do primeiro arco de quem nasce na Aldeia da Rocha Antiga. Vai do nível 1 ao 15, de cadete a Genin,
 no mesmo formato do Arco 1 da Chama (`docs/historia/arco-1.md`). Decisão do Victor de 17/11/2026: cada aldeia tem a sua
 Academia e o seu Arco 1 (`docs/lore/mundo-aberto-proposta.md`, seção 5.6).
 
-**Estado: roteiro proposto, nada no jogo.** Os nomes novos têm 3 opções na tabela do fim e só entram depois da escolha
-do Victor. Até lá, o roteiro chama o rival de **Rival** (item 32). Inimigos e itens usam nomes descritivos de trabalho.
+**Estado: roteiro proposto, nada no jogo.** Nomes escolhidos pelo Victor em 17/11/2026: o arco se chama **A Primeira
+Pedra** (38A), o rival é **Ganrou** (32B) e o título da M14 é **Pedra-Chave** (35C). Inimigos e itens usam nomes
+descritivos de trabalho.
 
 ---
 
@@ -52,7 +53,7 @@ alternado e história **por jogador, em fase**.
 | **Gendoumaru** | Engenheiro-chefe da muralha, amado pela aldeia | Gentil, paciente, ensina tudo; bate três vezes na pedra antes de trabalhar | Mentor no começo; vilão; chefe na M14 |
 | **Chefe dos Mineiros** | Cuida das minas, rude e honesto | Grita por cima do barulho; xinga em voz baixa | Pista: o metal que some (volta no arco regional) |
 | **Ferreiro das Quatro Aldeias** | Vende kunais para as quatro aldeias | Fala de negócios até em velório | Pista: lingotes marcados (volta no arco regional) |
-| **Rival** (item 32) | Neto de uma família com dez nomes na muralha | Orgulhoso, formal, fala dos antepassados | Fica preso no desabamento; o nome dele some na M15 |
+| **Ganrou** | Neto de uma família com dez nomes na muralha | Orgulhoso, formal, fala dos antepassados | Fica preso no desabamento; o nome dele some na M15 |
 
 ---
 
@@ -74,7 +75,7 @@ alternado e história **por jogador, em fase**.
 | O espaço em branco no meio dos nomes antigos | M2 | M11 |
 | Argamassa fresca na porta da mina velha, fechada há quarenta anos | M7 | M11: a oficina dele está lá dentro |
 | Gendoumaru: *"A mina velha é perigosa. Deixe comigo."* | M7 | M11 |
-| Ajudar o Rival a carregar as pedras | M3 (escolha) | M14 |
+| Ajudar o Ganrou a carregar as pedras | M3 (escolha) | M14 |
 | Contar a Gendoumaru onde está a segunda rachadura | M8 (escolha) | M10, M11 e M13 |
 
 ---
@@ -102,7 +103,7 @@ ambiente:
 
 - **Guardiã da Muralha**, na entrada: *"Cada nome nesta pedra aguentou um cerco. O seu ainda não está aqui."*
 - **Instrutor da Sala de Controle**: *"A pedra aguenta porque espera. Aprenda com ela."*
-- **Rival**, na saída: *"Minha família tem dez nomes na muralha. Você tem algum?"*
+- **Ganrou**, na saída: *"Minha família tem dez nomes na muralha. Você tem algum?"*
 
 ---
 
@@ -146,22 +147,22 @@ Gendoumaru: Pedra gosta de ser cumprimentada. Agora vamos ver essa rachadura jun
 **Gancho:** *"Quando você pergunta do trecho liso, ele sorri e muda de assunto."*
 
 ### M3 · Quem Carrega Mais
-Uma missão de respiro: apresenta o Rival com orgulho e rivalidade.
+Uma missão de respiro: apresenta o Ganrou com orgulho e rivalidade.
 
 - **Nível:** 3 a 4 · **Onde:** Desfiladeiro das Minas (borda)
 - **Objetivo:**
-  1. DERROTAR 8 lagartos de pedra e COLETAR 8 Pedras de Cantaria (corrida contra o Rival; o contador dele aparece na
+  1. DERROTAR 8 lagartos de pedra e COLETAR 8 Pedras de Cantaria (corrida contra o Ganrou; o contador dele aparece na
      tela).
   2. ESCOLHA.
   3. ENTREGAR as pedras a Gendoumaru.
 - **Recompensa:** 200 XP, Lasca da Muralha (item de missão)
 
 ```text
-CHAR Rival right formal
-Rival: Meu avô carregou pedra pra essa muralha. Eu carrego mais que você.
+CHAR Ganrou right formal
+Ganrou: Meu avô carregou pedra pra essa muralha. Eu carrego mais que você.
 -- corrida --
-(o Rival tropeça; metade das pedras dele rola pelo desfiladeiro)
-Rival: ...Não ria.
+(o Ganrou tropeça; metade das pedras dele rola pelo desfiladeiro)
+Ganrou: ...Não ria.
 CHOICE
 - Dar metade das suas pedras para ele. -> flag ajudou_rival
 - "Regra é regra. Quem carrega mais, ganha." -> (sem flag)
@@ -291,9 +292,9 @@ CHAR Guardia center solene
 Guardia: Quem aguentou o cerco? Vocês. A partir de hoje, a muralha também é de vocês. Genin.
 SFX desabamento
 (um trecho inteiro da muralha desaba, de verdade. Poeira por todo lado)
-CHAR Rival left preso
-Rival: Aqui! Minha perna...!
-(o jogador e a Guardiã tiram o Rival dos escombros; ele está ferido)
+CHAR Ganrou left preso
+Ganrou: Aqui! Minha perna...!
+(o jogador e a Guardiã tiram o Ganrou dos escombros; ele está ferido)
 Guardia (baixo): A pedra-chave. Alguém tirou a pedra-chave.
 ```
 
@@ -397,7 +398,7 @@ Chefe: ...A pedra-chave da mina velha. Se ele tirar, o desfiladeiro desce em cim
 - **Objetivo:**
   1. CHEFE: derrotar Gendoumaru.
   2. Segurar o teto do salão.
-- **Recompensa:** 2.500 XP, título da Rocha (item 35), a Pedra-Chave
+- **Recompensa:** 2.500 XP, título **Pedra-Chave**, a Pedra-Chave
 
 **Fases do chefe:**
 
@@ -406,7 +407,7 @@ Chefe: ...A pedra-chave da mina velha. Se ele tirar, o desfiladeiro desce em cim
 2. **Com 50% da vida,** ele arranca a pedra-chave do teto. Pedras começam a cair. O jogador precisa reforçar 2 colunas
    (MEDITAR 4 s em cada) enquanto ele ataca. Coluna reforçada protege quem está embaixo dela.
 
-**O Rival, conforme a escolha da M3:**
+**O Ganrou, conforme a escolha da M3:**
 - **Ajudou:** *"Você dividiu as pedras comigo. Agora eu seguro uma coluna."* Ele entra na fase 1 e segura uma das colunas
   sozinho na fase 2.
 - **Não ajudou:** *"Regra é regra. Mas a muralha é de todos."* Ele só entra na fase 2.
@@ -420,7 +421,7 @@ Chefe: ...A pedra-chave da mina velha. Se ele tirar, o desfiladeiro desce em cim
 ### M15 · Nomes na Pedra (epílogo)
 - **Nível:** 15 · **Onde:** Aldeia (Hospital, ferraria, minas, a muralha)
 - **Objetivo:**
-  1. FALAR com o Rival (no Hospital), o Ferreiro, o Chefe dos Mineiros e a Guardiã.
+  1. FALAR com o Ganrou (no Hospital), o Ferreiro, o Chefe dos Mineiros e a Guardiã.
   2. Gravar o próprio nome na muralha (o fim do rito).
 - **Recompensa:** 500 XP, 1.000 ryō, item cosmético **Bandana de Pedra** (opcional)
 
@@ -429,12 +430,12 @@ Chefe: ...A pedra-chave da mina velha. Se ele tirar, o desfiladeiro desce em cim
 - **Deixou vazio:** o trecho continua liso. A Guardiã passa a mão nele todo dia.
 
 ```text
-Rival: Meu nome vai do lado do seu. Um pouco mais alto, claro.
+Ganrou: Meu nome vai do lado do seu. Um pouco mais alto, claro.
 Ferreiro: Nas plantas do engenheiro há meio mapa. Este símbolo não é nosso.
 Ferreiro: É da Chama Eterna. Péssimo para os negócios.
 Guardia: Amanhã a gente fala do que ele disse. Das coisas lá embaixo.
 -- última cena: a muralha, de madrugada --
-(o nome do Rival, gravado ontem, some da pedra, letra por letra)
+(o nome do Ganrou, gravado ontem, some da pedra, letra por letra)
 (lá no fundo do desfiladeiro, algo enorme se mexe)
 CONTINUA NO ARCO DA ROCHA (níveis 16 a 40)
 ```
@@ -445,7 +446,7 @@ CONTINUA NO ARCO DA ROCHA (níveis 16 a 40)
 
 | Flag | Escolhida em | Muda |
 |---|---|---|
-| `ajudou_rival` | M3 | M14: o Rival entra na fase 1 e segura uma coluna sozinho (ou só entra na fase 2) |
+| `ajudou_rival` | M3 | M14: o Ganrou entra na fase 1 e segura uma coluna sozinho (ou só entra na fase 2) |
 | `contou_a_rachadura` | M8 | M8 (luta mais dura), falas em M10 e M11, e a M13 com dois lados para defender |
 | `devolveu_o_nome` / `deixou_vazio` | M12 | M15 e o arco regional: o nome da família de volta ou não |
 
@@ -454,7 +455,7 @@ Nenhuma escolha bloqueia o arco: todas levam ao mesmo fim, mas o caminho e as fa
 ## O fim e os ganchos
 
 - **O arco regional da Rocha** (O Colosso dos Nomes, níveis 16 a 40) começa com "os nomes gravados na muralha começam a
-  sumir, um por noite". A M15 mostra o primeiro: o do Rival.
+  sumir, um por noite". A M15 mostra o primeiro: o do Ganrou.
 - **O meio mapa com o símbolo da Chama Eterna** liga este arco aos outros (ver "Os quatro pedaços do mapa" em
   `docs/lore/mundo-aberto-proposta.md`).
 
@@ -486,7 +487,7 @@ as galerias novas e a porta da mina velha; mapa novo: a mina velha com a oficina
 
 - [x] Cada missão muda alguma coisa e termina com uma pergunta nova.
 - [x] Cada personagem fala diferente: a Guardiã devagar e em gerações, o Gendoumaru gentil e paciente, o Chefe dos
-  Mineiros gritando, o Ferreiro falando de negócios, o Rival formal e orgulhoso.
+  Mineiros gritando, o Ferreiro falando de negócios, o Ganrou formal e orgulhoso.
 - [x] A virada do engenheiro tem três pistas antes (as três batidas na M2, na visão da M5 e na porta da M7; a argamassa
   fresca da M7; a ausência dele na M10) e uma confirmação clara (M11 e M12).
 - [x] Toda escolha tem consequência visível (M3 → M14, M8 → M10/M11/M13/M14, M12 → M15 e arco regional).
