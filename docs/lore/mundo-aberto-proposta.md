@@ -34,7 +34,7 @@ Os anéis são contados pela distância até o centro do mapa, em blocos.
 | Anel do meio* | 5,4 a 7,3 | 30 a 45 | Sozinho ou em dupla | Bichos maiores e acampamentos dos Cinzas. Um abrigo com fogueira em cada estrada. |
 | Anel interno* | 3,6 a 5,4 | 45 a 60 | Grupo para as elites | Feras marcadas pelos Titãs. Elites de nível 50 a 60 que só caem com 3 a 5 ninjas. Patrulhas na estrada. |
 | Zona de Conflito | 2 a 3,6 | PvP · 55+ | Grupo | PvP livre, MMR e temporadas, lodos sombrios. Os cinco acampamentos (seguros) ficam na beira de fora. |
-| Floresta Obscura* | até 2 | 55 a 60 | Grupo | Mata sem sol e visão curta. No centro, o Ninho do Titã*. |
+| Floresta Obscura | até 2 | 55 a 60 | Grupo | Mata sem sol e visão curta. No centro, o Ninho do Titã*. |
 
 O caminho de cada aldeia até o Titã, em linha reta: borda 321 casas (1 min 04 s), anel do meio 152 (30 s), anel interno
 144 (29 s), Zona 128 (26 s) e Floresta Obscura 160 (32 s).
@@ -66,7 +66,7 @@ Bichos da borda de cada região (descrições; os nomes vêm depois, com 3 opç�
 
 - **Os Titãs dormem sob a terra do meio.** Os fundadores prenderam os dez Titãs bem no meio da bacia. É por isso que as
   aldeias brigaram pela terra do meio na Primeira Guerra, e por isso ela ficou sem dono: a Zona de Conflito.
-- **A Floresta Obscura\*** cresceu em cima da prisão, sem sol, alimentada pelo chakra dos Titãs. No centro fica o
+- **A Floresta Obscura* cresceu em cima da prisão, sem sol, alimentada pelo chakra dos Titãs. No centro fica o
   **Ninho\***, a fenda por onde um Titã escapa por dia nos 10 primeiros dias de cada Era.
 - **A Clareira Queimada continua** na Floresta da Chama, com a Pedra 4 e o Kagerō (Arco 1, nível 15). Na Bíblia, a frase
   "é onde os Titãs acordam" passa para a Floresta Obscura.
@@ -221,12 +221,12 @@ Cada etapa abre num marco da Progressão de Mundo (`src/realtime/worldProgress.t
 
 ## 7. Nomes para escolher (regra das 3 opções)
 
-**Escolhido pelo Victor em 17/11/2026 (comentários no Atlas): 21B, 22C com ajuste ("Namiko", no lugar de "Namikoro"), 23B, 24A, 25C, 26C (Umiko, a Voz da Névoa) 27C (Jinto, o Instrutor Caído) e 28A (Gendoumaru, o Engenheiro).**
-Os itens 14 a 20 esperam a escolha.
+**Escolhido pelo Victor em 17/11/2026 (comentários no Atlas): 21B, 22C com ajuste ("Namiko", no lugar de "Namikoro"), 23B, 24A, 25C, 26C (Umiko, a Voz da Névoa) 27C (Jinto, o Instrutor Caído) e 28A (Gendoumaru, o Engenheiro). Depois: 14A (Floresta Obscura).**
+Os itens 15 a 20 esperam a escolha.
 
 | # | O que precisa de nome | Rótulo de trabalho | Opção A | Opção B | Opção C |
 |---|---|---|---|---|---|
-| 14 | A floresta do centro, onde o Titã nasce | Floresta Obscura | Floresta Obscura (o termo do Victor) | Mata do Sono Antigo | Floresta Sem Sol |
+| 14 | A floresta do centro, onde o Titã nasce | Floresta Obscura | **Floresta Obscura (escolhido; o termo do Victor)** | Mata do Sono Antigo | Floresta Sem Sol |
 | 15 | O lugar exato onde o Titã sai | Ninho do Titã | Ninho dos Titãs | Fenda da Primeira Chama | Coração Selado |
 | 16 | A caça da Maré Oculta | Mangue da névoa | Mangue da Névoa | Baixios Ocultos | Costa das Marés Mortas |
 | 17 | A caça do Vento Cortante | Planalto dos ventos | Planalto dos Ventos Altos | Campos do Vendaval | Estepe Cortante |
