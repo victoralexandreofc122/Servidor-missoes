@@ -6,8 +6,8 @@ primeira aldeia, níveis que sobem do canto para o centro e, em cada região, um
 
 **Estado: proposta. Nada disto está no jogo.** Já escolhido pelo Victor (17/11/2026): o tamanho (17 × 17), os cinco chefes
 (itens 21 a 25), o chefe novo de nível 40 da Chama, uma Academia e um Arco 1 em cada aldeia, a ordem de construção e a
-mudança de lore da seção 4. Os nomes marcados com * são rótulos de trabalho; pela regra do CLAUDE.md,
-cada um tem 3 opções (tabela no fim) e só entra no jogo depois da escolha do Victor.
+mudança de lore da seção 4, as seis regras da seção 3 e todos os nomes de 14 a 28 (tabela no fim). A proposta está
+fechada; o próximo passo é o roteiro das 15 missões de cada Arco 1 novo.
 
 Página visual: o Atlas da Herança do Fogo (artifact no claude.ai, versão 2).
 
@@ -46,7 +46,7 @@ Bichos da borda de cada região (descrições; os nomes vêm depois, com 3 opç�
 | Chama Eterna: Floresta da Chama (a Floresta de hoje, crescida) | Lodo Verde, lodos escuros, lobos da mata. A Clareira Queimada (Kagerō, Pedra 4) e a Caverna do Lodo (Rei Lodo) continuam aqui. |
 | Maré Oculta: Costa das Marés Mortas | Caranguejos de casco mole, enguias de lama, garças. |
 | Vento Cortante: Planalto dos Ventos Altos | Lebres-de-vento, gaviões, cabras da serra. |
-| Rocha Antiga: Desfiladeiro das minas* | Lagartos de pedra, morcegos de mina, besouros de ferro. |
+| Rocha Antiga: Desfiladeiro das Minas | Lagartos de pedra, morcegos de mina, besouros de ferro. |
 | Renegados: Terra Sem Lei | Cães sem dono, abutres, bandidos de estrada. |
 
 ## 3. Chegar à Zona é difícil, não impossível (as seis regras aceitas pelo Victor em 17/11/2026)
@@ -66,7 +66,7 @@ Bichos da borda de cada região (descrições; os nomes vêm depois, com 3 opç�
 
 - **Os Titãs dormem sob a terra do meio.** Os fundadores prenderam os dez Titãs bem no meio da bacia. É por isso que as
   aldeias brigaram pela terra do meio na Primeira Guerra, e por isso ela ficou sem dono: a Zona de Conflito.
-- **A Floresta Obscura* cresceu em cima da prisão, sem sol, alimentada pelo chakra dos Titãs. No centro fica o
+- **A Floresta Obscura** cresceu em cima da prisão, sem sol, alimentada pelo chakra dos Titãs. No centro fica o
   **Ninho dos Titãs**, a fenda por onde um Titã escapa por dia nos 10 primeiros dias de cada Era.
 - **A Clareira Queimada continua** na Floresta da Chama, com a Pedra 4 e o Kagerō (Arco 1, nível 15). Na Bíblia, a frase
   "é onde os Titãs acordam" passa para a Floresta Obscura.
@@ -222,7 +222,8 @@ Cada etapa abre num marco da Progressão de Mundo (`src/realtime/worldProgress.t
 ## 7. Nomes para escolher (regra das 3 opções)
 
 **Escolhido pelo Victor em 17/11/2026 (comentários no Atlas): 21B, 22C com ajuste ("Namiko", no lugar de "Namikoro"), 23B, 24A, 25C, 26C (Umiko, a Voz da Névoa) 27C (Jinto, o Instrutor Caído) e 28A (Gendoumaru, o Engenheiro). Depois: 14A (Floresta Obscura), 15A (Ninho dos Titãs), 16C (Costa das Marés
-Mortas) 17A (Planalto dos Ventos Altos), 19B (Marcos da Fronteira) e 20C (Orla dos Titãs).** O item 18 espera a escolha.
+Mortas) 17A (Planalto dos Ventos Altos), 18A (Desfiladeiro das Minas), 19B (Marcos da Fronteira) e 20C (Orla dos
+Titãs).** Todos os itens de 14 a 28 estão escolhidos.
 
 | # | O que precisa de nome | Rótulo de trabalho | Opção A | Opção B | Opção C |
 |---|---|---|---|---|---|
@@ -230,7 +231,7 @@ Mortas) 17A (Planalto dos Ventos Altos), 19B (Marcos da Fronteira) e 20C (Orla d
 | 15 | O lugar exato onde o Titã sai | Ninho do Titã | **Ninho dos Titãs (escolhido)** | Fenda da Primeira Chama | Coração Selado |
 | 16 | A caça da Maré Oculta | Mangue da névoa | Mangue da Névoa | Baixios Ocultos | **Costa das Marés Mortas (escolhido)** |
 | 17 | A caça do Vento Cortante | Planalto dos ventos | **Planalto dos Ventos Altos (escolhido)** | Campos do Vendaval | Estepe Cortante |
-| 18 | A caça da Rocha Antiga | Desfiladeiro das minas | Desfiladeiro das Minas | Gargantas de Ferro | Cânion dos Nomes |
+| 18 | A caça da Rocha Antiga | Desfiladeiro das minas | **Desfiladeiro das Minas (escolhido)** | Gargantas de Ferro | Cânion dos Nomes |
 | 19 | O anel do meio (níveis 30 a 45) | Anel do meio | Terras Partidas | **Marcos da Fronteira (escolhido)** | Campos de Ninguém |
 | 20 | O anel interno (níveis 45 a 60) | Anel interno | Terras Ermas | Cinturão Sombrio | **Orla dos Titãs (escolhido)** |
 | 21 | Chefe da Chama Eterna | — | O Senhor das Raízes | **Mãe-Lodo (escolhido)** | O Que Bebe o Rio |
