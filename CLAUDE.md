@@ -73,6 +73,10 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 - `docs/fase2-plano.md`: plano de arquitetura da Fase 2 (endgame), etapas, migrações previstas e decisões em aberto.
 - `docs/design-do-jogo.md`: design completo (pilares, sistemas, roadmap, decisões e riscos).
 - `docs/historia/arco-1.md`: roteiro do Arco 1 (15 missões); o sistema de história ainda não existe.
+- `docs/historia/arco-1-mare.md`, `arco-1-vento.md`, `arco-1-rocha.md`: os Arcos 1 das outras aldeias (decisão do Victor de
+  17/11: cada aldeia com Academia e Arco 1 próprios); nomes novos nos itens 29 a 38.
+- `docs/lore/mundo-aberto-proposta.md`: o mundo aberto em anéis (17 x 17 blocos), aprovado pelo Victor em 17/11; os
+  arcos regionais, os chefes, as regras de passagem e a ordem de construção.
 - `docs/ui/estrutura-ui-ux-hud.md`: a estrutura de UI, UX e HUD (regra de toda tela nova).
 - `docs/lore/`: a lore (Bíblia do Mundo, fonte única de verdade) e o design do tutorial; a planilha `dialogos.csv` é gerada
   do jogo (`npx tsx scripts/gerar-dialogos.ts`) e o teste confere.

@@ -209,6 +209,26 @@ renegado. O roteiro das 15 missões de cada um vem depois da escolha dos nomes 2
 | Vento Cortante | A Corrida do Sol | No rito de cruzar o planalto, as pipas de mensagem são cortadas e uma caravana some. Quem rouba é um bando liderado por um instrutor expulso. | Jinto, o Instrutor Caído (escolha 27C): instrutor expulso, rápido, que ataca em investidas e foge no vento. | O vento falha por um instante na última corrida: Jinra. |
 | Rocha Antiga | A Primeira Pedra | No cerco de treino, uma parte da muralha cai de verdade. Um engenheiro traidor enfraquecia a pedra para os Cinzas entrarem. | Gendoumaru, o Engenheiro (escolha 28A): levanta muros de pedra e faz o chão desabar. | O nome de um cadete some da muralha: O Colosso dos Nomes. |
 
+**Roteiros escritos (17/11/2026):** `docs/historia/arco-1-mare.md`, `docs/historia/arco-1-vento.md` e
+`docs/historia/arco-1-rocha.md`, com as 15 missões de cada um no formato do Arco 1 da Chama. Os nomes novos que eles
+pedem estão na tabela da seção 7 (itens 29 a 38).
+
+### 5.7 Os quatro pedaços do mapa (ligação entre os Arcos 1)
+
+Cada Arco 1 termina com meio mapa achado com o vilão, marcado com o símbolo de **outra** aldeia. Os quatro formam um
+anel de desconfiança:
+
+| Arco 1 | O vilão tinha meio mapa com o símbolo de |
+|---|---|
+| Chama Eterna (Kagerō) | Maré Oculta (proposta: hoje a M15 diz só "não é o nosso") |
+| Maré Oculta (Umiko) | Vento Cortante |
+| Vento Cortante (Jinto) | Rocha Antiga |
+| Rocha Antiga (Gendoumaru) | Chama Eterna |
+
+Cada aldeia desconfia da vizinha, que é o combustível do PvP e da Zona de Conflito. A verdade fica para depois: os
+quatro pedaços juntos são um único mapa do caminho até o **Ninho dos Titãs**, e os símbolos foram postos pelos Cinzas
+para as aldeias brigarem entre si enquanto eles chegam ao centro.
+
 ## 6. Ordem de construção (escolhida pelo Victor em 17/11/2026)
 
 1. A borda das quatro aldeias e da Terra Sem Lei, com as estradas e o Posto de Viagem.
@@ -242,6 +262,23 @@ Titãs).** Todos os itens de 14 a 28 estão escolhidos.
 | 26 | Vilão do Arco 1 da Maré Oculta | — | Suiren da Maré Baixa | O Barqueiro sem Rosto | **Umiko, a Voz da Névoa (escolhido)** |
 | 27 | Vilão do Arco 1 do Vento Cortante | — | Raiga, o Ladrão de Caravanas | Kaze Negro | **Jinto, o Instrutor Caído (escolhido)** |
 | 28 | Vilão do Arco 1 da Rocha Antiga | — | **Gendoumaru, o Engenheiro (escolhido)** | Iwatarō da Muralha Rachada | Mestre Kurogane |
+
+### Nomes dos Arcos 1 novos (itens 29 a 38)
+
+Seguem a regra 12A do som de cada aldeia (Maré: nomes que lembram água; Vento: curtos e duros; Rocha: longos e lentos).
+
+| # | O que precisa de nome | Rótulo de trabalho | Opção A | Opção B | Opção C |
+|---|---|---|---|---|---|
+| 29 | A Colega da Maré (rival; o irmão some no mangue) | Colega | Mio | Nami | Uruha |
+| 30 | O Irmão gêmeo da Colega | Irmão | Nagi | Kai | Tomo |
+| 31 | O Rival do Vento (perde o rito por sabotagem) | Rival | Rai | Toki | Sen |
+| 32 | O Rival da Rocha (dez nomes da família na muralha) | Rival | Iwata | Ganrou | Daigorou |
+| 33 | Título ao vencer a Umiko (M14 da Maré) | título da Maré | Guardião da Névoa | Voz Calada | Olho da Maré |
+| 34 | Título ao vencer o Jinto (M14 do Vento) | título do Vento | Corredor do Sol | Asa do Planalto | Guardião do Vento |
+| 35 | Título ao vencer o Gendoumaru (M14 da Rocha) | título da Rocha | Guardião da Muralha | Nome na Pedra | Pedra-Chave |
+| 36 | Nome do Arco 1 da Maré | A Primeira Cifra | A Primeira Cifra | A Névoa que Mente | Maré Baixa |
+| 37 | Nome do Arco 1 do Vento | A Corrida do Sol | A Corrida do Sol | Pipas Cortadas | Livre como o Vento |
+| 38 | Nome do Arco 1 da Rocha | A Primeira Pedra | A Primeira Pedra | Três Batidas | O Nome que Faltava |
 
 Depois da escolha destes, vêm (também em 3 opções): os títulos dos arcos, os NPCs de cada arco, os bichos de cada
 região, as elites e os títulos de recompensa.
