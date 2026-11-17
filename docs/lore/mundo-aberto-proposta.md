@@ -96,8 +96,8 @@ depois. Os títulos dos arcos são de trabalho.
 | 7 | 36 | Saída do rio (borda de dentro) | DEFENDER o Diretor enquanto ele reacende a pedra |
 | 8 | 40 | Covil do chefe | CHEFE |
 
-- **Chefe (item 21):** raízes saem do chão em linha (marcadas 1 s antes). A cada 25% de vida ele afunda e brota em outro
-  canto. Os lodos que ficam no chão dão vida a ele se não forem mortos.
+- **Chefe: Mãe-Lodo** (item 21, escolha 21B do Victor): raízes saem do chão em linha (marcadas 1 s antes). A cada 25% de vida ela afunda e brota em outro
+  canto. Os lodos que ficam no chão dão vida a ela se não forem mortos.
 - **Recompensa:** título da região (nome em aberto) e o primeiro mapa da estrada até o acampamento da Zona.
 - **Gancho:** a raiz cortada aponta para o centro: o Lodo não quer a Vila, quer os Titãs.
 
@@ -204,6 +204,8 @@ Cada etapa abre num marco da Progressão de Mundo (`src/realtime/worldProgress.t
 
 ## 7. Nomes para escolher (regra das 3 opções)
 
+**Escolhido pelo Victor em 17/11/2026: 21B (Mãe-Lodo)**, num comentário no Atlas. Os outros itens esperam a escolha.
+
 | # | O que precisa de nome | Rótulo de trabalho | Opção A | Opção B | Opção C |
 |---|---|---|---|---|---|
 | 14 | A floresta do centro, onde o Titã nasce | Floresta Obscura | Floresta Obscura (o termo do Victor) | Mata do Sono Antigo | Floresta Sem Sol |
@@ -213,7 +215,7 @@ Cada etapa abre num marco da Progressão de Mundo (`src/realtime/worldProgress.t
 | 18 | A caça da Rocha Antiga | Desfiladeiro das minas | Desfiladeiro das Minas | Gargantas de Ferro | Cânion dos Nomes |
 | 19 | O anel do meio (níveis 30 a 45) | Anel do meio | Terras Partidas | Marcos da Fronteira | Campos de Ninguém |
 | 20 | O anel interno (níveis 45 a 60) | Anel interno | Terras Ermas | Cinturão Sombrio | Orla dos Titãs |
-| 21 | Chefe da Chama Eterna | — | O Senhor das Raízes | Mãe-Lodo | O Que Bebe o Rio |
+| 21 | Chefe da Chama Eterna | — | O Senhor das Raízes | **Mãe-Lodo (escolhido)** | O Que Bebe o Rio |
 | 22 | Chefe da Maré Oculta | — | Mãe-Maré | O Faroleiro Afogado | Namikoro, a Enguia da Névoa |
 | 23 | Chefe do Vento Cortante | — | Rei-Gavião da Tempestade | Jinra, o Grito do Céu | O Olho do Vendaval |
 | 24 | Chefe da Rocha Antiga | — | O Colosso dos Nomes | Gendouro, a Muralha que Anda | O Guardião da Mina Velha |
