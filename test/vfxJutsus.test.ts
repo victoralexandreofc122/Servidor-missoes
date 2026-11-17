@@ -21,7 +21,7 @@ describe('v56: sprites dos jutsus (vfxJutsus.js)', () => {
   it('cada quadro é um PNG pequeno (escala do jogo), com tamanho em casas e âncora dentro da imagem', () => {
     for (const [name, f] of Object.entries<any>(J.FRAMES)) {
       const [w, h] = pngSize(name);
-      const fogo = name.startsWith('fire_');   // v73: as folhas do Fogo têm quadros maiores (o leque, o raio, o chão)
+      const fogo = /^(fire|heal)/.test(name);   // v73/v74: as folhas desenhadas têm quadros maiores (o leque, o raio, o chão)
       assert.ok(w <= (fogo ? 170 : 96) && h <= (fogo ? 170 : 96), `${name}: ${w}x${h} (reduzido para a escala do jogo)`);
       assert.ok(f.casas > 0 && f.casas <= (fogo ? 9 : 6), `${name}: ${f.casas} casas`);
       if (f.eixoPx) assert.ok(f.arte !== undefined && f.eixoPx > 0, `${name}: eixo sem direção`);
@@ -44,19 +44,25 @@ describe('v56: sprites dos jutsus (vfxJutsus.js)', () => {
   });
 });
 
-describe('v73: as animações desenhadas dos 10 jutsus de Fogo (fogoAnim.js)', () => {
-  const SKILLS = ['fire_2', 'fire_ryuka', 'fire_haiseki', 'fire_lamina', 'fire_marca', 'fire_3', 'fire_hotan', 'fire_chao', 'fire_cometa', 'fire_rugido'];
-  it('cada jutsu tem os quadros da folha (6; o Cometa Rasteiro veio sem o 5) e a Revoada tem a brasa, a explosão e a fumaça soltas', () => {
+describe('v73/v74: as animações desenhadas dos jutsus de Fogo e de Cura (fogoAnim.js)', () => {
+  const SKILLS = ['fire_2', 'fire_ryuka', 'fire_haiseki', 'fire_lamina', 'fire_marca', 'fire_3', 'fire_hotan', 'fire_chao', 'fire_cometa', 'fire_rugido',
+    'fire_4', 'fire_coroa', 'fire_coluna', 'heal', 'heal_bisturi', 'heal_desintox', 'heal_palma', 'heal_agulha', 'heal_casca', 'heal_disturbio'];
+  // quadros por folha: 6; o Cometa veio sem o 5, a Desintoxicação com o 6 vazio, a Palma com 7
+  const N: Record<string, number> = { fire_cometa: 5, heal_desintox: 5, heal_palma: 7 };
+  it('cada jutsu tem os quadros da folha, e a Revoada e a Chuva têm as peças soltas (uma brasa, um meteoro)', () => {
     for (const s of SKILLS) {
-      const n = FOGO_SPRITE_FRAMES.filter((f) => /^\w+_0\d$/.test(f) && f.startsWith(`${s}_0`)).length;
-      assert.equal(n, s === 'fire_cometa' ? 5 : 6, s);
+      const n = FOGO_SPRITE_FRAMES.filter((f) => f.replace(/_0\d\w?$/, '') === s && /_0\d$/.test(f)).length;
+      assert.equal(n, N[s] ?? 6, s);
     }
-    for (const f of ['fire_2_04b', 'fire_2_05b', 'fire_2_06b']) assert.ok(FOGO_SPRITE_FRAMES.includes(f), f);
+    for (const f of ['fire_2_04b', 'fire_2_05b', 'fire_2_06b', 'fire_4_01b', 'fire_4_04b', 'fire_4_05b', 'fire_4_06b']) assert.ok(FOGO_SPRITE_FRAMES.includes(f), f);
+  });
+  it('"heal" (a Cura) só fica pronta com os quadros dela, não com os dos outros jutsus de Cura', () => {
+    const src = readFileSync(new URL('../public/vfxJutsus.js', import.meta.url), 'utf8');
+    assert.match(src, /n\.replace\(\/_0\\d\\w\?\$\/, ''\) === base/);
   });
   it('os jutsus são os do servidor (pelo nome da folha)', () => {
-    const src = readFileSync(new URL('../src/realtime/jutsus.ts', import.meta.url), 'utf8') + readFileSync(new URL('../src/realtime/jutsusMecanicas.ts', import.meta.url), 'utf8')
-      + readFileSync(new URL('../src/realtime/jutsusFase25.ts', import.meta.url), 'utf8');
-    for (const s of SKILLS) assert.match(src, new RegExp(`\\b${s}: \\{ name:`), s);
+    const src = ['jutsus', 'jutsusMecanicas', 'jutsusFase25', 'jutsusClasses'].map((f) => readFileSync(new URL(`../src/realtime/${f}.ts`, import.meta.url), 'utf8')).join('\n');
+    for (const s of SKILLS) assert.match(src, new RegExp(`\\b${s}: \\{ (name|cost):`), s);
   });
   it('sem os quadros carregados, as funções não desenham (o jogo usa o efeito antigo)', async () => {
     const F = await import(new URL('../public/fogoAnim.js', import.meta.url).href);

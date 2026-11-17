@@ -1,5 +1,5 @@
 /*
- * v73: as animações desenhadas pelo Victor para 10 jutsus de Fogo (6 quadros cada, public/assets/vfx/fire_*_0N.png;
+ * v73/v74: as animações desenhadas pelo Victor para os jutsus de Fogo e de Cura (public/assets/vfx/<jutsu>_0N.png;
  * tamanhos e âncoras em vfxFogo.js, gerado por arte/jutsus-vfx/recortar.py).
  *
  * SÓ VISUAL: o servidor decide quem acerta e quando; aqui cada quadro entra na hora certa do golpe:
@@ -17,14 +17,86 @@ function seq(jfx, base, x, y, now, steps, common = {}) {
   for (const [q, at, ms, extra] of steps) jfx.show(`${base}_${q}`, x, y, now + at, ms, { fadeIn: 30, fadeOut: 70, ...common, ...(extra || {}) });
 }
 
-/** O jutsu foi lançado (mensagem `cast`). */
-export function fogoCast(jfx, msg, info, lineEnd, now, follow) {
+/** O jutsu foi lançado (mensagem `cast`). whoAt(x, y): quem está ali (o aliado curado, o alvo da agulha). */
+export function fogoCast(jfx, msg, info, lineEnd, now, follow, whoAt = () => null) {
   const s = msg.skill;
   if (!s || !ready(s)) return false;
   const angle = Math.atan2(msg.fy, msg.fx);
   const h = hand(msg);
   const len = Math.max(1, Math.hypot(lineEnd.tx - h.x, lineEnd.ty - h.y));
+  // onde o efeito cai: no aliado/alvo (tx, ty) ou em quem lançou
+  const at = msg.tx !== undefined ? { x: msg.tx, y: msg.ty } : { x: msg.x, y: msg.y };
+  const atId = msg.tx !== undefined ? whoAt(msg.tx, msg.ty) : msg.playerId;
+  const onBody = (id, dy = -0.55) => (id ? { follow: () => follow(id) } : null);
   switch (s) {
+    case 'fire_coroa': {   // Coroa de Chamas: o anel abre em volta, espinha, vira cratera de fogo, fumaça e chão queimado
+      jfx.drop(`coroa:${msg.playerId}`);
+      const sc = (info.radius ?? 3.5) / 3.5;
+      seq(jfx, s, msg.x, msg.y, now, [['02', 0, 130], ['03', 110, 190, { flicker: true }], ['04', 280, 260, { flicker: true }],
+        ['05', 520, 360], ['06', 860, 900, { layer: 'ground', fadeOut: 600 }]], { scale: sc });
+      return true;
+    }
+    case 'heal': {   // Cura: a semente, o brilho, a bolha, as cruzes, a luz e as faíscas, em quem foi curado
+      const o = onBody(atId);
+      seq(jfx, s, o ? 0 : at.x, o ? -0.5 : at.y - 0.5, now, [['01', 0, 100], ['02', 80, 140], ['03', 200, 150], ['04', 330, 250],
+        ['05', 560, 240], ['06', 780, 450, { fadeOut: 300 }]], o || {});
+      return true;
+    }
+    case 'heal_bisturi': {   // Corte Cirúrgico: o bisturi de chakra acende na mão e fica nela durante o buff
+      const dur = info.durationMs ?? 5000;
+      const tag = `bisturi:${msg.playerId}`;
+      jfx.drop(tag);
+      const o = { follow: () => follow(msg.playerId), tag };
+      seq(jfx, s, msg.fx * 0.35, msg.fy * 0.35 - 0.35, now, [['01', 0, 100], ['02', 80, 130], ['03', 190, 150], ['04', 320, 240],
+        ['05', 540, Math.max(200, dur - 540), { flicker: true, fadeOut: 200 }], ['06', dur, 450, { fadeOut: 300 }]], o);
+      return true;
+    }
+    case 'heal_desintox': {   // Desintoxicação Celular: o anel gira em quem foi limpo, estoura em luz e se desfaz
+      const o = onBody(atId);
+      seq(jfx, s, o ? 0 : at.x, o ? -0.5 : at.y - 0.5, now, [['01', 0, 140], ['02', 120, 170], ['03', 270, 180, { flicker: true }],
+        ['04', 430, 240], ['05', 650, 480, { fadeOut: 330 }]], o || {});
+      return true;
+    }
+    case 'heal_palma': {   // Palma Curadora (o redemoinho veio na conjuração): a esfera cura o aliado e se apaga
+      jfx.drop(`palma:${msg.playerId}`);
+      const o = onBody(atId);
+      seq(jfx, s, o ? 0 : at.x, o ? -0.5 : at.y - 0.5, now, [['05', 0, 260], ['06', 240, 300], ['07', 520, 520, { fadeOut: 380 }]], o || {});
+      return true;
+    }
+    case 'heal_agulha': {   // Agulha Calmante: a agulha na mão, voa até o alvo, acerta com cruzes, ondas e se desfaz
+      const d = Math.max(0.6, Math.hypot(at.x - h.x, at.y - h.y));
+      const a = Math.atan2(at.y - h.y, at.x - h.x);
+      const speed = 24, fly = (d / speed) * 1000, t0 = 160;
+      seq(jfx, s, h.x, h.y, now, [['01', 0, 100], ['02', 80, 110]]);
+      jfx.launch(`agulha:${msg.playerId}:${now}`, `${s}_03`, h.x, h.y, Math.cos(a), Math.sin(a), speed, d, now + t0, 40);
+      const o = onBody(atId);
+      seq(jfx, s, o ? 0 : at.x, o ? -0.5 : at.y - 0.5, now, [['04', t0 + fly, 200, { angle: a }], ['05', t0 + fly + 180, 300, { angle: a }],
+        ['06', t0 + fly + 460, 450, { angle: a, fadeOut: 300 }]], o || {});
+      return true;
+    }
+    case 'heal_casca': {   // Casca de Chakra: a faísca, o anel, a bolha; fica em volta enquanto o escudo dura e se desfaz
+      const dur = info.durationMs ?? 3000;
+      const id = atId ?? msg.playerId;
+      const tag = `casca:${id}`;
+      jfx.drop(tag);
+      const o = { follow: () => follow(id), tag };
+      const steps = [['01', 0, 110], ['02', 90, 150], ['03', 220, 160]];
+      for (let t = 360, i = 0; t < dur - 250; t += 420, i++) steps.push([i % 3 === 2 ? '05' : '04', t, 460]);
+      steps.push(['06', dur - 250, 500, { fadeOut: 350 }]);
+      seq(jfx, s, 0, -0.55, now, steps, o);
+      return true;
+    }
+    case 'heal_disturbio': {   // Descontrole Muscular: o redemoinho no alvo, o selo pulsa enquanto ele anda ao contrário, estoura
+      const dur = info.invertMs ?? 1600;
+      const id = atId;
+      const o = id ? { follow: () => follow(id), tag: `disturbio:${id}` } : {};
+      if (id) jfx.drop(`disturbio:${id}`);
+      const steps = [['01', 0, 130], ['02', 110, 200]];
+      for (let t = 300, i = 0; t < dur; t += 240, i++) steps.push([i % 2 ? '04' : '03', t, 280]);
+      steps.push(['05', dur, 300], ['06', dur + 280, 480, { fadeOut: 330 }]);
+      seq(jfx, s, id ? 0 : at.x, id ? -0.6 : at.y - 0.6, now, steps, o);
+      return true;
+    }
     case 'fire_2': {   // Revoada de Brasas: as faíscas na mão; as bolas voam com o `projectile`
       seq(jfx, s, h.x, h.y, now, [['01', 0, 130], ['02', 90, 140, { scale: 0.7 }]], { angle, flicker: true });
       return true;
@@ -82,10 +154,19 @@ export function fogoCast(jfx, msg, info, lineEnd, now, follow) {
   }
 }
 
-/** Começou a conjuração (selos): o Rugido junta o redemoinho na mão enquanto carrega. */
+/** Começou a conjuração (selos): o Rugido junta o redemoinho na mão; a Coroa acende o anel no chão; a Palma gira na mão. */
 export function fogoCastStart(jfx, msg, p, now, follow) {
-  if (msg.skill !== 'fire_rugido' || !ready('fire_rugido') || !p) return;
-  jfx.show('fire_rugido_01', 0.3, -0.45, now, msg.ms, { follow: () => follow(p.id), tag: `rugido:${p.id}`, flicker: true, fadeIn: 200, grow: 0.5 });
+  if (!p || !ready(msg.skill)) return;
+  const o = (tag) => ({ follow: () => follow(p.id), tag: `${tag}:${p.id}` });
+  if (msg.skill === 'fire_rugido') {
+    jfx.show('fire_rugido_01', 0.3, -0.45, now, msg.ms, { ...o('rugido'), flicker: true, fadeIn: 200, grow: 0.5 });
+  } else if (msg.skill === 'fire_coroa') {
+    jfx.show('fire_coroa_01', 0, 0.1, now, msg.ms + 60, { ...o('coroa'), flicker: true, fadeIn: 120, grow: 0.8, layer: 'ground' });
+  } else if (msg.skill === 'heal_palma') {
+    const steps = [['01', 0, 220], ['02', 200, 280], ['03', 460, 280]];
+    for (let t = 720; t < msg.ms; t += 360) steps.push(['04', t, 400, { flicker: true }]);
+    seq(jfx, 'heal_palma', 0.35, -0.45, now, steps, o('palma'));
+  }
 }
 
 /** Um projétil saiu: devolve o quadro que voa (ou null). */
@@ -110,8 +191,24 @@ export function fogoImpact(jfx, msg, skill, now) {
   return false;
 }
 
-/** Aviso ou zona no chão (mensagem `ground`): as Cinzas Detonantes e o Chão Incandescente. */
+/** Aviso ou zona no chão (mensagem `ground`): Cinzas Detonantes, Chão Incandescente, cada meteoro e a Coluna Infernal. */
 export function fogoGround(jfx, msg, now) {
+  if (msg.skill === 'fire_4' && msg.kind === 'aviso' && ready('fire_4')) {
+    // um meteoro por aviso: a marca vermelha no chão, ele cai do céu no fim do aviso, explode e deixa a cratera
+    const ms = msg.ms ?? 800, sc = (msg.r ?? 1.3) / 1.3, fall = Math.min(420, ms * 0.6), h = 5;
+    seq(jfx, 'fire_4', msg.x, msg.y, now, [['01b', 0, ms, { layer: 'ground', fadeIn: 120 }]]);
+    jfx.launch(`met:${msg.id}`, 'fire_4_04b', msg.x, msg.y - h, 0, 1, h / (fall / 1000), h, now + ms - fall, 0);
+    seq(jfx, 'fire_4', msg.x, msg.y, now, [['05b', ms, 300, { scale: sc, flicker: true }], ['06b', ms + 240, 1100, { scale: sc, layer: 'ground', fadeOut: 700 }]]);
+    return true;
+  }
+  if (msg.skill === 'fire_coluna' && msg.kind === 'aviso' && ready('fire_coluna')) {
+    // o anel avisa, a brasa acende no meio, a chama nasce; no fim do aviso a coluna sobe, estoura e vira fumaça
+    const ms = msg.ms ?? 900, sc = (msg.r ?? 2.5) / 2.5;
+    seq(jfx, 'fire_coluna', msg.x, msg.y, now, [['01', 0, ms * 0.42, { layer: 'ground', fadeIn: 100 }], ['02', ms * 0.38, ms * 0.4, { layer: 'ground' }],
+      ['03', ms * 0.74, ms * 0.3, { flicker: true }], ['04', ms, 280, { flicker: true }], ['05', ms + 240, 320, { flicker: true }],
+      ['06', ms + 520, 900, { fadeOut: 600 }]], { scale: sc });
+    return true;
+  }
   if (msg.skill === 'fire_haiseki' && msg.kind === 'aviso' && ready('fire_haiseki')) {
     const sc = (msg.r ?? 2) / 2, ms = msg.ms ?? 1000;
     const g = { scale: sc, layer: 'ground' };

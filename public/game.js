@@ -870,7 +870,7 @@ function handleMessage(msg) {
       state.ground?.delete(msg.id);
       if (z?.kind === 'aviso' && particles.quality !== 'off') {
         // v48: o meteoro deixa a cratera; o Julgamento do Trovão cai como um raio do céu e deixa a marca
-        if (z.skill === 'fire_4') decals.push({ kind: 'cratera', x: z.x, y: z.y, r: z.r * 0.8, start: now, ms: 2600, seed: seedOf(msg.id) });
+        if (z.skill === 'fire_4' && !jutsuSpritesReady('fire_4')) decals.push({ kind: 'cratera', x: z.x, y: z.y, r: z.r * 0.8, start: now, ms: 2600, seed: seedOf(msg.id) });
         if (z.skill === 'lightning_4') {
           for (let i = 0; i < 3; i++) arts.push({ kind: 'bolt', x0: z.x + (i - 1) * 0.6, y0: z.y - 9, x1: z.x + (i - 1) * z.r * 0.4, y1: z.y, start: now + i * 60, ms: 420, seed: seedOf(msg.id) + i * 13, power: i === 1 ? 2.2 : 1.3 });
           decals.push({ kind: 'queimado', x: z.x, y: z.y, r: z.r * 0.7, start: now, ms: 2200, seed: 1 });
@@ -1405,7 +1405,7 @@ function handleMessage(msg) {
       const form = formOf(msg.skill);
       const color = CLAN_COLOR[info.clan] || CAST_COLOR[fxKind] || '#f4ecd8';   // v63: os clãs novos têm a cor própria
       const lineEnd = { tx: msg.tx ?? msg.x + msg.fx * (info.range ?? 5), ty: msg.ty ?? msg.y + msg.fy * (info.range ?? 5) };
-      const fogoDrawn = fogoCast(jfx, msg, info, lineEnd, now, posOf);
+      const fogoDrawn = fogoCast(jfx, msg, info, lineEnd, now, posOf, whoAt);
       if (fogoDrawn) { /* v73: os 10 jutsus de Fogo desenhados (fogoAnim.js) */ }
       else if (castSprites(msg, form, info, lineEnd, now)) { /* v56: o sprite desenhado (Fogo, Sopro, Linha) */ }
       else if (form === 'cone_fogo') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 3, cone: info.coneDeg ?? 90, start: now });
@@ -2609,6 +2609,15 @@ const vfx = new VFXManager();
 const jfx = new JutsuSprites();
 /** v73: onde está alguém agora (o selo da Marca e a Lâmina de Fogo acompanham o boneco); morto ou fora do mapa = null. */
 const posOf = (id) => { const e = state.players.get(id) || state.monsters.get(id); return e && !e.dead ? { x: e.x, y: e.y } : null; };
+/** v74: quem está em (x, y) (o aliado curado, o alvo da agulha): o mais perto a até 1,5 casa, ou null. */
+function whoAt(x, y) {
+  let best = null, bd = 1.5;
+  for (const e of [...state.players.values(), ...state.monsters.values()]) {
+    const d = Math.hypot(e.x - x, e.y - y);
+    if (!e.dead && d < bd) { bd = d; best = e.id; }
+  }
+  return best;
+}
 
 /*
  * v47: partículas dos jutsus (public/particles.js). Cada elemento tem as suas (brasas, gotas, riscos elétricos, poeira e
@@ -2677,6 +2686,7 @@ function drawArtTop(toScreenX, toScreenY, T, now) {
   if (particles.quality === 'off') return;
   for (const [id, z] of state.ground || []) {
     if (z.kind !== 'aviso' || !STRIKE_ART[z.skill] || now > z.end) continue;
+    if (z.skill === 'fire_4' && jutsuSpritesReady('fire_4')) continue;   // v74: o meteoro desenhado pelo Victor (fogoAnim.js)
     const k = Math.max(0, Math.min(1, (now - z.start) / Math.max(1, z.end - z.start)));
     drawStrikeArt(ctx, z.skill, toScreenX(z.x), toScreenY(z.y), z.r * T, T, k, now, seedOf(id));
   }

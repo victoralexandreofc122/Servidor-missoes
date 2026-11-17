@@ -37,11 +37,63 @@ def fundo(a, corte=45):
     return alfa
 
 
+def fundo_cor(sub):
+    """Fundo de cor lisa (o magenta): a cor dos cantos do painel; o alfa pela distância a ela; a franja sem o tom do fundo."""
+    c = 14
+    cantos = np.concatenate([sub[:c, :c].reshape(-1, 3), sub[:c, -c:].reshape(-1, 3), sub[-c:, :c].reshape(-1, 3), sub[-c:, -c:].reshape(-1, 3)])
+    bg = np.median(cantos, axis=0)
+    f = sub.astype(float)
+    d = np.sqrt(((f - bg) ** 2).sum(axis=2))
+    # quanto de magenta tem o pixel (vermelho e azul juntos acima do verde), comparado com o fundo: o brilho verde
+    # misturado no magenta fica com alfa parcial (e a cor limpa abaixo), em vez de virar uma auréola rosa
+    m = np.minimum(f[..., 0], f[..., 2]) - f[..., 1]
+    mbg = max(1.0, min(bg[0], bg[2]) - bg[1])
+    alfa = np.clip(1 - m / mbg, 0, 1)
+    alfa = np.where(d < 55, 0, alfa)
+    # tira o fundo misturado na borda do brilho (c = bg + (cor - bg) / alfa)
+    k = np.maximum(alfa, 0.3)[..., None]
+    limpo = np.clip(bg + (f - bg) / k, 0, 255).astype(np.uint8)
+    # brilho sobre o magenta: verde + magenta dá cinza (sem "magenta" nenhum). Para cada pixel perto de um núcleo de
+    # cor (verde, ciano, amarelo...), o alfa é o quanto ele está no caminho entre o fundo e a cor do núcleo mais perto.
+    nucleo = m < -120   # só a cor forte (o brilho meio misturado com o fundo não conta)
+    if nucleo.any():
+        dist, (ny, nx) = ndi.distance_transform_edt(~nucleo, return_indices=True)
+        G = f[ny, nx]
+        v = G - bg
+        t = ((f - bg) * v).sum(axis=2) / np.maximum(1.0, (v * v).sum(axis=2))
+        t = np.clip(t, 0, 1)
+        resto = np.sqrt(((f - (bg + t[..., None] * v)) ** 2).sum(axis=2))
+        mistura = (~nucleo) & (dist <= 160) & (resto < 70)
+        alfa = np.where(mistura, np.minimum(alfa, t), alfa)
+        limpo[mistura] = G[mistura].astype(np.uint8)
+    # a franja do brilho pega a cor do desenho firme mais perto (só o alfa fica gradual): sem auréola cinza nem rosa
+    firme = alfa > 0.85
+    if firme.any():
+        _, (iy, ix) = ndi.distance_transform_edt(~firme, return_indices=True)
+        franja = (alfa > 0) & ~firme
+        limpo[franja] = limpo[iy[franja], ix[franja]]
+    return alfa, limpo
+
+
+def preenche_preto(bloco):
+    """Letras pretas por cima do desenho: cada pixel de letra ganha a cor do vizinho mais perto que não é letra."""
+    m = bloco.max(axis=2) < 80
+    m = ndi.binary_dilation(m, iterations=2)
+    if not m.any():
+        return bloco
+    _, (iy, ix) = ndi.distance_transform_edt(m, return_indices=True)
+    return bloco[iy, ix]
+
+
 def paineis(a, ajuste):
     """Retângulos (x0, y0, x1, y1) dos painéis, em ordem de leitura."""
     if 'paineis' in ajuste:
         return [tuple(p) for p in ajuste['paineis']]
-    v = verdura(a) > 45
+    if ajuste.get('fundo') == 'magenta':
+        r, g, b = a[..., 0].astype(int), a[..., 1].astype(int), a[..., 2].astype(int)
+        v = (r > 150) & (b > 110) & (g < 120)
+    else:
+        v = verdura(a) > 45
     v = ndi.binary_opening(v, iterations=2)
     lab, n = ndi.label(v)
     H, W = v.shape
@@ -96,7 +148,25 @@ def tira_textos(alfa, a, painel_h):
     return alfa
 
 
-def reduz(rgba, px):
+def roer(peq, lado, frac, semente):
+    """Desfaz um corte reto em pixels soltos (1 na borda, 0 lá dentro): esq, dir, baixo ou cima."""
+    h2, w2 = peq.shape[:2]
+    rng = np.random.default_rng(semente)
+    n = max(2, int((w2 if lado in ('esq', 'dir') else h2) * frac))
+    for i in range(n):
+        prob = 1 - i / n
+        if lado == 'esq':
+            col = peq[:, i]
+        elif lado == 'dir':
+            col = peq[:, w2 - 1 - i]
+        elif lado == 'cima':
+            col = peq[i, :]
+        else:
+            col = peq[h2 - 1 - i, :]
+        col[..., 3] = np.where(rng.random(col.shape[0]) < prob ** 1.5, 0, col[..., 3])
+
+
+def reduz(rgba, px, suave=False):
     """Cada pixel da arte (px x px na folha, px pode ser fracionado) vira 1 pixel: a cor pelo centro, o alfa pela maioria."""
     h, w = rgba.shape[:2]
     W, H = max(1, round(w / px)), max(1, round(h / px))
@@ -105,6 +175,9 @@ def reduz(rgba, px):
     im = Image.fromarray(rgba, 'RGBA')
     cor = np.asarray(im.convert('RGB').resize((W, H), Image.NEAREST))
     alfa = np.asarray(im.getchannel('A').resize((W, H), Image.BOX))
+    if suave:   # brilho e névoa: o alfa em 4 degraus (pixel art), em vez de cortar seco
+        a4 = np.clip(np.round(alfa.astype(float) / 85) * 85, 0, 255)
+        return np.dstack([cor, np.where(alfa < 72, 0, a4).astype(np.uint8)])
     return np.dstack([cor, np.where(alfa > 127, 255, 0).astype(np.uint8)])
 
 
@@ -112,6 +185,8 @@ def recorta(nome, debug=None):
     ajuste = AJUSTES.get(nome, {})
     img = Image.open(os.path.join(AQUI, 'folhas', nome + '.jpg')).convert('RGB')
     a = np.asarray(img).copy()
+    for (tx0, ty0, tx1, ty1) in ajuste.get('texto_preto', []):
+        a[ty0:ty1, tx0:tx1] = preenche_preto(a[ty0:ty1, tx0:tx1])
     caixas = paineis(a, ajuste)
     px = ajuste.get('pixel', 8)
     quadros = ajuste.get('quadros', list(range(1, len(caixas) + 1)))
@@ -120,7 +195,11 @@ def recorta(nome, debug=None):
     for k, (x0, y0, x1, y1) in zip(quadros, caixas):
         m = ajuste.get('margem', 6)
         sub = a[y0 + m:y1 - m, x0 + m:x1 - m].copy()
-        alfa = fundo(sub, ajuste.get('verde', 45))
+        magenta = ajuste.get('fundo') == 'magenta'
+        if magenta:
+            alfa, sub = fundo_cor(sub)
+        else:
+            alfa = fundo(sub, ajuste.get('verde', 45))
         hh, ww = alfa.shape
         # faixa do título no alto do painel e os rótulos (F1..F6): retângulos fixos por folha (negativo = da direita/de baixo)
         if ajuste.get('topo'):
@@ -129,20 +208,22 @@ def recorta(nome, debug=None):
             fx = lambda v, n: v + n if v < 0 else v
             alfa[fx(ey0, hh):fx(ey1, hh) if ey1 else hh, fx(ex0, ww):fx(ex1, ww) if ex1 else ww] = 0
         # tira o que encosta na moldura (restos da borda) e os textos
-        alfa = tira_textos(alfa, sub, y1 - y0)
+        if ajuste.get('detector_texto', True):
+            alfa = tira_textos(alfa, sub, y1 - y0)
         for (ex0, ey0, ex1, ey1) in ajuste.get('apagar', {}).get(str(k), []):
             alfa[ey0:ey1, ex0:ex1] = 0
         # despill: na franja, o verde não passa do maior entre vermelho e azul
         r, g, b = sub[..., 0].astype(int), sub[..., 1].astype(int), sub[..., 2].astype(int)
-        franja = alfa < 1
-        g2 = np.where(franja, np.minimum(g, np.maximum(r, b)), g)
-        sub[..., 1] = g2.astype(np.uint8)
+        if not magenta:
+            franja = alfa < 1
+            g2 = np.where(franja, np.minimum(g, np.maximum(r, b)), g)
+            sub[..., 1] = g2.astype(np.uint8)
         # só os pedaços grandes (tira grãos soltos de JPEG)
         mm = alfa > 0.5
         lab, n = ndi.label(mm)
         if n:
             tam = ndi.sum(mm, lab, range(1, n + 1))
-            minimo = max(30, int(px * px * 2))
+            minimo = max(12, int(px * px * ajuste.get('grao', 2)))
             for i, t in enumerate(tam, 1):
                 if t < minimo:
                     alfa[lab == i] = 0
@@ -151,25 +232,13 @@ def recorta(nome, debug=None):
             continue
         cy0, cy1, cx0, cx1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
         rgba = np.dstack([sub, (alfa * 255).astype(np.uint8)])[cy0:cy1, cx0:cx1]
-        peq = reduz(rgba, px)
+        peq = reduz(rgba, px, ajuste.get('alfa_suave', False))
         if peq is None:
             continue
         # corte reto (o desenho encostava na borda do painel): desfaz em pixels soltos, como fumaça/chama se abrindo
         lado_frac = ajuste.get('roer', {}).get(str(k))
         if lado_frac:
-            lado, frac = lado_frac
-            h2, w2 = peq.shape[:2]
-            rng = np.random.default_rng(k * 7 + len(nome))
-            n = max(2, int((w2 if lado in ('esq', 'dir') else h2) * frac))
-            for i in range(n):
-                prob = 1 - i / n   # 1 na borda, 0 lá dentro
-                if lado == 'esq':
-                    col = peq[:, i]
-                elif lado == 'dir':
-                    col = peq[:, w2 - 1 - i]
-                else:
-                    col = peq[h2 - 1 - i, :]
-                col[..., 3] = np.where(rng.random(col.shape[0]) < prob ** 1.5, 0, col[..., 3])
+            roer(peq, *lado_frac, k * 7 + len(nome))
         out = Image.fromarray(peq, 'RGBA')
         dest = os.path.join(SAIDA, f'{nome}_0{k}.png')
         out.save(dest)
@@ -179,7 +248,13 @@ def recorta(nome, debug=None):
             pd = out.crop((round(fx0 * W), round(fy0 * H), round(fx1 * W), round(fy1 * H)))
             bb = pd.getbbox()
             if bb:
-                pd.crop(bb).save(os.path.join(SAIDA, f'{nome}_0{k}{suf}.png'))
+                pd = pd.crop(bb)
+                rp = ajuste.get('roer_partes', {}).get(f'{k}{suf}')
+                if rp:   # a parte cortada no meio de outro desenho (a explosão do meteoro): a borda do corte se desfaz
+                    arr = np.asarray(pd).copy()
+                    roer(arr, *rp, k * 11 + len(suf))
+                    pd = Image.fromarray(arr, 'RGBA')
+                pd.save(os.path.join(SAIDA, f'{nome}_0{k}{suf}.png'))
                 feitos.append((f'{k}{suf}', pd.crop(bb).size))
         feitos.append((k, out.size))
         if debug:
@@ -209,6 +284,9 @@ def ancora_de(img, regra):
         return [0, int(np.median(ys[xs <= xs.min() + 2]))]
     if regra == 'direita':
         return [W, int(np.median(ys[xs >= xs.max() - 2]))]
+    if isinstance(regra, str) and regra.startswith('anel:'):   # anel:<altura/largura do anel> → centro do anel embaixo
+        razao = float(regra.split(':')[1])
+        return [W // 2, int(H - W * razao / 2)]
     if regra == 'cabeca':      # projétil para a direita: a frente fica no ponto do projétil, o rastro atrás
         return [int(W * 0.82), int(np.median(ys[xs >= xs.max() - 3]))]
     return [W // 2, H // 2]
@@ -238,7 +316,7 @@ def gera_js():
                 else:
                     e['eixoPx'] = c['eixo']
             linhas.append(f"  {nome}_{q}: {json.dumps(e)},")
-    js = ('/* GERADO por arte/jutsus-vfx/recortar.py (não editar à mão): os quadros desenhados dos jutsus de Fogo (v73).\n'
+    js = ('/* GERADO por arte/jutsus-vfx/recortar.py (não editar à mão): os quadros desenhados dos jutsus (v73 Fogo; v74 Fogo T4 e Cura).\n'
           ' * casas = largura no jogo; ancora = ponto de apoio (px da imagem); arte = para onde a arte aponta (rad);\n'
           ' * eixoPx = comprimento do eixo da arte, para esticar até o fim do golpe; blend = mistura. */\n'
           'export const FOGO_FRAMES = {\n' + '\n'.join(linhas) + '\n};\n')
@@ -250,7 +328,7 @@ if __name__ == '__main__':
     debug = sys.argv[sys.argv.index('--debug') + 1] if '--debug' in sys.argv else None
     if debug:
         os.makedirs(debug, exist_ok=True)
-    so = [x for x in sys.argv[1:] if x.startswith('fire_')]
+    so = [x for x in sys.argv[1:] if not x.startswith('-') and x != debug]
     for p in sorted(glob.glob(os.path.join(AQUI, 'folhas', '*.jpg'))):
         nome = os.path.splitext(os.path.basename(p))[0]
         if so and nome not in so:

@@ -240,6 +240,18 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v74: animações desenhadas de mais 3 jutsus de Fogo e 7 de Cura (sem migração)
+
+- Fogo T4: Chuva de Meteoros (cada aviso no chão ganha o seu meteoro: a marca vermelha, ele cai do céu no fim do aviso,
+  explode e deixa a cratera), Coroa de Chamas (o anel acende no chão durante os selos e explode em volta) e Coluna
+  Infernal (o anel avisa, a chama nasce e a coluna sobe no fim do aviso).
+- Cura: Cura, Corte Cirúrgico (o bisturi fica na mão durante o buff), Desintoxicação Celular, Palma Curadora (o
+  redemoinho gira na mão durante os 2 s de canalização), Agulha Calmante (a agulha voa até o alvo), Casca de Chakra (a
+  bolha fica em volta enquanto o escudo dura) e Descontrole Muscular (o selo pulsa no alvo enquanto ele anda ao contrário).
+- O recorte aprendeu: fundo magenta (pela cor do painel), brilho suave com transparência gradual (a franja ganha a cor do
+  desenho, sem auréola), letras pretas por cima do desenho preenchidas com a cor em volta, peças soltas com a borda do
+  corte desfeita.
+
 ### v73: animações desenhadas de 10 jutsus de Fogo (sem migração)
 
 - As 10 folhas do Victor (6 quadros cada, fundo verde) viraram quadros do jogo: Revoada de Brasas, Lança de Fogo, Cinzas

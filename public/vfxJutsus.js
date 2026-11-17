@@ -54,7 +54,7 @@ export function loadJutsuSprites() {
 
 /** Os quadros daquele jutsu chegaram? (v56: os 3 de cada; v73: todos os de um jutsu de Fogo, ex. 'fire_ryuka') */
 export const jutsuSpritesReady = (base) => (FOGO_BASES.has(base)
-  ? Object.keys(FOGO_FRAMES).filter((n) => n.startsWith(base + '_')).every((n) => imgs[n])
+  ? Object.keys(FOGO_FRAMES).filter((n) => n.replace(/_0\d\w?$/, '') === base).every((n) => imgs[n])
   : [1, 2, 3].every((i) => imgs[`${base}_0${i}`]));
 const FOGO_BASES = new Set(Object.keys(FOGO_FRAMES).map((n) => n.replace(/_0\d\w?$/, '')));
 
@@ -83,9 +83,9 @@ export class JutsuSprites {
   /** v73: tira os quadros de uma etiqueta (a marca que detonou antes da hora, o buff que acabou). */
   drop(tag) { this.list = this.list.filter((s) => s.tag !== tag); }
 
-  launch(id, name, x, y, fx, fy, speed, range, start) {
+  launch(id, name, x, y, fx, fy, speed, range, start, tail = 400) {
     if (!imgs[name]) return false;
-    this.shots.set(id, { name, x, y, fx, fy, speed, range, start, until: start + (range / Math.max(0.1, speed)) * 1000 + 400 });
+    this.shots.set(id, { name, x, y, fx, fy, speed, range, start, until: start + (range / Math.max(0.1, speed)) * 1000 + tail });
     return true;
   }
 
@@ -109,6 +109,7 @@ export class JutsuSprites {
     if (layer !== 'top') return;
     for (const [id, p] of this.shots) {
       if (now > p.until) { this.shots.delete(id); continue; }
+      if (now < p.start) continue;   // v74: projétil com hora marcada (o meteoro cai no fim do aviso, a agulha sai da mão)
       const d = Math.min(p.range, (p.speed * Math.max(0, now - p.start)) / 1000);
       drawSprite(g, p.name, toX(p.x + p.fx * d), toY(p.y + p.fy * d), T, Math.atan2(p.fy, p.fx), 1, 1, now);
     }
