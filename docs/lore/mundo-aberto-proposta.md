@@ -31,8 +31,8 @@ Os anéis são contados pela distância até o centro do mapa, em blocos.
 | Anel | Distância do centro | Níveis | Como se joga | O que tem |
 |---|---|---|---|---|
 | Borda | mais de 7,3 blocos | 1 a 30 | Sozinho | Os bichos da região. O chefe regional fica na beira de dentro, ao lado da estrada. |
-| Anel do meio* | 5,4 a 7,3 | 30 a 45 | Sozinho ou em dupla | Bichos maiores e acampamentos dos Cinzas. Um abrigo com fogueira em cada estrada. |
-| Anel interno* | 3,6 a 5,4 | 45 a 60 | Grupo para as elites | Feras marcadas pelos Titãs. Elites de nível 50 a 60 que só caem com 3 a 5 ninjas. Patrulhas na estrada. |
+| Marcos da Fronteira (anel do meio) | 5,4 a 7,3 | 30 a 45 | Sozinho ou em dupla | Bichos maiores e acampamentos dos Cinzas. Um abrigo com fogueira em cada estrada. |
+| Orla dos Titãs (anel interno) | 3,6 a 5,4 | 45 a 60 | Grupo para as elites | Feras marcadas pelos Titãs. Elites de nível 50 a 60 que só caem com 3 a 5 ninjas. Patrulhas na estrada. |
 | Zona de Conflito | 2 a 3,6 | PvP · 55+ | Grupo | PvP livre, MMR e temporadas, lodos sombrios. Os cinco acampamentos (seguros) ficam na beira de fora. |
 | Floresta Obscura | até 2 | 55 a 60 | Grupo | Mata sem sol e visão curta. No centro, o Ninho dos Titãs. |
 
@@ -51,7 +51,7 @@ Bichos da borda de cada região (descrições; os nomes vêm depois, com 3 opç�
 
 ## 3. Chegar à Zona é difícil, não impossível
 
-1. **Uma estrada por aldeia**, do portão até o acampamento na Zona. Na estrada só andam patrulhas, que passam de tempos
+1. **Uma estrada por aldeia** (aceita pelo Victor em 17/11/2026), do portão até o acampamento na Zona. Na estrada só andam patrulhas, que passam de tempos
    em tempos. Fora dela, os monstros ficam parados esperando presa: quem é paciente passa driblando.
 2. **O chefe fica ao lado da estrada**, na passagem da borda para o anel do meio. O covil dele fica a 36 casas da
    estrada: dá para contornar em silêncio ou derrotar com uma equipe de nível 40.
@@ -222,7 +222,7 @@ Cada etapa abre num marco da Progressão de Mundo (`src/realtime/worldProgress.t
 ## 7. Nomes para escolher (regra das 3 opções)
 
 **Escolhido pelo Victor em 17/11/2026 (comentários no Atlas): 21B, 22C com ajuste ("Namiko", no lugar de "Namikoro"), 23B, 24A, 25C, 26C (Umiko, a Voz da Névoa) 27C (Jinto, o Instrutor Caído) e 28A (Gendoumaru, o Engenheiro). Depois: 14A (Floresta Obscura), 15A (Ninho dos Titãs), 16C (Costa das Marés
-Mortas) e 17A (Planalto dos Ventos Altos).** Os itens 18 a 20 esperam a escolha.
+Mortas) 17A (Planalto dos Ventos Altos), 19B (Marcos da Fronteira) e 20C (Orla dos Titãs).** O item 18 espera a escolha.
 
 | # | O que precisa de nome | Rótulo de trabalho | Opção A | Opção B | Opção C |
 |---|---|---|---|---|---|
@@ -231,8 +231,8 @@ Mortas) e 17A (Planalto dos Ventos Altos).** Os itens 18 a 20 esperam a escolha.
 | 16 | A caça da Maré Oculta | Mangue da névoa | Mangue da Névoa | Baixios Ocultos | **Costa das Marés Mortas (escolhido)** |
 | 17 | A caça do Vento Cortante | Planalto dos ventos | **Planalto dos Ventos Altos (escolhido)** | Campos do Vendaval | Estepe Cortante |
 | 18 | A caça da Rocha Antiga | Desfiladeiro das minas | Desfiladeiro das Minas | Gargantas de Ferro | Cânion dos Nomes |
-| 19 | O anel do meio (níveis 30 a 45) | Anel do meio | Terras Partidas | Marcos da Fronteira | Campos de Ninguém |
-| 20 | O anel interno (níveis 45 a 60) | Anel interno | Terras Ermas | Cinturão Sombrio | Orla dos Titãs |
+| 19 | O anel do meio (níveis 30 a 45) | Anel do meio | Terras Partidas | **Marcos da Fronteira (escolhido)** | Campos de Ninguém |
+| 20 | O anel interno (níveis 45 a 60) | Anel interno | Terras Ermas | Cinturão Sombrio | **Orla dos Titãs (escolhido)** |
 | 21 | Chefe da Chama Eterna | — | O Senhor das Raízes | **Mãe-Lodo (escolhido)** | O Que Bebe o Rio |
 | 22 | Chefe da Maré Oculta | — | Mãe-Maré | O Faroleiro Afogado | **Namiko, a Enguia da Névoa (escolhido, com o ajuste do Victor)** |
 | 23 | Chefe do Vento Cortante | — | Rei-Gavião da Tempestade | **Jinra, o Grito do Céu (escolhido)** | O Olho do Vendaval |
