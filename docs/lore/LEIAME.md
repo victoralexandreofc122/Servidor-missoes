@@ -12,6 +12,7 @@ Victor. Cada arquivo é uma das camadas de documentação que o guia pede:
 | `dialogos.csv` | Planilha de diálogos | Cada fala do jogo com ID, personagem, texto, gatilho, arquivo de áudio e status. **Gerada** do jogo (`npx tsx scripts/gerar-dialogos.ts`); o teste confere |
 | `tutorial.md` | Design de tutorial | O método em 3 etapas sala por sala, as 13 dicas na hora, a folha de controles e a comunicação diegética |
 | `propostas-de-nomes.md` | — | Os nomes que a lore precisa e ainda não existem, com 3 opções cada |
+| `mundo-aberto-proposta.md` | — | Proposta do mundo aberto em anéis (17/11/2026): tamanho, níveis por anel, os cinco arcos regionais e os nomes 14 a 25 (só proposta) |
 
 **No jogo (v64):** `public/lore.js` (fragmentos, falas dos lojistas, dicas, controles), `public/dicas.js` (o cartão das
 dicas), `public/manual.js` (Códice e folha de controles no Manual), `src/realtime/falas.ts` (falas dos professores) e o
