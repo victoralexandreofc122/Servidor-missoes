@@ -552,6 +552,7 @@ BG casa_pergaminhos
 CHAR Ren center serio
 Ren: A borda queimada do pergaminho... tem metade de um mapa.
 Ren: (baixinho) E este símbolo... não é o nosso.
+Ren: É da Maré Oculta. O que a Maré tem a ver com as nossas pedras?
 BG academia_noite
 CHAR Diretor center cansado
 Diretor: Descanse, Genin. Amanhã a gente fala da quinta pedra.

@@ -240,6 +240,21 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v73: animações desenhadas de 10 jutsus de Fogo (sem migração)
+
+- As 10 folhas do Victor (6 quadros cada, fundo verde) viraram quadros do jogo: Revoada de Brasas, Lança de Fogo, Cinzas
+  Detonantes, Lâmina de Fogo, Marca Incandescente, Varredura Flamejante, Projétil Dracônico, Chão Incandescente, Cometa
+  Rasteiro (a folha veio sem o quadro 5) e Rugido da Fornalha.
+- Cada quadro entra na hora certa do golpe: conjuração na mão, golpe ativo (o leque abre, a lança e o raio vão até onde
+  o golpe chega, as brasas e o dragão voam), impacto e fim (fumaça, chão queimado). A Lâmina fica na mão durante o buff,
+  a Marca fica no alvo até detonar, o Chão Incandescente pulsa enquanto a zona dura e o Rugido junta o redemoinho
+  durante os selos.
+- O recorte é automático: `arte/jutsus-vfx/recortar.py` acha os painéis, tira o verde, os títulos e os F1..F6, reduz
+  ao tamanho do pixel da arte e gera `public/vfxFogo.js` (tamanho, âncora e direção de cada quadro). Folha nova: salvar
+  em `arte/jutsus-vfx/folhas/<id do jutsu>.jpg`, ajustar `ajustes.json` e rodar o script.
+- Servidor: só um aviso visual novo (`combo` 'marca') quando a Marca pega alguém. Com o desenho, as partículas antigas
+  da conjuração desses jutsus saem (o rastro e o estouro do impacto continuam).
+
 ### v72: chat menor no celular (sem migração; pedido do Victor de 17/11)
 
 - No celular deitado, a caixa do chat ficou menor (de 300 x 97 px para 253 x 72 px) e a linha de digitar ficou fina: a

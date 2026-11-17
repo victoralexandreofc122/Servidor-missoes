@@ -26,6 +26,7 @@ import { pickAnim } from './rig.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
 import { JutsuSprites, jutsuSpritesReady, loadJutsuSprites } from './vfxJutsus.js';
+import { fogoCast, fogoCastStart, fogoDetona, fogoGround, fogoImpact, fogoMarca, fogoProjectileFrame } from './fogoAnim.js';
 import { AudioManager } from './audio.js';
 import { GROUND_ELEMENT, Particles, elementOf } from './particles.js';
 import { STRIKE_ART, ZONE_ART, drawBolt, drawDecal, drawStatusArt, drawStrikeArt, drawWindDisc, drawZoneArt } from './jutsuArt.js';
@@ -855,6 +856,7 @@ function handleMessage(msg) {
     case 'ground':
       (state.ground ||= new Map()).set(msg.id, { ...msg, start: performance.now(), end: performance.now() + msg.ms });
       if (msg.kind === 'aviso') sfxAt('warn', msg.x, msg.y, 1);   // v58: golpe vai cair aqui
+      fogoGround(jfx, msg, performance.now());   // v73: Cinzas Detonantes e Chão Incandescente desenhados
       // v56: a Névoa Inflamável com o sprite: a nuvem girando e, no fim, a faísca acendendo (o aviso continua por baixo)
       if (msg.kind === 'aviso' && msg.skill && formOf(msg.skill) === 'nuvem_detona' && jutsuSpritesReady('nevoa')) {
         const t0 = performance.now(), sc = (msg.r ?? 2.5) / 2.5, spark = Math.min(600, msg.ms * 0.3);
@@ -944,6 +946,7 @@ function handleMessage(msg) {
       // v29: selos. A barra aparece sobre a cabeça de quem conjura (e maior perto dos botões, para quem conjura).
       const p = state.players.get(msg.playerId);
       if (p) { p.casting = { skill: msg.skill, start: now, end: now + msg.ms }; p.act = { kind: 'jutsu', start: now }; }
+      fogoCastStart(jfx, msg, p, now, posOf);   // v73: o Rugido junta o redemoinho na mão
       // v57: o som de carregar pelo tempo do selo
       castSounds.get(msg.playerId)?.stop(true);
       if (p) castSounds.set(msg.playerId, sfxAt('charge', p.x, p.y, msg.playerId === state.meId ? 1 : 0.6, { ms: msg.ms, el: elementOfSkill(msg.skill), voiceMs: msg.ms }));
@@ -1171,9 +1174,12 @@ function handleMessage(msg) {
     case 'combo': {
       // Combo de elementos: Água molhou, o Relâmpago eletrocutou (30% a mais).
       const e = msg.target === 'monster' ? state.monsters.get(msg.id) : state.players.get(msg.id);
-      if (e && msg.combo === 'detonacao') {                       // v51: a Marca Incandescente explodiu
+      if (e && msg.combo === 'marca') {                           // v73: o selo da Marca fica em quem foi marcado
+        fogoMarca(jfx, msg.id, msg.ms ?? 5000, now, posOf);
+      } else if (e && msg.combo === 'detonacao') {                // v51: a Marca Incandescente explodiu
         addFloater(e.x, e.y - 1.5, 'Detonou! 🔶', '#ffb347', 1.15);
         particles.burst('fire', e.x, e.y, 2.2, 0.8);
+        fogoDetona(jfx, msg.id, now, posOf);
       } else if (e) addFloater(e.x, e.y - 1.5, 'Combo! ⚡💧', '#7fd8ff', 1.15);
       break;
     }
@@ -1399,7 +1405,9 @@ function handleMessage(msg) {
       const form = formOf(msg.skill);
       const color = CLAN_COLOR[info.clan] || CAST_COLOR[fxKind] || '#f4ecd8';   // v63: os clãs novos têm a cor própria
       const lineEnd = { tx: msg.tx ?? msg.x + msg.fx * (info.range ?? 5), ty: msg.ty ?? msg.y + msg.fy * (info.range ?? 5) };
-      if (castSprites(msg, form, info, lineEnd, now)) { /* v56: o sprite desenhado (Fogo, Sopro, Linha) */ }
+      const fogoDrawn = fogoCast(jfx, msg, info, lineEnd, now, posOf);
+      if (fogoDrawn) { /* v73: os 10 jutsus de Fogo desenhados (fogoAnim.js) */ }
+      else if (castSprites(msg, form, info, lineEnd, now)) { /* v56: o sprite desenhado (Fogo, Sopro, Linha) */ }
       else if (form === 'cone_fogo') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 3, cone: info.coneDeg ?? 90, start: now });
       else if (form === 'linha_fogo') state.effects.push({ skill: 'fire_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, start: now });
       // v30: as formas das outras classes
@@ -1424,7 +1432,7 @@ function handleMessage(msg) {
       }
       // (Fogo: a explosão é no impacto, mensagem `impact`; nada em volta de quem lançou.)
       else if (fxKind !== 'teleport' && fxKind !== 'fire' && !playCastVfx(msg, fxKind, now)) state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
-      castParticles(msg, form, info);   // v47
+      if (!fogoDrawn) castParticles(msg, form, info);   // v47 (v73: o jutsu com desenho próprio já traz as brasas no quadro)
       faceTo(msg.playerId, msg.fx, msg.fy);
       const caster = state.players.get(msg.playerId);
       if (caster) {
@@ -1444,7 +1452,9 @@ function handleMessage(msg) {
       const sheet = msg.power ? (msg.power === 'blast' ? 'fireball' : 'kunai') : msg.weapon ? 'fuma' : mechanicOf(msg.skill) === 'fire' ? 'fireball' : 'kunai';
       // v53: a Shuriken de mão voa como a Gigante, só que pequena (e não sai das costas de ninguém)
       // v56: o Fogo voa com o sprite desenhado (quadro 2); as outras bolas de fogo, com a folha antiga
-      const drawn = !msg.power && !msg.weapon && sheet === 'fireball' && jutsuSpritesReady('fogo')
+      const fogoFrame = !msg.power && !msg.weapon ? fogoProjectileFrame(msg) : null;   // v73: a brasa da Revoada, o dragão
+      const drawn = fogoFrame ? jfx.launch(msg.id, fogoFrame, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now)
+        : !msg.power && !msg.weapon && sheet === 'fireball' && jutsuSpritesReady('fogo')
         && jfx.launch(msg.id, 'fogo_02', msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now);
       if (!drawn) vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now, msg.weapon === 'shuriken' ? 0.42 : 1);
       // v47: o rastro no elemento do jutsu
@@ -1482,7 +1492,9 @@ function handleMessage(msg) {
         for (const p of state.players.values()) if (p.thrown?.id === msg.id) p.thrown = null;
         break;
       }
-      if (msg.r > 0 && spriteShot && jfx.show('fogo_03', msg.x, msg.y, now, 480, { scale: msg.r / 1.3, fadeIn: 20, fadeOut: 200, grow: 0.15 })) {
+      if (spriteShot && fogoImpact(jfx, msg, msg.skill, now)) {
+        // v73: a explosão e a fumaça desenhadas da Revoada e do Projétil Dracônico
+      } else if (msg.r > 0 && spriteShot && jfx.show('fogo_03', msg.x, msg.y, now, 480, { scale: msg.r / 1.3, fadeIn: 20, fadeOut: 200, grow: 0.15 })) {
         // v56: a explosão desenhada (quadro 3); as brasas e a fumaça vêm do particles.burst acima
       } else if (msg.r > 0) {
         if (!vfx.play('explosion', msg.x, msg.y, { start: now, scale: msg.r / 2 })) {
@@ -2595,6 +2607,8 @@ const CAST_COLOR = { fire: '#ff7a2e', water: '#3ca6ff', lightning: '#fff27a', il
 const vfx = new VFXManager();
 /** v56: os sprites desenhados pelo Victor (Teleporte, Substituição, Fogo e os 3 do Fogo T1), quadro a quadro. */
 const jfx = new JutsuSprites();
+/** v73: onde está alguém agora (o selo da Marca e a Lâmina de Fogo acompanham o boneco); morto ou fora do mapa = null. */
+const posOf = (id) => { const e = state.players.get(id) || state.monsters.get(id); return e && !e.dead ? { x: e.x, y: e.y } : null; };
 
 /*
  * v47: partículas dos jutsus (public/particles.js). Cada elemento tem as suas (brasas, gotas, riscos elétricos, poeira e
@@ -7618,6 +7632,8 @@ try {
       /** v71: abre a caixa de conversa com um texto qualquer (testar páginas longas). */
       dialog: (npcId, text) => { const n = state.npcs.find((x) => x.id === npcId); if (n) openDialog(n, text); return !!n; },
       dialogState: () => ({ open: !!dialog.npc, pages: dialog.pages.length, i: dialog.i }),
+      sim: (m) => handleMessage(m),
+      meId: () => state.meId,   // v73: simula uma mensagem do servidor (conferir as animações dos jutsus)
       monsters: () => [...state.monsters.values()].map((m) => [m.type, Math.round(m.x * 10) / 10, Math.round(m.y * 10) / 10]),
       shop: () => (state.shop ? { ...state.shop } : null),
       /** O mapa inteiro numa imagem (16 px por casa), montado com os mesmos blocos do jogo. */

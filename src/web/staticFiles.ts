@@ -35,7 +35,9 @@ export const MUSIC_TRACKS = ['musica_calma_1', 'musica_calma_2', 'musica_pvp', '
 
 /** v56: os quadros de public/assets/vfx/<jutsu>_0N.png (a lista bate com vfxJutsus.js: test/vfx.test.ts confere). */
 export const JUTSU_SPRITES = ['fogo', 'sopro', 'nevoa', 'linha', 'teleporte', 'substituicao'] as const;
-export const JUTSU_SPRITE_FRAMES = JUTSU_SPRITES.flatMap((n) => [1, 2, 3].map((i) => `${n}_0${i}`));
+/** v73: os quadros dos 10 jutsus de Fogo desenhados (a lista sai de public/vfxFogo.js, gerado por arte/jutsus-vfx/recortar.py). */
+export const FOGO_SPRITE_FRAMES = [...readFileSync(new URL('../../public/vfxFogo.js', import.meta.url), 'utf8').matchAll(/^ {2}(fire_\w+): \{/gm)].map((m) => m[1] ?? '');
+export const JUTSU_SPRITE_FRAMES = [...JUTSU_SPRITES.flatMap((n) => [1, 2, 3].map((i) => `${n}_0${i}`)), ...FOGO_SPRITE_FRAMES];
 
 /** Folhas PNG de public/assets/<pasta>/ (a lista bate com vfxData.js e weaponData.js: test/static.test.ts confere). */
 function sheets(folder: 'vfx' | 'weapons', names: readonly string[]) {
@@ -91,6 +93,9 @@ const FILES = [
   { route: '/vfxData.js', file: 'vfxData.js', contentType: 'text/javascript; charset=utf-8' },
   // v56: os sprites desenhados pelo Victor (3 quadros por jutsu: lançamento, ativo, fim)
   { route: '/vfxJutsus.js', file: 'vfxJutsus.js', contentType: 'text/javascript; charset=utf-8' },
+  // v73: os 10 jutsus de Fogo desenhados (a tabela dos quadros e as sequências de cada jutsu)
+  { route: '/vfxFogo.js', file: 'vfxFogo.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/fogoAnim.js', file: 'fogoAnim.js', contentType: 'text/javascript; charset=utf-8' },
   // v57: áudio (o gerenciador e as músicas)
   { route: '/audio.js', file: 'audio.js', contentType: 'text/javascript; charset=utf-8' },
   ...MUSIC_TRACKS.map((n) => ({ route: `/assets/audio/${n}.mp3`, file: `assets/audio/${n}.mp3`, contentType: 'audio/mpeg', binary: true as const })),

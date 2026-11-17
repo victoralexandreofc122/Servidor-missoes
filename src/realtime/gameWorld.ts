@@ -4404,7 +4404,11 @@ export class GameWorld {
         this.broadcastMap(by.map, { type: 'teleport', playerId: x.id, fromX: round3(b.x), fromY: round3(b.y), x: round3(a.x), y: round3(a.y), a: x.session.ackSeq });
       }
     }
-    if (cfg.brandMs && this.stillThere(x)) by.brand = { targetId: x.id, until: t + cfg.brandMs, bonus: cfg.brandBonus ?? 0.6 };   // v51
+    if (cfg.brandMs && this.stillThere(x)) {
+      by.brand = { targetId: x.id, until: t + cfg.brandMs, bonus: cfg.brandBonus ?? 0.6 };   // v51
+      // v73: só visual: o selo da Marca aparece em quem foi marcado (até detonar ou acabar)
+      this.broadcastMap(by.map, { type: 'combo', target: x.kind, id: x.id, combo: 'marca', ms: cfg.brandMs });
+    }
     if (cfg.stealBuff && x.kind === 'player' && this.stillThere(x)) {
       // v51: roubo de buff (Empréstimo Forçado): escudo com vida, redução do próximo golpe, bônus de Básico e pressa mudam de dono
       const v = x.session;

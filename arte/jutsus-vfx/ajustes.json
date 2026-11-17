@@ -1,0 +1,354 @@
+{
+  "fire_cometa": {
+    "paineis": [
+      [
+        200,
+        320,
+        540,
+        670
+      ],
+      [
+        730,
+        320,
+        1300,
+        670
+      ],
+      [
+        1420,
+        320,
+        2480,
+        670
+      ],
+      [
+        110,
+        840,
+        1260,
+        1175
+      ],
+      [
+        1470,
+        840,
+        2500,
+        1175
+      ]
+    ],
+    "quadros": [
+      1,
+      2,
+      3,
+      4,
+      6
+    ],
+    "pixel": 10.5,
+    "jogo": {
+      "pxCasa": 0.036,
+      "arte": 0,
+      "ancora": "direita",
+      "blend": "glow",
+      "quadros": {
+        "01": {
+          "ancora": "centro",
+          "arte": null
+        },
+        "03": {
+          "eixo": true
+        },
+        "04": {
+          "eixo": true,
+          "ancora": "direita"
+        },
+        "06": {
+          "eixo": true,
+          "blend": "normal",
+          "alpha": 0.9
+        }
+      }
+    }
+  },
+  "fire_2": {
+    "pixel": 5.5,
+    "partes": {
+      "4": {
+        "b": [
+          0.36,
+          0,
+          0.64,
+          0.74
+        ]
+      },
+      "5": {
+        "b": [
+          0.33,
+          0,
+          0.67,
+          0.62
+        ]
+      },
+      "6": {
+        "b": [
+          0.33,
+          0,
+          0.67,
+          0.62
+        ]
+      }
+    },
+    "jogo": {
+      "pxCasa": 0.03,
+      "arte": -1.5707963267948966,
+      "ancora": "base",
+      "blend": "glow",
+      "quadros": {
+        "04b": {
+          "pxCasa": 0.024,
+          "ancora": "topo"
+        },
+        "05b": {
+          "pxCasa": 0.028,
+          "ancora": "centro",
+          "arte": null
+        },
+        "06b": {
+          "pxCasa": 0.03,
+          "ancora": "centro",
+          "arte": null,
+          "blend": "normal",
+          "alpha": 0.85
+        }
+      }
+    }
+  },
+  "fire_ryuka": {
+    "pixel": 10.75,
+    "jogo": {
+      "pxCasa": 0.045,
+      "arte": 0,
+      "ancora": "esquerda",
+      "blend": "glow",
+      "quadros": {
+        "01": {
+          "ancora": "centro",
+          "arte": null
+        },
+        "03": {
+          "eixo": true
+        },
+        "04": {
+          "eixo": true
+        },
+        "05": {
+          "ancora": "centro",
+          "arte": null,
+          "pxCasa": 0.035
+        },
+        "06": {
+          "ancora": "direita",
+          "blend": "normal",
+          "alpha": 0.85
+        }
+      }
+    }
+  },
+  "fire_haiseki": {
+    "pixel": 7.75,
+    "topo": 100,
+    "cantos": [
+      [
+        0,
+        -110,
+        120,
+        0
+      ]
+    ],
+    "jogo": {
+      "pxCasa": 0.053,
+      "ancora": "centro",
+      "blend": "glow",
+      "quadros": {
+        "01": {
+          "blend": "normal",
+          "alpha": 0.9
+        },
+        "02": {
+          "blend": "normal"
+        },
+        "06": {
+          "blend": "normal",
+          "alpha": 0.85
+        }
+      }
+    }
+  },
+  "fire_lamina": {
+    "pixel": 8,
+    "topo": 100,
+    "jogo": {
+      "pxCasa": 0.02,
+      "ancora": "centro",
+      "blend": "glow",
+      "quadros": {
+        "06": {
+          "blend": "glow"
+        }
+      }
+    }
+  },
+  "fire_marca": {
+    "pixel": 7,
+    "topo": 175,
+    "jogo": {
+      "pxCasa": 0.03,
+      "ancora": "centro",
+      "blend": "glow",
+      "quadros": {
+        "02": {
+          "ancora": [
+            3,
+            34
+          ],
+          "arte": -0.496,
+          "eixo": 69.4,
+          "pxCasa": 0.06
+        },
+        "03": {
+          "ancora": [
+            3,
+            42
+          ],
+          "arte": -0.56,
+          "eixo": 69.6,
+          "pxCasa": 0.06
+        },
+        "06": {
+          "blend": "normal"
+        },
+        "01": {
+          "pxCasa": 0.05
+        }
+      }
+    }
+  },
+  "fire_3": {
+    "pixel": 5.25,
+    "topo": 100,
+    "jogo": {
+      "pxCasa": 0.0515,
+      "arte": -1.5707963267948966,
+      "ancora": "base",
+      "blend": "glow",
+      "quadros": {
+        "06": {
+          "ancora": "centro",
+          "blend": "normal",
+          "alpha": 0.85,
+          "arte": null
+        }
+      }
+    }
+  },
+  "fire_hotan": {
+    "pixel": 10.5,
+    "topo": 95,
+    "jogo": {
+      "pxCasa": 0.03,
+      "arte": 0,
+      "ancora": "centro",
+      "blend": "glow",
+      "quadros": {
+        "01": {
+          "arte": null
+        },
+        "03": {
+          "ancora": "cabeca"
+        },
+        "02": {
+          "ancora": "cabeca"
+        },
+        "05": {
+          "arte": null,
+          "pxCasa": 0.04
+        },
+        "06": {
+          "arte": null,
+          "blend": "normal",
+          "alpha": 0.9,
+          "pxCasa": 0.04
+        }
+      }
+    },
+    "roer": {
+      "5": [
+        "esq",
+        0.22
+      ],
+      "6": [
+        "baixo",
+        0.25
+      ]
+    }
+  },
+  "fire_chao": {
+    "pixel": 5,
+    "cantos": [
+      [
+        0,
+        -80,
+        80,
+        0
+      ]
+    ],
+    "verde": 22,
+    "jogo": {
+      "pxCasa": 0.036,
+      "ancora": "centro",
+      "blend": "glow",
+      "quadros": {
+        "06": {
+          "blend": "normal"
+        }
+      }
+    }
+  },
+  "fire_rugido": {
+    "pixel": 5.25,
+    "topo": 78,
+    "cantos": [
+      [
+        0,
+        0,
+        100,
+        150
+      ]
+    ],
+    "jogo": {
+      "pxCasa": 0.03,
+      "arte": -1.5707963267948966,
+      "ancora": "base",
+      "blend": "glow",
+      "quadros": {
+        "01": {
+          "ancora": "centro",
+          "arte": null,
+          "pxCasa": 0.02
+        },
+        "02": {
+          "eixo": true
+        },
+        "03": {
+          "eixo": true
+        },
+        "04": {
+          "eixo": true
+        },
+        "05": {
+          "eixo": true
+        },
+        "06": {
+          "eixo": true,
+          "blend": "normal",
+          "alpha": 0.9
+        }
+      }
+    }
+  }
+}

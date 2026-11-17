@@ -220,7 +220,7 @@ anel de desconfiança:
 
 | Arco 1 | O vilão tinha meio mapa com o símbolo de |
 |---|---|
-| Chama Eterna (Kagerō) | Maré Oculta (proposta: hoje a M15 diz só "não é o nosso") |
+| Chama Eterna (Kagerō) | Maré Oculta (aceito pelo Victor em 17/11) |
 | Maré Oculta (Umiko) | Vento Cortante |
 | Vento Cortante (Jinto) | Rocha Antiga |
 | Rocha Antiga (Gendoumaru) | Chama Eterna |
