@@ -240,6 +240,17 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### v75: animações desenhadas dos outros 10 jutsus de Cura (sem migração)
+
+- Punho Sísmico (anel rachando e erupção com pedras), Banho de Chakra (a coluna cai no aliado, chafariz e poças), Lâmina
+  Séptica (voa e deixa a poça tóxica), Onda Anestésica (o anel abre em volta, com bolhas, e se parte), Regeneração de Área
+  e Santuário Vital (o selo fica na zona enquanto ela dura; o Santuário anda com quem lançou), Selo dos Meridianos (os
+  fios até o alvo e o selo estilhaçando), Milagre Verde (flor, explosão de luz, folhas caindo), Punho do Colosso (o punho
+  junta força durante os selos, desce e deixa a cratera) e Renovação Celular (os anéis pulsam durante os 10 s de cura).
+- Agora toda a classe Cura e 13 jutsus de Fogo têm animação desenhada.
+- Recorte: fundo escuro, o fundo clareado ou escurecido (brilho branco, sombra da moldura) sai, máscara redonda para o
+  desenho que vazou da moldura, miolo de anel apagado, e o corte do brilho suave vai até onde ele chega.
+
 ### v74: animações desenhadas de mais 3 jutsus de Fogo e 7 de Cura (sem migração)
 
 - Fogo T4: Chuva de Meteoros (cada aviso no chão ganha o seu meteoro: a marca vermelha, ele cai do céu no fim do aviso,

@@ -32,6 +32,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v75 (sem migração):** os outros 10 jutsus de Cura desenhados (toda a classe Cura tem animação própria).
 - **v74 (sem migração):** mais 10 animações desenhadas pelo Victor (Chuva de Meteoros, Coroa de Chamas, Coluna Infernal e 7
   da Cura); o recorte agora aceita fundo magenta, brilho suave e texto por cima do desenho (`arte/jutsus-vfx/ajustes.json`).
 - **v73 (sem migração):** as animações desenhadas pelo Victor de 10 jutsus de Fogo (6 quadros cada), recortadas por

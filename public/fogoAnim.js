@@ -86,6 +86,60 @@ export function fogoCast(jfx, msg, info, lineEnd, now, follow, whoAt = () => nul
       seq(jfx, s, 0, -0.55, now, steps, o);
       return true;
     }
+    case 'heal_2': {   // Punho Sísmico: a brasa verde no chão, o anel rachando, a erupção com pedras e a poeira
+      const p = msg.tx !== undefined ? at : { x: h.x + msg.fx, y: h.y + msg.fy };
+      const sc = (info.radius ?? 1.5) / 1.5;
+      seq(jfx, s, p.x, p.y, now, [['01', 0, 90], ['02', 80, 110, { layer: 'ground' }], ['03', 170, 160, { layer: 'ground' }]], { scale: sc });
+      seq(jfx, s, p.x, p.y + 0.5, now, [['04', 310, 200, { flicker: true }], ['05', 480, 260]], { scale: sc });
+      seq(jfx, s, p.x, p.y, now, [['06', 720, 600, { fadeOut: 400 }]], { scale: sc });
+      return true;
+    }
+    case 'heal_banho': {   // Banho de Chakra: o anel nos pés, a coluna de chakra cai nele, o chafariz, as gotas e as poças
+      const o = onBody(atId);
+      const fx0 = o ? 0 : at.x, fy0 = o ? 0.25 : at.y + 0.25;
+      seq(jfx, s, fx0, fy0, now, [['01', 0, 150, { layer: 'ground' }], ['02', 130, 170, { layer: 'ground' }], ['03', 280, 220, { flicker: true }],
+        ['04', 480, 260, { flicker: true }]], o || {});
+      seq(jfx, s, fx0, fy0 - 0.6, now, [['05', 720, 360]], o || {});
+      seq(jfx, s, fx0, fy0, now, [['06', 1050, 700, { layer: 'ground', fadeOut: 450 }]], o || {});
+      return true;
+    }
+    case 'heal_septica': {   // Lâmina Séptica: a lâmina na mão e o brilho; voa com o `projectile`
+      seq(jfx, s, h.x, h.y - 0.2, now, [['01', 0, 120], ['02', 100, 140]]);
+      return true;
+    }
+    case 'heal_onda': {   // Onda Anestésica: a gota, o anel que cresce com bolhas, a onda larga, ela se parte, as bolhas
+      const sc = (info.radius ?? 3) / 3;
+      seq(jfx, s, h.x, h.y, now, [['01', 0, 110]]);
+      seq(jfx, s, msg.x, msg.y + 0.1, now, [['02', 90, 150], ['03', 220, 180], ['04', 380, 230], ['05', 590, 260], ['06', 830, 500, { fadeOut: 330 }]],
+        { scale: sc, layer: 'ground' });
+      return true;
+    }
+    case 'heal_meridianos': {   // Selo dos Meridianos: o selo nasce na mão, os fios vão até o alvo e queimam o chakra dele
+      const d = Math.max(0.8, Math.hypot(at.x - h.x, at.y - h.y));
+      const a = Math.atan2(at.y - h.y, at.x - h.x);
+      seq(jfx, s, h.x, h.y, now, [['01', 0, 120], ['02', 100, 180], ['03', 260, 200, { angle: a, len: d }], ['04', 440, 220, { angle: a, len: d }]]);
+      const o = onBody(atId);
+      seq(jfx, s, o ? 0 : at.x, o ? -0.5 : at.y - 0.5, now, [['05', 620, 260], ['06', 860, 450, { fadeOut: 300 }]], o || {});
+      return true;
+    }
+    case 'heal_colosso': {   // Punho do Colosso (o punho junta força na conjuração): desce, afunda o chão, a cratera
+      jfx.drop(`colosso:${msg.playerId}`);
+      const p = msg.tx !== undefined ? at : { x: h.x + msg.fx * 1.2, y: h.y + msg.fy * 1.2 };
+      const sc = (info.radius ?? 2) / 2;
+      seq(jfx, s, p.x, p.y + 0.8, now, [['02', 0, 120], ['03', 110, 170, { flicker: true }], ['04', 260, 220, { flicker: true }]], { scale: sc });
+      seq(jfx, s, p.x, p.y, now, [['05', 460, 280], ['06', 720, 900, { layer: 'ground', fadeOut: 600 }]], { scale: sc });
+      return true;
+    }
+    case 'heal_4': {   // Renovação Celular (as células giram na conjuração): os anéis abrem e pulsam enquanto a cura dura
+      jfx.drop(`renova:${msg.playerId}`);
+      const dur = info.durationMs ?? 10_000;
+      const o = { follow: () => follow(msg.playerId), tag: `renova:${msg.playerId}` };
+      const steps = [['02', 0, 200], ['03', 180, 260], ['04', 420, 300]];
+      for (let t = 900; t < dur - 400; t += 1200) steps.push(['05', t, 700, { fadeIn: 200, fadeOut: 300 }]);
+      steps.push(['06', dur - 400, 600, { fadeOut: 400 }]);
+      seq(jfx, s, 0, -0.5, now, steps, o);
+      return true;
+    }
     case 'heal_disturbio': {   // Descontrole Muscular: o redemoinho no alvo, o selo pulsa enquanto ele anda ao contrário, estoura
       const dur = info.invertMs ?? 1600;
       const id = atId;
@@ -162,6 +216,10 @@ export function fogoCastStart(jfx, msg, p, now, follow) {
     jfx.show('fire_rugido_01', 0.3, -0.45, now, msg.ms, { ...o('rugido'), flicker: true, fadeIn: 200, grow: 0.5 });
   } else if (msg.skill === 'fire_coroa') {
     jfx.show('fire_coroa_01', 0, 0.1, now, msg.ms + 60, { ...o('coroa'), flicker: true, fadeIn: 120, grow: 0.8, layer: 'ground' });
+  } else if (msg.skill === 'heal_colosso') {
+    jfx.show('heal_colosso_01', 0.4, -0.6, now, msg.ms + 60, { ...o('colosso'), flicker: true, fadeIn: 120, grow: 0.3 });
+  } else if (msg.skill === 'heal_4') {
+    jfx.show('heal_4_01', 0, -0.5, now, msg.ms + 80, { ...o('renova'), flicker: true, fadeIn: 200, grow: 0.25 });
   } else if (msg.skill === 'heal_palma') {
     const steps = [['01', 0, 220], ['02', 200, 280], ['03', 460, 280]];
     for (let t = 720; t < msg.ms; t += 360) steps.push(['04', t, 400, { flicker: true }]);
@@ -171,6 +229,7 @@ export function fogoCastStart(jfx, msg, p, now, follow) {
 
 /** Um projétil saiu: devolve o quadro que voa (ou null). */
 export function fogoProjectileFrame(msg) {
+  if (msg.skill === 'heal_septica' && ready('heal_septica')) return 'heal_septica_03';
   if (msg.skill === 'fire_2' && ready('fire_2')) return 'fire_2_04b';
   if (msg.skill === 'fire_hotan' && ready('fire_hotan')) return 'fire_hotan_03';
   return null;
@@ -180,6 +239,11 @@ export function fogoProjectileFrame(msg) {
 export function fogoImpact(jfx, msg, skill, now) {
   if (skill === 'fire_2' && ready('fire_2')) {
     seq(jfx, 'fire_2', msg.x, msg.y, now, [['05b', 0, 260, { flicker: true }], ['06b', 220, 560, { fadeOut: 380, grow: 0.2 }]]);
+    return true;
+  }
+  if (skill === 'heal_septica' && ready('heal_septica')) {
+    seq(jfx, 'heal_septica', msg.x, msg.y - 0.3, now, [['04', 0, 200, { flicker: true }], ['05', 180, 240]]);
+    seq(jfx, 'heal_septica', msg.x, msg.y + 0.2, now, [['06', 400, 1100, { layer: 'ground', fadeOut: 700 }]]);
     return true;
   }
   if (skill === 'fire_hotan' && ready('fire_hotan')) {
@@ -192,7 +256,32 @@ export function fogoImpact(jfx, msg, skill, now) {
 }
 
 /** Aviso ou zona no chão (mensagem `ground`): Cinzas Detonantes, Chão Incandescente, cada meteoro e a Coluna Infernal. */
-export function fogoGround(jfx, msg, now) {
+export function fogoGround(jfx, msg, now, follow = () => null) {
+  // zonas de Cura: em volta de quem lançou (o Santuário anda com ele)
+  if (['heal_3', 'heal_milagre', 'heal_santuario'].includes(msg.skill) && msg.kind !== 'aviso' && ready(msg.skill)) {
+    const ms = msg.ms ?? 4000, s = msg.skill;
+    const o = msg.follow ? { follow: () => follow(msg.follow) } : {};
+    const x0 = msg.follow ? 0 : msg.x, y0 = msg.follow ? 0 : msg.y;
+    if (s === 'heal_3') {   // Regeneração de Área: o círculo, o redemoinho, o selo com brotos pulsando, o selo apagando
+      const sc = (msg.r ?? 4) / 4;
+      const steps = [['01', 0, 200], ['04', 180, 300, { flicker: true }]];
+      const loop = ['02', '03', '05', '03'];
+      for (let t = 460, i = 0; t < ms - 300; t += 330, i++) steps.push([loop[i % 4], t, 380]);
+      steps.push(['06', ms - 300, 700, { fadeOut: 450 }]);
+      seq(jfx, s, x0, y0, now, steps, { ...o, scale: sc, layer: 'ground' });
+    } else if (s === 'heal_milagre') {   // Milagre Verde: a semente, a flor, a explosão de luz, as folhas caindo, o brilho
+      const sc = (msg.r ?? 4) / 4;
+      seq(jfx, s, x0, y0 - 0.5, now, [['01', 0, 100], ['02', 90, 160], ['03', 230, 260, { flicker: true }], ['04', 470, 380],
+        ['05', 820, 300], ['06', 1080, 520, { fadeOut: 350 }]], { ...o, scale: sc });
+    } else {   // Santuário Vital: o selo no chão, as linhas douradas, a cúpula fica enquanto a zona dura, as runas, se desfaz
+      const sc = (msg.r ?? 2.5) / 2.5;
+      const steps = [['01', 0, 220], ['02', 200, 260]];
+      for (let t = 440, i = 0; t < ms - 350; t += 420, i++) steps.push([i % 4 === 2 ? '04' : i % 2 ? '05' : '03', t, 470]);
+      steps.push(['06', ms - 350, 700, { fadeOut: 450 }]);
+      seq(jfx, s, x0, y0 + 0.2, now, steps, { ...o, scale: sc });
+    }
+    return true;
+  }
   if (msg.skill === 'fire_4' && msg.kind === 'aviso' && ready('fire_4')) {
     // um meteoro por aviso: a marca vermelha no chão, ele cai do céu no fim do aviso, explode e deixa a cratera
     const ms = msg.ms ?? 800, sc = (msg.r ?? 1.3) / 1.3, fall = Math.min(420, ms * 0.6), h = 5;

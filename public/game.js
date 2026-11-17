@@ -856,7 +856,7 @@ function handleMessage(msg) {
     case 'ground':
       (state.ground ||= new Map()).set(msg.id, { ...msg, start: performance.now(), end: performance.now() + msg.ms });
       if (msg.kind === 'aviso') sfxAt('warn', msg.x, msg.y, 1);   // v58: golpe vai cair aqui
-      fogoGround(jfx, msg, performance.now());   // v73: Cinzas Detonantes e Chão Incandescente desenhados
+      fogoGround(jfx, msg, performance.now(), posOf);   // v73: Cinzas Detonantes e Chão Incandescente desenhados
       // v56: a Névoa Inflamável com o sprite: a nuvem girando e, no fim, a faísca acendendo (o aviso continua por baixo)
       if (msg.kind === 'aviso' && msg.skill && formOf(msg.skill) === 'nuvem_detona' && jutsuSpritesReady('nevoa')) {
         const t0 = performance.now(), sc = (msg.r ?? 2.5) / 2.5, spark = Math.min(600, msg.ms * 0.3);

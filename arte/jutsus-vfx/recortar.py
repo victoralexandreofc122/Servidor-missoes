@@ -37,7 +37,7 @@ def fundo(a, corte=45):
     return alfa
 
 
-def fundo_cor(sub):
+def fundo_cor(sub, modo='magenta', limiar_m=None):
     """Fundo de cor lisa (o magenta): a cor dos cantos do painel; o alfa pela distância a ela; a franja sem o tom do fundo."""
     c = 14
     cantos = np.concatenate([sub[:c, :c].reshape(-1, 3), sub[:c, -c:].reshape(-1, 3), sub[-c:, :c].reshape(-1, 3), sub[-c:, -c:].reshape(-1, 3)])
@@ -47,9 +47,23 @@ def fundo_cor(sub):
     # quanto de magenta tem o pixel (vermelho e azul juntos acima do verde), comparado com o fundo: o brilho verde
     # misturado no magenta fica com alfa parcial (e a cor limpa abaixo), em vez de virar uma auréola rosa
     m = np.minimum(f[..., 0], f[..., 2]) - f[..., 1]
+    if modo == 'escuro':
+        # fundo escuro (o brilho soma luz por cima): o alfa pela distância à cor do fundo
+        alfa = np.clip((d - 22) / 70.0, 0, 1)
+        k = np.maximum(alfa, 0.3)[..., None]
+        return alfa, np.clip(bg + (f - bg) / k, 0, 255).astype(np.uint8)
     mbg = max(1.0, min(bg[0], bg[2]) - bg[1])
     alfa = np.clip(1 - m / mbg, 0, 1)
     alfa = np.where(d < 55, 0, alfa)
+    # o próprio fundo clareado (brilho branco por cima) ou escurecido (sombra da moldura, vinheta): sai; branco e preto
+    # de verdade (faíscas, contornos) ficam
+    for alvo in (255.0, 0.0):
+        v0 = alvo - bg
+        t0 = ((f - bg) * v0).sum(axis=2) / max(1.0, float((v0 * v0).sum()))
+        resto0 = np.sqrt(((f - (bg + np.clip(t0, 0, 1)[..., None] * v0)) ** 2).sum(axis=2))
+        alfa = np.where((resto0 < 40) & (t0 < 0.8), 0, alfa)
+    if limiar_m is not None:   # brilho claro da cor do fundo (rosa sobre rosa): sai inteiro
+        alfa = np.where(m > limiar_m * mbg, 0, alfa)
     # tira o fundo misturado na borda do brilho (c = bg + (cor - bg) / alfa)
     k = np.maximum(alfa, 0.3)[..., None]
     limpo = np.clip(bg + (f - bg) / k, 0, 255).astype(np.uint8)
@@ -195,11 +209,26 @@ def recorta(nome, debug=None):
     for k, (x0, y0, x1, y1) in zip(quadros, caixas):
         m = ajuste.get('margem', 6)
         sub = a[y0 + m:y1 - m, x0 + m:x1 - m].copy()
-        magenta = ajuste.get('fundo') == 'magenta'
+        magenta = ajuste.get('fundo') in ('magenta', 'escuro')
         if magenta:
-            alfa, sub = fundo_cor(sub)
+            alfa, sub = fundo_cor(sub, ajuste.get('fundo'), ajuste.get('limiar_m'))
         else:
             alfa = fundo(sub, ajuste.get('verde', 45))
+        if str(k) in ajuste.get('circulo', {}):
+            # o desenho vazou da moldura (ficaria quadrado): máscara redonda que some na borda
+            hh0, ww0 = alfa.shape
+            yy, xx = np.mgrid[0:hh0, 0:ww0]
+            rr = np.sqrt(((xx - ww0 / 2) / (ww0 / 2)) ** 2 + ((yy - hh0 / 2) / (hh0 / 2)) ** 2)
+            r0 = ajuste['circulo'][str(k)]
+            r0, R = (r0, 1.0) if not isinstance(r0, list) else r0   # some de r0 (inteiro) até R (nada)
+            alfa = alfa * np.clip((R - rr) / max(0.01, R - r0), 0, 1)
+        if str(k) in ajuste.get('buraco', {}):
+            # o miolo de um anel com a cor do fundo misturada (a Onda): zera uma elipse [cx, cy, rx, ry] em frações do painel
+            hh0, ww0 = alfa.shape
+            cxf, cyf, rxf, ryf = ajuste['buraco'][str(k)]
+            yy, xx = np.mgrid[0:hh0, 0:ww0]
+            dentro = ((xx - cxf * ww0) / (rxf * ww0)) ** 2 + ((yy - cyf * hh0) / (ryf * hh0)) ** 2 < 1
+            alfa = np.where(dentro, 0, alfa)
         hh, ww = alfa.shape
         # faixa do título no alto do painel e os rótulos (F1..F6): retângulos fixos por folha (negativo = da direita/de baixo)
         if ajuste.get('topo'):
@@ -227,7 +256,8 @@ def recorta(nome, debug=None):
             for i, t in enumerate(tam, 1):
                 if t < minimo:
                     alfa[lab == i] = 0
-        ys, xs = np.nonzero(alfa > 0.5)
+        # com brilho suave, o corte vai até onde o brilho chega (senão a borda dele fica reta, quadrada)
+        ys, xs = np.nonzero(alfa > (0.28 if ajuste.get('alfa_suave') else 0.5))
         if len(ys) == 0:
             continue
         cy0, cy1, cx0, cx1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
