@@ -49,18 +49,18 @@ Bichos da borda de cada região (descrições; os nomes vêm depois, com 3 opç�
 | Rocha Antiga: Desfiladeiro das minas* | Lagartos de pedra, morcegos de mina, besouros de ferro. |
 | Renegados: Terra Sem Lei | Cães sem dono, abutres, bandidos de estrada. |
 
-## 3. Chegar à Zona é difícil, não impossível
+## 3. Chegar à Zona é difícil, não impossível (as seis regras aceitas pelo Victor em 17/11/2026)
 
 1. **Uma estrada por aldeia** (aceita pelo Victor em 17/11/2026), do portão até o acampamento na Zona. Na estrada só andam patrulhas, que passam de tempos
    em tempos. Fora dela, os monstros ficam parados esperando presa: quem é paciente passa driblando.
 2. **O chefe fica ao lado da estrada** (aceita pelo Victor em 17/11/2026), na passagem da borda para o anel do meio. O covil dele fica a 36 casas da
    estrada: dá para contornar em silêncio ou derrotar com uma equipe de nível 40.
 3. **Elites só em grupo** (aceita pelo Victor em 17/11/2026) no anel interno (nível 50 a 60, 3 a 5 ninjas). Área de alerta grande, mas não saem da área deles.
-4. **Escolta:** o nível baixo que anda colado num nível 50+ do mesmo grupo é ignorado pelos monstros mais fracos que o
+4. **Escolta** (aceita pelo Victor em 17/11/2026): o nível baixo que anda colado num nível 50+ do mesmo grupo é ignorado pelos monstros mais fracos que o
    ninja forte. Quem escolta ganha honra e ryō quando chega ao acampamento.
-5. **Posto de Viagem só depois da primeira vez:** o Posto leva ao acampamento da Zona só para quem já chegou lá a pé uma
+5. **Posto de Viagem só depois da primeira vez** (aceita pelo Victor em 17/11/2026): o Posto leva ao acampamento da Zona só para quem já chegou lá a pé uma
    vez.
-6. **Abrigos no caminho:** cada estrada tem um abrigo com fogueira no anel do meio, onde não se luta, com renascimento.
+6. **Abrigos no caminho** (aceita pelo Victor em 17/11/2026): cada estrada tem um abrigo com fogueira no anel do meio, onde não se luta, com renascimento.
 
 ## 4. O que muda na lore (aprovado pelo Victor em 17/11/2026; já está na Bíblia do Mundo)
 
