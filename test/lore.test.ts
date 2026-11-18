@@ -13,7 +13,7 @@ import { placeIn, setupWorld } from './support/world.js';
  * chão livre, no lugar certo; nenhum nome da série; as dicas e os fragmentos chegam ao cliente.
  */
 const lore = await import(new URL('../public/lore.js', import.meta.url).href);
-const { buildCsv } = await import(new URL('../scripts/gerar-dialogos.ts', import.meta.url).href);
+const { buildCsv, buildRows } = await import(new URL('../scripts/gerar-dialogos.ts', import.meta.url).href);
 const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
 const PROIBIDOS = ['sharingan', 'chidori', 'rasengan', 'akatsuki', 'uchiha', 'tsunade', 'hokage', 'naruto', 'konoha', 'kage bunshin', 'jiraiya'];
 
@@ -21,14 +21,23 @@ describe('v64: planilha de diálogos (docs/lore/dialogos.csv)', () => {
   it('é igual ao jogo (gere de novo com npx tsx scripts/gerar-dialogos.ts) e cada ID é único', async () => {
     const csv = await buildCsv();
     assert.equal(read('docs/lore/dialogos.csv'), csv, 'a planilha está desatualizada');
-    const ids = csv.trim().split('\n').slice(1).map((l: string) => l.split(',')[0]);
+    const ids = (await buildRows()).slice(1).map((r: string[]) => r[0]);   // v71: as falas têm várias linhas (páginas)
     assert.equal(new Set(ids).size, ids.length, 'ID repetido');
     assert.ok(ids.length >= 60);
   });
 
-  it('falas curtas: professores, lojistas e dicas até 160 caracteres (3 linhas na caixa)', () => {
+  it('v71: cada página da caixa (separada por linha em branco) tem até 160 caracteres; a cena pode ter várias páginas', () => {
     const falas = [...todasAsFalas(), ...Object.values(lore.SHOP_BARKS as Record<string, { id: string; text: string }[]>).flat(), ...lore.HINTS];
-    for (const f of falas) assert.ok(f.text.length <= 160, `${f.id}: ${f.text.length} caracteres`);
+    for (const f of falas) {
+      const pages = f.text.split(/\n\s*\n/);
+      assert.ok(pages.length <= 6, `${f.id}: ${pages.length} páginas`);
+      for (const pg of pages) assert.ok(pg.length <= 160, `${f.id}: página com ${pg.length} caracteres`);
+    }
+  });
+  it('v71: as conversas têm contexto: professores e lojistas falam em mais de uma página (pedido do Victor de 17/11)', () => {
+    const conversas = [...Object.values(TUTOR_BARKS).flat(), ...Object.values(lore.SHOP_BARKS as Record<string, { id: string; text: string }[]>).flat()];
+    for (const f of conversas) assert.ok(f.text.includes('\n\n'), `${f.id}: uma página só`);
+    for (const list of Object.values(TUTOR_BARKS)) assert.ok(list.length >= 5, 'cada professor tem pelo menos 5 conversas em sequência');
   });
 
   it('nenhum texto novo usa nome da série', () => {
@@ -49,7 +58,7 @@ describe('v64: fragmentos da Crônica', () => {
       assert.equal(f.lugar, m.name, f.id);
       assert.ok(f.x > 1 && f.y > 1 && f.x < m.width - 1 && f.y < m.height - 1, `${f.id} fora do mapa`);
       assert.ok(!blocked(f.x, f.y, m.walls), `${f.id} dentro de parede`);
-      assert.ok(f.text.length > 80 && f.text.length <= 380, `${f.id}: ${f.text.length}`);
+      assert.ok(f.text.length >= 300 && f.text.length <= 1200 && f.text.includes('\n\n'), `${f.id}: ${f.text.length} (v71: documento com parágrafos)`);
       assert.ok(f.title && f.por, f.id);
       // não abre sozinho ao nascer: longe dos pontos onde se nasce (o jogador vê o brilho e vai até ele)
       for (const p of [REALTIME.spawn, REALTIME.tutorialEnd]) if (f.map === REALTIME.startMap) assert.ok(Math.hypot(f.x - p.x, f.y - p.y) > 4, `${f.id} em cima de onde se nasce`);
@@ -72,13 +81,14 @@ describe('v64: fragmentos da Crônica', () => {
 
 describe('v64: tutorial (método em 3 etapas) e falas dos professores', () => {
   it('cada fala de etapa apresenta, diz que é seguro e aponta a porta; depois da Academia, rodízio com a voz do professor', () => {
-    assert.match(TUTOR_STEP.tutor_dummies!.now.text, /não revida.*porta abre/);
-    assert.match(TUTOR_STEP.tutor_meditation!.now.text, /nada te fere.*porta abre/);
+    assert.match(TUTOR_STEP.tutor_dummies!.now.text, /não revida[\s\S]*porta abre/);
+    assert.match(TUTOR_STEP.tutor_meditation!.now.text, /nada te fere[\s\S]*porta abre/);
     assert.match(TUTOR_STEP.tutor_jutsu!.now.text, /^Olha onde vai pousar!/);     // o bordão do Kenji (Arco 1)
     assert.equal(tutorFala('tutor_jutsu', 2).id, 'TUT_KENJI_01');
     assert.equal(tutorFala('tutor_jutsu', 3).id, 'TUT_KENJI_02');
-    const turns = [0, 1, 2, 3].map((t) => tutorFala('tutor_jutsu', 4, t).id);
-    assert.deepEqual(turns, [...TUTOR_BARKS.tutor_jutsu!.map((b) => b.id), TUTOR_BARKS.tutor_jutsu![0]!.id]);
+    const n = TUTOR_BARKS.tutor_jutsu!.length;
+    const turns = [...Array(n + 1).keys()].map((t) => tutorFala('tutor_jutsu', 4, t).id);
+    assert.deepEqual(turns, [...TUTOR_BARKS.tutor_jutsu!.map((b) => b.id), TUTOR_BARKS.tutor_jutsu![0]!.id]);   // em ordem, depois volta
     assert.ok(TUTOR_BARKS.tutor_jutsu!.some((b) => /tronco no seu lugar/.test(b.text)), 'a pista do prólogo do Arco 1');
   });
 

@@ -18,12 +18,11 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   `public/figure.js` cache e giro). Detalhes em `arte/personagem-rig/LEIAME.md`. O estilo segue a folha de referência
   do Victor (chibi, contorno escuro, sombreado em 2-3 tons). Toda mudança de arte é comparada lado a lado com a
   referência e conferida dentro do jogo antes de fechar.
-- **Versão atual:** v29 (modo rankeado no Vale dos Guardiões, migração v15), publicada na `main`. Pronto e esperando o
-  Victor (branch, migrações v16 a v29 nessa ordem; bônus de XP do admin com `/admin bonusxp` (v29); o admin muda a patente com `/admin patente` (v23) e reseta as próprias classes com `/admin resetarclasses` (v24); pergaminho único e jutsu só da própria classe (v24); linhagem no Criador, Rito do Despertar e Clã Umbra (v25); Pergaminho do Mestre, nota do Pré-Alpha e Feedback no jogo (v26)): Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o
-  Clã Rubro), conjuração, sistemas próprios (muros, invocações, escuridão...), clãs por linhagem, controle mais forte, a
-  Fase 1 dos nomes (Herança do Fogo, 4 aldeias), a correção da rodada 2 do rankeado e a Fase 0 (Extração do design
-  final e maestria por jutsu, feita no Fogo) e a Fase 1 dos nomes originais (Os Cinzas, Arena das Quatro Heranças, 38 jutsus, v21;
-  aldeias Nuvem/Areia corrigidas na v22: `docs/fase1-renomeacao.md`). Documento canônico do endgame (identidade, aldeias, hierarquia, ANBU,
+- **Versão atual:** v72 no branch `ccr-2afc1981-eq01zm`; a `main` tem até a v70 (PRs #33 a #47). **Banco:** todas as
+  migrações até a **v40** rodaram no `production` do Neon (confirmado pelo Victor em 17/11/2026); nenhuma pendente.
+  Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o Clã Rubro), mais os 74 da Fase 2.5 e os 16 dos clãs novos;
+  conjuração, sistemas próprios (muros, invocações, escuridão...), clãs por linhagem, Extração e maestria, rankeado 1v1 e
+  3v3, torneios, Vínculo, Titãs e Progressão de Mundo. Documento canônico do endgame (identidade, aldeias, hierarquia, ANBU,
   torneios, Terra Sem Lei, guerras, roadmap Fase 0 a 3): `docs/endgame-visao.md`; nada dele é implementado sem o OK do
   Victor. **Stack:** em avaliação (empacotamento nativo, WASM, N-API, Capacitor/Tauri, C/C++); não mudar nada até ele
   decidir.
@@ -33,10 +32,28 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v78 (sem migração):** camadas do PixelFX por cima das folhas desenhadas dos 50 jutsus (carga dos selos, anel de fogo,
+  poeira, brasas, luz da cura, runas, cruzes, estalo, choque, faíscas), em `public/camadasJutsus.js`; gerador e efeitos
+  nossos em `arte/pixelfx/` (`LEIAME.md`). Branch `ccr-f46a25fd-4ie1yd` (sobre a `ccr-2afc1981-eq01zm`).
+- **v77 (sem migração):** mais 7 de Relâmpago desenhados (Investida Elétrica, Mãos de Trovão, Rugido do Trovão, Julgamento
+  do Trovão, Céu em Fúria, Armadura Relampejante, Risco de Luz).
+- **v76 (sem migração):** 9 jutsus de Relâmpago desenhados (Corrente Rasteira, Impulso Estático, Shuriken do Trovão,
+  Descarga Envolvente, Farpas de Trovão, Ida e Volta, Lança Saltadora, Rede de Faíscas, Correntes de Raio).
+- **v75 (sem migração):** os outros 10 jutsus de Cura desenhados (toda a classe Cura tem animação própria).
+- **v74 (sem migração):** mais 10 animações desenhadas pelo Victor (Chuva de Meteoros, Coroa de Chamas, Coluna Infernal e 7
+  da Cura); o recorte agora aceita fundo magenta, brilho suave e texto por cima do desenho (`arte/jutsus-vfx/ajustes.json`).
+- **v73 (sem migração):** as animações desenhadas pelo Victor de 10 jutsus de Fogo (6 quadros cada), recortadas por
+  `arte/jutsus-vfx/recortar.py` (gera `public/vfxFogo.js`) e tocadas por `public/fogoAnim.js` em cada fase do golpe.
+- **v72 (sem migração, pedido do Victor de 17/11):** o chat do celular deitado menor (253 x 72 px) e a linha de digitar fina
+  (28 px visíveis, toque de 44 px), sem o ➤. Os prompts do Flow (`arte/mapas/flow/`) sem frases negativas, com o bloco de
+  estilo no começo, a vista de frente e de cima, e uma imagem só por peça (sombra, luz e movimento feitos por código).
+- **v71 (sem migração, pedido do Victor de 17/11):** a fala do NPC numa caixa embaixo, no meio da tela (nome, páginas de
+  até 3 linhas, texto aparecendo aos poucos, toque para continuar), no lugar do balão; retrato opcional no ⚙️. Regra no
+  guia de UI, seção 14. Branch `ccr-2afc1981-eq01zm`.
 - **v70 (migração v40, pedidos do Victor de 17/11):** bug da conexão morta ao voltar ao navegador (vigia que reconecta),
   retrato abre os atributos, nome no lugar de "Vida", chat menor no meio (celular) e missões à esquerda, regen 2/s após 3 s,
   Lodo Verde 8, respawn de 1 min, XP das missões 50/150/325 (v40), arena própria e maior do 3v3 com a escolha 1v1/3v3.
-  Branch `ccr-ajustes` (sobre a `ccr-rankeado`) até o Victor rodar a v40. Arena do 3v3: "Arena dos Três Juramentos" (escolha 13A do Victor, 17/11).
+  Mesclado (PR #46); a v40 rodou no Neon. Arena do 3v3: "Arena dos Três Juramentos" (escolha 13A do Victor, 17/11).
 - **v69 (sem migração):** polimento do rankeado: "Próximo: X × Y" e "você é o próximo", selo redondo e "faltam N" no
   resultado, nomes colados, arquibancada em degraus, estátua com volume, mureta, rochas e holofote. Branch `ccr-rankeado`.
 - **v68 (sem migração):** no toque longo do jutsu sem mira, o ✕ Cancelar (deslizar até ele e soltar não lança). Branch `ccr-ui-hud`.
@@ -46,25 +63,48 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   e números, avisos de 2 a 5 s, auditoria no navegador. Branch `ccr-ui-hud` (sobre a `ccr-decisoes`).
 - **v65 (migração v39, decisões do Victor de 15/11):** os 12 nomes da lore aplicados (Lodo Verde, Pedras da Vigília...),
   Kenji e Mei com os visuais certos, Pular a Academia, fragmentos da Crônica no banco (prêmio e falas do Cronista) e todos
-  os comandos `/admin` no Painel do Admin (o teste `test/decisoes.test.ts` cobra botão para comando novo). Branch
-  `ccr-decisoes` até o Victor rodar a v39.
+  os comandos `/admin` no Painel do Admin (o teste `test/decisoes.test.ts` cobra botão para comando novo). Mesclado (PR #43);
+  a v39 rodou no Neon.
 - **v64 (lore e tutorial, sem migração):** `docs/lore/` (Bíblia do Mundo, NDD, fichas, artefatos, planilha de diálogos,
   tutorial, propostas de nomes), 17 fragmentos da Crônica no mapa (Manual → Fragmentos), falas com voz dos professores e
   lojistas, dicas na hora e folha de controles. A Bíblia é a fonte única de verdade da lore; os nomes que faltam esperam a
   escolha do Victor (`docs/lore/propostas-de-nomes.md`). Branch `ccr-lore` (sobre a `ccr-fase3`).
 - **v63 (migração v38, Fase 3 Etapa 4):** os 4 clãs novos (Bastião, Áspide, Garra, Zéfiro; 16 jutsus e as passivas, escolhas do
-  Victor em 15/11) e as relíquias com os nomes da opção A. Branch `ccr-fase3` (junto com a v35 a v37) até o Victor rodar a v38.
+  Victor em 15/11) e as relíquias com os nomes da opção A. Mesclado (PR #41); a v38 rodou no Neon.
 - **v61/v62 (migrações v36 e v37, Fase 3):** Titãs Ancestrais e Portadores (passiva e Suprema em todos os modos), Progressão
-  de Mundo (marcos 30/60/100/150/250, névoa, O Cronista; começa forçado em 250) e Loot das relíquias. Branch `ccr-fase3`
-  até o Victor rodar a v36 e a v37. A Etapa 4 (clãs novos) e os nomes das relíquias
+  de Mundo (marcos 30/60/100/150/250, névoa, O Cronista; começa forçado em 250) e Loot das relíquias. Mesclado (PR #41);
+  a v36 e a v37 rodaram no Neon. A Etapa 4 (clãs novos) e os nomes das relíquias
   foram escolhidos e aplicados na v63 (`docs/fase3-propostas.md`).
 - **v60 (migração v35):** Vínculo Ancestral (8 criaturas, afinidade, Invocar no HUD) e Estado Primal, só no mapa aberto.
-  Branch `ccr-vinculo` até o Victor rodar a v35 no Neon.
+  Mesclado (PR #40); a v35 rodou no Neon.
 - **v59 (migração v34):** o ninja volta sempre ao último lugar (posição gravada no banco), guarda de 2 min ao cair a conexão,
-  contador da Shuriken certo na entrada. Branch `ccr-reconexao` até o Victor rodar a v34 no Neon.
+  contador da Shuriken certo na entrada. Mesclado (PR #39); a v34 rodou no Neon.
 - **v55 (migração v33):** 4 arenas simultâneas e espectador fantasma (painel "Lutas"), semifinal e final sozinhas na principal,
-  rankeado 3v3 (solo e Trio), calendário automático da Era e do Torneio, Torneio dos Heróis e dos Vilões. Branch
-  `ccr-pvp-torneio` até o Victor rodar a v33 no Neon.
+  rankeado 3v3 (solo e Trio), calendário automático da Era e do Torneio, Torneio dos Heróis e dos Vilões. Mesclado
+  (PR #35); a v33 rodou no Neon.
+
+## Animações dos jutsus (folhas do Victor): como continuar numa aba nova
+
+O Victor manda folhas de 6 quadros (fundo verde ou magenta) e cada uma vira a animação de um jutsu. **Feitos 50** (todo o
+Fogo, toda a Cura e 16 de Relâmpago, v56 e v73 a v77); **faltam 149** (Água, Vento, Pedra, Sombra, Ilusão, Taijutsu,
+Armas, Relâmpago e Aura de Regeneração, e os clãs). A lista completa, com o id e a forma de cada um, e o passo a passo
+estão em **`arte/jutsus-vfx/LEIAME.md`**: ler antes de mexer.
+
+- **Começo da sessão:** `bash scripts/ambiente-local.sh` (Postgres local na 5433, banco `jogo` com todas as migrações,
+  segredos locais aleatórios em `/var/tmp/jogo.env`, servidor na 3000 e o ninja admin `rin`). Rodar de novo religa o
+  que caiu (o container pode reiniciar o Postgres).
+- **Por folha:** achar o id pelo nome → `arte/jutsus-vfx/folhas/<id>.jpg` → `ajustes.json` → `recortar.py --debug`
+  → conferir o recorte → `public/fogoAnim.js` (o momento de cada quadro) → `capturar.ts` + `folha.py` → conferir no jogo
+  → `test/vfxJutsus.test.ts` → README/CLAUDE.md → `npm run verify` → commit e push → mandar as folhas ao Victor.
+- **Skill de animação:** se esta sessão tiver uma skill de banco de habilidades, efeitos ou animação (veja a lista de
+  skills), use-a para complementar: mais quadros intermediários, partículas e brilho por cima dos quadros desenhados,
+  ou para propor ao Victor como animar os jutsus que ainda não têm folha. A arte do Victor é a base: a skill
+  complementa, não troca o desenho dele.
+- **Camadas (v78):** cada folha nova ganha o seu `case` em `public/camadasJutsus.js` (as camadas do PixelFX no tempo dos
+  quadros; o teste cobra). Para gerar ou acrescentar camadas: `arte/pixelfx/LEIAME.md` (clonar o PixelFX e rodar
+  `node arte/pixelfx/camadas.mjs <pasta>`). O servidor guarda os arquivos de `public/` na memória: reinicie
+  (`bash scripts/ambiente-local.sh`) antes de capturar de novo.
+- Nada disso muda o servidor (só visual), salvo um aviso visual quando faltar informação (ex.: o `combo` 'marca').
 
 ## Documentos
 
@@ -73,11 +113,19 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 - `docs/fase2-plano.md`: plano de arquitetura da Fase 2 (endgame), etapas, migrações previstas e decisões em aberto.
 - `docs/design-do-jogo.md`: design completo (pilares, sistemas, roadmap, decisões e riscos).
 - `docs/historia/arco-1.md`: roteiro do Arco 1 (15 missões); o sistema de história ainda não existe.
+- `docs/historia/arco-1-mare.md`, `arco-1-vento.md`, `arco-1-rocha.md`: os Arcos 1 das outras aldeias (decisão do Victor de
+  17/11: cada aldeia com Academia e Arco 1 próprios); nomes novos nos itens 29 a 38.
+- `docs/lore/mundo-aberto-proposta.md`: o mundo aberto em anéis (17 x 17 blocos), aprovado pelo Victor em 17/11; os
+  arcos regionais, os chefes, as regras de passagem e a ordem de construção.
 - `docs/ui/estrutura-ui-ux-hud.md`: a estrutura de UI, UX e HUD (regra de toda tela nova).
+- `arte/jutsus-vfx/LEIAME.md`: as animações desenhadas dos jutsus (como recortar, tocar e conferir; o que falta).
+- `arte/pixelfx/LEIAME.md`: as camadas do PixelFX por cima das animações desenhadas (gerar, escolher, conferir).
 - `docs/lore/`: a lore (Bíblia do Mundo, fonte única de verdade) e o design do tutorial; a planilha `dialogos.csv` é gerada
   do jogo (`npx tsx scripts/gerar-dialogos.ts`) e o teste confere.
 - `docs/mapas.md`, `docs/endgame.md`, `docs/habilidades.md`, `docs/clima.md`, `docs/netcode.md`.
 - `docs/relatorio-progresso-2026-11.pdf`: relatório de progresso (estado do jogo e próximas atualizações).
+- `docs/relatorio-completo-do-jogo-2026-11-12.pdf`: relatório completo do jogo (todos os sistemas e a ficha dos 186 jutsus,
+  com ícone, arte capturada no jogo, tier, classe e números).
 
 ## Próximas entregas
 
@@ -87,7 +135,9 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
    Despertar (v25) e a maestria em todos os jutsus (Fase 1.5, v36) feitos. A Fase 2.5 (74 jutsus novos,
    4 por classe por tier, nomes da opção B) foi feita na v49 (migração v30, `src/realtime/jutsusFase25.ts`).
 2. Rankeado, polimento (`revisao_egm/rankeado/`): feito na v69 (arquibancada em degraus, estátua, selo de faixa, aviso de próximo).
-3. Cabeça (rosto e cabelo) desenhada à mão em pixel art: o Victor reprovou o rosto e o cabelo gerados por formas 3D.
+3. Arte dos personagens (decisão do Victor, 12/11/2026): **o Victor vai desenhar**. Não produzir arte de personagem,
+   cabelo, roupa ou acessório sem ele pedir; o jogo segue com a arte base atual. O boneco base de `arte/boneco-base/`
+   (PR #31) fica só como referência técnica.
 4. Site no Floot (páginas, login com a conta do jogo, admin, notificações).
 5. Salas com imagem: aguardando as imagens do Victor (Areia, Alfaiataria, Academia, Caverna, Clareira, Refúgio).
 6. Arco 1 jogável (sistema de história), depois o social (grupo, amigos, sensei).

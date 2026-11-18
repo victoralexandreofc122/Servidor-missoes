@@ -103,7 +103,7 @@ describe('NPC Mestre: no mapa e conversa', () => {
     a.send({ type: 'accept_mission', offer: 'NPC_TRAINING' });
     await flush();
     assert.deepEqual(calls.talk, [[a.id, 'NPC_TRAINING']]);
-    assert.deepEqual(a.conn.last('npc_say'), { type: 'npc_say', npcId: 'sensei', text: 'Prove seu valor, jovem ninja: derrote 5 Lodos Verdes e volte aqui.' });
+    assert.deepEqual(a.conn.last('npc_say'), { type: 'npc_say', npcId: 'sensei', text: 'Prove seu valor, jovem ninja: derrote 5 Lodos Verdes e volte aqui.\n\nNão deixe que te cerquem. E volte inteiro: missão cumprida com ninja ferido é meia missão.' });
     assert.deepEqual(a.conn.last('mission'), { type: 'mission', mission: mission(0), reason: 'assigned' });
   });
 
@@ -251,7 +251,7 @@ describe('NPC Mestre: rastreamento e conclusão', () => {
     a.send({ type: 'deliver_npc_mission' });
     await flush();
     assert.deepEqual(calls.talk, [[a.id, null]], 'entregar nunca cria missão (offer null)');
-    assert.equal(a.conn.last('npc_say').text, 'Ainda faltam 3 Lodos Verdes. Eles rondam em volta da vila.');
+    assert.equal(a.conn.last('npc_say').text, 'Ainda faltam 3 Lodos Verdes. Eles rondam em volta da vila.\n\nSem pressa, cadete. Quem corre para terminar é quem não termina.');
     state.next = { kind: 'none' };
     clock.advance(500);
     a.send({ type: 'deliver_npc_mission' });
@@ -277,7 +277,7 @@ describe('NPC Mestre: rastreamento e conclusão', () => {
     });
     assert.deepEqual(a.conn.last('xp'), { type: 'xp', gained: 50, totalXp: 130, rank: { code: 'GENIN', name: 'Genin' }, promoted: true });
     assert.deepEqual(a.conn.last('mission'), { type: 'mission', mission: null, reason: 'completed' });
-    assert.equal(a.conn.last('npc_say').text, 'Excelente! Pergaminho entregue: +50 XP e o título “Discípulo do Mestre”. Fale comigo de novo para outro treino.');
+    assert.equal(a.conn.last('npc_say').text, 'Excelente! Pergaminho entregue: +50 XP e o título “Discípulo do Mestre”.\n\nJá perdi aprendizes em missão que parecia fácil. Você voltou, e é isso que eu conto. Fale comigo de novo para outro treino.');
     assert.equal(b.conn.last('announce').message, 'kaito subiu para Genin!');
     assert.equal(b.conn.of('mission_reward').length, 0, 'recompensa é só do dono');
     assert.equal(session(world, a.id).xp, 130);
@@ -319,10 +319,10 @@ describe('NPC Mestre: rastreamento e conclusão', () => {
   });
 
   it('falas: quanto falta (singular/plural) e missão de outro sensei', () => {
-    assert.equal(npcLine.inProgress(mission(2)), 'Ainda faltam 3 Lodos Verdes. Eles rondam em volta da vila.');
-    assert.equal(npcLine.inProgress(mission(4)), 'Ainda falta 1 Lodo Verde. Eles rondam em volta da vila.');
+    assert.equal(npcLine.inProgress(mission(2)), 'Ainda faltam 3 Lodos Verdes. Eles rondam em volta da vila.\n\nSem pressa, cadete. Quem corre para terminar é quem não termina.');
+    assert.equal(npcLine.inProgress(mission(4)), 'Ainda falta 1 Lodo Verde. Eles rondam em volta da vila.\n\nSem pressa, cadete. Quem corre para terminar é quem não termina.');
     assert.equal(npcLine.otherSensei(mission(0, { senseiName: 'obito', fromNpc: false })), 'Você está treinando com o sensei obito. Termine essa missão primeiro.');
     assert.equal(npcLine.otherSensei(mission(5, { status: 'submitted', senseiName: 'obito' })), 'Sua missão está com o sensei obito, esperando a avaliação.');
-    assert.equal(npcLine.rewarded([{ xp: 50, title: 'Discípulo do Mestre', titleNew: false }]), 'Excelente! Pergaminho entregue: +50 XP. Fale comigo de novo para outro treino.');
+    assert.equal(npcLine.rewarded([{ xp: 50, title: 'Discípulo do Mestre', titleNew: false }]), 'Excelente! Pergaminho entregue: +50 XP.\n\nJá perdi aprendizes em missão que parecia fácil. Você voltou, e é isso que eu conto. Fale comigo de novo para outro treino.');
   });
 });

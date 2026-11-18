@@ -4404,7 +4404,11 @@ export class GameWorld {
         this.broadcastMap(by.map, { type: 'teleport', playerId: x.id, fromX: round3(b.x), fromY: round3(b.y), x: round3(a.x), y: round3(a.y), a: x.session.ackSeq });
       }
     }
-    if (cfg.brandMs && this.stillThere(x)) by.brand = { targetId: x.id, until: t + cfg.brandMs, bonus: cfg.brandBonus ?? 0.6 };   // v51
+    if (cfg.brandMs && this.stillThere(x)) {
+      by.brand = { targetId: x.id, until: t + cfg.brandMs, bonus: cfg.brandBonus ?? 0.6 };   // v51
+      // v73: só visual: o selo da Marca aparece em quem foi marcado (até detonar ou acabar)
+      this.broadcastMap(by.map, { type: 'combo', target: x.kind, id: x.id, combo: 'marca', ms: cfg.brandMs });
+    }
     if (cfg.stealBuff && x.kind === 'player' && this.stillThere(x)) {
       // v51: roubo de buff (Empréstimo Forçado): escudo com vida, redução do próximo golpe, bônus de Básico e pressa mudam de dono
       const v = x.session;
@@ -5700,20 +5704,20 @@ export class GameWorld {
   private riteTalk(s: Session, say: (text: string) => void): boolean {
     if (s.clan || s.rank.code === 'ACADEMY' || s.level < CLAN_TIER_LEVEL[0]) return false;
     if (!s.clanMark) {
-      say('Seu sangue ainda não foi marcado. Abra o Criador de Personagem (☰ → Config. → Mudar visual do personagem), escolha a linhagem e volte para o Rito do Despertar.');
+      say('Seu sangue ainda não foi marcado.\n\nAbra o Criador de Personagem (☰ → Config. → Mudar visual do personagem), escolha a linhagem e volte para o Rito do Despertar.');
       return true;
     }
     const name = CLAN_NAMES[s.clanMark];
     if (s.riteProgress === null) {
       this.setRite(s, 0);
-      say(`Rito do Despertar (${name}): derrote ${RITE.count} ${RITE.monsterName} na Floresta e volte aqui. O sangue desperta na luta.`);
+      say(`Rito do Despertar (${name}): derrote ${RITE.count} ${RITE.monsterName} na Floresta e volte aqui. O sangue desperta na luta.\n\nSua família lutou perto dos Titãs, há séculos. Um pouco daquela força ficou no seu sangue, dormindo. Vamos acordá-la.`);
       return true;
     }
     if (s.riteProgress < RITE.count) {
-      say(`Rito do Despertar: ${s.riteProgress}/${RITE.count} ${RITE.monsterName}. Continue na Floresta.`);
+      say(`Rito do Despertar: ${s.riteProgress}/${RITE.count} ${RITE.monsterName}. Continue na Floresta.\n\nO sangue não tem pressa. Mas também não espera para sempre.`);
       return true;
     }
-    say(`O Rito está completo. Desperte, ${name}.`);
+    say(`O Rito está completo. Desperte, ${name}.\n\nO que seus antepassados trouxeram da luta contra os Titãs agora é seu. Use para guardar, não para queimar.`);
     this.chooseClan(s, s.clanMark);                     // v36: o Rito se apaga quando o despertar for gravado
     return true;
   }
@@ -5984,25 +5988,25 @@ export class GameWorld {
   private talkDirector(s: Session): void {
     const say = (text: string) => this.sendTo(s, { type: 'npc_say', npcId: 'director', text });
     const lv = this.config.combat.rankLevels;
-    if (s.tutorial < 4) return say('Primeiro, conclua as quatro etapas da Academia. Os Professores levam você de uma sala para a outra.');
+    if (s.tutorial < 4) return say('Ainda não, cadete.\n\nPrimeiro, conclua as quatro etapas da Academia. Os Professores levam você de uma sala para a outra. Eu espero. Esperar eu sei.');
     if (s.rank.code === 'ACADEMY') {
-      if (s.level < lv.genin) return say(`A Missão de Genin é no nível ${lv.genin}. Cace na Floresta, ao sul do portão, e volte aqui. (Nível ${s.level})`);
-      say('Chegou a hora da Missão de Genin. Escolha sua classe: ela decide quais jutsus você pode aprender.');
+      if (s.level < lv.genin) return say(`A Missão de Genin é no nível ${lv.genin}. Você está no ${s.level}.\n\nCace na Floresta, ao sul do portão, e volte aqui. Volte quando a bandana pesar menos na sua testa.`);
+      say('Chegou a hora da Missão de Genin.\n\nEscolha sua classe: ela decide quais jutsus você pode aprender, e quem você vai ser quando ninguém estiver olhando.\n\nEscolha devagar. Escolha feita com pressa é a primeira que se arrepende.');
       return this.sendTo(s, { type: 'class_choice', kind: 'primary', classes: [...CLASSES] });
     }
     if (this.riteTalk(s, say)) return;   // v35: o Rito do Despertar vem antes do resto
     if (s.level >= lv.kage && !s.kageCandidate) {
-      return say('Poucos chegam tão longe. Se quiser, registre aqui a sua candidatura a Kage.');
+      return say('Poucos chegam tão longe. Eu cheguei, e não quis.\n\nSe quiser, registre aqui a sua candidatura a Kage. A aldeia escolhe. Eu só guardo a porta.');
     }
     if (s.rank.code === 'GENIN') {
-      if (s.level < lv.chunin) return say(`O Exame Chunin é no nível ${lv.chunin}. Até lá, treine seus jutsus: cada uso conta. (Nível ${s.level})`);
-      return say('Você já pode fazer o Exame Chunin. Peça a um Chunin (ou acima) que crie o “Exame Chunin” para você e cumpra a prova.');
+      if (s.level < lv.chunin) return say(`O Exame Chunin é no nível ${lv.chunin}. Você está no ${s.level}.\n\nAté lá, treine seus jutsus: cada uso conta. Um jutsu usado cem vezes te conhece melhor que você mesmo.`);
+      return say('Você já pode fazer o Exame Chunin.\n\nPeça a um Chunin (ou acima) que crie o “Exame Chunin” para você e cumpra a prova. Ninguém se forma sozinho. Nem eu me formei.');
     }
     if (s.classes.primary && !s.classes.secondary && s.level >= lv.chunin) {
-      say('Um Chunin pode dominar uma segunda classe. Escolha a sua classe Secundária.');
+      say('Um Chunin pode dominar uma segunda classe.\n\nEscolha a sua classe Secundária. Duas heranças num corpo só: cuide para que elas não briguem.');
       return this.sendTo(s, { type: 'class_choice', kind: 'secondary', classes: CLASSES.filter((c) => c !== s.classes.primary) });
     }
-    return say(s.kageCandidate ? 'Sua candidatura a Kage está registrada. A eleição virá em breve.' : 'Continue treinando. A Vila conta com você.');
+    return say(s.kageCandidate ? 'Sua candidatura a Kage está registrada. A eleição virá em breve.\n\nAté lá, durma bem. Quem quer liderar a aldeia precisa estar acordado quando ela precisar.' : 'Continue treinando. A Vila conta com você.\n\n(ele olha pela janela, na direção da Praça) A Vila sempre conta com alguém. Um dia, esse alguém vai ser você.');
   }
 
   /**
@@ -9375,10 +9379,10 @@ export function npcTitle(m: MissionView): string {
 
 /** Falas do Mestre. */
 export const npcLine = {
-  assigned: (m: MissionView) => `Prove seu valor, jovem ninja: derrote ${m.target.quantity} ${targetLabel(m.target.code, m.target.quantity)} e volte aqui.`,
+  assigned: (m: MissionView) => `Prove seu valor, jovem ninja: derrote ${m.target.quantity} ${targetLabel(m.target.code, m.target.quantity)} e volte aqui.\n\nNão deixe que te cerquem. E volte inteiro: missão cumprida com ninja ferido é meia missão.`,
   inProgress: (m: MissionView) => {
     const left = m.target.quantity - m.progress;
-    return `Ainda ${left === 1 ? 'falta' : 'faltam'} ${left} ${targetLabel(m.target.code, left)}. Eles rondam em volta da vila.`;
+    return `Ainda ${left === 1 ? 'falta' : 'faltam'} ${left} ${targetLabel(m.target.code, left)}. Eles rondam em volta da vila.\n\nSem pressa, cadete. Quem corre para terminar é quem não termina.`;
   },
   otherSensei: (m: MissionView) => m.status === 'submitted'
     ? `Sua missão está com o sensei ${m.senseiName}, esperando a avaliação.`
@@ -9387,7 +9391,7 @@ export const npcLine = {
     const xp = rewards.reduce((sum, r) => sum + r.xp, 0);
     const titles = rewards.filter((r) => r.title && r.titleNew).map((r) => `“${r.title}”`);
     const prize = titles.length > 0 ? `+${xp} XP e o título ${titles.join(' e ')}` : `+${xp} XP`;
-    return `Excelente! Pergaminho entregue: ${prize}. Fale comigo de novo para outro treino.`;
+    return `Excelente! Pergaminho entregue: ${prize}.\n\nJá perdi aprendizes em missão que parecia fácil. Você voltou, e é isso que eu conto. Fale comigo de novo para outro treino.`;
   },
 };
 

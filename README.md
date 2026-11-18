@@ -240,6 +240,101 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
 - **Fase 3 (conteúdo):** 2ª classe no nível 40, mapas temáticos, social com mentoria, Arco 1, clãs novos (um por
   aldeia), mapa-múndi contínuo.
 
+### Ferramentas: continuar as animações em outra sessão
+
+- `scripts/ambiente-local.sh` prepara o jogo num container novo (Postgres, banco com todas as migrações, segredos locais,
+  servidor e o ninja admin `rin`); `arte/jutsus-vfx/capturar.ts` e `folha.py` conferem as animações dentro do jogo;
+  `arte/jutsus-vfx/LEIAME.md` tem o passo a passo e a lista dos 149 jutsus que faltam.
+
+### v78: camadas do PixelFX por cima das animações desenhadas (sem migração)
+
+- Os 50 jutsus com folha desenhada pelo Victor (todo o Fogo, toda a Cura e 16 de Relâmpago) ganharam **camadas** que
+  complementam os quadros dele, sem trocar nada do desenho: a carga do elemento na mão durante os selos, o anel de fogo
+  que corre no chão, a coluna de fogo, a poeira dos impactos pesados, as brasas que sobem, a luz que sobe pelo corpo de
+  quem foi curado, o círculo de runas das zonas de cura, as cruzes de cura, o estalo do trovão, o choque no alvo e as
+  faíscas que estalam enquanto o buff ou a prisão duram. Cada jutsu tem a sua coreografia, no tempo dos quadros.
+- As camadas são efeitos do [PixelFX](https://github.com/patch-gg/pixelfx) (licença MIT) recoloridos com as cores das
+  folhas, mais três nossos (brasas, faíscas e cruzes, em `arte/pixelfx/efeitos/`). `arte/pixelfx/camadas.mjs` gera as
+  folhas (cor e luz separadas, a luz somada para não sujar o chão claro; ~0,7 MB no total) e `public/vfxCamadas.js`;
+  `public/camadasJutsus.js` toca cada uma. Só visual: o servidor não mudou. Passo a passo em `arte/pixelfx/LEIAME.md`.
+- `scripts/ambiente-local.sh` instala as dependências mesmo sem `package-lock.json` (o `npm ci` recusava).
+
+### v77: animações desenhadas de mais 7 jutsus de Relâmpago (sem migração)
+
+- Investida Elétrica (o redemoinho na mão durante os selos e o cometa elétrico até onde parou), Mãos de Trovão (as garras
+  elétricas ficam nas mãos durante o buff), Rugido do Trovão (a carga junta nos selos, o feixe vai até o alcance e bate
+  numa parede de raios), Julgamento do Trovão (o anel vermelho do tamanho da área, o raio do céu, o domo e a cratera),
+  Céu em Fúria (cada aviso ganha o seu raio caindo), Armadura Relampejante (o anel fecha, a descarga estoura no raio e a
+  armadura fica em volta durante os 5 s) e Risco de Luz (o risco atravessa tudo até o fim e estoura lá).
+- O Julgamento e o Céu em Fúria desenhados tiram o raio antigo feito por código.
+
+### v76: animações desenhadas de 9 jutsus de Relâmpago (sem migração)
+
+- Corrente Rasteira (o raio corre rente até o fim da linha, estoura e queima o chão), Impulso Estático (o clarão e o raio
+  que leva o ninja 4 casas à frente, com o impacto na chegada), Shuriken do Trovão e Farpas de Trovão (voam desenhadas,
+  sem o rastro antigo), Descarga Envolvente (o anel em volta), Ida e Volta (1º uso: a runa fica marcada no chão por 4 s;
+  2º uso: o raio leva de volta a ela), Lança Saltadora (acerta o 1º alvo e salta em arco para o mais perto dele), Rede de
+  Faíscas (a rede no chão, piscando enquanto dura) e Correntes de Raio (a corrente se divide e amarra até 2 alvos na linha).
+- "Correntes de Raio" veio duas vezes (a mesma imagem); usei uma.
+- Recorte: cor de fundo fixa quando o desenho encosta nos cantos do painel (o clarão do Impulso).
+
+### v75: animações desenhadas dos outros 10 jutsus de Cura (sem migração)
+
+- Punho Sísmico (anel rachando e erupção com pedras), Banho de Chakra (a coluna cai no aliado, chafariz e poças), Lâmina
+  Séptica (voa e deixa a poça tóxica), Onda Anestésica (o anel abre em volta, com bolhas, e se parte), Regeneração de Área
+  e Santuário Vital (o selo fica na zona enquanto ela dura; o Santuário anda com quem lançou), Selo dos Meridianos (os
+  fios até o alvo e o selo estilhaçando), Milagre Verde (flor, explosão de luz, folhas caindo), Punho do Colosso (o punho
+  junta força durante os selos, desce e deixa a cratera) e Renovação Celular (os anéis pulsam durante os 10 s de cura).
+- Agora toda a classe Cura e 13 jutsus de Fogo têm animação desenhada.
+- Recorte: fundo escuro, o fundo clareado ou escurecido (brilho branco, sombra da moldura) sai, máscara redonda para o
+  desenho que vazou da moldura, miolo de anel apagado, e o corte do brilho suave vai até onde ele chega.
+
+### v74: animações desenhadas de mais 3 jutsus de Fogo e 7 de Cura (sem migração)
+
+- Fogo T4: Chuva de Meteoros (cada aviso no chão ganha o seu meteoro: a marca vermelha, ele cai do céu no fim do aviso,
+  explode e deixa a cratera), Coroa de Chamas (o anel acende no chão durante os selos e explode em volta) e Coluna
+  Infernal (o anel avisa, a chama nasce e a coluna sobe no fim do aviso).
+- Cura: Cura, Corte Cirúrgico (o bisturi fica na mão durante o buff), Desintoxicação Celular, Palma Curadora (o
+  redemoinho gira na mão durante os 2 s de canalização), Agulha Calmante (a agulha voa até o alvo), Casca de Chakra (a
+  bolha fica em volta enquanto o escudo dura) e Descontrole Muscular (o selo pulsa no alvo enquanto ele anda ao contrário).
+- O recorte aprendeu: fundo magenta (pela cor do painel), brilho suave com transparência gradual (a franja ganha a cor do
+  desenho, sem auréola), letras pretas por cima do desenho preenchidas com a cor em volta, peças soltas com a borda do
+  corte desfeita.
+
+### v73: animações desenhadas de 10 jutsus de Fogo (sem migração)
+
+- As 10 folhas do Victor (6 quadros cada, fundo verde) viraram quadros do jogo: Revoada de Brasas, Lança de Fogo, Cinzas
+  Detonantes, Lâmina de Fogo, Marca Incandescente, Varredura Flamejante, Projétil Dracônico, Chão Incandescente, Cometa
+  Rasteiro (a folha veio sem o quadro 5) e Rugido da Fornalha.
+- Cada quadro entra na hora certa do golpe: conjuração na mão, golpe ativo (o leque abre, a lança e o raio vão até onde
+  o golpe chega, as brasas e o dragão voam), impacto e fim (fumaça, chão queimado). A Lâmina fica na mão durante o buff,
+  a Marca fica no alvo até detonar, o Chão Incandescente pulsa enquanto a zona dura e o Rugido junta o redemoinho
+  durante os selos.
+- O recorte é automático: `arte/jutsus-vfx/recortar.py` acha os painéis, tira o verde, os títulos e os F1..F6, reduz
+  ao tamanho do pixel da arte e gera `public/vfxFogo.js` (tamanho, âncora e direção de cada quadro). Folha nova: salvar
+  em `arte/jutsus-vfx/folhas/<id do jutsu>.jpg`, ajustar `ajustes.json` e rodar o script.
+- Servidor: só um aviso visual novo (`combo` 'marca') quando a Marca pega alguém. Com o desenho, as partículas antigas
+  da conjuração desses jutsus saem (o rastro e o estouro do impacto continuam).
+
+### v72: chat menor no celular (sem migração; pedido do Victor de 17/11)
+
+- No celular deitado, a caixa do chat ficou menor (de 300 x 97 px para 253 x 72 px) e a linha de digitar ficou fina: a
+  barra visível tem 28 px. A área de toque continua com 44 px (a sobra é transparente e fica por cima da borda da caixa,
+  sem ocupar espaço). O ➤ saiu: o Enviar do teclado manda a mensagem.
+
+### v71: caixa de conversa (sem migração; pedido do Victor de 17/11)
+
+- **A fala do NPC sai do balão e vai para uma caixa** embaixo, no meio da tela, com o nome de quem fala numa plaqueta, o
+  texto aparecendo aos poucos e páginas de até 3 linhas (a conversa pode ter quantas páginas precisar). Um toque termina a
+  página, outro passa para a próxima e, na última, fecha; no PC, Espaço, Enter ou E (Esc fecha). A fala continua no chat.
+- **Retrato ao lado** (opção no ⚙️, ligada para testar): o busto do NPC, o mesmo desenho do mapa.
+- **Falas reescritas com as fichas novas** (`docs/lore/personagens.md`: passado, o que quer, o que teme, como fala):
+  os professores ganham 5 conversas cada, em sequência, que vão contando a história deles; o Diretor, o Mestre, o Rito,
+  o Cronista e os lojistas falam com mais contexto e emoção, em 2 ou 3 páginas; os 17 fragmentos viram documentos de
+  verdade, com parágrafos. A regra é por página (até 160 caracteres), não por fala.
+- No celular deitado a caixa começa depois do joystick, que continua livre: se afastar do NPC fecha a conversa. Enquanto
+  ela está aberta, os botões de luta ficam apagados e sem toque, e o chat some.
+
 ### v70: pedidos do Victor de 17/11 (migração v40, `db/schema_v40_xp_missoes.sql`)
 
 - **Bug corrigido:** sair do navegador e voltar deixava os monstros "ignorando" o ninja e sem levar dano. No celular,

@@ -11,6 +11,9 @@
  * As partículas (brasas no voo, fumaça e faíscas no impacto) continuam vindo do particles.js.
  */
 
+import { FOGO_FRAMES } from './vfxFogo.js';
+import { VFX_CAMADAS } from './vfxCamadas.js';
+
 /** Os quadros: [largura em casas, âncora x, âncora y (em pixels da imagem; null = centro), mistura]. */
 export const FRAMES = {
   fogo_01: { casas: 0.75, blend: 'glow' },
@@ -31,6 +34,10 @@ export const FRAMES = {
   substituicao_01: { casas: 2.3, blend: 'normal' },
   substituicao_02: { casas: 2, blend: 'normal' },
   substituicao_03: { casas: 1.8, blend: 'normal', pe: true },
+  // v73: os 10 jutsus de Fogo desenhados pelo Victor (6 quadros cada; a tabela sai do arte/jutsus-vfx/recortar.py)
+  ...FOGO_FRAMES,
+  // v78: as camadas que complementam as folhas (PixelFX recolorido; arte/pixelfx/camadas.mjs): folhas em grade, quadro a quadro
+  ...VFX_CAMADAS,
 };
 
 const imgs = {};
@@ -48,8 +55,11 @@ export function loadJutsuSprites() {
   return loading;
 }
 
-/** Os 3 quadros daquele jutsu chegaram? */
-export const jutsuSpritesReady = (base) => [1, 2, 3].every((i) => imgs[`${base}_0${i}`]);
+/** Os quadros daquele jutsu chegaram? (v56: os 3 de cada; v73: todos os de um jutsu de Fogo, ex. 'fire_ryuka') */
+export const jutsuSpritesReady = (base) => (FOGO_BASES.has(base)
+  ? Object.keys(FOGO_FRAMES).filter((n) => n.replace(/_0\d\w?$/, '') === base).every((n) => imgs[n])
+  : [1, 2, 3].every((i) => imgs[`${base}_0${i}`]));
+const FOGO_BASES = new Set(Object.keys(FOGO_FRAMES).map((n) => n.replace(/_0\d\w?$/, '')));
 
 /** Quadros por segundo da tremida (o mesmo quadro espelhado e balançando, para o fogo não ficar parado). */
 export const FLICKER_FPS = 12;
@@ -68,13 +78,28 @@ export class JutsuSprites {
   show(name, x, y, start, ms, opts = {}) {
     if (!imgs[name]) return false;
     this.list.push({ name, x, y, start, end: start + ms, angle: opts.angle ?? 0, scale: opts.scale ?? 1, fadeIn: opts.fadeIn ?? 60, fadeOut: opts.fadeOut ?? 120,
-      flicker: opts.flicker ?? false, grow: opts.grow ?? 0, layer: opts.layer ?? 'top' });
+      flicker: opts.flicker ?? false, grow: opts.grow ?? 0, layer: opts.layer ?? 'top',
+      len: opts.len ?? 0, follow: opts.follow ?? null, tag: opts.tag ?? null, rate: opts.rate ?? 1, alpha: opts.alpha ?? 1 });
     return true;
   }
 
-  launch(id, name, x, y, fx, fy, speed, range, start) {
+  /**
+   * v78: toca uma CAMADA (folha em grade do vfxCamadas.js) do começo ao fim, no tempo dela (`rate` acelera; `ms` corta
+   * ou, num laço, diz quanto tempo fica). As outras opções são as do `show` (follow, tag, scale, angle, layer...).
+   */
+  layer(name, x, y, start, opts = {}) {
+    const f = FRAMES[name];
+    if (!f?.quadros) return false;
+    const natural = (f.quadros * f.ms) / (opts.rate ?? 1);
+    return this.show(name, x, y, start, opts.ms ?? (f.laco ? 1000 : natural), { fadeIn: 0, fadeOut: f.laco ? 250 : Math.min(400, natural * 0.3), ...opts });   // o fim cortado (ate) apaga suave
+  }
+
+  /** v73: tira os quadros de uma etiqueta (a marca que detonou antes da hora, o buff que acabou). */
+  drop(tag) { this.list = this.list.filter((s) => s.tag !== tag); }
+
+  launch(id, name, x, y, fx, fy, speed, range, start, tail = 400) {
     if (!imgs[name]) return false;
-    this.shots.set(id, { name, x, y, fx, fy, speed, range, start, until: start + (range / Math.max(0.1, speed)) * 1000 + 400 });
+    this.shots.set(id, { name, x, y, fx, fy, speed, range, start, until: start + (range / Math.max(0.1, speed)) * 1000 + tail });
     return true;
   }
 
@@ -89,12 +114,17 @@ export class JutsuSprites {
       if (s.layer !== layer || now < s.start) continue;
       const k = Math.min(1, (now - s.start) / Math.max(1, s.fadeIn), (s.end - now) / Math.max(1, s.fadeOut));
       const life = (now - s.start) / Math.max(1, s.end - s.start);
-      drawSprite(g, s.name, toX(s.x), toY(s.y), T, s.angle, s.scale * (1 + s.grow * life), Math.max(0, k), s.flicker ? now : 0);
+      // v73: quadro que acompanha alguém (a marca no alvo, a lâmina na mão); sumiu do mapa = o quadro some
+      const at = s.follow ? s.follow() : s;
+      if (!at) continue;
+      drawSprite(g, s.name, toX(at.x + (s.follow ? s.x : 0)), toY(at.y + (s.follow ? s.y : 0)), T, s.angle, s.scale * (1 + s.grow * life), Math.max(0, k) * s.alpha, s.flicker ? now : 0, s.len,
+        ((now - s.start) * s.rate));
     }
     this.list.length = alive;
     if (layer !== 'top') return;
     for (const [id, p] of this.shots) {
       if (now > p.until) { this.shots.delete(id); continue; }
+      if (now < p.start) continue;   // v74: projétil com hora marcada (o meteoro cai no fim do aviso, a agulha sai da mão)
       const d = Math.min(p.range, (p.speed * Math.max(0, now - p.start)) / 1000);
       drawSprite(g, p.name, toX(p.x + p.fx * d), toY(p.y + p.fy * d), T, Math.atan2(p.fy, p.fx), 1, 1, now);
     }
@@ -105,14 +135,22 @@ export class JutsuSprites {
  * Um quadro. angle: para onde o golpe vai (radianos; a arte é girada a partir da direção em que foi desenhada).
  * flickerNow: > 0 faz o fogo "respirar" (escala e espelho a FLICKER_FPS), já que cada fase tem um quadro só.
  */
-function drawSprite(g, name, sx, sy, T, angle, scale, alpha, flickerNow) {
+function drawSprite(g, name, sx, sy, T, angle, scale, alpha, flickerNow, len = 0, age = 0) {
   const img = imgs[name];
   const f = FRAMES[name];
   if (!img || !f || alpha <= 0) return;
+  // v78: camada em grade: o quadro da hora (o laço repete; o resto para no último) e a grade da luz embaixo
+  let src = null;
+  if (f.quadros) {
+    const n = Math.floor(Math.max(0, age) / f.ms), i = f.laco ? n % f.quadros : Math.min(f.quadros - 1, n);
+    const [fw, fh] = f.quadro, rows = Math.ceil(f.quadros / f.cols);
+    src = { x: (i % f.cols) * fw, y: Math.floor(i / f.cols) * fh, w: fw, h: fh, luz: rows * fh };
+  }
+  const iw = src ? src.w : img.width, ih = src ? src.h : img.height;
   const w = f.casas * T * scale;
-  const k = w / img.width;
-  const h = img.height * k;
-  const [ax, ay] = f.ancora ?? [img.width / 2, f.pe ? img.height : img.height / 2];
+  const k = w / iw;
+  const h = ih * k;
+  const [ax, ay] = f.ancora ?? [iw / 2, f.pe ? ih : ih / 2];
   let sxk = 1, syk = 1;
   if (flickerNow) {
     const step = Math.floor(flickerNow / (1000 / FLICKER_FPS));
@@ -123,17 +161,28 @@ function drawSprite(g, name, sx, sy, T, angle, scale, alpha, flickerNow) {
   g.imageSmoothingEnabled = false;
   g.translate(sx, sy);
   if (f.arte !== undefined) {
-    g.rotate(angle - f.arte);
+    // v73: esticada no eixo da arte (o raio, a lança, o cometa vão até onde o golpe chega; a grossura fica)
+    const stretch = len > 0 && f.eixoPx ? (len * T) / (f.eixoPx * k) : 1;
+    g.rotate(angle);
+    if (stretch !== 1) g.scale(stretch, 1);
     // apontando para a esquerda: espelha em vez de ficar de cabeça para baixo
     if (Math.cos(angle) < -0.01 && f.arte === 0) g.scale(1, -1);
+    g.rotate(-f.arte);
   }
-  g.scale(sxk, syk);
-  const pass = (mode, a) => {
+  g.scale(sxk, syk * (f.sy ?? 1));   // v78: f.sy estica na vertical os anéis de chão das camadas
+  const pass = (mode, a, dy = 0) => {
     g.globalCompositeOperation = mode;
-    g.globalAlpha = a;
-    g.drawImage(img, -ax * k, -ay * k, w, h);
+    g.globalAlpha = Math.min(1, a);
+    if (src) g.drawImage(img, src.x, src.y + dy, src.w, src.h, -ax * k, -ay * k, w, h);
+    else g.drawImage(img, -ax * k, -ay * k, w, h);
   };
   const a = alpha * (f.alpha ?? 1);
+  if (src) {   // a cor por cima normal, a luz somada (clareia o chão, não suja)
+    pass('source-over', a);
+    if (f.luz) pass('lighter', a * f.luz, src.luz);
+    g.restore();
+    return;
+  }
   if (f.blend === 'glow') { pass('source-over', a); pass('lighter', a * 0.35); }
   else if (f.blend === 'screen') pass('screen', a);
   else if (f.blend === 'lighter') pass('lighter', a);

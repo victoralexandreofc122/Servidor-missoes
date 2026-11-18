@@ -1335,3 +1335,96 @@ body.bars-calm .hud-me .bar { opacity: 0; transition: opacity 0.5s ease; }
 .mode-choice b { font: 800 22px / 1 var(--ui-font); letter-spacing: 0.04em; }
 .mode-choice span { font-size: 13px; line-height: 1.3; color: #e6dcc6; }
 .mode-choice:active { transform: scale(0.97); }
+
+/*
+ * v71 (pedido do Victor, 17/11): a caixa de conversa com o NPC, embaixo e no meio da tela, no lugar do balão.
+ * Nome de quem fala numa plaqueta, até 3 linhas por página, ▼ para continuar (■ na última). O retrato (opcional, ⚙️)
+ * fica à esquerda. No celular deitado ela começa depois do joystick e cobre os botões de luta, que ficam apagados.
+ */
+.dialog {
+  position: fixed; z-index: 8;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--safe-bottom, 0px) + 22px);
+  width: min(680px, 64vw); min-height: 112px;
+  display: flex; gap: 12px; align-items: stretch;
+  padding: 14px 16px 10px;
+  border-radius: 12px;
+  border: 2px solid rgba(240, 207, 122, 0.75);
+  box-shadow: 0 0 0 2px rgba(20, 17, 13, 0.9), 0 10px 28px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(180deg, rgba(34, 28, 20, 0.97), rgba(22, 18, 13, 0.97));
+  color: var(--text, #f4ead8);
+  cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation;
+}
+.dialog[hidden] { display: none; }
+.dialog-face {
+  flex: none; width: 88px; height: 88px; align-self: center;
+  border-radius: 10px; border: 2px solid rgba(240, 207, 122, 0.55);
+  background: radial-gradient(circle at 50% 35%, rgba(240, 207, 122, 0.22), rgba(20, 17, 13, 0.6));
+  image-rendering: pixelated;
+}
+.dialog-face[hidden] { display: none; }
+.dialog-body { flex: 1; min-width: 0; display: grid; grid-template-rows: auto 1fr auto; gap: 4px; }
+.dialog-name {
+  justify-self: start; margin-top: -26px;
+  padding: 3px 12px; border-radius: 8px;
+  font: 800 16px / 1.15 var(--ui-font, system-ui); letter-spacing: 0.03em; color: #2a1d0c;
+  background: linear-gradient(180deg, #f6d77f, #e2b04a); border: 2px solid #20180d;
+}
+.dialog-text { margin: 0; font-size: 16px; line-height: 1.45; min-height: calc(3 * 1.45em); white-space: normal; overflow-wrap: anywhere; }
+.dialog-foot { display: flex; justify-content: space-between; align-items: center; min-height: 18px; }
+.dialog-page { font-size: 12px; color: var(--muted, #b7a98f); font-variant-numeric: tabular-nums; }
+.dialog-next { font-size: 14px; color: #f0cf7a; animation: dialog-bob 0.9s ease-in-out infinite; }
+.dialog-next[hidden] { display: none; }
+@keyframes dialog-bob { 50% { transform: translateY(3px); } }
+@media (prefers-reduced-motion: reduce) { .dialog-next { animation: none; } }
+.dialog-close {
+  position: absolute; top: -16px; right: -10px;
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 2px solid rgba(240, 207, 122, 0.75); background: #2a2116; color: #f4ead8;
+  font: 800 18px / 1 var(--ui-font, system-ui); cursor: pointer;
+}
+.dialog-close:focus-visible { outline: 2px solid #f0cf7a; outline-offset: 2px; }
+/* enquanto conversa: os botões de luta ficam apagados por baixo, o chat some (a fala já está na caixa) */
+body.dialog-open .combat { opacity: 0.18 !important; pointer-events: none; }
+body.dialog-open .combat .cbtn { pointer-events: none; }
+body.dialog-open .chat-box { visibility: hidden; }
+body.dialog-open .skill-tip { display: none; }
+@media (pointer: coarse), (max-height: 430px) {
+  .dialog {
+    left: calc(var(--safe-left, 0px) + 168px); right: calc(var(--safe-right, 0px) + 12px);
+    transform: none; width: auto; max-width: 720px; margin-left: auto;
+    bottom: calc(var(--safe-bottom, 0px) + 14px); min-height: 104px; padding: 12px 14px 8px;
+  }
+  .dialog-face { width: 76px; height: 76px; }
+  .dialog-text { font-size: 15px; }
+}
+/* v71: a fala do lojista com parágrafos (linha em branco no texto vira parágrafo; o fragmento já usa pre-line) */
+.shop-panel .shop-greet { white-space: pre-line; }
+
+/* =====================================================================================================================
+ * v72: pedido do Victor de 17/11: o chat do celular deitado menor, e a linha de digitar bem mais fina.
+ * A barra visível tem 28 px; o campo continua com 44 px de toque (regra do guia, docs/ui seção 4), só que a sobra é
+ * transparente e fica por cima da borda da caixa (margem negativa), sem ocupar espaço. O Enviar do teclado (enterkeyhint
+ * "send") manda a mensagem, então o ➤ sai daqui.
+ * ===================================================================================================================== */
+@media (max-height: 430px) {
+  .chat-box { width: min(256px, 30vw); max-height: 104px; border-radius: 8px; }
+  .chat-head { min-height: 16px; padding: 2px 8px 0; }
+  .chat-box .chat-feed { padding: 1px 8px 2px; }
+  .chat-foot { padding: 0 6px 5px; }
+  .chat-box .chat-bar button { display: none; }
+  .chat-box .chat-bar input {
+    height: 44px; margin: -8px 0 -8px; padding: 0 8px; font-size: 12px;
+    box-shadow: none;
+    /* a primeira camada fica por cima: o miolo escuro sobre a borda dourada de 1 px */
+    background:
+      linear-gradient(rgba(4, 6, 16, 0.92), rgba(4, 6, 16, 0.92)) center / calc(100% - 2px) 26px no-repeat,
+      linear-gradient(rgba(240, 207, 122, 0.35), rgba(240, 207, 122, 0.35)) center / 100% 28px no-repeat;
+  }
+  .chat-box .chat-bar input:focus { outline: none; }
+  .chat-box .chat-bar input:focus-visible, .chat-box .chat-bar input:focus {
+    background:
+      linear-gradient(rgba(4, 6, 16, 0.95), rgba(4, 6, 16, 0.95)) center / calc(100% - 4px) 24px no-repeat,
+      linear-gradient(#f0cf7a, #f0cf7a) center / 100% 28px no-repeat;
+  }
+}

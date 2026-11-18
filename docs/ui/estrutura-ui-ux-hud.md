@@ -95,8 +95,10 @@ são a decisão do segundo seguinte (o modelo de Red Dead e The Last of Us, que 
   ("GENIN · NV 60"), entre o joystick e os botões; as **Missões** ficam à **esquerda**, embaixo do retrato (onde estava o
   chat), e a aba "Missões" do chat some. A barra dos selos e o ✋ sobem para não ficar atrás do chat. O **retrato** é um
   botão: abre os atributos (o "+N" verde mostra os pontos para distribuir), e o **nome do jogador** fica no lugar de "Vida".
+- **v72 (pedido do Victor, 17/11):** o chat do celular deitado ficou menor (253 x 72 px) e a linha de digitar fina
+  (28 px visíveis); o ➤ saiu, porque o Enviar do teclado manda a mensagem.
 - **Alvo de toque:** no mínimo **44 x 44 px** em todo controle do HUD (WCAG 2.5.5). Onde o desenho é menor (o "–" do
-  chat), a área de toque cresce em volta dele.
+  chat, a linha de digitar do chat), a área de toque cresce em volta dele, transparente.
 - **Margens seguras:** tudo respeita `env(safe-area-inset-*)` (entalhe da câmera e barra de gestos).
 - **Personalização (regra 5):** Config. → Editar layout (arrastar cada botão e o bloco do retrato), tamanho e opacidade
   dos botões e das barras, distância da câmera, efeitos dos jutsus, HUD de combate e, desde a v67, joystick fixo ou
@@ -207,3 +209,15 @@ Cada uma é uma escolha em **Config. → HUD**, guardada no aparelho (`nin.uiPre
 **Achado da simulação de daltonismo:** na tritanopia, a barra de vida e a de chakra ficam do mesmo ciano. Continuam
 distinguíveis porque cada uma tem o rótulo ("Vida", "Chakra"), o número e um tamanho diferente: nada depende só da cor.
 Se um dia uma barra perder o rótulo, este achado volta a valer.
+
+## 14. A caixa de conversa (v71, pedido do Victor de 17/11/2026)
+
+- Toda fala de NPC aparece na caixa de conversa, embaixo e no meio da tela, nunca em balão sobre a cabeça.
+- Página de no máximo 3 linhas; a cena tem quantas páginas precisar. No texto, uma linha em branco força página nova.
+- O nome de quem fala fica sempre visível numa plaqueta; o contador "1/3" mostra quanto falta; ▼ quando a página
+  terminou, ■ na última.
+- O toque (zona do polegar: a caixa inteira é o alvo) termina a página, passa para a próxima e fecha na última. O ✕
+  tem 44 px. No teclado: Espaço, Enter ou E; Esc fecha.
+- Enquanto a conversa está aberta, os botões de luta ficam apagados e sem toque; o joystick continua livre e se afastar
+  do NPC fecha a conversa. Só se fala com NPC em zona segura, então ninguém apanha lendo.
+- O retrato de quem fala, à esquerda, é uma opção no ⚙️ (em teste).

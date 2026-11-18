@@ -55,6 +55,14 @@ describe('v66: guia de UI, UX e HUD', () => {
     }
   });
 
+  it('v72: a linha de digitar do chat no celular é fina por fora (28 px) e tem 44 px de toque', () => {
+    const v72 = css.slice(css.indexOf('v72: pedido do Victor'));
+    assert.match(v72, /\.chat-box \.chat-bar input \{\s*height: 44px; margin: -8px 0 -8px;/);
+    assert.match(v72, /center \/ 100% 28px no-repeat/);
+    assert.match(v72, /\.chat-box \.chat-bar button \{ display: none; \}/);
+    assert.match(html, /id="chat-input"[^>]*enterkeyhint="send"/);
+  });
+
   it('alvos de toque de 44 px e texto do HUD de pelo menos 12 px', () => {
     const v66 = css.slice(css.indexOf('v66: o guia de UI'));
     assert.match(v66, /@media \(pointer: coarse\) \{[^}]*height: 44px/);

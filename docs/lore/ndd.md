@@ -18,7 +18,7 @@ preço que ninguém conta, e precisa decidir, Era após Era, o que fazer com a p
 |---|---|---|---|
 | 1 | **Herdar é escolher** | Toda progressão é uma herança com escolha: classe, linhagem, kit, aldeia, Kage, renegado. | Poder que cai do céu sem custo nem escolha. |
 | 2 | **O mundo responde ao que os jogadores fazem** | Eleições, Portadores, rankings, renegados e a Progressão de Mundo são história jogada; a lore dá sentido a elas. | Cutscene que contradiz o que aconteceu no servidor. |
-| 3 | **Pequeno e preciso** | Falas curtas (até 3 linhas, cerca de 120 caracteres), capítulos curtos, um mistério por vez. Celular, sessões de 5 a 15 minutos. | Info-dump; páginas de lore antes de jogar. |
+| 3 | **Pequeno e preciso** | Cada página da caixa de conversa tem até 3 linhas, mas a cena tem quantas páginas precisar para dar contexto e emoção (v71, pedido do Victor de 17/11); capítulos curtos, um mistério por vez. Celular, sessões de 5 a 15 minutos. | Info-dump; páginas de lore antes de jogar. |
 | 4 | **O espaço conta** | A Floresta, o Poço, a Clareira e as fronteiras mostram o passado em objetos, marcas e luz. | Explicar em texto o que o cenário pode mostrar. |
 | 5 | **Personagem acima de lore** | A lore só aparece pela boca, pelas mãos ou pelos objetos de alguém (um professor, um patrulheiro, um renegado). | Enciclopédia sem dono. |
 
@@ -142,7 +142,7 @@ agora se chama **Lodo Verde** em tudo que o jogador vê (falas do Mestre, missõ
 | Erro | O que fizemos |
 |---|---|
 | Explosão de ramificações | Hub-and-spoke no Arco 1; 3 escolhas reais. |
-| Diálogos longos | Teste automático: nenhuma fala nova passa de 3 linhas na caixa de diálogo (até 160 caracteres). |
+| Páginas longas demais | Teste automático: nenhuma página da caixa de conversa passa de 3 linhas (160 caracteres); a cena pode ter várias páginas (v71). |
 | Personagens inconsistentes | `personagens.md`: ficha de cada NPC com vocabulário, bordões e limites. |
 | Cutscenes que se pulam | Nenhuma cutscene longa; a exposição vai para fragmentos e cenário. |
 | Escolhas falsas | Tom = textura (reação na hora); escolha real muda flag e cena. |

@@ -26,6 +26,8 @@ import { pickAnim } from './rig.js';
 import { Predictor, pushSnapshot, quantize, sampleSnapshots } from './prediction.js';
 import { VFXManager, loadVfx, vfxReady } from './vfx.js';
 import { JutsuSprites, jutsuSpritesReady, loadJutsuSprites } from './vfxJutsus.js';
+import { fogoCast, fogoCastStart, fogoDetona, fogoGround, fogoImpact, fogoMarca, fogoProjectileFrame } from './fogoAnim.js';
+import { camadasCast, camadasCastStart, camadasDetona, camadasGround, camadasImpact, camadasMarca } from './camadasJutsus.js';
 import { AudioManager } from './audio.js';
 import { GROUND_ELEMENT, Particles, elementOf } from './particles.js';
 import { STRIKE_ART, ZONE_ART, drawBolt, drawDecal, drawStatusArt, drawStrikeArt, drawWindDisc, drawZoneArt } from './jutsuArt.js';
@@ -855,6 +857,8 @@ function handleMessage(msg) {
     case 'ground':
       (state.ground ||= new Map()).set(msg.id, { ...msg, start: performance.now(), end: performance.now() + msg.ms });
       if (msg.kind === 'aviso') sfxAt('warn', msg.x, msg.y, 1);   // v58: golpe vai cair aqui
+      fogoGround(jfx, msg, performance.now(), posOf);   // v73: Cinzas Detonantes e Chão Incandescente desenhados
+      camadasGround(jfx, msg, performance.now(), posOf);   // v78: as camadas do PixelFX (brasas, anel, runas, faíscas...)
       // v56: a Névoa Inflamável com o sprite: a nuvem girando e, no fim, a faísca acendendo (o aviso continua por baixo)
       if (msg.kind === 'aviso' && msg.skill && formOf(msg.skill) === 'nuvem_detona' && jutsuSpritesReady('nevoa')) {
         const t0 = performance.now(), sc = (msg.r ?? 2.5) / 2.5, spark = Math.min(600, msg.ms * 0.3);
@@ -868,8 +872,8 @@ function handleMessage(msg) {
       state.ground?.delete(msg.id);
       if (z?.kind === 'aviso' && particles.quality !== 'off') {
         // v48: o meteoro deixa a cratera; o Julgamento do Trovão cai como um raio do céu e deixa a marca
-        if (z.skill === 'fire_4') decals.push({ kind: 'cratera', x: z.x, y: z.y, r: z.r * 0.8, start: now, ms: 2600, seed: seedOf(msg.id) });
-        if (z.skill === 'lightning_4') {
+        if (z.skill === 'fire_4' && !jutsuSpritesReady('fire_4')) decals.push({ kind: 'cratera', x: z.x, y: z.y, r: z.r * 0.8, start: now, ms: 2600, seed: seedOf(msg.id) });
+        if (z.skill === 'lightning_4' && !jutsuSpritesReady('lightning_4')) {
           for (let i = 0; i < 3; i++) arts.push({ kind: 'bolt', x0: z.x + (i - 1) * 0.6, y0: z.y - 9, x1: z.x + (i - 1) * z.r * 0.4, y1: z.y, start: now + i * 60, ms: 420, seed: seedOf(msg.id) + i * 13, power: i === 1 ? 2.2 : 1.3 });
           decals.push({ kind: 'queimado', x: z.x, y: z.y, r: z.r * 0.7, start: now, ms: 2200, seed: 1 });
           hitShake(160);
@@ -944,6 +948,8 @@ function handleMessage(msg) {
       // v29: selos. A barra aparece sobre a cabeça de quem conjura (e maior perto dos botões, para quem conjura).
       const p = state.players.get(msg.playerId);
       if (p) { p.casting = { skill: msg.skill, start: now, end: now + msg.ms }; p.act = { kind: 'jutsu', start: now }; }
+      fogoCastStart(jfx, msg, p, now, posOf);   // v73: o Rugido junta o redemoinho na mão
+      camadasCastStart(jfx, msg, p, now, posOf);   // v78: a carga do elemento junta na mão durante os selos
       // v57: o som de carregar pelo tempo do selo
       castSounds.get(msg.playerId)?.stop(true);
       if (p) castSounds.set(msg.playerId, sfxAt('charge', p.x, p.y, msg.playerId === state.meId ? 1 : 0.6, { ms: msg.ms, el: elementOfSkill(msg.skill), voiceMs: msg.ms }));
@@ -1171,9 +1177,14 @@ function handleMessage(msg) {
     case 'combo': {
       // Combo de elementos: Água molhou, o Relâmpago eletrocutou (30% a mais).
       const e = msg.target === 'monster' ? state.monsters.get(msg.id) : state.players.get(msg.id);
-      if (e && msg.combo === 'detonacao') {                       // v51: a Marca Incandescente explodiu
+      if (e && msg.combo === 'marca') {                           // v73: o selo da Marca fica em quem foi marcado
+        fogoMarca(jfx, msg.id, msg.ms ?? 5000, now, posOf);
+        camadasMarca(jfx, msg.id, msg.ms ?? 5000, now, posOf);   // v78: brasas soltando do selo
+      } else if (e && msg.combo === 'detonacao') {                // v51: a Marca Incandescente explodiu
         addFloater(e.x, e.y - 1.5, 'Detonou! 🔶', '#ffb347', 1.15);
         particles.burst('fire', e.x, e.y, 2.2, 0.8);
+        fogoDetona(jfx, msg.id, now, posOf);
+        camadasDetona(jfx, msg.id, now, posOf);
       } else if (e) addFloater(e.x, e.y - 1.5, 'Combo! ⚡💧', '#7fd8ff', 1.15);
       break;
     }
@@ -1399,7 +1410,10 @@ function handleMessage(msg) {
       const form = formOf(msg.skill);
       const color = CLAN_COLOR[info.clan] || CAST_COLOR[fxKind] || '#f4ecd8';   // v63: os clãs novos têm a cor própria
       const lineEnd = { tx: msg.tx ?? msg.x + msg.fx * (info.range ?? 5), ty: msg.ty ?? msg.y + msg.fy * (info.range ?? 5) };
-      if (castSprites(msg, form, info, lineEnd, now)) { /* v56: o sprite desenhado (Fogo, Sopro, Linha) */ }
+      const fogoDrawn = fogoCast(jfx, msg, info, lineEnd, now, posOf, whoAt, whoNear);
+      camadasCast(jfx, msg, info, lineEnd, now, posOf, whoAt, whoNear);   // v78: as camadas por cima das folhas desenhadas
+      if (fogoDrawn) { /* v73: os 10 jutsus de Fogo desenhados (fogoAnim.js) */ }
+      else if (castSprites(msg, form, info, lineEnd, now)) { /* v56: o sprite desenhado (Fogo, Sopro, Linha) */ }
       else if (form === 'cone_fogo') state.effects.push({ skill: 'fire_cone', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, r: info.range ?? 3, cone: info.coneDeg ?? 90, start: now });
       else if (form === 'linha_fogo') state.effects.push({ skill: 'fire_line', x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, ...lineEnd, start: now });
       // v30: as formas das outras classes
@@ -1424,7 +1438,7 @@ function handleMessage(msg) {
       }
       // (Fogo: a explosão é no impacto, mensagem `impact`; nada em volta de quem lançou.)
       else if (fxKind !== 'teleport' && fxKind !== 'fire' && !playCastVfx(msg, fxKind, now)) state.effects.push({ skill: fxKind, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, start: now });
-      castParticles(msg, form, info);   // v47
+      if (!fogoDrawn) castParticles(msg, form, info);   // v47 (v73: o jutsu com desenho próprio já traz as brasas no quadro)
       faceTo(msg.playerId, msg.fx, msg.fy);
       const caster = state.players.get(msg.playerId);
       if (caster) {
@@ -1444,11 +1458,13 @@ function handleMessage(msg) {
       const sheet = msg.power ? (msg.power === 'blast' ? 'fireball' : 'kunai') : msg.weapon ? 'fuma' : mechanicOf(msg.skill) === 'fire' ? 'fireball' : 'kunai';
       // v53: a Shuriken de mão voa como a Gigante, só que pequena (e não sai das costas de ninguém)
       // v56: o Fogo voa com o sprite desenhado (quadro 2); as outras bolas de fogo, com a folha antiga
-      const drawn = !msg.power && !msg.weapon && sheet === 'fireball' && jutsuSpritesReady('fogo')
+      const fogoFrame = !msg.power && !msg.weapon ? fogoProjectileFrame(msg) : null;   // v73: a brasa da Revoada, o dragão
+      const drawn = fogoFrame ? jfx.launch(msg.id, fogoFrame, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now)
+        : !msg.power && !msg.weapon && sheet === 'fireball' && jutsuSpritesReady('fogo')
         && jfx.launch(msg.id, 'fogo_02', msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now);
       if (!drawn) vfx.launch(msg.id, sheet, msg.x, msg.y, msg.fx, msg.fy, msg.speed, msg.range, now, msg.weapon === 'shuriken' ? 0.42 : 1);
       // v47: o rastro no elemento do jutsu
-      flying.set(msg.id, { x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, speed: msg.speed, range: msg.range, start: now, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 300,
+      flying.set(msg.id, { drawnArt: !!fogoFrame && drawn, x: msg.x, y: msg.y, fx: msg.fx, fy: msg.fy, speed: msg.speed, range: msg.range, start: now, until: now + (msg.range / Math.max(0.1, msg.speed)) * 1000 + 300,
         el: msg.skill ? elementOfSkill(msg.skill) : msg.power === 'blast' ? 'fire' : 'weapons', skill: msg.skill });
       {   // v58: o projétil faz barulho enquanto voa (fogo ruge e crepita); o volume segue a distância (audioTick)
         const el = msg.skill ? elementOfSkill(msg.skill) : msg.power === 'blast' ? 'fire' : 'weapons';
@@ -1469,12 +1485,13 @@ function handleMessage(msg) {
         sfxAt('impact', msg.x, msg.y, msg.r > 0 ? 1 : 0.7, { el });
       }
       const spriteShot = jfx.shots.has(msg.id);
+      const flyDir = flying.get(msg.id);   // v78: para a faísca do impacto sair na direção do voo
       jfx.land(msg.id);
       {
         // v47: estouro no elemento do projétil; a explosão (raio > 0) treme de leve a tela de quem está perto
         const el = flying.get(msg.id)?.el ?? (msg.skill ? elementOfSkill(msg.skill) : 'weapons');
         flying.delete(msg.id);
-        particles.burst(el, msg.x, msg.y, msg.r > 0 ? 2.4 : 0.8, msg.r || 0);
+        if (!(spriteShot && el === 'lightning')) particles.burst(el, msg.x, msg.y, msg.r > 0 ? 2.4 : 0.8, msg.r || 0);   // v76: o estouro desenhado já está no quadro
         const meP = state.players.get(state.meId);
         if (msg.r > 0 && meP && Math.hypot(meP.x - msg.x, meP.y - msg.y) <= msg.r + 1.5) hitShake(140);
       }
@@ -1482,7 +1499,10 @@ function handleMessage(msg) {
         for (const p of state.players.values()) if (p.thrown?.id === msg.id) p.thrown = null;
         break;
       }
-      if (msg.r > 0 && spriteShot && jfx.show('fogo_03', msg.x, msg.y, now, 480, { scale: msg.r / 1.3, fadeIn: 20, fadeOut: 200, grow: 0.15 })) {
+      if (spriteShot) camadasImpact(jfx, msg, msg.skill, now, flyDir);   // v78: anel, faísca, choque e brasas do impacto
+      if (spriteShot && fogoImpact(jfx, msg, msg.skill, now)) {
+        // v73: a explosão e a fumaça desenhadas da Revoada e do Projétil Dracônico
+      } else if (msg.r > 0 && spriteShot && jfx.show('fogo_03', msg.x, msg.y, now, 480, { scale: msg.r / 1.3, fadeIn: 20, fadeOut: 200, grow: 0.15 })) {
         // v56: a explosão desenhada (quadro 3); as brasas e a fumaça vêm do particles.burst acima
       } else if (msg.r > 0) {
         if (!vfx.play('explosion', msg.x, msg.y, { start: now, scale: msg.r / 2 })) {
@@ -1670,8 +1690,9 @@ function handleMessage(msg) {
     }
     case 'npc_say': {
       const npc = state.npcs.find((n) => n.id === msg.npcId);
-      if (npc) npc.bubble = { text: msg.text, until: now + 4000 + msg.text.length * 45 };
-      addChatLine(npc ? npc.name : 'NPC', msg.text, false, 'npc');
+      // v71: a fala abre a caixa de conversa (páginas separadas por linha em branco); fica também no chat, em uma linha.
+      if (npc) openDialog(npc, msg.text);
+      addChatLine(npc ? npc.name : 'NPC', msg.text.replace(/\s*\n+\s*/g, ' '), false, 'npc');
       // Diretor, nível 60 e ainda sem candidatura: o botão de Kage aparece.
       const kageAt = state.world.rankLevels?.kage ?? 60;
       if (msg.npcId === 'director' && (state.progress?.level ?? 1) >= kageAt && !state.ninja.kageCandidate) openKage();
@@ -2248,13 +2269,13 @@ setInterval(updateCombatHud, 400);
  *   portraits     no PvP, os retratos dos inimigos perto do polegar: um toque foca aquele ninja
  *   hideFullBars  fora da luta, com vida e chakra cheios, as duas barras somem (o retrato fica)
  */
-const UI_PREF_DEFAULT = { joystick: 'flutuante', aimCamera: true, holdInfo: true, portraits: true, hideFullBars: false };
+const UI_PREF_DEFAULT = { joystick: 'flutuante', aimCamera: true, holdInfo: true, portraits: true, hideFullBars: false, dlgPortrait: true };
 const uiPref = (() => {
   const out = { ...UI_PREF_DEFAULT };
   try {
     const raw = JSON.parse(localStorage.getItem('nin.uiPrefs') || '{}');
     if (raw.joystick === 'fixo' || raw.joystick === 'flutuante') out.joystick = raw.joystick;
-    for (const k of ['aimCamera', 'holdInfo', 'portraits', 'hideFullBars']) if (typeof raw[k] === 'boolean') out[k] = raw[k];
+    for (const k of ['aimCamera', 'holdInfo', 'portraits', 'hideFullBars', 'dlgPortrait']) if (typeof raw[k] === 'boolean') out[k] = raw[k];
   } catch { /* sem armazenamento ou dado estragado: o padrão */ }
   return out;
 })();
@@ -2267,7 +2288,7 @@ function saveUiPref() {
     sel.value = uiPref.joystick;
     sel.addEventListener('change', () => { uiPref.joystick = sel.value === 'fixo' ? 'fixo' : 'flutuante'; saveUiPref(); });
   }
-  for (const [id, key] of [['pref-aim-camera', 'aimCamera'], ['pref-hold-info', 'holdInfo'], ['pref-portraits', 'portraits'], ['pref-hide-bars', 'hideFullBars']]) {
+  for (const [id, key] of [['pref-aim-camera', 'aimCamera'], ['pref-hold-info', 'holdInfo'], ['pref-portraits', 'portraits'], ['pref-hide-bars', 'hideFullBars'], ['pref-dlg-portrait', 'dlgPortrait']]) {
     const box = $(id);
     if (!box) continue;
     box.checked = uiPref[key];
@@ -2515,6 +2536,12 @@ function keyDirection() {
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
   if (hud.editing || !ui.creator.hidden) return;   // editando o layout ou criando o personagem: sem combate
+  // v71: com a conversa aberta, Espaço, Enter e E passam a página; Esc fecha. Andar continua valendo.
+  if (dialog.npc && (e.key === ' ' || e.key === 'Enter' || e.key === 'e' || e.key === 'E' || e.key === 'Escape')) {
+    e.preventDefault();
+    if (!e.repeat) (e.key === 'Escape' ? closeDialog() : advanceDialog());
+    return;
+  }
   if (manualUI.open) return;                         // v38: lendo o Pergaminho ou escrevendo o Feedback: sem combate
   if (KEYMAP[e.code]) { keys.add(e.code); keyDirection(); e.preventDefault(); }
   if (e.key >= '1' && e.key <= '4' && !e.repeat) {
@@ -2588,6 +2615,29 @@ const CAST_COLOR = { fire: '#ff7a2e', water: '#3ca6ff', lightning: '#fff27a', il
 const vfx = new VFXManager();
 /** v56: os sprites desenhados pelo Victor (Teleporte, Substituição, Fogo e os 3 do Fogo T1), quadro a quadro. */
 const jfx = new JutsuSprites();
+/** v73: onde está alguém agora (o selo da Marca e a Lâmina de Fogo acompanham o boneco); morto ou fora do mapa = null. */
+const posOf = (id) => { const e = state.players.get(id) || state.monsters.get(id); return e && !e.dead ? { x: e.x, y: e.y } : null; };
+/** v74: quem está em (x, y) (o aliado curado, o alvo da agulha): o mais perto a até 1,5 casa, ou null. */
+/** v76: quem está perto do segmento (x0,y0)-(x1,y1) (até r casas), do mais perto do começo ao mais longe; sem os de `skip`. */
+function whoNear(x0, y0, x1, y1, r, skip = []) {
+  const dx = x1 - x0, dy = y1 - y0, L2 = Math.max(1e-6, dx * dx + dy * dy);
+  const out = [];
+  for (const e of [...state.players.values(), ...state.monsters.values()]) {
+    if (e.dead || skip.includes(e.id)) continue;
+    const t = Math.max(0, Math.min(1, ((e.x - x0) * dx + (e.y - y0) * dy) / L2));
+    const d = Math.hypot(e.x - (x0 + dx * t), e.y - (y0 + dy * t));
+    if (d <= r) out.push([t + d * 0.01, e.id]);
+  }
+  return out.sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+}
+function whoAt(x, y) {
+  let best = null, bd = 1.5;
+  for (const e of [...state.players.values(), ...state.monsters.values()]) {
+    const d = Math.hypot(e.x - x, e.y - y);
+    if (!e.dead && d < bd) { bd = d; best = e.id; }
+  }
+  return best;
+}
 
 /*
  * v47: partículas dos jutsus (public/particles.js). Cada elemento tem as suas (brasas, gotas, riscos elétricos, poeira e
@@ -2656,6 +2706,8 @@ function drawArtTop(toScreenX, toScreenY, T, now) {
   if (particles.quality === 'off') return;
   for (const [id, z] of state.ground || []) {
     if (z.kind !== 'aviso' || !STRIKE_ART[z.skill] || now > z.end) continue;
+    if (z.skill === 'fire_4' && jutsuSpritesReady('fire_4')) continue;   // v74: o meteoro desenhado pelo Victor (fogoAnim.js)
+    if (z.skill === 'lightning_4' && jutsuSpritesReady('lightning_4')) continue;   // v77: o Julgamento desenhado
     const k = Math.max(0, Math.min(1, (now - z.start) / Math.max(1, z.end - z.start)));
     drawStrikeArt(ctx, z.skill, toScreenX(z.x), toScreenY(z.y), z.r * T, T, k, now, seedOf(id));
   }
@@ -2762,7 +2814,8 @@ function drawParticles(toScreenX, toScreenY, T, viewW, viewH, now) {
   for (const [id, p] of flying) {
     if (now > p.until) { flying.delete(id); continue; }
     const d = Math.min(p.range, (p.speed * Math.max(0, now - p.start)) / 1000);
-    particles.trail(p.el, p.x + p.fx * d, p.y + p.fy * d, p.fx, p.fy, dt, `t${id}`);
+    // v76: o projétil com rastro desenhado (a shuriken, as farpas, a brasa) não ganha o rastro antigo do Relâmpago
+    if (!(p.drawnArt && p.el === 'lightning')) particles.trail(p.el, p.x + p.fx * d, p.y + p.fy * d, p.fx, p.fy, dt, `t${id}`);
   }
   for (const [id, z] of state.ground || []) {
     if (now > z.end) continue;
@@ -3716,6 +3769,130 @@ function talkToNpc() {
 }
 onTap(ui.talkBtn, talkToNpc);
 
+/*
+ * v71 (pedido do Victor, 17/11): a conversa com o NPC num quadro embaixo, no meio da tela, no lugar do balão sobre a
+ * cabeça. O texto vem em páginas de até 3 linhas (uma linha em branco no texto do servidor força página nova), vai
+ * aparecendo letra a letra e avança com um toque no quadro (ou Espaço, Enter, E). Na última página, o toque fecha.
+ * O retrato de quem fala, ao lado, é uma opção no ⚙️ para testar com e sem. Enquanto a conversa está aberta, os botões
+ * de luta ficam apagados por baixo do quadro; o joystick continua livre e se afastar do NPC fecha a conversa.
+ */
+const dialog = { npc: null, pages: [], i: 0, shown: 0, timer: 0 };
+const DIALOG_CPS = 45;                       // letras por segundo
+const DIALOG_LINES = 3;
+const dlgEl = {
+  box: $('dialog'), face: $('dialog-face'), name: $('dialog-name'), text: $('dialog-text'),
+  page: $('dialog-page'), next: $('dialog-next'), close: $('dialog-close'),
+};
+
+/** O visual do NPC (o mesmo que o mapa desenha), para o retrato. */
+function npcLookOf(n) {
+  if (n.shop && SHOPKEEPER_LOOK[n.shop]) return SHOPKEEPER_LOOK[n.shop];
+  if (ACADEMY_LOOK[n.id]) return ACADEMY_LOOK[n.id];
+  const role = ROLE_LOOK[n.role] || ROLE_LOOK.sensei;
+  const village = state.maps[state.mapId]?.village || 'vila_1';
+  return npcLook({ ...role.look, village });
+}
+
+/** Quebra o texto em páginas de até 3 linhas, medindo com a fonte do quadro. */
+function paginateDialog(text) {
+  const width = Math.max(120, dlgEl.text.clientWidth || 300);
+  const cs = getComputedStyle(dlgEl.text);
+  const m = document.createElement('canvas').getContext('2d');
+  m.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const pages = [];
+  for (const block of String(text).split(/\n\s*\n/)) {
+    const lines = [];
+    for (const para of block.split('\n')) {
+      let line = '';
+      for (const word of para.trim().split(/\s+/)) {
+        if (!word) continue;
+        const tryLine = line ? `${line} ${word}` : word;
+        if (line && m.measureText(tryLine).width > width) { lines.push(line); line = word; } else line = tryLine;
+      }
+      if (line) lines.push(line);
+    }
+    for (let k = 0; k < lines.length; k += DIALOG_LINES) pages.push(lines.slice(k, k + DIALOG_LINES).join(' '));
+  }
+  return pages.length ? pages : [''];
+}
+
+function renderDialogPage() {
+  const page = dialog.pages[dialog.i] ?? '';
+  dlgEl.text.textContent = page.slice(0, dialog.shown);
+  const done = dialog.shown >= page.length;
+  dlgEl.next.hidden = !done;
+  dlgEl.next.textContent = done && dialog.i >= dialog.pages.length - 1 ? '■' : '▼';
+  dlgEl.page.textContent = dialog.pages.length > 1 ? `${dialog.i + 1}/${dialog.pages.length}` : '';
+}
+
+function typeDialog() {
+  clearInterval(dialog.timer);
+  dialog.shown = 0;
+  renderDialogPage();
+  const page = dialog.pages[dialog.i] ?? '';
+  const step = Math.max(1, Math.round(DIALOG_CPS / 40));
+  dialog.timer = setInterval(() => {
+    dialog.shown = Math.min(page.length, dialog.shown + step);
+    renderDialogPage();
+    if (dialog.shown >= page.length) clearInterval(dialog.timer);
+  }, 1000 / 40);
+}
+
+/** Abre (ou continua) a conversa com o NPC. Uma fala nova do mesmo NPC entra como páginas seguintes. */
+function openDialog(npc, text) {
+  const same = dialog.npc && dialog.npc.id === npc.id && !dlgEl.box.hidden;
+  dlgEl.box.hidden = false;
+  document.body.classList.add('dialog-open');
+  dlgEl.box.classList.toggle('with-face', !!uiPref.dlgPortrait);
+  dlgEl.face.hidden = !uiPref.dlgPortrait;
+  if (uiPref.dlgPortrait) drawBust(dlgEl.face, npcLookOf(npc));
+  dlgEl.name.textContent = npc.name;
+  const pages = paginateDialog(text);
+  if (same && dialog.i < dialog.pages.length) {
+    dialog.pages.push(...pages);
+    renderDialogPage();
+    return;
+  }
+  dialog.npc = npc;
+  dialog.pages = pages;
+  dialog.i = 0;
+  typeDialog();
+}
+
+/** Toque no quadro: termina a página que está aparecendo; se já terminou, vai para a próxima ou fecha. */
+function advanceDialog() {
+  if (!dialog.npc) return;
+  const page = dialog.pages[dialog.i] ?? '';
+  if (dialog.shown < page.length) {
+    clearInterval(dialog.timer);
+    dialog.shown = page.length;
+    renderDialogPage();
+    return;
+  }
+  if (dialog.i < dialog.pages.length - 1) {
+    dialog.i++;
+    typeDialog();
+    return;
+  }
+  closeDialog();
+}
+
+function closeDialog() {
+  clearInterval(dialog.timer);
+  dialog.npc = null;
+  dialog.pages = [];
+  dlgEl.box.hidden = true;
+  document.body.classList.remove('dialog-open');
+}
+
+dlgEl.box.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('#dialog-close')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  advanceDialog();
+});
+dlgEl.close.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); closeDialog(); });
+
 /** Mostra/esconde o 💬 Falar. Margem de 0,15 casa: a posição prevista pode estar à frente da do servidor. */
 function updateNpcProximity(me) {
   let near = null;
@@ -3728,6 +3905,11 @@ function updateNpcProximity(me) {
     // Lojista: o botão vira 🛒 (abre a loja); o Mestre continua 💬 (conversa e missões).
     ui.talkBtn.querySelector('.ico').textContent = near && near.shop ? '🛒' : '💬';
     ui.talkBtn.setAttribute('aria-label', near && near.shop ? 'Abrir a loja' : 'Falar');
+  }
+  // v71: conversa aberta e o jogador se afastou do NPC (ou mudou de mapa): fecha.
+  if (dialog.npc) {
+    const n = state.npcs.find((x) => x.id === dialog.npc.id);
+    if (!me || state.me.dead || !n || Math.hypot(me.x - n.x, me.y - n.y) > n.range + 1.5) closeDialog();
   }
   // Sala de Missões aberta e o jogador se afastou do Mestre: fecha.
   if (!ui.boardPanel.hidden) {
@@ -7479,6 +7661,11 @@ try {
       map: () => ({ predicted: pred.map, drawn: state.mapId, server: state.serverMap }),
       fade: () => ({ alpha: mapFade.alpha, fading: !!mapFade.to }),
       npcs: () => state.npcs.map((n) => n.id),
+      /** v71: abre a caixa de conversa com um texto qualquer (testar páginas longas). */
+      dialog: (npcId, text) => { const n = state.npcs.find((x) => x.id === npcId); if (n) openDialog(n, text); return !!n; },
+      dialogState: () => ({ open: !!dialog.npc, pages: dialog.pages.length, i: dialog.i }),
+      sim: (m) => handleMessage(m),
+      meId: () => state.meId,   // v73: simula uma mensagem do servidor (conferir as animações dos jutsus)
       monsters: () => [...state.monsters.values()].map((m) => [m.type, Math.round(m.x * 10) / 10, Math.round(m.y * 10) / 10]),
       shop: () => (state.shop ? { ...state.shop } : null),
       /** O mapa inteiro numa imagem (16 px por casa), montado com os mesmos blocos do jogo. */
