@@ -215,7 +215,7 @@ export function camadasCast(jfx, msg, info, lineEnd, now, follow, whoAt = () => 
     }
     case 'lightning_maos': {   // Mãos de Trovão: faíscas estalando no corpo enquanto o buff dura
       const dur = info.durationMs ?? 5000;
-      return L('pfx_raio_faiscas', 0, 0.1, 220, { ms: dur - 220, follow: () => follow(msg.playerId), tag: `maos:${msg.playerId}`, scale: 0.85 });
+      return L('pfx_raio_faiscas', 0, 0.1, 220, { ms: dur - 220, follow: () => follow(msg.playerId), tag: `maos:${msg.playerId}`, scale: 1.3 });
     }
     case 'lightning_rugido': {   // Rugido do Trovão: choques ao longo do feixe e o estalo no fim
       const len = Math.hypot(lineEnd.tx - h.x, lineEnd.ty - h.y);
@@ -225,7 +225,7 @@ export function camadasCast(jfx, msg, info, lineEnd, now, follow, whoAt = () => 
     case 'lightning_armadura': {   // Armadura Relampejante: o trovão estoura na área e as faíscas ficam na armadura
       const dur = info.durationMs ?? 5000, tag = `armadura:${msg.playerId}`;
       L('pfx_raio_estalo', 0, 0.1, 260, { follow: () => follow(msg.playerId), scale: (info.radius ?? 2.5) / R.estalo, tag });
-      return L('pfx_raio_faiscas', 0, 0.1, 600, { ms: dur - 600, follow: () => follow(msg.playerId), tag, scale: 1.1 });
+      return L('pfx_raio_faiscas', 0, 0.1, 600, { ms: dur - 600, follow: () => follow(msg.playerId), tag, scale: 1.4 });
     }
     default:
       return false;
