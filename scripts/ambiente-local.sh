@@ -53,7 +53,8 @@ echo \$\$ > /var/tmp/server-$WEB.pid
 cd $(pwd) && exec npx tsx src/server.ts
 EOF
 chmod +x "$RUN"
-[ -d node_modules ] || npm ci --silent
+# sem package-lock.json no repositório o `npm ci` recusa: instala pelo package.json sem gravar lock
+if [ ! -d node_modules ]; then if [ -f package-lock.json ]; then npm ci --silent; else npm install --no-package-lock --silent; fi; fi
 # derruba só o servidor desta porta (se houver) e sobe de novo
 if [ -f /var/tmp/server-$WEB.pid ]; then kill "$(cat /var/tmp/server-$WEB.pid)" 2>/dev/null || true; fi
 [ "$WEB" = 3000 ] && pkill -f 'tsx src/server.ts' 2>/dev/null || true   # o padrão: derruba o servidor antigo, sem PID

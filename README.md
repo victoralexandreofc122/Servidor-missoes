@@ -246,6 +246,19 @@ O estado fica em memória: reinício ou deploy do Render desconecta todos e as p
   servidor e o ninja admin `rin`); `arte/jutsus-vfx/capturar.ts` e `folha.py` conferem as animações dentro do jogo;
   `arte/jutsus-vfx/LEIAME.md` tem o passo a passo e a lista dos 149 jutsus que faltam.
 
+### v78: camadas do PixelFX por cima das animações desenhadas (sem migração)
+
+- Os 50 jutsus com folha desenhada pelo Victor (todo o Fogo, toda a Cura e 16 de Relâmpago) ganharam **camadas** que
+  complementam os quadros dele, sem trocar nada do desenho: a carga do elemento na mão durante os selos, o anel de fogo
+  que corre no chão, a coluna de fogo, a poeira dos impactos pesados, as brasas que sobem, a luz que sobe pelo corpo de
+  quem foi curado, o círculo de runas das zonas de cura, as cruzes de cura, o estalo do trovão, o choque no alvo e as
+  faíscas que estalam enquanto o buff ou a prisão duram. Cada jutsu tem a sua coreografia, no tempo dos quadros.
+- As camadas são efeitos do [PixelFX](https://github.com/patch-gg/pixelfx) (licença MIT) recoloridos com as cores das
+  folhas, mais três nossos (brasas, faíscas e cruzes, em `arte/pixelfx/efeitos/`). `arte/pixelfx/camadas.mjs` gera as
+  folhas (cor e luz separadas, a luz somada para não sujar o chão claro; ~0,7 MB no total) e `public/vfxCamadas.js`;
+  `public/camadasJutsus.js` toca cada uma. Só visual: o servidor não mudou. Passo a passo em `arte/pixelfx/LEIAME.md`.
+- `scripts/ambiente-local.sh` instala as dependências mesmo sem `package-lock.json` (o `npm ci` recusava).
+
 ### v77: animações desenhadas de mais 7 jutsus de Relâmpago (sem migração)
 
 - Investida Elétrica (o redemoinho na mão durante os selos e o cometa elétrico até onde parou), Mãos de Trovão (as garras

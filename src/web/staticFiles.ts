@@ -37,7 +37,9 @@ export const MUSIC_TRACKS = ['musica_calma_1', 'musica_calma_2', 'musica_pvp', '
 export const JUTSU_SPRITES = ['fogo', 'sopro', 'nevoa', 'linha', 'teleporte', 'substituicao'] as const;
 /** v73/v74: os quadros dos jutsus desenhados (Fogo e Cura) (a lista sai de public/vfxFogo.js, gerado por arte/jutsus-vfx/recortar.py). */
 export const FOGO_SPRITE_FRAMES = [...readFileSync(new URL('../../public/vfxFogo.js', import.meta.url), 'utf8').matchAll(/^ {2}((?:fire|heal|lightning)\w*): \{/gm)].map((m) => m[1] ?? '');
-export const JUTSU_SPRITE_FRAMES = [...JUTSU_SPRITES.flatMap((n) => [1, 2, 3].map((i) => `${n}_0${i}`)), ...FOGO_SPRITE_FRAMES];
+/** v78: as camadas do PixelFX que complementam as folhas (a lista sai de public/vfxCamadas.js, gerado por arte/pixelfx/camadas.mjs). */
+export const CAMADAS_FRAMES = [...readFileSync(new URL('../../public/vfxCamadas.js', import.meta.url), 'utf8').matchAll(/^ {2}(pfx_\w+): \{/gm)].map((m) => m[1] ?? '');
+export const JUTSU_SPRITE_FRAMES = [...JUTSU_SPRITES.flatMap((n) => [1, 2, 3].map((i) => `${n}_0${i}`)), ...FOGO_SPRITE_FRAMES, ...CAMADAS_FRAMES];
 
 /** Folhas PNG de public/assets/<pasta>/ (a lista bate com vfxData.js e weaponData.js: test/static.test.ts confere). */
 function sheets(folder: 'vfx' | 'weapons', names: readonly string[]) {
@@ -96,6 +98,9 @@ const FILES = [
   // v73: os 10 jutsus de Fogo desenhados (a tabela dos quadros e as sequências de cada jutsu)
   { route: '/vfxFogo.js', file: 'vfxFogo.js', contentType: 'text/javascript; charset=utf-8' },
   { route: '/fogoAnim.js', file: 'fogoAnim.js', contentType: 'text/javascript; charset=utf-8' },
+  // v78: as camadas do PixelFX por cima das folhas (a tabela das folhas em grade e a coreografia de cada jutsu)
+  { route: '/vfxCamadas.js', file: 'vfxCamadas.js', contentType: 'text/javascript; charset=utf-8' },
+  { route: '/camadasJutsus.js', file: 'camadasJutsus.js', contentType: 'text/javascript; charset=utf-8' },
   // v57: áudio (o gerenciador e as músicas)
   { route: '/audio.js', file: 'audio.js', contentType: 'text/javascript; charset=utf-8' },
   ...MUSIC_TRACKS.map((n) => ({ route: `/assets/audio/${n}.mp3`, file: `assets/audio/${n}.mp3`, contentType: 'audio/mpeg', binary: true as const })),

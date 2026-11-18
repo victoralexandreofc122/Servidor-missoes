@@ -44,6 +44,12 @@ golpe cada quadro aparece. Tudo é **só visual**: o servidor continua decidindo
    `TEST_DATABASE_URL="postgres://postgres@localhost:5433/postgres?host=/var/tmp"`; commit, push e mandar as folhas
    (`folha_<id>.png`) ao Victor, com o que mudou em cada jutsu e o que não foi testado com um ninja de verdade.
 
+## Camadas por cima das folhas (v78)
+
+Cada jutsu desenhado ganha **camadas** do PixelFX (a carga dos selos, anel, poeira, brasas, cruzes, faíscas, choque) em
+`public/camadasJutsus.js`. Ao terminar uma folha nova, acrescente o `case '<id>'` dele lá (o teste cobra) com as camadas
+no tempo dos quadros. O passo a passo e as lições estão em `arte/pixelfx/LEIAME.md`.
+
 ## Lições das folhas já feitas
 
 - O fundo é tirado pela cor dos cantos de cada painel: se o desenho encosta no canto, use `cor_fundo`.

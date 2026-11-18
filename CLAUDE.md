@@ -32,6 +32,9 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v78 (sem migração):** camadas do PixelFX por cima das folhas desenhadas dos 50 jutsus (carga dos selos, anel de fogo,
+  poeira, brasas, luz da cura, runas, cruzes, estalo, choque, faíscas), em `public/camadasJutsus.js`; gerador e efeitos
+  nossos em `arte/pixelfx/` (`LEIAME.md`). Branch `ccr-f46a25fd-4ie1yd` (sobre a `ccr-2afc1981-eq01zm`).
 - **v77 (sem migração):** mais 7 de Relâmpago desenhados (Investida Elétrica, Mãos de Trovão, Rugido do Trovão, Julgamento
   do Trovão, Céu em Fúria, Armadura Relampejante, Risco de Luz).
 - **v76 (sem migração):** 9 jutsus de Relâmpago desenhados (Corrente Rasteira, Impulso Estático, Shuriken do Trovão,
@@ -97,6 +100,10 @@ estão em **`arte/jutsus-vfx/LEIAME.md`**: ler antes de mexer.
   skills), use-a para complementar: mais quadros intermediários, partículas e brilho por cima dos quadros desenhados,
   ou para propor ao Victor como animar os jutsus que ainda não têm folha. A arte do Victor é a base: a skill
   complementa, não troca o desenho dele.
+- **Camadas (v78):** cada folha nova ganha o seu `case` em `public/camadasJutsus.js` (as camadas do PixelFX no tempo dos
+  quadros; o teste cobra). Para gerar ou acrescentar camadas: `arte/pixelfx/LEIAME.md` (clonar o PixelFX e rodar
+  `node arte/pixelfx/camadas.mjs <pasta>`). O servidor guarda os arquivos de `public/` na memória: reinicie
+  (`bash scripts/ambiente-local.sh`) antes de capturar de novo.
 - Nada disso muda o servidor (só visual), salvo um aviso visual quando faltar informação (ex.: o `combo` 'marca').
 
 ## Documentos
@@ -112,6 +119,7 @@ estão em **`arte/jutsus-vfx/LEIAME.md`**: ler antes de mexer.
   arcos regionais, os chefes, as regras de passagem e a ordem de construção.
 - `docs/ui/estrutura-ui-ux-hud.md`: a estrutura de UI, UX e HUD (regra de toda tela nova).
 - `arte/jutsus-vfx/LEIAME.md`: as animações desenhadas dos jutsus (como recortar, tocar e conferir; o que falta).
+- `arte/pixelfx/LEIAME.md`: as camadas do PixelFX por cima das animações desenhadas (gerar, escolher, conferir).
 - `docs/lore/`: a lore (Bíblia do Mundo, fonte única de verdade) e o design do tutorial; a planilha `dialogos.csv` é gerada
   do jogo (`npx tsx scripts/gerar-dialogos.ts`) e o teste confere.
 - `docs/mapas.md`, `docs/endgame.md`, `docs/habilidades.md`, `docs/clima.md`, `docs/netcode.md`.
