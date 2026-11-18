@@ -131,6 +131,14 @@ export class JutsuSprites {
   }
 }
 
+/** v79: desenha um quadro direto (o Golem desenhado no lugar do boneco de código). flip: vira para a esquerda. */
+export function drawJutsuFrame(g, name, sx, sy, T, { scale = 1, alpha = 1, flip = false } = {}) {
+  if (!imgs[name] || !FRAMES[name]) return false;
+  if (!flip) { drawSprite(g, name, sx, sy, T, 0, scale, alpha, 0); return true; }
+  g.save(); g.translate(sx, sy); g.scale(-1, 1); drawSprite(g, name, 0, 0, T, 0, scale, alpha, 0); g.restore();
+  return true;
+}
+
 /**
  * Um quadro. angle: para onde o golpe vai (radianos; a arte é girada a partir da direção em que foi desenhada).
  * flickerNow: > 0 faz o fogo "respirar" (escala e espelho a FLICKER_FPS), já que cada fase tem um quadro só.

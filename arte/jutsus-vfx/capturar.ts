@@ -107,6 +107,32 @@ function PLANOS(X: number, Y: number): Record<string, Plan> {
     heal_milagre: { steps: [[0, C('heal_milagre')], ...zona(9720, 'heal_milagre', 'cura', X, Y, 4, 1500)], shots: [100, 300, 500, 900, 1200, 1700] },
     heal_colosso: { steps: [[0, CS('heal_colosso', 600)], [600, C('heal_colosso', { tx: X + 2, ty: Y })]], shots: [300, 650, 800, 1000, 1300, 1900] },
     heal_4: { steps: [[0, CS('heal_4', 500)], [500, C('heal_4')]], shots: [300, 700, 1200, 2500, 4000, 6000] },
+    // ---- Pedra (v79). '__ME__' vira o id do ninja (o golpe no escudo dele)
+    stone: { steps: [[0, C('stone')], [1500, { type: 'hit', target: 'player', id: '__ME__', amount: 0, kind: 'damage', hp: 100, maxHp: 100, shielded: true }]],
+      shots: [60, 200, 330, 520, 760, 1600] },
+    stone_4: { steps: [[0, C('stone_4')], [1500, { type: 'hit', target: 'player', id: '__ME__', amount: 0, kind: 'damage', hp: 100, maxHp: 100, shielded: true }]],
+      shots: [60, 200, 330, 520, 760, 1600] },
+    stone_resposta: { steps: [[0, C('stone_resposta')], [800, { type: 'hit', target: 'player', id: '__ME__', amount: 0, kind: 'damage', hp: 100, maxHp: 100, shielded: true }]],
+      shots: [60, 180, 500, 860, 950, 1250] },
+    stone_couraca: { steps: [[0, C('stone_couraca')]], shots: [60, 200, 350, 1200, 2500, 3850] },
+    stone_pilares: { steps: [[0, C('stone_pilares', { tx: X + 4, ty: Y })]], shots: [80, 200, 380, 520, 1200, 2050] },
+    stone_rocha: { steps: [[0, C('stone_rocha')], [80, proj(9800, 'stone_rocha', 0, 13, 4)], [390, imp(9800, 'stone_rocha', X + 4.4, Y)]], shots: [60, 200, 330, 450, 650, 1000] },
+    stone_cascalho: { steps: [[0, C('stone_cascalho')], ...[-0.25, 0, 0.25].map((a, i) => [100, proj(9810 + i, 'stone_cascalho', a, 13, 5)] as Step),
+      ...[-0.25, 0, 0.25].map((a, i) => [485, imp(9810 + i, 'stone_cascalho', X + 0.4 + 5 * Math.cos(a), Y + 5 * Math.sin(a))] as Step)], shots: [60, 200, 380, 520, 750, 1100] },
+    stone_punho: { steps: [[0, C('stone_punho')]], shots: [60, 160, 300, 450, 2500, 5200] },
+    stone_pisao: { steps: [[0, C('stone_pisao')]], shots: [40, 120, 260, 450, 700, 1300] },
+    stone_toupeira: { steps: [[0, C('stone_toupeira', { tx: X + 5, ty: Y })]], shots: [60, 160, 300, 460, 640, 1100] },
+    stone_carga: { steps: [[0, CS('stone_carga', 300)], [300, C('stone_carga', { tx: X + 5, ty: Y })]], shots: [200, 380, 500, 680, 880, 1300] },
+    stone_muralha: { steps: [[0, C('stone_muralha', { tx: X + 2.5, ty: Y })], [80, { type: 'barrier', id: 9820, kind: 'rocha', x: X + 2, y: Y - 1.5, w: 1, h: 3, hp: 60, ms: 2400 }],
+      [2480, { type: 'barrier_end', id: 9820 }]], shots: [100, 260, 420, 600, 1500, 2600] },
+    stone_2: { steps: [[0, C('stone_2', { tx: X + 4, ty: Y })], ...zona(9830, 'stone_2', 'lama', X + 4, Y, 3, 3000)], shots: [100, 260, 500, 1300, 2200, 2900] },
+    stone_lancas: { steps: [[0, C('stone_lancas', { tx: X + 4, ty: Y })], ...aviso(9840, 'stone_lancas', X + 4, Y, 2.5, 900)], shots: [300, 700, 900, 1000, 1250, 1700] },
+    stone_avalanche: { steps: chuva('stone_avalanche', 9850), shots: [300, 700, 860, 1100, 1500, 2600] },
+    stone_golem: { steps: [[0, CS('stone_golem', 1200)], [1200, C('stone_golem')],
+      [1260, { type: 'monster_spawned', monster: { id: 'golem1', type: 'golem', x: X + 1.5, y: Y, hp: 80, maxHp: 80 } }],
+      [1300, { type: 'summon', id: 'golem1', ownerId: '__ME__', kind: 'golem', hp: 80, maxHp: 80, ms: 12000 }],
+      [2600, { type: 'summon_punch', id: 'golem1', x: X + 1.5, y: Y, r: 1.5, fx: 1, fy: 0 }], [3600, { type: 'monster_died', id: 'golem1', killerId: '' }]],
+      shots: [1300, 1500, 1800, 2200, 2780, 3700] },
     // ---- exemplos de Cura (zona que anda com quem lançou)
     heal_santuario: { steps: [[0, CS('heal_santuario', 500)], [500, C('heal_santuario')], ...zona(9820, 'heal_santuario', 'cura', X, Y, 2.5, 5000, true).map(([t, m]) => [t + 500, m] as Step)],
       shots: [620, 820, 1100, 2000, 3300, 5500] },
@@ -156,7 +182,7 @@ for (const [skill, plan] of Object.entries(PLANOS(X, Y))) {
       const [sx, sy] = await p.evaluate(() => { const D = (window as any).ninDebug; return D.screenOf(D.meId()); });
       await p.screenshot({ path: `${OUT}/${skill}_${++k}.png`, clip: { x: Math.max(0, sx - 200), y: Math.max(0, sy - 230), width: 760, height: 400 } });
     } else {
-      await p.evaluate((m: any) => { const D = (window as any).ninDebug; m.playerId = D.meId(); if (m.follow === '__ME__') m.follow = D.meId(); D.sim(m); }, ev.m);
+      await p.evaluate((m: any) => { const D = (window as any).ninDebug; m.playerId = D.meId(); for (const k of Object.keys(m)) if (m[k] === '__ME__') m[k] = D.meId(); D.sim(m); }, ev.m);
     }
   }
   console.log(skill, k, 'fotos');

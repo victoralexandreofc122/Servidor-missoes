@@ -27,6 +27,7 @@ const semBoneco = () => { const a = core.stockActor(2); return { ...a, pixels: n
 const FOGO = ['#3a0800', '#7a1000', '#c81800', '#f04000', '#f07000', '#f0a000', '#f0d020', '#fff4a0', '#ffffff'];
 const CURA = ['#0a3018', '#106a28', '#10a030', '#30b050', '#50d070', '#70f080', '#a0f0a0', '#d0f0d0', '#ffffff'];
 const POEIRA = ['#1c1610', '#33281c', '#4f3f2c', '#6e5a40', '#927a58', '#b89f78', '#dcc8a2', '#fff4dc'];   // terra: serve aos três
+const AMBAR = ['#2a1a10', '#5a3a1c', '#8a5a2a', '#c07a30', '#e8a040', '#ffcf70', '#fff0c0', '#ffffff'];   // v79: a luz nas rachas da Pedra
 const RAIO = ['#0a1840', '#0040a0', '#0080f0', '#00a0f0', '#70c8ff', '#f0f040', '#f0f0a0', '#fffff0', '#ffffff'];
 
 /** Casas do jogo por pixel do efeito: perto do pixel das folhas do Victor (0,03 a 0,04 casa por pixel). */
@@ -54,6 +55,10 @@ const CAMADAS = [
   { nome: 'pfx_cura_runas', id: 'arcane/rune-circle', fps: 12, opcoes: { palette: CURA }, sy: 1.4, blend: 'normal' },
   { nome: 'pfx_cura_faisca', id: 'impacts/hit-spark', fps: 20, arte: 0, opcoes: { palette: CURA }, blend: 'normal' },
   { nome: 'pfx_cura_carga', id: 'arcane/spell-charge', fps: 15, foco: [18, -22], opcoes: { palette: CURA }, blend: 'normal' },
+  // ---- Pedra (v79)
+  { nome: 'pfx_pedra_carga', id: 'arcane/spell-charge', fps: 15, foco: [18, -22], opcoes: { palette: AMBAR }, blend: 'normal' },
+  { nome: 'pfx_pedra_chao', id: 'impacts/heavy-landing', fps: 15, ate: 1.2, opcoes: { palette: POEIRA }, sy: 1.3, blend: 'normal' },
+  { nome: 'pfx_pedra_poeira', id: 'heranca/brasas', fps: 15, opcoes: { palette: POEIRA }, blend: 'normal' },
   // ---- Relâmpago
   { nome: 'pfx_raio_faiscas', id: 'heranca/faiscas', fps: 15, opcoes: { palette: RAIO }, blend: 'normal' },
   { nome: 'pfx_raio_choque', id: 'lightning/zap-hit', fps: 20, arte: 0, opcoes: { palette: RAIO }, blend: 'normal' },

@@ -16,11 +16,11 @@ import { jutsuSpritesReady } from './vfxJutsus.js';
 const BASE = { fire: 'fogo', fire_endan: 'sopro', fire_kasumi: 'nevoa', fire_hibashiri: 'linha' };
 const ready = (skill) => !!skill && jutsuSpritesReady(BASE[skill] ?? skill);
 /** O elemento da camada pelo prefixo do jutsu (fire_, heal_, lightning_). */
-const elOf = (skill) => (/^heal/.test(skill) ? 'cura' : /^lightning/.test(skill) ? 'raio' : 'fogo');
+const elOf = (skill) => (/^heal/.test(skill) ? 'cura' : /^lightning/.test(skill) ? 'raio' : /^stone/.test(skill) ? 'pedra' : 'fogo');
 
 // Raio de cada camada em casas (para casar com a área do servidor): o anel de fogo corre 92 px, o de cura, o estalo do
 // trovão e a poeira 104 px; as runas têm ~2 casas; brasas, cruzes e faíscas se espalham ~0,6 casa (× 0,035 casa/px).
-const R = { anelFogo: 3.2, anelCura: 3.64, estalo: 3.64, poeira: 3.64, runas: 2, brasas: 0.63, cruzes: 0.56, faiscas: 0.53 };
+const R = { anelFogo: 3.2, anelCura: 3.64, estalo: 3.64, poeira: 3.64, runas: 2, brasas: 0.63, cruzes: 0.56, faiscas: 0.53, chao: 2.1 };
 
 /** Ida e Volta: onde ficou a runa de cada ninja (para o estalo da volta cair nela). */
 const VOLTA = new Map();
@@ -227,6 +227,48 @@ export function camadasCast(jfx, msg, info, lineEnd, now, follow, whoAt = () => 
       L('pfx_raio_estalo', 0, 0.1, 260, { follow: () => follow(msg.playerId), scale: (info.radius ?? 2.5) / R.estalo, tag });
       return L('pfx_raio_faiscas', 0, 0.1, 600, { ms: dur - 600, follow: () => follow(msg.playerId), tag, scale: 1.4 });
     }
+    // ------------------------------------------------------------------ Pedra (v79)
+    case 'stone':   // Pedra e Coração de Montanha: o chão afunda quando as pedras se juntam
+    case 'stone_4':
+      return L('pfx_pedra_chao', msg.x, msg.y + 0.1, 250, { scale: 0.45 });
+    case 'stone_resposta':   // Resposta da Montanha: o chão afunda quando a guarda sobe
+      return L('pfx_pedra_chao', msg.x, msg.y + 0.1, 250, { scale: 0.45 });
+    case 'stone_couraca': {   // Couraça Mineral: o chão afunda e a poeira sobe da couraça enquanto ela dura
+      const dur = info.durationMs ?? 4000, o = { follow: () => follow(msg.playerId), tag: `couraca:${msg.playerId}` };
+      L('pfx_pedra_chao', msg.x, msg.y + 0.1, 260, { scale: 0.5 });
+      return L('pfx_pedra_poeira', 0, 0.1, 300, { ...o, ms: dur - 300, scale: 1.4, alpha: 0.85 });
+    }
+    case 'stone_pilares': {   // Prisão de Pilares: o chão afunda quando os pilares sobem e a poeira sai quando desmancham
+      const p = on(atId && atId !== msg.playerId ? atId : null, at, 0.2);
+      L('pfx_pedra_chao', p.x, p.y, 290, { ...p.o, scale: 0.6 });
+      return L('pfx_poeira', p.x, p.y, 280 + (info.rootMs ?? 1600), { ...p.o, scale: 0.4 });
+    }
+    case 'stone_rocha':   // Projétil de Rocha e Chuva de Cascalho: o brilho âmbar na mão quando a pedra sai
+    case 'stone_cascalho':
+      return L('pfx_pedra_carga', h.x - 0.1, h.y, 0, { ms: 220, scale: 0.45, rate: 2 });
+    case 'stone_punho': {   // Punho de Rocha: poeira soltando do punho enquanto o buff dura
+      const dur = info.durationMs ?? 5000;
+      return L('pfx_pedra_poeira', msg.fx * 0.4, 0, 400, { ms: dur - 400, follow: () => follow(msg.playerId), tag: `punho:${msg.playerId}`, scale: 1.1 });
+    }
+    case 'stone_pisao': {   // Pisão da Montanha: o chão afunda e a poeira rola até a borda da área
+      const r = info.radius ?? 2.5;
+      L('pfx_pedra_chao', msg.x, msg.y + 0.1, 60, { scale: r / R.chao });
+      return L('pfx_poeira', msg.x, msg.y + 0.1, 200, { scale: r / R.poeira });
+    }
+    case 'stone_toupeira':   // Escavação Furtiva: o chão afunda na saída e a poeira sobe onde ela estoura
+    case 'stone_carga': {   // Carga do Rochedo: o chão afunda na saída e a poeira sobe onde o rochedo quebra
+      if (msg.tx === undefined) return false;
+      L('pfx_pedra_chao', msg.x, msg.y + 0.2, s === 'stone_toupeira' ? 0 : 230, { scale: 0.55 });
+      return L('pfx_poeira', msg.tx, msg.ty + 0.2, s === 'stone_toupeira' ? 540 : 500, { scale: 1.4 / R.poeira });
+    }
+    case 'stone_muralha':   // Muralha de Terra: a poeira sobe onde o muro rompe o chão
+      if (msg.tx === undefined) return false;
+      return L('pfx_poeira', msg.tx, msg.ty + 0.2, 280, { scale: 1.3 / R.poeira, alpha: 0.8 });
+    case 'stone_golem': {   // Golem de Terra Titânico: a poeira quando ele sobe das pedras e o chão afunda quando ele ruge
+      const p = { x: msg.x + msg.fx * 1.5, y: msg.y + msg.fy * 1.5 };
+      L('pfx_poeira', p.x, p.y + 0.2, 380, { scale: 1.4 / R.poeira });
+      return L('pfx_pedra_chao', p.x, p.y + 0.3, 640, { scale: 0.9 });
+    }
     default:
       return false;
   }
@@ -252,6 +294,10 @@ export function camadasImpact(jfx, msg, skill, now, dir = null) {
     case 'lightning_shuriken':   // Shuriken do Trovão: o choque e faíscas
       L('pfx_raio_choque', msg.x, msg.y - 0.3, 0, { angle });
       return L('pfx_raio_faiscas', msg.x, msg.y + 0.2, 80, { ms: 450, scale: 0.8 });
+    case 'stone_rocha':   // Projétil de Rocha: o chão afunda onde a pedra quebra
+      return L('pfx_pedra_chao', msg.x, msg.y + 0.1, 0, { scale: 0.45 });
+    case 'stone_cascalho':   // Chuva de Cascalho: um pouco de poeira por lasca
+      return L('pfx_pedra_chao', msg.x, msg.y + 0.1, 0, { scale: 0.3, alpha: 0.8 });
     case 'lightning_2':   // Farpas de Trovão: um choque pequeno por farpa
       return L('pfx_raio_choque', msg.x, msg.y - 0.3, 0, { angle, scale: 0.6 });
     default:
@@ -314,6 +360,16 @@ export function camadasGround(jfx, msg, now, follow = () => null) {
       }
       return true;
     }
+    case 'stone_2':   // Lamaçal Profundo: o chão cede quando a lama aparece
+      if (aviso) return false;
+      return L('pfx_pedra_chao', msg.x, msg.y, 0, { scale: r / R.chao, layer: 'ground' });
+    case 'stone_lancas':   // Lanças da Terra: o chão afunda e a poeira sobe quando as lanças rompem
+      if (!aviso) return false;
+      L('pfx_pedra_chao', msg.x, msg.y, ms - 40, { scale: r / R.chao });
+      return L('pfx_poeira', msg.x, msg.y, ms + 60, { scale: (r * 0.9) / R.poeira, alpha: 0.85 });
+    case 'stone_avalanche':   // Avalanche: cada rocha afunda o chão onde cai
+      if (!aviso) return false;
+      return L('pfx_pedra_chao', msg.x, msg.y, ms, { scale: (r * 1.2) / R.chao });
     case 'lightning_4':   // Julgamento do Trovão: o raio cai e o trovão estoura na área toda, com poeira
       if (!aviso) return false;
       L('pfx_raio_estalo', msg.x, msg.y + 0.1, ms + 40, { scale: r / R.estalo });

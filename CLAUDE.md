@@ -32,6 +32,9 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   aumenta a cura, item Shuriken (consumível, botão ✴️), invocações andam até o alvo e socam (Sentinela de Sombra e Arsenal
   Vivo com desenho próprio). v54: curas e escudos com valor fixo (sem % da vida), Cura rebalanceada, Cegueira como estado
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
+- **v79 (sem migração):** os 16 jutsus da Pedra desenhados pelo Victor (o Golem desenhado anda e soca, o escudo quebra no
+  golpe, a Resposta devolve, o muro gira para o eixo da parede) e as camadas de Pedra (carga âmbar, chão afundando,
+  poeira). Recorte com fundo pintado no painel (`inundar`). Faltam o Esmagamento de Paredes e o Sumidouro.
 - **v78 (sem migração):** camadas do PixelFX por cima das folhas desenhadas dos 50 jutsus (carga dos selos, anel de fogo,
   poeira, brasas, luz da cura, runas, cruzes, estalo, choque, faíscas), em `public/camadasJutsus.js`; gerador e efeitos
   nossos em `arte/pixelfx/` (`LEIAME.md`). Mesclado (PR #48, junto com a v71 a v77).
@@ -85,9 +88,9 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
 
 ## Animações dos jutsus (folhas do Victor): como continuar numa aba nova
 
-O Victor manda folhas de 6 quadros (fundo verde ou magenta) e cada uma vira a animação de um jutsu. **Feitos 50** (todo o
-Fogo, toda a Cura e 16 de Relâmpago, v56 e v73 a v77); **faltam 149** (Água, Vento, Pedra, Sombra, Ilusão, Taijutsu,
-Armas, Relâmpago e Aura de Regeneração, e os clãs). A lista completa, com o id e a forma de cada um, e o passo a passo
+O Victor manda folhas de 6 quadros (fundo verde ou magenta) e cada uma vira a animação de um jutsu. **Feitos 66** (todo o
+Fogo, toda a Cura, 16 de Relâmpago e 16 da Pedra, v56 e v73 a v79); **faltam 134** (Água, Vento, Sombra, Ilusão, Taijutsu,
+Armas, 2 da Pedra, Relâmpago e Aura de Regeneração, e os clãs). A lista completa, com o id e a forma de cada um, e o passo a passo
 estão em **`arte/jutsus-vfx/LEIAME.md`**: ler antes de mexer.
 
 - **Começo da sessão:** `bash scripts/ambiente-local.sh` (Postgres local na 5433, banco `jogo` com todas as migrações,

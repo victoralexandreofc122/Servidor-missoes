@@ -11,6 +11,9 @@ import { jutsuSpritesReady } from './vfxJutsus.js';
 const ready = (skill) => jutsuSpritesReady(skill);
 /** Ida e Volta: a runa marcada de cada ninja (até usar de novo ou acabar o tempo). */
 const VOLTA = new Map();
+/** v79: quem está com o escudo de Pedra / Coração de Montanha (o jutsu) e quem está em guarda na Resposta da Montanha (até quando). */
+const ESCUDO = new Map();
+const RESPOSTA = new Map();
 /** Um pouco à frente da mão de quem lançou (em casas). */
 const hand = (msg, d = 0.35) => ({ x: msg.x + msg.fx * d, y: msg.y + msg.fy * d - 0.15 });
 
@@ -334,6 +337,87 @@ export function fogoCast(jfx, msg, info, lineEnd, now, follow, whoAt = () => nul
         ['05', 480, 260], ['06', 720, 700, { fadeOut: 450 }]], { angle, len });
       return true;
     }
+    // ------------------------------------------------------------------ Pedra (v79)
+    case 'stone':   // Pedra: a pedra rola em volta, as pedras se juntam no anel, viram o escudo rachado e brilham
+    case 'stone_4': {   // Coração de Montanha: a runa, o brilho, a esfera de pedra se fecha e acende
+      const o = { follow: () => follow(msg.playerId), tag: `escudo:${msg.playerId}` };
+      jfx.drop(o.tag);
+      ESCUDO.set(msg.playerId, s);
+      seq(jfx, s, 0, -0.5, now, [['01', 0, 130], ['02', 110, 170], ['03', 260, 220], ['04', 460, 240], ['05', 680, 380, { fadeOut: 260 }]], o);
+      return true;
+    }
+    case 'stone_resposta': {   // Resposta da Montanha: o disco, a rocha sobe, o escudo fica em guarda (o troco vem no `hit`)
+      const ms = info.counterMs ?? 1500;
+      const o = { follow: () => follow(msg.playerId), tag: `resposta:${msg.playerId}` };
+      jfx.drop(o.tag);
+      RESPOSTA.set(msg.playerId, now + ms);
+      seq(jfx, s, 0, -0.5, now, [['01', 0, 130], ['02', 110, 170], ['03', 260, Math.max(200, ms - 260), { fadeOut: 120 }], ['06', ms, 500, { fadeOut: 330 }]], o);
+      return true;
+    }
+    case 'stone_couraca': {   // Couraça Mineral: o brilho, os cristais sobem, fecham a couraça; ela fica (meio transparente) e estoura
+      const dur = info.durationMs ?? 4000;
+      const o = { follow: () => follow(msg.playerId), tag: `couraca:${msg.playerId}` };
+      jfx.drop(o.tag);
+      const steps = [['01', 0, 140], ['02', 120, 170], ['03', 270, 230]];
+      for (let t = 480, i = 0; t < dur - 300; t += 420, i++) steps.push([i % 2 ? '05' : '04', t, 460, { alpha: 0.6 }]);
+      steps.push(['06', dur - 300, 520, { fadeOut: 360 }]);
+      seq(jfx, s, 0, -0.45, now, steps, o);
+      return true;
+    }
+    case 'stone_pilares': {   // Prisão de Pilares: o anel no chão, ele racha, os pilares sobem e se fecham no alvo, depois desmancham
+      const id = atId && atId !== msg.playerId ? atId : null;
+      const root = info.rootMs ?? 1600;
+      const o = id ? { follow: () => follow(id), tag: `pilares:${id}` } : {};
+      const x0 = id ? 0 : at.x, y0 = id ? 0 : at.y;
+      seq(jfx, s, x0, y0 + 0.15, now, [['01', 0, 160, { layer: 'ground' }], ['02', 140, 180, { layer: 'ground' }]], o);
+      seq(jfx, s, x0, y0 + 0.5, now, [['03', 300, 170], ['04', 450, 200], ['05', 630, Math.max(200, root - 330)], ['06', 300 + root, 520, { fadeOut: 360 }]], o);
+      return true;
+    }
+    case 'stone_rocha':   // Projétil de Rocha: a pedra junta na mão; voa com o `projectile`
+      seq(jfx, s, h.x, h.y - 0.1, now, [['01', 0, 150, { scale: 0.7 }]]);
+      return true;
+    case 'stone_cascalho':   // Chuva de Cascalho: as três lascas na mão crescem; voam com o `projectile`
+      seq(jfx, s, h.x, h.y - 0.1, now, [['01', 0, 110, { scale: 0.7 }], ['02', 90, 130, { scale: 0.7 }]]);
+      return true;
+    case 'stone_punho': {   // Punho de Rocha: as pedras giram, fecham o anel, o punho se forma na mão e fica nela durante o buff
+      const dur = info.durationMs ?? 5000;
+      const tag = `punho:${msg.playerId}`;
+      jfx.drop(tag);
+      const o = { follow: () => follow(msg.playerId), tag, scale: 0.55 };
+      seq(jfx, s, msg.fx * 0.4, msg.fy * 0.4 - 0.35, now, [['01', 0, 120], ['02', 100, 150], ['03', 230, 180], ['04', 390, 220],
+        ['05', 590, Math.max(200, dur - 590)], ['06', dur, 500, { fadeOut: 330 }]], o);
+      return true;
+    }
+    case 'stone_pisao': {   // Pisão da Montanha: o chão racha nos pés, explode em volta, as pontas sobem, a poeira e o anel rachado
+      const sc = (info.radius ?? 2.5) / 0.95;
+      seq(jfx, s, msg.x, msg.y + 0.1, now, [['01', 0, 100, { layer: 'ground', scale: 1 }], ['02', 80, 150, { layer: 'ground', scale: sc * 0.6 }],
+        ['03', 210, 200, { scale: sc }], ['04', 390, 260, { scale: sc }], ['05', 630, 320, { scale: sc }], ['06', 920, 900, { layer: 'ground', scale: sc, fadeOut: 600 }]]);
+      return true;
+    }
+    case 'stone_toupeira':   // Escavação Furtiva: o monte na saída, a racha corre, o túnel, o monte chega, estoura e deixa a cratera
+    case 'stone_carga': {   // Carga do Rochedo: as pedras giram, viram o rochedo, ele rola até onde parou, quebra e levanta poeira
+      if (msg.tx === undefined) return false;
+      const ex = msg.tx, ey = msg.ty;
+      const d = Math.max(0.8, Math.hypot(ex - msg.x, ey - msg.y));
+      const a = Math.atan2(ey - msg.y, ex - msg.x);
+      if (s === 'stone_toupeira') {
+        seq(jfx, s, msg.x, msg.y + 0.35, now, [['01', 0, 170]]);
+        seq(jfx, s, ex, ey + 0.35, now, [['02', 90, 160, { angle: a, len: d, layer: 'ground' }], ['03', 230, 200, { angle: a, len: d, layer: 'ground' }],
+          ['04', 410, 170, { angle: a }]]);
+        seq(jfx, s, ex, ey + 0.35, now, [['05', 560, 260], ['06', 800, 800, { fadeOut: 500 }]]);
+      } else {
+        seq(jfx, s, msg.x, msg.y - 0.4, now, [['01', 0, 140], ['02', 120, 140], ['03', 240, 110]]);
+        seq(jfx, s, ex, ey - 0.4, now, [['04', 330, 200, { angle: a, len: Math.min(d, 2.4) }], ['05', 520, 260], ['06', 760, 700, { fadeOut: 450 }]]);
+      }
+      return true;
+    }
+    case 'stone_golem': {   // Golem de Terra Titânico: o círculo de runas racha e o golem sobe das pedras (depois anda e soca com o desenho dele, no game.js)
+      jfx.drop(`golem:${msg.playerId}`);
+      const p = { x: msg.x + msg.fx * 1.5, y: msg.y + msg.fy * 1.5 };
+      seq(jfx, s, p.x, p.y + 0.2, now, [['01', 0, 160, { layer: 'ground', scale: 0.9 }], ['02', 140, 260, { layer: 'ground', scale: 0.9 }],
+        ['03', 380, 320, { layer: 'ground', scale: 0.9, fadeOut: 200 }]]);
+      return true;
+    }
     default:
       return false;
   }
@@ -371,6 +455,8 @@ export function fogoProjectileFrame(msg) {
   if (msg.skill === 'heal_septica' && ready('heal_septica')) return 'heal_septica_03';
   if (msg.skill === 'fire_2' && ready('fire_2')) return 'fire_2_04b';
   if (msg.skill === 'fire_hotan' && ready('fire_hotan')) return 'fire_hotan_03';
+  if (msg.skill === 'stone_rocha' && ready('stone_rocha')) return 'stone_rocha_03';   // v79: a pedra com o borrão da velocidade
+  if (msg.skill === 'stone_cascalho' && ready('stone_cascalho')) return 'stone_cascalho_04b';   // v79: uma lasca com o rastro de poeira
   return null;
 }
 
@@ -397,6 +483,14 @@ export function fogoImpact(jfx, msg, skill, now) {
     const sc = Math.max(0.6, (msg.r || 2) / 2);
     seq(jfx, 'fire_hotan', msg.x, msg.y, now, [['04', 0, 150, { flicker: true }], ['05', 110, 360, { grow: 0.1 }],
       ['06', 420, 700, { fadeOut: 450, grow: 0.15 }]], { scale: sc });
+    return true;
+  }
+  if (skill === 'stone_rocha' && ready('stone_rocha')) {   // v79: a pedra se parte e vira um monte de poeira
+    seq(jfx, 'stone_rocha', msg.x, msg.y - 0.2, now, [['05', 0, 220, { scale: 0.75 }], ['06', 200, 700, { scale: 0.7, fadeOut: 450 }]]);
+    return true;
+  }
+  if (skill === 'stone_cascalho' && ready('stone_cascalho')) {   // v79: a lasca crava no chão e sobe poeira
+    seq(jfx, 'stone_cascalho', msg.x, msg.y, now, [['05b', 0, 260], ['06b', 230, 650, { fadeOut: 420 }]]);
     return true;
   }
   return false;
@@ -475,6 +569,29 @@ export function fogoGround(jfx, msg, now, follow = () => null) {
     seq(jfx, 'fire_haiseki', msg.x, msg.y, now, [['04', ms, 260, { flicker: true }], ['05', ms + 200, 380, { flicker: true }], ['06', ms + 520, 700, { fadeOut: 450 }]], { scale: sc });
     return true;
   }
+  if (msg.skill === 'stone_2' && msg.kind !== 'aviso' && ready('stone_2')) {
+    // v79: Lamaçal Profundo: a poça cresce, ferve (bolhas e pedras afundando) enquanto a zona dura e seca rachada no fim
+    const ms = msg.ms ?? 4000, sc = (msg.r ?? 3) / 0.95;
+    const steps = [['01', 0, 180], ['02', 160, 220], ['03', 360, 280]];
+    for (let t = 620, i = 0; t < ms - 450; t += 380, i++) steps.push([['04', '05', '03'][i % 3], t, 420]);
+    steps.push(['06', ms - 450, 900, { fadeOut: 600 }]);
+    seq(jfx, 'stone_2', msg.x, msg.y, now, steps, { scale: sc, layer: 'ground', tag: `lama:${msg.id}` });
+    return true;
+  }
+  if (msg.skill === 'stone_lancas' && msg.kind === 'aviso' && ready('stone_lancas')) {
+    // v79: Lanças da Terra: o anel vermelho e o chão rachando no aviso; no fim as lanças sobem, ficam e afundam
+    const ms = msg.ms ?? 900, sc = (msg.r ?? 2.5) / 1.47;
+    seq(jfx, 'stone_lancas', msg.x, msg.y, now, [['01', 0, ms * 0.5, { layer: 'ground', fadeIn: 100 }], ['02', ms * 0.45, ms * 0.6, { layer: 'ground' }],
+      ['03', ms - 60, 130], ['04', ms + 50, 220], ['05', ms + 250, 320], ['06', ms + 540, 800, { fadeOut: 500 }]], { scale: sc });
+    return true;
+  }
+  if (msg.skill === 'stone_avalanche' && msg.kind === 'aviso' && ready('stone_avalanche')) {
+    // v79: Avalanche: uma rocha por aviso cai do alto no fim dele (a lasca da Chuva de Cascalho) e deixa a cratera com poeira
+    const ms = msg.ms ?? 900, sc = ((msg.r ?? 1.3) * 2) / 2.2, fall = Math.min(380, ms * 0.5), h = 5;
+    if (ready('stone_cascalho')) jfx.launch(`aval:${msg.id}`, 'stone_cascalho_03b', msg.x, msg.y - h, 0, 1, h / (fall / 1000), h, now + ms - fall, 0);
+    seq(jfx, 'stone_avalanche', msg.x, msg.y, now, [[Number(msg.id) % 2 ? '01' : '02', ms, 1500, { scale: sc, layer: 'ground', fadeIn: 40, fadeOut: 800 }]]);
+    return true;
+  }
   if (msg.skill === 'fire_chao' && msg.kind !== 'aviso' && ready('fire_chao')) {
     const sc = (msg.r ?? 2.5) / 2.5, ms = msg.ms ?? 4000;
     const g = { scale: sc, layer: 'ground', tag: `chao:${msg.id}` };
@@ -505,4 +622,52 @@ export function fogoDetona(jfx, id, now, follow) {
   const o = { follow: () => follow(id), tag: `marca:${id}` };
   seq(jfx, 'fire_marca', 0, -0.9, now, [['05', 0, 220, { scale: 1.8, flicker: true }], ['06', 200, 500, { scale: 1.3, fadeOut: 350 }]], o);
   return true;
+}
+
+/** v79: Muralha de Terra (mensagem `barrier`, kind 'rocha'): as pedras, a racha, o muro sobe e fica até o fim; a caixa do servidor
+ * é o muro de verdade (de pé ou deitado), então o desenho gira para o eixo dela e cresce até o comprimento dela. */
+export function fogoBarrier(jfx, msg, now) {
+  if (msg.kind !== 'rocha' || !ready('stone_muralha')) return false;
+  const len = Math.max(msg.w, msg.h), cx = msg.x + msg.w / 2, cy = msg.y + msg.h / 2;
+  const angle = msg.w >= msg.h ? 0 : Math.PI / 2, sc = len / 2;
+  const ms = msg.ms ?? 5000;
+  seq(jfx, 'stone_muralha', cx, cy, now, [['01', 0, 150], ['02', 130, 180, { layer: 'ground' }], ['03', 290, 180], ['04', 450, 200],
+    ['05', 630, Math.max(300, ms - 630), { fadeOut: 80 }]], { angle, scale: sc, tag: `muro:${msg.id}` });
+  return true;
+}
+
+/** O muro caiu ou acabou: ele desmancha em pedra e poeira. */
+export function fogoBarrierEnd(jfx, b, now) {
+  if (!b || b.kind !== 'rocha' || !ready('stone_muralha')) return false;
+  jfx.drop(`muro:${b.id}`);
+  const len = Math.max(b.w, b.h);
+  seq(jfx, 'stone_muralha', b.x + b.w / 2, b.y + b.h / 2, now, [['06', 0, 700, { fadeOut: 450 }]], { angle: b.w >= b.h ? 0 : Math.PI / 2, scale: len / 2 });
+  return true;
+}
+
+/** v79: um golpe bateu num escudo (`hit` com shielded): a Resposta da Montanha devolve (o escudo brilha e estoura) ou o
+ * escudo de Pedra / Coração de Montanha se quebra. Devolve true quando desenhou. */
+export function fogoEscudoHit(jfx, id, now, follow) {
+  const o = (tag) => ({ follow: () => follow(id), tag });
+  const resp = RESPOSTA.get(id);
+  if (resp && now <= resp + 100 && ready('stone_resposta')) {
+    RESPOSTA.delete(id);
+    jfx.drop(`resposta:${id}`);
+    seq(jfx, 'stone_resposta', 0, -0.5, now, [['04', 0, 140], ['05', 120, 320, { scale: 1.2 }], ['06', 420, 500, { fadeOut: 330 }]], o(`resposta:${id}`));
+    return true;
+  }
+  const esc = ESCUDO.get(id);
+  if (esc && ready(esc)) {
+    ESCUDO.delete(id);
+    jfx.drop(`escudo:${id}`);
+    seq(jfx, esc, 0, -0.5, now, [['05', 0, 90], ['06', 70, 600, { fadeOut: 420 }]], o(`escudo:${id}`));
+    return true;
+  }
+  return false;
+}
+
+/** v79: o Golem de Terra Titânico acabou (some): o golem com as pedras soltando, desmanchando. */
+export function fogoGolemFim(jfx, m, now) {
+  if (!m || m.type !== 'golem' || !ready('stone_golem')) return false;
+  return jfx.show('stone_golem_06', m.x, m.y + 0.3, now, 700, { fadeIn: 0, fadeOut: 600, grow: -0.1 });
 }
