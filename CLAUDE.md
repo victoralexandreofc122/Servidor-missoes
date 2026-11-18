@@ -18,7 +18,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   `public/figure.js` cache e giro). Detalhes em `arte/personagem-rig/LEIAME.md`. O estilo segue a folha de referência
   do Victor (chibi, contorno escuro, sombreado em 2-3 tons). Toda mudança de arte é comparada lado a lado com a
   referência e conferida dentro do jogo antes de fechar.
-- **Versão atual:** v72 no branch `ccr-2afc1981-eq01zm`; a `main` tem até a v70 (PRs #33 a #47). **Banco:** todas as
+- **Versão atual:** v78 na `main` (PRs #33 a #48; o #48 trouxe a v71 a v78, as animações desenhadas e as camadas do PixelFX). **Banco:** todas as
   migrações até a **v40** rodaram no `production` do Neon (confirmado pelo Victor em 17/11/2026); nenhuma pendente.
   Jutsus v2 com 96 jutsus (10 classes, Vento nova, e o Clã Rubro), mais os 74 da Fase 2.5 e os 16 dos clãs novos;
   conjuração, sistemas próprios (muros, invocações, escuridão...), clãs por linhagem, Extração e maestria, rankeado 1v1 e
@@ -34,7 +34,7 @@ Victor: ele escreve em português e quer as respostas em português do Brasil.
   (perde o alvo), Duplo de Água bate. Mesclado (PR #34; a v32 rodou no Neon).
 - **v78 (sem migração):** camadas do PixelFX por cima das folhas desenhadas dos 50 jutsus (carga dos selos, anel de fogo,
   poeira, brasas, luz da cura, runas, cruzes, estalo, choque, faíscas), em `public/camadasJutsus.js`; gerador e efeitos
-  nossos em `arte/pixelfx/` (`LEIAME.md`). Branch `ccr-f46a25fd-4ie1yd` (sobre a `ccr-2afc1981-eq01zm`).
+  nossos em `arte/pixelfx/` (`LEIAME.md`). Mesclado (PR #48, junto com a v71 a v77).
 - **v77 (sem migração):** mais 7 de Relâmpago desenhados (Investida Elétrica, Mãos de Trovão, Rugido do Trovão, Julgamento
   do Trovão, Céu em Fúria, Armadura Relampejante, Risco de Luz).
 - **v76 (sem migração):** 9 jutsus de Relâmpago desenhados (Corrente Rasteira, Impulso Estático, Shuriken do Trovão,
